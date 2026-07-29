@@ -5,14 +5,32 @@
     .offcanvas-overlay {
         position: fixed; top:0; left:0; width:100%; height:100vh;
         background: rgba(0,0,0,0.55); z-index:999; display:none;
+        backdrop-filter: blur(4px);
     }
     .offcanvas-panel {
-        position: fixed; top:0; right:-450px; width:420px; max-width:100vw;
-        height:100vh; background: var(--bg-card); z-index:1000;
-        box-shadow: -6px 0 24px rgba(0,0,0,0.6);
-        transition: right 0.3s ease;
-        display: flex; flex-direction: column;
-        border-left: 3px solid var(--primary);
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.95);
+        width: 1100px;
+        max-width: 95vw;
+        height: 90vh;
+        max-height: 850px;
+        background: var(--bg-card);
+        z-index: 1000;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        opacity: 0;
+        pointer-events: none;
+    }
+    .offcanvas-panel.open {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+        pointer-events: auto;
     }
     .tag {
         display: inline-block; padding: 3px 9px; border-radius: 10px;
@@ -21,6 +39,61 @@
     th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
     td { font-size: 12px; }
     tr:hover td { background: rgba(99,102,241,0.06); }
+
+    /* Estilos para Pestañas del Panel */
+    .panel-tab-btn {
+        transition: all 0.2s ease;
+    }
+    .panel-tab-btn.active {
+        color: var(--primary) !important;
+        border-bottom-color: var(--primary) !important;
+        background: rgba(99, 102, 241, 0.05) !important;
+    }
+    .panel-tab-btn:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Estilos para Timeline / Historial */
+    .timeline-item {
+        position: relative;
+        padding-left: 18px;
+        margin-bottom: 4px;
+    }
+    .timeline-dot {
+        position: absolute;
+        left: -15px;
+        top: 4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 2px solid var(--bg-card);
+    }
+    .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    .timeline-time {
+        font-size: 10px;
+        color: var(--text-muted);
+    }
+    .timeline-gestor {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+    .timeline-comment {
+        font-size: 11px;
+        color: var(--text-muted);
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255,255,255,0.05);
+        padding: 8px 10px;
+        border-radius: 6px;
+        margin-top: 4px;
+        white-space: pre-wrap;
+        line-height: 1.4;
+    }
 </style>
 
 <!-- CABECERA -->
@@ -58,105 +131,212 @@
         </h3>
         <button type="button" style="background:none; border:none; color:var(--text-muted); font-size:26px; cursor:pointer; line-height:1;" onclick="togglePanel(false)">&times;</button>
     </div>
-    <div style="padding:16px 20px; overflow-y:auto; flex:1;">
-        <form id="form-incidencia">
-            <input type="hidden" id="edit_id" value="">
-            <div style="display:flex; flex-direction:column; gap:12px;">
-                <div class="form-group">
-                    <label>Número de Ticket</label>
-                    <input type="text" id="numero_ticket" required placeholder="Ej. INC-2001" onblur="buscarTicketExistente(this.value)">
-                </div>
-                <div class="form-group">
-                    <label>Fecha y Hora del Ticket <span style="color:var(--text-muted); font-size:11px;">(la que indica el sistema del cliente)</span></label>
-                    <input type="datetime-local" id="fecha_ticket" required>
-                </div>
-                <div class="form-group">
-                    <label>Proyecto</label>
-                    <select id="proyecto" required>
-                        <option value="">Seleccione...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Servicio</label>
-                    <select id="servicio" required>
-                        <option value="">Seleccione...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Estado del Ticket</label>
-                    <select id="estado" required>
-                        <option value="">Seleccione...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Departamento</label>
-                    <select id="departamento" required>
-                        <option value="">Seleccione...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Ciudad</label>
-                    <input type="text" id="ciudad" placeholder="Ej. Arequipa">
-                </div>
-                
-                <div class="form-group">
-                    <label>Site Name</label>
-                    <input type="text" id="site_name" placeholder="Escribe Site Name...">
+
+    <!-- Pestañas del Panel (Solo se muestran en edición) -->
+    <div style="display:flex; border-bottom:1px solid var(--border); background:rgba(0,0,0,0.15); flex-shrink:0;" id="panel-tabs-bar">
+        <button type="button" class="panel-tab-btn active" id="tab-btn-datos" onclick="switchPanelTab('datos')" style="flex:1; padding:12px; background:none; border:none; border-bottom:2px solid var(--primary); color:var(--text-main); font-weight:600; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Datos
+        </button>
+        <button type="button" class="panel-tab-btn" id="tab-btn-historial" onclick="switchPanelTab('historial')" style="flex:1; padding:12px; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-muted); font-weight:600; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px; display:none;">
+            <i data-lucide="clock" style="width:14px;height:14px;"></i> Historial
+        </button>
+    </div>
+
+    <div style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column;">
+        
+        <!-- Pestaña 1: Formulario de Datos -->
+        <div id="panel-tab-datos-content" style="display:block; flex:1;">
+            <form id="form-incidencia">
+                <input type="hidden" id="edit_id" value="">
+                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px;">
+                    
+                    <!-- Fila 1 -->
+                    <div class="form-group">
+                        <label>Número de Ticket</label>
+                        <input type="text" id="numero_ticket" required placeholder="Ej. INC-2001" onblur="buscarTicketExistente(this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha y Hora del Ticket <span style="color:var(--text-muted); font-size:11px;">(del sistema cliente)</span></label>
+                        <input type="datetime-local" id="fecha_ticket" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Proyecto</label>
+                        <select id="proyecto" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+
+                    <!-- Fila 2 -->
+                    <div class="form-group">
+                        <label>Servicio</label>
+                        <select id="servicio" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                        <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block; line-height: 1.3;">
+                            <i data-lucide="info" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;"></i>
+                            Los montos aprobados y gastados están siempre visibles para su registro.
+                        </span>
+                    </div>
+                    <div class="form-group">
+                        <label>Estado del Ticket</label>
+                        <select id="estado" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>SLA</label>
+                        <select id="sla" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+
+                    <!-- Fila 3 -->
+                    <div class="form-group">
+                        <label>Departamento</label>
+                        <select id="departamento" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Ciudad</label>
+                        <input type="text" id="ciudad" placeholder="Ej. Arequipa">
+                    </div>
+                    <div class="form-group">
+                        <label>Site Name</label>
+                        <input type="text" id="site_name" placeholder="Escribe Site Name...">
+                    </div>
+
+                    <!-- Fila 4 -->
+                    <div class="form-group">
+                        <label>Técnico Asignado</label>
+                        <input type="text" id="tecnico_asignado" placeholder="Nombre del Técnico" style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main); border-radius:6px; box-sizing:border-box;">
+                    </div>
+                    <div class="form-group">
+                        <label>Contrata</label>
+                        <select id="contrata" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                    <div></div> <!-- Espacio vacío para rellenar la fila en grid -->
+                    
+                    <!-- Sección dinámica para Cotización (Ocupa las tres columnas) -->
+                    <div id="seccion-cotizacion" style="grid-column: span 3; padding:16px; border:1px dashed var(--primary); border-radius:6px; background:rgba(99,102,241,0.03); margin-top:4px; display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Monto Aprobado</label>
+                            <input type="number" step="0.01" id="monto_aprobado" placeholder="Ej. 1200.00" style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main); border-radius:6px; box-sizing:border-box;">
+                        </div>
+                        <div class="form-group" style="margin-bottom:0;">
+                            <label>Monto Gastado</label>
+                            <input type="number" step="0.01" id="monto_gastado" placeholder="Ej. 950.50" style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main); border-radius:6px; box-sizing:border-box;">
+                        </div>
+                    </div>
+                    
+                    <!-- Campos de ancho completo (span 3) -->
+                    <div class="form-group" style="grid-column: span 3;">
+                        <label>Descripción</label>
+                        <textarea id="descripcion" rows="3" required placeholder="Detalla el problema..."
+                            style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border);
+                                   color:var(--text-main); border-radius:6px; box-sizing:border-box; font-family:inherit; resize:vertical;"></textarea>
+                    </div>
+                    <div class="form-group" style="grid-column: span 3;">
+                        <label>Evidencia Fotográfica (Hasta 5 fotos, Opcional)</label>
+                        <input type="file" id="evidencia_file" accept="image/*" multiple style="padding:6px;">
+                        <div id="evidencia_preview" style="font-size: 11px; margin-top: 4px; color: var(--primary);"></div>
+                    </div>
+                    
+
                 </div>
 
-                <div class="form-group">
-                    <label>Técnico Asignado</label>
-                    <input type="text" id="tecnico_asignado" placeholder="Nombre del Técnico">
+                <!-- Sección Aprobar/Rechazar: visible solo para Admin/Supervisor en edición de COTIZACION -->
+                <div id="seccion-aprobacion" style="display:none; margin-top:16px; padding:14px 16px; border:1px solid rgba(99,102,241,0.35); border-radius:8px; background:rgba(99,102,241,0.05);">
+                    <div style="font-size:12px; font-weight:600; color:var(--primary); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+                        <i data-lucide="shield-check" style="width:14px;height:14px;"></i>
+                        Acción de Supervisor — Cotización
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button type="button" class="btn" id="btn-aprobar-panel"
+                            style="flex:1; justify-content:center; font-size:13px; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.4);"
+                            onclick="abrirConfirmacionPanel('aprobar')">
+                            <i data-lucide="check-circle" style="width:15px;height:15px;"></i> Aprobar
+                        </button>
+                        <button type="button" class="btn" id="btn-rechazar-panel"
+                            style="flex:1; justify-content:center; font-size:13px; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.4);"
+                            onclick="abrirConfirmacionPanel('rechazar')">
+                            <i data-lucide="x-circle" style="width:15px;height:15px;"></i> Rechazar
+                        </button>
+                    </div>
+                    <!-- Mini formulario de confirmación (inline) -->
+                    <div id="panel-confirm-box" style="display:none; margin-top:12px; padding:12px; background:rgba(0,0,0,0.15); border-radius:6px; border:1px solid var(--border);">
+                        <div id="panel-confirm-monto-wrap" style="margin-bottom:10px;">
+                            <label style="font-size:12px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:4px;">Monto a Aprobar (S/)</label>
+                            <input type="number" step="0.01" id="panel-confirm-monto"
+                                style="width:100%; padding:8px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-size:13px;"
+                                placeholder="Ej. 1200.00">
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <label style="font-size:12px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:4px;">Comentario (opcional)</label>
+                            <textarea id="panel-confirm-comentario" rows="2"
+                                style="width:100%; padding:8px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-family:inherit; font-size:12px; resize:vertical;"
+                                placeholder="Motivo de aprobación o rechazo..."></textarea>
+                        </div>
+                        <div style="display:flex; gap:8px; justify-content:flex-end;">
+                            <button type="button" class="btn"
+                                style="font-size:12px; padding:6px 14px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main);"
+                                onclick="cerrarConfirmacionPanel()">Cancelar</button>
+                            <button type="button" class="btn" id="btn-panel-confirmar"
+                                style="font-size:12px; padding:6px 14px;"
+                                onclick="ejecutarAccionPanel()">
+                                <i data-lucide="check" style="width:13px;height:13px;"></i> Confirmar
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Contrata</label>
-                    <select id="contrata" required>
-                        <option value="">Seleccione...</option>
-                    </select>
+
+                <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:16px;">
+                    <button type="button" class="btn"
+                        style="background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main);"
+                        onclick="togglePanel(false)">Cancelar</button>
+                    <button type="submit" class="btn" id="btn-guardar">
+                        <i data-lucide="save" style="width:15px;height:15px;"></i> Registrar
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label>SLA</label>
-                    <select id="sla" required>
-                        <option value="">Seleccione...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Descripción</label>
-                    <textarea id="descripcion" rows="3" required placeholder="Detalla el problema..."
-                        style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border);
-                               color:var(--text-main); border-radius:6px; box-sizing:border-box; font-family:inherit; resize:vertical;"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Evidencia Fotográfica (Hasta 5 fotos, Opcional)</label>
-                    <input type="file" id="evidencia_file" accept="image/*" multiple style="padding:6px;">
-                    <div id="evidencia_preview" style="font-size: 11px; margin-top: 4px; color: var(--primary);"></div>
-                </div>
+            </form>
+        </div>
+
+        <!-- Pestaña 2: Historial (Timeline) -->
+        <div id="panel-tab-historial-content" style="display:none; flex:1;">
+            <div id="timeline-container" style="display:flex; flex-direction:column; gap:16px; position:relative; padding-left:14px; margin-top:8px;">
+                <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
+                <!-- Timeline items insertados dinámicamente -->
             </div>
-            <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end;">
-                <button type="button" class="btn"
-                    style="background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main);"
-                    onclick="togglePanel(false)">Cancelar</button>
-                <button type="submit" class="btn" id="btn-guardar">
-                    <i data-lucide="save" style="width:15px;height:15px;"></i> Registrar
-                </button>
-            </div>
-        </form>
+        </div>
+
     </div>
 </div>
 
 <!-- TABLA -->
 <div class="glass" style="padding:20px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-        <h3 style="margin:0; color:var(--primary); font-size:15px; display:flex; align-items:center; gap:8px;">
-            <i data-lucide="list" style="width:17px;height:17px;"></i>
-            Consolidado de Registros &nbsp;<span id="contador" style="font-size:12px; color:var(--text-muted); font-weight:400;"></span>
-        </h3>
+    <!-- Selector de Proyecto (Pestañas) -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:12px; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; gap:6px;" id="proyecto-tabs">
+            <button type="button" class="btn tab-btn active" style="padding:6px 14px; font-size:12px; background:var(--primary); color:white; border:none;" onclick="cambiarFiltroProyecto('TODOS', this)">TODOS (<span id="cnt-todos">0</span>)</button>
+            <button type="button" class="btn tab-btn" style="padding:6px 14px; font-size:12px; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border);" onclick="cambiarFiltroProyecto('FLM', this)">FLM (<span id="cnt-flm">0</span>)</button>
+            <button type="button" class="btn tab-btn" style="padding:6px 14px; font-size:12px; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border);" onclick="cambiarFiltroProyecto('PEXT', this)">PEXT (<span id="cnt-pext">0</span>)</button>
+            <button type="button" class="btn tab-btn" style="padding:6px 14px; font-size:12px; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border);" onclick="cambiarFiltroProyecto('COTIZACION', this)">Cotización (<span id="cnt-cotizacion">0</span>)</button>
+        </div>
         <div style="position:relative;">
             <i data-lucide="search" style="position:absolute; left:9px; top:9px; width:14px; height:14px; color:var(--text-muted);"></i>
             <input type="text" id="buscador" placeholder="Buscar..."
                 style="padding:7px 10px 7px 32px; border-radius:6px; border:1px solid var(--border);
                        background:rgba(255,255,255,0.05); color:var(--text-main); width:220px; outline:none; font-size:13px;">
         </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h3 style="margin:0; color:var(--primary); font-size:15px; display:flex; align-items:center; gap:8px;">
+            <i data-lucide="list" style="width:17px;height:17px;"></i>
+            Consolidado de Registros &nbsp;<span id="contador" style="font-size:12px; color:var(--text-muted); font-weight:400;"></span>
+        </h3>
     </div>
 
     <div class="table-container" style="overflow:auto; max-height:calc(100vh - 220px); width:100%;">
@@ -176,46 +356,140 @@
                     <th style="padding:10px 8px; white-space:nowrap;">Técnico</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Contrata</th>
                     <th style="padding:10px 8px; white-space:nowrap;">SLA</th>
+                    <th style="padding:10px 8px; white-space:nowrap;">M. Aprobado</th>
+                    <th style="padding:10px 8px; white-space:nowrap;">M. Gastado</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Evidencia</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Acciones</th>
+                    {% if current_user and current_user.rol in ('Admin', 'Supervisor') %}
+                    <th style="padding:10px 8px; white-space:nowrap;">Aprobación</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody id="tabla-incidencias"></tbody>
         </table>
     </div>
 </div>
+
+<!-- MINI POPUP DE APROBACION (flotante, centrado en pantalla) -->
+<div id="popup-aprobacion-overlay" style="display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.5); backdrop-filter:blur(3px); align-items:center; justify-content:center;">
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:24px; width:360px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h3 style="margin:0; font-size:15px; color:var(--primary); display:flex; align-items:center; gap:8px;">
+                <i data-lucide="shield-check" style="width:16px;height:16px;"></i>
+                Aprobar / Rechazar Cotización
+            </h3>
+            <button onclick="cerrarPopupAprobacion()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:22px;line-height:1;">&times;</button>
+        </div>
+        <div id="popup-info-ticket" style="font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:10px; margin-bottom:14px; line-height:1.8;"></div>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px; font-weight:500; color:var(--text-muted); display:block; margin-bottom:5px;">Monto a Aprobar (S/)</label>
+            <input type="number" step="0.01" id="popup-monto-input"
+                style="width:100%; padding:9px; border-radius:6px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-size:14px;"
+                placeholder="Ej. 1200.00">
+        </div>
+        <div style="margin-bottom:16px;">
+            <label style="font-size:12px; font-weight:500; color:var(--text-muted); display:block; margin-bottom:5px;">Comentario (opcional)</label>
+            <textarea id="popup-comentario-input" rows="2"
+                style="width:100%; padding:9px; border-radius:6px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-family:inherit; font-size:13px; resize:vertical;"
+                placeholder="Motivo de aprobación o rechazo..."></textarea>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button onclick="ejecutarPopupAprobacion('aprobar')" class="btn"
+                style="flex:1; justify-content:center; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.4); font-size:13px;">
+                <i data-lucide="check-circle" style="width:15px;height:15px;"></i> Aprobar
+            </button>
+            <button onclick="ejecutarPopupAprobacion('rechazar')" class="btn"
+                style="flex:1; justify-content:center; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.4); font-size:13px;">
+                <i data-lucide="x-circle" style="width:15px;height:15px;"></i> Rechazar
+            </button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
+    // =========================================================
+    // VARIABLES GLOBALES Y CONSTANTES DE ROLES
+    // IS_ADMIN y IS_SUPER_OR_ADMIN se inyectan desde Jinja2
+    // para controlar qué acciones están disponibles en el front.
+    // =========================================================
     const IS_ADMIN = {{ 'true' if current_user and current_user.rol == 'Admin' else 'false' }};
-    let todasLasIncidencias = [];
-    let opcionesSiteName = [];
+    const IS_SUPER_OR_ADMIN = {{ 'true' if current_user and current_user.rol in ('Admin', 'Supervisor') else 'false' }};
+    let todasLasIncidencias = []; // Cache local de incidencias cargadas
+    let opcionesSiteName = [];    // Reservado para autocompletado futuro
 
+    // =========================================================
+    // CONTROL DEL PANEL LATERAL (OFFCANVAS)
+    // =========================================================
     function togglePanel(show) {
-        document.getElementById('form-panel').style.right     = show ? '0' : '-450px';
-        document.getElementById('form-overlay').style.display = show ? 'block' : 'none';
-        if (!show) resetFormulario();
+        const panel = document.getElementById('form-panel');
+        const overlay = document.getElementById('form-overlay');
+        if (show) {
+            panel.classList.add('open');
+            overlay.style.display = 'block';
+        } else {
+            panel.classList.remove('open');
+            overlay.style.display = 'none';
+            resetFormulario();
+        }
     }
 
+    /** Cambia entre las pestañas del panel (Datos | Historial). */
+    function switchPanelTab(tabName) {
+        document.querySelectorAll('.panel-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById('tab-btn-' + tabName).classList.add('active');
+        document.getElementById('panel-tab-datos-content').style.display = tabName === 'datos' ? 'block' : 'none';
+        document.getElementById('panel-tab-historial-content').style.display = tabName === 'historial' ? 'flex' : 'none';
+    }
+
+    /** Abre el panel en modo creación (sin historial, campos en blanco). */
     function abrirPanelNuevo() {
         resetFormulario();
         document.getElementById('panel-title').innerHTML = '<i data-lucide="plus-circle" style="width:17px;height:17px;"></i> Nueva Incidencia';
         document.getElementById('btn-guardar').innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Registrar';
+        // Ocultar pestaña historial para registros nuevos (sin ID aún)
+        document.getElementById('tab-btn-historial').style.display = 'none';
+        switchPanelTab('datos');
         togglePanel(true);
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
+    /** Limpia el formulario y restaura el estado inicial del campo monto_aprobado. */
     function resetFormulario() {
         document.getElementById('form-incidencia').reset();
         document.getElementById('edit_id').value = '';
         document.getElementById('evidencia_preview').innerHTML = '';
+        // Ocultar sección de aprobación al limpiar el formulario
+        const secAprobacion = document.getElementById('seccion-aprobacion');
+        if (secAprobacion) secAprobacion.style.display = 'none';
+        cerrarConfirmacionPanel();
+        // Restaurar monto_aprobado como editable (puede ser protegido en edición)
+        const maInput = document.getElementById('monto_aprobado');
+        if (maInput) {
+            maInput.readOnly = false;
+            maInput.style.opacity = '1';
+            maInput.title = '';
+        }
+
+        document.getElementById('timeline-container').innerHTML = `
+            <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
+        `;
     }
 
+    // =========================================================
+    // EXPORTAR / IMPORTAR CSV
+    // =========================================================
+
+    /** Descarga todas las incidencias como archivo CSV. */
     function exportarCSV() {
         window.location.href = '/api/incidencias/export';
     }
 
+    /** Importa incidencias desde un CSV seleccionado por el usuario (solo Admin). */
     async function importarCSV(input) {
         if (!input.files || input.files.length === 0) return;
         const file = input.files[0];
@@ -270,6 +544,9 @@
             formData.append('contrata',         document.getElementById('contrata').value);
             formData.append('sla',              document.getElementById('sla').value);
             formData.append('estado',           document.getElementById('estado').value);
+            formData.append('monto_aprobado',   document.getElementById('monto_aprobado').value);
+            formData.append('monto_gastado',    document.getElementById('monto_gastado').value);
+
 
             const fileInput = document.getElementById('evidencia_file');
             if (fileInput.files.length > 0) {
@@ -306,10 +583,13 @@
     });
 
     // =========================================================
-    // AUTO-COMPLETAR TICKET EXISTENTE (Mismo Ticket)
+    // AUTO-COMPLETAR TICKET EXISTENTE
+    // Cuando el usuario ingresa un número de ticket ya existente
+    // en modo creación, se precargan los datos del último registro
+    // con ese número para agilizar la captura.
     // =========================================================
     function buscarTicketExistente(ticketNum) {
-        // Solo auto-completar si estamos creando uno nuevo
+        // Solo auto-completar en modo creación (sin edit_id)
         if (document.getElementById('edit_id').value !== '' || !ticketNum.trim()) return;
         
         const existente = todasLasIncidencias.find(i => i.numero_ticket.trim().toLowerCase() === ticketNum.trim().toLowerCase());
@@ -332,7 +612,9 @@
     }
 
     // =========================================================
-    // CARGAR OPCIONES
+    // CARGAR OPCIONES DESPLEGABLES DESDE LA API
+    // Pobla todos los <select> del formulario con las opciones
+    // configuradas por el Admin en el panel de configuración.
     // =========================================================
     async function cargarOpciones() {
         try {
@@ -345,7 +627,7 @@
             poblarSelect('contrata',     data.Contrata);
             poblarSelect('sla',          data.SLA);
             poblarSelect('estado',       data.Estado);
-        } catch (err) { console.error("Error opciones:", err); }
+        } catch (err) { console.error("Error cargando opciones:", err); }
     }
 
     function poblarDatalist(id, opciones) {
@@ -381,67 +663,125 @@
             `</div>`;
     }
 
+    let filtroProyectoActivo = 'TODOS';
+
+    function cambiarFiltroProyecto(proyecto, btnElement) {
+        filtroProyectoActivo = proyecto;
+        document.querySelectorAll('#proyecto-tabs .tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.background = 'rgba(255,255,255,0.05)';
+            btn.style.color = 'var(--text-muted)';
+            btn.style.border = '1px solid var(--border)';
+        });
+        btnElement.classList.add('active');
+        btnElement.style.background = 'var(--primary)';
+        btnElement.style.color = 'white';
+        btnElement.style.border = 'none';
+        
+        renderizarTabla();
+    }
+
+    // Nota: Los campos de monto aprobado y gastado están siempre visibles
+    // independientemente del servicio. La restricción de edición del
+    // monto_aprobado se aplica en editarIncidencia() según el rol del usuario.
+
     // =========================================================
-    // CARGAR TABLA Y EDITAR
+    // TABLA PRINCIPAL DE INCIDENCIAS
+    // cargarIncidencias(): carga desde API y actualiza contadores.
+    // renderizarTabla(): filtra y pinta la tabla según el tab activo.
     // =========================================================
     async function cargarIncidencias() {
         try {
             const req = await fetch('/api/incidencias');
             todasLasIncidencias = await req.json();
-            const tbody = document.getElementById('tabla-incidencias');
-            tbody.innerHTML = '';
 
-            document.getElementById('contador').textContent = `(${todasLasIncidencias.length} registros)`;
+            // Actualizar contadores de cada pestaña de filtro
+            const todos = todasLasIncidencias.length;
+            const flm   = todasLasIncidencias.filter(i => i.proyecto && i.proyecto.toUpperCase() === 'FLM').length;
+            const pext  = todasLasIncidencias.filter(i => i.proyecto && i.proyecto.toUpperCase() === 'PEXT').length;
+            const cotizacion = todasLasIncidencias.filter(i => i.servicio && i.servicio.trim().toUpperCase() === 'COTIZACION').length;
+            
+            document.getElementById('cnt-todos').textContent = todos;
+            document.getElementById('cnt-flm').textContent = flm;
+            document.getElementById('cnt-pext').textContent = pext;
+            document.getElementById('cnt-cotizacion').textContent = cotizacion;
 
-            const colores = {
-                'Pendiente':        '#ef4444',
-                'Asignado':         '#3b82f6',
-                'Parada de Reloj':  '#f59e0b',
-                'Cierre Operativo': '#8b5cf6',
-                'Liquidado':        '#10b981'
-            };
-
-            todasLasIncidencias.forEach(function(i) {
-                const badge = colores[i.estado] || '#6b7280';
-                const tr = document.createElement('tr');
-                tr.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
-                tr.innerHTML = `
-                    <td style="padding:9px 8px; font-weight:700; color:var(--primary); white-space:nowrap;">${i.numero_ticket}</td>
-                    <td style="padding:9px 8px; color:var(--text-muted); white-space:nowrap; font-size:11px;">${i.fecha_ticket}</td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.proyecto || '-'}</td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.servicio || '-'}</td>
-                    <td style="padding:9px 8px;">
-                        <span class="tag" style="background:${badge}; white-space:nowrap;">${i.estado}</span>
-                    </td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.gestor || '-'}</td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.departamento || '-'}</td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.ciudad || '-'}</td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.site_name || '-'}</td>
-                    <td style="padding:9px 8px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${i.descripcion}">${i.descripcion}</td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.tecnico_asignado || '-'}</td>
-                    <td style="padding:9px 8px; white-space:nowrap;">${i.contrata || '-'}</td>
-                    <td style="padding:9px 8px; white-space:nowrap; font-weight:600;">${i.sla || '-'}</td>
-                    <td style="padding:9px 8px;">
-                        ${renderEvidenciaLinks(i.evidencia)}
-                    </td>
-                    <td style="padding:9px 8px; white-space:nowrap; display:flex; gap:4px;">
-                        <button onclick='editarIncidencia(${JSON.stringify(i).replace(/'/g, "&#39;")})'
-                            style="background:rgba(99,102,241,0.15); color:var(--primary); border:1px solid rgba(99,102,241,0.4); border-radius:5px; padding:4px 8px; cursor:pointer; font-size:11px; font-weight:600; display:flex; align-items:center; gap:4px;">
-                            <i data-lucide="edit-2" style="width:12px;height:12px;"></i> Editar
-                        </button>
-                        ${IS_ADMIN ? `
-                        <button onclick="borrarIncidencia(${i.id})"
-                            style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.4); border-radius:5px; padding:4px 8px; cursor:pointer; font-size:11px; font-weight:600; display:flex; align-items:center; gap:4px;">
-                            <i data-lucide="trash-2" style="width:12px;height:12px;"></i> Borrar
-                        </button>` : ''}
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        } catch (err) { console.error("Error tabla:", err); }
+            renderizarTabla();
+        } catch (err) { console.error("Error cargando incidencias:", err); }
     }
 
+    function renderizarTabla() {
+        const tbody = document.getElementById('tabla-incidencias');
+        tbody.innerHTML = '';
+
+        let filtradas = todasLasIncidencias;
+        if (filtroProyectoActivo === 'COTIZACION') {
+            filtradas = todasLasIncidencias.filter(i => i.servicio && i.servicio.trim().toUpperCase() === 'COTIZACION');
+        } else if (filtroProyectoActivo !== 'TODOS') {
+            filtradas = todasLasIncidencias.filter(i => i.proyecto && i.proyecto.toUpperCase() === filtroProyectoActivo.toUpperCase());
+        }
+
+        document.getElementById('contador').textContent = `(${filtradas.length} registros)`;
+
+        const colores = {
+            'Pendiente':        '#ef4444',
+            'Asignado':         '#3b82f6',
+            'Parada de Reloj':  '#f59e0b',
+            'Cierre Operativo': '#8b5cf6',
+            'Liquidado':        '#10b981'
+        };
+
+        filtradas.forEach(function(i) {
+            const badge = colores[i.estado] || '#6b7280';
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+            
+            const txtAprobado = i.monto_aprobado !== null ? `S/ ${parseFloat(i.monto_aprobado).toFixed(2)}` : '-';
+            const txtGastado  = i.monto_gastado !== null ? `S/ ${parseFloat(i.monto_gastado).toFixed(2)}` : '-';
+
+            // Escapar JSON para el botón de editar
+            const jsonStr = JSON.stringify(i).replace(/'/g, "&#39;");
+
+            tr.innerHTML = `
+                <td style="padding:9px 8px; font-weight:700; white-space:nowrap;">
+                    <a href="javascript:void(0)" onclick='editarIncidencia(${jsonStr})' style="color:var(--primary); text-decoration:underline; font-size:12px; cursor:pointer;" title="Ver/Editar detalle del ticket">${i.numero_ticket}</a>
+                </td>
+                <td style="padding:9px 8px; color:var(--text-muted); white-space:nowrap; font-size:11px;">${i.fecha_ticket}</td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.proyecto || '-'}</td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.servicio || '-'}</td>
+                <td style="padding:9px 8px;">
+                    <span class="tag" style="background:${badge}; white-space:nowrap;">${i.estado}</span>
+                </td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.gestor || '-'}</td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.departamento || '-'}</td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.ciudad || '-'}</td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.site_name || '-'}</td>
+                <td style="padding:9px 8px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${i.descripcion}">${i.descripcion}</td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.tecnico_asignado || '-'}</td>
+                <td style="padding:9px 8px; white-space:nowrap;">${i.contrata || '-'}</td>
+                <td style="padding:9px 8px; white-space:nowrap; font-weight:600;">${i.sla || '-'}</td>
+                <td style="padding:9px 8px; white-space:nowrap; font-weight:600; color:#10b981;">${txtAprobado}</td>
+                <td style="padding:9px 8px; white-space:nowrap; font-weight:600; color:#ef4444;">${txtGastado}</td>
+                <td style="padding:9px 8px;">${renderEvidenciaLinks(i.evidencia)}</td>
+                ${IS_ADMIN ? `<td style="padding:9px 8px;"><button onclick="borrarIncidencia(${i.id})" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:5px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:600;">&#x1F5D1; Borrar</button></td>` : '<td></td>'}
+                ${IS_SUPER_OR_ADMIN ? `<td style="padding:9px 8px;">
+                    <button onclick='abrirPopupAprobacion(${jsonStr})'
+                        style="background:rgba(99,102,241,0.15); color:var(--primary); border:1px solid rgba(99,102,241,0.4); border-radius:5px; padding:4px 10px; cursor:pointer; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"
+                        title="Aprobar o rechazar cotización">
+                        &#10003; Aprobación
+                    </button>
+                </td>` : ''}
+            `;
+            tbody.appendChild(tr);
+        });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    /**
+     * Abre el panel en modo edición, carga todos los datos del registro
+     * y aplica la restricción de solo lectura al monto_aprobado si ya
+     * fue validado y el usuario no es Admin/Supervisor.
+     */
     function editarIncidencia(i) {
         document.getElementById('edit_id').value = i.id;
         document.getElementById('panel-title').innerHTML = '<i data-lucide="edit-2" style="width:17px;height:17px;"></i> Editar Incidencia';
@@ -460,19 +800,250 @@
         document.getElementById('sla').value = i.sla || '';
         document.getElementById('descripcion').value = i.descripcion || '';
 
+        // --- Campos de montos (siempre visibles) ---
+        const maInput = document.getElementById('monto_aprobado');
+        maInput.value = i.monto_aprobado !== null ? i.monto_aprobado : '';
+        document.getElementById('monto_gastado').value = i.monto_gastado !== null ? i.monto_gastado : '';
+
+        // Proteger monto_aprobado: solo lectura para no-supervisores si ya fue aprobado
+        if (i.monto_aprobado !== null && i.monto_aprobado !== '' && !IS_SUPER_OR_ADMIN) {
+            maInput.readOnly = true;
+            maInput.style.opacity = '0.6';
+            maInput.title = 'Solo el Supervisor o Administrador puede editar el monto aprobado una vez validado.';
+        } else {
+            maInput.readOnly = false;
+            maInput.style.opacity = '1';
+            maInput.title = '';
+        }
+
         const evDiv = document.getElementById('evidencia_preview');
         if (i.evidencia) {
             const urls = i.evidencia.split(',').map(u => u.trim()).filter(Boolean);
-            const links = urls.map((url, idx) => `<a href="${url}" target="_blank" style="color:var(--primary); margin-right:6px;">Foto ${idx+1}</a>`).join('');
+            const links = urls.map((url, idx) => {
+                const esRotta = url.includes('ibb.co');
+                const label = esRotta ? `Foto ${idx+1} (Expirada ImgBB)` : `Foto ${idx+1}`;
+                const style = esRotta ? 'color:#ef4444; text-decoration:line-through; margin-right:6px; opacity:0.6;' : 'color:var(--primary); margin-right:6px;';
+                return `<a href="${url}" target="_blank" style="${style}">${label}</a>`;
+            }).join('');
             evDiv.innerHTML = `<div style="margin-top:2px;">Evidencias actuales (${urls.length}): ${links}</div><div style="font-size:10px; color:var(--text-muted);">(Si subes nuevos archivos reemplazarán las fotos actuales)</div>`;
         } else {
             evDiv.innerHTML = '';
         }
 
+        // Mostrar pestaña historial en edición
+        document.getElementById('tab-btn-historial').style.display = 'flex';
+        switchPanelTab('datos');
+        cargarHistorial(i.id);
+
+        // Mostrar botones Aprobar/Rechazar si es COTIZACION y usuario es Admin/Supervisor
+        const secAprobacion = document.getElementById('seccion-aprobacion');
+        const esCotizacion = i.servicio && i.servicio.trim().toUpperCase() === 'COTIZACION';
+        if (esCotizacion && IS_SUPER_OR_ADMIN) {
+            secAprobacion.style.display = 'block';
+            // Precargar el monto actual en el campo del mini-formulario
+            const montoActual = document.getElementById('panel-confirm-monto');
+            if (montoActual) montoActual.value = i.monto_aprobado !== null ? i.monto_aprobado : '';
+        } else {
+            secAprobacion.style.display = 'none';
+        }
+        cerrarConfirmacionPanel();
+
         togglePanel(true);
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
+    // =========================================================
+    // APROBAR / RECHAZAR COTIZACIÓN (desde el panel de edición)
+    // Solo visible para Admin/Supervisor cuando servicio=COTIZACION
+    // =========================================================
+    let _panelAccionActual = null; // 'aprobar' | 'rechazar'
+
+    /** Despliega el mini-formulario de confirmación dentro del panel. */
+    function abrirConfirmacionPanel(accion) {
+        _panelAccionActual = accion;
+        const box = document.getElementById('panel-confirm-box');
+        const montoWrap = document.getElementById('panel-confirm-monto-wrap');
+        const btnConfirmar = document.getElementById('btn-panel-confirmar');
+        const comentario = document.getElementById('panel-confirm-comentario');
+
+        box.style.display = 'block';
+        comentario.value = '';
+
+        if (accion === 'aprobar') {
+            montoWrap.style.display = 'block';
+            btnConfirmar.style.background = 'rgba(16,185,129,0.8)';
+            btnConfirmar.innerHTML = '<i data-lucide="check" style="width:13px;height:13px;"></i> Confirmar Aprobación';
+        } else {
+            montoWrap.style.display = 'none';
+            btnConfirmar.style.background = 'rgba(239,68,68,0.8)';
+            btnConfirmar.innerHTML = '<i data-lucide="x" style="width:13px;height:13px;"></i> Confirmar Rechazo';
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    /** Cierra el mini-formulario de confirmación sin ejecutar nada. */
+    function cerrarConfirmacionPanel() {
+        const box = document.getElementById('panel-confirm-box');
+        if (box) box.style.display = 'none';
+        _panelAccionActual = null;
+    }
+
+    /** Ejecuta la acción de aprobar o rechazar llamando a la API. */
+    async function ejecutarAccionPanel() {
+        if (!_panelAccionActual) return;
+        const id = document.getElementById('edit_id').value;
+        if (!id) return;
+
+        const btnConfirmar = document.getElementById('btn-panel-confirmar');
+        btnConfirmar.disabled = true;
+        btnConfirmar.textContent = 'Procesando...';
+
+        const body = {
+            comentario: document.getElementById('panel-confirm-comentario').value.trim()
+        };
+
+        if (_panelAccionActual === 'aprobar') {
+            const montoStr = document.getElementById('panel-confirm-monto').value.trim();
+            if (!montoStr) {
+                alert('Por favor ingrese el monto a aprobar.');
+                btnConfirmar.disabled = false;
+                btnConfirmar.textContent = 'Confirmar';
+                return;
+            }
+            body.monto_aprobado = parseFloat(montoStr);
+        }
+
+        try {
+            const req = await fetch(`/api/cotizaciones/${id}/${_panelAccionActual}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const res = await req.json();
+            if (req.ok && res.success) {
+                togglePanel(false);
+                cargarIncidencias();
+            } else {
+                alert('Error: ' + (res.error || 'No se pudo procesar.'));
+            }
+        } catch (err) {
+            alert('Error de conexión.');
+        } finally {
+            btnConfirmar.disabled = false;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    /**
+     * Carga la bitácora de cambios de una incidencia y la renderiza
+     * como timeline. Muestra: gestor, fecha, estado, comentario,
+     * snapshot completo del ticket (con montos y aprobador) y fotos.
+     */
+    async function cargarHistorial(id) {
+        const container = document.getElementById('timeline-container');
+        container.innerHTML = `
+            <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
+            <div style="padding:10px; text-align:center; color:var(--text-muted); font-size:11px;">Cargando historial...</div>
+        `;
+        try {
+            const req = await fetch(`/api/incidencias/${id}/historial`);
+            if (!req.ok) throw new Error();
+            const data = await req.json();
+            
+            container.innerHTML = `
+                <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
+            `;
+            if (data.length === 0) {
+                container.innerHTML += `<div style="padding:10px; text-align:center; color:var(--text-muted); font-size:11px;">No hay registros en la bitácora.</div>`;
+                return;
+            }
+
+            const colores = {
+                'Pendiente':        '#ef4444',
+                'Asignado':         '#3b82f6',
+                'Parada de Reloj':  '#f59e0b',
+                'Cierre Operativo': '#8b5cf6',
+                'Liquidado':        '#10b981'
+            };
+
+            data.forEach(h => {
+                const dotColor = colores[h.estado] || '#6b7280';
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                item.style.marginBottom = '18px';
+
+                // Fotos de la evidencia en el histórico
+                let photosHtml = '';
+                if (h.evidencia) {
+                    const urls = h.evidencia.split(',').map(u => u.trim()).filter(Boolean);
+                    if (urls.length > 0) {
+                        const links = urls.map((url, idx) => `
+                            <a href="${url}" target="_blank" class="btn" style="padding:3px 7px; font-size:10px; background:rgba(99,102,241,0.15); color:var(--primary); display:inline-flex; align-items:center; gap:3px; border:1px solid rgba(99,102,241,0.3);">
+                                📷 ${idx+1}
+                            </a>
+                        `).join(' ');
+                        photosHtml = `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${links}</div>`;
+                    }
+                }
+
+                // Datos del ticket directamente visibles
+                let detalleHtml = '';
+                if (h.detalle_snapshot) {
+                    try {
+                        const snap = JSON.parse(h.detalle_snapshot);
+                        detalleHtml = `
+                            <div style="font-size:11px; margin-top:8px; padding:10px; background:rgba(0,0,0,0.12); border-radius:8px; border:1px solid var(--border);">
+                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:5px 10px; color:var(--text-muted); font-size:11px;">
+                                    <div><strong style="color:var(--primary);">Ticket:</strong> ${snap.numero_ticket || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Fecha:</strong> ${snap.fecha_ticket || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Proyecto:</strong> ${snap.proyecto || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Servicio:</strong> ${snap.servicio || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Estado:</strong> ${snap.estado || '-'}</div>
+                                    <div><strong style="color:var(--primary);">SLA:</strong> ${snap.sla || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Técnico:</strong> ${snap.tecnico_asignado || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Contrata:</strong> ${snap.contrata || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Gestor:</strong> ${snap.gestor || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Depto:</strong> ${snap.departamento || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Ciudad:</strong> ${snap.ciudad || '-'}</div>
+                                    <div><strong style="color:var(--primary);">Site:</strong> ${snap.site_name || '-'}</div>
+                                    <div><strong style="color:#10b981;">M. Aprob:</strong> ${snap.monto_aprobado !== null && snap.monto_aprobado !== undefined && snap.monto_aprobado !== "" ? `S/ ${parseFloat(snap.monto_aprobado).toFixed(2)}` : '-'}</div>
+                                    <div><strong style="color:#ef4444;">M. Gast:</strong> ${snap.monto_gastado !== null && snap.monto_gastado !== undefined && snap.monto_gastado !== "" ? `S/ ${parseFloat(snap.monto_gastado).toFixed(2)}` : '-'}</div>
+                                    <div><strong style="color:var(--primary);">Aprobado por:</strong> ${snap.aprobado_por || '-'}</div>
+                                </div>
+                                <div style="border-top:1px dashed var(--border); padding-top:6px; margin-top:6px;">
+                                    <div style="background:rgba(99,102,241,0.08); border-left:3px solid var(--primary); padding:6px 10px; border-radius:4px; color:var(--text-main); font-size:11px; white-space:pre-wrap; line-height:1.4;">${snap.descripcion || '-'}</div>
+                                </div>
+                            </div>
+                        `;
+                    } catch (e) {
+                        console.error("Error parsing snapshot JSON:", e);
+                    }
+                }
+
+                item.innerHTML = `
+                    <div class="timeline-dot" style="background:${dotColor}; box-shadow:0 0 6px ${dotColor};"></div>
+                    <div class="timeline-header">
+                        <span class="timeline-gestor" style="font-weight:700;">${h.gestor}</span>
+                        <span class="timeline-time">${h.fecha}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                        <span class="tag" style="background:${dotColor}; padding:1px 6px; font-size:9px; border-radius:4px;">${h.estado}</span>
+                    </div>
+                    ${h.comentario ? `<div class="timeline-comment">${h.comentario}</div>` : ''}
+                    ${detalleHtml}
+                    ${photosHtml}
+                `;
+                container.appendChild(item);
+            });
+        } catch (err) {
+            container.innerHTML = `
+                <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
+                <div style="padding:10px; text-align:center; color:#ef4444; font-size:11px;">Error al cargar historial.</div>
+            `;
+        }
+    }
+
+    /** Elimina permanentemente una incidencia (solo Admin). */
     async function borrarIncidencia(id) {
         if (!confirm('¿Eliminar este registro permanentemente?')) return;
         try {
@@ -487,5 +1058,83 @@
             alert('Error de conexión');
         }
     }
+
+    // =========================================================
+    // POPUP DE APROBACIÓN (botón en la tabla)
+    // Visible para Admin/Supervisor en cualquier ticket con montos.
+    // =========================================================
+    let _popupIncidenciaId = null; // ID del ticket activo en el popup
+
+    /** Abre el popup de aprobación con los datos del ticket seleccionado. */
+    function abrirPopupAprobacion(i) {
+        _popupIncidenciaId = i.id;
+
+        // Mostrar info del ticket en el popup
+        document.getElementById('popup-info-ticket').innerHTML = `
+            <strong style="color:var(--primary);">Ticket:</strong> ${i.numero_ticket} &nbsp;|&nbsp;
+            <strong style="color:var(--primary);">Gestor:</strong> ${i.gestor || '-'}<br>
+            <strong style="color:var(--primary);">Site:</strong> ${i.site_name || '-'} &nbsp;|&nbsp;
+            <strong style="color:var(--primary);">Estado:</strong> ${i.estado}<br>
+            <strong style="color:#10b981;">M. Aprobado actual:</strong>
+            ${i.monto_aprobado !== null ? 'S/ ' + parseFloat(i.monto_aprobado).toFixed(2) : '<span style="color:var(--text-muted);">Sin definir</span>'}
+            ${i.aprobado_por ? ' <span style="color:var(--text-muted);">(por ' + i.aprobado_por + ')</span>' : ''}
+            ${i.descripcion ? `<br><strong style="color:var(--primary);">Descripción:</strong> <span style="color:var(--text-muted);">${i.descripcion}</span>` : ''}
+        `;
+
+        // Precargar monto actual si existe
+        document.getElementById('popup-monto-input').value = i.monto_aprobado !== null ? i.monto_aprobado : '';
+        document.getElementById('popup-comentario-input').value = '';
+
+        // Mostrar el popup
+        const overlay = document.getElementById('popup-aprobacion-overlay');
+        overlay.style.display = 'flex';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    /** Cierra el popup sin ejecutar ninguna acción. */
+    function cerrarPopupAprobacion() {
+        document.getElementById('popup-aprobacion-overlay').style.display = 'none';
+        _popupIncidenciaId = null;
+    }
+
+    /** Ejecuta aprobar o rechazar y actualiza la tabla al terminar. */
+    async function ejecutarPopupAprobacion(accion) {
+        if (!_popupIncidenciaId) return;
+
+        const body = {
+            comentario: document.getElementById('popup-comentario-input').value.trim()
+        };
+
+        if (accion === 'aprobar') {
+            const montoStr = document.getElementById('popup-monto-input').value.trim();
+            if (!montoStr) {
+                alert('Por favor ingrese el monto a aprobar.');
+                return;
+            }
+            body.monto_aprobado = parseFloat(montoStr);
+        }
+
+        try {
+            const req = await fetch(`/api/cotizaciones/${_popupIncidenciaId}/${accion}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const res = await req.json();
+            if (req.ok && res.success) {
+                cerrarPopupAprobacion();
+                cargarIncidencias(); // Refrescar la tabla
+            } else {
+                alert('Error: ' + (res.error || 'No se pudo procesar.'));
+            }
+        } catch (err) {
+            alert('Error de conexión.');
+        }
+    }
+
+    // Cerrar popup al hacer clic en el fondo oscuro
+    document.getElementById('popup-aprobacion-overlay').addEventListener('click', function(e) {
+        if (e.target === this) cerrarPopupAprobacion();
+    });
 </script>
 {% endblock %}

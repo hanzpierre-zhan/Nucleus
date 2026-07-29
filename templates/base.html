@@ -18,6 +18,36 @@
             --danger: #ef4444;
         }
 
+        body.light-theme {
+            --bg-main: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border: #cbd5e1;
+        }
+
+        /* Adjustments for light theme elements */
+        body.light-theme .form-group input,
+        body.light-theme .form-group select,
+        body.light-theme .form-group textarea {
+            background: #ffffff;
+            color: #0f172a;
+        }
+        body.light-theme .form-group select option {
+            background-color: #ffffff;
+            color: #0f172a;
+        }
+        body.light-theme .glass {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--border);
+        }
+        body.light-theme tr:hover td {
+            background: rgba(99, 102, 241, 0.04);
+        }
+        body.light-theme th {
+            color: var(--text-muted);
+        }
+
         body {
             margin: 0;
             padding: 0;
@@ -208,6 +238,9 @@
         </div>
         <ul class="nav-links">
             <li><a href="/" class="{{ 'active' if request.path == '/' else '' }}" title="Incidencias"><i data-lucide="inbox"></i> <span class="nav-text">Incidencias</span></a></li>
+            {% if current_user.rol in ('Admin', 'Supervisor') %}
+            <li><a href="/cotizaciones" class="{{ 'active' if request.path == '/cotizaciones' else '' }}" title="Cotizaciones"><i data-lucide="file-text"></i> <span class="nav-text">Cotizaciones</span></a></li>
+            {% endif %}
             {% if current_user.rol == 'Admin' %}
             <li><a href="/admin/usuarios" class="{{ 'active' if request.path == '/admin/usuarios' else '' }}" title="Usuarios"><i data-lucide="users"></i> <span class="nav-text">Usuarios</span></a></li>
             <li><a href="/admin/configuracion" class="{{ 'active' if request.path == '/admin/configuracion' else '' }}" title="Configuración"><i data-lucide="settings"></i> <span class="nav-text">Configuración</span></a></li>
@@ -216,7 +249,7 @@
         
         <div class="user-profile">
             <div class="user-info">
-                <div style="min-width:32px; height:32px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:bold;">
+                <div style="min-width:32px; height:32px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:bold; color:white;">
                     {{ current_user.username[0].upper() }}
                 </div>
                 <div class="user-details">
@@ -224,10 +257,17 @@
                     <div style="font-size:12px; color:var(--text-muted);">{{ current_user.rol }}</div>
                 </div>
             </div>
-            <a href="/logout" title="Cerrar Sesión" style="color:var(--text-muted);" class="logout-btn"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <button id="theme-toggle" title="Cambiar tema" style="background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; display:flex; align-items:center;">
+                    <i data-lucide="sun" id="theme-icon" style="width:18px;height:18px;"></i>
+                </button>
+                <a href="/logout" title="Cerrar Sesión" style="color:var(--text-muted);" class="logout-btn"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
+            </div>
         </div>
     </aside>
     {% endif %}
+
+
 
     <main class="main-content" {% if not current_user %}style="padding:0; display:flex; align-items:center; justify-content:center;"{% endif %}>
         {% block content %}{% endblock %}
@@ -246,7 +286,7 @@
     <script>
         lucide.createIcons();
 
-        // Lógica para contraer el sidebar
+        // Lógica para contraer el sidebar y cambiar tema
         document.addEventListener("DOMContentLoaded", () => {
             const sidebar = document.getElementById('main-sidebar');
             const toggleBtn = document.getElementById('toggle-sidebar');
@@ -266,6 +306,32 @@
                     
                     if(toggleIcon) {
                         toggleIcon.setAttribute('data-lucide', isCollapsed ? 'chevron-right' : 'chevron-left');
+                        lucide.createIcons();
+                    }
+                });
+            }
+
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const themeIcon = document.getElementById('theme-icon');
+            
+            // Cargar tema guardado antes de renderizar íconos
+            const currentTheme = localStorage.getItem('theme') || 'dark';
+            if (currentTheme === 'light') {
+                document.body.classList.add('light-theme');
+                if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
+            } else {
+                document.body.classList.remove('light-theme');
+                if (themeIcon) themeIcon.setAttribute('data-lucide', 'sun');
+            }
+            lucide.createIcons();
+
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', () => {
+                    document.body.classList.toggle('light-theme');
+                    const isLight = document.body.classList.contains('light-theme');
+                    localStorage.setItem('theme', isLight ? 'light' : 'dark');
+                    if (themeIcon) {
+                        themeIcon.setAttribute('data-lucide', isLight ? 'moon' : 'sun');
                         lucide.createIcons();
                     }
                 });
