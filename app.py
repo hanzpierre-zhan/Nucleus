@@ -874,6 +874,16 @@ def migrate_db():
     from sqlalchemy import text
     if db.engine.name != 'sqlite':
         with db.engine.connect() as conn:
+            # Cambiar el tipo de datos de evidencia a TEXT en incidencias e historial_incidencias si existieran como VARCHAR(255)
+            try:
+                conn.execute(text("ALTER TABLE incidencias ALTER COLUMN evidencia TYPE TEXT"))
+                conn.commit()
+            except Exception: pass
+            try:
+                conn.execute(text("ALTER TABLE historial_incidencias ALTER COLUMN evidencia TYPE TEXT"))
+                conn.commit()
+            except Exception: pass
+
             try:
                 conn.execute(text("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nombre VARCHAR(100)"))
                 conn.commit()
