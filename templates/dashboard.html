@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Include Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div style="display:flex; flex-direction:column; gap:16px; flex:1; overflow:hidden; min-height:0;">
+
+<div style="margin-bottom:0;">
+    <h1 style="margin:0; color:var(--primary); font-size:20px; font-weight:700; letter-spacing:-0.5px; display:flex; align-items:center; gap:8px;">
+        <i data-lucide="layout-dashboard" style="width:20px; height:20px;"></i> Dashboard de Gestión
+    </h1>
+    <p style="margin:2px 0 0 0; color:var(--text-muted); font-size:12px;">Métricas en tiempo real, alarmas y estado de cotizaciones.</p>
+</div>
+
+<!-- Grid de Tarjetas KPI (1 Sola Fila con 6 Columnas) -->
+<div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:12px; flex-shrink:0;">
+    <!-- Tarjeta Total -->
+    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(99,102,241,0.1); color:var(--primary); width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="inbox" style="width:18px; height:18px;"></i>
+        </div>
+        <div style="overflow:hidden;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Total Casos</div>
+            <div id="kpi-total" style="font-size:20px; font-weight:700; color:var(--text-main); line-height:1.2;">0</div>
+        </div>
+    </div>
+    
+    <!-- Dentro de Plazo -->
+    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="check-circle" style="width:18px; height:18px;"></i>
+        </div>
+        <div style="overflow:hidden;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">En Plazo</div>
+            <div id="kpi-plazo" style="font-size:20px; font-weight:700; color:#10b981; line-height:1.2;">0</div>
+        </div>
+    </div>
+
+    <!-- Por Vencer -->
+    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(245,158,11,0.1); color:#f59e0b; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="alert-triangle" style="width:18px; height:18px;"></i>
+        </div>
+        <div style="overflow:hidden;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Por Vencer</div>
+            <div id="kpi-por-vencer" style="font-size:20px; font-weight:700; color:#f59e0b; line-height:1.2;">0</div>
+        </div>
+    </div>
+
+    <!-- Vencidos -->
+    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="clock" style="width:18px; height:18px;"></i>
+        </div>
+        <div style="overflow:hidden;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Vencidos</div>
+            <div id="kpi-vencidos" style="font-size:20px; font-weight:700; color:#ef4444; line-height:1.2;">0</div>
+        </div>
+    </div>
+
+    <!-- Con Cotización -->
+    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="dollar-sign" style="width:18px; height:18px;"></i>
+        </div>
+        <div style="overflow:hidden; flex:1;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Con Cotización</div>
+            <div style="display:flex; align-items:baseline; gap:4px; flex-wrap:nowrap;">
+                <span id="kpi-con-cotizacion" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">0</span>
+                <span id="kpi-monto-aprobado" style="font-size:9px; color:#10b981; font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">S/ 0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sin Cotización -->
+    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="file-warning" style="width:18px; height:18px;"></i>
+        </div>
+        <div style="overflow:hidden;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Sin Cotización</div>
+            <div id="kpi-sin-cotizacion" style="font-size:20px; font-weight:700; color:var(--text-main); line-height:1.2;">0</div>
+        </div>
+    </div>
+</div>
+
+<!-- Fila de Gráficos + Alertas (Layout asimétrico 3+1) -->
+<div style="display:grid; grid-template-columns: 3fr 1fr; gap:16px; flex:1; min-height:0; overflow:hidden;">
+
+    <!-- Bloque izquierdo: 3 gráficos en grid 3 columnas -->
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; min-height:0; overflow:hidden;">
+        <!-- Gráfico por Estado -->
+        <div class="glass" style="padding:14px; border-radius:14px; border:1px solid var(--border); display:flex; flex-direction:column;">
+            <h3 style="margin:0 0 10px 0; font-size:12px; color:var(--primary); font-weight:600; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                <i data-lucide="bar-chart-3" style="width:14px; height:14px;"></i> Estados
+            </h3>
+            <div style="flex:1; position:relative; min-height:260px;">
+                <canvas id="chart-estado"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico por Prioridad -->
+        <div class="glass" style="padding:14px; border-radius:14px; border:1px solid var(--border); display:flex; flex-direction:column;">
+            <h3 style="margin:0 0 10px 0; font-size:12px; color:var(--primary); font-weight:600; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                <i data-lucide="pie-chart" style="width:14px; height:14px;"></i> Prioridades
+            </h3>
+            <div style="flex:1; position:relative; min-height:260px;">
+                <canvas id="chart-prioridad"></canvas>
+            </div>
+        </div>
+
+        <!-- Gráfico de Proyectos -->
+        <div class="glass" style="padding:14px; border-radius:14px; border:1px solid var(--border); display:flex; flex-direction:column;">
+            <h3 style="margin:0 0 10px 0; font-size:12px; color:var(--primary); font-weight:600; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                <i data-lucide="folder" style="width:14px; height:14px;"></i> Proyectos
+            </h3>
+            <div style="flex:1; position:relative; min-height:260px;">
+                <canvas id="chart-proyecto"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bloque derecho: Alertas SLA (ocupa toda la altura) -->
+    <div class="glass" style="padding:14px; border-radius:14px; border:1px solid rgba(239,68,68,0.35); background:rgba(239,68,68,0.03); display:flex; flex-direction:column; min-height:0;">
+        <h3 style="margin:0 0 10px 0; font-size:13px; color:#ef4444; font-weight:700; display:flex; align-items:center; gap:6px; flex-shrink:0;">
+            <i data-lucide="siren" style="width:15px; height:15px;"></i> Alertas de Plazo
+        </h3>
+        <div style="overflow-y:auto; flex:1;" id="alertas-sla-lista">
+            <div style="color:var(--text-muted); text-align:center; padding:10px; font-size:11px;">Cargando...</div>
+        </div>
+    </div>
+
+</div>
+
+</div><!-- /outer flex wrapper -->
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener("DOMContentLoaded", async function() {
+        try {
+            const res = await fetch('/api/incidencias');
+            if (!res.ok) throw new Error("Error fetching data");
+            const data = await res.json();
+            
+            // Procesamiento de datos
+            let total = data.length;
+            let conCotizacion = 0;
+            let sinCotizacion = 0;
+            let totalAprobado = 0;
+            
+            let dentroPlazo = 0;
+            let porVencer = 0;
+            let vencidos = 0;
+            
+            const estados = {};
+            const prioridades = {};
+            const proyectos = {};
+            
+            const criticos = [];
+
+            data.forEach(i => {
+                // Estados
+                estados[i.estado] = (estados[i.estado] || 0) + 1;
+                
+                // Prioridad
+                const pri = i.prioridad || 'Sin prioridad';
+                prioridades[pri] = (prioridades[pri] || 0) + 1;
+                
+                // Proyectos
+                const proy = i.proyecto || 'Sin proyecto';
+                proyectos[proy] = (proyectos[proy] || 0) + 1;
+                
+                // Cotización
+                if (i.monto_aprobado !== null && i.monto_aprobado > 0) {
+                    conCotizacion++;
+                    totalAprobado += parseFloat(i.monto_aprobado);
+                } else {
+                    sinCotizacion++;
+                }
+                
+                // SLA
+                let slaStatus = 'Neutral'; // Liquidado, etc.
+                let elapsedText = '';
+                if (i.sla && i.fecha_captura) {
+                    const match = i.sla.match(/(\d+)\s*(HRS|H|horas|hora)/i);
+                    if (match) {
+                        const slaHours = parseInt(match[1]);
+                        const parts = i.fecha_captura.split(/[- :]/);
+                        if (parts.length >= 5) {
+                            const captureDate = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
+                            const now = new Date();
+                            const elapsedMs = now - captureDate;
+                            const elapsedHours = elapsedMs / (1000 * 60 * 60);
+                            
+                            if (['Liquidado', 'Cierre Técnico', 'Cierre Operativo'].includes(i.estado)) {
+                                slaStatus = 'Completado';
+                            } else {
+                                elapsedText = `${elapsedHours.toFixed(1)}h / ${slaHours}h`;
+                                if (elapsedHours >= slaHours) {
+                                    slaStatus = 'Vencido';
+                                    vencidos++;
+                                    criticos.push({ ...i, elapsedHours, limitHours: slaHours, status: 'Vencido', elapsedText });
+                                } else if (elapsedHours >= slaHours * 0.8) {
+                                    slaStatus = 'Por vencer';
+                                    porVencer++;
+                                    criticos.push({ ...i, elapsedHours, limitHours: slaHours, status: 'Por vencer', elapsedText });
+                                } else {
+                                    slaStatus = 'Dentro de plazo';
+                                    dentroPlazo++;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Actualizar KPIs
+            document.getElementById('kpi-total').textContent = total;
+            document.getElementById('kpi-plazo').textContent = dentroPlazo;
+            document.getElementById('kpi-por-vencer').textContent = porVencer;
+            document.getElementById('kpi-vencidos').textContent = vencidos;
+            document.getElementById('kpi-con-cotizacion').textContent = conCotizacion;
+            document.getElementById('kpi-sin-cotizacion').textContent = sinCotizacion;
+            document.getElementById('kpi-monto-aprobado').textContent = `S/ ${totalAprobado.toFixed(0)}`;
+
+            // Renderizar lista de alertas críticas
+            const alertContainer = document.getElementById('alertas-sla-lista');
+            if (criticos.length === 0) {
+                alertContainer.innerHTML = `<div style="color:#10b981; text-align:center; padding:10px; font-size:11px; font-weight:500;">🟢 ¡Sin alertas!</div>`;
+            } else {
+                alertContainer.innerHTML = criticos.map(c => {
+                    const color = c.status === 'Vencido' ? '#ef4444' : '#f59e0b';
+                    const bg = c.status === 'Vencido' ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)';
+                    return `
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:${bg}; border-left:3px solid ${color}; border-radius:8px; margin-bottom:6px; font-size:10px;">
+                            <div>
+                                <strong style="color:var(--text-main); font-size:11px;">${c.numero_ticket}</strong>
+                                <div style="color:var(--text-muted); font-size:9px;">${c.site_name || 'Sin Site'}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="color:${color}; font-weight:700;">${c.status.toUpperCase()}</span>
+                                <div style="color:var(--text-muted); font-size:8px;">${c.elapsedText}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // --- CONFIGURACIÓN DE GRÁFICOS (Chart.js) ---
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { color: '#94a3b8', boxWidth: 10, padding: 8, font: { family: 'Inter', size: 9 } }
+                    }
+                }
+            };
+
+            // Chart Estado (Bar)
+            new Chart(document.getElementById('chart-estado'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(estados),
+                    datasets: [{
+                        label: 'Casos',
+                        data: Object.values(estados),
+                        backgroundColor: ['#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#10b981'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    ...chartOptions,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8', font: { size: 9 }, stepSize: 1 } }
+                    }
+                }
+            });
+
+            // Chart Prioridad (Pie)
+            new Chart(document.getElementById('chart-prioridad'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(prioridades),
+                    datasets: [{
+                        data: Object.values(prioridades),
+                        backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6', '#6b7280'],
+                        borderWidth: 0
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Chart Proyecto (Doughnut)
+            new Chart(document.getElementById('chart-proyecto'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(proyectos),
+                    datasets: [{
+                        data: Object.values(proyectos),
+                        backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'],
+                        borderWidth: 0
+                    }]
+                },
+                options: chartOptions
+            });
+
+            // Trigger Lucide icons reload
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        } catch (err) {
+            console.error(err);
+        }
+    });
+</script>
+{% endblock %}

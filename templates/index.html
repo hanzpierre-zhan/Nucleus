@@ -94,6 +94,43 @@
         white-space: pre-wrap;
         line-height: 1.4;
     }
+
+    /* Estilos de Pulso para Alarma de SLA (Estilo iOS) */
+    @keyframes pulse-red {
+        0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    @keyframes pulse-amber {
+        0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+        100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    }
+    @keyframes pulse-green {
+        0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .sla-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 4px;
+        flex-shrink: 0;
+    }
+    .sla-dot.vencido {
+        background: #ef4444;
+        animation: pulse-red 2s infinite;
+    }
+    .sla-dot.por-vencer {
+        background: #f59e0b;
+        animation: pulse-amber 2s infinite;
+    }
+    .sla-dot.dentro-plazo {
+        background: #10b981;
+        animation: pulse-green 2s infinite;
+    }
 </style>
 
 <!-- CABECERA -->
@@ -117,6 +154,66 @@
         <button type="button" class="btn" style="padding:9px 16px; font-size:13px;" onclick="abrirPanelNuevo()">
             <i data-lucide="plus" style="width:16px;height:16px;"></i> Nueva Incidencia
         </button>
+    </div>
+</div>
+<!-- MINI KPI BAR (resumen rápido arriba de incidencias) -->
+<div id="mini-kpi-bar" style="display:grid; grid-template-columns: repeat(6, 1fr); gap:10px; margin-bottom:16px;">
+    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(99,102,241,0.1); color:var(--primary); width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="inbox" style="width:15px; height:15px;"></i>
+        </div>
+        <div style="overflow:hidden; min-width:0;">
+            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Total</div>
+            <div id="mkpi-total" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">–</div>
+        </div>
+    </div>
+    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="check-circle" style="width:15px; height:15px;"></i>
+        </div>
+        <div style="overflow:hidden; min-width:0;">
+            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">En Plazo</div>
+            <div id="mkpi-plazo" style="font-size:18px; font-weight:700; color:#10b981; line-height:1.2;">–</div>
+        </div>
+    </div>
+    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(245,158,11,0.1); color:#f59e0b; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="alert-triangle" style="width:15px; height:15px;"></i>
+        </div>
+        <div style="overflow:hidden; min-width:0;">
+            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Por Vencer</div>
+            <div id="mkpi-por-vencer" style="font-size:18px; font-weight:700; color:#f59e0b; line-height:1.2;">–</div>
+        </div>
+    </div>
+    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="clock" style="width:15px; height:15px;"></i>
+        </div>
+        <div style="overflow:hidden; min-width:0;">
+            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Vencidos</div>
+            <div id="mkpi-vencidos" style="font-size:18px; font-weight:700; color:#ef4444; line-height:1.2;">–</div>
+        </div>
+    </div>
+    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="dollar-sign" style="width:15px; height:15px;"></i>
+        </div>
+        <div style="overflow:hidden; min-width:0; flex:1;">
+            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Con Cotización</div>
+            <div style="display:flex; align-items:baseline; gap:3px;">
+                <span id="mkpi-con-cot" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">–</span>
+                <span id="mkpi-monto" style="font-size:9px; color:#10b981; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">S/ 0</span>
+            </div>
+        </div>
+    </div>
+    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
+        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            <i data-lucide="file-warning" style="width:15px; height:15px;"></i>
+        </div>
+        <div style="overflow:hidden; min-width:0;">
+            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Sin Cotización</div>
+            <div id="mkpi-sin-cot" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">–</div>
+        </div>
     </div>
 </div>
 
@@ -217,7 +314,16 @@
                             <option value="">Seleccione...</option>
                         </select>
                     </div>
-                    <div></div> <!-- Espacio vacío para rellenar la fila en grid -->
+                    <div class="form-group">
+                        <label>Prioridad</label>
+                        <select id="prioridad" required>
+                            <option value="Sin prioridad">Sin prioridad</option>
+                            <option value="Prioridad 1">Prioridad 1</option>
+                            <option value="Prioridad 2">Prioridad 2</option>
+                            <option value="Prioridad 3">Prioridad 3</option>
+                            <option value="Prioridad 4">Prioridad 4</option>
+                        </select>
+                    </div>
                     
                     <!-- Sección dinámica para Cotización (Ocupa las tres columnas) -->
                     <div id="seccion-cotizacion" style="grid-column: span 3; padding:16px; border:1px dashed var(--primary); border-radius:6px; background:rgba(99,102,241,0.03); margin-top:4px; display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
@@ -230,6 +336,52 @@
                             <input type="number" step="0.01" id="monto_gastado" placeholder="Ej. 950.50" style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main); border-radius:6px; box-sizing:border-box;">
                         </div>
                     </div>
+
+                    <!-- Sección Aprobar/Rechazar: visible solo para Admin/Supervisor en edición de COTIZACION -->
+                    <div id="seccion-aprobacion" style="display:none; grid-column: span 3; margin-top:12px; padding:14px; border:1px solid rgba(99,102,241,0.3); border-radius:10px; background:rgba(99,102,241,0.03);">
+                        <div style="font-size:12px; font-weight:600; color:var(--primary); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                            <i data-lucide="shield-check" style="width:14px;height:14px;"></i>
+                            Acción de Supervisor — Cotización
+                        </div>
+                        <div style="display:flex; gap:8px; margin-bottom: 8px;">
+                            <button type="button" class="btn" id="btn-aprobar-panel"
+                                style="flex:1; justify-content:center; font-size:12px; padding:6px 12px; background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.3);"
+                                onclick="abrirConfirmacionPanel('aprobar')">
+                                <i data-lucide="check-circle" style="width:14px;height:14px;"></i> Aprobar
+                            </button>
+                            <button type="button" class="btn" id="btn-rechazar-panel"
+                                style="flex:1; justify-content:center; font-size:12px; padding:6px 12px; background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3);"
+                                onclick="abrirConfirmacionPanel('rechazar')">
+                                <i data-lucide="x-circle" style="width:14px;height:14px;"></i> Rechazar
+                            </button>
+                        </div>
+                        <!-- Formulario de confirmación inline -->
+                        <div id="panel-confirm-box" style="display:none; padding:10px; background:rgba(0,0,0,0.1); border-radius:8px; border:1px solid var(--border);">
+                            <div id="panel-confirm-monto-wrap" style="margin-bottom:8px;">
+                                <label style="font-size:11px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:3px;">Monto a Aprobar (S/)</label>
+                                <input type="number" step="0.01" id="panel-confirm-monto"
+                                    style="width:100%; padding:6px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--text-main); box-sizing:border-box; font-size:12px;"
+                                    placeholder="Ej. 1200.00">
+                            </div>
+                            <div style="margin-bottom:8px;">
+                                <label style="font-size:11px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:3px;">Comentario (opcional)</label>
+                                <textarea id="panel-confirm-comentario" rows="2"
+                                    style="width:100%; padding:6px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--text-main); box-sizing:border-box; font-family:inherit; font-size:11px; resize:vertical;"
+                                    placeholder="Motivo..."></textarea>
+                            </div>
+                            <div style="display:flex; gap:6px; justify-content:flex-end;">
+                                <button type="button" class="btn"
+                                    style="font-size:11px; padding:4px 10px; background:rgba(255,255,255,0.03); border:1px solid var(--border); color:var(--text-main);"
+                                    onclick="cerrarConfirmacionPanel()">Cancelar</button>
+                                <button type="button" class="btn" id="btn-panel-confirmar"
+                                    style="font-size:11px; padding:4px 10px;"
+                                    onclick="ejecutarAccionPanel()">
+                                    <i data-lucide="check" style="width:12px;height:12px;"></i> Confirmar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     
                     <!-- Campos de ancho completo (span 3) -->
                     <div class="form-group" style="grid-column: span 3;">
@@ -247,50 +399,8 @@
 
                 </div>
 
-                <!-- Sección Aprobar/Rechazar: visible solo para Admin/Supervisor en edición de COTIZACION -->
-                <div id="seccion-aprobacion" style="display:none; margin-top:16px; padding:14px 16px; border:1px solid rgba(99,102,241,0.35); border-radius:8px; background:rgba(99,102,241,0.05);">
-                    <div style="font-size:12px; font-weight:600; color:var(--primary); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
-                        <i data-lucide="shield-check" style="width:14px;height:14px;"></i>
-                        Acción de Supervisor — Cotización
-                    </div>
-                    <div style="display:flex; gap:8px;">
-                        <button type="button" class="btn" id="btn-aprobar-panel"
-                            style="flex:1; justify-content:center; font-size:13px; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.4);"
-                            onclick="abrirConfirmacionPanel('aprobar')">
-                            <i data-lucide="check-circle" style="width:15px;height:15px;"></i> Aprobar
-                        </button>
-                        <button type="button" class="btn" id="btn-rechazar-panel"
-                            style="flex:1; justify-content:center; font-size:13px; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.4);"
-                            onclick="abrirConfirmacionPanel('rechazar')">
-                            <i data-lucide="x-circle" style="width:15px;height:15px;"></i> Rechazar
-                        </button>
-                    </div>
-                    <!-- Mini formulario de confirmación (inline) -->
-                    <div id="panel-confirm-box" style="display:none; margin-top:12px; padding:12px; background:rgba(0,0,0,0.15); border-radius:6px; border:1px solid var(--border);">
-                        <div id="panel-confirm-monto-wrap" style="margin-bottom:10px;">
-                            <label style="font-size:12px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:4px;">Monto a Aprobar (S/)</label>
-                            <input type="number" step="0.01" id="panel-confirm-monto"
-                                style="width:100%; padding:8px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-size:13px;"
-                                placeholder="Ej. 1200.00">
-                        </div>
-                        <div style="margin-bottom:10px;">
-                            <label style="font-size:12px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:4px;">Comentario (opcional)</label>
-                            <textarea id="panel-confirm-comentario" rows="2"
-                                style="width:100%; padding:8px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-family:inherit; font-size:12px; resize:vertical;"
-                                placeholder="Motivo de aprobación o rechazo..."></textarea>
-                        </div>
-                        <div style="display:flex; gap:8px; justify-content:flex-end;">
-                            <button type="button" class="btn"
-                                style="font-size:12px; padding:6px 14px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main);"
-                                onclick="cerrarConfirmacionPanel()">Cancelar</button>
-                            <button type="button" class="btn" id="btn-panel-confirmar"
-                                style="font-size:12px; padding:6px 14px;"
-                                onclick="ejecutarAccionPanel()">
-                                <i data-lucide="check" style="width:13px;height:13px;"></i> Confirmar
-                            </button>
-                        </div>
-                    </div>
-                </div>
+
+
 
                 <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:16px;">
                     <button type="button" class="btn"
@@ -343,11 +453,15 @@
         <table style="width:100%; border-collapse:collapse; text-align:left;">
             <thead>
                 <tr style="border-bottom:1px solid var(--border); background:var(--bg-card); position:sticky; top:0; z-index:10;">
+                    {% if current_user and current_user.rol in ('Admin', 'Supervisor') %}
+                    <th style="padding:10px 8px; white-space:nowrap; text-align:center;">Aprob.</th>
+                    {% endif %}
                     <th style="padding:10px 8px; white-space:nowrap;">Ticket</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Fecha Ticket</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Proyecto</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Servicio</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Estado</th>
+                    <th style="padding:10px 8px; white-space:nowrap;">Prioridad</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Gestor</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Departamento</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Ciudad</th>
@@ -360,9 +474,6 @@
                     <th style="padding:10px 8px; white-space:nowrap;">M. Gastado</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Evidencia</th>
                     <th style="padding:10px 8px; white-space:nowrap;">Acciones</th>
-                    {% if current_user and current_user.rol in ('Admin', 'Supervisor') %}
-                    <th style="padding:10px 8px; white-space:nowrap;">Aprobación</th>
-                    {% endif %}
                 </tr>
             </thead>
             <tbody id="tabla-incidencias"></tbody>
@@ -546,6 +657,7 @@
             formData.append('estado',           document.getElementById('estado').value);
             formData.append('monto_aprobado',   document.getElementById('monto_aprobado').value);
             formData.append('monto_gastado',    document.getElementById('monto_gastado').value);
+            formData.append('prioridad',        document.getElementById('prioridad').value);
 
 
             const fileInput = document.getElementById('evidencia_file');
@@ -603,6 +715,7 @@
             if (existente.tecnico_asignado) document.getElementById('tecnico_asignado').value = existente.tecnico_asignado;
             if (existente.contrata) document.getElementById('contrata').value = existente.contrata;
             if (existente.sla) document.getElementById('sla').value = existente.sla;
+            if (existente.prioridad) document.getElementById('prioridad').value = existente.prioridad;
 
             // Dejar en blanco lo variable para el gestor
             document.getElementById('estado').value = '';
@@ -706,6 +819,44 @@
             document.getElementById('cnt-pext').textContent = pext;
             document.getElementById('cnt-cotizacion').textContent = cotizacion;
 
+            // Calcular y mostrar Mini KPI Bar
+            let mkpiTotal = todasLasIncidencias.length;
+            let mkpiPlazo = 0, mkpiPorVencer = 0, mkpiVencidos = 0;
+            let mkpiConCot = 0, mkpiSinCot = 0, mkpiMontoTotal = 0;
+            todasLasIncidencias.forEach(inc => {
+                if (inc.monto_aprobado !== null && parseFloat(inc.monto_aprobado) > 0) {
+                    mkpiConCot++;
+                    mkpiMontoTotal += parseFloat(inc.monto_aprobado);
+                } else {
+                    mkpiSinCot++;
+                }
+                if (inc.sla && inc.fecha_captura) {
+                    const match = inc.sla.match(/(\d+)\s*(HRS|H|horas|hora)/i);
+                    if (match) {
+                        const slaHours = parseInt(match[1]);
+                        const parts = inc.fecha_captura.split(/[- :]/);
+                        if (parts.length >= 5) {
+                            const captureDate = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
+                            const elapsed = (Date.now() - captureDate) / (1000 * 60 * 60);
+                            const done = ['Liquidado', 'Cierre Técnico', 'Cierre Operativo'].includes(inc.estado);
+                            if (!done) {
+                                if (elapsed >= slaHours) mkpiVencidos++;
+                                else if (elapsed >= slaHours * 0.8) mkpiPorVencer++;
+                                else mkpiPlazo++;
+                            }
+                        }
+                    }
+                }
+            });
+            const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            set('mkpi-total', mkpiTotal);
+            set('mkpi-plazo', mkpiPlazo);
+            set('mkpi-por-vencer', mkpiPorVencer);
+            set('mkpi-vencidos', mkpiVencidos);
+            set('mkpi-con-cot', mkpiConCot);
+            set('mkpi-sin-cot', mkpiSinCot);
+            set('mkpi-monto', `S/ ${mkpiMontoTotal.toFixed(0)}`);
+
             renderizarTabla();
         } catch (err) { console.error("Error cargando incidencias:", err); }
     }
@@ -742,8 +893,53 @@
             // Escapar JSON para el botón de editar
             const jsonStr = JSON.stringify(i).replace(/'/g, "&#39;");
 
+            // Lógica para Alarma SLA
+            let slaAlarmHtml = '';
+            if (i.sla && i.fecha_captura && !['Liquidado', 'Cierre Técnico', 'Cierre Operativo'].includes(i.estado)) {
+                const match = i.sla.match(/(\d+)\s*(HRS|H|horas|hora)/i);
+                if (match) {
+                    const slaHours = parseInt(match[1]);
+                    // fecha_captura format: 'YYYY-MM-DD HH:MM'
+                    const parts = i.fecha_captura.split(/[- :]/);
+                    if (parts.length >= 5) {
+                        const captureDate = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
+                        const now = new Date();
+                        const elapsedMs = now - captureDate;
+                        const elapsedHours = elapsedMs / (1000 * 60 * 60);
+                        const limitHours = slaHours;
+                        
+                        if (elapsedHours >= limitHours) {
+                            slaAlarmHtml = `<span class="sla-dot vencido" title="Vencido (${elapsedHours.toFixed(1)}h transcurridas de ${limitHours}h limit)"></span>`;
+                        } else if (elapsedHours >= limitHours * 0.8) {
+                            slaAlarmHtml = `<span class="sla-dot por-vencer" title="Por vencer (${elapsedHours.toFixed(1)}h transcurridas de ${limitHours}h limit)"></span>`;
+                        } else {
+                            slaAlarmHtml = `<span class="sla-dot dentro-plazo" title="Dentro de plazo (${elapsedHours.toFixed(1)}h transcurridas de ${limitHours}h limit)"></span>`;
+                        }
+                    }
+                }
+            }
+
+            // Colores para Prioridad
+            const priColores = {
+                'Prioridad 1': '#ef4444',
+                'Prioridad 2': '#f97316',
+                'Prioridad 3': '#eab308',
+                'Prioridad 4': '#3b82f6',
+                'Sin prioridad': '#6b7280'
+            };
+            const priBadge = priColores[i.prioridad] || '#6b7280';
+            const priText = i.prioridad || 'Sin prioridad';
+
             tr.innerHTML = `
-                <td style="padding:9px 8px; font-weight:700; white-space:nowrap;">
+                ${IS_SUPER_OR_ADMIN ? `<td style="padding:9px 8px; text-align:center;">
+                    <button onclick='abrirPopupAprobacion(${jsonStr})'
+                        style="background:rgba(99,102,241,0.12); color:var(--primary); border:1px solid rgba(99,102,241,0.3); border-radius:8px; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition: all 0.2s;"
+                        title="Aprobar o rechazar cotización">
+                        <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
+                    </button>
+                </td>` : ''}
+                <td style="padding:9px 8px; font-weight:700; white-space:nowrap; display:flex; align-items:center; gap:6px;">
+                    ${slaAlarmHtml}
                     <a href="javascript:void(0)" onclick='editarIncidencia(${jsonStr})' style="color:var(--primary); text-decoration:underline; font-size:12px; cursor:pointer;" title="Ver/Editar detalle del ticket">${i.numero_ticket}</a>
                 </td>
                 <td style="padding:9px 8px; color:var(--text-muted); white-space:nowrap; font-size:11px;">${i.fecha_ticket}</td>
@@ -751,6 +947,9 @@
                 <td style="padding:9px 8px; white-space:nowrap;">${i.servicio || '-'}</td>
                 <td style="padding:9px 8px;">
                     <span class="tag" style="background:${badge}; white-space:nowrap;">${i.estado}</span>
+                </td>
+                <td style="padding:9px 8px;">
+                    <span class="tag" style="background:${priBadge}; white-space:nowrap; font-size:10px;">${priText}</span>
                 </td>
                 <td style="padding:9px 8px; white-space:nowrap;">${i.gestor || '-'}</td>
                 <td style="padding:9px 8px; white-space:nowrap;">${i.departamento || '-'}</td>
@@ -764,13 +963,6 @@
                 <td style="padding:9px 8px; white-space:nowrap; font-weight:600; color:#ef4444;">${txtGastado}</td>
                 <td style="padding:9px 8px;">${renderEvidenciaLinks(i.evidencia)}</td>
                 ${IS_ADMIN ? `<td style="padding:9px 8px;"><button onclick="borrarIncidencia(${i.id})" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:5px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:600;">&#x1F5D1; Borrar</button></td>` : '<td></td>'}
-                ${IS_SUPER_OR_ADMIN ? `<td style="padding:9px 8px;">
-                    <button onclick='abrirPopupAprobacion(${jsonStr})'
-                        style="background:rgba(99,102,241,0.15); color:var(--primary); border:1px solid rgba(99,102,241,0.4); border-radius:5px; padding:4px 10px; cursor:pointer; font-size:11px; font-weight:600; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;"
-                        title="Aprobar o rechazar cotización">
-                        &#10003; Aprobación
-                    </button>
-                </td>` : ''}
             `;
             tbody.appendChild(tr);
         });
@@ -799,6 +991,7 @@
         document.getElementById('contrata').value = i.contrata || '';
         document.getElementById('sla').value = i.sla || '';
         document.getElementById('descripcion').value = i.descripcion || '';
+        document.getElementById('prioridad').value = i.prioridad || 'Sin prioridad';
 
         // --- Campos de montos (siempre visibles) ---
         const maInput = document.getElementById('monto_aprobado');
@@ -820,9 +1013,8 @@
         if (i.evidencia) {
             const urls = i.evidencia.split(',').map(u => u.trim()).filter(Boolean);
             const links = urls.map((url, idx) => {
-                const esRotta = url.includes('ibb.co');
-                const label = esRotta ? `Foto ${idx+1} (Expirada ImgBB)` : `Foto ${idx+1}`;
-                const style = esRotta ? 'color:#ef4444; text-decoration:line-through; margin-right:6px; opacity:0.6;' : 'color:var(--primary); margin-right:6px;';
+                const label = `Foto ${idx+1}`;
+                const style = 'color:var(--primary); margin-right:6px; font-weight: 500; text-decoration: underline;';
                 return `<a href="${url}" target="_blank" style="${style}">${label}</a>`;
             }).join('');
             evDiv.innerHTML = `<div style="margin-top:2px;">Evidencias actuales (${urls.length}): ${links}</div><div style="font-size:10px; color:var(--text-muted);">(Si subes nuevos archivos reemplazarán las fotos actuales)</div>`;

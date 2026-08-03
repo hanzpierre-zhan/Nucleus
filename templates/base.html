@@ -55,7 +55,8 @@
             background-color: var(--bg-main);
             color: var(--text-main);
             display: flex;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
         }
 
         .sidebar {
@@ -65,6 +66,9 @@
             padding: 24px;
             display: flex;
             flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+            flex-shrink: 0;
         }
 
         .logo {
@@ -123,14 +127,19 @@
             flex: 1;
             padding: 32px;
             overflow-y: auto;
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
         }
 
         .glass {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--border);
-            border-radius: 12px;
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
         }
 
         .form-group label {
@@ -143,14 +152,14 @@
 
         .form-group input, .form-group select, .form-group textarea {
             width: 100%;
-            padding: 10px;
-            border-radius: 6px;
+            padding: 10px 12px;
+            border-radius: 10px;
             border: 1px solid var(--border);
-            background: rgba(255,255,255,0.05);
+            background: rgba(255,255,255,0.03);
             color: var(--text-main);
             font-family: inherit;
             box-sizing: border-box;
-            transition: border-color 0.3s;
+            transition: all 0.2s ease;
         }
 
         .form-group select option {
@@ -161,20 +170,29 @@
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             outline: none;
             border-color: var(--primary);
+            background: rgba(255,255,255,0.05);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
         }
 
         .btn {
             background: var(--primary); 
             color: white; 
             border: none; 
-            padding: 10px 24px; 
-            border-radius: 6px; 
+            padding: 8px 18px; 
+            border-radius: 10px; 
             cursor: pointer; 
-            font-weight: 500; 
+            font-weight: 600; 
             display:inline-flex; 
             align-items:center; 
             gap:8px;
             font-family: inherit;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .btn:active {
+            transform: scale(0.97);
         }
         .btn-danger { background: var(--danger); }
 
@@ -237,10 +255,8 @@
             </button>
         </div>
         <ul class="nav-links">
+            <li><a href="/dashboard" class="{{ 'active' if request.path == '/dashboard' else '' }}" title="Dashboard"><i data-lucide="layout-dashboard"></i> <span class="nav-text">Dashboard</span></a></li>
             <li><a href="/" class="{{ 'active' if request.path == '/' else '' }}" title="Incidencias"><i data-lucide="inbox"></i> <span class="nav-text">Incidencias</span></a></li>
-            {% if current_user.rol in ('Admin', 'Supervisor') %}
-            <li><a href="/cotizaciones" class="{{ 'active' if request.path == '/cotizaciones' else '' }}" title="Cotizaciones"><i data-lucide="file-text"></i> <span class="nav-text">Cotizaciones</span></a></li>
-            {% endif %}
             {% if current_user.rol == 'Admin' %}
             <li><a href="/admin/usuarios" class="{{ 'active' if request.path == '/admin/usuarios' else '' }}" title="Usuarios"><i data-lucide="users"></i> <span class="nav-text">Usuarios</span></a></li>
             <li><a href="/admin/configuracion" class="{{ 'active' if request.path == '/admin/configuracion' else '' }}" title="Configuración"><i data-lucide="settings"></i> <span class="nav-text">Configuración</span></a></li>

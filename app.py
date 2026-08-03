@@ -115,6 +115,7 @@ class Incidencia(db.Model):
     monto_aprobado   = db.Column(db.Float, nullable=True)         # Monto validado (protegido tras aprobación)
     monto_gastado    = db.Column(db.Float, nullable=True)         # Monto real gastado (siempre editable)
     aprobado_por     = db.Column(db.String(100), nullable=True)   # Usuario que aprobó la cotización
+    prioridad        = db.Column(db.String(50), nullable=True, default='Sin prioridad')
 
     def to_dict(self):
         """Serializa la incidencia a diccionario para respuestas JSON y snapshots."""
@@ -138,7 +139,8 @@ class Incidencia(db.Model):
             'servicio': self.servicio,
             'monto_aprobado': self.monto_aprobado if self.monto_aprobado is not None else None,
             'monto_gastado': self.monto_gastado if self.monto_gastado is not None else None,
-            'aprobado_por': self.aprobado_por
+            'aprobado_por': self.aprobado_por,
+            'prioridad': self.prioridad or 'Sin prioridad'
         }
 
 class HistorialIncidencia(db.Model):
@@ -177,18 +179,35 @@ class HistorialIncidencia(db.Model):
 # UTILIDADES
 # =============================================================================
 
+from PIL import Image
+import io
+
+def compress_image_to_base64(file_bytes, max_size=(800, 800), quality=70):
+    """Comprime la imagen en memoria y la retorna como data URI en base64 para guardado persistente."""
+    try:
+        img = Image.open(io.BytesIO(file_bytes))
+        # Convertir a RGB si tiene transparencia
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+            img = img.convert('RGB')
+        img.thumbnail(max_size, Image.Resampling.LANCZOS)
+        out = io.BytesIO()
+        img.save(out, format='JPEG', quality=quality, optimize=True)
+        compressed_bytes = out.getvalue()
+        b64_str = base64.b64encode(compressed_bytes).decode('utf-8')
+        return f"data:image/jpeg;base64,{b64_str}"
+    except Exception as e:
+        print("Error al comprimir imagen:", e)
+        b64_str = base64.b64encode(file_bytes).decode('utf-8')
+        return f"data:image/jpeg;base64,{b64_str}"
+
 def guardar_archivos_evidencia(files):
-    """Sube archivos de evidencia a ImgBB (prioridad) o guarda localmente como respaldo.
+    """Sube archivos de evidencia a ImgBB (prioridad) o los guarda comprimidos en Base64 en base de datos.
 
     Args:
         files: Lista de objetos FileStorage del request.
 
     Returns:
-        String con URLs separadas por coma, o None si no hay archivos.
-
-    Estrategia de almacenamiento:
-        1. Intenta subir a ImgBB via API (hosting externo gratuito).
-        2. Si falla, guarda el archivo en static/uploads/ como respaldo local.
+        String con URLs / data URIs separadas por coma, o None si no hay archivos.
     """
     api_key = os.environ.get('IMGBB_API_KEY', 'cb81e9e13ace655a6c16c147d0d704c8')
     urls = []
@@ -217,20 +236,17 @@ def guardar_archivos_evidencia(files):
                         urls.append(data['data']['url'])
                         subido = True
                 except Exception as ex_imgbb:
-                    print("Error subiendo a ImgBB, usando respaldo local:", ex_imgbb)
+                    print("Error subiendo a ImgBB, usando respaldo en base de datos:", ex_imgbb)
 
-            # Respaldo local si ImgBB falló o no hay API key
+            # Respaldo en Base de Datos (en vez de local efímero) si ImgBB falló o no hay API key
             if not subido:
-                ext = os.path.splitext(filename)[1] or '.jpg'
-                unique_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{os.urandom(4).hex()}{ext}"
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-                with open(file_path, 'wb') as f:
-                    f.write(file_bytes)
-                urls.append(f"/static/uploads/{unique_name}")
+                data_uri = compress_image_to_base64(file_bytes)
+                urls.append(data_uri)
         except Exception as e:
             print("Error procesando evidencia:", e)
 
     return ','.join(urls) if urls else None
+
 
 
 # =============================================================================
@@ -324,6 +340,13 @@ def index():
     """Página principal - Consolidado de incidencias."""
     return render_template('index.html')
 
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    """Página de Dashboard consolidado."""
+    return render_template('dashboard.html')
+
+
 @app.route('/admin/usuarios')
 @admin_required
 def admin_usuarios():
@@ -402,7 +425,8 @@ def api_incidencias():
             proyecto         = data.get('proyecto'),
             servicio         = data.get('servicio'),
             monto_aprobado   = monto_aprobado_val,
-            monto_gastado    = monto_gastado_val
+            monto_gastado    = monto_gastado_val,
+            prioridad        = data.get('prioridad', 'Sin prioridad')
         )
         db.session.add(nueva)
         try:
@@ -473,6 +497,7 @@ def api_incidencia_detail(id):
         inc.estado = data.get('estado', inc.estado)
         inc.proyecto = data.get('proyecto', inc.proyecto)
         inc.servicio = data.get('servicio', inc.servicio)
+        inc.prioridad = data.get('prioridad', inc.prioridad)
         inc.gestor = gestor_actual
 
         if 'monto_aprobado' in data:
@@ -537,7 +562,7 @@ def export_incidencias():
     writer.writerow([
         'Ticket', 'Fecha Ticket (Agente)', 'Proyecto', 'Servicio', 'Estado', 'Fecha Captura (Sistema)',
         'Gestor/Registrador', 'Departamento', 'Ciudad', 'Site Name', 'Descripcion',
-        'Tecnico', 'Contrata', 'SLA', 'Monto Aprobado', 'Monto Gastado'
+        'Tecnico', 'Contrata', 'SLA', 'Monto Aprobado', 'Monto Gastado', 'Prioridad'
     ])
     for i in incidencias:
         writer.writerow([
@@ -549,7 +574,8 @@ def export_incidencias():
             i.gestor, i.departamento, i.ciudad or '', i.site_name or '',
             i.descripcion, i.tecnico_asignado, i.contrata, i.sla,
             i.monto_aprobado if i.monto_aprobado is not None else '',
-            i.monto_gastado if i.monto_gastado is not None else ''
+            i.monto_gastado if i.monto_gastado is not None else '',
+            i.prioridad or 'Sin prioridad'
         ])
     output = si.getvalue()
     return Response(
@@ -614,7 +640,8 @@ def api_incidencias_import():
                 proyecto         = row.get('Proyecto') or row.get('proyecto'),
                 servicio         = row.get('Servicio') or row.get('servicio'),
                 monto_aprobado   = monto_aprobado_val,
-                monto_gastado    = monto_gastado_val
+                monto_gastado    = monto_gastado_val,
+                prioridad        = row.get('Prioridad') or row.get('prioridad') or 'Sin prioridad'
             )
             db.session.add(nueva)
             count += 1
@@ -818,6 +845,7 @@ def migrate_db():
                 ('monto_aprobado', 'FLOAT'),
                 ('monto_gastado',  'FLOAT'),
                 ('aprobado_por',   'VARCHAR(100)'),
+                ('prioridad',      'VARCHAR(50)'),
             ]:
                 try:
                     conn.execute(text(f"ALTER TABLE incidencias ADD COLUMN IF NOT EXISTS {col} {tipo}"))
@@ -860,6 +888,7 @@ def migrate_db():
             ('monto_aprobado', 'FLOAT'),
             ('monto_gastado',  'FLOAT'),
             ('aprobado_por',   'VARCHAR(100)'),
+            ('prioridad',      'VARCHAR(50)'),
         ]:
             if col not in existing_cols:
                 try:
