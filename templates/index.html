@@ -768,12 +768,25 @@
         if (!evidenciaStr) return '<span style="color:var(--text-muted);">-</span>';
         const urls = evidenciaStr.split(',').map(u => u.trim()).filter(Boolean);
         if (urls.length === 0) return '<span style="color:var(--text-muted);">-</span>';
-        if (urls.length === 1) {
-            return `<a href="${urls[0]}" target="_blank" class="btn" style="padding:3px 8px; font-size:11px; background:rgba(99,102,241,0.2); color:var(--primary);">Ver (1)</a>`;
+
+        // Detectar si es una ruta local antigua (no disponible en Render)
+        const isLocalPath = (url) => url.startsWith('/static/uploads/') || url.startsWith('static/uploads/');
+
+        const links = urls.map((url, idx) => {
+            if (isLocalPath(url)) {
+                return `<span title="Imagen local, no disponible en servidor" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;font-size:10px;background:rgba(239,68,68,0.1);color:#ef4444;border-radius:4px;border:1px solid rgba(239,68,68,0.3);">⚠️ No disp.</span>`;
+            }
+            // data URI o URL externa (ImgBB, etc.)
+            if (url.startsWith('data:image')) {
+                return `<a href="${url}" target="_blank" class="btn" style="padding:2px 6px; font-size:10px; background:rgba(99,102,241,0.2); color:var(--primary);" title="Foto ${idx+1}">📷 ${idx+1}</a>`;
+            }
+            return `<a href="${url}" target="_blank" class="btn" style="padding:2px 6px; font-size:10px; background:rgba(99,102,241,0.2); color:var(--primary);" title="Foto ${idx+1}">📷 ${idx+1}</a>`;
+        });
+
+        if (links.length === 1) {
+            return links[0].replace('padding:2px 6px', 'padding:3px 8px').replace('font-size:10px', 'font-size:11px');
         }
-        return `<div style="display:flex; gap:3px; flex-wrap:wrap;">` +
-            urls.map((url, idx) => `<a href="${url}" target="_blank" class="btn" style="padding:2px 6px; font-size:10px; background:rgba(99,102,241,0.2); color:var(--primary);" title="Foto ${idx+1}">📷 ${idx+1}</a>`).join('') +
-            `</div>`;
+        return `<div style="display:flex; gap:3px; flex-wrap:wrap;">` + links.join('') + `</div>`;
     }
 
     let filtroProyectoActivo = 'TODOS';
@@ -931,38 +944,40 @@
             const priText = i.prioridad || 'Sin prioridad';
 
             tr.innerHTML = `
-                ${IS_SUPER_OR_ADMIN ? `<td style="padding:9px 8px; text-align:center;">
+                ${IS_SUPER_OR_ADMIN ? `<td style="padding:7px 8px; text-align:center; vertical-align:middle;">
                     <button onclick='abrirPopupAprobacion(${jsonStr})'
-                        style="background:rgba(99,102,241,0.12); color:var(--primary); border:1px solid rgba(99,102,241,0.3); border-radius:8px; width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition: all 0.2s;"
+                        style="background:rgba(99,102,241,0.12); color:var(--primary); border:1px solid rgba(99,102,241,0.3); border-radius:8px; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition: all 0.2s;"
                         title="Aprobar o rechazar cotización">
-                        <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
+                        <i data-lucide="shield-check" style="width:14px; height:14px;"></i>
                     </button>
                 </td>` : ''}
-                <td style="padding:9px 8px; font-weight:700; white-space:nowrap; display:flex; align-items:center; gap:6px;">
-                    ${slaAlarmHtml}
-                    <a href="javascript:void(0)" onclick='editarIncidencia(${jsonStr})' style="color:var(--primary); text-decoration:underline; font-size:12px; cursor:pointer;" title="Ver/Editar detalle del ticket">${i.numero_ticket}</a>
+                <td style="padding:7px 8px; font-weight:700; white-space:nowrap; vertical-align:middle;">
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        ${slaAlarmHtml}
+                        <a href="javascript:void(0)" onclick='editarIncidencia(${jsonStr})' style="color:var(--primary); text-decoration:underline; font-size:12px; cursor:pointer;" title="Ver/Editar detalle del ticket">${i.numero_ticket}</a>
+                    </div>
                 </td>
-                <td style="padding:9px 8px; color:var(--text-muted); white-space:nowrap; font-size:11px;">${i.fecha_ticket}</td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.proyecto || '-'}</td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.servicio || '-'}</td>
-                <td style="padding:9px 8px;">
+                <td style="padding:7px 8px; color:var(--text-muted); white-space:nowrap; font-size:11px; vertical-align:middle;">${i.fecha_ticket}</td>
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.proyecto || '-'}</td>
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.servicio || '-'}</td>
+                <td style="padding:7px 8px; vertical-align:middle;">
                     <span class="tag" style="background:${badge}; white-space:nowrap;">${i.estado}</span>
                 </td>
-                <td style="padding:9px 8px;">
+                <td style="padding:7px 8px; vertical-align:middle;">
                     <span class="tag" style="background:${priBadge}; white-space:nowrap; font-size:10px;">${priText}</span>
                 </td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.gestor || '-'}</td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.departamento || '-'}</td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.ciudad || '-'}</td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.site_name || '-'}</td>
-                <td style="padding:9px 8px; max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${i.descripcion}">${i.descripcion}</td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.tecnico_asignado || '-'}</td>
-                <td style="padding:9px 8px; white-space:nowrap;">${i.contrata || '-'}</td>
-                <td style="padding:9px 8px; white-space:nowrap; font-weight:600;">${i.sla || '-'}</td>
-                <td style="padding:9px 8px; white-space:nowrap; font-weight:600; color:#10b981;">${txtAprobado}</td>
-                <td style="padding:9px 8px; white-space:nowrap; font-weight:600; color:#ef4444;">${txtGastado}</td>
-                <td style="padding:9px 8px;">${renderEvidenciaLinks(i.evidencia)}</td>
-                ${IS_ADMIN ? `<td style="padding:9px 8px;"><button onclick="borrarIncidencia(${i.id})" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:5px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:600;">&#x1F5D1; Borrar</button></td>` : '<td></td>'}
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.gestor || '-'}</td>
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.departamento || '-'}</td>
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.ciudad || '-'}</td>
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.site_name || '-'}</td>
+                <td style="padding:7px 8px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle;" title="${i.descripcion}">${i.descripcion}</td>
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.tecnico_asignado || '-'}</td>
+                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.contrata || '-'}</td>
+                <td style="padding:7px 8px; white-space:nowrap; font-weight:600; vertical-align:middle;">${i.sla || '-'}</td>
+                <td style="padding:7px 8px; white-space:nowrap; font-weight:600; color:#10b981; vertical-align:middle;">${txtAprobado}</td>
+                <td style="padding:7px 8px; white-space:nowrap; font-weight:600; color:#ef4444; vertical-align:middle;">${txtGastado}</td>
+                <td style="padding:7px 8px; vertical-align:middle;">${renderEvidenciaLinks(i.evidencia)}</td>
+                ${IS_ADMIN ? `<td style="padding:7px 8px; vertical-align:middle;"><button onclick="borrarIncidencia(${i.id})" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:600;">&#x1F5D1; Borrar</button></td>` : '<td></td>'}
             `;
             tbody.appendChild(tr);
         });

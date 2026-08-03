@@ -933,6 +933,32 @@ def init_db():
     db.session.commit()
 
 
+@app.route('/api/admin/limpiar-evidencias-locales', methods=['POST'])
+@admin_required
+def limpiar_evidencias_locales():
+    """Limpia las referencias a imágenes locales (rutas /static/uploads/) que no
+    están disponibles en Render. Solo accesible para Administradores.
+    Devuelve cuántos registros fueron afectados.
+    """
+    incidencias = Incidencia.query.filter(Incidencia.evidencia.isnot(None)).all()
+    afectados = 0
+    for inc in incidencias:
+        if not inc.evidencia:
+            continue
+        urls = [u.strip() for u in inc.evidencia.split(',') if u.strip()]
+        urls_validas = [u for u in urls if not (u.startswith('/static/uploads/') or u.startswith('static/uploads/'))]
+        urls_locales = len(urls) - len(urls_validas)
+        if urls_locales > 0:
+            inc.evidencia = ','.join(urls_validas) if urls_validas else None
+            afectados += 1
+    try:
+        db.session.commit()
+        return jsonify({'success': True, 'afectados': afectados})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 # =============================================================================
 # ARRANQUE DE LA APLICACIÓN
 # =============================================================================
