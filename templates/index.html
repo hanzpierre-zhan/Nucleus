@@ -769,24 +769,33 @@
         const urls = evidenciaStr.split(',').map(u => u.trim()).filter(Boolean);
         if (urls.length === 0) return '<span style="color:var(--text-muted);">-</span>';
 
-        // Detectar si es una ruta local antigua (no disponible en Render)
-        const isLocalPath = (url) => url.startsWith('/static/uploads/') || url.startsWith('static/uploads/');
+        const isLocal = (url) => url.startsWith('/static/uploads/') || url.startsWith('static/uploads/');
+        const locales = urls.filter(isLocal);
+        const validas = urls.filter(u => !isLocal(u));
 
-        const links = urls.map((url, idx) => {
-            if (isLocalPath(url)) {
-                return `<span title="Imagen local, no disponible en servidor" style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;font-size:10px;background:rgba(239,68,68,0.1);color:#ef4444;border-radius:4px;border:1px solid rgba(239,68,68,0.3);">⚠️ No disp.</span>`;
-            }
-            // data URI o URL externa (ImgBB, etc.)
-            if (url.startsWith('data:image')) {
-                return `<a href="${url}" target="_blank" class="btn" style="padding:2px 6px; font-size:10px; background:rgba(99,102,241,0.2); color:var(--primary);" title="Foto ${idx+1}">📷 ${idx+1}</a>`;
-            }
-            return `<a href="${url}" target="_blank" class="btn" style="padding:2px 6px; font-size:10px; background:rgba(99,102,241,0.2); color:var(--primary);" title="Foto ${idx+1}">📷 ${idx+1}</a>`;
-        });
+        let html = '<div style="display:flex; gap:4px; align-items:center; flex-wrap:nowrap;">';
 
-        if (links.length === 1) {
-            return links[0].replace('padding:2px 6px', 'padding:3px 8px').replace('font-size:10px', 'font-size:11px');
+        if (validas.length > 0) {
+            // Mostrar un solo botón con el conteo de fotos válidas
+            // El primer enlace es el destino principal
+            html += `<a href="${validas[0]}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; font-size:11px; background:rgba(99,102,241,0.15); color:var(--primary); border-radius:6px; border:1px solid rgba(99,102,241,0.3); text-decoration:none; white-space:nowrap; font-weight:600;">📷 ${validas.length} foto${validas.length > 1 ? 's' : ''}</a>`;
+            // Si hay más de 1, añadir botones individuales hasta 3 visibles
+            if (validas.length > 1) {
+                validas.slice(1, 3).forEach((url, i) => {
+                    html += `<a href="${url}" target="_blank" style="display:inline-flex; align-items:center; padding:3px 5px; font-size:10px; background:rgba(99,102,241,0.08); color:var(--primary); border-radius:5px; border:1px solid rgba(99,102,241,0.2); text-decoration:none;">+${i+2}</a>`;
+                });
+                if (validas.length > 3) {
+                    html += `<span style="font-size:10px; color:var(--text-muted);">+${validas.length - 3} más</span>`;
+                }
+            }
         }
-        return `<div style="display:flex; gap:3px; flex-wrap:wrap;">` + links.join('') + `</div>`;
+
+        if (locales.length > 0) {
+            html += `<span title="${locales.length} imagen(es) guardada(s) localmente, no disponible en servidor cloud" style="display:inline-flex; align-items:center; gap:2px; padding:2px 5px; font-size:10px; background:rgba(239,68,68,0.08); color:#ef4444; border-radius:5px; border:1px solid rgba(239,68,68,0.25); white-space:nowrap;">⚠️ ${locales.length}</span>`;
+        }
+
+        html += '</div>';
+        return html;
     }
 
     let filtroProyectoActivo = 'TODOS';
@@ -1027,12 +1036,37 @@
         const evDiv = document.getElementById('evidencia_preview');
         if (i.evidencia) {
             const urls = i.evidencia.split(',').map(u => u.trim()).filter(Boolean);
-            const links = urls.map((url, idx) => {
-                const label = `Foto ${idx+1}`;
-                const style = 'color:var(--primary); margin-right:6px; font-weight: 500; text-decoration: underline;';
-                return `<a href="${url}" target="_blank" style="${style}">${label}</a>`;
-            }).join('');
-            evDiv.innerHTML = `<div style="margin-top:2px;">Evidencias actuales (${urls.length}): ${links}</div><div style="font-size:10px; color:var(--text-muted);">(Si subes nuevos archivos reemplazarán las fotos actuales)</div>`;
+            if (urls.length > 0) {
+                const isLocal = (url) => url.startsWith('/static/uploads/') || url.startsWith('static/uploads/');
+                const thumbs = urls.map((url, idx) => {
+                    const isImg = url.startsWith('data:image') || url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) || url.includes('imgbb') || url.includes('ibb.co');
+                    const thumbSrc = isLocal(url) ? '' : (url.startsWith('data:') ? url : (isImg ? url : ''));
+                    const preview = isLocal(url)
+                        ? `<span title="Imagen local, no disponible" style="font-size:9px; color:#ef4444;">⚠️ Local</span>`
+                        : (thumbSrc ? `<img src="${thumbSrc}" style="width:48px; height:48px; object-fit:cover; border-radius:6px; border:1px solid var(--border);" onerror="this.style.display='none'">` : `<span style="font-size:10px; color:var(--text-muted);">📎</span>`);
+                    return `
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:68px;">
+                            <a href="${url}" target="_blank" title="Ver foto ${idx+1}" style="display:flex; flex-direction:column; align-items:center; gap:2px; text-decoration:none;">
+                                ${preview}
+                                <span style="font-size:9px; color:var(--text-muted);">Foto ${idx+1}</span>
+                            </a>
+                            <button type="button"
+                                onclick="eliminarFoto(${i.id}, ${idx})"
+                                title="Eliminar esta foto"
+                                style="position:absolute; top:-6px; right:-6px; background:#ef4444; border:none; color:white; border-radius:50%; width:18px; height:18px; font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; padding:0; box-shadow:0 2px 4px rgba(0,0,0,0.3);">
+                                &times;
+                            </button>
+                        </div>`;
+                }).join('');
+                evDiv.innerHTML = `
+                    <div style="margin-top:6px;">
+                        <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">Fotos actuales (${urls.length}) — haz clic en ✕ para eliminar:</div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;" id="fotos-galeria">${thumbs}</div>
+                        <div style="font-size:10px; color:var(--text-muted); margin-top:5px;">📎 Si subes nuevos archivos, se agregarán a las existentes.</div>
+                    </div>`;
+            } else {
+                evDiv.innerHTML = '';
+            }
         } else {
             evDiv.innerHTML = '';
         }
@@ -1063,6 +1097,33 @@
     // APROBAR / RECHAZAR COTIZACIÓN (desde el panel de edición)
     // Solo visible para Admin/Supervisor cuando servicio=COTIZACION
     // =========================================================
+    async function eliminarFoto(incidenciaId, fotoIndex) {
+        if (!confirm("¿Estás seguro de eliminar esta foto?")) return;
+        try {
+            const response = await fetch(`/api/incidencias/${incidenciaId}/eliminar-foto`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ foto_index: fotoIndex })
+            });
+            const resData = await response.json();
+            if (response.ok && resData.success) {
+                // Volver a cargar la fila y actualizar el panel
+                await cargarIncidencias(); // Recargar datos locales
+                const updatedInc = todasLasIncidencias.find(x => x.id === incidenciaId);
+                if (updatedInc) {
+                    editarIncidencia(updatedInc);
+                }
+            } else {
+                alert("Error al eliminar la foto: " + (resData.error || "Error desconocido"));
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error de red al intentar eliminar la foto");
+        }
+    }
+
     let _panelAccionActual = null; // 'aprobar' | 'rechazar'
 
     /** Despliega el mini-formulario de confirmación dentro del panel. */

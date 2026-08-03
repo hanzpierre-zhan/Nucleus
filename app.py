@@ -548,6 +548,57 @@ def api_incidencia_historial(id):
     return jsonify([h.to_dict() for h in historial])
 
 
+@app.route('/api/incidencias/<int:id>/eliminar-foto', methods=['POST'])
+@login_required
+def api_eliminar_foto(id):
+    """Elimina una foto específica de la evidencia de una incidencia.
+    
+    Body JSON: { "foto_index": 0 }  (índice 0-based de la foto a eliminar)
+    """
+    inc = Incidencia.query.get_or_404(id)
+    data = request.json or {}
+    foto_index = data.get('foto_index')
+    
+    if foto_index is None:
+        return jsonify({'error': 'foto_index requerido'}), 400
+    
+    if not inc.evidencia:
+        return jsonify({'error': 'No hay evidencias para eliminar'}), 400
+    
+    urls = [u.strip() for u in inc.evidencia.split(',') if u.strip()]
+    
+    try:
+        foto_index = int(foto_index)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'foto_index debe ser un número'}), 400
+    
+    if foto_index < 0 or foto_index >= len(urls):
+        return jsonify({'error': 'Índice de foto fuera de rango'}), 400
+    
+    urls.pop(foto_index)
+    inc.evidencia = ','.join(urls) if urls else None
+    
+    # Registrar en historial
+    user = Usuario.query.get(session['user_id'])
+    gestor = (user.nombre or user.username) if user else 'Desconocido'
+    hist = HistorialIncidencia(
+        incidencia_id=inc.id,
+        estado=inc.estado,
+        gestor=gestor,
+        comentario=f'Foto {foto_index + 1} eliminada manualmente.',
+        evidencia=inc.evidencia,
+        detalle_snapshot=json.dumps(inc.to_dict())
+    )
+    db.session.add(hist)
+    
+    try:
+        db.session.commit()
+        return jsonify({'success': True, 'incidencia': inc.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 # =============================================================================
 # API REST - EXPORTAR / IMPORTAR INCIDENCIAS (CSV)
 # =============================================================================
