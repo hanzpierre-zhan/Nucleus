@@ -20,7 +20,7 @@ Roles del sistema:
              aprobado una vez validado por un supervisor.
 """
 
-import os, csv, base64, requests, json
+import os, csv, base64, requests, json, re
 from io import StringIO
 from datetime import datetime
 from functools import wraps
@@ -479,7 +479,10 @@ def api_incidencia_detail(id):
         files = request.files.getlist('evidencia_files') or request.files.getlist('evidencia_file')
         nuevas_urls = guardar_archivos_evidencia(files)
         if nuevas_urls:
-            inc.evidencia = nuevas_urls
+            if inc.evidencia:
+                inc.evidencia = inc.evidencia + ',' + nuevas_urls
+            else:
+                inc.evidencia = nuevas_urls
 
         fecha_ticket_str = data.get('fecha_ticket', '')
         if fecha_ticket_str:
@@ -565,7 +568,7 @@ def api_eliminar_foto(id):
     if not inc.evidencia:
         return jsonify({'error': 'No hay evidencias para eliminar'}), 400
     
-    urls = [u.strip() for u in inc.evidencia.split(',') if u.strip()]
+    urls = [u.strip() for u in re.split(r',(?=(?:https?://|/?static/|data:))', inc.evidencia) if u.strip()]
     
     try:
         foto_index = int(foto_index)
