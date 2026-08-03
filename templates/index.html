@@ -534,31 +534,46 @@
     function verFoto(url) {
         if (!url) return;
         if (url.startsWith('data:')) {
-            const w = window.open();
-            if (w) {
-                w.document.write(`
-                    <html>
-                    <head>
-                        <title>Visualizar Evidencia</title>
-                        <style>
-                            body { margin: 0; background: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: sans-serif; color: #cbd5e1; }
-                            .container { text-align: center; max-width: 90%; }
-                            img { max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
-                            .btn-download { display: inline-block; margin-top: 15px; padding: 8px 16px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px; transition: background 0.2s; }
-                            .btn-download:hover { background: #4f46e5; }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <img src="\${url}" /><br/>
-                            <a href="\${url}" download="evidencia.jpg" class="btn-download">Descargar Imagen</a>
-                        </div>
-                    </body>
-                    </html>
-                `);
-                w.document.close();
-            } else {
-                alert("El navegador bloqueó la ventana emergente. Por favor, permite las ventanas emergentes para este sitio.");
+            try {
+                const byteString = atob(url.split(',')[1]);
+                const mimeString = url.split(',')[0].split(':')[1].split(';')[0];
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                const blob = new Blob([ab], {type: mimeString});
+                const blobURL = URL.createObjectURL(blob);
+
+                const w = window.open();
+                if (w) {
+                    w.document.write(`
+                        <html>
+                        <head>
+                            <title>Visualizar Evidencia</title>
+                            <style>
+                                body { margin: 0; background: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: sans-serif; color: #cbd5e1; }
+                                .container { text-align: center; max-width: 90%; }
+                                img { max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
+                                .btn-download { display: inline-block; margin-top: 15px; padding: 8px 16px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px; transition: background 0.2s; }
+                                .btn-download:hover { background: #4f46e5; }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <img src="` + blobURL + `" /><br/>
+                                <a href="` + blobURL + `" download="evidencia.jpg" class="btn-download">Descargar Imagen</a>
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                    w.document.close();
+                } else {
+                    alert("El navegador bloqueó la ventana emergente. Por favor, permite las ventanas emergentes para este sitio.");
+                }
+            } catch (e) {
+                console.error("Error al procesar imagen base64:", e);
+                alert("No se pudo procesar la imagen para su visualización.");
             }
         } else {
             window.open(url, '_blank');
