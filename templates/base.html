@@ -3,356 +3,164 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multiconsulta</title>
-    <link rel="icon" href="{{ url_for('static', filename='logo.png') }}" type="image/png">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        :root {
-            --bg-main: #0f172a;
-            --bg-card: #1e293b;
-            --primary: #6366f1;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #334155;
-            --danger: #ef4444;
-        }
+    <title>{% block title %}Nucleus{% endblock %}</title>
+    <!-- Favicon (SVG Inincrustado para que funcione siempre) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23007AFF' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23007AFF'/%3E%3C/svg%3E">
 
-        body.light-theme {
-            --bg-main: #f1f5f9;
-            --bg-card: #ffffff;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --border: #cbd5e1;
-        }
-
-        /* Adjustments for light theme elements */
-        body.light-theme .form-group input,
-        body.light-theme .form-group select,
-        body.light-theme .form-group textarea {
-            background: #ffffff;
-            color: #0f172a;
-        }
-        body.light-theme .form-group select option {
-            background-color: #ffffff;
-            color: #0f172a;
-        }
-        body.light-theme .glass {
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid var(--border);
-        }
-        body.light-theme tr:hover td {
-            background: rgba(99, 102, 241, 0.04);
-        }
-        body.light-theme th {
-            color: var(--text-muted);
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-main);
-            color: var(--text-main);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        .sidebar {
-            width: 250px;
-            background-color: var(--bg-card);
-            border-right: 1px solid var(--border);
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            box-sizing: border-box;
-            flex-shrink: 0;
-        }
-
-        .logo {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 28px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .nav-links {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            flex: 1;
-        }
-
-        .nav-links a {
-            text-decoration: none;
-            color: var(--text-muted);
-            padding: 12px 16px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.3s ease;
-            font-weight: 500;
-        }
-
-        .nav-links a:hover, .nav-links a.active {
-            background-color: rgba(99, 102, 241, 0.1);
-            color: var(--primary);
-        }
-
-        .user-profile {
-            margin-top: auto;
-            padding-top: 24px;
-            border-top: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .main-content {
-            flex: 1;
-            padding: 32px;
-            overflow-y: auto;
-            height: 100vh;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .glass {
-            background: rgba(30, 41, 59, 0.45);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 16px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 13px;
-            color: var(--text-muted);
-            font-weight: 500;
-        }
-
-        .form-group input, .form-group select, .form-group textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            background: rgba(255,255,255,0.03);
-            color: var(--text-main);
-            font-family: inherit;
-            box-sizing: border-box;
-            transition: all 0.2s ease;
-        }
-
-        .form-group select option {
-            background-color: var(--bg-card);
-            color: var(--text-main);
-        }
-
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-            outline: none;
-            border-color: var(--primary);
-            background: rgba(255,255,255,0.05);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-        }
-
-        .btn {
-            background: var(--primary); 
-            color: white; 
-            border: none; 
-            padding: 8px 18px; 
-            border-radius: 10px; 
-            cursor: pointer; 
-            font-weight: 600; 
-            display:inline-flex; 
-            align-items:center; 
-            gap:8px;
-            font-family: inherit;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .btn:hover {
-            opacity: 0.9;
-        }
-        .btn:active {
-            transform: scale(0.97);
-        }
-        .btn-danger { background: var(--danger); }
-
-        .table-container::-webkit-scrollbar { height: 12px; width: 12px; }
-        .table-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 8px; }
-        .table-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 8px; }
-        .table-container::-webkit-scrollbar-thumb:hover { background: var(--primary); }
-
-        /* Sidebar Collapse Styles */
-        .sidebar {
-            transition: width 0.3s ease;
-        }
-        .sidebar.collapsed {
-            width: 80px;
-            padding: 24px 12px;
-        }
-        .sidebar.collapsed .logo-text,
-        .sidebar.collapsed .nav-text,
-        .sidebar.collapsed .user-details {
-            display: none;
-        }
-        .sidebar.collapsed .logo {
-            justify-content: center;
-        }
-        .sidebar.collapsed #toggle-sidebar {
-            margin: 0;
-            margin-top: 16px;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-        }
-        .sidebar.collapsed .nav-links a {
-            justify-content: center;
-            padding: 12px;
-        }
-        .sidebar.collapsed .nav-links a i {
-            margin: 0;
-        }
-        .sidebar.collapsed .user-profile {
-            flex-direction: column;
-            gap: 16px;
-            align-items: center;
-        }
-        .sidebar.collapsed .user-info {
-            justify-content: center;
-        }
-        .sidebar.collapsed .logout-btn {
-            margin: 0;
-        }
-    </style>
+    <!-- Tabulator CSS for the Excel-like grid -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=3.0">
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-    {% if current_user %}
-    <aside class="sidebar" id="main-sidebar">
-        <div class="logo">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="width: 44px; height: 44px; object-fit: contain;"> 
-            <button id="toggle-sidebar" style="background:none; border:none; color:var(--text-muted); cursor:pointer; margin-left:auto; padding:4px;">
-                <i data-lucide="chevron-left" id="toggle-icon"></i>
-            </button>
-        </div>
-        <ul class="nav-links">
-            <li><a href="/dashboard" class="{{ 'active' if request.path == '/dashboard' else '' }}" title="Dashboard"><i data-lucide="layout-dashboard"></i> <span class="nav-text">Dashboard</span></a></li>
-            <li><a href="/" class="{{ 'active' if request.path == '/' else '' }}" title="Incidencias"><i data-lucide="inbox"></i> <span class="nav-text">Incidencias</span></a></li>
-            {% if current_user.rol == 'Admin' %}
-            <li><a href="/admin/usuarios" class="{{ 'active' if request.path == '/admin/usuarios' else '' }}" title="Usuarios"><i data-lucide="users"></i> <span class="nav-text">Usuarios</span></a></li>
-            <li><a href="/admin/configuracion" class="{{ 'active' if request.path == '/admin/configuracion' else '' }}" title="Configuración"><i data-lucide="settings"></i> <span class="nav-text">Configuración</span></a></li>
-            {% endif %}
-        </ul>
-        
-        <div class="user-profile">
-            <div class="user-info">
-                <div style="min-width:32px; height:32px; border-radius:50%; background:var(--primary); display:flex; align-items:center; justify-content:center; font-weight:bold; color:white;">
-                    {{ current_user.username[0].upper() }}
-                </div>
-                <div class="user-details">
-                    <div style="font-weight:600; font-size:14px;">{{ current_user.username }}</div>
-                    <div style="font-size:12px; color:var(--text-muted);">{{ current_user.rol }}</div>
-                </div>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-                <button id="theme-toggle" title="Cambiar tema" style="background:none; border:none; color:var(--text-muted); cursor:pointer; padding:4px; display:flex; align-items:center;">
-                    <i data-lucide="sun" id="theme-icon" style="width:18px;height:18px;"></i>
-                </button>
-                <a href="/logout" title="Cerrar Sesión" style="color:var(--text-muted);" class="logout-btn"><i data-lucide="log-out" style="width:18px;height:18px;"></i></a>
-            </div>
-        </div>
-    </aside>
-    {% endif %}
-
-
-
-    <main class="main-content" {% if not current_user %}style="padding:0; display:flex; align-items:center; justify-content:center;"{% endif %}>
-        {% block content %}{% endblock %}
-
-        {% if current_user %}
-        <footer style="margin-top:32px; padding:16px 0 8px 0; border-top:1px solid var(--border);
-                        text-align:center; color:var(--text-muted); font-size:11px; letter-spacing:0.5px;">
-            <span style="display:inline-flex; align-items:center; gap:8px;">
-                <i data-lucide="shield-check" style="width:13px;height:13px; color:var(--primary);"></i>
-                &copy; {{ 2026 }} &nbsp;<strong style="color:var(--primary);">HZ Proyect</strong>&nbsp; — Todos los derechos reservados
-            </span>
-        </footer>
-        {% endif %}
-    </main>
-
     <script>
-        lucide.createIcons();
-
-        // Lógica para contraer el sidebar y cambiar tema
-        document.addEventListener("DOMContentLoaded", () => {
-            const sidebar = document.getElementById('main-sidebar');
-            const toggleBtn = document.getElementById('toggle-sidebar');
-            const toggleIcon = document.getElementById('toggle-icon');
-            
-            if (sidebar && toggleBtn) {
-                // Restaurar estado
-                if (localStorage.getItem('sidebar-collapsed') === 'true') {
-                    sidebar.classList.add('collapsed');
-                    if(toggleIcon) toggleIcon.setAttribute('data-lucide', 'chevron-right');
+        // Aplica el tema guardado antes de que se pinte la interfaz
+        (function () {
+            try {
+                if (localStorage.getItem('nucleus-theme') === 'dark') {
+                    document.body.classList.add('dark-mode');
                 }
-                
-                toggleBtn.addEventListener('click', () => {
-                    sidebar.classList.toggle('collapsed');
-                    const isCollapsed = sidebar.classList.contains('collapsed');
-                    localStorage.setItem('sidebar-collapsed', isCollapsed);
-                    
-                    if(toggleIcon) {
-                        toggleIcon.setAttribute('data-lucide', isCollapsed ? 'chevron-right' : 'chevron-left');
-                        lucide.createIcons();
-                    }
-                });
-            }
+            } catch (e) {}
+        })();
+    </script>
+    <div class="app-shell">
+        {% if session.get('user_id') %}
+        <!-- Sidebar de navegacion -->
+        <aside class="app-sidebar">
+            <button id="sidebar-collapse" class="sidebar-collapse-btn" title="Contraer/Expandir menú" aria-label="Contraer o expandir menú">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <a href="/" class="sidebar-logo" style="display: flex; align-items: center; text-decoration: none; color: #007AFF;">
+                <svg width="30" height="30" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="#007AFF" stroke-width="2"/>
+                    <circle cx="12" cy="10" r="4" fill="#007AFF"/>
+                </svg>
+                <span style="margin-left: 8px; font-family: 'SF Pro Display','Segoe UI',Roboto,sans-serif; font-size: 17px; font-weight: 600; color: var(--ios-label, #1C1C1E); letter-spacing: 1px;">NUCLEUS</span>
+            </a>
 
-            const themeToggleBtn = document.getElementById('theme-toggle');
-            const themeIcon = document.getElementById('theme-icon');
-            
-            // Cargar tema guardado antes de renderizar íconos
-            const currentTheme = localStorage.getItem('theme') || 'dark';
-            if (currentTheme === 'light') {
-                document.body.classList.add('light-theme');
-                if (themeIcon) themeIcon.setAttribute('data-lucide', 'moon');
-            } else {
-                document.body.classList.remove('light-theme');
-                if (themeIcon) themeIcon.setAttribute('data-lucide', 'sun');
-            }
-            lucide.createIcons();
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="sidebar-link {% if request.path == '/dashboard' %}active{% endif %}" data-nav="/dashboard">
+                    <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Dashboard</span>
+                </a>
 
-            if (themeToggleBtn) {
-                themeToggleBtn.addEventListener('click', () => {
-                    document.body.classList.toggle('light-theme');
-                    const isLight = document.body.classList.contains('light-theme');
-                    localStorage.setItem('theme', isLight ? 'light' : 'dark');
-                    if (themeIcon) {
-                        themeIcon.setAttribute('data-lucide', isLight ? 'moon' : 'sun');
-                        lucide.createIcons();
-                    }
-                });
+                <div class="sidebar-section-label">Proyectos</div>
+                {% for p in proyectos_list %}
+                {% if p.nombre in ['FLM', 'PEXT'] %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
+                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
+                </a>
+                {% endif %}
+                {% endfor %}
+
+                <div class="sidebar-section-label">Gestión</div>
+                {% for p in proyectos_list %}
+                {% if p.nombre == 'Dataper' %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
+                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
+                </a>
+                {% endif %}
+                {% endfor %}
+
+                {% if (session.get('rol') or '').lower() in ['admin', 'demo'] %}
+                <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
+                    <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
+                </a>
+                {% endif %}
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="user-avatar" style="background:#fff;"><img src="/static/img/cobra-logo.png" alt="Cobra" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;"></div>
+                    <div class="sidebar-user-info">
+                        <div style="font-size: 13px; font-weight: 700; color: var(--ios-label, #1C1C1E);">{{ session.get('username') }}</div>
+                        <div style="font-size: 10px; color: var(--ios-gray-1, #8E8E93); text-transform: uppercase; letter-spacing: 0.4px;">{{ session.get('rol') }}</div>
+                    </div>
+                </div>
+                <div class="sidebar-actions">
+                    <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <a href="/logout" title="Cerrar Sesión" class="sidebar-logout"><i class="fa-solid fa-right-from-bracket"></i></a>
+                </div>
+            </div>
+        </aside>
+        {% endif %}
+
+        <div class="app-main">
+            <!-- Main Content Grid -->
+            <main class="excel-main">
+                {% block content %}{% endblock %}
+            </main>
+
+            <!-- Bottom Bar (Status Bar) -->
+            {% block footer %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    <script>
+        // Highlighting active nav items in the sidebar
+        const currentPath = window.location.pathname;
+        const currentHash = window.location.hash;
+        const currentFull = currentPath + currentHash;
+
+        document.querySelectorAll('.sidebar-link').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && (href === currentFull || href === currentPath)) {
+                link.classList.add('active');
             }
         });
+
+        window.addEventListener('hashchange', () => {
+            const newFull = window.location.pathname + window.location.hash;
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === newFull);
+            });
+        });
+
+        // Toggle de tema claro/oscuro (persistente)
+        (function () {
+            const toggleBtn = document.getElementById('theme-toggle');
+            if (!toggleBtn) return;
+            const icon = toggleBtn.querySelector('i');
+            const applyIcon = () => {
+                const dark = document.body.classList.contains('dark-mode');
+                icon.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            };
+            applyIcon();
+            toggleBtn.addEventListener('click', () => {
+                const dark = document.body.classList.toggle('dark-mode');
+                try { localStorage.setItem('nucleus-theme', dark ? 'dark' : 'light'); } catch (e) {}
+                applyIcon();
+            });
+        })();
+
+        // Toggle de contraer/expandir el menú lateral (persistente)
+        (function () {
+            const btn = document.getElementById('sidebar-collapse');
+            if (!btn) return;
+            const icon = btn.querySelector('i');
+            const applyIcon = () => {
+                const collapsed = document.body.classList.contains('sidebar-collapsed');
+                icon.className = collapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
+            };
+            try {
+                if (localStorage.getItem('nucleus-sidebar') === 'collapsed') {
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            } catch (e) {}
+            applyIcon();
+            btn.addEventListener('click', () => {
+                const collapsed = document.body.classList.toggle('sidebar-collapsed');
+                try { localStorage.setItem('nucleus-sidebar', collapsed ? 'collapsed' : 'expanded'); } catch (e) {}
+                applyIcon();
+                window.dispatchEvent(new Event('resize'));
+            });
+        })();
     </script>
-    {% block extra_js %}{% endblock %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Configuraciones &mdash; Nucleus{% endblock %}
+
+{% block content %}
+<div class="wizard-container" style="max-width: 95%; margin: 0 auto;">
+    {% if not session.get('current_proyecto_id') %}
+        <div style="text-align:center; padding: 50px; background: var(--excel-bg); border: 1px solid var(--excel-border); border-radius: 20px; margin-top: 20px; box-shadow: var(--shadow-card);">
+            <i class="fa-solid fa-folder-open" style="font-size: 48px; color: #ccc; margin-bottom: 20px;"></i>
+            <h2>No hay un proyecto seleccionado</h2>
+            <p>Por favor seleccione un proyecto del menú lateral para administrar sus configuraciones.</p>
+        </div>
+    {% else %}
+
+    <!-- Inicialización Manual (Solo si no hay PK) -->
+    <div id="init-manual-card" class="wizard-card" style="display:none; border: 2px solid var(--ios-blue); background: var(--ios-blue-light);">
+        <h2 class="wizard-title" style="color: var(--ios-blue);"><i class="fa-solid fa-rocket"></i> Inicializar Proyecto para Gestión Manual</h2>
+        <p style="font-size:12px; color: var(--ios-secondary);">Este proyecto está vacío. Para empezar a agregar registros manualmente, define el nombre de la <strong>Columna Identificadora Principal</strong> (Ej: TICKET, ID, CODIGO).</p>
+
+        <div class="nucleus-form-row" style="margin-top: 15px;">
+            <input type="text" id="init-pk-name" placeholder="Nombre de la Columna Principal (Ej: ID_CASO)" class="nucleus-control" style="flex: 1;">
+            <button class="btn-action" style="padding: 10px 25px;" onclick="initManualProject()">INICIALIZAR PROYECTO</button>
+        </div>
+        <p style="font-size:11px; color: var(--ios-gray-1); margin-top: 5px;"><i class="fa-solid fa-circle-info"></i> Una vez inicializado, podrás añadir columnas y empezar a cargar datos en el Dashboard.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function loadData() {
+        // Check if project needs initialization
+        fetch('/api/admin/columnas?pid={{ session.get("current_proyecto_id") }}').then(r=>r.json()).then(cols => {
+            if (cols.length === 0) {
+                document.getElementById('init-manual-card').style.display = 'block';
+            }
+        });
+    }
+
+    function initManualProject() {
+        const pk = document.getElementById('init-pk-name').value.trim();
+        if (!pk) return alert("Debes ingresar un nombre para la columna principal.");
+
+        if (!confirm(`¿Inicializar proyecto con la columna principal "${pk}"?`)) return;
+
+        fetch('/api/config/init_manual', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ primary_key: pk })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                alert("¡Proyecto inicializado correctamente!");
+                location.reload();
+            } else {
+                alert("Error: " + res.error);
+            }
+        });
+    }
+
+    loadData();
+</script>
+{% endblock %}

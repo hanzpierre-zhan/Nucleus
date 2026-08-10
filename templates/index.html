@@ -1,1457 +1,2232 @@
 {% extends "base.html" %}
 
+{% block title %}Nucleus{% endblock %}
+
 {% block content %}
+<div style="display: flex; align-items: center; gap: 8px; padding: 4px 14px 6px; flex-wrap: wrap;">
+    <span id="status-record-count" class="topbar-badge" title="Total de registros en la vista actual" style="margin-left:0;">
+        <i class="fa-solid fa-list-ol"></i> Cargando...
+    </span>
+
+    <label class="topbar-switch" title="Mostrar u ocultar de golpe las columnas manuales de la tabla">
+        <input type="checkbox" id="manual-cols-toggle" onchange="toggleManualColumns(this)">
+        <span class="topbar-switch-track"></span>
+        <span class="topbar-switch-label">Manuales</span>
+    </label>
+
+    <div style="flex: 1;"></div>
+
+    <div class="col-visibility-wrap">
+        <!-- Botón Columnas (Neutro) -->
+        <button onclick="toggleVisibilityMenu()" class="action-pill pill-neutral" title="Mostrar/Ocultar Columnas">
+            <i class="fa-solid fa-table-columns"></i> Columnas
+        </button>
+
+        <!-- Visibility Menu (Absolute positioned near topbar) -->
+        <div id="col-menu" class="col-visibility-menu">
+            <div class="col-visibility-header">
+                <strong>Mostrar / Ocultar Columnas</strong>
+                <span class="col-visibility-actions">
+                    <button type="button" class="col-visibility-link" onclick="setAllColumns(true)">Todas</button>
+                    <button type="button" class="col-visibility-link" onclick="setAllColumns(false)">Ninguna</button>
+                </span>
+            </div>
+            <p class="col-visibility-hint">Desmarca lo que no quieras ver.</p>
+            <div id="col-list" class="col-visibility-list"></div>
+        </div>
+    </div>
+
+    <!-- Botón Excel (Verde) -->
+    <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
+        <i class="fa-solid fa-file-excel"></i> Excel
+    </button>
+
+    {% if session.get('rol') not in ['gestor', 'demo'] %}
+    <!-- Botón Añadir (Azul) -->
+    <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir Nuevo Registro">
+        <i class="fa-solid fa-plus"></i> Añadir
+    </button>
+
+    <!-- Botón Importar Masivo (Teal) -->
+    <button onclick="abrirModalImportar()" class="action-pill pill-teal" title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">
+        <i class="fa-solid fa-file-arrow-up"></i> Importar
+    </button>
+
+    <!-- Botón Plantilla (Verde) -->
+    <a href="/api/import/manual_template" download class="action-pill pill-green" title="Descargar plantilla Excel para importar">
+        <i class="fa-solid fa-download"></i> Plantilla
+    </a>
+
+    <!-- Botón Eliminar (Rojo - aparece al seleccionar filas) - solo admin -->
+    {% if session.get('rol') == 'admin' %}
+    <button id="btn-delete-rows" onclick="eliminarRegistros()" class="action-pill pill-red" style="display:none;" title="Eliminar Registros Seleccionados">
+        <i class="fa-solid fa-trash-can"></i> Eliminar
+    </button>
+    {% endif %}
+    {% endif %}
+</div>
+<div id="data-stats" class="data-stats"></div>
+<div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
+
 <style>
-    .offcanvas-overlay {
-        position: fixed; top:0; left:0; width:100%; height:100vh;
-        background: rgba(0,0,0,0.55); z-index:999; display:none;
-        backdrop-filter: blur(4px);
+    .mar-overlay {
+        position: fixed; inset: 0; z-index: 20000;
+        background: rgba(0,0,0,0.45);
+        -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+        display: flex; align-items: center; justify-content: center; padding: 24px;
     }
-    .offcanvas-panel {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) scale(0.95);
-        width: 1100px;
-        max-width: 95vw;
-        height: 90vh;
-        max-height: 850px;
-        background: var(--bg-card);
-        z-index: 1000;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        display: flex;
-        flex-direction: column;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        opacity: 0;
-        pointer-events: none;
+    .mar-modal {
+        width: 100%; max-width: 760px; max-height: 90vh;
+        background: var(--ios-card-bg); border-radius: 20px;
+        box-shadow: 0 30px 60px rgba(0,0,0,0.35);
+        display: flex; flex-direction: column; overflow: hidden;
+        animation: mar-in .18s ease;
     }
-    .offcanvas-panel.open {
-        transform: translate(-50%, -50%) scale(1);
-        opacity: 1;
-        pointer-events: auto;
+    @keyframes mar-in { from { transform: translateY(12px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+    .mar-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--ios-hairline); }
+    .mar-header h3 { margin: 0; font-size: 17px; color: var(--ios-label); display: flex; align-items: center; gap: 10px; letter-spacing: -0.2px; }
+    .mar-header h3 i { color: #007AFF; }
+    .mar-header p { margin: 4px 0 0 0; font-size: 12px; color: var(--ios-gray-1); }
+    .mar-close { background: var(--ios-fill); border: none; color: var(--ios-secondary); width: 32px; height: 32px; border-radius: 10px; cursor: pointer; font-size: 14px; flex-shrink: 0; }
+    .mar-close:hover { background: var(--ios-gray-5); }
+    .mar-body { padding: 20px 24px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .mar-field { display: flex; flex-direction: column; gap: 6px; }
+    .mar-field.full { grid-column: 1 / -1; }
+    .mar-field label { font-size: 10px; font-weight: 700; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.5px; }
+    .mar-field label i { color: #007AFF; margin-right: 2px; }
+    .mar-field label em { color: #FF3B30; font-style: normal; }
+    .mar-field input, .mar-field select {
+        width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--excel-border);
+        border-radius: 10px; font-size: 13px; background: var(--excel-bg); color: var(--ios-label);
+        outline: none; box-sizing: border-box; transition: all .15s ease;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     }
-    .tag {
-        display: inline-block; padding: 3px 9px; border-radius: 10px;
-        font-size: 11px; font-weight: 600; color: white;
-    }
-    th { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
-    td { font-size: 12px; }
-    tr:hover td { background: rgba(99,102,241,0.06); }
+    .mar-field input:focus, .mar-field select:focus { border-color: #007AFF; box-shadow: 0 0 0 3px rgba(0,122,255,0.15); }
+    .mar-field .mar-error, .mar-field input.mar-error, .mar-field select.mar-error { border-color: #FF3B30 !important; box-shadow: 0 0 0 3px rgba(255,59,48,0.12) !important; }
+    .mar-empty { grid-column: 1 / -1; text-align: center; color: var(--ios-gray-1); font-size: 13px; padding: 30px 0; }
+    .mar-footer { padding: 16px 24px; border-top: 1px solid var(--ios-hairline); display: flex; justify-content: flex-end; gap: 10px; background: var(--ios-fill); }
+    .mar-btn-ghost { background: var(--excel-bg); border: 1px solid var(--excel-border); color: var(--ios-secondary); padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
+    .mar-btn-ghost:hover { background: var(--ios-gray-5); }
+    .mar-btn-primary { background: linear-gradient(135deg, #007AFF, #0062CC); color: #fff; border: none; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(0,122,255,0.3); transition: all .15s ease; }
+    .mar-btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .mar-btn-copy { background: linear-gradient(135deg, #38b6ff, #007AFF); color: #fff; border: none; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(0,122,255,0.35); transition: all .15s ease; }
+    .mar-btn-copy:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    @media (max-width: 640px) { .mar-body { grid-template-columns: 1fr; } }
 
-    /* Estilos para Pestañas del Panel */
-    .panel-tab-btn {
-        transition: all 0.2s ease;
+    /* ===== Tarjetas de estadísticas ===== */
+    #data-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 10px;
     }
-    .panel-tab-btn.active {
-        color: var(--primary) !important;
-        border-bottom-color: var(--primary) !important;
-        background: rgba(99, 102, 241, 0.05) !important;
+    .data-stat {
+        display: flex; align-items: center; gap: 10px;
+        background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
+        border-radius: 14px; padding: 12px 14px;
     }
-    .panel-tab-btn:hover {
-        background: rgba(255, 255, 255, 0.02);
+    .data-stat-ic {
+        width: 38px; height: 38px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;
     }
+    .data-stat-meta { display: flex; flex-direction: column; min-width: 0; }
+    .data-stat-meta b { font-size: 17px; color: var(--ios-label); line-height: 1.1; white-space: nowrap; }
+    .data-stat-meta span { font-size: 10px; font-weight: 600; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* Estilos para Timeline / Historial */
-    .timeline-item {
-        position: relative;
-        padding-left: 18px;
-        margin-bottom: 4px;
+    /* ===== Modal Detalle WO ===== */
+    .wo-modal { max-width: 780px; }
+    .wo-body { padding: 18px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; max-height: 70vh; }
+    .wo-section-title {
+        font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+        color: var(--ios-gray-1); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
     }
-    .timeline-dot {
-        position: absolute;
-        left: -15px;
-        top: 4px;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        border: 2px solid var(--bg-card);
-    }
-    .timeline-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 4px;
-    }
-    .timeline-time {
-        font-size: 10px;
-        color: var(--text-muted);
-    }
-    .timeline-gestor {
-        font-size: 11px;
+    .wo-link {
+        color: #007AFF;
+        text-decoration: underline;
+        cursor: pointer;
         font-weight: 600;
-        color: var(--text-main);
     }
-    .timeline-comment {
-        font-size: 11px;
-        color: var(--text-muted);
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255,255,255,0.05);
-        padding: 8px 10px;
-        border-radius: 6px;
-        margin-top: 4px;
-        white-space: pre-wrap;
-        line-height: 1.4;
+    .wo-link:hover { color: #0a84ff; text-decoration: underline; }
+    .wo-section-title i { color: var(--ios-blue); }
+    .topbar-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        user-select: none;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ios-gray-1, #8E8E93);
+        white-space: nowrap;
     }
-
-    /* Estilos de Pulso para Alarma de SLA (Estilo iOS) */
-    @keyframes pulse-red {
-        0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
-        100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-    }
-    @keyframes pulse-amber {
-        0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
-        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
-        100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-    }
-    @keyframes pulse-green {
-        0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-        100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-    }
-    .sla-dot {
-        display: inline-block;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        margin-right: 4px;
+    .topbar-switch input { display: none; }
+    .topbar-switch-track {
+        width: 32px;
+        height: 19px;
+        border-radius: 999px;
+        background: #E5E5EA;
+        position: relative;
+        transition: background 0.2s ease;
         flex-shrink: 0;
     }
-    .sla-dot.vencido {
-        background: #ef4444;
-        animation: pulse-red 2s infinite;
+    .topbar-switch-track::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        transition: transform 0.2s ease;
     }
-    .sla-dot.por-vencer {
-        background: #f59e0b;
-        animation: pulse-amber 2s infinite;
+    .topbar-switch input:checked + .topbar-switch-track {
+        background: var(--ios-blue, #007AFF);
     }
-    .sla-dot.dentro-plazo {
-        background: #10b981;
-        animation: pulse-green 2s infinite;
+    .topbar-switch input:checked + .topbar-switch-track::after {
+        transform: translateX(13px);
     }
+    .topbar-switch input:checked ~ .topbar-switch-label {
+        color: var(--ios-blue, #007AFF);
+    }
+    .wo-summary {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 14px;
+        background: var(--ios-fill); border: 1px solid var(--ios-hairline);
+        border-radius: 14px; padding: 14px 16px;
+    }
+    .wo-summary-item { min-width: 0; }
+    .wo-summary-item .k { font-size: 9px; font-weight: 700; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
+    .wo-summary-item .v { font-size: 13px; font-weight: 600; color: var(--ios-label); word-break: break-word; line-height: 1.35; }
+    .wo-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .wo-group { margin-top: 18px; }
+    .wo-group:first-child { margin-top: 0; }
+    .wo-field { display: flex; flex-direction: column; gap: 6px; }
+    .wo-field.full { grid-column: 1 / -1; }
+    .wo-field label {
+        font-size: 10px; font-weight: 700; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.5px;
+        display: flex; align-items: center; gap: 6px;
+    }
+    .wo-field label i { color: var(--ios-blue); }
+    .wo-field input, .wo-field select, .wo-field textarea {
+        width: 100%; padding: 10px 12px; border: 1px solid var(--excel-border);
+        border-radius: 10px; font-size: 13px; background: var(--excel-bg); color: var(--ios-label);
+        outline: none; box-sizing: border-box; font-family: inherit; transition: all .15s ease;
+    }
+    .wo-field input:focus, .wo-field select:focus, .wo-field textarea:focus {
+        border-color: var(--ios-blue); box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+    }
+    .wo-field textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+    .wo-field input[disabled], .wo-field select[disabled], .wo-field textarea[disabled] { opacity: 0.6; cursor: not-allowed; }
+    .wo-serv-btn {
+        background: var(--ios-fill); border: 1px solid var(--ios-hairline); color: var(--ios-blue);
+        width: 22px; height: 22px; border-radius: 6px; cursor: pointer; font-size: 11px; padding: 0;
+        display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .wo-serv-btn:hover { background: var(--ios-blue-light); }
+    .servicios-editor { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
+    .servicios-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .servicios-chip {
+        display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 12px;
+        background: var(--ios-blue-light); color: var(--ios-blue); border-radius: 16px;
+        font-size: 12px; font-weight: 600;
+    }
+    .servicios-chip button {
+        background: none; border: none; color: var(--ios-red); cursor: pointer; font-size: 12px; padding: 0 2px;
+    }
+    .servicios-add { display: flex; gap: 8px; }
+    .servicios-add input {
+        flex: 1; padding: 8px 12px; border: 1px solid var(--excel-border); border-radius: 10px;
+        font-size: 12px; background: var(--excel-bg); color: var(--ios-label); outline: none; font-family: inherit;
+    }
+    .servicios-add input:focus { border-color: var(--ios-blue); }
+    .wo-empty { font-size: 12px; color: var(--ios-gray-2); padding: 6px 0; }
+    .wo-tabs {
+        display: flex; gap: 4px; padding: 4px; margin-bottom: 14px;
+        background: var(--ios-fill); border: 1px solid var(--ios-hairline);
+        border-radius: 12px; width: fit-content;
+    }
+    .wo-tab {
+        border: none; background: transparent; cursor: pointer; font-family: inherit;
+        padding: 8px 18px; border-radius: 9px; font-size: 12.5px; font-weight: 700;
+        color: var(--ios-gray-1, #8E8E93); display: inline-flex; align-items: center; gap: 7px;
+        transition: all .18s ease;
+    }
+    .wo-tab i { font-size: 12px; }
+    .wo-tab:hover:not(.active) { color: var(--ios-label); background: rgba(0,0,0,0.04); }
+    .wo-tab.active {
+        background: #fff; color: var(--ios-blue, #007AFF);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.14);
+    }
+    .wo-header { align-items: center; flex-wrap: nowrap; gap: 12px; }
+    .wo-header .wo-title { margin: 0; font-size: 15px; white-space: nowrap; }
+    .wo-header .wo-tabs { flex-shrink: 0; }
+    .wo-header .wo-tab { padding: 6px 12px; font-size: 12px; }
+    .wo-head-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .wo-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .wo-head-actions .mar-btn-copy,
+    .wo-head-actions .mar-btn-ghost,
+    .wo-head-actions .mar-btn-primary {
+        padding: 0; width: 32px; height: 32px; font-size: 13px; border-radius: 10px; white-space: nowrap;
+        display: inline-flex; align-items: center; justify-content: center; box-shadow: none;
+    }
+    .wo-head-actions .mar-btn-copy {
+        background: #FFE9A8; color: #7a5b00; border: 1px solid #f0d978;
+    }
+    .wo-head-actions .mar-btn-copy:hover { background: #ffe08a; filter: none; transform: none; }
+    .wo-head-actions .mar-btn-primary {
+        background: #34C759; box-shadow: 0 4px 10px rgba(52,199,89,0.35);
+    }
+    .wo-head-actions .mar-btn-primary:hover { background: #2fbb51; filter: none; transform: none; }
+    .wo-head-actions .mar-btn-ghost { display: none; }
+    .wo-head-actions .wo-btn-c { display: none; }
+    .wo-head-actions .mar-close {
+        width: 32px; height: 32px; border-radius: 10px;
+        background: #FF3B30; color: #fff; font-size: 13px;
+        box-shadow: 0 4px 10px rgba(255,59,48,0.3);
+    }
+    .wo-head-actions .mar-close:hover { background: #e23328; }
+    @media (max-width: 720px) { .wo-header { flex-wrap: wrap; } .wo-header .wo-title { white-space: normal; } }
+    .wo-timeline {
+        position: relative;
+        display: flex; flex-direction: column; gap: 14px;
+        padding: 4px 0 4px 18px;
+    }
+    .wo-timeline::before {
+        content: '';
+        position: absolute; left: 4px; top: 6px; bottom: 6px;
+        width: 2px; background: var(--ios-hairline); border-radius: 2px;
+    }
+    .wt-item { position: relative; }
+    .wt-item::before {
+        content: '';
+        position: absolute; left: -18px; top: 12px;
+        width: 10px; height: 10px; border-radius: 50%;
+        background: var(--ios-blue, #007AFF);
+        border: 2px solid #fff; box-shadow: 0 0 0 2px var(--ios-blue, #007AFF);
+        box-sizing: border-box;
+    }
+    .wt-card {
+        background: #fff; border: 1px solid var(--ios-hairline);
+        border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+        padding: 10px 12px; font-family: Arial, Helvetica, sans-serif;
+    }
+    .wt-head {
+        display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        margin-bottom: 7px;
+    }
+    .wt-agent { font-size: 12.5px; font-weight: 800; color: #1c2541; }
+    .wt-agent i { color: var(--ios-blue, #007AFF); margin-right: 5px; font-size: 11px; }
+    .wt-time { font-size: 10.5px; color: var(--ios-gray-2); font-weight: 600; white-space: nowrap; }
+    .wt-change {
+        font-size: 10.5px; color: var(--ios-gray-1); margin-bottom: 8px;
+        background: var(--ios-fill); border: 1px dashed var(--ios-hairline);
+        border-radius: 7px; padding: 4px 8px;
+    }
+    .wt-change b { color: var(--ios-label); text-transform: capitalize; }
+    .wt-change .wt-old { color: var(--ios-red); text-decoration: line-through; }
+    .wt-change .wt-arrow { color: var(--ios-gray-2); margin: 0 3px; }
+    .wt-change .wt-new { color: var(--ios-label); font-weight: 700; }
+    .wt-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 1px 14px;
+    }
+    .wt-cell {
+        display: flex; gap: 6px; font-size: 10.5px; line-height: 1.35;
+        padding: 1px 0; min-width: 0;
+    }
+    .wt-cell .wt-lbl {
+        color: var(--ios-gray-1); font-weight: 700; flex-shrink: 0; font-size: 9.5px;
+    }
+    .wt-cell .wt-lbl::after { content: ':'; }
+    .wt-cell .wt-val { color: #111; font-weight: 600; word-break: break-word; }
+    .wt-cell.changed .wt-val {
+        background: #fff4c2; border-radius: 3px; padding: 0 3px; font-weight: 800; color: #000;
+    }
+    .wt-cell.full { grid-column: 1 / -1; }
+    .wo-history-btn {
+        margin-left: auto; background: none; border: 1px solid var(--ios-hairline); color: var(--ios-gray-1);
+        width: 26px; height: 26px; border-radius: 8px; cursor: pointer; font-size: 11px;
+        display: inline-flex; align-items: center; justify-content: center; transition: all .15s ease;
+    }
+    .wo-history-btn:hover { color: var(--ios-blue); border-color: var(--ios-blue); }
+    @media (max-width: 640px) { .wo-summary { grid-template-columns: 1fr 1fr; } .wo-form { grid-template-columns: 1fr; } }
 </style>
 
-<!-- CABECERA -->
-<div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
-    <div>
-        <h1 style="margin:0; color:var(--primary); font-size:22px;">Centro de Incidencias</h1>
-        <p style="margin:4px 0 0 0; color:var(--text-muted); font-size:13px;">Sistema unificado para reporte y consolidado de tickets.</p>
-    </div>
-    <div style="display:flex; gap:8px; align-items:center;">
-        <button type="button" id="btn-exportar" class="btn"
-            style="background:rgba(16,185,129,0.15); color:#10b981; border:1px solid #10b981; padding:9px 14px; font-size:13px;"
-            onclick="exportarCSV()">
-            <i data-lucide="download" style="width:15px;height:15px;"></i> Exportar
-        </button>
-        {% if current_user and current_user.rol == 'Admin' %}
-        <label class="btn" style="background:rgba(239, 137, 34, 0.15); color:#ef8922; border:1px solid #ef8922; padding:9px 14px; font-size:13px; cursor:pointer; margin-bottom: 0;">
-            <i data-lucide="upload" style="width:15px;height:15px;"></i> Importar
-            <input type="file" id="import-csv" accept=".csv" style="display:none;" onchange="importarCSV(this)">
-        </label>
-        {% endif %}
-        <button type="button" class="btn" style="padding:9px 16px; font-size:13px;" onclick="abrirPanelNuevo()">
-            <i data-lucide="plus" style="width:16px;height:16px;"></i> Nueva Incidencia
-        </button>
+<!-- Modal Nuevo Registro -->
+<div id="modal-add-registro" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarModalRegistro();">
+    <div class="mar-modal">
+        <div class="mar-header">
+            <div>
+                <h3><i class="fa-solid fa-plus-circle"></i> Nuevo Registro</h3>
+                <p>Completa los campos para añadir el registro a {{ session.get('current_proyecto_nombre', '') }}.</p>
+            </div>
+            <button onclick="cerrarModalRegistro()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="mar-fields" class="mar-body"></div>
+        <div class="mar-footer">
+            <button onclick="cerrarModalRegistro()" class="mar-btn-ghost">Cancelar</button>
+            <button onclick="guardarModalRegistro()" class="mar-btn-primary"><i class="fa-solid fa-check"></i> Guardar Registro</button>
+        </div>
     </div>
 </div>
-<!-- MINI KPI BAR (resumen rápido arriba de incidencias) -->
-<div id="mini-kpi-bar" style="display:grid; grid-template-columns: repeat(6, 1fr); gap:10px; margin-bottom:16px;">
-    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(99,102,241,0.1); color:var(--primary); width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="inbox" style="width:15px; height:15px;"></i>
+
+<!-- Modal Detalle WO -->
+<div id="modal-wo" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarWoModal();">
+    <div class="mar-modal wo-modal">
+        <div class="mar-header wo-header">
+            <div class="wo-head-left">
+                <h3 class="wo-title"><i class="fa-solid fa-briefcase"></i> Detalle de <span id="wo-title">WO</span></h3>
+                <div class="wo-tabs" style="margin-bottom:0;">
+                    <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i class="fa-solid fa-list-ul"></i> Detalle</button>
+                    <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
+                </div>
+            </div>
+            <div class="wo-head-actions">
+                <button onclick="copiarPlantillaWO()" id="btn-wo-copiar" class="mar-btn-copy" title="Copiar plantilla"><i class="fa-solid fa-copy"></i></button>
+                <button id="btn-wo-save" onclick="guardarWoModal()" class="mar-btn-primary" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
+                <button onclick="cerrarWoModal()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+            </div>
         </div>
-        <div style="overflow:hidden; min-width:0;">
-            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Total</div>
-            <div id="mkpi-total" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">–</div>
-        </div>
-    </div>
-    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="check-circle" style="width:15px; height:15px;"></i>
-        </div>
-        <div style="overflow:hidden; min-width:0;">
-            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">En Plazo</div>
-            <div id="mkpi-plazo" style="font-size:18px; font-weight:700; color:#10b981; line-height:1.2;">–</div>
-        </div>
-    </div>
-    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(245,158,11,0.1); color:#f59e0b; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="alert-triangle" style="width:15px; height:15px;"></i>
-        </div>
-        <div style="overflow:hidden; min-width:0;">
-            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Por Vencer</div>
-            <div id="mkpi-por-vencer" style="font-size:18px; font-weight:700; color:#f59e0b; line-height:1.2;">–</div>
-        </div>
-    </div>
-    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="clock" style="width:15px; height:15px;"></i>
-        </div>
-        <div style="overflow:hidden; min-width:0;">
-            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Vencidos</div>
-            <div id="mkpi-vencidos" style="font-size:18px; font-weight:700; color:#ef4444; line-height:1.2;">–</div>
-        </div>
-    </div>
-    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="dollar-sign" style="width:15px; height:15px;"></i>
-        </div>
-        <div style="overflow:hidden; min-width:0; flex:1;">
-            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Con Cotización</div>
-            <div style="display:flex; align-items:baseline; gap:3px;">
-                <span id="mkpi-con-cot" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">–</span>
-                <span id="mkpi-monto" style="font-size:9px; color:#10b981; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">S/ 0</span>
+        <div class="wo-body">
+            <div id="wo-panel-detalle">
+            <div class="wo-section">
+                <div class="wo-section-title"><i class="fa-solid fa-list-ul"></i> Resumen del registro</div>
+                <div id="wo-summary" class="wo-summary"><div class="wo-empty">Cargando...</div></div>
+            </div>
+            <div class="wo-section">
+                <div class="wo-section-title"><i class="fa-solid fa-sliders"></i> Gestión</div>
+                <div class="wo-form">
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-wrench"></i> Servicio
+                            <button type="button" id="btn-servicios" class="wo-serv-btn" title="Editar opciones de servicio" onclick="toggleServiciosEditor()"><i class="fa-solid fa-gear"></i></button>
+                        </label>
+                        <select id="wo-servicio"><option value="">— Seleccionar —</option></select>
+                        <div id="servicios-editor" class="servicios-editor" style="display:none;"></div>
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-city"></i> Ciudad</label>
+                        <input type="text" id="wo-ciudad" autocomplete="off">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-user-gear"></i> Técnico asignado</label>
+                        <select id="wo-tecnico"><option value="">— Seleccionar —</option></select>
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-building"></i> Contrata</label>
+                        <input type="text" id="wo-contrata" autocomplete="off">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-arrow-up-wide-short"></i> Coordenadas del corte (Lat)</label>
+                        <input type="text" id="wo-latitud" autocomplete="off" placeholder="Ej: -8.405357°">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Coordenadas del corte (Long)</label>
+                        <input type="text" id="wo-longitud" autocomplete="off" placeholder="Ej: -74.587859°">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-triangle-exclamation"></i> Motivo de avería</label>
+                        <select id="wo-motivo"><option value="">— Seleccionar —</option></select>
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-boxes-stacked"></i> ¿Se instaló mufas?</label>
+                        <select id="wo-se-instalo-mufas">
+                            <option value="">— Seleccionar —</option>
+                            <option value="Sí">Sí</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-arrow-up-wide-short"></i> Ubicación de mufas (Lat)</label>
+                        <input type="text" id="wo-lat-mufa" autocomplete="off" placeholder="Ej: -8.405357°">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Ubicación de mufas (Long)</label>
+                        <input type="text" id="wo-lon-mufa" autocomplete="off" placeholder="Ej: -74.587859°">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-toolbox"></i> Material usado</label>
+                        <input type="text" id="wo-material-usado" autocomplete="off">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-wand-magic-sparkles"></i> Solución</label>
+                        <select id="wo-solucion"><option value="">— Seleccionar —</option></select>
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-circle-check"></i> ¿Requiere correctivo final?</label>
+                        <select id="wo-requiere-correctivo">
+                            <option value="">— Seleccionar —</option>
+                            <option value="Sí">Sí</option>
+                            <option value="No">No</option>
+                        </select>
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-play"></i> Inicio de parada</label>
+                        <input type="datetime-local" id="wo-inicio-parada">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-stop"></i> Fin de parada</label>
+                        <input type="datetime-local" id="wo-fin-parada">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-hand-holding-dollar"></i> Monto aprobado</label>
+                        <input type="number" id="wo-monto-aprobado" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="wo-field">
+                        <label><i class="fa-solid fa-circle-dollar-to-slot"></i> Monto gastando</label>
+                        <input type="number" id="wo-monto-gastando" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="wo-field full">
+                        <label><i class="fa-solid fa-book"></i> Bitácora</label>
+                        <textarea id="wo-bitacora" placeholder="Registrar novedades del trabajo..."></textarea>
+                    </div>
+                </div>
+            </div>
+            </div>
+            <div id="wo-panel-historial" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-clock-rotate-left"></i> Historial de cambios
+                        <button type="button" class="wo-history-btn" title="Actualizar historial" onclick="cargarWoHistorial()"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                    <div id="wo-historial" class="wo-timeline"><div class="wo-empty">Cargando historial...</div></div>
+                </div>
             </div>
         </div>
     </div>
-    <div class="glass" style="padding:10px 12px; display:flex; align-items:center; gap:8px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="file-warning" style="width:15px; height:15px;"></i>
-        </div>
-        <div style="overflow:hidden; min-width:0;">
-            <div style="font-size:10px; color:var(--text-muted); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Sin Cotización</div>
-            <div id="mkpi-sin-cot" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">–</div>
-        </div>
-    </div>
 </div>
 
-<!-- BACKDROP (Sin onclick para NO cerrar al clicar afuera) -->
-<div id="form-overlay" class="offcanvas-overlay"></div>
-
-<!-- PANEL LATERAL DERECHO -->
-<div id="form-panel" class="offcanvas-panel">
-    <div style="padding:18px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-        <h3 style="margin:0; color:var(--primary); font-size:15px; display:flex; align-items:center; gap:8px;" id="panel-title">
-            <i data-lucide="plus-circle" style="width:17px;height:17px;"></i> Nueva Incidencia
-        </h3>
-        <button type="button" style="background:none; border:none; color:var(--text-muted); font-size:26px; cursor:pointer; line-height:1;" onclick="togglePanel(false)">&times;</button>
-    </div>
-
-    <!-- Pestañas del Panel (Solo se muestran en edición) -->
-    <div style="display:flex; border-bottom:1px solid var(--border); background:rgba(0,0,0,0.15); flex-shrink:0;" id="panel-tabs-bar">
-        <button type="button" class="panel-tab-btn active" id="tab-btn-datos" onclick="switchPanelTab('datos')" style="flex:1; padding:12px; background:none; border:none; border-bottom:2px solid var(--primary); color:var(--text-main); font-weight:600; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px;">
-            <i data-lucide="edit-3" style="width:14px;height:14px;"></i> Datos
-        </button>
-        <button type="button" class="panel-tab-btn" id="tab-btn-historial" onclick="switchPanelTab('historial')" style="flex:1; padding:12px; background:none; border:none; border-bottom:2px solid transparent; color:var(--text-muted); font-weight:600; cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; gap:6px; display:none;">
-            <i data-lucide="clock" style="width:14px;height:14px;"></i> Historial
-        </button>
-    </div>
-
-    <div style="padding:20px; overflow-y:auto; flex:1; display:flex; flex-direction:column;">
-        
-        <!-- Pestaña 1: Formulario de Datos -->
-        <div id="panel-tab-datos-content" style="display:block; flex:1;">
-            <form id="form-incidencia">
-                <input type="hidden" id="edit_id" value="">
-                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px;">
-                    
-                    <!-- Fila 1 -->
-                    <div class="form-group">
-                        <label>Número de Ticket</label>
-                        <input type="text" id="numero_ticket" required placeholder="Ej. INC-2001" onblur="buscarTicketExistente(this.value)">
-                    </div>
-                    <div class="form-group">
-                        <label>Fecha y Hora del Ticket <span style="color:var(--text-muted); font-size:11px;">(del sistema cliente)</span></label>
-                        <input type="datetime-local" id="fecha_ticket" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Proyecto</label>
-                        <select id="proyecto" required>
-                            <option value="">Seleccione...</option>
-                        </select>
-                    </div>
-
-                    <!-- Fila 2 -->
-                    <div class="form-group">
-                        <label>Servicio</label>
-                        <select id="servicio" required>
-                            <option value="">Seleccione...</option>
-                        </select>
-                        <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block; line-height: 1.3;">
-                            <i data-lucide="info" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 2px;"></i>
-                            Los montos aprobados y gastados están siempre visibles para su registro.
-                        </span>
-                    </div>
-                    <div class="form-group">
-                        <label>Estado del Ticket</label>
-                        <select id="estado" required>
-                            <option value="">Seleccione...</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>SLA</label>
-                        <select id="sla" required>
-                            <option value="">Seleccione...</option>
-                        </select>
-                    </div>
-
-                    <!-- Fila 3 -->
-                    <div class="form-group">
-                        <label>Departamento</label>
-                        <select id="departamento" required>
-                            <option value="">Seleccione...</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Ciudad</label>
-                        <input type="text" id="ciudad" placeholder="Ej. Arequipa">
-                    </div>
-                    <div class="form-group">
-                        <label>Site Name</label>
-                        <input type="text" id="site_name" placeholder="Escribe Site Name...">
-                    </div>
-
-                    <!-- Fila 4 -->
-                    <div class="form-group">
-                        <label>Técnico Asignado</label>
-                        <input type="text" id="tecnico_asignado" placeholder="Nombre del Técnico" style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main); border-radius:6px; box-sizing:border-box;">
-                    </div>
-                    <div class="form-group">
-                        <label>Contrata</label>
-                        <select id="contrata" required>
-                            <option value="">Seleccione...</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Prioridad</label>
-                        <select id="prioridad" required>
-                            <option value="Sin prioridad">Sin prioridad</option>
-                            <option value="Prioridad 1">Prioridad 1</option>
-                            <option value="Prioridad 2">Prioridad 2</option>
-                            <option value="Prioridad 3">Prioridad 3</option>
-                            <option value="Prioridad 4">Prioridad 4</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Sección dinámica para Cotización (Ocupa las tres columnas) -->
-                    <div id="seccion-cotizacion" style="grid-column: span 3; padding:16px; border:1px dashed var(--primary); border-radius:6px; background:rgba(99,102,241,0.03); margin-top:4px; display:grid; grid-template-columns: 1fr 1fr; gap:16px;">
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>Monto Aprobado</label>
-                            <input type="number" step="0.01" id="monto_aprobado" placeholder="Ej. 1200.00" style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main); border-radius:6px; box-sizing:border-box;">
-                        </div>
-                        <div class="form-group" style="margin-bottom:0;">
-                            <label>Monto Gastado</label>
-                            <input type="number" step="0.01" id="monto_gastado" placeholder="Ej. 950.50" style="width:100%; padding:8px; background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main); border-radius:6px; box-sizing:border-box;">
-                        </div>
-                    </div>
-
-                    <!-- Sección Aprobar/Rechazar: visible solo para Admin/Supervisor en edición de COTIZACION -->
-                    <div id="seccion-aprobacion" style="display:none; grid-column: span 3; margin-top:12px; padding:14px; border:1px solid rgba(99,102,241,0.3); border-radius:10px; background:rgba(99,102,241,0.03);">
-                        <div style="font-size:12px; font-weight:600; color:var(--primary); margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-                            <i data-lucide="shield-check" style="width:14px;height:14px;"></i>
-                            Acción de Supervisor — Cotización
-                        </div>
-                        <div style="display:flex; gap:8px; margin-bottom: 8px;">
-                            <button type="button" class="btn" id="btn-aprobar-panel"
-                                style="flex:1; justify-content:center; font-size:12px; padding:6px 12px; background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.3);"
-                                onclick="abrirConfirmacionPanel('aprobar')">
-                                <i data-lucide="check-circle" style="width:14px;height:14px;"></i> Aprobar
-                            </button>
-                            <button type="button" class="btn" id="btn-rechazar-panel"
-                                style="flex:1; justify-content:center; font-size:12px; padding:6px 12px; background:rgba(239,68,68,0.1); color:#ef4444; border:1px solid rgba(239,68,68,0.3);"
-                                onclick="abrirConfirmacionPanel('rechazar')">
-                                <i data-lucide="x-circle" style="width:14px;height:14px;"></i> Rechazar
-                            </button>
-                        </div>
-                        <!-- Formulario de confirmación inline -->
-                        <div id="panel-confirm-box" style="display:none; padding:10px; background:rgba(0,0,0,0.1); border-radius:8px; border:1px solid var(--border);">
-                            <div id="panel-confirm-monto-wrap" style="margin-bottom:8px;">
-                                <label style="font-size:11px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:3px;">Monto a Aprobar (S/)</label>
-                                <input type="number" step="0.01" id="panel-confirm-monto"
-                                    style="width:100%; padding:6px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--text-main); box-sizing:border-box; font-size:12px;"
-                                    placeholder="Ej. 1200.00">
-                            </div>
-                            <div style="margin-bottom:8px;">
-                                <label style="font-size:11px; color:var(--text-muted); font-weight:500; display:block; margin-bottom:3px;">Comentario (opcional)</label>
-                                <textarea id="panel-confirm-comentario" rows="2"
-                                    style="width:100%; padding:6px; border-radius:5px; border:1px solid var(--border); background:rgba(255,255,255,0.03); color:var(--text-main); box-sizing:border-box; font-family:inherit; font-size:11px; resize:vertical;"
-                                    placeholder="Motivo..."></textarea>
-                            </div>
-                            <div style="display:flex; gap:6px; justify-content:flex-end;">
-                                <button type="button" class="btn"
-                                    style="font-size:11px; padding:4px 10px; background:rgba(255,255,255,0.03); border:1px solid var(--border); color:var(--text-main);"
-                                    onclick="cerrarConfirmacionPanel()">Cancelar</button>
-                                <button type="button" class="btn" id="btn-panel-confirmar"
-                                    style="font-size:11px; padding:4px 10px;"
-                                    onclick="ejecutarAccionPanel()">
-                                    <i data-lucide="check" style="width:12px;height:12px;"></i> Confirmar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    
-                    <!-- Campos de ancho completo (span 3) -->
-                    <div class="form-group" style="grid-column: span 3;">
-                        <label>Descripción</label>
-                        <textarea id="descripcion" rows="3" required placeholder="Detalla el problema..."
-                            style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--border);
-                                   color:var(--text-main); border-radius:6px; box-sizing:border-box; font-family:inherit; resize:vertical;"></textarea>
-                    </div>
-                    <div class="form-group" style="grid-column: span 3;">
-                        <label>Evidencia Fotográfica (Hasta 5 fotos, Opcional)</label>
-                        <input type="file" id="evidencia_file" accept="image/*" multiple style="padding:6px;">
-                        <div id="evidencia_preview" style="font-size: 11px; margin-top: 4px; color: var(--primary);"></div>
-                    </div>
-                    
-
-                </div>
-
-
-
-
-                <div style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:16px;">
-                    <button type="button" class="btn"
-                        style="background:rgba(255,255,255,0.05); border:1px solid var(--border); color:var(--text-main);"
-                        onclick="togglePanel(false)">Cancelar</button>
-                    <button type="submit" class="btn" id="btn-guardar">
-                        <i data-lucide="save" style="width:15px;height:15px;"></i> Registrar
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Pestaña 2: Historial (Timeline) -->
-        <div id="panel-tab-historial-content" style="display:none; flex:1;">
-            <div id="timeline-container" style="display:flex; flex-direction:column; gap:16px; position:relative; padding-left:14px; margin-top:8px;">
-                <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
-                <!-- Timeline items insertados dinámicamente -->
+<!-- Modal Importar -->
+<div id="modal-importar" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarModalImportar();">
+    <div class="mar-modal" style="max-width: 560px;">
+        <div class="mar-header">
+            <div>
+                <h3><i class="fa-solid fa-file-import"></i> Importar datos</h3>
+                <p>Actualiza existentes, agrega nuevos y conserva los datos manuales de {{ session.get('current_proyecto_nombre', '') }}.</p>
             </div>
+            <button onclick="cerrarModalImportar()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
         </div>
-
-    </div>
-</div>
-
-<!-- TABLA -->
-<div class="glass" style="padding:20px;">
-    <!-- Selector de Proyecto (Pestañas) -->
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:12px; flex-wrap:wrap; gap:12px;">
-        <div style="display:flex; gap:6px;" id="proyecto-tabs">
-            <button type="button" class="btn tab-btn active" style="padding:6px 14px; font-size:12px; background:var(--primary); color:white; border:none;" onclick="cambiarFiltroProyecto('TODOS', this)">TODOS (<span id="cnt-todos">0</span>)</button>
-            <button type="button" class="btn tab-btn" style="padding:6px 14px; font-size:12px; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border);" onclick="cambiarFiltroProyecto('FLM', this)">FLM (<span id="cnt-flm">0</span>)</button>
-            <button type="button" class="btn tab-btn" style="padding:6px 14px; font-size:12px; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border);" onclick="cambiarFiltroProyecto('PEXT', this)">PEXT (<span id="cnt-pext">0</span>)</button>
-            <button type="button" class="btn tab-btn" style="padding:6px 14px; font-size:12px; background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border);" onclick="cambiarFiltroProyecto('COTIZACION', this)">Cotización (<span id="cnt-cotizacion">0</span>)</button>
+        <div class="mar-body" style="grid-template-columns: 1fr; display: block; overflow: visible;">
+            <div class="dropzone" id="dz-import">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <div style="flex:1; min-width:0; text-align:left;">
+                    <div class="dz-title">Arrastra tu archivo aquí o haz clic para seleccionar</div>
+                    <div class="dz-sub">Formatos compatibles: CSV, XLSX, XLS</div>
+                </div>
+                <span class="dz-btn">Seleccionar archivo</span>
+                <input type="file" id="import-file" accept=".csv, .xlsx, .xls" style="display:none;" onchange="importOnFileChosen()">
+            </div>
+            <div class="file-chip" id="import-file-chip">
+                <i class="fa-solid fa-file-excel"></i>
+                <div style="flex:1; min-width:0;">
+                    <div class="fc-name" id="import-file-name"></div>
+                    <div class="fc-sub">Listo para importar</div>
+                </div>
+                <button type="button" class="btn-icon" onclick="importResetFile()" title="Quitar archivo"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="import-result" class="result-box" style="display:none; margin-top: 12px;"></div>
         </div>
-        <div style="position:relative;">
-            <i data-lucide="search" style="position:absolute; left:9px; top:9px; width:14px; height:14px; color:var(--text-muted);"></i>
-            <input type="text" id="buscador" placeholder="Buscar..."
-                style="padding:7px 10px 7px 32px; border-radius:6px; border:1px solid var(--border);
-                       background:rgba(255,255,255,0.05); color:var(--text-main); width:220px; outline:none; font-size:13px;">
-        </div>
-    </div>
-
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-        <h3 style="margin:0; color:var(--primary); font-size:15px; display:flex; align-items:center; gap:8px;">
-            <i data-lucide="list" style="width:17px;height:17px;"></i>
-            Consolidado de Registros &nbsp;<span id="contador" style="font-size:12px; color:var(--text-muted); font-weight:400;"></span>
-        </h3>
-    </div>
-
-    <div class="table-container" style="overflow:auto; max-height:calc(100vh - 220px); width:100%;">
-        <table style="width:100%; border-collapse:collapse; text-align:left;">
-            <thead>
-                <tr style="border-bottom:1px solid var(--border); background:var(--bg-card); position:sticky; top:0; z-index:10;">
-                    {% if current_user and current_user.rol in ('Admin', 'Supervisor') %}
-                    <th style="padding:10px 8px; white-space:nowrap; text-align:center;">Aprob.</th>
-                    {% endif %}
-                    <th style="padding:10px 8px; white-space:nowrap;">Ticket</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Fecha Ticket</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Proyecto</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Servicio</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Estado</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Prioridad</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Gestor</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Departamento</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Ciudad</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Site Name</th>
-                    <th style="padding:10px 8px; min-width:220px;">Descripción</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Técnico</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Contrata</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">SLA</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">M. Aprobado</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">M. Gastado</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Evidencia</th>
-                    <th style="padding:10px 8px; white-space:nowrap;">Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="tabla-incidencias"></tbody>
-        </table>
-    </div>
-</div>
-
-<!-- MINI POPUP DE APROBACION (flotante, centrado en pantalla) -->
-<div id="popup-aprobacion-overlay" style="display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.5); backdrop-filter:blur(3px); align-items:center; justify-content:center;">
-    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:24px; width:360px; max-width:95vw; box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h3 style="margin:0; font-size:15px; color:var(--primary); display:flex; align-items:center; gap:8px;">
-                <i data-lucide="shield-check" style="width:16px;height:16px;"></i>
-                Aprobar / Rechazar Cotización
-            </h3>
-            <button onclick="cerrarPopupAprobacion()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:22px;line-height:1;">&times;</button>
-        </div>
-        <div id="popup-info-ticket" style="font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:10px; margin-bottom:14px; line-height:1.8;"></div>
-        <div style="margin-bottom:12px;">
-            <label style="font-size:12px; font-weight:500; color:var(--text-muted); display:block; margin-bottom:5px;">Monto a Aprobar (S/)</label>
-            <input type="number" step="0.01" id="popup-monto-input"
-                style="width:100%; padding:9px; border-radius:6px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-size:14px;"
-                placeholder="Ej. 1200.00">
-        </div>
-        <div style="margin-bottom:16px;">
-            <label style="font-size:12px; font-weight:500; color:var(--text-muted); display:block; margin-bottom:5px;">Comentario (opcional)</label>
-            <textarea id="popup-comentario-input" rows="2"
-                style="width:100%; padding:9px; border-radius:6px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text-main); box-sizing:border-box; font-family:inherit; font-size:13px; resize:vertical;"
-                placeholder="Motivo de aprobación o rechazo..."></textarea>
-        </div>
-        <div style="display:flex; gap:8px;">
-            <button onclick="ejecutarPopupAprobacion('aprobar')" class="btn"
-                style="flex:1; justify-content:center; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.4); font-size:13px;">
-                <i data-lucide="check-circle" style="width:15px;height:15px;"></i> Aprobar
-            </button>
-            <button onclick="ejecutarPopupAprobacion('rechazar')" class="btn"
-                style="flex:1; justify-content:center; background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.4); font-size:13px;">
-                <i data-lucide="x-circle" style="width:15px;height:15px;"></i> Rechazar
-            </button>
+        <div class="mar-footer">
+            <button onclick="cerrarModalImportar()" class="mar-btn-ghost">Cancelar</button>
+            {% if session.get('rol') != 'demo' %}
+            <button id="btn-import-now" onclick="ejecutarImportarModal()" class="mar-btn-primary" disabled><i class="fa-solid fa-play"></i> Importar ahora</button>
+            {% endif %}
         </div>
     </div>
 </div>
-
 {% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
 <script>
-    // =========================================================
-    // VARIABLES GLOBALES Y CONSTANTES DE ROLES
-    // IS_ADMIN y IS_SUPER_OR_ADMIN se inyectan desde Jinja2
-    // para controlar qué acciones están disponibles en el front.
-    // =========================================================
-    const IS_ADMIN = {{ 'true' if current_user and current_user.rol == 'Admin' else 'false' }};
-    const IS_SUPER_OR_ADMIN = {{ 'true' if current_user and current_user.rol in ('Admin', 'Supervisor') else 'false' }};
-    let todasLasIncidencias = []; // Cache local de incidencias cargadas
-    let opcionesSiteName = [];    // Reservado para autocompletado futuro
+    const rawData = {{ data | safe }};
+    const rawCols = {{ columns | safe }};
+    const manualColsConfig = {{ manual_cols | safe }};
+    const kpiMeta = {{ kpi_meta | safe }};
+    const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
+    const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
 
-    function verFoto(url) {
-        if (!url) return;
-        if (url.startsWith('data:')) {
-            try {
-                const byteString = atob(url.split(',')[1]);
-                const mimeString = url.split(',')[0].split(':')[1].split(';')[0];
-                const ab = new ArrayBuffer(byteString.length);
-                const ia = new Uint8Array(ab);
-                for (let i = 0; i < byteString.length; i++) {
-                    ia[i] = byteString.charCodeAt(i);
-                }
-                const blob = new Blob([ab], {type: mimeString});
-                const blobURL = URL.createObjectURL(blob);
+    const FAULT_COLORS = {
+        'Critical': { bg: '#dc3545', fg: '#fff', hrs: '8hrs' },
+        'Alta':     { bg: '#fd7e14', fg: '#fff', hrs: '10hrs' },
+        'Media':    { bg: '#ffc107', fg: '#212529', hrs: '48hrs' },
+        'Baja':     { bg: '#28a745', fg: '#fff', hrs: '72hrs' }
+    };
 
-                const w = window.open();
-                if (w) {
-                    w.document.write(`
-                        <html>
-                        <head>
-                            <title>Visualizar Evidencia</title>
-                            <style>
-                                body { margin: 0; background: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: sans-serif; color: #cbd5e1; }
-                                .container { text-align: center; max-width: 90%; }
-                                img { max-width: 100%; max-height: 85vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); }
-                                .btn-download { display: inline-block; margin-top: 15px; padding: 8px 16px; background: #6366f1; color: white; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px; transition: background 0.2s; }
-                                .btn-download:hover { background: #4f46e5; }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="container">
-                                <img src="` + blobURL + `" /><br/>
-                                <a href="` + blobURL + `" download="evidencia.jpg" class="btn-download">Descargar Imagen</a>
-                            </div>
-                        </body>
-                        </html>
-                    `);
-                    w.document.close();
-                } else {
-                    alert("El navegador bloqueó la ventana emergente. Por favor, permite las ventanas emergentes para este sitio.");
-                }
-            } catch (e) {
-                console.error("Error al procesar imagen base64:", e);
-                alert("No se pudo procesar la imagen para su visualización.");
-            }
-        } else {
-            window.open(url, '_blank');
-        }
-    }
+    const WO_STATE_COLORS = {
+        'unscheduled': { bg: '#8E8E93', fg: '#8E8E93', iconText: 'U' },
+        'accepted':    { bg: '#007AFF', fg: '#007AFF', iconText: 'A' },
+        'dispatched':  { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'inprocess':   { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
+        'rejected':    { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
+        'closed':      { bg: '#34C759', fg: '#34C759', iconText: 'C' },
+        'canceled':    { bg: '#00C4B4', fg: '#00C4B4', iconText: 'C' }
+    };
 
-    // =========================================================
-    // CONTROL DEL PANEL LATERAL (OFFCANVAS)
-    // =========================================================
-    function togglePanel(show) {
-        const panel = document.getElementById('form-panel');
-        const overlay = document.getElementById('form-overlay');
-        if (show) {
-            panel.classList.add('open');
-            overlay.style.display = 'block';
-        } else {
-            panel.classList.remove('open');
-            overlay.style.display = 'none';
-            resetFormulario();
-        }
-    }
+    const SITE_PRIORITY_COLORS = {
+        'p0+': { bg: '#8B0000', fg: '#8B0000', bgLight: '#8B00001A' }, // Dark Crimson Red
+        'p0':  { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' }, // Neon Pink-Red
+        '0':   { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' },
+        'p1': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' }, // Standard Red
+        'p2': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        'p3': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
+        'p4': { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
+        '1': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        '2': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        '3': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
+        '4': { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
+        'critical': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        'crítica':  { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        'critica':  { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        'alta':     { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        'high':     { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        'media':    { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
+        'medium':   { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
+        'baja':     { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
+        'low':      { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
+        'vip':      { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        'gold':     { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        'silver':   { bg: '#8E8E93', fg: '#8E8E93', bgLight: '#8E8E931A' },
+        'bronze':   { bg: '#A25A34', fg: '#A25A34', bgLight: '#A25A341A' }
+    };
 
-    /** Cambia entre las pestañas del panel (Datos | Historial). */
-    function switchPanelTab(tabName) {
-        document.querySelectorAll('.panel-tab-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        document.getElementById('tab-btn-' + tabName).classList.add('active');
-        document.getElementById('panel-tab-datos-content').style.display = tabName === 'datos' ? 'block' : 'none';
-        document.getElementById('panel-tab-historial-content').style.display = tabName === 'historial' ? 'flex' : 'none';
-    }
+    // --- Data stats: PEXT = tarjetas de KPIs; otros = tarjetas de conteo ---
+    function buildDataStats() {
+        const container = document.getElementById('data-stats');
+        if (!container) return;
+        const proy = currentProjectNombre.trim().toLowerCase();
 
-    /** Abre el panel en modo creación (sin historial, campos en blanco). */
-    function abrirPanelNuevo() {
-        resetFormulario();
-        document.getElementById('panel-title').innerHTML = '<i data-lucide="plus-circle" style="width:17px;height:17px;"></i> Nueva Incidencia';
-        document.getElementById('btn-guardar').innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Registrar';
-        // Ocultar pestaña historial para registros nuevos (sin ID aún)
-        document.getElementById('tab-btn-historial').style.display = 'none';
-        switchPanelTab('datos');
-        togglePanel(true);
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    /** Limpia el formulario y restaura el estado inicial del campo monto_aprobado. */
-    function resetFormulario() {
-        document.getElementById('form-incidencia').reset();
-        document.getElementById('edit_id').value = '';
-        document.getElementById('evidencia_preview').innerHTML = '';
-        // Ocultar sección de aprobación al limpiar el formulario
-        const secAprobacion = document.getElementById('seccion-aprobacion');
-        if (secAprobacion) secAprobacion.style.display = 'none';
-        cerrarConfirmacionPanel();
-        // Restaurar monto_aprobado como editable (puede ser protegido en edición)
-        const maInput = document.getElementById('monto_aprobado');
-        if (maInput) {
-            maInput.readOnly = false;
-            maInput.style.opacity = '1';
-            maInput.title = '';
-        }
-
-        document.getElementById('timeline-container').innerHTML = `
-            <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
-        `;
-    }
-
-    // =========================================================
-    // EXPORTAR / IMPORTAR CSV
-    // =========================================================
-
-    /** Descarga todas las incidencias como archivo CSV. */
-    function exportarCSV() {
-        window.location.href = '/api/incidencias/export';
-    }
-
-    /** Importa incidencias desde un CSV seleccionado por el usuario (solo Admin). */
-    async function importarCSV(input) {
-        if (!input.files || input.files.length === 0) return;
-        const file = input.files[0];
-        if (!confirm('¿Deseas importar datos desde ' + file.name + '?')) {
-            input.value = '';
+        if (proy === 'pext') {
+            renderCardsStats(container);
             return;
         }
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        try {
-            const req = await fetch('/api/incidencias/import', { method: 'POST', body: formData });
-            const res = await req.json();
-            if (req.ok && res.success) {
-                alert('Se importaron ' + res.count + ' registros exitosamente.');
-                cargarIncidencias();
-            } else {
-                alert('Error al importar: ' + (res.error || 'Verifica el formato del archivo'));
-            }
-        } catch (err) {
-            alert('Error de conexión al importar');
-        } finally {
-            input.value = '';
+
+        const norm = v => String(v == null ? '' : v).trim().toUpperCase();
+        let hasEstado = false, hasProyecto = false;
+        let activos = 0, cesados = 0, flm = 0, pext = 0;
+        rawData.forEach(r => {
+            const est = norm(r.ESTADO);
+            if (est === 'ACTIVO') { activos++; hasEstado = true; }
+            else if (est === 'CESADO') { cesados++; hasEstado = true; }
+            const proy = norm(r.PROYECTO);
+            if (proy === 'FLM') { flm++; hasProyecto = true; }
+            else if (proy === 'PEXT') { pext++; hasProyecto = true; }
+        });
+        if (!hasEstado && !hasProyecto) return;
+
+        const cards = [
+            ['#007AFF', 'fa-users', 'Personal', rawData.length]
+        ];
+        if (hasEstado) {
+            cards.push(['#34C759', 'fa-user-check', 'Activos', activos]);
+            cards.push(['#FF3B30', 'fa-user-xmark', 'Cesados', cesados]);
         }
-    }
-
-    document.addEventListener("DOMContentLoaded", function() {
-        cargarOpciones();
-        cargarIncidencias();
-
-        document.getElementById('form-incidencia').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const btn = document.getElementById('btn-guardar');
-            btn.disabled = true;
-            btn.textContent = 'Guardando...';
-
-            const editId = document.getElementById('edit_id').value;
-            const method = editId ? 'PUT' : 'POST';
-            const url = editId ? '/api/incidencias/' + editId : '/api/incidencias';
-
-            const formData = new FormData();
-            formData.append('numero_ticket',    document.getElementById('numero_ticket').value);
-            formData.append('fecha_ticket',      document.getElementById('fecha_ticket').value);
-            formData.append('proyecto',         document.getElementById('proyecto').value);
-            formData.append('servicio',         document.getElementById('servicio').value);
-            formData.append('departamento',     document.getElementById('departamento').value);
-            formData.append('ciudad',           document.getElementById('ciudad').value);
-            formData.append('site_name',        document.getElementById('site_name').value);
-            formData.append('descripcion',      document.getElementById('descripcion').value);
-            formData.append('tecnico_asignado', document.getElementById('tecnico_asignado').value);
-            formData.append('contrata',         document.getElementById('contrata').value);
-            formData.append('sla',              document.getElementById('sla').value);
-            formData.append('estado',           document.getElementById('estado').value);
-            formData.append('monto_aprobado',   document.getElementById('monto_aprobado').value);
-            formData.append('monto_gastado',    document.getElementById('monto_gastado').value);
-            formData.append('prioridad',        document.getElementById('prioridad').value);
-
-
-            const fileInput = document.getElementById('evidencia_file');
-            if (fileInput.files.length > 0) {
-                const maxFiles = Math.min(fileInput.files.length, 5);
-                for (let f = 0; f < maxFiles; f++) {
-                    formData.append('evidencia_files', fileInput.files[f]);
-                }
-            }
-
-            try {
-                const req = await fetch(url, { method: method, body: formData });
-                const res = await req.json();
-                if (req.ok && res.success) {
-                    togglePanel(false);
-                    cargarIncidencias();
-                } else {
-                    alert("Error: " + (res.error || "No se pudo guardar"));
-                }
-            } catch (err) {
-                alert("Error de conexión.");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Guardar';
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            }
-        });
-
-        document.getElementById('buscador').addEventListener('input', function() {
-            const term = this.value.toLowerCase();
-            document.querySelectorAll('#tabla-incidencias tr').forEach(function(fila) {
-                fila.style.display = fila.textContent.toLowerCase().includes(term) ? '' : 'none';
-            });
-        });
-    });
-
-    // =========================================================
-    // AUTO-COMPLETAR TICKET EXISTENTE
-    // Cuando el usuario ingresa un número de ticket ya existente
-    // en modo creación, se precargan los datos del último registro
-    // con ese número para agilizar la captura.
-    // =========================================================
-    function buscarTicketExistente(ticketNum) {
-        // Solo auto-completar en modo creación (sin edit_id)
-        if (document.getElementById('edit_id').value !== '' || !ticketNum.trim()) return;
-        
-        const existente = todasLasIncidencias.find(i => i.numero_ticket.trim().toLowerCase() === ticketNum.trim().toLowerCase());
-        if (existente) {
-            // Precargar datos básicos
-            if (existente.departamento) document.getElementById('departamento').value = existente.departamento;
-            if (existente.proyecto) document.getElementById('proyecto').value = existente.proyecto;
-            if (existente.servicio) document.getElementById('servicio').value = existente.servicio;
-            if (existente.ciudad) document.getElementById('ciudad').value = existente.ciudad;
-            if (existente.site_name) document.getElementById('site_name').value = existente.site_name;
-            if (existente.tecnico_asignado) document.getElementById('tecnico_asignado').value = existente.tecnico_asignado;
-            if (existente.contrata) document.getElementById('contrata').value = existente.contrata;
-            if (existente.sla) document.getElementById('sla').value = existente.sla;
-            if (existente.prioridad) document.getElementById('prioridad').value = existente.prioridad;
-
-            // Dejar en blanco lo variable para el gestor
-            document.getElementById('estado').value = '';
-            document.getElementById('descripcion').value = '';
-            document.getElementById('evidencia_file').value = '';
-        }
-    }
-
-    // =========================================================
-    // CARGAR OPCIONES DESPLEGABLES DESDE LA API
-    // Pobla todos los <select> del formulario con las opciones
-    // configuradas por el Admin en el panel de configuración.
-    // =========================================================
-    async function cargarOpciones() {
-        try {
-            const req  = await fetch('/api/opciones');
-            if (!req.ok) return;
-            const data = await req.json();
-            poblarSelect('departamento', data.Departamento);
-            poblarSelect('proyecto',     data.Proyecto);
-            poblarSelect('servicio',     data.Servicio);
-            poblarSelect('contrata',     data.Contrata);
-            poblarSelect('sla',          data.SLA);
-            poblarSelect('estado',       data.Estado);
-        } catch (err) { console.error("Error cargando opciones:", err); }
-    }
-
-    function poblarDatalist(id, opciones) {
-        const datalist = document.getElementById(id);
-        if (!datalist || !opciones) return;
-        datalist.innerHTML = '';
-        opciones.forEach(function(op) {
-            const o = document.createElement('option');
-            o.value = op.valor;
-            datalist.appendChild(o);
-        });
-    }
-
-    function poblarSelect(id, opciones) {
-        const select = document.getElementById(id);
-        if (!select || !opciones) return;
-        opciones.forEach(function(op) {
-            const o = document.createElement('option');
-            o.value = op.valor; o.textContent = op.valor;
-            select.add(o);
-        });
-    }
-
-    function renderEvidenciaLinks(evidenciaStr) {
-        if (!evidenciaStr) return '<span style="color:var(--text-muted);">-</span>';
-        const urls = evidenciaStr.split(/,(?=(?:https?:\/\/|\/?static\/|data:))/i).map(u => u.trim()).filter(Boolean);
-        if (urls.length === 0) return '<span style="color:var(--text-muted);">-</span>';
-
-        const isLocal = (url) => url.startsWith('/static/uploads/') || url.startsWith('static/uploads/');
-        const locales = urls.filter(isLocal);
-        const validas = urls.filter(u => !isLocal(u));
-
-        let html = '<div style="display:flex; gap:4px; align-items:center; flex-wrap:nowrap;">';
-
-        if (validas.length > 0) {
-            // Mostrar un solo botón con el conteo de fotos válidas
-            // El primer enlace es el destino principal
-            html += `<a href="javascript:void(0)" onclick="verFoto('${validas[0]}')" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; font-size:11px; background:rgba(99,102,241,0.15); color:var(--primary); border-radius:6px; border:1px solid rgba(99,102,241,0.3); text-decoration:none; white-space:nowrap; font-weight:600;">📷 ${validas.length} foto${validas.length > 1 ? 's' : ''}</a>`;
-            // Si hay más de 1, añadir botones individuales hasta 3 visibles
-            if (validas.length > 1) {
-                validas.slice(1, 3).forEach((url, i) => {
-                    html += `<a href="javascript:void(0)" onclick="verFoto('${url}')" style="display:inline-flex; align-items:center; padding:3px 5px; font-size:10px; background:rgba(99,102,241,0.08); color:var(--primary); border-radius:5px; border:1px solid rgba(99,102,241,0.2); text-decoration:none;">#${i+2}</a>`;
-                });
-                if (validas.length > 3) {
-                    html += `<span style="font-size:10px; color:var(--text-muted);">+${validas.length - 3} más</span>`;
-                }
-            }
+        if (hasProyecto) {
+            cards.push(['#5856D6', 'fa-helmet-safety', 'FLM', flm]);
+            cards.push(['#14B8A6', 'fa-satellite-dish', 'PEXT', pext]);
         }
 
-        if (locales.length > 0) {
-            html += `<span title="${locales.length} imagen(es) guardada(s) localmente, no disponible en servidor cloud" style="display:inline-flex; align-items:center; gap:2px; padding:2px 5px; font-size:10px; background:rgba(239,68,68,0.08); color:#ef4444; border-radius:5px; border:1px solid rgba(239,68,68,0.25); white-space:nowrap;">⚠️ ${locales.length}</span>`;
+        container.style.display = 'grid';
+        container.innerHTML = cards.map(c =>
+            `<div class="data-stat">` +
+                `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
+                `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
+            `</div>`
+        ).join('');
+    }
+
+    // --- PEXT: tarjetas de resumen con los KPIs más importantes ---
+    function renderCardsStats(container) {
+        const norm = v => String(v == null ? '' : v).trim().toLowerCase();
+        const val = (row, ...keys) => {
+            for (const k of keys) {
+                const key = Object.keys(row).find(x => norm(x) === k);
+                if (key !== undefined && row[key] != null && String(row[key]).trim() !== '') return row[key];
+            }
+            return null;
+        };
+        const EN_PROCESO = ['unscheduled', 'dispatched', 'accepted', 'inprocess', 'running'];
+        const CERRADAS = ['closed', 'canceled', 'complete'];
+        let enProceso = 0, cerradas = 0, criticas = 0, p1 = 0, sinTecnico = 0, dispatched = 0;
+        rawData.forEach(r => {
+            const woState = String(val(r, 'estado de la tarea (wo state)', 'estado del tt', 'estado') || '').trim().toLowerCase();
+            if (woState === 'dispatched') dispatched++;
+            if (EN_PROCESO.includes(woState)) enProceso++;
+            else if (CERRADAS.includes(woState)) cerradas++;
+            if (norm(val(r, 'fault level')) === 'critical') criticas++;
+            if (norm(val(r, 'prioridad del site')) === 'p1') p1++;
+            if (!String(val(r, 'tecnico asignado') || '').trim()) sinTecnico++;
+        });
+        const cards = [
+            ['#007AFF', 'fa-database', 'Total registros', rawData.length],
+            ['#FF9500', 'fa-spinner', 'En proceso', enProceso],
+            ['#34C759', 'fa-circle-check', 'Cerradas', cerradas],
+            ['#FF3B30', 'fa-bell', 'Críticas', criticas],
+            ['#AF52DE', 'fa-arrow-trend-up', 'Prioridad P1', p1],
+            ['#5856D6', 'fa-user-slash', 'Sin técnico', sinTecnico],
+            ['#FF9F0A', 'fa-paper-plane', 'Dispatched', dispatched]
+        ];
+        container.style.display = 'grid';
+        container.innerHTML = cards.map(c =>
+            `<div class="data-stat">` +
+                `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
+                `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
+            `</div>`
+        ).join('');
+    }
+
+    buildDataStats();
+
+    const kpiAlarmFormatter = function(cell) {
+        const val = cell.getValue();
+        if (val === null || val === undefined) return "";
+        const days = parseInt(val);
+        let cls = "";
+        let icon = "";
+
+        if (days <= 3) cls = "alarm-0-3";
+        else if (days <= 7) cls = "alarm-4-7";
+        else if (days <= 11) cls = "alarm-8-11";
+        else if (days <= 15) { cls = "alarm-12-15"; icon = "â³"; }
+        else if (days <= 30) { cls = "alarm-16-30"; icon = "âš ï¸"; }
+        else if (days <= 60) { cls = "alarm-31-60"; icon = "🚨"; }
+        else if (days <= 90) { cls = "alarm-61-90"; icon = "💣"; }
+        else { cls = "alarm-90-plus"; icon = "💀"; }
+
+        return `<div class="status-badge ${cls}"><span>${icon}</span> <span>${days} DIAS</span></div>`;
+    };
+
+    const getRowVal = (row, partialKey) => {
+        const data = row.getData();
+        const targetKey = Object.keys(data).find(k => k.toLowerCase().includes(partialKey.toLowerCase()));
+        return targetKey ? data[targetKey] : null;
+    };
+
+    const parseDate = (val) => {
+        if (!val) return null;
+        const str = String(val).trim();
+        if (!str) return null;
+        const d = new Date(str.replace(/-/g, "/"));
+        return isNaN(d.getTime()) ? null : d;
+    };
+
+    const getSlaThreshold = (row) => {
+        const val = getRowVal(row, "SLA");
+        if (val !== null && val !== undefined) {
+            const str = String(val).trim();
+            if (/^\d+$/.test(str)) {
+                return parseInt(str, 10);
+            }
+            const hrsMatch = str.match(/(\d+)\s*HRS/i);
+            if (hrsMatch) {
+                return parseInt(hrsMatch[1], 10) * 60;
+            }
+        }
+        
+        // Fallback based on Fault Level
+        const faultLevel = String(getRowVal(row, "Fault Level") || '').trim().toLowerCase();
+        if (faultLevel === 'critical') return 480;
+        if (faultLevel === 'alta') return 600;
+        if (faultLevel === 'media') return 2880;
+        if (faultLevel === 'baja') return 4320;
+        
+        return 360; // default 6 hours
+    };
+
+    const getDispatchedDate = (row) => {
+        const data = row.getData();
+        let d = parseDate(data['_fecha_dispatched']);
+        if (d) return d;
+        const key = Object.keys(data).find(k => /dispatch|despacho/i.test(k));
+        if (key) { d = parseDate(data[key]); if (d) return d; }
+        return null;
+    };
+
+    const getSuspensionMs = (row) => {
+        const coment = String(getRowVal(row, "Comentarios Suspend") || '');
+        const re = /Type:\s*(PAUSE|RESUME)[\s\S]*?Operation time:\s*([\d-]+[ T][\d:]+)/gi;
+        let m, pauseDate = null, total = 0;
+        while ((m = re.exec(coment)) !== null) {
+            const type = m[1].trim().toUpperCase();
+            const t = parseDate(m[2].trim());
+            if (!t) continue;
+            if (type === 'PAUSE') pauseDate = t;
+            else if (type === 'RESUME' && pauseDate) {
+                total += Math.max(0, t.getTime() - pauseDate.getTime());
+                pauseDate = null;
+            }
+        }
+        return total;
+    };
+
+    const formatHoursMins = (mins) => {
+        if (mins === null || mins === undefined || isNaN(mins)) return "";
+        const hrs = Math.floor(mins / 60);
+        const m = mins % 60;
+        if (hrs > 0) {
+            return m > 0 ? `${hrs}h ${m}m` : `${hrs}h`;
+        }
+        return `${m}m`;
+    };
+
+    const formatHoursMinsSecs = (ms) => {
+        if (ms === null || ms === undefined || isNaN(ms)) return "";
+        const totalSecs = Math.floor(ms / 1000);
+        const hrs = Math.floor(totalSecs / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+        const secs = totalSecs % 60;
+        
+        let parts = [];
+        if (hrs > 0) parts.push(`${hrs}h`);
+        if (mins > 0 || hrs > 0) parts.push(`${mins}m`);
+        parts.push(`${secs}s`);
+        
+        return parts.join(' ');
+    };
+
+    // Ensure SLA columns exist in rawCols dynamically, except for Dataper
+    if (currentProjectNombre.trim().toLowerCase() !== 'dataper') {
+        ["SLA Despacho", "SLA Operativo"].forEach(slaName => {
+            if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
+                rawCols.push(slaName);
+            }
+        });
+    }
+
+    const kpiColumns = [];
+    const restColumns = [];
+    let keyColumn = null;
+
+    // Manual columns: se ocultan por defecto cuando la tabla tiene muchas columnas importadas
+    // (así no se llena la "sábana"); el gestor las revela con el botón "Manuales".
+    const manualNamesSet = new Set(manualColsConfig.map(mc => mc.nombre));
+    const nonManualCount = rawCols.filter(c => !manualNamesSet.has(c) && !c.startsWith('_')).length;
+
+    rawCols.forEach(col => {
+        const fieldName = col;
+        let isManual = false;
+        let manualDef = null;
+        for (let mc of manualColsConfig) {
+            if (mc.nombre === col) {
+                isManual = true;
+                manualDef = mc;
+                break;
+            }
         }
 
-        html += '</div>';
-        return html;
-    }
+        let colDef = {
+            title: fieldName,
+            field: fieldName,
+            headerFilter: "input",
+            headerPopup: customHeaderPopup,
+            headerPopupIcon: "<i class='fa-solid fa-filter' style='font-size: 10px; color: #007AFF; opacity: 0.75;'></i>",
+            width: 150,
+            minWidth: 60,
+            maxWidth: 260,
+            headerWordWrap: true,
+            tooltip: true
+        };
 
-    let filtroProyectoActivo = 'TODOS';
+        // 1. PRIMARY KEY
+        if (fieldName === "_key") {
+            colDef.frozen = true;
+            colDef.title = "<i class='fa-solid fa-key' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> {{ pk }}";
+            colDef.cssClass = "key-column";
+            colDef.formatter = function(cell) {
+                const v = cell.getValue();
+                if (v === null || v === undefined || String(v).trim() === '') return '';
+                if (!IS_PEXT) return escapeHtml(v);
+                return `<span class="wo-link">${escapeHtml(v)}</span>`;
+            };
+            keyColumn = colDef;
+            return;
+        }
 
-    function cambiarFiltroProyecto(proyecto, btnElement) {
-        filtroProyectoActivo = proyecto;
-        document.querySelectorAll('#proyecto-tabs .tab-btn').forEach(btn => {
-            btn.classList.remove('active');
-            btn.style.background = 'rgba(255,255,255,0.05)';
-            btn.style.color = 'var(--text-muted)';
-            btn.style.border = '1px solid var(--border)';
-        });
-        btnElement.classList.add('active');
-        btnElement.style.background = 'var(--primary)';
-        btnElement.style.color = 'white';
-        btnElement.style.border = 'none';
+        // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas
+        if (isManual && nonManualCount >= 5) {
+            colDef.visible = false;
+        } 
         
-        renderizarTabla();
-    }
+        // 2. KPI ALARM (Dilación - Frozen columns on the left)
+        if (fieldName.startsWith("KPI_")) {
+            colDef.title = "<i class='fa-solid fa-gauge-high' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> " + fieldName.replace("KPI_", "");
+            colDef.formatter = kpiAlarmFormatter;
+            colDef.width = 130;
+            colDef.hozAlign = "center";
+            colDef.frozen = true;
+            kpiColumns.push(colDef);
+            return;
+        }
 
-    // Nota: Los campos de monto aprobado y gastado están siempre visibles
-    // independientemente del servicio. La restricción de edición del
-    // monto_aprobado se aplica en editarIncidencia() según el rol del usuario.
+        // 3. ACUMULADO KPI (Heatmap Multi-Criterio) + STATIC RESALTADOR
+        // Collect ALL metas that involve this field
+        let matchingMetas = [];
+        for (let [kpiId, meta] of Object.entries(kpiMeta)) {
+            if (meta.cols_involved && meta.cols_involved.includes(fieldName)) {
+                matchingMetas.push(meta);
+            }
+        }
 
-    // =========================================================
-    // TABLA PRINCIPAL DE INCIDENCIAS
-    // cargarIncidencias(): carga desde API y actualiza contadores.
-    // renderizarTabla(): filtra y pinta la tabla según el tab activo.
-    // =========================================================
-    async function cargarIncidencias() {
-        try {
-            const req = await fetch('/api/incidencias');
-            todasLasIncidencias = await req.json();
+        // Check for static highlight rules (RESALTADOR type)
+        const hasStaticHighlight = kpiMeta.resaltadores && kpiMeta.resaltadores[fieldName];
 
-            // Actualizar contadores de cada pestaña de filtro
-            const todos = todasLasIncidencias.length;
-            const flm   = todasLasIncidencias.filter(i => i.proyecto && i.proyecto.toUpperCase() === 'FLM').length;
-            const pext  = todasLasIncidencias.filter(i => i.proyecto && i.proyecto.toUpperCase() === 'PEXT').length;
-            const cotizacion = todasLasIncidencias.filter(i => i.servicio && i.servicio.trim().toUpperCase() === 'COTIZACION').length;
-            
-            document.getElementById('cnt-todos').textContent = todos;
-            document.getElementById('cnt-flm').textContent = flm;
-            document.getElementById('cnt-pext').textContent = pext;
-            document.getElementById('cnt-cotizacion').textContent = cotizacion;
+        if (matchingMetas.length > 0 || hasStaticHighlight) {
+            colDef.formatter = function(cell) {
+                const rowData = cell.getRow().getData();
+                const val = String(cell.getValue() || '').trim();
+                if (!val) return "";
 
-            // Calcular y mostrar Mini KPI Bar
-            let mkpiTotal = todasLasIncidencias.length;
-            let mkpiPlazo = 0, mkpiPorVencer = 0, mkpiVencidos = 0;
-            let mkpiConCot = 0, mkpiSinCot = 0, mkpiMontoTotal = 0;
-            todasLasIncidencias.forEach(inc => {
-                if (inc.monto_aprobado !== null && parseFloat(inc.monto_aprobado) > 0) {
-                    mkpiConCot++;
-                    mkpiMontoTotal += parseFloat(inc.monto_aprobado);
-                } else {
-                    mkpiSinCot++;
+                // --- PRIORITY 1: STATIC HIGHLIGHT (RESALTADOR) ---
+                if (hasStaticHighlight && kpiMeta.resaltadores[fieldName][val]) {
+                    return `<div class="highlighter-yellow">${val}</div>`;
                 }
-                if (inc.sla && inc.fecha_captura) {
-                    const match = inc.sla.match(/(\d+)\s*(HRS|H|horas|hora)/i);
-                    if (match) {
-                        const slaHours = parseInt(match[1]);
-                        const parts = inc.fecha_captura.split(/[- :]/);
-                        if (parts.length >= 5) {
-                            const captureDate = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
-                            const elapsed = (Date.now() - captureDate) / (1000 * 60 * 60);
-                            const done = ['Liquidado', 'Cierre Técnico', 'Cierre Operativo'].includes(inc.estado);
-                            if (!done) {
-                                if (elapsed >= slaHours) mkpiVencidos++;
-                                else if (elapsed >= slaHours * 0.8) mkpiPorVencer++;
-                                else mkpiPlazo++;
+
+                // --- PRIORITY 2: HEATMAP FREQUENCY (ACUMULADO) ---
+                for (let meta of matchingMetas) { 
+                    const dataRankMap = meta.ranks || {};
+                    const keyParts = meta.cols_involved.map(c => String(rowData[c] || '').trim());
+                    if (keyParts.some(p => p === "")) continue; 
+                    
+                    const combinedKey = keyParts.join(" | ");
+                    const rank = dataRankMap[combinedKey];
+
+                    if (!rank) continue; 
+
+                    // Respect specific KPI filters (Multi-filter support)
+                    if (meta.filters && meta.filters.length > 0) {
+                        let matchesAll = true;
+                        for (let f of meta.filters) {
+                            if (String(rowData[f.col] || '').trim() !== String(f.val).trim()) {
+                                matchesAll = false;
+                                break;
                             }
                         }
+                        if (!matchesAll) continue; 
                     }
+
+                    let classes = "rochozo-cell";
+                    let style = "padding: 4px 8px; border-radius: 4px; text-align: center; width: 100%; transition: all 0.3s; font-weight: 700; box-sizing: border-box;";
+                    
+                    if (rank === 1) {
+                        classes += " rochozo-hit";
+                        style = ""; 
+                    } else if (rank === 2) {
+                        style += " background: #dc3545; color: white; box-shadow: 0 0 6px rgba(220, 53, 69, 0.4);"; // Rojo
+                    } else if (rank === 3) {
+                        style += " background: #d83b01; color: white; box-shadow: 0 0 6px rgba(216, 59, 1, 0.4);"; // Naranja
+                    } else if (rank === 4) {
+                        style += " background: #ffc107; color: #000; box-shadow: 0 0 4px rgba(255, 193, 7, 0.3);"; // Amarillo
+                    }
+
+                    return `<div class="${classes}" style="${style}">${val}</div>`;
                 }
-            });
-            const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-            set('mkpi-total', mkpiTotal);
-            set('mkpi-plazo', mkpiPlazo);
-            set('mkpi-por-vencer', mkpiPorVencer);
-            set('mkpi-vencidos', mkpiVencidos);
-            set('mkpi-con-cot', mkpiConCot);
-            set('mkpi-sin-cot', mkpiSinCot);
-            set('mkpi-monto', `S/ ${mkpiMontoTotal.toFixed(0)}`);
 
-            renderizarTabla();
-        } catch (err) { console.error("Error cargando incidencias:", err); }
-    }
-
-    function renderizarTabla() {
-        const tbody = document.getElementById('tabla-incidencias');
-        tbody.innerHTML = '';
-
-        let filtradas = todasLasIncidencias;
-        if (filtroProyectoActivo === 'COTIZACION') {
-            filtradas = todasLasIncidencias.filter(i => i.servicio && i.servicio.trim().toUpperCase() === 'COTIZACION');
-        } else if (filtroProyectoActivo !== 'TODOS') {
-            filtradas = todasLasIncidencias.filter(i => i.proyecto && i.proyecto.toUpperCase() === filtroProyectoActivo.toUpperCase());
+                return val;
+            };
         }
 
-        document.getElementById('contador').textContent = `(${filtradas.length} registros)`;
+        // 4. MANUAL COLUMNS (Editors and Specific Formatters)
+        if (isManual) {
+            colDef.title = "<i class='fa-solid fa-pen-to-square' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> " + fieldName;
+            const isDemo = "{{ session.get('rol') }}" === "demo";
 
-        const colores = {
-            'Pendiente':        '#ef4444',
-            'Asignado':         '#3b82f6',
-            'Parada de Reloj':  '#f59e0b',
-            'Cierre Operativo': '#8b5cf6',
-            'Liquidado':        '#10b981'
+            if (!isDemo) {
+                if (manualDef.tipo === 'texto') {
+                    colDef.editor = "input";
+                } else if (manualDef.tipo === 'lista') {
+                    colDef.editor = "list";
+                    colDef.editorParams = { 
+                        values: manualDef.opciones, 
+                        clearable: true,
+                        autocomplete: true,
+                        listOnEmpty: true,
+                        freetext: false
+                    };
+                    colDef.headerFilter = "list";
+                    colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
+                } else if (manualDef.tipo === 'fecha') {
+                    colDef.formatter = "datetime";
+                    colDef.formatterParams = { inputFormat: "yyyy-MM-dd", outputFormat: "dd/MM/yyyy", invalidPlaceholder: "" };
+                    colDef.editor = "input";
+                    colDef.editorParams = { mask: "99/99/9999", maskAutoFill: true };
+                }
+            } else {
+                // Formatting for demo without editor
+                if (manualDef.tipo === 'fecha') {
+                    colDef.formatter = "datetime";
+                    colDef.formatterParams = { inputFormat: "yyyy-MM-dd", outputFormat: "dd/MM/yyyy", invalidPlaceholder: "" };
+                }
+            }
+        }
+
+        // 4.5 SPECIAL COLOR FORMATTERS (by field name, manual or not)
+        // Fault Level badge: level + hours, colored by criticality
+        if (fieldName === "Fault Level") {
+            colDef.formatter = function(cell) {
+                const val = cell.getValue();
+                if (val === null || val === undefined || String(val).trim() === "") return "";
+                const color = FAULT_COLORS[String(val).trim()];
+                if (!color) return val;
+                return `<span class="fault-badge" style="background:${color.bg}; color:${color.fg}; padding:3px 10px; border-radius:20px; font-weight:700; font-size:12px; display:inline-block; box-shadow:0 1px 3px rgba(0,0,0,0.15);">${val} <span style="opacity:.85; font-weight:600;">· ${color.hrs}</span></span>`;
+            };
+        }
+
+        // WO State badge: colored by work order state
+        if (fieldName === "Estado de la tarea (WO State)") {
+            colDef.formatter = function(cell) {
+                const val = cell.getValue();
+                if (val === null || val === undefined || String(val).trim() === "") return "";
+                const valStr = String(val).trim();
+                const color = WO_STATE_COLORS[valStr];
+                if (!color) return val;
+                const letter = color.iconText || valStr.charAt(0).toUpperCase();
+                return `
+                    <div style="display: inline-flex; align-items: center; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 500; height: 100%;">
+                        <span style="
+                            background: ${color.bg}; 
+                            color: #ffffff; 
+                            width: 18px; 
+                            height: 18px; 
+                            display: inline-flex; 
+                            align-items: center; 
+                            justify-content: center; 
+                            border-radius: 4px; 
+                            font-size: 11px; 
+                            font-weight: 900;
+                            line-height: 1;
+                        ">${letter}</span>
+                        <span style="color: ${color.fg}; font-weight: 600;">${valStr}</span>
+                    </div>
+                `;
+            };
+        }
+
+        // Site Priority badge: clean badge layout with background tint
+        if (fieldName && fieldName.trim().toUpperCase() === "PRIORIDAD DEL SITE") {
+            colDef.formatter = function(cell) {
+                const val = cell.getValue();
+                if (val === null || val === undefined || String(val).trim() === "") return "";
+                const valStr = String(val).trim();
+                const normVal = valStr.toLowerCase();
+                const color = SITE_PRIORITY_COLORS[normVal] || { bg: '#8E8E93', fg: '#8E8E93', bgLight: '#8E8E931A' };
+                
+                return `
+                    <div style="display: inline-flex; align-items: center; height: 100%;">
+                        <span style="
+                            background: ${color.bgLight}; 
+                            color: ${color.fg}; 
+                            border: 1px solid ${color.bg}4D;
+                            padding: 3px 10px;
+                            border-radius: 12px; 
+                            font-size: 11px; 
+                            font-weight: 800;
+                            display: inline-block;
+                            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                        ">${valStr}</span>
+                    </div>
+                `;
+            };
+        }
+
+        // SLA Despacho: creación (unscheduled) → dispatched
+        if (fieldName && fieldName.trim() === "SLA Despacho") {
+            colDef.width = 130;
+            colDef.formatter = function(cell) {
+                const row = cell.getRow();
+                const creation = parseDate(getRowVal(row, "creation date") || getRowVal(row, "creación") || getRowVal(row, "fecha_ticket"));
+                const dispatched = getDispatchedDate(row);
+                if (!creation || !dispatched) return "";
+                const mins = Math.max(0, Math.floor((dispatched.getTime() - creation.getTime()) / 60000));
+                const txt = formatHoursMins(mins);
+                cell.getElement().setAttribute("title", `Creación → Dispatched: ${txt}`);
+                return txt;
+            };
+        }
+
+        // SLA Operativo: dispatched → closed (restando suspensiones).
+        // Si el estado es canceled/rejected muestra el tiempo hasta ese cambio (informativo, no cuenta como SLA).
+        if (fieldName && fieldName.trim() === "SLA Operativo") {
+            colDef.width = 130;
+            colDef.formatter = function(cell) {
+                const row = cell.getRow();
+                const dispatched = getDispatchedDate(row);
+                if (!dispatched) return "";
+
+                const stateVal = String(getRowVal(row, "wo state") || getRowVal(row, "estado") || '').trim().toLowerCase();
+                const suspension = getSuspensionMs(row);
+
+                let endDate = null;
+                if (stateVal === 'closed') {
+                    endDate = parseDate(getRowVal(row, "close") || getRowVal(row, "cierre"));
+                } else if (stateVal === 'canceled' || stateVal === 'rejected') {
+                    endDate = parseDate(getRowVal(row, "cancel") || getRowVal(row, "reject"));
+                    if (!endDate) {
+                        endDate = parseDate(row.getData()['_fecha_cancel_reject']);
+                    }
+                } else {
+                    endDate = new Date();
+                }
+                if (!endDate) return "";
+
+                const diffMs = Math.max(0, endDate.getTime() - dispatched.getTime() - suspension);
+                const mins = Math.floor(diffMs / 60000);
+                const isActive = !['closed', 'canceled', 'rejected'].includes(stateVal);
+                const txt = isActive ? formatHoursMinsSecs(diffMs) : formatHoursMins(mins);
+                const slaLimit = getSlaThreshold(row);
+                const pct = slaLimit > 0 ? (mins / slaLimit) * 100 : 0;
+
+                if (stateVal === 'closed') {
+                    // Objetivo cumplido → azul; no cumplido → negro
+                    if (mins <= slaLimit) {
+                        cell.getElement().style.background = "#0A84FF";
+                        cell.getElement().style.color = "#FFFFFF";
+                        cell.getElement().style.fontWeight = "800";
+                    } else {
+                        cell.getElement().style.background = "#000000";
+                        cell.getElement().style.color = "#FFFFFF";
+                        cell.getElement().style.fontWeight = "800";
+                    }
+                    cell.getElement().setAttribute("title", `Operativo: ${txt} (Límite SLA: ${formatHoursMins(slaLimit)})`);
+                } else if (stateVal === 'canceled' || stateVal === 'rejected') {
+                    // Informativo, sin semáforo
+                    cell.getElement().style.background = "";
+                    cell.getElement().style.color = "";
+                    cell.getElement().style.fontWeight = "";
+                    cell.getElement().setAttribute("title", `Informativo (dispatched → ${stateVal}): ${txt}`);
+                } else {
+                    // Activo: semáforo por porcentaje del objetivo
+                    let bg, fg;
+                    if (pct < 50) { bg = "#28A745"; fg = "#FFFFFF"; }
+                    else if (pct < 80) { bg = "#FFC107"; fg = "#212529"; }
+                    else { bg = "#DC3545"; fg = "#FFFFFF"; }
+                    cell.getElement().style.background = bg;
+                    cell.getElement().style.color = fg;
+                    cell.getElement().style.fontWeight = "800";
+                    cell.getElement().setAttribute("title", `Operativo: ${txt} (${pct.toFixed(0)}% del objetivo ${formatHoursMins(slaLimit)})`);
+                }
+                return txt;
+            };
+        }
+
+        restColumns.push(colDef);
+    });
+
+    const isAdmin = "{{ session.get('rol') }}" === "admin";
+
+    const selectCol = {
+        formatter: "rowSelection",
+        titleFormatter: function() {
+            return "<input type='checkbox' class='tabulator-select-all' onchange='tabulatorSelectAll(this)' />";
+        },
+        headerSort: false,
+        width: 40,
+        minWidth: 40,
+        maxWidth: 40,
+        resizable: false,
+        frozen: true,
+        headerHozAlign: "center",
+        hozAlign: "center",
+        cssClass: "col-select-check"
+    };
+    const tableColumns = [
+        ...(isAdmin ? [selectCol] : []),
+        ...kpiColumns
+    ];
+    if (keyColumn) tableColumns.push(keyColumn);
+    tableColumns.push(...restColumns);
+
+    function tabulatorSelectAll(cb) {
+        const rows = table.getRows("active");
+        if (cb.checked) {
+            table.selectRow(rows);
+        } else {
+            table.deselectRow(rows);
+        }
+    }
+
+    function customHeaderPopup(e, column) {
+        e.stopPropagation();
+
+        var container = document.createElement("div");
+        container.style.padding = "15px";
+        container.style.background = "var(--ios-card-bg)";
+        container.style.color = "var(--ios-label)";
+        container.style.border = "1px solid var(--ios-hairline)";
+        container.style.boxShadow = "var(--shadow-soft)";
+        container.style.minWidth = "240px";
+        container.style.maxHeight = "400px";
+        container.style.overflowY = "auto";
+        container.style.fontSize = "12px";
+        container.style.borderRadius = "12px";
+
+        // --- TOP: ACTIONS ---
+        var headerActions = document.createElement("div");
+        headerActions.style.marginBottom = "15px";
+        headerActions.style.display = "flex";
+        headerActions.style.gap = "8px";
+        headerActions.style.borderBottom = "1px solid var(--excel-border)";
+        headerActions.style.paddingBottom = "12px";
+
+        var applyBtn = document.createElement("button");
+        applyBtn.innerHTML = "<i class='fa-solid fa-check'></i> Aplicar";
+        applyBtn.style.flex = "1";
+        applyBtn.style.padding = "10px";
+        applyBtn.style.cursor = "pointer";
+        applyBtn.style.border = "none";
+        applyBtn.style.background = "#007AFF"; // blue
+        applyBtn.style.color = "white";
+        applyBtn.style.borderRadius = "4px";
+        applyBtn.style.fontWeight = "bold";
+        applyBtn.style.fontSize = "12px";
+        applyBtn.onclick = function () {
+            runApply();
+            document.body.click();
         };
 
-        filtradas.forEach(function(i) {
-            const badge = colores[i.estado] || '#6b7280';
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
-            
-            const txtAprobado = i.monto_aprobado !== null ? `S/ ${parseFloat(i.monto_aprobado).toFixed(2)}` : '-';
-            const txtGastado  = i.monto_gastado !== null ? `S/ ${parseFloat(i.monto_gastado).toFixed(2)}` : '-';
+        var clearBtn = document.createElement("button");
+        clearBtn.innerHTML = "<i class='fa-solid fa-eraser'></i> Limpiar";
+        clearBtn.style.flex = "1";
+        clearBtn.style.padding = "10px";
+        clearBtn.style.cursor = "pointer";
+        clearBtn.style.border = "none";
+        clearBtn.style.background = "#d13438"; // red
+        clearBtn.style.color = "white";
+        clearBtn.style.borderRadius = "4px";
+        clearBtn.style.fontWeight = "bold";
+        clearBtn.style.fontSize = "12px";
+        clearBtn.onclick = function (ex) {
+            ex.preventDefault();
+            container.querySelectorAll("input[type='checkbox']").forEach(i => i.checked = false);
+        };
 
-            // Escapar JSON para el botón de editar
-            const jsonStr = JSON.stringify(i).replace(/'/g, "&#39;");
+        headerActions.appendChild(applyBtn);
+        headerActions.appendChild(clearBtn);
+        container.appendChild(headerActions);
 
-            // Lógica para Alarma SLA
-            let slaAlarmHtml = '';
-            if (i.sla && i.fecha_captura && !['Liquidado', 'Cierre Técnico', 'Cierre Operativo'].includes(i.estado)) {
-                const match = i.sla.match(/(\d+)\s*(HRS|H|horas|hora)/i);
-                if (match) {
-                    const slaHours = parseInt(match[1]);
-                    // fecha_captura format: 'YYYY-MM-DD HH:MM'
-                    const parts = i.fecha_captura.split(/[- :]/);
-                    if (parts.length >= 5) {
-                        const captureDate = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
-                        const now = new Date();
-                        const elapsedMs = now - captureDate;
-                        const elapsedHours = elapsedMs / (1000 * 60 * 60);
-                        const limitHours = slaHours;
-                        
-                        if (elapsedHours >= limitHours) {
-                            slaAlarmHtml = `<span class="sla-dot vencido" title="Vencido (${elapsedHours.toFixed(1)}h transcurridas de ${limitHours}h limit)"></span>`;
-                        } else if (elapsedHours >= limitHours * 0.8) {
-                            slaAlarmHtml = `<span class="sla-dot por-vencer" title="Por vencer (${elapsedHours.toFixed(1)}h transcurridas de ${limitHours}h limit)"></span>`;
-                        } else {
-                            slaAlarmHtml = `<span class="sla-dot dentro-plazo" title="Dentro de plazo (${elapsedHours.toFixed(1)}h transcurridas de ${limitHours}h limit)"></span>`;
-                        }
-                    }
-                }
-            }
-
-            // Colores para Prioridad
-            const priColores = {
-                'Prioridad 1': '#ef4444',
-                'Prioridad 2': '#f97316',
-                'Prioridad 3': '#eab308',
-                'Prioridad 4': '#3b82f6',
-                'Sin prioridad': '#6b7280'
-            };
-            const priBadge = priColores[i.prioridad] || '#6b7280';
-            const priText = i.prioridad || 'Sin prioridad';
-
-            tr.innerHTML = `
-                ${IS_SUPER_OR_ADMIN ? `<td style="padding:7px 8px; text-align:center; vertical-align:middle;">
-                    <button onclick='abrirPopupAprobacion(${jsonStr})'
-                        style="background:rgba(99,102,241,0.12); color:var(--primary); border:1px solid rgba(99,102,241,0.3); border-radius:8px; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition: all 0.2s;"
-                        title="Aprobar o rechazar cotización">
-                        <i data-lucide="shield-check" style="width:14px; height:14px;"></i>
-                    </button>
-                </td>` : ''}
-                <td style="padding:7px 8px; font-weight:700; white-space:nowrap; vertical-align:middle;">
-                    <div style="display:flex; align-items:center; gap:5px;">
-                        ${slaAlarmHtml}
-                        <a href="javascript:void(0)" onclick='editarIncidencia(${jsonStr})' style="color:var(--primary); text-decoration:underline; font-size:12px; cursor:pointer;" title="Ver/Editar detalle del ticket">${i.numero_ticket}</a>
-                    </div>
-                </td>
-                <td style="padding:7px 8px; color:var(--text-muted); white-space:nowrap; font-size:11px; vertical-align:middle;">${i.fecha_ticket}</td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.proyecto || '-'}</td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.servicio || '-'}</td>
-                <td style="padding:7px 8px; vertical-align:middle;">
-                    <span class="tag" style="background:${badge}; white-space:nowrap;">${i.estado}</span>
-                </td>
-                <td style="padding:7px 8px; vertical-align:middle;">
-                    <span class="tag" style="background:${priBadge}; white-space:nowrap; font-size:10px;">${priText}</span>
-                </td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.gestor || '-'}</td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.departamento || '-'}</td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.ciudad || '-'}</td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.site_name || '-'}</td>
-                <td style="padding:7px 8px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle;" title="${i.descripcion}">${i.descripcion}</td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.tecnico_asignado || '-'}</td>
-                <td style="padding:7px 8px; white-space:nowrap; vertical-align:middle;">${i.contrata || '-'}</td>
-                <td style="padding:7px 8px; white-space:nowrap; font-weight:600; vertical-align:middle;">${i.sla || '-'}</td>
-                <td style="padding:7px 8px; white-space:nowrap; font-weight:600; color:#10b981; vertical-align:middle;">${txtAprobado}</td>
-                <td style="padding:7px 8px; white-space:nowrap; font-weight:600; color:#ef4444; vertical-align:middle;">${txtGastado}</td>
-                <td style="padding:7px 8px; vertical-align:middle;">${renderEvidenciaLinks(i.evidencia)}</td>
-                ${IS_ADMIN ? `<td style="padding:7px 8px; vertical-align:middle;"><button onclick="borrarIncidencia(${i.id})" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.4);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:600;">&#x1F5D1; Borrar</button></td>` : '<td></td>'}
-            `;
-            tbody.appendChild(tr);
+        // --- DATA PREP ---
+        var rowData = column.getTable().getData();
+        var vals = [];
+        rowData.forEach(r => {
+            let v = r[column.getField()];
+            if (v !== undefined && v !== null && v !== "") vals.push(v);
         });
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
+        var unique = [...new Set(vals)];
+        unique.sort();
 
-    /**
-     * Abre el panel en modo edición, carga todos los datos del registro
-     * y aplica la restricción de solo lectura al monto_aprobado si ya
-     * fue validado y el usuario no es Admin/Supervisor.
-     */
-    function editarIncidencia(i) {
-        document.getElementById('edit_id').value = i.id;
-        document.getElementById('panel-title').innerHTML = '<i data-lucide="edit-2" style="width:17px;height:17px;"></i> Editar Incidencia';
-        document.getElementById('btn-guardar').innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Actualizar';
+        var filters = column.getTable().getFilters();
+        var myFilter = filters.find(f => f.field === column.getField() && f.type === "in");
+        var activeVals = myFilter ? myFilter.value.map(v => String(v)) : [];
 
-        document.getElementById('numero_ticket').value = i.numero_ticket || '';
-        document.getElementById('fecha_ticket').value = i.fecha_ticket ? i.fecha_ticket.replace(' ', 'T') : '';
-        document.getElementById('proyecto').value = i.proyecto || '';
-        document.getElementById('servicio').value = i.servicio || '';
-        document.getElementById('estado').value = i.estado || '';
-        document.getElementById('departamento').value = i.departamento || '';
-        document.getElementById('ciudad').value = i.ciudad || '';
-        document.getElementById('site_name').value = i.site_name || '';
-        document.getElementById('tecnico_asignado').value = i.tecnico_asignado || '';
-        document.getElementById('contrata').value = i.contrata || '';
-        document.getElementById('sla').value = i.sla || '';
-        document.getElementById('descripcion').value = i.descripcion || '';
-        document.getElementById('prioridad').value = i.prioridad || 'Sin prioridad';
+        function runApply() {
+            var allChecked = Array.from(listContainer.querySelectorAll("input[type='checkbox']:checked")).map(i => i.value);
+            var totalCheckboxes = listContainer.querySelectorAll("input[type='checkbox']").length;
 
-        // --- Campos de montos (siempre visibles) ---
-        const maInput = document.getElementById('monto_aprobado');
-        maInput.value = i.monto_aprobado !== null ? i.monto_aprobado : '';
-        document.getElementById('monto_gastado').value = i.monto_gastado !== null ? i.monto_gastado : '';
-
-        // Proteger monto_aprobado: solo lectura para no-supervisores si ya fue aprobado
-        if (i.monto_aprobado !== null && i.monto_aprobado !== '' && !IS_SUPER_OR_ADMIN) {
-            maInput.readOnly = true;
-            maInput.style.opacity = '0.6';
-            maInput.title = 'Solo el Supervisor o Administrador puede editar el monto aprobado una vez validado.';
-        } else {
-            maInput.readOnly = false;
-            maInput.style.opacity = '1';
-            maInput.title = '';
-        }
-
-        const evDiv = document.getElementById('evidencia_preview');
-        if (i.evidencia) {
-            const urls = i.evidencia.split(/,(?=(?:https?:\/\/|\/?static\/|data:))/i).map(u => u.trim()).filter(Boolean);
-            if (urls.length > 0) {
-                const isLocal = (url) => url.startsWith('/static/uploads/') || url.startsWith('static/uploads/');
-                const thumbs = urls.map((url, idx) => {
-                    const isImg = url.startsWith('data:image') || url.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) || url.includes('imgbb') || url.includes('ibb.co');
-                    const thumbSrc = isLocal(url) ? '' : (url.startsWith('data:') ? url : (isImg ? url : ''));
-                    const preview = isLocal(url)
-                        ? `<span title="Imagen local, no disponible" style="font-size:9px; color:#ef4444;">⚠️ Local</span>`
-                        : (thumbSrc ? `<img src="${thumbSrc}" style="width:48px; height:48px; object-fit:cover; border-radius:6px; border:1px solid var(--border);" onerror="this.style.display='none'">` : `<span style="font-size:10px; color:var(--text-muted);">📎</span>`);
-                    return `
-                        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; padding:6px; min-width:68px;">
-                            <a href="javascript:void(0)" onclick="verFoto('${url}')" title="Ver foto ${idx+1}" style="display:flex; flex-direction:column; align-items:center; gap:2px; text-decoration:none;">
-                                ${preview}
-                                <span style="font-size:9px; color:var(--text-muted);">Foto ${idx+1}</span>
-                            </a>
-                            <button type="button"
-                                onclick="eliminarFoto(${i.id}, ${idx})"
-                                title="Eliminar esta foto"
-                                style="position:absolute; top:-6px; right:-6px; background:#ef4444; border:none; color:white; border-radius:50%; width:18px; height:18px; font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; padding:0; box-shadow:0 2px 4px rgba(0,0,0,0.3);">
-                                &times;
-                            </button>
-                        </div>`;
-                }).join('');
-                evDiv.innerHTML = `
-                    <div style="margin-top:6px;">
-                        <div style="font-size:10px; color:var(--text-muted); margin-bottom:6px;">Fotos actuales (${urls.length}) — haz clic en ✕ para eliminar:</div>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap;" id="fotos-galeria">${thumbs}</div>
-                        <div style="font-size:10px; color:var(--text-muted); margin-top:5px;">📎 Si subes nuevos archivos, se agregarán a las existentes.</div>
-                    </div>`;
-            } else {
-                evDiv.innerHTML = '';
-            }
-        } else {
-            evDiv.innerHTML = '';
-        }
-
-        // Mostrar pestaña historial en edición
-        document.getElementById('tab-btn-historial').style.display = 'flex';
-        switchPanelTab('datos');
-        cargarHistorial(i.id);
-
-        // Mostrar botones Aprobar/Rechazar si es COTIZACION y usuario es Admin/Supervisor
-        const secAprobacion = document.getElementById('seccion-aprobacion');
-        const esCotizacion = i.servicio && i.servicio.trim().toUpperCase() === 'COTIZACION';
-        if (esCotizacion && IS_SUPER_OR_ADMIN) {
-            secAprobacion.style.display = 'block';
-            // Precargar el monto actual en el campo del mini-formulario
-            const montoActual = document.getElementById('panel-confirm-monto');
-            if (montoActual) montoActual.value = i.monto_aprobado !== null ? i.monto_aprobado : '';
-        } else {
-            secAprobacion.style.display = 'none';
-        }
-        cerrarConfirmacionPanel();
-
-        togglePanel(true);
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    // =========================================================
-    // APROBAR / RECHAZAR COTIZACIÓN (desde el panel de edición)
-    // Solo visible para Admin/Supervisor cuando servicio=COTIZACION
-    // =========================================================
-    async function eliminarFoto(incidenciaId, fotoIndex) {
-        if (!confirm("¿Estás seguro de eliminar esta foto?")) return;
-        try {
-            const response = await fetch(`/api/incidencias/${incidenciaId}/eliminar-foto`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ foto_index: fotoIndex })
-            });
-            const resData = await response.json();
-            if (response.ok && resData.success) {
-                // Volver a cargar la fila y actualizar el panel
-                await cargarIncidencias(); // Recargar datos locales
-                const updatedInc = todasLasIncidencias.find(x => x.id === incidenciaId);
-                if (updatedInc) {
-                    editarIncidencia(updatedInc);
+            var currentFilters = column.getTable().getFilters();
+            currentFilters.forEach(f => {
+                if (f.field === column.getField() && f.type === "in") {
+                    column.getTable().removeFilter(f.field, f.type, f.value);
                 }
+            });
+
+            if (allChecked.length > 0 && allChecked.length < totalCheckboxes) {
+                column.getTable().addFilter(column.getField(), "in", allChecked);
+            }
+        }
+
+        if (unique.length === 0) {
+            var empty = document.createElement("div");
+            empty.style.color = "#999";
+            empty.style.textAlign = "center";
+            empty.style.padding = "20px 0";
+            empty.textContent = "(Sin valores)";
+            container.appendChild(empty);
+            return container;
+        }
+
+        // --- MIDDLE: CHECKBOX LIST ---
+        var listContainer = document.createElement("div");
+        listContainer.style.marginBottom = "15px";
+        unique.forEach(val => {
+            var rowDiv = document.createElement("div");
+            rowDiv.style.marginBottom = "8px";
+            rowDiv.style.display = "flex";
+            rowDiv.style.alignItems = "center";
+            rowDiv.style.gap = "10px";
+
+            var chk = document.createElement("input");
+            chk.type = "checkbox";
+            chk.value = String(val);
+            chk.style.cursor = "pointer";
+            chk.checked = activeVals.length === 0 || activeVals.includes(String(val));
+
+            var lbl = document.createElement("label");
+            lbl.style.cursor = "pointer";
+            lbl.style.flex = "1";
+            lbl.style.whiteSpace = "nowrap";
+            lbl.appendChild(document.createTextNode(val));
+            lbl.onclick = (ex) => { ex.preventDefault(); chk.checked = !chk.checked; };
+
+            rowDiv.appendChild(chk);
+            rowDiv.appendChild(lbl);
+            listContainer.appendChild(rowDiv);
+        });
+        container.appendChild(listContainer);
+
+        return container;
+    }
+
+    if (tableColumns.length === 0) {
+        tableColumns.push({ title: 'No Data', field: 'nodata' });
+    }
+
+    const table = new Tabulator("#data-grid", {
+        data: rawData,
+        layout: "fitData", // Enable true horizontal scrolling for wide columns
+        columns: tableColumns,
+        height: "100%", // take up all space
+        headerHeight: 90, // Taller for wrapping + filter at bottom
+        rowHeight: 25, // Compact Excel feel
+        selectable: isAdmin, // Solo admin puede seleccionar (desde el checkbox)
+        selectableRangeMode: false, // Sin seleccion por clic en la fila
+        clipboard: true, // Allow copy-paste
+        clipboardPasteAction: "replace", // Replace cell contents on paste
+        history: true,
+        movableColumns: true, // Allow user to drag column headers
+        persistence: { columns: ["width", "visible", "order"] }, // Remember layout
+        persistenceID: "nucleus-layout-{{ proyecto_id }}" // Unique per project
+    });
+
+    table.on("dataFiltered", function (filters, rows) {
+        const status = document.getElementById('status-record-count');
+        if (!status) return;
+        const total = rawData.length;
+        const filteredCount = rows.length; // Use the direct rows argument from the event
+        if (filteredCount === total) {
+            status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+        } else {
+            status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${filteredCount} | ${total}`;
+        }
+    });
+
+    // Force initial count text on page load
+    const statusEl = document.getElementById('status-record-count');
+    if (statusEl) {
+        statusEl.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${rawData.length}`;
+    }
+
+    // Column Management Methods
+    function toggleVisibilityMenu() {
+        const menu = document.getElementById('col-menu');
+        if (!menu.classList.contains('show')) {
+            const list = document.getElementById('col-list');
+            list.innerHTML = '';
+            table.getColumns().forEach(col => {
+                const def = col.getDefinition();
+                if (def.field === '_key') return; // protect key
+
+                const isVisible = col.isVisible();
+                const checked = isVisible ? "checked" : "";
+
+                // create element safely
+                const div = document.createElement('label');
+                div.className = 'col-visibility-item';
+                div.innerHTML = `
+                    <input type="checkbox" ${checked} onchange="table.toggleColumn('${def.field}')">
+                    <span>${def.title}</span>
+                `;
+                list.appendChild(div);
+            });
+            menu.classList.add('show');
+        } else {
+            menu.classList.remove('show');
+        }
+    }
+
+    function setAllColumns(visible) {
+        table.getColumns().forEach(col => {
+            const def = col.getDefinition();
+            if (def.field === '_key') return;
+            const shouldShow = (col.isVisible() !== visible);
+            if (shouldShow) table.toggleColumn(def.field);
+        });
+        // Refresh the checkboxes without closing the menu
+        const menu = document.getElementById('col-menu');
+        const list = document.getElementById('col-list');
+        if (menu.classList.contains('show')) {
+            list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                cb.checked = visible;
+            });
+        }
+    }
+
+    function toggleManualColumns(cb) {
+        const show = cb.checked;
+        table.getColumns().forEach(col => {
+            const field = col.getDefinition().field;
+            if (!manualNamesSet.has(field)) return;
+            if (show && !col.isVisible()) col.show();
+            if (!show && col.isVisible()) col.hide();
+        });
+        localStorage.setItem('nucleus-manual-cols-visible', show ? '1' : '0');
+    }
+
+    function applyManualColumnsState() {
+        const saved = localStorage.getItem('nucleus-manual-cols-visible');
+        const cb = document.getElementById('manual-cols-toggle');
+        if (!cb) return;
+        cb.checked = saved === '1';
+        if (saved === '1') {
+            table.getColumns().forEach(col => {
+                const field = col.getDefinition().field;
+                if (manualNamesSet.has(field) && !col.isVisible()) col.show();
+            });
+        }
+    }
+
+    applyManualColumnsState();
+
+    function resetLayout() {
+        if (confirm('¿Restaurar orden y visibilidad de las columnas al estado por defecto original?')) {
+            localStorage.removeItem('tabulator-nucleus-layout');
+            location.reload();
+        }
+    }
+
+    // Close menu when clicking outside
+    document.addEventListener('click', function (event) {
+        const menu = document.getElementById('col-menu');
+        if (menu.classList.contains('show')) {
+            const isClickInside = menu.contains(event.target) ||
+                event.target.closest('.col-visibility-wrap');
+            if (!isClickInside) {
+                menu.classList.remove('show');
+            }
+        }
+    });
+
+    table.on("cellEdited", function (cell) {
+        const isDemo = "{{ session.get('rol') }}" === "demo";
+        if (isDemo) return;
+        
+        const field = cell.getField();
+        const manualDef = manualColsConfig.find(mc => mc.nombre === field);
+        if (!manualDef) return; // Only manual cols can be updated via UI
+
+        const key = cell.getRow().getData()._key;
+        let val = cell.getValue();
+
+        // If it's a date and format is DD/MM/YYYY, convert to YYYY-MM-DD for the database
+        if (manualDef.tipo === 'fecha' && val && val.includes('/')) {
+            const parts = val.split('/');
+            if (parts.length === 3) {
+                val = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                // Crucial: Update the cell value to ISO so the formatter works correctly
+                cell.setValue(val, false);
+            }
+        }
+
+        // Temporarily color the cell orange to indicate saving
+        cell.getElement().style.backgroundColor = "#fff3cd";
+
+        fetch('/api/rows/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: key, field: field, value: val })
+        }).then(r => r.json()).then(z => {
+            if (z.success) {
+                // Instant update of the entire row with new calculated values
+                if (z.newData) {
+                    cell.getRow().update(z.newData);
+                }
+                // Success color flash
+                cell.getElement().style.backgroundColor = "rgba(52,199,89,0.25)";
+                setTimeout(() => cell.getElement().style.backgroundColor = "", 1000);
             } else {
-                alert("Error al eliminar la foto: " + (resData.error || "Error desconocido"));
+                alert("Error al guardar: " + z.error);
+                cell.getElement().style.backgroundColor = "#f8d7da";
+            }
+        }).catch(err => {
+            alert("Error de red");
+        });
+    });
+
+    function descargarExcel() {
+        if (typeof table === 'undefined') return;
+        table.download("xlsx", "Nucleus_Base.xlsx", { sheetName: "Data" });
+    }
+
+    // --- NUEVO REGISTRO (Modal) ---
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function aniadirRegistro() {
+        const pkName = "{{ pk }}";
+        const hasPk = pkName !== "NO_DEF";
+
+        const body = document.getElementById('mar-fields');
+        body.innerHTML = '';
+
+        // Solo columnas mostradas (visibles), sin columnas calculadas (KPI_)
+        const cols = table.getColumns().filter(c => {
+            const f = c.getDefinition().field;
+            if (!f) return false;
+            if (f.startsWith('KPI_')) return false;
+            return c.isVisible();
+        });
+
+        if (cols.length === 0) {
+            body.innerHTML = '<div class="mar-empty">No hay columnas visibles para completar.</div>';
+            document.getElementById('modal-add-registro').style.display = 'flex';
+            return;
+        }
+
+        if (!hasPk) {
+            const note = document.createElement('div');
+            note.className = 'mar-empty';
+            note.style.cssText = 'grid-column: 1/-1; text-align:left; background: rgba(0,122,255,0.08); border:1px solid rgba(0,122,255,0.2); border-radius:12px; padding:10px 14px; color:#007AFF; font-size:12px; display:flex; align-items:center; gap:8px;';
+            note.innerHTML = '<i class="fa-solid fa-circle-info"></i> Este proyecto no tiene clave primaria. El ID se generará automáticamente.';
+            body.appendChild(note);
+        }
+
+        cols.forEach(col => {
+            const def = col.getDefinition();
+            const f = def.field;
+            const isPk = f === '_key';
+            const manualDef = manualColsConfig.find(mc => mc.nombre === f);
+
+            const wrap = document.createElement('div');
+            wrap.className = 'mar-field' + (cols.length === 1 ? ' full' : '');
+
+            const label = document.createElement('label');
+            const labelText = isPk ? pkName : f;
+            label.innerHTML = (isPk ? '<i class="fa-solid fa-key"></i> ' : '') + escapeHtml(labelText) + (isPk ? ' <em>*</em>' : '');
+            wrap.appendChild(label);
+
+            let input;
+            if (manualDef && manualDef.tipo === 'lista') {
+                input = document.createElement('select');
+                const ph = document.createElement('option');
+                ph.value = '';
+                ph.textContent = '— Seleccionar —';
+                input.appendChild(ph);
+                (manualDef.opciones || []).forEach(o => {
+                    const opt = document.createElement('option');
+                    opt.value = o;
+                    opt.textContent = o;
+                    input.appendChild(opt);
+                });
+            } else if (manualDef && manualDef.tipo === 'fecha') {
+                input = document.createElement('input');
+                input.type = 'date';
+            } else {
+                input = document.createElement('input');
+                input.type = 'text';
+            }
+
+            input.dataset.field = f;
+            input.dataset.pk = isPk ? '1' : '0';
+            if (isPk) input.required = true;
+            wrap.appendChild(input);
+            body.appendChild(wrap);
+        });
+
+        document.getElementById('modal-add-registro').style.display = 'flex';
+        const first = body.querySelector('input, select');
+        if (first) setTimeout(() => first.focus(), 60);
+    }
+
+    function cerrarModalRegistro() {
+        const modal = document.getElementById('modal-add-registro');
+        if (modal) modal.style.display = 'none';
+        const body = document.getElementById('mar-fields');
+        if (body) body.innerHTML = '';
+    }
+
+    const IMPORT_TYPE = currentProjectNombre.trim().toLowerCase() === 'dataper' ? 'manual_cols' : 'base';
+    let importFileToUpload = null;
+
+    function abrirModalImportar() {
+        importResetFile();
+        document.getElementById('modal-importar').style.display = 'flex';
+    }
+
+    function cerrarModalImportar() {
+        document.getElementById('modal-importar').style.display = 'none';
+        importResetFile();
+    }
+
+    function importOnFileChosen() {
+        const fi = document.getElementById('import-file');
+        const chip = document.getElementById('import-file-chip');
+        const btn = document.getElementById('btn-import-now');
+        const box = document.getElementById('import-result');
+        if (fi.files.length > 0) {
+            importFileToUpload = fi.files[0];
+            document.getElementById('import-file-name').textContent = fi.files[0].name;
+            chip.style.display = 'flex';
+            if (btn) btn.disabled = false;
+            if (box) { box.style.display = 'none'; box.className = 'result-box'; }
+        } else {
+            importFileToUpload = null;
+            chip.style.display = 'none';
+            if (btn) btn.disabled = true;
+        }
+    }
+
+    function importResetFile() {
+        const fi = document.getElementById('import-file');
+        if (fi) fi.value = '';
+        importOnFileChosen();
+    }
+
+    (function setupImportDropzone() {
+        const dz = document.getElementById('dz-import');
+        if (!dz) return;
+        dz.addEventListener('click', () => document.getElementById('import-file').click());
+        dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+        dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+        dz.addEventListener('drop', e => {
+            e.preventDefault();
+            dz.classList.remove('drag-over');
+            const fi = document.getElementById('import-file');
+            if (e.dataTransfer.files.length) { fi.files = e.dataTransfer.files; importOnFileChosen(); }
+        });
+    })();
+
+    async function ejecutarImportarModal() {
+        if (!importFileToUpload) return alert('Selecciona un archivo primero.');
+        const formData = new FormData();
+        formData.append('file', importFileToUpload);
+        formData.append('type', IMPORT_TYPE);
+
+        const btn = document.getElementById('btn-import-now');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+        const box = document.getElementById('import-result');
+        box.style.display = 'block';
+
+        try {
+            const res = await fetch('/api/import/process', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.error) {
+                box.className = 'result-box error';
+                box.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + data.error;
+            } else {
+                box.className = 'result-box success';
+                box.innerHTML = `<i class="fa-solid fa-circle-check"></i> <b>Importación exitosa.</b> Añadidos: ${data.added} · Actualizados: ${data.updated} · Ignorados: ${data.ignored}`;
             }
         } catch (e) {
-            console.error(e);
-            alert("Error de red al intentar eliminar la foto");
-        }
-    }
-
-    let _panelAccionActual = null; // 'aprobar' | 'rechazar'
-
-    /** Despliega el mini-formulario de confirmación dentro del panel. */
-    function abrirConfirmacionPanel(accion) {
-        _panelAccionActual = accion;
-        const box = document.getElementById('panel-confirm-box');
-        const montoWrap = document.getElementById('panel-confirm-monto-wrap');
-        const btnConfirmar = document.getElementById('btn-panel-confirmar');
-        const comentario = document.getElementById('panel-confirm-comentario');
-
-        box.style.display = 'block';
-        comentario.value = '';
-
-        if (accion === 'aprobar') {
-            montoWrap.style.display = 'block';
-            btnConfirmar.style.background = 'rgba(16,185,129,0.8)';
-            btnConfirmar.innerHTML = '<i data-lucide="check" style="width:13px;height:13px;"></i> Confirmar Aprobación';
-        } else {
-            montoWrap.style.display = 'none';
-            btnConfirmar.style.background = 'rgba(239,68,68,0.8)';
-            btnConfirmar.innerHTML = '<i data-lucide="x" style="width:13px;height:13px;"></i> Confirmar Rechazo';
-        }
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    /** Cierra el mini-formulario de confirmación sin ejecutar nada. */
-    function cerrarConfirmacionPanel() {
-        const box = document.getElementById('panel-confirm-box');
-        if (box) box.style.display = 'none';
-        _panelAccionActual = null;
-    }
-
-    /** Ejecuta la acción de aprobar o rechazar llamando a la API. */
-    async function ejecutarAccionPanel() {
-        if (!_panelAccionActual) return;
-        const id = document.getElementById('edit_id').value;
-        if (!id) return;
-
-        const btnConfirmar = document.getElementById('btn-panel-confirmar');
-        btnConfirmar.disabled = true;
-        btnConfirmar.textContent = 'Procesando...';
-
-        const body = {
-            comentario: document.getElementById('panel-confirm-comentario').value.trim()
-        };
-
-        if (_panelAccionActual === 'aprobar') {
-            const montoStr = document.getElementById('panel-confirm-monto').value.trim();
-            if (!montoStr) {
-                alert('Por favor ingrese el monto a aprobar.');
-                btnConfirmar.disabled = false;
-                btnConfirmar.textContent = 'Confirmar';
-                return;
-            }
-            body.monto_aprobado = parseFloat(montoStr);
-        }
-
-        try {
-            const req = await fetch(`/api/cotizaciones/${id}/${_panelAccionActual}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const res = await req.json();
-            if (req.ok && res.success) {
-                togglePanel(false);
-                cargarIncidencias();
-            } else {
-                alert('Error: ' + (res.error || 'No se pudo procesar.'));
-            }
-        } catch (err) {
-            alert('Error de conexión.');
+            box.className = 'result-box error';
+            box.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + e;
         } finally {
-            btnConfirmar.disabled = false;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-play"></i> Importar ahora'; }
         }
     }
 
-    /**
-     * Carga la bitácora de cambios de una incidencia y la renderiza
-     * como timeline. Muestra: gestor, fecha, estado, comentario,
-     * snapshot completo del ticket (con montos y aprobador) y fotos.
-     */
-    async function cargarHistorial(id) {
-        const container = document.getElementById('timeline-container');
-        container.innerHTML = `
-            <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
-            <div style="padding:10px; text-align:center; color:var(--text-muted); font-size:11px;">Cargando historial...</div>
-        `;
-        try {
-            const req = await fetch(`/api/incidencias/${id}/historial`);
-            if (!req.ok) throw new Error();
-            const data = await req.json();
-            
-            container.innerHTML = `
-                <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
-            `;
-            if (data.length === 0) {
-                container.innerHTML += `<div style="padding:10px; text-align:center; color:var(--text-muted); font-size:11px;">No hay registros en la bitácora.</div>`;
-                return;
+    function guardarModalRegistro() {
+        const inputs = document.querySelectorAll('#mar-fields .mar-field input, #mar-fields .mar-field select');
+        const data = {};
+        let key = '';
+        let ok = true;
+
+        inputs.forEach(inp => {
+            const field = inp.dataset.field;
+            const isPk = inp.dataset.pk === '1';
+            const val = (inp.value || '').trim();
+
+            if (isPk) {
+                key = val;
+                if (!val) { inp.classList.add('mar-error'); ok = false; }
+                else inp.classList.remove('mar-error');
+            } else if (val !== '') {
+                data[field] = val;
             }
+        });
 
-            const colores = {
-                'Pendiente':        '#ef4444',
-                'Asignado':         '#3b82f6',
-                'Parada de Reloj':  '#f59e0b',
-                'Cierre Operativo': '#8b5cf6',
-                'Liquidado':        '#10b981'
-            };
+        if (!ok) { alert('El campo principal es obligatorio.'); return; }
 
-            data.forEach(h => {
-                const dotColor = colores[h.estado] || '#6b7280';
-                const item = document.createElement('div');
-                item.className = 'timeline-item';
-                item.style.marginBottom = '18px';
-
-                // Fotos de la evidencia en el histórico
-                let photosHtml = '';
-                if (h.evidencia) {
-                    const urls = h.evidencia.split(/,(?=(?:https?:\/\/|\/?static\/|data:))/i).map(u => u.trim()).filter(Boolean);
-                    if (urls.length > 0) {
-                        const links = urls.map((url, idx) => `
-                            <a href="javascript:void(0)" onclick="verFoto('${url}')" class="btn" style="padding:3px 7px; font-size:10px; background:rgba(99,102,241,0.15); color:var(--primary); display:inline-flex; align-items:center; gap:3px; border:1px solid rgba(99,102,241,0.3);">
-                                📷 ${idx+1}
-                            </a>
-                        `).join(' ');
-                        photosHtml = `<div style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">${links}</div>`;
-                    }
-                }
-
-                // Datos del ticket directamente visibles
-                let detalleHtml = '';
-                if (h.detalle_snapshot) {
-                    try {
-                        const snap = JSON.parse(h.detalle_snapshot);
-                        detalleHtml = `
-                            <div style="font-size:11px; margin-top:8px; padding:10px; background:rgba(0,0,0,0.12); border-radius:8px; border:1px solid var(--border);">
-                                <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:5px 10px; color:var(--text-muted); font-size:11px;">
-                                    <div><strong style="color:var(--primary);">Ticket:</strong> ${snap.numero_ticket || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Fecha:</strong> ${snap.fecha_ticket || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Proyecto:</strong> ${snap.proyecto || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Servicio:</strong> ${snap.servicio || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Estado:</strong> ${snap.estado || '-'}</div>
-                                    <div><strong style="color:var(--primary);">SLA:</strong> ${snap.sla || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Técnico:</strong> ${snap.tecnico_asignado || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Contrata:</strong> ${snap.contrata || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Gestor:</strong> ${snap.gestor || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Depto:</strong> ${snap.departamento || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Ciudad:</strong> ${snap.ciudad || '-'}</div>
-                                    <div><strong style="color:var(--primary);">Site:</strong> ${snap.site_name || '-'}</div>
-                                    <div><strong style="color:#10b981;">M. Aprob:</strong> ${snap.monto_aprobado !== null && snap.monto_aprobado !== undefined && snap.monto_aprobado !== "" ? `S/ ${parseFloat(snap.monto_aprobado).toFixed(2)}` : '-'}</div>
-                                    <div><strong style="color:#ef4444;">M. Gast:</strong> ${snap.monto_gastado !== null && snap.monto_gastado !== undefined && snap.monto_gastado !== "" ? `S/ ${parseFloat(snap.monto_gastado).toFixed(2)}` : '-'}</div>
-                                    <div><strong style="color:var(--primary);">Aprobado por:</strong> ${snap.aprobado_por || '-'}</div>
-                                </div>
-                                <div style="border-top:1px dashed var(--border); padding-top:6px; margin-top:6px;">
-                                    <div style="background:rgba(99,102,241,0.08); border-left:3px solid var(--primary); padding:6px 10px; border-radius:4px; color:var(--text-main); font-size:11px; white-space:pre-wrap; line-height:1.4;">${snap.descripcion || '-'}</div>
-                                </div>
-                            </div>
-                        `;
-                    } catch (e) {
-                        console.error("Error parsing snapshot JSON:", e);
-                    }
-                }
-
-                item.innerHTML = `
-                    <div class="timeline-dot" style="background:${dotColor}; box-shadow:0 0 6px ${dotColor};"></div>
-                    <div class="timeline-header">
-                        <span class="timeline-gestor" style="font-weight:700;">${h.gestor}</span>
-                        <span class="timeline-time">${h.fecha}</span>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px; margin-top:2px;">
-                        <span class="tag" style="background:${dotColor}; padding:1px 6px; font-size:9px; border-radius:4px;">${h.estado}</span>
-                    </div>
-                    ${h.comentario ? `<div class="timeline-comment">${h.comentario}</div>` : ''}
-                    ${detalleHtml}
-                    ${photosHtml}
-                `;
-                container.appendChild(item);
-            });
-        } catch (err) {
-            container.innerHTML = `
-                <div style="position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:rgba(255,255,255,0.08);"></div>
-                <div style="padding:10px; text-align:center; color:#ef4444; font-size:11px;">Error al cargar historial.</div>
-            `;
-        }
-    }
-
-    /** Elimina permanentemente una incidencia (solo Admin). */
-    async function borrarIncidencia(id) {
-        if (!confirm('¿Eliminar este registro permanentemente?')) return;
-        try {
-            const req = await fetch('/api/incidencias/' + id, { method: 'DELETE' });
-            const res = await req.json();
-            if (req.ok && res.success) {
-                cargarIncidencias();
+        fetch('/api/rows/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: key, data: data })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                cerrarModalRegistro();
+                location.reload(); // Refleja cambios y KPIs calculados
             } else {
-                alert(res.error || 'Error al borrar');
+                alert("Error: " + res.error);
             }
-        } catch (err) {
-            alert('Error de conexión');
-        }
+        });
     }
 
-    // =========================================================
-    // POPUP DE APROBACIÓN (botón en la tabla)
-    // Visible para Admin/Supervisor en cualquier ticket con montos.
-    // =========================================================
-    let _popupIncidenciaId = null; // ID del ticket activo en el popup
-
-    /** Abre el popup de aprobación con los datos del ticket seleccionado. */
-    function abrirPopupAprobacion(i) {
-        _popupIncidenciaId = i.id;
-
-        // Mostrar info del ticket en el popup
-        document.getElementById('popup-info-ticket').innerHTML = `
-            <strong style="color:var(--primary);">Ticket:</strong> ${i.numero_ticket} &nbsp;|&nbsp;
-            <strong style="color:var(--primary);">Gestor:</strong> ${i.gestor || '-'}<br>
-            <strong style="color:var(--primary);">Site:</strong> ${i.site_name || '-'} &nbsp;|&nbsp;
-            <strong style="color:var(--primary);">Estado:</strong> ${i.estado}<br>
-            <strong style="color:#10b981;">M. Aprobado actual:</strong>
-            ${i.monto_aprobado !== null ? 'S/ ' + parseFloat(i.monto_aprobado).toFixed(2) : '<span style="color:var(--text-muted);">Sin definir</span>'}
-            ${i.aprobado_por ? ' <span style="color:var(--text-muted);">(por ' + i.aprobado_por + ')</span>' : ''}
-            ${i.descripcion ? `<br><strong style="color:var(--primary);">Descripción:</strong> <span style="color:var(--text-muted);">${i.descripcion}</span>` : ''}
-        `;
-
-        // Precargar monto actual si existe
-        document.getElementById('popup-monto-input').value = i.monto_aprobado !== null ? i.monto_aprobado : '';
-        document.getElementById('popup-comentario-input').value = '';
-
-        // Mostrar el popup
-        const overlay = document.getElementById('popup-aprobacion-overlay');
-        overlay.style.display = 'flex';
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
-
-    /** Cierra el popup sin ejecutar ninguna acción. */
-    function cerrarPopupAprobacion() {
-        document.getElementById('popup-aprobacion-overlay').style.display = 'none';
-        _popupIncidenciaId = null;
-    }
-
-    /** Ejecuta aprobar o rechazar y actualiza la tabla al terminar. */
-    async function ejecutarPopupAprobacion(accion) {
-        if (!_popupIncidenciaId) return;
-
-        const body = {
-            comentario: document.getElementById('popup-comentario-input').value.trim()
-        };
-
-        if (accion === 'aprobar') {
-            const montoStr = document.getElementById('popup-monto-input').value.trim();
-            if (!montoStr) {
-                alert('Por favor ingrese el monto a aprobar.');
-                return;
-            }
-            body.monto_aprobado = parseFloat(montoStr);
-        }
-
-        try {
-            const req = await fetch(`/api/cotizaciones/${_popupIncidenciaId}/${accion}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const res = await req.json();
-            if (req.ok && res.success) {
-                cerrarPopupAprobacion();
-                cargarIncidencias(); // Refrescar la tabla
-            } else {
-                alert('Error: ' + (res.error || 'No se pudo procesar.'));
-            }
-        } catch (err) {
-            alert('Error de conexión.');
-        }
-    }
-
-    // Cerrar popup al hacer clic en el fondo oscuro
-    document.getElementById('popup-aprobacion-overlay').addEventListener('click', function(e) {
-        if (e.target === this) cerrarPopupAprobacion();
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') cerrarModalRegistro();
+        if (e.key === 'Escape') cerrarWoModal();
     });
+
+    // --- DETALLE WO (Modal de resumen y gestión) ---
+    let woRow = null;
+    let woKey = null;
+    let woServicios = [];
+    let woTecnicos = [];
+    let serviciosEditorOpen = false;
+
+    const MOTIVO_AVERIA_OPCIONES = [
+        'Accidente vehicular', 'Acoplador sucio', 'Buffer mal acondicionado', 'Cámara inundada',
+        'Cámara sin tapa', 'Corte de fibra en sifón', 'Empalme dañado', 'Ferretería con corrosión',
+        'Fibra drop cliente cortado', 'Fibra quemada', 'FO cortado',
+        'Habilitación de hilos por Implementación', 'Habilitación de hilos por ORC',
+        'Hilo roto en medio vano', 'Hilo roto en mufa', 'Hilos invertidos en ODF', 'Jumper averiado',
+        'Mal derivado-no es PEXT', 'Mordida de roedor', 'Mufa con acondicionamiento deficiente',
+        'NAP con acondicionamineto deficiente', 'NAP sin bornera', 'NAP sin rotulación',
+        'Obras civiles de interferencia', 'Pernos con corrosión', 'Pigtail roto', 'Poste deteriorado',
+        'Robo de mufa', 'RTN averiado', 'Splitter averiado', 'Transceiver averiado'
+    ];
+
+    const SOLUCION_OPCIONES = [
+        'Cambio de caja NAP', 'Cambio de hilos', 'Cambio de jumper en PINT', 'Cambio de splitter',
+        'Desaguado de camara', 'Fusion del hilo roto segun el ID', 'Instalacion de bornera en NAP',
+        'Instalacion de FO definitiva con mufa(s) existente(s)', 'Instalacion de FO definitiva con nueva mufa(s)',
+        'Instalacion de FO provisional con mufa(s) existente(s)', 'Instalacion de FO provisional con nueva mufa(s)',
+        'Instalacion de nueva mufa(s)', 'Instalacion de nueva tapa en camara', 'Instalacion de nuevos pernos en camara',
+        'Limpieza de conector en NAP', 'Limpieza de conector en ODF', 'Obras civiles con mufa(s) existente(s)',
+        'Obras civiles con nueva mufa(s)', 'Pruebas de verificiación PEXT', 'Reposicion de poste Entel',
+        'Reposicion de tapa  de camara  Entel', 'se cambio el acoplador', 'Se reparo el spliteer roto'
+    ];
+
+    function fillSelect(id, options, current) {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '<option value="">— Seleccionar —</option>';
+        options.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            sel.appendChild(opt);
+        });
+        if (current) sel.value = current;
+    }
+
+    function isWoColumn(field) {
+        const f = String(field || '').trim().toLowerCase();
+        if (!IS_PEXT) return false;
+        if (!f) return false;
+        if (f === '_key') return true;
+        if (f.startsWith('kpi_')) return false;
+        if (f.includes('wo state')) return false;
+        return f.includes('wo') || f.includes('número de wo') || f.includes('numero de wo');
+    }
+
+    table.on("cellClick", function(e, cell) {
+        const field = cell.getColumn().getField();
+        // La seleccion solo ocurre desde el checkbox (columna de seleccion sin field).
+        // Cualquier otro clic deselecciona la fila.
+        if (field) {
+            cell.getRow().deselect();
+        }
+        if (isWoColumn(field)) {
+            abrirWoModal(cell.getRow());
+        }
+    });
+
+    function toDatetimeLocal(s) {
+        if (!s) return '';
+        s = String(s).trim();
+        let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+        if (m) return m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5];
+        m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})/);
+        if (m) return m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':' + m[5];
+        return s;
+    }
+
+    function fromDatetimeLocal(s) {
+        if (!s) return '';
+        let m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (m) return m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] + ':00';
+        return s;
+    }
+
+    function abrirWoModal(row) {
+        const data = row.getData();
+        woRow = row;
+        woKey = data._key;
+        document.getElementById('wo-title').textContent = String(woKey || 'WO');
+
+        renderWoSummary(data);
+        cargarWoHistorial();
+
+        document.getElementById('wo-servicio').value = data['SERVICIO'] || '';
+        document.getElementById('wo-ciudad').value = data['CIUDAD'] || '';
+        document.getElementById('wo-tecnico').value = '';
+        document.getElementById('wo-contrata').value = data['CONTRATA'] || '';
+        fillSelect('wo-motivo', MOTIVO_AVERIA_OPCIONES, data['MOTIVO DE AVERÍA'] || data['MOTIVO DE AVERIA'] || '');
+        fillSelect('wo-solucion', SOLUCION_OPCIONES, data['SOLUCIÓN'] || data['SOLUCION'] || '');
+        let woLat = data['LATITUD'] || data['Latitud'] || '';
+        let woLon = data['LONGITUD'] || data['Longitud'] || '';
+        if (!woLat && !woLon && data['COORDENADAS DEL CORTE']) {
+            const parts = String(data['COORDENADAS DEL CORTE']).split(/[\s,]+/).filter(Boolean);
+            if (parts.length >= 2) { woLat = parts[0]; woLon = parts[1]; }
+            else if (parts.length === 1) { woLat = parts[0]; }
+        }
+        document.getElementById('wo-latitud').value = woLat;
+        document.getElementById('wo-longitud').value = woLon;
+        document.getElementById('wo-se-instalo-mufas').value = data['SE INSTALÓ MUFAS'] || data['SE INSTALO MUFAS'] || '';
+        let woLatMufa = data['LATITUD MUFAS'] || data['Latitud Mufas'] || '';
+        let woLonMufa = data['LONGITUD MUFAS'] || data['Longitud Mufas'] || '';
+        if (!woLatMufa && !woLonMufa && data['UBICACIÓN DE MUFAS']) {
+            const parts = String(data['UBICACIÓN DE MUFAS']).split(/[\s,]+/).filter(Boolean);
+            if (parts.length >= 2) { woLatMufa = parts[0]; woLonMufa = parts[1]; }
+            else if (parts.length === 1) { woLatMufa = parts[0]; }
+        }
+        document.getElementById('wo-lat-mufa').value = woLatMufa;
+        document.getElementById('wo-lon-mufa').value = woLonMufa;
+        document.getElementById('wo-material-usado').value = data['MATERIAL USADO'] || '';
+        document.getElementById('wo-inicio-parada').value = toDatetimeLocal(data['INICIO DE PARADA']);
+        document.getElementById('wo-fin-parada').value = toDatetimeLocal(data['FIN DE PARADA']);
+        document.getElementById('wo-requiere-correctivo').value = data['REQUIERE CORRECTIVO FINAL'] || '';
+        document.getElementById('wo-monto-aprobado').value = data['MONTO APROBADO'] != null ? data['MONTO APROBADO'] : '';
+        document.getElementById('wo-monto-gastando').value = data['MONTO GASTANDO'] != null ? data['MONTO GASTANDO'] : '';
+        document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
+
+        const isDemo = "{{ session.get('rol') }}" === "demo";
+        const editable = !isDemo;
+        document.querySelectorAll('.wo-form input, .wo-form select, .wo-form textarea').forEach(el => { el.disabled = !editable; });
+        document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
+        const canEditServicios = ["admin", "supervisor"].includes("{{ session.get('rol') }}");
+        document.getElementById('btn-servicios').style.display = (editable && canEditServicios) ? '' : 'none';
+
+        document.getElementById('modal-wo').style.display = 'flex';
+        cargarWoMeta(data);
+    }
+
+    function renderWoSummary(data) {
+        const el = document.getElementById('wo-summary');
+        if (!data) { el.innerHTML = '<div class="wo-empty">Sin datos.</div>'; return; }
+        const visible = [];
+        if (typeof table !== 'undefined') {
+            table.getColumns().forEach(c => {
+                const f = c.getDefinition().field;
+                if (f && c.isVisible()) visible.push(f);
+            });
+        }
+        const norm = k => String(k).trim().toLowerCase();
+        const items = [];
+        visible.forEach(f => {
+            const key = Object.keys(data).find(k => norm(k) === norm(f));
+            if (!key) return;
+            const v = data[key];
+            if (v === '' || v === null || v === undefined) return;
+            items.push({ k: key, v: v });
+        });
+        if (!items.length) { el.innerHTML = '<div class="wo-empty">No hay datos resumibles.</div>'; return; }
+        el.innerHTML = items.map(i =>
+            `<div class="wo-summary-item"><div class="k">${escapeHtml(i.k)}</div><div class="v">${escapeHtml(i.v)}</div></div>`
+        ).join('');
+    }
+
+    function cargarWoMeta(data) {
+        fetch('/api/wo/meta').then(r => r.json()).then(res => {
+            if (!res.success) return;
+            woServicios = res.servicios || [];
+            woTecnicos = res.tecnicos || [];
+
+            const sSel = document.getElementById('wo-servicio');
+            sSel.innerHTML = '<option value="">— Seleccionar —</option>';
+            woServicios.forEach(s => {
+                const o = document.createElement('option');
+                o.value = s; o.textContent = s;
+                sSel.appendChild(o);
+            });
+            const currentServ = data['SERVICIO'] || '';
+            if (currentServ) sSel.value = currentServ;
+
+            const tSel = document.getElementById('wo-tecnico');
+            tSel.innerHTML = '<option value="">— Seleccionar —</option>';
+            woTecnicos.forEach(t => {
+                const o = document.createElement('option');
+                o.value = t.nombre;
+                o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
+                o.dataset.contrata = t.contrata || '';
+                tSel.appendChild(o);
+            });
+            const currentTech = data['TECNICO ASIGNADO'] || '';
+            if (currentTech) tSel.value = currentTech;
+            if (!document.getElementById('wo-contrata').value) onTecnicoChange();
+        }).catch(() => {});
+    }
+
+    function onTecnicoChange() {
+        const tSel = document.getElementById('wo-tecnico');
+        const opt = tSel.options[tSel.selectedIndex];
+        if (opt && opt.dataset && opt.dataset.contrata) {
+            document.getElementById('wo-contrata').value = opt.dataset.contrata;
+        }
+    }
+    document.getElementById('wo-tecnico').addEventListener('change', onTecnicoChange);
+
+    function toggleServiciosEditor() {
+        const editor = document.getElementById('servicios-editor');
+        serviciosEditorOpen = !serviciosEditorOpen;
+        editor.style.display = serviciosEditorOpen ? 'flex' : 'none';
+        if (serviciosEditorOpen) renderServiciosEditor();
+    }
+
+    function renderServiciosEditor() {
+        const editor = document.getElementById('servicios-editor');
+        editor.innerHTML = '';
+        const chips = document.createElement('div');
+        chips.className = 'servicios-chips';
+        if (!woServicios.length) chips.innerHTML = '<span class="wo-empty">Sin opciones.</span>';
+        woServicios.forEach((s, i) => {
+            const chip = document.createElement('span');
+            chip.className = 'servicios-chip';
+            chip.textContent = s;
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.title = 'Quitar';
+            del.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+            del.onclick = () => { woServicios.splice(i, 1); renderServiciosEditor(); };
+            chip.appendChild(del);
+            chips.appendChild(chip);
+        });
+        const addRow = document.createElement('div');
+        addRow.className = 'servicios-add';
+        const inp = document.createElement('input');
+        inp.placeholder = 'Nuevo servicio...';
+        inp.onkeydown = (e) => { if (e.key === 'Enter') { agregarServicioChip(); e.preventDefault(); } };
+        const btnAdd = document.createElement('button');
+        btnAdd.type = 'button';
+        btnAdd.className = 'mar-btn-primary';
+        btnAdd.style.cssText = 'padding:8px 14px; font-size:12px;';
+        btnAdd.innerHTML = '<i class="fa-solid fa-plus"></i> Agregar';
+        btnAdd.onclick = agregarServicioChip;
+        const btnSave = document.createElement('button');
+        btnSave.type = 'button';
+        btnSave.className = 'mar-btn-ghost';
+        btnSave.style.cssText = 'padding:8px 14px; font-size:12px;';
+        btnSave.innerHTML = '<i class="fa-solid fa-check"></i> Guardar lista';
+        btnSave.onclick = guardarServicios;
+        addRow.appendChild(inp); addRow.appendChild(btnAdd);
+        editor.appendChild(chips);
+        editor.appendChild(addRow);
+        editor.appendChild(btnSave);
+        setTimeout(() => inp.focus(), 50);
+    }
+
+    function agregarServicioChip() {
+        const inp = document.querySelector('.servicios-add input');
+        const v = (inp.value || '').trim().toUpperCase();
+        if (!v) return;
+        if (!woServicios.includes(v)) woServicios.push(v);
+        renderServiciosEditor();
+    }
+
+    function guardarServicios() {
+        fetch('/api/wo/servicios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ opciones: woServicios })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                woServicios = res.servicios || [];
+                const sSel = document.getElementById('wo-servicio');
+                const current = sSel.value;
+                sSel.innerHTML = '<option value="">— Seleccionar —</option>';
+                woServicios.forEach(s => {
+                    const o = document.createElement('option');
+                    o.value = s; o.textContent = s;
+                    sSel.appendChild(o);
+                });
+                sSel.value = current || sSel.value;
+                const editor = document.getElementById('servicios-editor');
+                editor.style.display = 'none';
+                serviciosEditorOpen = false;
+                alert('Lista de servicios guardada.');
+            } else {
+                alert('Error: ' + res.error);
+            }
+        }).catch(() => alert('Error de red'));
+    }
+
+    function guardarWoModal() {
+        if (!woKey) return;
+        const payload = {
+            key: woKey,
+            data: {
+                'SERVICIO': document.getElementById('wo-servicio').value,
+                'CIUDAD': document.getElementById('wo-ciudad').value.trim(),
+                'TECNICO ASIGNADO': document.getElementById('wo-tecnico').value,
+                'CONTRATA': document.getElementById('wo-contrata').value.trim(),
+                'MONTO APROBADO': document.getElementById('wo-monto-aprobado').value,
+                'MONTO GASTANDO': document.getElementById('wo-monto-gastando').value,
+                'MOTIVO DE AVERÍA': document.getElementById('wo-motivo').value,
+                'SOLUCIÓN': document.getElementById('wo-solucion').value,
+                'LATITUD': document.getElementById('wo-latitud').value.trim(),
+                'LONGITUD': document.getElementById('wo-longitud').value.trim(),
+                'SE INSTALÓ MUFAS': document.getElementById('wo-se-instalo-mufas').value,
+                'LATITUD MUFAS': document.getElementById('wo-lat-mufa').value.trim(),
+                'LONGITUD MUFAS': document.getElementById('wo-lon-mufa').value.trim(),
+                'MATERIAL USADO': document.getElementById('wo-material-usado').value.trim(),
+                'INICIO DE PARADA': fromDatetimeLocal(document.getElementById('wo-inicio-parada').value),
+                'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value),
+                'REQUIERE CORRECTIVO FINAL': document.getElementById('wo-requiere-correctivo').value,
+                'BITACORA': document.getElementById('wo-bitacora').value
+            }
+        };
+        // Enviar solo los campos que realmente cambiaron (incluye borrar dejando vacío).
+        const orig = woRow ? woRow.getData() : {};
+        Object.keys(payload.data).forEach(k => {
+            const nv = (payload.data[k] === null || payload.data[k] === undefined) ? '' : String(payload.data[k]).trim();
+            const ov = (orig[k] === null || orig[k] === undefined) ? '' : String(orig[k]).trim();
+            if (nv === ov) delete payload.data[k];
+        });
+        const btn = document.getElementById('btn-wo-save');
+        btn.disabled = true;
+        fetch('/api/rows/bulk_update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(res => {
+            btn.disabled = false;
+            if (res.success) {
+                if (res.newData && woRow) woRow.update(res.newData);
+                cerrarWoModal();
+            } else {
+                alert('Error al guardar: ' + res.error);
+            }
+        }).catch(err => { btn.disabled = false; alert('Error de red'); });
+    }
+
+    function cambiarWoTab(tab) {
+        document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
+        document.getElementById('wo-tab-historial').classList.toggle('active', tab === 'historial');
+        document.getElementById('wo-panel-detalle').style.display = tab === 'detalle' ? '' : 'none';
+        document.getElementById('wo-panel-historial').style.display = tab === 'historial' ? '' : 'none';
+        if (tab === 'historial') {
+            cargarWoHistorial();
+        }
+    }
+
+    const WO_SNAPSHOT_FIELDS = [
+        ['Número de WO', 'N° WO'],
+        ['Autin TT', 'Autin TT'],
+        ['Fault Level', 'Fault Level'],
+        ['Estado de la tarea (WO State)', 'Estado'],
+        ['Prioridad del Site', 'Prioridad'],
+        ['Nombre de Site', 'Site'],
+        ['Departamento', 'Depto'],
+        ['Distrito', 'Distrito'],
+        ['FECHA CAMBIO ESTADO', 'F. Cambio Estado'],
+        ['Fecha de creación (WO Creation date)', 'F. Creación'],
+        ['O&M asignado', 'O&M'],
+        ['SERVICIO', 'Servicio'],
+        ['CIUDAD', 'Ciudad'],
+        ['TECNICO ASIGNADO', 'Técnico'],
+        ['CONTRATA', 'Contrata'],
+        ['LATITUD', 'Lat'],
+        ['LONGITUD', 'Long'],
+        ['MOTIVO DE AVERÍA', 'Motivo'],
+        ['SE INSTALÓ MUFAS', '¿Mufas?'],
+        ['LATITUD MUFAS', 'Lat mufas'],
+        ['LONGITUD MUFAS', 'Long mufas'],
+        ['MATERIAL USADO', 'Material'],
+        ['SOLUCIÓN', 'Solución'],
+        ['REQUIERE CORRECTIVO FINAL', '¿Correctivo final?'],
+        ['INICIO DE PARADA', 'Inicio parada'],
+        ['FIN DE PARADA', 'Fin parada'],
+        ['MONTO APROBADO', 'M. Aprob'],
+        ['MONTO GASTANDO', 'M. Gast'],
+        ['BITACORA', 'Bitácora']
+    ];
+
+    function normKey(s) {
+        return String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function cargarWoHistorial() {
+        if (!woKey) return;
+        const cont = document.getElementById('wo-historial');
+        if (!cont) return;
+        cont.innerHTML = '<div class="wo-empty">Cargando historial...</div>';
+        fetch('/api/wo/historial?key=' + encodeURIComponent(woKey))
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) {
+                    cont.innerHTML = '<div class="wo-empty">Error al cargar el historial.</div>';
+                    return;
+                }
+                renderWoHistorial(cont, res.historial);
+            })
+            .catch(() => {
+                cont.innerHTML = '<div class="wo-empty">Error de red al cargar el historial.</div>';
+            });
+    }
+
+    function renderWoHistorial(cont, items) {
+        if (!items || items.length === 0) {
+            cont.innerHTML = '<div class="wo-empty">Sin cambios registrados todavía.</div>';
+            return;
+        }
+        const data = woRow ? woRow.getData() : {};
+        cont.innerHTML = '';
+        items.forEach(it => {
+            const oldV = it.valor_anterior || '';
+            const newV = it.valor_nuevo || '';
+            let fechaStr = '';
+            if (it.fecha) {
+                const f = new Date(it.fecha);
+                if (!isNaN(f)) {
+                    fechaStr = f.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                }
+            }
+            const normField = normKey(it.campo);
+            const gridCells = WO_SNAPSHOT_FIELDS.map(pair => {
+                const key = pair[0];
+                const label = pair[1];
+                const changed = normField && normField === normKey(key) ? ' changed' : '';
+                const full = key === 'BITACORA' ? ' full' : '';
+                let v = data[key];
+                if (v === null || v === undefined || String(v).trim() === '') v = '—';
+                else v = String(v);
+                return '<div class="wt-cell' + changed + full + '"><span class="wt-lbl">' + escapeHtml(label) + '</span><span class="wt-val">' + escapeHtml(v) + '</span></div>';
+            }).join('');
+
+            const item = document.createElement('div');
+            item.className = 'wt-item';
+            item.innerHTML =
+                '<div class="wt-card">' +
+                    '<div class="wt-head">' +
+                        '<span class="wt-agent"><i class="fa-solid fa-user"></i>' + escapeHtml(it.username || '—') + '</span>' +
+                        '<span class="wt-time">' + fechaStr + '</span>' +
+                    '</div>' +
+                    '<div class="wt-change"><b>' + escapeHtml(it.campo) + '</b>: ' +
+                        '<span class="wt-old">' + (oldV ? escapeHtml(oldV) : '(vacío)') + '</span>' +
+                        '<span class="wt-arrow">→</span>' +
+                        '<span class="wt-new">' + (newV ? escapeHtml(newV) : '(vacío)') + '</span>' +
+                    '</div>' +
+                    '<div class="wt-grid">' + gridCells + '</div>' +
+                '</div>';
+            cont.appendChild(item);
+        });
+    }
+
+    function cerrarWoModal() {
+        document.getElementById('modal-wo').style.display = 'none';
+        woRow = null; woKey = null;
+    }
+
+    function copiarAlPortapapeles(texto) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(texto);
+        }
+        return new Promise((resolve, reject) => {
+            const ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try { document.execCommand('copy'); resolve(); }
+            catch (e) { reject(e); }
+            document.body.removeChild(ta);
+        });
+    }
+
+    function copiarPlantillaWO() {
+        const data = woRow ? woRow.getData() : {};
+        const val = id => {
+            const el = document.getElementById(id);
+            return el ? el.value : '';
+        };
+        const fmtFh = v => {
+            if (v === null || v === undefined) return '';
+            return String(v).replace('T', ' ').replace(/:\d{2}$/, '');
+        };
+        const line = (lbl, v) => `${lbl}: ${v == null ? '' : v}`;
+        const lines = [
+            line('Incidente', data['Autin TT'] || ''),
+            line('Enlace', data['Nombre de Site'] || ''),
+            line('Fecha hora inicio', fmtFh(data['Fecha de creación (WO Creation date)'])),
+            line('Fecha hora fin', fmtFh(data['Fecha y hora de WO a estado close'])),
+            line('Tarea', woKey || ''),
+            line('Inicio de parada', fmtFh(val('wo-inicio-parada'))),
+            line('Fin de parada', fmtFh(val('wo-fin-parada'))),
+            line('Motivo de avería', val('wo-motivo')),
+            line('Solución', val('wo-solucion')),
+            line('Coordenadas del corte (Lat)', val('wo-latitud')),
+            line('Coordenadas del corte (Long)', val('wo-longitud')),
+            line('Se instalaron mufas?', val('wo-se-instalo-mufas')),
+            line('Ubicación de mufas (Lat)', val('wo-lat-mufa')),
+            line('Ubicación de mufas (Long)', val('wo-lon-mufa')),
+            line('Requiere correctivo Final?', val('wo-requiere-correctivo'))
+        ];
+        const texto = lines.join('\n');
+        if (!texto) { alert('No hay datos para copiar'); return; }
+        const btn = document.getElementById('btn-wo-copiar');
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        copiarAlPortapapeles(texto).then(() => {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Copiado!';
+            setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
+        }).catch(() => {
+            btn.disabled = false;
+            alert('No se pudo copiar automáticamente.');
+        });
+    }
+
+    function eliminarRegistros() {
+        const selectedRows = table.getSelectedRows();
+        if (selectedRows.length === 0) return;
+
+        const keys = selectedRows.map(r => r.getData()._key);
+        if (!confirm(`¿Eliminar definitivamente los ${keys.length} registros seleccionados?`)) return;
+
+        fetch('/api/rows/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ keys: keys })
+        }).then(r => r.json()).then(res => {
+            if (res.success) {
+                selectedRows.forEach(row => row.delete());
+                actualizarConteo();
+            } else {
+                alert("Error: " + res.error);
+            }
+        });
+    }
+
+    function actualizarConteo() {
+        const status = document.getElementById('status-record-count');
+        if (!status) return;
+        const total = table.getDataCount();
+        status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+    }
+
+    // Monitor selection to show/hide delete button + sync select-all checkbox
+    table.on("rowSelectionChanged", function(data, rows) {
+        const btn = document.getElementById('btn-delete-rows');
+        if (btn) {
+            btn.style.display = rows.length > 0 ? "inline-flex" : "none";
+        }
+        const allCb = document.querySelector('.tabulator-select-all');
+        if (allCb) {
+            allCb.checked = rows.length > 0 && rows.length === table.getRows("active").length;
+        }
+    });
+
+    // Real-time SLA update every second
+    setInterval(() => {
+        if (typeof table !== 'undefined' && table) {
+            ["SLA Despacho", "SLA Operativo"].forEach(slaName => {
+                const slaCol = table.getColumn(slaName);
+                if (slaCol) {
+                    slaCol.getCells().forEach(cell => {
+                        const row = cell.getRow();
+                        const stateVal = String(getRowVal(row, "wo state") || getRowVal(row, "estado") || '').trim().toLowerCase();
+                        if (['unscheduled', 'dispatched', 'accepted', 'inprocess', 'running'].includes(stateVal)) {
+                            cell.refresh();
+                        }
+                    });
+                }
+            });
+        }
+    }, 1000);
 </script>
 {% endblock %}

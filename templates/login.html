@@ -1,35 +1,222 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión — Nucleus</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23007AFF' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23007AFF'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=3.0">
+    <style>
+        /* ===== Login acorde a la interfaz Nucleus (iOS) ===== */
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0; padding: 0; height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        .login-wrap {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--ios-bg);
+            overflow: hidden;
+        }
+        /* Auroras suaves con acentos de la app */
+        .login-wrap::before, .login-wrap::after {
+            content: "";
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            animation: drift 16s ease-in-out infinite;
+        }
+        .login-wrap::before {
+            width: 520px; height: 520px;
+            background: radial-gradient(circle, rgba(0,122,255,0.45), transparent 70%);
+            top: -140px; right: -120px;
+        }
+        .login-wrap::after {
+            width: 460px; height: 460px;
+            background: radial-gradient(circle, rgba(88,86,214,0.35), transparent 70%);
+            bottom: -140px; left: -100px;
+            animation-delay: -6s;
+        }
+        @keyframes drift {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, 20px) scale(1.08); }
+        }
+        /* Tarjeta frosted, igual que la interfaz */
+        .login-card {
+            position: relative;
+            z-index: 2;
+            width: 380px;
+            max-width: 92vw;
+            background: var(--ios-card-bg);
+            -webkit-backdrop-filter: blur(32px) saturate(180%);
+            backdrop-filter: blur(32px) saturate(180%);
+            border: 1px solid var(--ios-hairline);
+            border-radius: 22px;
+            padding: 40px 34px 30px;
+            text-align: center;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.14);
+        }
+        .login-logo {
+            width: 84px; height: 84px;
+            margin: 0 auto 18px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--ios-blue-light);
+            border-radius: 22px;
+            box-shadow: 0 10px 26px rgba(0,122,255,0.22);
+        }
+        .login-logo svg { width: 46px; height: 46px; }
+        .login-title { color: var(--ios-label); font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin: 0 0 6px; }
+        .login-sub { color: var(--ios-gray-1); font-size: 13px; margin: 0 0 28px; font-weight: 400; }
+        .login-error {
+            display: flex; align-items: center; gap: 8px; justify-content: center;
+            background: rgba(255,59,48,0.10);
+            border: 1px solid rgba(255,59,48,0.35);
+            color: var(--ios-red);
+            padding: 10px 14px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+        .login-field {
+            position: relative;
+            margin-bottom: 14px;
+        }
+        .login-field i {
+            position: absolute; left: 16px; top: 50%;
+            transform: translateY(-50%);
+            color: var(--ios-gray-1); font-size: 15px;
+        }
+        .login-field input {
+            width: 100%;
+            background: var(--ios-fill);
+            border: 1px solid var(--ios-hairline);
+            border-radius: 12px;
+            padding: 14px 46px 14px 44px;
+            font-size: 15px;
+            color: var(--ios-label);
+            outline: none;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .login-field input::placeholder { color: var(--ios-gray-2); }
+        .login-field input:focus {
+            border-color: var(--ios-blue);
+            box-shadow: 0 0 0 4px rgba(0,122,255,0.15);
+            background: var(--ios-card-bg);
+        }
+        .login-toggle {
+            position: absolute; right: 10px; top: 50%;
+            transform: translateY(-50%);
+            display: flex; align-items: center; justify-content: center;
+            width: 36px; height: 36px; padding: 0;
+            background: none; border: none; color: var(--ios-gray-1);
+            cursor: pointer; font-size: 14px;
+        }
+        .login-toggle:hover { color: var(--ios-blue); }
+        .login-btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--ios-blue), var(--ios-indigo));
+            border: none;
+            border-radius: 12px;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            cursor: pointer;
+            margin-top: 10px;
+            letter-spacing: 0.3px;
+            box-shadow: 0 10px 26px rgba(0,122,255,0.4);
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .login-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(0,122,255,0.5); }
+        .login-btn:active { transform: translateY(0) scale(0.98); }
+        .login-btn:disabled { opacity: 0.7; }
+        .login-footer {
+            margin-top: 24px;
+            font-size: 11px;
+            color: var(--ios-gray-2);
+            line-height: 1.7;
+        }
+        .login-footer strong { color: var(--ios-gray-1); letter-spacing: 0.5px; }
+        .spinner-ring {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+            border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -3px;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <script>
+        // Aplica el tema guardado antes de que se pinte (misma lógica que la app)
+        try {
+            if (localStorage.getItem('nucleus-theme') === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+        } catch (e) {}
+    </script>
+    <div class="login-wrap">
+        <div class="login-card">
+            <div class="login-logo">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="#007AFF" stroke-width="2"/>
+                    <circle cx="12" cy="10" r="4" fill="#007AFF"/>
+                </svg>
+            </div>
+            <h1 class="login-title">Nucleus</h1>
+            <p class="login-sub">Inicia sesión para continuar</p>
 
-{% block content %}
-<div class="glass" style="width: 100%; max-width: 400px; padding: 40px; text-align: center; border-top: 4px solid var(--primary);">
-    <div style="margin-bottom: 32px;">
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="width: 48px; height: 48px;">
-        <h2 style="margin: 16px 0 8px 0; color: var(--primary);">Multiconsulta</h2>
-        <p style="margin: 0; color: var(--text-muted); font-size: 14px;">Ingresa tus credenciales para continuar</p>
+            {% if error %}
+            <div class="login-error">
+                <i class="fa-solid fa-circle-exclamation"></i> {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="POST" id="login-form">
+                <div class="login-field">
+                    <i class="fa-solid fa-user"></i>
+                    <input type="text" name="username" placeholder="Usuario" required autocomplete="username">
+                </div>
+                <div class="login-field">
+                    <i class="fa-solid fa-lock"></i>
+                    <input type="password" name="password" id="password" placeholder="Contraseña" required autocomplete="current-password">
+                    <button type="button" class="login-toggle" onclick="togglePassword()" title="Mostrar contraseña">
+                        <i class="fa-solid fa-eye" id="eye-icon"></i>
+                    </button>
+                </div>
+                <button type="submit" class="login-btn" id="login-btn">Iniciar Sesión</button>
+            </form>
+
+            <div class="login-footer">
+                &copy; 2026 Nucleus &mdash; Todos los derechos reservados<br>
+                <strong>HPVR</strong>
+            </div>
+        </div>
     </div>
 
-    {% if error %}
-    <div style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); padding: 12px; border-radius: 6px; margin-bottom: 24px; font-size: 14px;">
-        {{ error }}
-    </div>
-    {% endif %}
-
-    <form method="POST" action="/login" style="text-align: left;">
-        <div class="form-group" style="margin-bottom: 16px;">
-            <label>Usuario</label>
-            <input type="text" name="username" required placeholder="Tu nombre de usuario" autofocus>
-        </div>
-        <div class="form-group" style="margin-bottom: 24px;">
-            <label>Contraseña</label>
-            <input type="password" name="password" required placeholder="••••••••">
-        </div>
-        
-        <button type="submit" class="btn" style="width: 100%; justify-content: center; font-size: 16px; padding: 12px; margin-bottom: 16px;">
-            Ingresar <i data-lucide="arrow-right" style="width:18px;height:18px;"></i>
-        </button>
-        <div style="text-align: center;">
-            <a href="/cambiar_password" style="color: var(--primary); font-size: 14px; text-decoration: none;">Cambiar Contraseña</a>
-        </div>
-    </form>
-</div>
-{% endblock %}
+    <script>
+        function togglePassword() {
+            const p = document.getElementById('password');
+            const icon = document.getElementById('eye-icon');
+            const mostrar = p.type === 'password';
+            p.type = mostrar ? 'text' : 'password';
+            icon.className = mostrar ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+        }
+        document.getElementById('login-form').addEventListener('submit', function () {
+            const btn = document.getElementById('login-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-ring"></span> Ingresando...';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,618 @@
+{% extends "base.html" %}
+{% block title %}Usuarios &mdash; Nucleus{% endblock %}
+
+{% block content %}
+<style>
+    .up-page { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px 18px; box-sizing: border-box; }
+    .up-inner { max-width: 1360px; margin: 0 auto; }
+
+    /* Header */
+    .up-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .up-header-icon {
+        width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+        background: linear-gradient(135deg, #007AFF, #5856D6); color: #fff;
+        display: flex; align-items: center; justify-content: center; font-size: 18px;
+        box-shadow: 0 10px 24px rgba(0,122,255,0.28);
+    }
+    .up-header-text .wizard-title { margin: 0 0 2px 0; font-size: 20px; }
+    .up-subtitle { margin: 0; font-size: 12px; color: var(--ios-gray-1); }
+
+    /* Stats */
+    .up-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .up-stat {
+        background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
+        border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 12px;
+        box-shadow: var(--shadow-card);
+    }
+    .up-stat-ic {
+        width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center; font-size: 15px;
+    }
+    .up-stat-meta { min-width: 0; }
+    .up-stat-meta b { display: block; font-size: 17px; color: var(--ios-label); line-height: 1.1; letter-spacing: -0.3px; }
+    .up-stat-meta span { font-size: 10px; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+
+    /* Main card + horizontal form */
+    .up-main { display: flex; flex-direction: column; }
+    .up-form-h { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
+    .up-card {
+        background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
+        border-radius: 16px; box-shadow: var(--shadow-card); padding: 16px 18px;
+    }
+    .up-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .up-card-title {
+        font-size: 14px; font-weight: 700; color: var(--ios-label); letter-spacing: -0.2px;
+        display: flex; align-items: center; gap: 10px;
+    }
+    .up-card-title i {
+        width: 26px; height: 26px; border-radius: 8px; background: rgba(0,122,255,0.1);
+        color: var(--ios-blue); display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+    }
+    .up-card-tag {
+        font-size: 10px; font-weight: 700; color: var(--ios-blue); background: rgba(0,122,255,0.1);
+        padding: 3px 10px; border-radius: 999px; letter-spacing: 0.3px;
+    }
+    .up-divider { height: 1px; background: var(--ios-hairline); margin: 14px 0; }
+
+    /* Form */
+    .up-form { display: grid; gap: 10px; }
+    .up-field label {
+        display: block; font-size: 10px; font-weight: 700; color: var(--ios-gray-1);
+        text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+    }
+    .up-input-wrap { position: relative; }
+    .up-input-wrap > i {
+        position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+        color: var(--ios-gray-2); font-size: 13px; pointer-events: none;
+    }
+    .up-input-wrap input, .up-input-wrap select {
+        width: 100%; height: 36px; border: 1px solid var(--excel-border); border-radius: 10px;
+        padding: 0 14px 0 38px; font-size: 13px; background: var(--excel-bg); color: var(--ios-label);
+        outline: none; box-sizing: border-box; transition: all .15s ease;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    }
+    .up-input-wrap select {
+        appearance: none; -webkit-appearance: none; cursor: pointer;
+        padding-right: 34px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%238E8E93' d='M201.4 342.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 274.7 86.6 137.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 10px;
+    }
+    .up-input-wrap input:focus, .up-input-wrap select:focus {
+        border-color: var(--ios-blue); box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+    }
+    .up-actions { display: flex; gap: 10px; margin-top: 4px; }
+    .up-field-proj { grid-column: 1 / -1; }
+    .proj-selector {
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        background: var(--excel-bg); border: 1px solid var(--excel-border);
+        border-radius: 10px; padding: 8px 12px; min-height: 36px; box-sizing: border-box;
+    }
+    .proj-chk {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 4px 10px; border-radius: 8px; background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline); cursor: pointer;
+        font-size: 12px; font-weight: 600; color: var(--ios-label);
+        transition: all .15s ease;
+    }
+    .proj-chk:hover { border-color: var(--ios-blue); }
+    .proj-chk input { accent-color: var(--ios-blue); width: 14px; height: 14px; margin: 0; cursor: pointer; flex-shrink: 0; }
+    .proj-chk i { color: var(--ios-blue); font-size: 12px; }
+    .proj-chk:has(input:checked) { border-color: var(--ios-blue); background: var(--ios-blue-light); }
+    .up-btn-create {
+        flex: 1; background: linear-gradient(135deg, #007AFF, #0062CC); color: #fff; border: none;
+        border-radius: 12px; padding: 12px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        box-shadow: 0 8px 18px rgba(0,122,255,0.3); transition: all .15s ease;
+    }
+    .up-btn-create:hover { background: linear-gradient(135deg, #0062CC, #0050A6); transform: translateY(-1px); }
+    .up-btn-ghost {
+        background: var(--ios-fill); color: var(--ios-secondary); border: 1px solid var(--excel-border);
+        border-radius: 12px; padding: 0 18px; font-size: 12px; font-weight: 700; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 7px; transition: all .15s ease;
+    }
+    .up-btn-ghost:hover { background: var(--ios-gray-5); }
+
+    /* List / Table */
+    .up-list { max-height: 440px; overflow-y: auto; border: 1px solid var(--ios-hairline); border-radius: 14px; }
+    .up-table thead th { position: sticky; top: 0; z-index: 2; }
+    .up-table tbody tr { transition: background .12s ease; }
+    .up-table tbody tr:hover { background: var(--tabulator-hover, #F7F9FC); }
+    .up-user { display: flex; align-items: center; gap: 12px; }
+    .up-avatar {
+        width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; color: #fff;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 12px; font-weight: 800; letter-spacing: 0.5px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+    }
+    .up-avatar.role-admin { background: linear-gradient(135deg, #007AFF, #0047B3); }
+    .up-avatar.role-supervisor { background: linear-gradient(135deg, #5856D6, #3E3A9E); }
+    .up-avatar.role-gestor { background: linear-gradient(135deg, #8E8E93, #5A5A5E); }
+    .up-avatar.role-demo { background: linear-gradient(135deg, #FF9500, #C96F00); }
+    .up-username { font-weight: 600; color: var(--ios-label); font-size: 13px; }
+    .up-actions-cell { text-align: right; white-space: nowrap; }
+    .up-actions-cell .btn-icon {
+        width: 30px; height: 30px; padding: 0; font-size: 13px;
+        border-radius: 8px; vertical-align: middle;
+    }
+    .up-actions-cell .btn-icon + .btn-icon { margin-left: 4px; }
+
+    /* Permisos */
+    .up-perm-panel {
+        border: 1px solid var(--excel-border); border-radius: 16px; padding: 16px; background: var(--ios-fill);
+        margin-top: 12px;
+    }
+    .up-perm-title { font-size: 12px; font-weight: 700; color: var(--excel-green); display: flex; align-items: center; gap: 7px; margin: 0 0 12px 0; }
+    .up-accesos-title { font-size: 12px; font-weight: 700; color: var(--ios-secondary); margin: 0 0 10px 0; }
+    .up-list-sm { max-height: 250px; overflow-y: auto; border: 1px solid var(--ios-hairline); border-radius: 12px; }
+
+    .regla-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: flex-start; }
+    .regla-row .nucleus-control { flex: 1; }
+
+    @media (max-width: 1100px) {
+        .up-form-h { grid-template-columns: 1fr; }
+        .up-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+
+<div class="up-page">
+    <div class="up-inner">
+        <!-- Header -->
+        <div class="up-header">
+            <div class="up-header-icon"><i class="fa-solid fa-users-gear"></i></div>
+            <div class="up-header-text">
+                <h1 class="wizard-title">Gestión de Usuarios</h1>
+                <p class="up-subtitle">Administra cuentas, roles y permisos de acceso al sistema.</p>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        {% set admins = usuarios | selectattr('rol','equalto','admin') | list | length %}
+        {% set supers = usuarios | selectattr('rol','equalto','supervisor') | list | length %}
+        {% set gestores = usuarios | selectattr('rol','equalto','gestor') | list | length %}
+        <div class="up-stats">
+            <div class="up-stat">
+                <div class="up-stat-ic" style="background: rgba(0,122,255,0.12); color: #007AFF;"><i class="fa-solid fa-users"></i></div>
+                <div class="up-stat-meta"><b>{{ usuarios|length }}</b><span>Usuarios</span></div>
+            </div>
+            <div class="up-stat">
+                <div class="up-stat-ic" style="background: rgba(88,86,214,0.12); color: #5856D6;"><i class="fa-solid fa-user-shield"></i></div>
+                <div class="up-stat-meta"><b>{{ admins }}</b><span>Admins</span></div>
+            </div>
+            <div class="up-stat">
+                <div class="up-stat-ic" style="background: rgba(0,122,255,0.12); color: #007AFF;"><i class="fa-solid fa-user-check"></i></div>
+                <div class="up-stat-meta"><b>{{ supers }}</b><span>Supervisores</span></div>
+            </div>
+            <div class="up-stat">
+                <div class="up-stat-ic" style="background: rgba(174,174,178,0.2); color: #5A5A5E;"><i class="fa-solid fa-user-tie"></i></div>
+                <div class="up-stat-meta"><b>{{ gestores }}</b><span>Gestores</span></div>
+            </div>
+        </div>
+
+        <!-- Main card -->
+        <div class="up-card up-main">
+
+            <!-- Section: Crear / Editar Usuario -->
+            <div class="up-section">
+                <div class="up-card-head">
+                    <div class="up-card-title"><i class="fa-solid fa-user-plus"></i> Crear / Editar Usuario</div>
+                    <span class="up-card-tag">Nuevo registro</span>
+                </div>
+                <div class="up-form-h">
+                    <div class="up-field">
+                        <label>Nombre</label>
+                        <div class="up-input-wrap">
+                            <i class="fa-solid fa-id-card"></i>
+                            <input type="text" id="user-nombre" placeholder="Nombre completo" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="up-field">
+                        <label>Nombre de usuario</label>
+                        <div class="up-input-wrap">
+                            <i class="fa-solid fa-user"></i>
+                            <input type="text" id="user-name" placeholder="Ej: jperez" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="up-field">
+                        <label>Contraseña</label>
+                        <div class="up-input-wrap">
+                            <i class="fa-solid fa-lock"></i>
+                            <input type="password" id="user-pw" placeholder="Dejar vacío para no cambiar" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div class="up-field">
+                        <label>Rol de acceso</label>
+                        <div class="up-input-wrap">
+                            <i class="fa-solid fa-user-gear"></i>
+                            <select id="user-rol">
+                                <option value="gestor">Gestor (Solo datos)</option>
+                                <option value="supervisor">Supervisor (Importación y Datos)</option>
+                                <option value="demo">Demo (Vista Total de Solo Lectura)</option>
+                                <option value="admin">Admin (Control Total)</option>
+                            </select>
+                        </div>
+                    </div>
+                    {% if session.get('rol') != 'demo' %}
+                    <div class="up-actions">
+                        <button id="btn-crear-usuario" onclick="crearUsuario()" class="up-btn-create"><i class="fa-solid fa-plus"></i> CREAR USUARIO</button>
+                        <button onclick="cancelarEdicion()" id="btn-cancel-edit" class="up-btn-ghost" style="display:none;"><i class="fa-solid fa-xmark"></i> CANCELAR</button>
+                    </div>
+                    {% endif %}
+
+                    <div class="up-field up-field-proj">
+                        <label>Proyectos a los que accede</label>
+                        <div class="proj-selector" id="proj-selector">
+                            {% for p in proyectos %}
+                            <label class="proj-chk">
+                                <input type="checkbox" class="proj-check" value="{{ p.id }}">
+                                <i class="fa-solid fa-folder"></i> {{ p.nombre }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="up-divider"></div>
+
+            <!-- Section: Usuarios registrados -->
+            <div class="up-section">
+                <div class="up-card-head">
+                    <div class="up-card-title"><i class="fa-solid fa-address-book"></i> Usuarios registrados</div>
+                    <span class="up-card-tag">{{ usuarios|length }}</span>
+                </div>
+
+                <div class="up-list">
+                    <table class="ios-table up-table">
+                        <thead>
+                            <tr>
+                                <th>Persona</th>
+                                <th>Rol</th>
+                                <th style="text-align: right; min-width: 96px;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in usuarios %}
+                            <tr>
+                                <td>
+                                    <div class="up-user">
+                                        <span class="up-avatar" style="background:#fff; overflow:hidden;"><img src="/static/img/cobra-logo.png" alt="Cobra" style="width:100%; height:100%; object-fit:cover;"></span>
+                                        <span class="up-username">
+                                            <b>{{ u.nombre or u.username }}</b>
+                                            <small style="display:block; color: var(--ios-gray-2); font-weight:400;">{{ u.username }}</small>
+                                        </span>
+                                    </div>
+                                </td>
+                                <td><span class="role-badge {{ u.rol }}">{{ u.rol }}</span></td>
+                                <td class="up-actions-cell">
+                                    {% if session.get('rol') != 'demo' %}
+                                    <button onclick="editarUsuarioUI({{ u.id }}, '{{ u.nombre }}', '{{ u.username }}', '{{ u.rol }}', {{ accesos.get(u.id, []) | tojson }})" class="btn-icon" title="Editar Usuario">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                    {% endif %}
+
+                                    {% if u.username != session.get('username') and session.get('rol') != 'demo' %}
+                                    <button onclick="eliminarUsuario({{ u.id }}, '{{ u.username }}')" class="btn-icon btn-danger" title="Eliminar Usuario">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let editUserId = null;
+
+function setProjCheckboxes(projIds) {
+    const ids = (projIds || []).map(Number);
+    document.querySelectorAll('.proj-check').forEach(c => {
+        c.checked = ids.includes(Number(c.value));
+    });
+}
+
+function getSelectedProyectos() {
+    return Array.from(document.querySelectorAll('.proj-check:checked')).map(c => Number(c.value));
+}
+
+function cancelarEdicion() {
+    editUserId = null;
+    document.getElementById('user-nombre').value = '';
+    document.getElementById('user-name').value = '';
+    document.getElementById('user-pw').value = '';
+    document.getElementById('user-pw').placeholder = 'Dejar vacío para no cambiar';
+    document.getElementById('user-rol').value = 'gestor';
+    setProjCheckboxes([]);
+    const btn = document.getElementById('btn-crear-usuario');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-plus"></i> CREAR USUARIO';
+    const cancel = document.getElementById('btn-cancel-edit');
+    if (cancel) cancel.style.display = 'none';
+}
+
+function editarUsuarioUI(id, nombre, username, rol, projIds) {
+    document.getElementById('user-nombre').value = nombre;
+    document.getElementById('user-name').value = username;
+    document.getElementById('user-rol').value = rol;
+    document.getElementById('user-pw').value = '';
+    document.getElementById('user-pw').placeholder = 'Dejar vacío para no cambiar';
+    setProjCheckboxes(projIds);
+
+    const btn = document.getElementById('btn-crear-usuario');
+    if (btn) btn.innerHTML = '<i class="fa-solid fa-pen-to-square"></i> GUARDAR CAMBIOS';
+    const cancel = document.getElementById('btn-cancel-edit');
+    if (cancel) cancel.style.display = 'inline-flex';
+    editUserId = id;
+}
+
+function crearUsuario() {
+    const n = document.getElementById('user-nombre').value;
+    const u = document.getElementById('user-name').value;
+    const p = document.getElementById('user-pw').value;
+    const r = document.getElementById('user-rol').value;
+
+    if(!u) return alert("Nombre de usuario requerido");
+    if(!editUserId && !p) return alert("Contraseña requerida para nuevo usuario");
+
+    const payload = {nombre: n, username: u, password: p, rol: r, proyectos: getSelectedProyectos()};
+    let method = 'POST';
+
+    if(editUserId) {
+        payload.id = editUserId;
+        method = 'PUT';
+    }
+
+    fetch('/api/admin/usuario', {
+        method: method,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    }).then(r=>r.json()).then(res => {
+        if(res.success) location.reload();
+        else alert(res.error);
+    });
+}
+
+function eliminarUsuario(id, username) {
+    if(!confirm(`¿Eliminar al usuario "${username}"?`)) return;
+
+    fetch('/api/admin/usuario', {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+    }).then(r=>r.json()).then(res => {
+        if(res.success) location.reload();
+        else alert(res.error);
+    });
+}
+
+// VARIABLES GLOBALES PARA PERMISOS
+let COLUMNAS_PROYECTO = [];
+
+function cargarPermisosUsuario() {
+    const uid = document.getElementById('permiso-user-id').value;
+    const form = document.getElementById('form-nuevo-permiso');
+    const container = document.getElementById('permisos-lista-container');
+    const body = document.getElementById('permisos-lista-body');
+
+    if(!uid) {
+        form.style.display = 'none';
+        container.style.display = 'none';
+        return;
+    }
+
+    form.style.display = 'block';
+    container.style.display = 'block';
+    body.innerHTML = '<tr><td colspan="3" style="padding:10px; text-align:center;">Cargando...</td></tr>';
+
+    fetch(`/api/admin/permisos?uid=${uid}`)
+        .then(r => r.json())
+        .then(data => {
+            body.innerHTML = '';
+            if(data.length === 0) {
+                body.innerHTML = '<tr><td colspan="3" style="padding:10px; text-align:center; color: var(--ios-gray-1);">Sin accesos configurados.</td></tr>';
+                return;
+            }
+            data.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--excel-cell-border)';
+                tr.innerHTML = `
+                    <td style="padding: 8px; font-weight:600;">${p.proyecto_nombre}</td>
+                    <td style="padding: 8px;"><code style="font-size:10px; background:var(--ios-fill); padding:2px 6px; border-radius:6px; word-break: break-all; color: var(--ios-secondary);">${p.restricciones}</code></td>
+                    <td style="padding: 8px; text-align:right;">
+                        {% if session.get('rol') != 'demo' %}
+                        <button onclick="eliminarPermiso(${p.id})" class="btn-icon btn-danger" title="Quitar acceso"><i class="fa-solid fa-circle-xmark"></i></button>
+                        {% endif %}
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+        });
+}
+
+function cargarColumnasProyecto() {
+    const pid = document.getElementById('permiso-proj-id').value;
+    const container = document.getElementById('reglas-dinamicas-container');
+    const list = document.getElementById('reglas-list');
+    const btnSave = document.getElementById('btn-save-perm');
+
+    if(!pid) {
+        container.style.display = 'none';
+        btnSave.disabled = true;
+        return;
+    }
+
+    list.innerHTML = '<div style="font-size:11px; color: var(--ios-gray-1); padding:10px;">Cargando columnas...</div>';
+    fetch(`/api/admin/columnas?pid=${pid}`)
+        .then(r => r.json())
+        .then(cols => {
+            COLUMNAS_PROYECTO = cols;
+            list.innerHTML = ''; // Limpiar
+            container.style.display = 'block';
+            btnSave.disabled = false;
+            // No añadimos fila inicial para que sea "acceso total" por defecto si se guarda vacío
+        });
+}
+
+let ruleCounter = 0;
+
+function aniadirFilaRegla() {
+    const list = document.getElementById('reglas-list');
+    const div = document.createElement('div');
+    div.className = 'regla-row';
+    div.style = "display: flex; gap: 5px; margin-bottom: 8px; align-items: flex-start;";
+
+    let optionsHtml = COLUMNAS_PROYECTO.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    ruleCounter++;
+    const dropdownId = `dropdown-${ruleCounter}`;
+
+    div.innerHTML = `
+        <select class="regla-col nucleus-control" style="flex: 1;" onchange="cargarValoresParaRegla(this, '${dropdownId}')">
+            <option value="">Seleccione Columna</option>
+            ${optionsHtml}
+        </select>
+        <div class="val-container" style="flex: 1; position: relative;">
+            <input type="hidden" class="regla-val">
+            <div class="multi-select-trigger nucleus-control" style="width: 100%; display: flex; align-items: center; justify-content: space-between; cursor: pointer; height: 38px;" onclick="toggleMultiSelect('${dropdownId}')">
+                <span id="text-${dropdownId}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px;">Valores...</span>
+                <i class="fa-solid fa-chevron-down" style="font-size: 10px; color: var(--ios-gray-1);"></i>
+            </div>
+            <div id="${dropdownId}" class="multi-select-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: rgba(255,255,255,0.96); border: 1px solid var(--excel-border); max-height: 200px; overflow-y: auto; z-index: 1000; box-shadow: var(--shadow-soft); border-radius: 12px; padding: 6px; -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);">
+                <div style="padding: 5px; text-align: center; color: var(--ios-gray-1); font-size: 11px;">Seleccione una columna</div>
+            </div>
+        </div>
+        <button onclick="this.parentElement.remove()" style="background:none; border:none; color: var(--ios-gray-1); cursor:pointer; height: 38px; width: 30px;" title="Quitar"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    list.appendChild(div);
+}
+
+function toggleMultiSelect(id) {
+    const dropdown = document.getElementById(id);
+    if(dropdown.style.display === 'none') {
+        document.querySelectorAll('.multi-select-dropdown').forEach(d => d.style.display = 'none');
+        dropdown.style.display = 'block';
+    } else {
+        dropdown.style.display = 'none';
+    }
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.val-container')) {
+        document.querySelectorAll('.multi-select-dropdown').forEach(d => d.style.display = 'none');
+    }
+});
+
+function cargarValoresParaRegla(selectEl, dropdownId) {
+    const col = selectEl.value;
+    const pid = document.getElementById('permiso-proj-id').value;
+    const dropdown = document.getElementById(dropdownId);
+    const textSpan = document.getElementById(`text-${dropdownId}`);
+    const hiddenInput = selectEl.parentElement.querySelector('.regla-val');
+
+    hiddenInput.value = '';
+    textSpan.innerText = 'Cargando...';
+    dropdown.innerHTML = '<div style="padding: 5px; text-align: center; color: var(--ios-gray-1); font-size: 11px;"><i class="fa-solid fa-spinner fa-spin"></i></div>';
+
+    if(!col) {
+        textSpan.innerText = 'Valores...';
+        dropdown.innerHTML = '<div style="padding: 5px; text-align: center; color: var(--ios-gray-1); font-size: 11px;">Seleccione una columna</div>';
+        return;
+    }
+
+    fetch(`/api/admin/column_values?pid=${pid}&col=${encodeURIComponent(col)}`)
+        .then(r => r.json())
+        .then(vals => {
+            textSpan.innerText = 'Seleccionar...';
+            if(vals.length === 0) {
+                dropdown.innerHTML = '<div style="padding: 5px; text-align: center; color: var(--ios-gray-1); font-size: 11px;">Sin valores</div>';
+                return;
+            }
+
+            let html = '';
+            vals.forEach(v => {
+                const safeV = String(v).replace(/"/g, '&quot;');
+                html += `
+                    <label style="display: flex; align-items: center; padding: 4px 8px; cursor: pointer; font-size: 12px; gap: 6px; margin: 0;">
+                        <input type="checkbox" value="${safeV}" onchange="updateMultiSelect('${dropdownId}')" style="margin: 0;">
+                        <span>${v}</span>
+                    </label>
+                `;
+            });
+            dropdown.innerHTML = html;
+        });
+}
+
+function updateMultiSelect(dropdownId) {
+    const dropdown = document.getElementById(dropdownId);
+    const textSpan = document.getElementById(`text-${dropdownId}`);
+    const hiddenInput = dropdown.parentElement.querySelector('.regla-val');
+
+    const checked = Array.from(dropdown.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+
+    if(checked.length === 0) {
+        textSpan.innerText = 'Seleccionar...';
+        hiddenInput.value = '';
+    } else {
+        textSpan.innerText = checked.length + ' seleccionado(s)';
+        hiddenInput.value = JSON.stringify(checked);
+    }
+}
+
+function guardarPermiso() {
+    const uid = document.getElementById('permiso-user-id').value;
+    const pid = document.getElementById('permiso-proj-id').value;
+
+    const rows = document.querySelectorAll('.regla-row');
+    const restObj = {};
+
+    rows.forEach(row => {
+        const col = row.querySelector('.regla-col').value;
+        const valStr = row.querySelector('.regla-val').value;
+        if(col && valStr) {
+            try {
+                const vals = JSON.parse(valStr);
+                if(vals.length > 0) {
+                    restObj[col] = vals;
+                }
+            } catch(e) {
+                console.error("Error parsing JSON for rule values", e);
+            }
+        }
+    });
+
+    const restJson = JSON.stringify(restObj);
+
+    fetch('/api/admin/permisos', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({usuario_id: uid, proyecto_id: pid, restricciones: restJson})
+    }).then(r => r.json()).then(res => {
+        if(res.success) {
+            cargarPermisosUsuario();
+            document.getElementById('permiso-proj-id').value = '';
+            cargarColumnasProyecto();
+        } else {
+            alert(res.error);
+        }
+    });
+}
+
+function eliminarPermiso(id) {
+    if(!confirm("¿Quitar acceso a este proyecto?")) return;
+    fetch('/api/admin/permisos', {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+    }).then(r => r.json()).then(res => {
+        if(res.success) cargarPermisosUsuario();
+        else alert(res.error);
+    });
+}
+</script>
+{% endblock %}

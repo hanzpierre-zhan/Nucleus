@@ -1,323 +1,1594 @@
 {% extends "base.html" %}
+{% block title %}Dashboard &mdash; Nucleus{% endblock %}
 
 {% block content %}
-<!-- Include Chart.js CDN -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div style="display: flex; height: 100%; overflow: hidden; background-color: var(--ios-bg);">
 
-<div style="display:flex; flex-direction:column; gap:16px; flex:1; overflow:hidden; min-height:0;">
+    <!-- Sidebar Colapsable (Oculto para Gestores y Demos) -->
+    {% if (session.get('rol') or '').lower() not in ['gestor', 'demo'] %}
+    <div id="sidebar-config" class="dashboard-sidebar collapsed">
+        <div style="padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                <h3
+                    style="font-size: 13px; margin: 0; font-weight: 700; flex: 1; color: var(--ios-label); letter-spacing: -0.3px;">
+                    <i class="fa-solid fa-sliders" style="color: var(--ios-blue); margin-right: 6px;"></i>Panel de control</h3>
+                <button onclick="toggleSidebar()" class="sidebar-toggle-btn"><i
+                        class="fa-solid fa-chevron-left"></i></button>
+            </div>
 
-<div style="margin-bottom:0;">
-    <h1 style="margin:0; color:var(--primary); font-size:20px; font-weight:700; letter-spacing:-0.5px; display:flex; align-items:center; gap:8px;">
-        <i data-lucide="layout-dashboard" style="width:20px; height:20px;"></i> Dashboard de Gestión
-    </h1>
-    <p style="margin:2px 0 0 0; color:var(--text-muted); font-size:12px;">Métricas en tiempo real, alarmas y estado de cotizaciones.</p>
+            <!-- Pestañas -->
+            <div class="dash-config-tabs">
+                <button class="dash-config-tab active" data-panel="chart" onclick="switchConfigTab('chart', this)"><i class="fa-solid fa-chart-line"></i> Gráfica</button>
+                <button class="dash-config-tab" data-panel="kpi" onclick="switchConfigTab('kpi', this)"><i class="fa-solid fa-square"></i> Tarjeta</button>
+                <button class="dash-config-tab" data-panel="filter" onclick="switchConfigTab('filter', this)"><i class="fa-solid fa-filter"></i> Filtro</button>
+            </div>
+
+            <!-- PANEL: GRÁFICA -->
+            <div class="config-panel" id="panel-chart">
+                <div class="field">
+                    <label class="config-label">Título (opcional)</label>
+                    <input type="text" id="chart-title" class="config-select" placeholder="Ej: Estado de Proyectos">
+                </div>
+                <div class="field">
+                    <label class="config-label">Columna</label>
+                    <select id="col-selector" class="config-select"></select>
+                    <span class="config-hint" id="col-hint">La columna que divide los datos (ej: Estado, Prioridad).</span>
+                </div>
+                <div class="field">
+                    <label class="config-label">Métrica</label>
+                    <select id="op-selector" class="config-select" onchange="toggleValCol();">
+                        <option value="count">Contar registros</option>
+                        <option value="sum">Suma</option>
+                        <option value="sum_soles">Suma en S/.</option>
+                        <option value="avg">Promedio</option>
+                    </select>
+                </div>
+                <div id="val-col-container" style="display: none;" class="field val-field">
+                    <label class="config-label">Columna de valor</label>
+                    <select id="val-selector" class="config-select"><option value="">— Selecciona columna —</option></select>
+                    <span class="config-hint">Solo se listan columnas numéricas.</span>
+                </div>
+                <div class="field">
+                    <label class="config-label">Tipo de gráfico</label>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;">
+                        <button class="type-btn active" data-type="bar" title="Barras" onclick="setPreviewType('bar', this)"><i class="fa-solid fa-chart-column"></i></button>
+                        <button class="type-btn" data-type="line" title="Líneas" onclick="setPreviewType('line', this)"><i class="fa-solid fa-chart-line"></i></button>
+                        <button class="type-btn" data-type="pie" title="Circular (anillo)" onclick="setPreviewType('pie', this)"><i class="fa-solid fa-chart-pie"></i></button>
+                        <button class="type-btn" data-type="horizontalBar" title="Barras horizontales" onclick="setPreviewType('horizontalBar', this)"><i class="fa-solid fa-bars-staggered"></i></button>
+                    </div>
+                </div>
+                <div id="time-gran-container" style="display: none;" class="field">
+                    <label class="config-label">Agrupar el tiempo por</label>
+                    <select id="time-gran" class="config-select">
+                        <option value="month">Mes</option>
+                        <option value="day">Día</option>
+                        <option value="year">Año</option>
+                    </select>
+                </div>
+                <button onclick="saveCurrentChart()" class="btn-primary-dash"><i class="fa-solid fa-plus"></i> Añadir gráfica</button>
+            </div>
+
+            <!-- PANEL: TARJETA -->
+            <div class="config-panel" id="panel-kpi" style="display: none;">
+                <div class="field">
+                    <label class="config-label">Nombre de la tarjeta</label>
+                    <input type="text" id="kpi-title" class="config-select" placeholder="Ej: Total Dinero">
+                </div>
+                <div class="field">
+                    <label class="config-label">Columna</label>
+                    <select id="kpi-val-selector" class="config-select"><option value="">— Selecciona columna —</option></select>
+                    <span class="config-hint">Todas las columnas. Para Suma/Promedio elige una numérica (#).</span>
+                </div>
+                <div class="field">
+                    <label class="config-label">Métrica</label>
+                    <select id="kpi-op" class="config-select">
+                        <option value="count">Contar registros</option>
+                        <option value="sum">Suma</option>
+                        <option value="sum_soles">Suma en S/.</option>
+                        <option value="avg">Promedio</option>
+                    </select>
+                </div>
+                <button onclick="saveKPI()" class="btn-primary-dash" style="background: var(--ios-indigo);"><i class="fa-solid fa-plus"></i> Añadir tarjeta</button>
+            </div>
+
+            <!-- PANEL: FILTRO -->
+            <div class="config-panel" id="panel-filter" style="display: none;">
+                <div class="field">
+                    <label class="config-label">Columna</label>
+                    <select id="filter-col-selector" class="config-select"></select>
+                    <span class="config-hint">Filtrará los datos por esta columna.</span>
+                </div>
+                <div class="field">
+                    <label class="config-label">¿Dónde se aplica?</label>
+                    <select id="filter-target" class="config-select">
+                        <option value="both">Gráficas y tarjetas</option>
+                        <option value="charts">Solo gráficas</option>
+                        <option value="kpis">Solo tarjetas</option>
+                    </select>
+                    <span class="config-hint">Elige qué elementos afectará este filtro.</span>
+                </div>
+                <button onclick="saveFilter()" class="btn-primary-dash" style="background: var(--ios-teal);"><i class="fa-solid fa-plus"></i> Añadir filtro</button>
+                <div class="field" style="margin-top: 16px;">
+                    <label class="config-label">Filtros activos</label>
+                    <div id="sidebar-filter-list" class="sidebar-filter-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Main Workspace -->
+    <div style="flex: 1; overflow-y: auto; padding: 24px; position: relative; background: var(--ios-bg);">
+        
+        <!-- STICKY HEADER CONTAINER -->
+        <div id="sticky-dashboard-header" class="sticky-header">
+            <!-- Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    {% if (session.get('rol') or '').lower() not in ['gestor', 'demo'] %}
+                    <button id="sidebar-expand-btn" onclick="toggleSidebar()" class="btn-expand-sidebar"><i
+                            class="fa-solid fa-bars"></i></button>
+                    {% endif %}
+                    <h1 style="font-size: 18px; color: var(--ios-label); margin: 0; font-weight: 500; letter-spacing: -0.5px;">
+                        Dashboard {{ proyecto_nombre }}</h1>
+                    <span class="records-badge">
+                        <i class="fa-solid fa-database" style="color: var(--ios-blue); font-size: 10px;"></i>
+                        Registros: <b id="filtered-count">0</b> / <span id="total-count">0</span>
+                    </span>
+                    <button onclick="clearAllFilters()" class="btn-reset-mini" title="Limpiar todos los filtros" style="padding: 0; height: 22px; width: 22px; border-radius: 50%; justify-content: center;">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="dash-project-switch">
+                        {% for p in proyectos_list %}
+                        {% if p.nombre in ['FLM', 'PEXT', 'Dataper'] %}
+                        <a href="/switch_project/{{ p.id }}?next=/dashboard" class="dash-project-pill {% if p.id == session.get('current_proyecto_id') %}active{% endif %}" title="Ver dashboard de {{ p.nombre }}">
+                            <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i>{{ p.nombre }}
+                        </a>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Gallery Bar -->
+            <div id="filter-gallery" class="filter-gallery-container">
+                <!-- Filter cards go here -->
+            </div>
+
+            <!-- KPI Gallery Bar -->
+            <div id="kpi-gallery" class="kpi-bar">
+                <!-- KPIs saved go here -->
+            </div>
+        </div>
+
+        <!-- Charts Gallery -->
+        <div id="dashboard-gallery" class="chart-grid"></div>
+
+        <!-- Copyright Footer -->
+        <div style="text-align: center; padding: 20px 0 10px 0; font-size: 10px; color: var(--ios-gray-2); letter-spacing: 0.3px;">
+            &copy; 2026 Nucleus &mdash; Todos los derechos reservados &bull; Desarrollado por <strong style="color: var(--ios-gray-1);">HPVR</strong>
+        </div>
+    </div>
 </div>
 
-<!-- Grid de Tarjetas KPI (1 Sola Fila con 6 Columnas) -->
-<div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:12px; flex-shrink:0;">
-    <!-- Tarjeta Total -->
-    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(99,102,241,0.1); color:var(--primary); width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="inbox" style="width:18px; height:18px;"></i>
-        </div>
-        <div style="overflow:hidden;">
-            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Total Casos</div>
-            <div id="kpi-total" style="font-size:20px; font-weight:700; color:var(--text-main); line-height:1.2;">0</div>
-        </div>
-    </div>
-    
-    <!-- Dentro de Plazo -->
-    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="check-circle" style="width:18px; height:18px;"></i>
-        </div>
-        <div style="overflow:hidden;">
-            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">En Plazo</div>
-            <div id="kpi-plazo" style="font-size:20px; font-weight:700; color:#10b981; line-height:1.2;">0</div>
-        </div>
-    </div>
+<style>
+    .dashboard-sidebar {
+        width: 300px;
+        background: var(--ios-card-bg);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        backdrop-filter: blur(20px) saturate(180%);
+        border-right: 1px solid var(--ios-hairline);
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow-x: hidden;
+        flex-shrink: 0;
+    }
 
-    <!-- Por Vencer -->
-    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(245,158,11,0.1); color:#f59e0b; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="alert-triangle" style="width:18px; height:18px;"></i>
-        </div>
-        <div style="overflow:hidden;">
-            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Por Vencer</div>
-            <div id="kpi-por-vencer" style="font-size:20px; font-weight:700; color:#f59e0b; line-height:1.2;">0</div>
-        </div>
-    </div>
+    .dashboard-sidebar.collapsed {
+        width: 0;
+        border: none;
+    }
 
-    <!-- Vencidos -->
-    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="clock" style="width:18px; height:18px;"></i>
-        </div>
-        <div style="overflow:hidden;">
-            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Vencidos</div>
-            <div id="kpi-vencidos" style="font-size:20px; font-weight:700; color:#ef4444; line-height:1.2;">0</div>
-        </div>
-    </div>
+    .dash-config-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 14px;
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        padding: 4px;
+    }
 
-    <!-- Con Cotización -->
-    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(16,185,129,0.1); color:#10b981; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="dollar-sign" style="width:18px; height:18px;"></i>
-        </div>
-        <div style="overflow:hidden; flex:1;">
-            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Con Cotización</div>
-            <div style="display:flex; align-items:baseline; gap:4px; flex-wrap:nowrap;">
-                <span id="kpi-con-cotizacion" style="font-size:18px; font-weight:700; color:var(--text-main); line-height:1.2;">0</span>
-                <span id="kpi-monto-aprobado" style="font-size:9px; color:#10b981; font-weight:600; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">S/ 0</span>
-            </div>
-        </div>
-    </div>
+    .dash-config-tab {
+        flex: 1;
+        background: none;
+        border: none;
+        padding: 8px 2px;
+        border-radius: 9px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ios-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        transition: all 0.15s ease;
+        font-family: inherit;
+    }
 
-    <!-- Sin Cotización -->
-    <div class="glass" style="padding:12px 14px; display:flex; align-items:center; gap:10px; border-radius:12px; border:1px solid var(--border);">
-        <div style="background:rgba(239,68,68,0.1); color:#ef4444; width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-            <i data-lucide="file-warning" style="width:18px; height:18px;"></i>
-        </div>
-        <div style="overflow:hidden;">
-            <div style="font-size:11px; color:var(--text-muted); font-weight:500; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">Sin Cotización</div>
-            <div id="kpi-sin-cotizacion" style="font-size:20px; font-weight:700; color:var(--text-main); line-height:1.2;">0</div>
-        </div>
-    </div>
-</div>
+    .dash-config-tab i { font-size: 10px; }
 
-<!-- Fila de Gráficos + Alertas (Layout asimétrico 3+1) -->
-<div style="display:grid; grid-template-columns: 3fr 1fr; gap:16px; flex:1; min-height:0; overflow:hidden;">
+    .dash-config-tab.active {
+        background: var(--ios-card-bg);
+        color: var(--ios-blue);
+        box-shadow: var(--shadow-card);
+    }
 
-    <!-- Bloque izquierdo: 3 gráficos en grid 3 columnas -->
-    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; min-height:0; overflow:hidden;">
-        <!-- Gráfico por Estado -->
-        <div class="glass" style="padding:14px; border-radius:14px; border:1px solid var(--border); display:flex; flex-direction:column;">
-            <h3 style="margin:0 0 10px 0; font-size:12px; color:var(--primary); font-weight:600; display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                <i data-lucide="bar-chart-3" style="width:14px; height:14px;"></i> Estados
-            </h3>
-            <div style="flex:1; position:relative; min-height:260px;">
-                <canvas id="chart-estado"></canvas>
-            </div>
-        </div>
+    .config-panel { min-height: 300px; }
 
-        <!-- Gráfico por Prioridad -->
-        <div class="glass" style="padding:14px; border-radius:14px; border:1px solid var(--border); display:flex; flex-direction:column;">
-            <h3 style="margin:0 0 10px 0; font-size:12px; color:var(--primary); font-weight:600; display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                <i data-lucide="pie-chart" style="width:14px; height:14px;"></i> Prioridades
-            </h3>
-            <div style="flex:1; position:relative; min-height:260px;">
-                <canvas id="chart-prioridad"></canvas>
-            </div>
-        </div>
+    .field { margin-bottom: 12px; }
 
-        <!-- Gráfico de Proyectos -->
-        <div class="glass" style="padding:14px; border-radius:14px; border:1px solid var(--border); display:flex; flex-direction:column;">
-            <h3 style="margin:0 0 10px 0; font-size:12px; color:var(--primary); font-weight:600; display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                <i data-lucide="folder" style="width:14px; height:14px;"></i> Proyectos
-            </h3>
-            <div style="flex:1; position:relative; min-height:260px;">
-                <canvas id="chart-proyecto"></canvas>
-            </div>
-        </div>
-    </div>
+    .val-field {
+        background: var(--ios-blue-light);
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(0,122,255,0.25);
+    }
 
-    <!-- Bloque derecho: Alertas SLA (ocupa toda la altura) -->
-    <div class="glass" style="padding:14px; border-radius:14px; border:1px solid rgba(239,68,68,0.35); background:rgba(239,68,68,0.03); display:flex; flex-direction:column; min-height:0;">
-        <h3 style="margin:0 0 10px 0; font-size:13px; color:#ef4444; font-weight:700; display:flex; align-items:center; gap:6px; flex-shrink:0;">
-            <i data-lucide="siren" style="width:15px; height:15px;"></i> Alertas de Plazo
-        </h3>
-        <div style="overflow-y:auto; flex:1;" id="alertas-sla-lista">
-            <div style="color:var(--text-muted); text-align:center; padding:10px; font-size:11px;">Cargando...</div>
-        </div>
-    </div>
+    .config-hint {
+        font-size: 10px;
+        color: var(--ios-gray-1);
+        margin-top: 4px;
+        display: block;
+    }
 
-</div>
+    .config-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--ios-gray-1);
+        display: block;
+        margin-bottom: 4px;
+    }
 
-</div><!-- /outer flex wrapper -->
+    .config-select {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--excel-border);
+        border-radius: 10px;
+        font-size: 12px;
+        outline: none;
+        background: var(--excel-bg);
+        color: var(--ios-label);
+    }
 
+    .config-select:focus {
+        border-color: var(--ios-blue);
+        box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+    }
+
+    .type-btn {
+        background: var(--excel-bg);
+        border: 1px solid var(--excel-border);
+        padding: 8px;
+        border-radius: 10px;
+        cursor: pointer;
+        color: var(--ios-secondary);
+    }
+
+    .type-btn.active {
+        background: var(--excel-green);
+        color: white;
+        border-color: var(--excel-green);
+        box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+    }
+
+    .btn-primary-dash {
+        width: 100%;
+        padding: 11px;
+        background: var(--excel-green);
+        color: white;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 12px;
+        transition: all 0.15s ease;
+    }
+
+    .btn-primary-dash:hover { background: var(--excel-green-dark); }
+
+    .btn-expand-sidebar {
+        background: var(--ios-fill);
+        border: none;
+        padding: 8px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        color: var(--ios-secondary);
+    }
+
+    .dash-project-switch {
+        display: flex;
+        gap: 3px;
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 10px;
+        padding: 3px;
+    }
+
+    .dash-project-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ios-secondary);
+        text-decoration: none;
+        white-space: nowrap;
+        transition: all 0.15s ease;
+    }
+
+    .dash-project-pill i { font-size: 10px; }
+
+    .dash-project-pill:hover { color: var(--ios-blue); }
+
+    .dash-project-pill.active {
+        background: linear-gradient(135deg, #007AFF, #0A84FF);
+        color: #fff;
+        box-shadow: 0 1px 4px rgba(0,122,255,0.4);
+    }
+
+    .sidebar-toggle-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--ios-gray-1);
+    }
+
+    .sticky-header {
+        position: sticky;
+        top: -24px; /* Matches parent padding */
+        z-index: 1000;
+        background: var(--ios-sidebar-bg);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        backdrop-filter: blur(20px) saturate(180%);
+        padding: 10px 24px 5px 24px; /* Reducido verticálmente */
+        margin: -24px -24px 10px -24px; /* Reducido margen inferior */
+        border-bottom: 1px solid var(--ios-hairline);
+        box-shadow: 0 4px 6px -4px rgba(0,0,0,0.1);
+    }
+
+    .records-badge {
+        font-size: 11px; 
+        color: var(--ios-secondary); 
+        margin-left: 10px; 
+        background: var(--excel-bg); 
+        padding: 2px 10px; 
+        border: 1px solid var(--excel-border); 
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .btn-reset-mini {
+        background: var(--excel-bg);
+        border: 1px solid var(--excel-border);
+        font-size: 10px;
+        height: 24px;
+        width: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        color: var(--ios-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .btn-reset-mini:hover { 
+        background: rgba(255,59,48,0.12); 
+        color: var(--ios-red); 
+        border-color: rgba(255,59,48,0.35);
+        transform: rotate(-30deg);
+    }
+
+    .kpi-bar {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        margin-top: 4px; /* Reducido a la mitad */
+        margin-bottom: 4px;
+        padding-bottom: 4px;
+    }
+
+    .kpi-card {
+        background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        padding: 8px 14px;
+        min-width: 140px;
+        position: relative;
+        box-shadow: var(--shadow-card);
+    }
+
+    .kpi-card-title {
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--ios-gray-1);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        margin-bottom: 2px;
+    }
+
+    .kpi-card-val {
+        font-size: 17px;
+        color: var(--ios-label);
+        font-weight: 600;
+    }
+
+    .kpi-card-del {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: none;
+        border: none;
+        color: var(--ios-gray-2);
+        cursor: pointer;
+        font-size: 10px;
+    }
+
+    .kpi-card-del:hover {
+        color: var(--ios-red);
+    }
+
+    .chart-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 10px;
+    }
+
+    .chart-card {
+        background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: var(--shadow-card);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .chart-card:hover {
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-soft);
+    }
+
+    .chart-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .chart-card-title {
+        font-size: 12px;
+        font-weight: bold;
+        color: var(--ios-label);
+        margin: 0;
+    }
+
+    /* Filter Widgets */
+    .filter-gallery-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px; /* Menos separación entre filtros */
+        margin-bottom: 8px; /* Menos separación hacia abajo */
+        /* Crucial for dropdowns not being clipped */
+        overflow: visible; 
+        position: relative;
+        z-index: 10;
+    }
+    .filter-card {
+        background: linear-gradient(135deg, #FFFFFF 0%, #F2F7FF 100%);
+        border: 1px solid rgba(0,122,255,0.25);
+        border-radius: 20px;
+        padding: 4px 10px 4px 6px;
+        min-width: 130px;
+        position: relative;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        user-select: none;
+        box-shadow: 0 1px 5px rgba(0,122,255,0.10), inset 0 1px 0 rgba(255,255,255,0.8);
+        transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+    }
+    .filter-card:hover {
+        border-color: rgba(0,122,255,0.5);
+        box-shadow: 0 3px 12px rgba(0,122,255,0.18);
+        transform: translateY(-1px);
+    }
+
+    .filter-card-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--ios-blue);
+        flex: 1;
+        overflow: hidden;
+    }
+
+    .filter-card-header .chip-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .filter-dropdown {
+        position: absolute;
+        top: calc(100% + 5px);
+        left: 0;
+        z-index: 1000;
+        background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        box-shadow: var(--shadow-soft);
+        padding: 12px;
+        min-width: 220px;
+        display: none;
+    }
+
+    .filter-dropdown.show {
+        display: block;
+    }
+
+    .filter-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--excel-border);
+    }
+
+    .btn-apply {
+        background: var(--ios-blue);
+        color: white;
+        border: none;
+        padding: 6px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+
+    .btn-clear {
+        background: var(--ios-red);
+        color: white;
+        border: none;
+        padding: 6px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+
+    .filter-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .filter-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        font-size: 12px;
+        color: var(--ios-label);
+    }
+
+    .filter-item input {
+        cursor: pointer;
+    }
+
+    /* Searchable column picker */
+    .search-select { position: relative; }
+
+    .search-select-btn {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--excel-border);
+        border-radius: 10px;
+        font-size: 12px;
+        background: var(--excel-bg);
+        color: var(--ios-label);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        text-align: left;
+        font-family: inherit;
+    }
+
+    .search-select-btn:hover { border-color: var(--ios-blue); }
+
+    .search-select-btn .ss-value {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+    }
+
+    .search-select-btn .ss-value.placeholder { color: var(--ios-gray-2); }
+    .search-select-btn i { font-size: 10px; color: var(--ios-gray-1); flex-shrink: 0; }
+
+    .search-select-pop {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        z-index: 1200;
+        background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        box-shadow: var(--shadow-soft);
+        display: none;
+        overflow: hidden;
+    }
+
+    .search-select-pop.open { display: block; }
+
+    .search-select-pop .ss-search {
+        width: 100%;
+        border: none;
+        border-bottom: 1px solid var(--ios-hairline);
+        padding: 10px 12px;
+        font-size: 12px;
+        background: transparent;
+        color: var(--ios-label);
+        outline: none;
+    }
+
+    .ss-list { max-height: 220px; overflow-y: auto; padding: 4px; }
+
+    .ss-item {
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        color: var(--ios-label);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ss-item i { font-size: 10px; color: var(--ios-gray-2); width: 14px; text-align: center; }
+
+    .ss-item:hover, .ss-item.selected { background: var(--ios-blue-light); }
+
+    .ss-item.selected i { color: var(--ios-blue); }
+
+    .ss-empty {
+        padding: 12px;
+        font-size: 11px;
+        color: var(--ios-gray-1);
+        text-align: center;
+    }
+
+    /* Filtros activos en el sidebar */
+    .sidebar-filter-list {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        margin-top: 2px;
+    }
+
+    .sidebar-filter-chip {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: linear-gradient(135deg, rgba(0,122,255,0.10) 0%, rgba(0,122,255,0.04) 100%);
+        border: 1px solid rgba(0,122,255,0.30);
+        color: var(--ios-blue);
+        border-radius: 20px;
+        padding: 4px 8px 4px 5px;
+        font-size: 11px;
+        font-weight: 700;
+        box-shadow: 0 1px 4px rgba(0,122,255,0.14), inset 0 1px 0 rgba(255,255,255,0.7);
+        transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+    }
+
+    .sidebar-filter-chip:hover {
+        box-shadow: 0 3px 10px rgba(0,122,255,0.24);
+        border-color: rgba(0,122,255,0.5);
+        transform: translateY(-1px);
+    }
+
+    .chip-icon {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #007AFF, #0A84FF);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        flex-shrink: 0;
+        box-shadow: 0 1px 3px rgba(0,122,255,0.45);
+    }
+
+    .chip-icon i { font-size: 9px; }
+
+    .sidebar-filter-chip .chip-name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sidebar-filter-chip .chip-target { color: var(--ios-gray-2); opacity: .8; flex-shrink: 0; font-size: 9px; }
+
+    .sidebar-filter-chip button {
+        background: none;
+        border: none;
+        color: var(--ios-blue);
+        cursor: pointer;
+        font-size: 10px;
+        padding: 0;
+        opacity: 0.6;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .15s ease;
+        flex-shrink: 0;
+    }
+
+    .sidebar-filter-chip button:hover { opacity: 1; color: #fff; background: var(--ios-red); }
+
+    .sidebar-filter-empty {
+        font-size: 11px;
+        color: var(--ios-gray-1);
+        padding: 6px 2px;
+    }
+</style>
 {% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
 <script>
-    document.addEventListener("DOMContentLoaded", async function() {
-        try {
-            const res = await fetch('/api/incidencias');
-            if (!res.ok) throw new Error("Error fetching data");
-            const data = await res.json();
-            
-            // Procesamiento de datos
-            let total = data.length;
-            let conCotizacion = 0;
-            let sinCotizacion = 0;
-            let totalAprobado = 0;
-            
-            let dentroPlazo = 0;
-            let porVencer = 0;
-            let vencidos = 0;
-            
-            const estados = {};
-            const prioridades = {};
-            const proyectos = {};
-            
-            const criticos = [];
+    const DATA_RAW = {{ data | safe }};
+    const COLS = {{ columns | safe }};
+    const SAVED_CHART_CONFIGS = {{ saved_charts | safe }};
+    const SAVED_KPI_CONFIGS = {{ saved_kpis | safe }};
+    const SAVED_FILTER_CONFIGS = {{ saved_filters | safe }};
+    const USER_ROLE = "{{ session.get('rol') }}".toLowerCase();
+    const IS_GESTOR = (USER_ROLE === 'gestor' || USER_ROLE === 'demo');
 
-            data.forEach(i => {
-                // Estados
-                estados[i.estado] = (estados[i.estado] || 0) + 1;
-                
-                // Prioridad
-                const pri = i.prioridad || 'Sin prioridad';
-                prioridades[pri] = (prioridades[pri] || 0) + 1;
-                
-                // Proyectos
-                const proy = i.proyecto || 'Sin proyecto';
-                proyectos[proy] = (proyectos[proy] || 0) + 1;
-                
-                // Cotización
-                if (i.monto_aprobado !== null && i.monto_aprobado > 0) {
-                    conCotizacion++;
-                    totalAprobado += parseFloat(i.monto_aprobado);
-                } else {
-                    sinCotizacion++;
-                }
-                
-                // SLA
-                let slaStatus = 'Neutral'; // Liquidado, etc.
-                let elapsedText = '';
-                if (i.sla && i.fecha_captura) {
-                    const match = i.sla.match(/(\d+)\s*(HRS|H|horas|hora)/i);
-                    if (match) {
-                        const slaHours = parseInt(match[1]);
-                        const parts = i.fecha_captura.split(/[- :]/);
-                        if (parts.length >= 5) {
-                            const captureDate = new Date(parts[0], parts[1]-1, parts[2], parts[3], parts[4]);
-                            const now = new Date();
-                            const elapsedMs = now - captureDate;
-                            const elapsedHours = elapsedMs / (1000 * 60 * 60);
-                            
-                            if (['Liquidado', 'Cierre Técnico', 'Cierre Operativo'].includes(i.estado)) {
-                                slaStatus = 'Completado';
-                            } else {
-                                elapsedText = `${elapsedHours.toFixed(1)}h / ${slaHours}h`;
-                                if (elapsedHours >= slaHours) {
-                                    slaStatus = 'Vencido';
-                                    vencidos++;
-                                    criticos.push({ ...i, elapsedHours, limitHours: slaHours, status: 'Vencido', elapsedText });
-                                } else if (elapsedHours >= slaHours * 0.8) {
-                                    slaStatus = 'Por vencer';
-                                    porVencer++;
-                                    criticos.push({ ...i, elapsedHours, limitHours: slaHours, status: 'Por vencer', elapsedText });
-                                } else {
-                                    slaStatus = 'Dentro de plazo';
-                                    dentroPlazo++;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+    let savedCharts = [...SAVED_CHART_CONFIGS];
+    let savedKPIs = [...SAVED_KPI_CONFIGS];
+    let savedFilters = [...SAVED_FILTER_CONFIGS].map(f =>
+        (typeof f === 'string') ? { col: f, target: 'both' } : f
+    );
+    let globalFilters = {};
+    let currentPreviewType = 'bar';
+    let galleryInstances = {};
+    const DATE_COLS = new Set();
+    const NUMERIC_COLS = new Set();
 
-            // Actualizar KPIs
-            document.getElementById('kpi-total').textContent = total;
-            document.getElementById('kpi-plazo').textContent = dentroPlazo;
-            document.getElementById('kpi-por-vencer').textContent = porVencer;
-            document.getElementById('kpi-vencidos').textContent = vencidos;
-            document.getElementById('kpi-con-cotizacion').textContent = conCotizacion;
-            document.getElementById('kpi-sin-cotizacion').textContent = sinCotizacion;
-            document.getElementById('kpi-monto-aprobado').textContent = `S/ ${totalAprobado.toFixed(0)}`;
+    function colOf(f) { return (typeof f === 'object' && f) ? f.col : f; }
+    function targetOf(f) { return (typeof f === 'object' && f && f.target) ? f.target : 'both'; }
+    function targetIcon(t) {
+        if (t === 'charts') return 'fa-chart-line';
+        if (t === 'kpis') return 'fa-square';
+        return 'fa-diagram-project';
+    }
+    function targetTitle(t) {
+        if (t === 'charts') return 'Aplica solo a gráficas';
+        if (t === 'kpis') return 'Aplica solo a tarjetas';
+        return 'Aplica a gráficas y tarjetas';
+    }
 
-            // Renderizar lista de alertas críticas
-            const alertContainer = document.getElementById('alertas-sla-lista');
-            if (criticos.length === 0) {
-                alertContainer.innerHTML = `<div style="color:#10b981; text-align:center; padding:10px; font-size:11px; font-weight:500;">🟢 ¡Sin alertas!</div>`;
-            } else {
-                alertContainer.innerHTML = criticos.map(c => {
-                    const color = c.status === 'Vencido' ? '#ef4444' : '#f59e0b';
-                    const bg = c.status === 'Vencido' ? 'rgba(239,68,68,0.06)' : 'rgba(245,158,11,0.06)';
-                    return `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:${bg}; border-left:3px solid ${color}; border-radius:8px; margin-bottom:6px; font-size:10px;">
-                            <div>
-                                <strong style="color:var(--text-main); font-size:11px;">${c.numero_ticket}</strong>
-                                <div style="color:var(--text-muted); font-size:9px;">${c.site_name || 'Sin Site'}</div>
-                            </div>
-                            <div style="text-align:right;">
-                                <span style="color:${color}; font-weight:700;">${c.status.toUpperCase()}</span>
-                                <div style="color:var(--text-muted); font-size:8px;">${c.elapsedText}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+    const PALETTE = ['#34A853', '#4285F4', '#FBBC05', '#EA4335', '#A142F4', '#24C1E0', '#FF6D01', '#5F6368'];
+    const BLUE = '#007AFF'; // Azul Nucleus (hex real: el canvas no resuelve var(--ios-blue))
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+    function dropId(col) { return 'dropdown-' + String(col).replace(/[^a-zA-Z0-9_-]/g, '_'); }
+    function valEq(a, b) {
+        const as = String(a == null ? '' : a).trim().toUpperCase();
+        const bs = String(b == null ? '' : b).trim().toUpperCase();
+        if (as === bs) return true;
+        const an = parseFloat(as), bn = parseFloat(bs);
+        return !isNaN(an) && !isNaN(bn) && an === bn;
+    }
+
+    function looksLikeDate(v) {
+        const s = String(v == null ? '' : v).trim();
+        if (!s) return false;
+        if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}([T ]\d{1,2}:\d{2}(:\d{2})?)?$/.test(s)) return true;
+        if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}([T ]\d{1,2}:\d{2}(:\d{2})?)?$/.test(s)) return true;
+        if (/^\d{1,2}[-/]\d{1,2}[-/]\d{2}([T ]\d{1,2}:\d{2})?$/.test(s)) return true;
+        return false;
+    }
+
+    function detectDateCols() {
+        if (DATA_RAW.length === 0) return;
+        COLS.filter(c => c !== '_key').forEach(c => {
+            let hits = 0, total = 0;
+            for (let i = 0; i < Math.min(40, DATA_RAW.length); i++) {
+                const s = String(DATA_RAW[i][c] || '').trim();
+                if (!s) continue;
+                total++;
+                if (looksLikeDate(s)) hits++;
             }
+            if (total > 0 && hits / total >= 0.6) DATE_COLS.add(c);
+        });
+    }
 
-            // --- CONFIGURACIÓN DE GRÁFICOS (Chart.js) ---
-            const chartOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'bottom',
-                        labels: { color: '#94a3b8', boxWidth: 10, padding: 8, font: { family: 'Inter', size: 9 } }
-                    }
+    // Texto central del donut (total)
+    const centerTextPlugin = {
+        id: 'centerText',
+        afterDraw(chart) {
+            if (chart.config.type !== 'doughnut') return;
+            const meta = chart.getDatasetMeta(0);
+            if (!meta.data || !meta.data.length) return;
+            const el = meta.data[0];
+            const labelColor = getComputedStyle(document.body).getPropertyValue('--ios-label').trim() || '#1C1C1E';
+            const opt = chart.config.options.plugins.centerText || {};
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = labelColor;
+            ctx.font = '700 16px "SF Pro Display","Segoe UI",Roboto,sans-serif';
+            ctx.fillText(opt.text || '', el.x, el.y);
+            ctx.restore();
+        }
+    };
+    if (typeof Chart !== 'undefined') Chart.register(centerTextPlugin);
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        populateSelectors();
+        buildDefaults();
+
+        renderFilters();
+        renderKPIs();
+        renderGallery();
+        updateFilterView();
+
+        document.addEventListener('click', (e) => {
+            document.querySelectorAll('.filter-dropdown.show').forEach(d => {
+                if (!d.parentElement.contains(e.target)) d.classList.remove('show');
+            });
+            closeAllSearchables();
+        });
+
+        const totalEl = document.getElementById('total-count');
+        if (totalEl) totalEl.textContent = DATA_RAW.length.toLocaleString();
+    });
+
+    function populateSelectors() {
+        const cSel = document.getElementById('col-selector');
+        const vSel = document.getElementById('val-selector');
+        const kSel = document.getElementById('kpi-val-selector');
+        const fSel = document.getElementById('filter-col-selector');
+
+        const filtered = COLS.filter(c => c !== '_key');
+        filtered.forEach(c => {
+            if (cSel) cSel.appendChild(new Option(c, c));
+            if (fSel) fSel.appendChild(new Option(c, c));
+            if (kSel) kSel.appendChild(new Option(c, c)); // Tarjeta: todas las columnas
+        });
+
+        // Find numbers
+        const numCols = [];
+        if (DATA_RAW.length > 0) {
+            filtered.forEach(c => {
+                let isNum = true, any = false;
+                for (let i = 0; i < Math.min(50, DATA_RAW.length); i++) {
+                    let v = String(DATA_RAW[i][c] || '').trim();
+                    if (v === "") continue; any = true;
+                    if (!/^-?\d+(\.\d+)?$/.test(v)) { isNum = false; break; }
                 }
+                if (isNum && any) numCols.push(c);
+            });
+        }
+        numCols.forEach(c => NUMERIC_COLS.add(c));
+        numCols.forEach(c => {
+            if (vSel) vSel.appendChild(new Option(c, c));
+        });
+
+        if (filtered.includes('ESTADO') && cSel) cSel.value = 'ESTADO';
+
+        detectDateCols();
+
+        // Convierte los selects de columna en buscadores amigables
+        [cSel, vSel, kSel, fSel].forEach(s => makeSearchable(s));
+    }
+
+    function toggleSidebar() {
+        const s = document.getElementById('sidebar-config');
+        if (s) s.classList.toggle('collapsed');
+    }
+
+    function toggleValCol() {
+        const vcc = document.getElementById('val-col-container');
+        const ops = document.getElementById('op-selector');
+        if (vcc && ops) vcc.style.display = (ops.value === 'count') ? 'none' : 'block';
+    }
+
+    function setPreviewType(t, b) {
+        document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('active'));
+        if (b) b.classList.add('active');
+        currentPreviewType = t;
+        const hint = document.getElementById('col-hint');
+        if (hint) {
+            hint.textContent = (t === 'line')
+                ? 'Para ver el tiempo, elige una columna con ícono de calendario (fecha/hora).'
+                : 'La columna que divide los datos (ej: Estado, Prioridad).';
+        }
+        const gran = document.getElementById('time-gran-container');
+        if (gran) gran.style.display = (t === 'line') ? 'block' : 'none';
+    }
+
+    function switchConfigTab(tabKey, btn) {
+        document.querySelectorAll('.dash-config-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.config-panel').forEach(p => p.style.display = 'none');
+        const panel = document.getElementById('panel-' + tabKey);
+        if (panel) panel.style.display = 'block';
+    }
+
+    // ==== Buscador de columnas (combobox) ====
+    function makeSearchable(select) {
+        if (!select || select.dataset.searchable) return;
+        select.dataset.searchable = '1';
+        select.style.display = 'none';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'search-select';
+        wrap.innerHTML = `
+            <button type="button" class="search-select-btn">
+                <span class="ss-value placeholder">Selecciona una columna...</span>
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="search-select-pop">
+                <input type="text" class="ss-search" placeholder="Buscar columna...">
+                <div class="ss-list"></div>
+            </div>
+        `;
+        select.parentNode.insertBefore(wrap, select);
+
+        const btn = wrap.querySelector('.search-select-btn');
+        const pop = wrap.querySelector('.search-select-pop');
+        const search = wrap.querySelector('.ss-search');
+        const list = wrap.querySelector('.ss-list');
+
+        function renderOptions() {
+            const q = search.value.trim().toUpperCase();
+            const options = Array.from(select.options).filter(o => o.value !== '' && o.value !== '_key');
+            const filtered = q ? options.filter(o => o.text.toUpperCase().includes(q)) : options;
+            list.innerHTML = '';
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="ss-empty">Sin resultados</div>';
+                return;
+            }
+            filtered.forEach(o => {
+                const item = document.createElement('div');
+                item.className = 'ss-item' + (o.selected ? ' selected' : '');
+                const isDate = DATE_COLS.has(o.text);
+                const isNum = NUMERIC_COLS.has(o.text);
+                let icon = 'fa-columns', tag = '';
+                if (isDate) { icon = 'fa-calendar-days'; tag = 'fecha/hora'; }
+                else if (isNum) { icon = 'fa-hashtag'; tag = 'numérica'; }
+                item.innerHTML = `<i class="fa-solid ${icon}"${isDate ? ' style="color:var(--ios-indigo)"' : (isNum ? ' style="color:var(--ios-teal)"' : '')}></i><span>${esc(o.text)}${tag ? ` <small style="color:var(--ios-gray-2)">${tag}</small>` : ''}</span>`;
+                item.addEventListener('click', () => {
+                    select.value = o.value;
+                    syncValue();
+                    pop.classList.remove('open');
+                    search.value = '';
+                    select.dispatchEvent(new Event('change'));
+                });
+                list.appendChild(item);
+            });
+        }
+
+        function syncValue() {
+            const opt = select.options[select.selectedIndex];
+            const val = opt ? opt.text : '';
+            const span = wrap.querySelector('.ss-value');
+            span.textContent = val || 'Selecciona una columna...';
+            span.classList.toggle('placeholder', !val);
+        }
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const willOpen = !pop.classList.contains('open');
+            closeAllSearchables();
+            if (willOpen) {
+                pop.classList.add('open');
+                search.value = '';
+                renderOptions();
+                search.focus();
+            }
+        });
+        search.addEventListener('input', renderOptions);
+        [search, pop].forEach(el => el.addEventListener('click', e => e.stopPropagation()));
+
+        const observer = new MutationObserver(syncValue);
+        observer.observe(select, { attributes: true, attributeFilter: ['value'] });
+        syncValue();
+
+        select._searchable = { wrap, pop, syncValue };
+    }
+
+    function closeAllSearchables() {
+        document.querySelectorAll('.search-select-pop.open').forEach(p => p.classList.remove('open'));
+    }
+
+    function syncSearchable(select) {
+        if (select && select._searchable) select._searchable.syncValue();
+    }
+
+    function filterData(data, target) {
+        return data.filter(r => {
+            // Global Filters (Interactive Slicers), con alcance charts/kpis/both
+            for (let [c, v] of Object.entries(globalFilters)) {
+                const entry = savedFilters.find(sf => colOf(sf) === c);
+                const t = entry ? targetOf(entry) : 'both';
+                if (target && t !== 'both' && t !== target) continue;
+
+                let rowVal = r[c] == null ? '(Blanco)' : r[c];
+
+                if (Array.isArray(v)) {
+                    if (v.length > 0 && !v.some(fv => valEq(rowVal, fv))) return false;
+                } else {
+                    if (!valEq(rowVal, v)) return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    async function saveFilter() {
+        const col = document.getElementById('filter-col-selector').value;
+        if (savedFilters.some(sf => colOf(sf) === col)) return;
+        const target = document.getElementById('filter-target').value;
+        savedFilters.push({ col: col, target: target });
+        await post('/api/master/dashboard_filters', savedFilters);
+        renderFilters();
+    }
+
+    function renderFilters() {
+        renderSidebarFilters();
+        const bar = document.getElementById('filter-gallery');
+        bar.innerHTML = '';
+        if (savedFilters.length === 0) {
+            bar.innerHTML = '<div style="font-size: 11px; color: var(--ios-gray-1); padding: 10px;">No hay filtros agregados.</div>';
+            return;
+        }
+
+        savedFilters.forEach(sf => {
+            const col = colOf(sf);
+            const t = targetOf(sf);
+            const card = document.createElement('div');
+            card.className = 'filter-card';
+            const uniqueValues = [...new Set(DATA_RAW.map(r => String(r[col] || '(Blanco)').trim()))].sort();
+            const activeValues = globalFilters[col] || [];
+            const activeArr = Array.isArray(activeValues) ? activeValues : [activeValues];
+            const did = dropId(col);
+
+            card.innerHTML = `
+                <div class="filter-card-header"><span class="chip-icon"><i class="fa-solid fa-filter"></i></span><span class="chip-name">${esc(col)}</span> <i class="fa-solid ${targetIcon(t)}" title="${targetTitle(t)}" style="font-size:9px;color:var(--ios-gray-2);flex-shrink:0;"></i></div>
+                <i class="fa-solid fa-chevron-down" style="font-size: 9px; color: var(--ios-gray-1);"></i>
+                ${!IS_GESTOR ? `<button onclick="delFilter(event, this.dataset.col)" data-col="${esc(col)}" class="kpi-card-del" style="top:2px;right:2px;"><i class="fa-solid fa-xmark"></i></button>` : ''}
+                <div class="filter-dropdown" id="${did}">
+                    <div class="filter-actions">
+                        <button class="btn-apply" onclick="applyMultiFilter(this)"><i class="fa-solid fa-check"></i> Aplicar</button>
+                        <button class="btn-clear" onclick="clearMultiFilter(this)"><i class="fa-solid fa-eraser"></i> Limpiar</button>
+                    </div>
+                    <div class="filter-list">
+                        ${uniqueValues.map(v => `
+                            <label class="filter-item">
+                                <input type="checkbox" value="${esc(v)}" ${activeArr.length === 0 || activeArr.some(a => valEq(a, v)) ? 'checked' : ''}>
+                                ${esc(v)}
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            card.onclick = (e) => {
+                if (e.target.closest('button') || e.target.closest('.filter-dropdown')) return;
+                document.querySelectorAll('.filter-dropdown').forEach(d => {
+                    if (d.id !== did) d.classList.remove('show');
+                });
+                card.querySelector('.filter-dropdown').classList.toggle('show');
             };
 
-            // Chart Estado (Bar)
-            new Chart(document.getElementById('chart-estado'), {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(estados),
-                    datasets: [{
-                        label: 'Casos',
-                        data: Object.values(estados),
-                        backgroundColor: ['#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#10b981'],
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    ...chartOptions,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } },
-                        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#94a3b8', font: { size: 9 }, stepSize: 1 } }
+            bar.appendChild(card);
+        });
+    }
+
+    async function delFilter(e, col) {
+        e.stopPropagation();
+        savedFilters = savedFilters.filter(sf => colOf(sf) !== col);
+        delete globalFilters[col];
+        await post('/api/master/dashboard_filters', savedFilters);
+        renderFilters();
+        syncDashboard();
+    }
+
+    function renderSidebarFilters() {
+        const list = document.getElementById('sidebar-filter-list');
+        if (!list) return;
+        list.innerHTML = '';
+        if (savedFilters.length === 0) {
+            list.innerHTML = '<div class="sidebar-filter-empty">Sin filtros. Añade el primero arriba.</div>';
+            return;
+        }
+        savedFilters.forEach(sf => {
+            const col = colOf(sf);
+            const t = targetOf(sf);
+            const chip = document.createElement('div');
+            chip.className = 'sidebar-filter-chip';
+            chip.innerHTML = `
+                <span class="chip-icon"><i class="fa-solid fa-filter"></i></span>
+                <span class="chip-name">${esc(col)}</span>
+                <i class="fa-solid ${targetIcon(t)} chip-target" title="${targetTitle(t)}"></i>
+                <button onclick="delFilter(event, this.dataset.col)" data-col="${esc(col)}" title="Quitar filtro"><i class="fa-solid fa-xmark"></i></button>
+            `;
+            list.appendChild(chip);
+        });
+    }
+
+    function applyMultiFilter(btn) {
+        const dropdown = btn.closest('.filter-dropdown');
+        const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+        const values = Array.from(checkboxes).map(cb => cb.value);
+        const totalCheckboxes = dropdown.querySelectorAll('input[type="checkbox"]').length;
+        const col = btn.closest('.filter-card').querySelector('.filter-card-header').textContent;
+
+        if (values.length === 0 || values.length === totalCheckboxes) delete globalFilters[col];
+        else globalFilters[col] = values;
+
+        dropdown.classList.remove('show');
+        syncDashboard();
+    }
+
+    function clearMultiFilter(btn) {
+        const dropdown = btn.closest('.filter-dropdown');
+        dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    }
+
+    function applyGlobalFilter(col, val) {
+        if (globalFilters[col] === val) delete globalFilters[col];
+        else globalFilters[col] = val;
+        syncDashboard();
+    }
+    function clearAllFilters() { globalFilters = {}; syncDashboard(); }
+
+    let syncTimer = null;
+    function syncDashboard() {
+        updateFilterView();
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => { renderKPIs(); renderGallery(); }, 60);
+    }
+
+    function updateFilterView() {
+        const filtered = filterData(DATA_RAW);
+        const filteredEl = document.getElementById('filtered-count');
+        if (filteredEl) filteredEl.textContent = filtered.length.toLocaleString();
+        
+        // El botón de reset ahora es discreto y siempre está disponible junto al contador
+        const resetBtn = document.querySelector('.btn-reset-mini');
+        const hasFilters = Object.keys(globalFilters).length > 0;
+        if (resetBtn) {
+            resetBtn.style.opacity = hasFilters ? '1' : '0.3';
+            resetBtn.style.pointerEvents = hasFilters ? 'auto' : 'none';
+        }
+    }
+
+    function aggregate(config) {
+        const data = filterData(DATA_RAW);
+        const groups = {}; 
+        let totalVal = 0; 
+        let totalCount = 0;
+        
+        data.forEach(r => {
+            let cat = String(r[config.groupCol] || '(Blanco)').trim();
+            
+            // Auto-agrupación por fecha para Gráficos de Línea (día, mes o año)
+            if (config.type === 'line' && cat !== '(Blanco)') {
+                const gran = config.granularity || 'month';
+                let y, m, d;
+                let dm = cat.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})([T ]|$)/); // YYYY-MM-DD
+                if (dm) { y = dm[1]; m = +dm[2]; d = +dm[3]; }
+                else {
+                    let dr = cat.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})([T ]|$)/); // DD-MM-YYYY
+                    if (dr) { d = +dr[1]; m = +dr[2]; y = dr[3]; }
+                    else {
+                        let d2 = cat.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2})([T ]|$)/); // DD-MM-AA
+                        if (d2) { d = +d2[1]; m = +d2[2]; y = (d2[3] < 70 ? '20' : '19') + d2[3]; }
                     }
                 }
-            });
+                if (y !== undefined) {
+                    const mm = String(m).padStart(2, '0');
+                    const dd = String(d).padStart(2, '0');
+                    if (gran === 'year') cat = y;
+                    else if (gran === 'day') cat = `${y}-${mm}-${dd}`;
+                    else cat = `${y}-${mm}`; // month
+                }
+            }
 
-            // Chart Prioridad (Pie)
-            new Chart(document.getElementById('chart-prioridad'), {
-                type: 'pie',
-                data: {
-                    labels: Object.keys(prioridades),
-                    datasets: [{
-                        data: Object.values(prioridades),
-                        backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6', '#6b7280'],
-                        borderWidth: 0
-                    }]
-                },
-                options: chartOptions
-            });
+            if (!groups[cat]) { 
+                groups[cat] = { sum: 0, count: 0 }; 
+            }
+            
+            // Increment count for this group
+            groups[cat].count += 1;
+            totalCount += 1;
+            
+            // Increment sum for this group if a valCol is available
+            if (config.valCol) {
+                let v = parseFloat(r[config.valCol]) || 0;
+                groups[cat].sum += v;
+                totalVal += v;
+            }
+        });
 
-            // Chart Proyecto (Doughnut)
-            new Chart(document.getElementById('chart-proyecto'), {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(proyectos),
-                    datasets: [{
-                        data: Object.values(proyectos),
-                        backgroundColor: ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'],
-                        borderWidth: 0
-                    }]
-                },
-                options: chartOptions
-            });
+        // Determine which value to return based on the primary operation
+        let finalValues = {};
+        let finalTotal = 0;
 
-            // Trigger Lucide icons reload
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+        Object.keys(groups).forEach(k => {
+            if (config.op === 'count') {
+                finalValues[k] = groups[k].count;
+                finalTotal = totalCount;
+            } else if (config.op === 'avg') {
+                finalValues[k] = groups[k].sum / (groups[k].count || 1);
+                // Total average is sum of all / total count
+                finalTotal = totalVal / (totalCount || 1);
+            } else {
+                // sum or sum_soles
+                finalValues[k] = groups[k].sum;
+                finalTotal = totalVal;
+            }
+        });
 
-        } catch (err) {
-            console.error(err);
+        let sorted;
+        if (config.type === 'line') {
+            // Líneas temporales: Orden cronológico. Muestra más puntos si es por día.
+            const gran = config.granularity || 'month';
+            const maxPts = (gran === 'day') ? 90 : (gran === 'year') ? 12 : 36;
+            sorted = Object.entries(finalValues).sort((a, b) => a[0].localeCompare(b[0])).slice(-maxPts);
+        } else {
+            // Otros gráficos: Ordenados por los "Top" valores más altos
+            sorted = Object.entries(finalValues).sort((a, b) => b[1] - a[1]).slice(0, 15);
         }
-    });
+        
+        let totalStr = "";
+        if (config.op === 'sum_soles') {
+            totalStr = "S/. " + finalTotal.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        } else {
+            totalStr = finalTotal.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        }
+
+        return {
+            labels: sorted.map(i => i[0]),
+            values: sorted.map(i => i[1]),
+            rawGroups: groups, // Pass the full group data (sum & count) for tooltips
+            totalStr: totalStr
+        };
+    }
+
+
+    function draw(canvasId, labels, values, config, rawGroups = null) {
+        const ctxEl = document.getElementById(canvasId);
+        const ctx = ctxEl.getContext('2d');
+        if (galleryInstances[canvasId]) galleryInstances[canvasId].destroy();
+
+        let t = config.type; let axis = 'x';
+        if (t === 'horizontalBar') { t = 'bar'; axis = 'y'; }
+        if (t === 'pie') t = 'doughnut'; // Gráfico circular con hueco en el centro
+
+        // Premium Line Gradient Fill
+        let premiumLineFill = 'rgba(0, 122, 255, 0.1)'; // Default fallback
+        if (t === 'line' && ctxEl) {
+            let gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(0, 122, 255, 0.45)'); // Azul iOS
+            gradient.addColorStop(1, 'rgba(0, 122, 255, 0.0)'); // Transparente difuminado abajo
+            premiumLineFill = gradient;
+        }
+
+        // Dynamic Colors based on selection
+        const isDoughnut = (t === 'doughnut');
+        const activeFilterVal = globalFilters[config.groupCol];
+        const totalVal = values.reduce((a, b) => a + b, 0);
+        let maxIdx = -1, minIdx = -1;
+        if (isDoughnut && values.length > 1) {
+            maxIdx = values.indexOf(Math.max(...values));
+            minIdx = values.indexOf(Math.min(...values));
+            if (maxIdx === minIdx) { maxIdx = -1; minIdx = -1; }
+        }
+        const sliceColor = (i) => {
+            if (isDoughnut) {
+                if (i === maxIdx) return '#FF3B30'; // Mayor: rojo llamativo
+                if (i === minIdx) return '#8E8E93'; // Menor: gris
+                return PALETTE[i % PALETTE.length];
+            }
+            return BLUE;
+        };
+        const backgroundColors = labels.map((l, i) => {
+            const baseColor = sliceColor(i);
+            if (!activeFilterVal || (Array.isArray(activeFilterVal) && activeFilterVal.length === 0)) return baseColor;
+            
+            const isActive = Array.isArray(activeFilterVal) 
+                ? activeFilterVal.map(x => String(x).trim().toUpperCase()).includes(String(l).trim().toUpperCase()) 
+                : (String(l).trim().toUpperCase() === String(activeFilterVal).trim().toUpperCase());
+            return isActive ? baseColor : baseColor + '44'; // Add alpha transparency if not selected
+        });
+        const borderColors = labels.map((l, i) => {
+            const baseColor = sliceColor(i);
+            if (!activeFilterVal || (Array.isArray(activeFilterVal) && activeFilterVal.length === 0)) return baseColor;
+            
+            const isActive = Array.isArray(activeFilterVal) 
+                ? activeFilterVal.map(x => String(x).trim().toUpperCase()).includes(String(l).trim().toUpperCase()) 
+                : (String(l).trim().toUpperCase() === String(activeFilterVal).trim().toUpperCase());
+            return isActive ? baseColor : baseColor + '22';
+        });
+
+        const inst = new Chart(ctx, {
+            type: t,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: config.op.toUpperCase(),
+                    data: values,
+                    backgroundColor: t === 'line' ? premiumLineFill : backgroundColors,
+                    borderColor: t === 'line' ? BLUE : borderColors,
+                    borderWidth: t === 'line' ? 3 : 1, 
+                    borderRadius: t === 'line' ? 0 : 4,
+                    tension: t === 'line' ? 0.4 : 0, // Curvas muy suaves (Premium Feel)
+                    fill: t === 'line', // Activamos el fondo difuminado en líneas
+                    pointBackgroundColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: t === 'line' ? 4 : 0,
+                    pointHoverRadius: t === 'line' ? 6 : 0,
+                    pointBorderColor: BLUE
+                }]
+            },
+            options: {
+                indexAxis: axis, responsive: true, maintainAspectRatio: false,
+                cutout: t === 'doughnut' ? '62%' : 0,
+                plugins: {
+                    legend: { 
+                        display: t === 'doughnut', 
+                        position: 'right',
+                        onClick: () => {} 
+                    },
+                    centerText: { text: isDoughnut ? totalVal.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                let val = 0;
+                                if (context.parsed !== undefined) {
+                                    // If axis is 'x', it's a vertical chart, value is y.
+                                    // If axis is 'y', it's a horizontal chart, value is x.
+                                    val = (axis === 'x') ? context.parsed.y : context.parsed.x;
+                                    
+                                    // Fallback for pie/other charts where parsed is the value itself
+                                    if (val === undefined || val === null) val = context.parsed;
+                                }
+                                
+                                // Format primary metric
+                                let mainValStr = (val !== undefined && val !== null) ? val.toLocaleString() : "0";
+                                if (config.op === 'sum_soles') {
+                                    mainValStr = "S/. " + ((val !== undefined && val !== null) ? val.toLocaleString(undefined, {minimumFractionDigits:1}) : "0.0");
+                                }
+                                
+                                let finalLabel = `${label}: ${mainValStr}`;
+
+                                return finalLabel;
+                            }
+                        }
+                    },
+                    title: { display: false }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false // Makes elements more "magnetic" and easier to click
+                },
+                onClick: (e, items, chart) => {
+                    // Capture elements even if the click is slightly off-center using e.native
+                    const elements = items.length > 0 ? items : chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: false }, true);
+                    if (elements.length > 0) {
+                        const idx = elements[0].index;
+                        // Get the label directly from the chart configuration to avoid closure mismatches
+                        const label = chart.data.labels[idx];
+                        if (label) applyGlobalFilter(config.groupCol, label);
+                    }
+                },
+                onHover: (event, chartElement) => {
+                    event.native.target.style.cursor = chartElement.length ? 'pointer' : 'default';
+                }
+            }
+        });
+        galleryInstances[canvasId] = inst;
+    }
+
+    async function saveCurrentChart() {
+        const titleInput = document.getElementById('chart-title') ? document.getElementById('chart-title').value.trim() : '';
+        const defaultTitle = `${document.getElementById('op-selector').value.toUpperCase()} de ${document.getElementById('col-selector').value}`;
+        const granEl = document.getElementById('time-gran');
+        const cfg = {
+            id: 'chart_' + Date.now(),
+            groupCol: document.getElementById('col-selector').value,
+            op: document.getElementById('op-selector').value,
+            valCol: document.getElementById('val-selector').value,
+            type: currentPreviewType,
+            granularity: (granEl && currentPreviewType === 'line') ? granEl.value : 'month',
+            title: titleInput ? titleInput : defaultTitle
+        };
+        if (document.getElementById('chart-title')) {
+            document.getElementById('chart-title').value = '';
+        }
+        savedCharts.push(cfg);
+        await post('/api/master/dashboard_charts', savedCharts);
+        renderGallery();
+    }
+
+    async function saveKPI() {
+        const title = document.getElementById('kpi-title').value || "Métrica";
+        const cfg = {
+            id: 'kpi_' + Date.now(),
+            title: title,
+            op: document.getElementById('kpi-op').value,
+            valCol: document.getElementById('kpi-val-selector').value
+        };
+        savedKPIs.push(cfg);
+        await post('/api/master/dashboard_kpis', savedKPIs);
+        renderKPIs();
+    }
+
+    let defaultCharts = [];
+    let defaultKPIs = [];
+
+    function buildDefaults() {
+        if (savedCharts.length || savedKPIs.length || DATA_RAW.length === 0) return;
+        const cats = [];
+        COLS.filter(c => c !== '_key').forEach(c => {
+            let isNum = true, any = false;
+            for (let i = 0; i < Math.min(30, DATA_RAW.length); i++) {
+                const v = String(DATA_RAW[i][c] || '').trim();
+                if (v === '') continue; any = true;
+                if (!/^-?\d+(\.\d+)?$/.test(v)) { isNum = false; break; }
+            }
+            if (!isNum && any) {
+                const uniq = new Set(DATA_RAW.map(r => String(r[c] || '(Blanco)').trim()));
+                if (uniq.size >= 2 && uniq.size <= 25) cats.push(c);
+            }
+        });
+        if (cats.length === 0) return;
+        const g1 = cats[0], g2 = cats[Math.min(1, cats.length - 1)];
+        defaultCharts = [
+            { id: '_def_bar', groupCol: g1, op: 'count', valCol: null, type: 'bar', title: 'Distribución por ' + g1, _default: true },
+            { id: '_def_pie', groupCol: g2, op: 'count', valCol: null, type: 'pie', title: 'Composición de ' + g2, _default: true }
+        ];
+        defaultKPIs = [
+            { id: '_def_kpi', title: 'Registros totales', op: 'count', valCol: null, _default: true }
+        ];
+    }
+
+    function effectiveCharts() { return savedCharts.length ? savedCharts : defaultCharts; }
+    function effectiveKPIs() { return savedKPIs.length ? savedKPIs : defaultKPIs; }
+
+    function renderKPIs() {
+        const bar = document.getElementById('kpi-gallery');
+        bar.innerHTML = '';
+        const data = filterData(DATA_RAW);
+        const list = effectiveKPIs();
+
+        list.forEach(cfg => {
+            let total = 0;
+            let count = data.length;
+            
+            if (cfg.op === 'count') {
+                total = (cfg.valCol)
+                    ? data.filter(r => String(r[cfg.valCol] || '').trim() !== '').length
+                    : count;
+            } else {
+                data.forEach(r => total += (parseFloat(r[cfg.valCol]) || 0));
+                if (cfg.op === 'avg') total /= (count || 1);
+            }
+
+            let valStr = "";
+            let subStr = "";
+
+            if (cfg.op === 'sum_soles') {
+                valStr = "S/. " + total.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+                subStr = "";
+            } else if (cfg.op === 'sum') {
+                valStr = total.toLocaleString(undefined, { maximumFractionDigits: 1 });
+                subStr = "";
+            } else {
+                valStr = total.toLocaleString(undefined, { maximumFractionDigits: 1 });
+            }
+
+            const card = document.createElement('div');
+            card.className = 'kpi-card';
+            card.innerHTML = `
+                <div class="kpi-card-title">${esc(cfg.title)}</div>
+                <div class="kpi-card-val">${valStr}</div>
+                ${subStr}
+                ${(!IS_GESTOR && !cfg._default) ? `<button onclick="delKPI('${cfg.id}')" class="kpi-card-del"><i class="fa-solid fa-xmark"></i></button>` : ''}
+            `;
+            bar.appendChild(card);
+        });
+    }
+
+    function renderGallery() {
+        const gallery = document.getElementById('dashboard-gallery');
+        gallery.innerHTML = '';
+        const list = effectiveCharts();
+        if (list.length === 0) {
+            gallery.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--ios-gray-1);">Dashboard vacío. Añade gráficas desde el panel.</div>';
+            return;
+        }
+        list.forEach(cfg => {
+            const res = aggregate(cfg);
+            const card = document.createElement('div');
+            card.className = 'chart-card';
+            card.innerHTML = `
+                <div class="chart-card-header">
+                    <h4 class="chart-card-title" ${cfg._default ? '' : `contenteditable="true" onblur="updateChartTitle('${cfg.id}', this.innerText)"`} title="Haz clic para editar el título" style="cursor: text; border-bottom: 1px dashed #ccc; padding-bottom: 2px;">${esc(cfg.title)}</h4>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size: 11px; font-weight: bold; color: var(--excel-green);">${esc(res.totalStr)}</span>
+                        ${(!IS_GESTOR && !cfg._default) ? `<button onclick="delChart('${cfg.id}')" style="background:none;border:none;color: var(--ios-gray-2);cursor:pointer;"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                </div>
+                <div style="height: 180px;"><canvas id="canvas_${cfg.id}"></canvas></div>
+            `;
+            gallery.appendChild(card);
+            setTimeout(() => draw(`canvas_${cfg.id}`, res.labels, res.values, cfg, res.rawGroups), 0);
+        });
+    }
+
+    async function delChart(id) { savedCharts = savedCharts.filter(c => c.id !== id); await post('/api/master/dashboard_charts', savedCharts); renderGallery(); }
+    async function delKPI(id) { savedKPIs = savedKPIs.filter(k => k.id !== id); await post('/api/master/dashboard_kpis', savedKPIs); renderKPIs(); }
+
+    async function updateChartTitle(id, newTitle) {
+        newTitle = newTitle.trim();
+        if (!newTitle) return; // avoid empty titles
+        const chart = savedCharts.find(c => c.id === id);
+        if (chart && chart.title !== newTitle) {
+            chart.title = newTitle;
+            await post('/api/master/dashboard_charts', savedCharts);
+        }
+    }
+
+    async function post(url, body) {
+        try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+        catch (e) { console.error(e); }
+    }
 </script>
 {% endblock %}

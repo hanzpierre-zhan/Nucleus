@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Proyectos &mdash; Nucleus{% endblock %}
+
+{% block content %}
+<div class="wizard-container">
+    <h1 class="wizard-title"><i class="fa-solid fa-folder-open"></i> Gestión de Proyectos</h1>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;">
+        <!-- Proyectos Section -->
+        <div class="wizard-card">
+            <h2 style="font-size: 16px; margin-bottom: 20px; border-bottom: 2px solid var(--excel-green); padding-bottom: 10px; letter-spacing: -0.2px;">
+                <i class="fa-solid fa-folder-open"></i> Proyectos
+            </h2>
+
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table class="ios-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th style="width: 60px; text-align: right;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in proyectos %}
+                        <tr>
+                            <td>{{ p.id }}</td>
+                            <td style="font-weight: 600;">
+                                <i class="fa-solid {{ p.icono or 'fa-folder-open' }}" style="margin-right: 8px; color: var(--ios-blue);"></i>{{ p.nombre }}
+                                {% if p.nombre in ['FLM', 'PEXT', 'Dataper'] %}
+                                <span class="role-badge admin" title="Proyecto fijo">FIJO</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                {% if p.nombre not in ['FLM', 'PEXT', 'Dataper'] and session.get('rol') != 'demo' %}
+                                <button onclick="eliminarProyecto({{ p.id }}, '{{ p.nombre }}')" class="btn-icon btn-danger" title="Eliminar Proyecto">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p style="font-size: 11px; color: var(--ios-gray-1); margin-top: 10px;">
+                <i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Los proyectos FLM, PEXT y Dataper son fijos y no se pueden eliminar.
+            </p>
+        </div>
+
+        <!-- Técnicos Section -->
+        <div class="wizard-card">
+            <h2 style="font-size: 16px; margin-bottom: 20px; border-bottom: 2px solid var(--excel-green); padding-bottom: 10px; letter-spacing: -0.2px;">
+                <i class="fa-solid fa-helmet-safety"></i> Técnicos por Proyecto
+            </h2>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-size: 11px; color: var(--ios-gray-1); display: block; margin-bottom: 5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;">Proyecto:</label>
+                <select id="tecnico-proj-id" onchange="cargarTecnicos()" class="nucleus-control" style="width: 100%; margin-bottom: 15px;">
+                    <option value="">-- Seleccionar Proyecto --</option>
+                    {% for p in proyectos %}
+                    <option value="{{ p.id }}">{{ p.nombre }}</option>
+                    {% endfor %}
+                </select>
+
+                <div id="form-nuevo-tecnico" style="display:none; border: 1px solid var(--excel-border); padding: 16px; border-radius: 16px; background: var(--ios-fill); margin-top: 10px;">
+                    <div class="nucleus-form-row">
+                        <input type="text" id="tec-nombre" placeholder="Nombre del técnico" class="nucleus-control" style="width: 100%;">
+                    </div>
+                    <div class="nucleus-form-row">
+                        <input type="text" id="tec-contrata" placeholder="Contrata" class="nucleus-control" style="width: 100%;">
+                    </div>
+                    <div class="nucleus-form-row">
+                        <input type="text" id="tec-especialidad" placeholder="Especialidad" class="nucleus-control" style="width: 100%;">
+                    </div>
+                    <div class="nucleus-form-row">
+                        <input type="text" id="tec-telefono" placeholder="Teléfono" class="nucleus-control" style="width: 100%;">
+                    </div>
+                    {% if session.get('rol') != 'demo' %}
+                    <button onclick="agregarTecnico()" class="btn-action" style="width: 100%;">AGREGAR TÉCNICO</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div id="tecnicos-lista-container" style="display:none; max-height: 300px; overflow-y: auto;">
+                <table class="ios-table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Contrata</th>
+                            <th>Especialidad</th>
+                            <th>Teléfono</th>
+                            <th style="width: 30px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tecnicos-lista-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function eliminarProyecto(id, nombre) {
+    if(!confirm(`¿Estás SEGURO de eliminar el proyecto "${nombre}"?\n\n¡SE BORRARÁN TODOS SUS DATOS E IMPORTACIONES DE FORMA IRREVERSIBLE!`)) return;
+
+    fetch('/api/admin/proyecto', {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+    }).then(r=>r.json()).then(res => {
+        if(res.success) location.reload();
+        else alert(res.error);
+    });
+}
+
+function cargarTecnicos() {
+    const pid = document.getElementById('tecnico-proj-id').value;
+    const form = document.getElementById('form-nuevo-tecnico');
+    const container = document.getElementById('tecnicos-lista-container');
+    const body = document.getElementById('tecnicos-lista-body');
+
+    if(!pid) {
+        form.style.display = 'none';
+        container.style.display = 'none';
+        return;
+    }
+
+    form.style.display = 'block';
+    container.style.display = 'block';
+    body.innerHTML = '<tr><td colspan="5" style="padding:10px; text-align:center;">Cargando...</td></tr>';
+
+    fetch(`/api/tecnicos?proyecto_id=${pid}`)
+        .then(r => r.json())
+        .then(data => {
+            body.innerHTML = '';
+            if(data.length === 0) {
+                body.innerHTML = '<tr><td colspan="5" style="padding:10px; text-align:center; color: var(--ios-gray-1);">Sin técnicos registrados.</td></tr>';
+                return;
+            }
+            data.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--excel-cell-border)';
+                tr.innerHTML = `
+                    <td style="padding: 8px; font-weight:600;">${t.nombre}</td>
+                    <td style="padding: 8px;">${t.contrata || ''}</td>
+                    <td style="padding: 8px;">${t.especialidad || ''}</td>
+                    <td style="padding: 8px;">${t.telefono || ''}</td>
+                    <td style="padding: 8px; text-align:right;">
+                        {% if session.get('rol') != 'demo' %}
+                        <button onclick="eliminarTecnico(${t.id})" class="btn-icon btn-danger" title="Eliminar técnico"><i class="fa-solid fa-trash-can"></i></button>
+                        {% endif %}
+                    </td>
+                `;
+                body.appendChild(tr);
+            });
+        });
+}
+
+function agregarTecnico() {
+    const pid = document.getElementById('tecnico-proj-id').value;
+    const nombre = document.getElementById('tec-nombre').value;
+    const contrata = document.getElementById('tec-contrata').value;
+    const especialidad = document.getElementById('tec-especialidad').value;
+    const telefono = document.getElementById('tec-telefono').value;
+
+    if(!pid) return alert("Seleccione un proyecto");
+    if(!nombre.trim()) return alert("Nombre requerido");
+
+    fetch('/api/tecnicos', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({proyecto_id: pid, nombre: nombre, contrata: contrata, especialidad: especialidad, telefono: telefono})
+    }).then(r => r.json()).then(res => {
+        if(res.success) {
+            document.getElementById('tec-nombre').value = '';
+            document.getElementById('tec-contrata').value = '';
+            document.getElementById('tec-especialidad').value = '';
+            document.getElementById('tec-telefono').value = '';
+            cargarTecnicos();
+        } else {
+            alert(res.error);
+        }
+    });
+}
+
+function eliminarTecnico(id) {
+    if(!confirm("¿Eliminar este técnico?")) return;
+    fetch('/api/tecnicos', {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+    }).then(r => r.json()).then(res => {
+        if(res.success) cargarTecnicos();
+        else alert(res.error);
+    });
+}
+</script>
+{% endblock %}
