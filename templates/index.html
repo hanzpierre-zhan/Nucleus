@@ -765,6 +765,31 @@
         return total;
     };
 
+    const computarSla = (row) => {
+        const creation = parseDate(getRowVal(row, "Fecha de creación (WO Creation date)") || getRowVal(row, "creation date") || getRowVal(row, "fecha_ticket"));
+        if (!creation) return null;
+        const stateVal = String(getRowVal(row, "wo state") || getRowVal(row, "estado") || '').trim().toLowerCase();
+        let endDate = null;
+        if (stateVal === 'closed') {
+            endDate = parseDate(getRowVal(row, "Fecha closed") || getRowVal(row, "Fecha de closed") || getRowVal(row, "close") || getRowVal(row, "cierre"));
+        } else if (stateVal === 'canceled' || stateVal === 'rejected') {
+            endDate = parseDate(getRowVal(row, "Fecha cancelación WO") || getRowVal(row, "Fecha cancelacion WO") || getRowVal(row, "cancel"));
+            if (!endDate) {
+                endDate = parseDate(row.getData()['_fecha_cancel_reject']);
+            }
+        } else {
+            endDate = new Date();
+        }
+        if (!endDate) return null;
+        const diffMs = Math.max(0, endDate.getTime() - creation.getTime());
+        return {
+            stateVal: stateVal,
+            diffMs: diffMs,
+            mins: Math.floor(diffMs / 60000),
+            isActive: !['closed', 'canceled', 'rejected'].includes(stateVal)
+        };
+    };
+
     const formatHoursMins = (mins) => {
         if (mins === null || mins === undefined || isNaN(mins)) return "";
         const hrs = Math.floor(mins / 60);
@@ -790,12 +815,13 @@
         return parts.join(' ');
     };
 
-    // Ensure SLA column exists in rawCols dynamically, except for Dataper
+    // Ensure SLA columns exist in rawCols dynamically, except for Dataper
     if (currentProjectNombre.trim().toLowerCase() !== 'dataper') {
-        const slaName = "SLA";
-        if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
-            rawCols.push(slaName);
-        }
+        ["SLA", "SLA Cumplimiento"].forEach(slaName => {
+            if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
+                rawCols.push(slaName);
+            }
+        });
     }
 
     const kpiColumns = [];
@@ -1038,47 +1064,25 @@
             colDef.width = 130;
             colDef.formatter = function(cell) {
                 const row = cell.getRow();
-                const creation = parseDate(getRowVal(row, "Fecha de creación (WO Creation date)") || getRowVal(row, "creation date") || getRowVal(row, "fecha_ticket"));
-                if (!creation) return "";
+                const info = computarSla(row);
+                if (!info) return "";
 
-                const stateVal = String(getRowVal(row, "wo state") || getRowVal(row, "estado") || '').trim().toLowerCase();
-                let endDate = null;
-                if (stateVal === 'closed') {
-                    endDate = parseDate(getRowVal(row, "Fecha closed") || getRowVal(row, "Fecha de closed") || getRowVal(row, "close") || getRowVal(row, "cierre"));
-                } else if (stateVal === 'canceled' || stateVal === 'rejected') {
-                    endDate = parseDate(getRowVal(row, "Fecha cancelación WO") || getRowVal(row, "Fecha cancelacion WO") || getRowVal(row, "cancel"));
-                    if (!endDate) {
-                        endDate = parseDate(row.getData()['_fecha_cancel_reject']);
-                    }
-                } else {
-                    endDate = new Date();
-                }
-                if (!endDate) return "";
-
-                const diffMs = Math.max(0, endDate.getTime() - creation.getTime());
-                const mins = Math.floor(diffMs / 60000);
-                const isActive = !['closed', 'canceled', 'rejected'].includes(stateVal);
-                const txt = isActive ? formatHoursMinsSecs(diffMs) : formatHoursMins(mins);
+                const txt = info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins);
                 const slaLimit = getSlaThreshold(row);
-                const pct = slaLimit > 0 ? (mins / slaLimit) * 100 : 0;
+                const pct = slaLimit > 0 ? (info.mins / slaLimit) * 100 : 0;
 
-                if (stateVal === 'closed') {
-                    if (mins <= slaLimit) {
-                        cell.getElement().style.background = "#0A84FF";
-                        cell.getElement().style.color = "#FFFFFF";
-                        cell.getElement().style.fontWeight = "800";
-                    } else {
-                        cell.getElement().style.background = "#000000";
-                        cell.getElement().style.color = "#FFFFFF";
-                        cell.getElement().style.fontWeight = "800";
-                    }
+                if (info.stateVal === 'closed') {
+                    const cumplio = slaLimit > 0 && info.mins <= slaLimit;
+                    cell.getElement().style.background = cumplio ? "#28A745" : "#DC3545";
+                    cell.getElement().style.color = "#FFFFFF";
+                    cell.getElement().style.fontWeight = "800";
                     cell.getElement().setAttribute("title", `SLA: ${txt} (Límite SLA: ${formatHoursMins(slaLimit)})`);
-                } else if (stateVal === 'canceled' || stateVal === 'rejected') {
+                } else if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
                     // Informativo, sin semáforo
                     cell.getElement().style.background = "";
                     cell.getElement().style.color = "";
                     cell.getElement().style.fontWeight = "";
-                    cell.getElement().setAttribute("title", `Cancelado (creación → ${stateVal}): ${txt}`);
+                    cell.getElement().setAttribute("title", `Cancelado (creación → ${info.stateVal}): ${txt}`);
                 } else {
                     let bg, fg;
                     if (pct < 50) { bg = "#28A745"; fg = "#FFFFFF"; }
@@ -1090,6 +1094,25 @@
                     cell.getElement().setAttribute("title", `SLA: ${txt} (${pct.toFixed(0)}% del objetivo ${formatHoursMins(slaLimit)})`);
                 }
                 return txt;
+            };
+        }
+
+        // SLA Cumplimiento: cerradas/en curso → cumplió o no; canceladas/rejected → NO APLICA.
+        if (fieldName && fieldName.trim() === "SLA Cumplimiento") {
+            colDef.width = 150;
+            colDef.formatter = function(cell) {
+                const row = cell.getRow();
+                const info = computarSla(row);
+                if (!info) return "";
+                const slaLimit = getSlaThreshold(row);
+                if (slaLimit <= 0) return "";
+                if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
+                    return `<span style="background:#8E8E93; color:#fff; padding:3px 10px; border-radius:12px; font-weight:800; font-size:11px; display:inline-block;">NO APLICA</span>`;
+                }
+                const cumplio = info.mins <= slaLimit;
+                const bg = cumplio ? "#28A745" : "#DC3545";
+                const texto = cumplio ? "SLA CUMPLIO" : "SLA NO CUMPLIO";
+                return `<span style="background:${bg}; color:#fff; padding:3px 10px; border-radius:12px; font-weight:800; font-size:11px; display:inline-block;">${texto}</span>`;
             };
         }
 
@@ -2261,7 +2284,7 @@
     // Real-time SLA update every second
     setInterval(() => {
         if (typeof table !== 'undefined' && table) {
-            ["SLA"].forEach(slaName => {
+            ["SLA", "SLA Cumplimiento"].forEach(slaName => {
                 const slaCol = table.getColumn(slaName);
                 if (slaCol) {
                     slaCol.getCells().forEach(cell => {
