@@ -1278,6 +1278,16 @@ def api_import_process():
                 if new_state and new_state != old_state:
                     current_data[STATE_TS_COL] = now_str
                     dynamic_cols.add(STATE_TS_COL)
+                    db.session.add(HistorialCambios(
+                        proyecto_id=pid,
+                        usuario_id=None,
+                        username='IMPORT',
+                        key_value=key_val,
+                        campo_modificado=WO_STATE_COL,
+                        valor_anterior=old_state,
+                        valor_nuevo=new_state,
+                        fecha=datetime.utcnow()
+                    ))
                 if new_state_l in DISPATCHED_STATES and not current_data.get(DISPATCHED_TS_COL):
                     current_data[DISPATCHED_TS_COL] = now_str
                 if new_state_l in TERMINAL_STATES and not current_data.get(CANCEL_REJECT_TS_COL):
@@ -1293,6 +1303,16 @@ def api_import_process():
                 if init_state:
                     current_data[STATE_TS_COL] = now_str
                     dynamic_cols.add(STATE_TS_COL)
+                    db.session.add(HistorialCambios(
+                        proyecto_id=pid,
+                        usuario_id=None,
+                        username='IMPORT',
+                        key_value=key_val,
+                        campo_modificado=WO_STATE_COL,
+                        valor_anterior='',
+                        valor_nuevo=str(current_data.get(WO_STATE_COL, '')).strip(),
+                        fecha=datetime.utcnow()
+                    ))
                 if init_state in DISPATCHED_STATES:
                     current_data[DISPATCHED_TS_COL] = now_str
                 if init_state in TERMINAL_STATES:
@@ -1879,6 +1899,8 @@ def api_rows_update():
                 valor_nuevo=str(value)
             )
             db.session.add(historial)
+            if str(field).strip() == 'Estado de la tarea (WO State)':
+                row_dict['FECHA CAMBIO ESTADO'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         row_dict[field] = value
         row_dict['_ultimo_usuario_manual'] = session.get('username')

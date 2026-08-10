@@ -379,6 +379,7 @@
                 <div class="wo-tabs" style="margin-bottom:0;">
                     <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i class="fa-solid fa-list-ul"></i> Detalle</button>
                     <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
+                    <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i class="fa-solid fa-arrows-spin"></i> Estado</button>
                 </div>
             </div>
             <div class="wo-head-actions">
@@ -488,6 +489,14 @@
                         <button type="button" class="wo-history-btn" title="Actualizar historial" onclick="cargarWoHistorial()"><i class="fa-solid fa-rotate"></i></button>
                     </div>
                     <div id="wo-historial" class="wo-timeline"><div class="wo-empty">Cargando historial...</div></div>
+                </div>
+            </div>
+            <div id="wo-panel-estado" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-arrows-spin"></i> Historial de estados
+                        <button type="button" class="wo-history-btn" title="Actualizar estados" onclick="cargarWoEstado()"><i class="fa-solid fa-rotate"></i></button>
+                    </div>
+                    <div id="wo-estado" class="wo-timeline"><div class="wo-empty">Cargando estados...</div></div>
                 </div>
             </div>
         </div>
@@ -781,13 +790,12 @@
         return parts.join(' ');
     };
 
-    // Ensure SLA columns exist in rawCols dynamically, except for Dataper
+    // Ensure SLA column exists in rawCols dynamically, except for Dataper
     if (currentProjectNombre.trim().toLowerCase() !== 'dataper') {
-        ["SLA Despacho", "SLA Operativo"].forEach(slaName => {
-            if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
-                rawCols.push(slaName);
-            }
-        });
+        const slaName = "SLA";
+        if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
+            rawCols.push(slaName);
+        }
     }
 
     const kpiColumns = [];
@@ -1025,38 +1033,20 @@
             };
         }
 
-        // SLA Despacho: creación (unscheduled) → dispatched
-        if (fieldName && fieldName.trim() === "SLA Despacho") {
+        // SLA: creación → closed. Si está canceled/rejected, usa la fecha de cancelación WO.
+        if (fieldName && fieldName.trim() === "SLA") {
             colDef.width = 130;
             colDef.formatter = function(cell) {
                 const row = cell.getRow();
-                const creation = parseDate(getRowVal(row, "creation date") || getRowVal(row, "creación") || getRowVal(row, "fecha_ticket"));
-                const dispatched = getDispatchedDate(row);
-                if (!creation || !dispatched) return "";
-                const mins = Math.max(0, Math.floor((dispatched.getTime() - creation.getTime()) / 60000));
-                const txt = formatHoursMins(mins);
-                cell.getElement().setAttribute("title", `Creación → Dispatched: ${txt}`);
-                return txt;
-            };
-        }
-
-        // SLA Operativo: dispatched → closed (restando suspensiones).
-        // Si el estado es canceled/rejected muestra el tiempo hasta ese cambio (informativo, no cuenta como SLA).
-        if (fieldName && fieldName.trim() === "SLA Operativo") {
-            colDef.width = 130;
-            colDef.formatter = function(cell) {
-                const row = cell.getRow();
-                const dispatched = getDispatchedDate(row);
-                if (!dispatched) return "";
+                const creation = parseDate(getRowVal(row, "Fecha de creación (WO Creation date)") || getRowVal(row, "creation date") || getRowVal(row, "fecha_ticket"));
+                if (!creation) return "";
 
                 const stateVal = String(getRowVal(row, "wo state") || getRowVal(row, "estado") || '').trim().toLowerCase();
-                const suspension = getSuspensionMs(row);
-
                 let endDate = null;
                 if (stateVal === 'closed') {
-                    endDate = parseDate(getRowVal(row, "close") || getRowVal(row, "cierre"));
+                    endDate = parseDate(getRowVal(row, "Fecha closed") || getRowVal(row, "Fecha de closed") || getRowVal(row, "close") || getRowVal(row, "cierre"));
                 } else if (stateVal === 'canceled' || stateVal === 'rejected') {
-                    endDate = parseDate(getRowVal(row, "cancel") || getRowVal(row, "reject"));
+                    endDate = parseDate(getRowVal(row, "Fecha cancelación WO") || getRowVal(row, "Fecha cancelacion WO") || getRowVal(row, "cancel"));
                     if (!endDate) {
                         endDate = parseDate(row.getData()['_fecha_cancel_reject']);
                     }
@@ -1065,7 +1055,7 @@
                 }
                 if (!endDate) return "";
 
-                const diffMs = Math.max(0, endDate.getTime() - dispatched.getTime() - suspension);
+                const diffMs = Math.max(0, endDate.getTime() - creation.getTime());
                 const mins = Math.floor(diffMs / 60000);
                 const isActive = !['closed', 'canceled', 'rejected'].includes(stateVal);
                 const txt = isActive ? formatHoursMinsSecs(diffMs) : formatHoursMins(mins);
@@ -1073,7 +1063,6 @@
                 const pct = slaLimit > 0 ? (mins / slaLimit) * 100 : 0;
 
                 if (stateVal === 'closed') {
-                    // Objetivo cumplido → azul; no cumplido → negro
                     if (mins <= slaLimit) {
                         cell.getElement().style.background = "#0A84FF";
                         cell.getElement().style.color = "#FFFFFF";
@@ -1083,15 +1072,14 @@
                         cell.getElement().style.color = "#FFFFFF";
                         cell.getElement().style.fontWeight = "800";
                     }
-                    cell.getElement().setAttribute("title", `Operativo: ${txt} (Límite SLA: ${formatHoursMins(slaLimit)})`);
+                    cell.getElement().setAttribute("title", `SLA: ${txt} (Límite SLA: ${formatHoursMins(slaLimit)})`);
                 } else if (stateVal === 'canceled' || stateVal === 'rejected') {
                     // Informativo, sin semáforo
                     cell.getElement().style.background = "";
                     cell.getElement().style.color = "";
                     cell.getElement().style.fontWeight = "";
-                    cell.getElement().setAttribute("title", `Informativo (dispatched → ${stateVal}): ${txt}`);
+                    cell.getElement().setAttribute("title", `Cancelado (creación → ${stateVal}): ${txt}`);
                 } else {
-                    // Activo: semáforo por porcentaje del objetivo
                     let bg, fg;
                     if (pct < 50) { bg = "#28A745"; fg = "#FFFFFF"; }
                     else if (pct < 80) { bg = "#FFC107"; fg = "#212529"; }
@@ -1099,7 +1087,7 @@
                     cell.getElement().style.background = bg;
                     cell.getElement().style.color = fg;
                     cell.getElement().style.fontWeight = "800";
-                    cell.getElement().setAttribute("title", `Operativo: ${txt} (${pct.toFixed(0)}% del objetivo ${formatHoursMins(slaLimit)})`);
+                    cell.getElement().setAttribute("title", `SLA: ${txt} (${pct.toFixed(0)}% del objetivo ${formatHoursMins(slaLimit)})`);
                 }
                 return txt;
             };
@@ -1996,10 +1984,14 @@
     function cambiarWoTab(tab) {
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         document.getElementById('wo-tab-historial').classList.toggle('active', tab === 'historial');
+        document.getElementById('wo-tab-estado').classList.toggle('active', tab === 'estado');
         document.getElementById('wo-panel-detalle').style.display = tab === 'detalle' ? '' : 'none';
         document.getElementById('wo-panel-historial').style.display = tab === 'historial' ? '' : 'none';
+        document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
         if (tab === 'historial') {
             cargarWoHistorial();
+        } else if (tab === 'estado') {
+            cargarWoEstado();
         }
     }
 
@@ -2101,6 +2093,61 @@
                         '<span class="wt-new">' + (newV ? escapeHtml(newV) : '(vacío)') + '</span>' +
                     '</div>' +
                     '<div class="wt-grid">' + gridCells + '</div>' +
+                '</div>';
+            cont.appendChild(item);
+        });
+    }
+
+    function cargarWoEstado() {
+        if (!woKey) return;
+        const cont = document.getElementById('wo-estado');
+        if (!cont) return;
+        cont.innerHTML = '<div class="wo-empty">Cargando estados...</div>';
+        fetch('/api/wo/historial?key=' + encodeURIComponent(woKey))
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) {
+                    cont.innerHTML = '<div class="wo-empty">Error al cargar los estados.</div>';
+                    return;
+                }
+                const estados = (res.historial || []).filter(it =>
+                    normKey(it.campo) === normKey('Estado de la tarea (WO State)'));
+                renderWoEstado(cont, estados);
+            })
+            .catch(() => {
+                cont.innerHTML = '<div class="wo-empty">Error de red al cargar los estados.</div>';
+            });
+    }
+
+    function renderWoEstado(cont, items) {
+        if (!items || items.length === 0) {
+            cont.innerHTML = '<div class="wo-empty">Sin cambios de estado registrados.</div>';
+            return;
+        }
+        cont.innerHTML = '';
+        items.forEach(it => {
+            let fechaStr = '';
+            if (it.fecha) {
+                const f = new Date(it.fecha);
+                if (!isNaN(f)) {
+                    fechaStr = f.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            }
+            const newV = String(it.valor_nuevo || '');
+            const color = WO_STATE_COLORS[newV.trim().toLowerCase()] || { bg: '#8E8E93', fg: '#8E8E93' };
+            const item = document.createElement('div');
+            item.className = 'wt-item';
+            item.innerHTML =
+                '<div class="wt-card">' +
+                    '<div class="wt-head">' +
+                        '<span class="wt-agent"><i class="fa-solid fa-arrows-spin"></i> Cambio de estado</span>' +
+                        '<span class="wt-time">' + fechaStr + '</span>' +
+                    '</div>' +
+                    '<div class="wt-change">' +
+                        '<span class="wt-old">' + (it.valor_anterior ? escapeHtml(it.valor_anterior) : '(inicial)') + '</span>' +
+                        '<span class="wt-arrow">→</span>' +
+                        '<span class="wt-new" style="background:' + color.bg + '; color:#fff; padding:2px 10px; border-radius:12px; font-weight:700;">' + escapeHtml(newV || '(vacío)') + '</span>' +
+                    '</div>' +
                 '</div>';
             cont.appendChild(item);
         });
@@ -2214,7 +2261,7 @@
     // Real-time SLA update every second
     setInterval(() => {
         if (typeof table !== 'undefined' && table) {
-            ["SLA Despacho", "SLA Operativo"].forEach(slaName => {
+            ["SLA"].forEach(slaName => {
                 const slaCol = table.getColumn(slaName);
                 if (slaCol) {
                     slaCol.getCells().forEach(cell => {
