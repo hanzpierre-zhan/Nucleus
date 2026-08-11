@@ -1715,13 +1715,8 @@
     }
 
     function isWoColumn(field) {
-        const f = String(field || '').trim().toLowerCase();
         if (!IS_PEXT) return false;
-        if (!f) return false;
-        if (f === '_key') return true;
-        if (f.startsWith('kpi_')) return false;
-        if (f.includes('wo state')) return false;
-        return f.includes('wo') || f.includes('número de wo') || f.includes('numero de wo');
+        return String(field || '').trim().toLowerCase() === '_key';
     }
 
     table.on("cellClick", function(e, cell) {

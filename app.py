@@ -13,9 +13,14 @@ from collections import Counter
 # Setup Flask application
 app = Flask(__name__)
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(BASE_DIR, "nucleus.db")
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+else:
+    db_path = os.path.join(BASE_DIR, "nucleus.db")
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nucleus_dev_key_change_me')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 MB
 
@@ -302,6 +307,7 @@ def apply_data_restrictions(data_list, res_obj):
 
 # --- DB INIT & MIGRATION ---
 with app.app_context():
+    is_sqlite = db.engine.dialect.name == 'sqlite'
     # Detect if we need to migrate or just create
     from sqlalchemy import inspect
     inspector = inspect(db.engine)
@@ -317,7 +323,7 @@ with app.app_context():
         if 'proyecto_id' not in cols:
             needs_migration = True
 
-    if needs_migration and not has_old:
+    if is_sqlite and needs_migration and not has_old:
         print("Migrating database to Multi-Project schema...")
         # Simple migration: Rename old and copy
         db.session.execute(db.text("ALTER TABLE nucleus_data RENAME TO nucleus_data_old"))
@@ -354,7 +360,7 @@ with app.app_context():
         # Reuse an existing project as target for any legacy migration
         pangeaco = Proyecto.query.first()
         
-    if has_old:
+    if is_sqlite and has_old:
         pid = pangeaco.id
         print("Restoring data from old tables...")
         # Move data from old tables
@@ -1293,7 +1299,7 @@ def api_import_process():
                 if new_state_l in TERMINAL_STATES and not current_data.get(CANCEL_REJECT_TS_COL):
                     current_data[CANCEL_REJECT_TS_COL] = now_str
             else:
-                if import_type in ('cruce', 'manual_cols'):
+                if import_type == 'cruce':
                     schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
                     schema_val = json.loads(schema_config.valor) if schema_config else []
                     if schema_val:
