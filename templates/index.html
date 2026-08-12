@@ -283,6 +283,19 @@
         transition: all .15s ease;
     }
     .wo-material-del:hover { background: #FFD3D3; }
+    .wo-gasto-row {
+        display: grid; grid-template-columns: minmax(160px, 1fr) 130px 34px;
+        gap: 8px; align-items: center; margin-bottom: 8px;
+    }
+    .wo-gasto-row input[type="number"],
+    .wo-gasto-row input[type="text"] {
+        width: 100%; padding: 8px 10px; border-radius: 10px;
+        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
+        font-family: inherit; font-size: 12.5px; color: var(--ios-label);
+        outline: none;
+    }
+    .wo-gasto-row input[type="number"]:focus,
+    .wo-gasto-row input[type="text"]:focus { border-color: var(--ios-blue); }
     .wo-header { align-items: center; flex-wrap: wrap; gap: 10px 14px; }
     .wo-header .wo-title { margin: 0; font-size: 15px; white-space: nowrap; }
     .wo-header .wo-tabs { flex-shrink: 0; }
@@ -441,6 +454,7 @@
                 <div class="wo-tabs" style="margin-bottom:0;">
                     <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i class="fa-solid fa-list-ul"></i> Detalle</button>
                     <button type="button" class="wo-tab" id="wo-tab-material" onclick="cambiarWoTab('material')"><i class="fa-solid fa-toolbox"></i> Material</button>
+                    <button type="button" class="wo-tab" id="wo-tab-cotizacion" onclick="cambiarWoTab('cotizacion')"><i class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i class="fa-solid fa-camera"></i> Evidencia</button>
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i class="fa-solid fa-arrows-spin"></i> Estado</button>
                     <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
@@ -529,14 +543,6 @@
                         <label><i class="fa-solid fa-stop"></i> Fin de parada</label>
                         <input type="datetime-local" id="wo-fin-parada">
                     </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-hand-holding-dollar"></i> Monto aprobado</label>
-                        <input type="number" id="wo-monto-aprobado" step="0.01" min="0" placeholder="0.00">
-                    </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-circle-dollar-to-slot"></i> Monto gastando</label>
-                        <input type="number" id="wo-monto-gastando" step="0.01" min="0" placeholder="0.00">
-                    </div>
                     <div class="wo-field full">
                         <label><i class="fa-solid fa-book"></i> Bitácora</label>
                         <textarea id="wo-bitacora" placeholder="Registrar novedades del trabajo..."></textarea>
@@ -549,6 +555,23 @@
                     <div class="wo-section-title"><i class="fa-solid fa-toolbox"></i> Materiales usados en la obra</div>
                     <div id="wo-material-list"><div class="wo-empty">Cargando...</div></div>
                     <button type="button" id="btn-wo-agregar-material" class="mar-btn-ghost" onclick="agregarFilaMaterial()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar material</button>
+                </div>
+            </div>
+            <div id="wo-panel-cotizacion" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-form">
+                        <div class="wo-field">
+                            <label><i class="fa-solid fa-hand-holding-dollar"></i> Monto aprobado (S/)</label>
+                            <input type="number" id="wo-monto-aprobado" step="0.01" min="0" placeholder="0.00">
+                        </div>
+                        <div class="wo-field">
+                            <label><i class="fa-solid fa-circle-dollar-to-slot"></i> Monto gastado total (S/)</label>
+                            <input type="number" id="wo-monto-gastando" step="0.01" min="0" placeholder="0.00" readonly title="Se calcula con los gastos registrados">
+                        </div>
+                    </div>
+                    <div class="wo-section-title" style="margin-top:16px;"><i class="fa-solid fa-receipt"></i> Gastos registrados</div>
+                    <div id="wo-gastos-list"><div class="wo-empty">Sin gastos registrados.</div></div>
+                    <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost" onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar gasto</button>
                 </div>
             </div>
             <div id="wo-panel-historial" style="display:none;">
@@ -2515,6 +2538,7 @@
         const isDemo = "{{ session.get('rol') }}" === "demo";
         const editable = !isDemo;
         woEditable = editable;
+        renderWoGastosList(data);
         document.querySelectorAll('.wo-form input, .wo-form select, .wo-form textarea').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => { el.disabled = !editable; });
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
@@ -2522,6 +2546,8 @@
         document.getElementById('btn-servicios').style.display = (editable && canEditServicios) ? '' : 'none';
         const btnAgMat = document.getElementById('btn-wo-agregar-material');
         if (btnAgMat) btnAgMat.style.display = editable ? '' : 'none';
+        const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
+        if (btnAgGasto) btnAgGasto.style.display = editable ? '' : 'none';
 
         initEvidencia(data);
         document.getElementById('modal-wo').style.display = 'flex';
@@ -2545,6 +2571,11 @@
             if (!key) return;
             let v = data[key];
             if (key === 'FECHA CAMBIO ESTADO') v = utcToPeru(v);
+            if (key === 'MONTO APROBADO' || key === 'MONTO GASTANDO') {
+                if (v !== '' && v !== null && v !== undefined && !isNaN(parseFloat(v))) {
+                    v = 'S/ ' + (parseFloat(v) % 1 === 0 ? parseFloat(v) : parseFloat(v).toFixed(2));
+                }
+            }
             if (v === '' || v === null || v === undefined) return;
             items.push({ k: key, v: v });
         });
@@ -2714,6 +2745,108 @@
         return items;
     }
 
+    function agregarFilaGasto(descripcion, monto) {
+        const cont = document.getElementById('wo-gastos-list');
+        if (!cont) return;
+        const emptyMsg = cont.querySelector('.wo-empty');
+        if (emptyMsg) emptyMsg.remove();
+
+        const row = document.createElement('div');
+        row.className = 'wo-gasto-row';
+
+        const desc = document.createElement('input');
+        desc.type = 'text';
+        desc.placeholder = '¿Qué estás gastando?';
+        desc.value = descripcion || '';
+        row.appendChild(desc);
+
+        const montoInp = document.createElement('input');
+        montoInp.type = 'number';
+        montoInp.min = '0';
+        montoInp.step = '0.01';
+        montoInp.placeholder = 'Monto (S/)';
+        montoInp.value = monto || '';
+        row.appendChild(montoInp);
+
+        const recalc = () => calcularMontoGastado();
+        desc.addEventListener('input', recalc);
+        montoInp.addEventListener('input', recalc);
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'wo-material-del';
+        del.title = 'Quitar gasto';
+        del.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+        del.onclick = () => {
+            row.remove();
+            calcularMontoGastado();
+            if (!cont.querySelector('.wo-gasto-row')) {
+                cont.innerHTML = '<div class="wo-empty">Sin gastos registrados. Usa "Agregar gasto" para registrar lo que vas gastando.</div>';
+            }
+        };
+        row.appendChild(del);
+
+        if (!woEditable) {
+            desc.disabled = true;
+            montoInp.disabled = true;
+            del.disabled = true;
+            del.style.display = 'none';
+        }
+
+        cont.appendChild(row);
+        calcularMontoGastado();
+    }
+
+    function recogerGastos() {
+        const cont = document.getElementById('wo-gastos-list');
+        if (!cont) return [];
+        const items = [];
+        cont.querySelectorAll('.wo-gasto-row').forEach(row => {
+            const desc = row.querySelector('input[type="text"]');
+            const montoInp = row.querySelector('input[type="number"]');
+            if (!desc && !montoInp) return;
+            const d = desc ? desc.value.trim() : '';
+            const m = montoInp ? String(montoInp.value).trim() : '';
+            if (!d && !m) return;
+            items.push({ descripcion: d, monto: m });
+        });
+        return items;
+    }
+
+    function calcularMontoGastado() {
+        const cont = document.getElementById('wo-gastos-list');
+        const totalEl = document.getElementById('wo-monto-gastando');
+        let total = 0;
+        if (cont) {
+            cont.querySelectorAll('.wo-gasto-row').forEach(row => {
+                const montoInp = row.querySelector('input[type="number"]');
+                const v = parseFloat(montoInp ? montoInp.value : 0);
+                if (!isNaN(v) && v > 0) total += v;
+            });
+        }
+        if (totalEl) totalEl.value = total > 0 ? total.toFixed(2) : '';
+        return total;
+    }
+
+    function renderWoGastosList(data) {
+        const cont = document.getElementById('wo-gastos-list');
+        if (!cont) return;
+        cont.innerHTML = '';
+        let saved = [];
+        try {
+            saved = JSON.parse(data['COTIZACION_GASTOS'] || '[]') || [];
+        } catch (e) { saved = []; }
+        if (!Array.isArray(saved)) saved = [];
+        saved.forEach(g => agregarFilaGasto(g.descripcion, g.monto));
+        if (!saved.length) {
+            cont.innerHTML = '<div class="wo-empty">Sin gastos registrados. Usa "Agregar gasto" para registrar lo que vas gastando.</div>';
+        }
+        const gastandoEl = document.getElementById('wo-monto-gastando');
+        if (!saved.length && gastandoEl && data['MONTO GASTANDO'] != null && String(data['MONTO GASTANDO']).trim() !== '') {
+            gastandoEl.value = data['MONTO GASTANDO'];
+        }
+    }
+
     function toggleServiciosEditor() {
         const editor = document.getElementById('servicios-editor');
         serviciosEditorOpen = !serviciosEditorOpen;
@@ -2817,6 +2950,7 @@
                 'LATITUD MUFAS': document.getElementById('wo-lat-mufa').value.trim(),
                 'LONGITUD MUFAS': document.getElementById('wo-lon-mufa').value.trim(),
                 'MATERIALES': JSON.stringify(recogerMateriales()),
+                'COTIZACION_GASTOS': JSON.stringify(recogerGastos()),
                 'INICIO DE PARADA': fromDatetimeLocal(document.getElementById('wo-inicio-parada').value),
                 'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value),
                 'REQUIERE CORRECTIVO FINAL': document.getElementById('wo-requiere-correctivo').value,
@@ -2851,11 +2985,13 @@
     function cambiarWoTab(tab) {
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         document.getElementById('wo-tab-material').classList.toggle('active', tab === 'material');
+        document.getElementById('wo-tab-cotizacion').classList.toggle('active', tab === 'cotizacion');
         document.getElementById('wo-tab-historial').classList.toggle('active', tab === 'historial');
         document.getElementById('wo-tab-evidencia').classList.toggle('active', tab === 'evidencia');
         document.getElementById('wo-tab-estado').classList.toggle('active', tab === 'estado');
         document.getElementById('wo-panel-detalle').style.display = tab === 'detalle' ? '' : 'none';
         document.getElementById('wo-panel-material').style.display = tab === 'material' ? '' : 'none';
+        document.getElementById('wo-panel-cotizacion').style.display = tab === 'cotizacion' ? '' : 'none';
         document.getElementById('wo-panel-historial').style.display = tab === 'historial' ? '' : 'none';
         document.getElementById('wo-panel-evidencia').style.display = tab === 'evidencia' ? '' : 'none';
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
@@ -2865,6 +3001,8 @@
             cargarWoEstado();
         } else if (tab === 'evidencia') {
             renderEvidenciaSlots();
+        } else if (tab === 'cotizacion') {
+            calcularMontoGastado();
         }
     }
 
@@ -2897,6 +3035,7 @@
         ['FIN DE PARADA', 'Fin parada'],
         ['MONTO APROBADO', 'M. Aprob'],
         ['MONTO GASTANDO', 'M. Gast'],
+        ['COTIZACION_GASTOS', 'Gastos'],
         ['BITACORA', 'Bitácora']
     ];
 
@@ -2957,6 +3096,20 @@
                             return (m.descripcion || m.codigo || '') + q + (extra ? ' [' + extra + ']' : '');
                         }).filter(Boolean).join('<br>');
                     } catch (e) { v = v || ''; }
+                }
+                if (key === 'COTIZACION_GASTOS') {
+                    try {
+                        const arr = JSON.parse(v || '[]') || [];
+                        v = arr.map(g => {
+                            const m = g.monto ? ' = S/ ' + g.monto : '';
+                            return (g.descripcion || 'Gasto') + m;
+                        }).filter(Boolean).join('<br>');
+                    } catch (e) { v = v || ''; }
+                }
+                if (key === 'MONTO APROBADO' || key === 'MONTO GASTANDO') {
+                    if (v !== '' && v !== null && v !== undefined && !isNaN(parseFloat(v))) {
+                        v = 'S/ ' + (parseFloat(v) % 1 === 0 ? parseFloat(v) : parseFloat(v).toFixed(2));
+                    }
                 }
                 if (v === null || v === undefined || String(v).trim() === '') v = '—';
                 else v = String(v);
@@ -3123,6 +3276,16 @@
                 lines.push(`- ${m.descripcion || m.codigo}${m.cantidad ? ' x' + m.cantidad : ''}${extra ? ' [' + extra + ']' : ''}`);
             });
         }
+        const gastos = recogerGastos();
+        if (gastos.length) {
+            lines.push('Gastos:');
+            gastos.forEach(g => {
+                lines.push(`- ${g.descripcion || 'Gasto'}${g.monto ? ' = S/ ' + g.monto : ''}`);
+            });
+            lines.push(`Total gastado: S/ ${calcularMontoGastado().toFixed(2)}`);
+        }
+        const montoAprobado = val('wo-monto-aprobado');
+        if (montoAprobado) lines.push(`Monto aprobado: S/ ${montoAprobado}`);
         const texto = lines.join('\n');
         if (!texto) { alert('No hay datos para copiar'); return; }
         const btn = document.getElementById('btn-wo-copiar');

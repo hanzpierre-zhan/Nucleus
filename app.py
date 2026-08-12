@@ -510,6 +510,35 @@ with app.app_context():
                                          valor=json.dumps(default_servicios, ensure_ascii=False)))
     db.session.commit()
 
+    # Migration: Campos del checklist de PEXT (datos del gestor al atender la incidencia)
+    pext_checklist = Proyecto.query.filter_by(nombre='PEXT').first()
+    if pext_checklist:
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=pext_checklist.id, clave='manual_columns').first()
+        try:
+            existing_cols = json.loads(mc_cfg.valor) if mc_cfg else []
+            if not isinstance(existing_cols, list):
+                existing_cols = []
+        except Exception:
+            existing_cols = []
+        existing_names = {str(c.get('nombre', '')).strip() for c in existing_cols if isinstance(c, dict)}
+        pext_new_cols = [
+            {'nombre': 'MOTIVO PARADA RELOJ', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'ROBO HURTO', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'SUPERVISOR ATENCIÓN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CORREO CIERRE', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'MOTIVO NO ATENDIDO', 'tipo': 'texto', 'opciones': []}
+        ]
+        for col in pext_new_cols:
+            if col['nombre'] not in existing_names:
+                existing_cols.append(col)
+                existing_names.add(col['nombre'])
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(existing_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=pext_checklist.id, clave='manual_columns',
+                                     valor=json.dumps(existing_cols, ensure_ascii=False)))
+        db.session.commit()
+
     # --- Backfill: historial de estado inicial para registros históricos ---
     # Los registros importados antes de existir el seguimiento de cambios de estado
     # no tienen fila en historial_cambios. Se crea una entrada 'IMPORT' con el estado
@@ -1147,12 +1176,61 @@ def api_import_manual_template():
 
     # Fetch all existing primary key values
     rows = NucleusData.query.filter_by(proyecto_id=pid).all()
-    key_values = [r.key_value for r in rows]
+
+    proy = db.session.get(Proyecto, pid)
+    proy_nombre = proy.nombre if proy else ''
+
+    # Plantilla del checklist de PEXT: PK + columnas que cubren el checklist.
+    # Las columnas importadas (que ya tienen dato) van con su valor actual;
+    # las manuales van vacías para que el gestor las llene.
+    PEXT_CHECKLIST = [
+        'Causa raíz',
+        'Nombre de Site',
+        'Estado del TT',
+        'Fecha de creación (WO Creation date)',
+        'Fecha y hora de WO a estado close',
+        'Fault Level',
+    ]
+    PEXT_CHECKLIST_MANUAL = {
+        'MATERIAL USADO', 'INICIO DE PARADA', 'FIN DE PARADA',
+        'REQUIERE CORRECTIVO FINAL', 'SOLUCIÓN',
+        'MOTIVO PARADA RELOJ', 'ROBO HURTO', 'SUPERVISOR ATENCIÓN',
+        'CORREO CIERRE', 'MOTIVO NO ATENDIDO'
+    }
+    if proy_nombre == 'PEXT':
+        checklist_cols = PEXT_CHECKLIST + [c for c in manual_cols if c in PEXT_CHECKLIST_MANUAL]
+        data = {}
+        for r in rows:
+            d = json.loads(r.data_json)
+            line = {pk_name: r.key_value}
+            for col in PEXT_CHECKLIST:
+                line[col] = str(d.get(col, '') or '')
+            for col in checklist_cols:
+                if col not in PEXT_CHECKLIST:
+                    line[col] = ''
+            data[r.key_value] = line
+        if data:
+            df = pd.DataFrame(list(data.values()))
+        else:
+            df = pd.DataFrame(columns=[pk_name] + checklist_cols)
+        # Auto-adjust column widths
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Plantilla')
+            ws = writer.sheets['Plantilla']
+            for col_cells in ws.columns:
+                max_len = max(len(str(cell.value or '')) for cell in col_cells)
+                ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 45)
+        output.seek(0)
+        response = make_response(output.read())
+        response.headers['Content-Disposition'] = 'attachment; filename=plantilla_checklist_PEXT.xlsx'
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        return response
 
     # Build DataFrame: pk column pre-filled, manual columns empty
-    df_data = {pk_name: key_values}
+    df_data = {pk_name: [r.key_value for r in rows]}
     for col in manual_cols:
-        df_data[col] = [''] * len(key_values)  # Empty — user fills this in
+        df_data[col] = [''] * len(rows)
     df = pd.DataFrame(df_data)
 
     # Write to in-memory Excel
@@ -2314,6 +2392,21 @@ def api_wo_informe():
     elif isinstance(raw_mat, list):
         materiales = raw_mat
 
+    # Cotización (montos + gastos JSON)
+    monto_aprobado = str(get_val('monto aprobado') or '').strip()
+    monto_gastando = str(get_val('monto gastando') or '').strip()
+    gastos = []
+    raw_gastos = get_val('cotizacion_gastos')
+    if isinstance(raw_gastos, str):
+        try:
+            arr = json.loads(raw_gastos)
+            if isinstance(arr, list):
+                gastos = arr
+        except Exception:
+            gastos = []
+    elif isinstance(raw_gastos, list):
+        gastos = raw_gastos
+
     # Bitácora general
     bitacora = str(get_val('bitácora') or get_val('bitacora')).strip()
 
@@ -2425,9 +2518,32 @@ def api_wo_informe():
             cells[0].paragraphs[0].add_run(k).bold = True
             cells[1].paragraphs[0].add_run(v)
 
+    # Cotización
+    if monto_aprobado or monto_gastando or gastos:
+        doc.add_heading('3. Cotización', level=1)
+        if monto_aprobado:
+            p = doc.add_paragraph()
+            r = p.add_run('Monto aprobado: ')
+            r.bold = True
+            p.add_run(f'S/ {monto_aprobado}')
+        if gastos:
+            tg = doc.add_table(rows=1, cols=2)
+            tg.style = 'Light Grid Accent 1'
+            for i, t in enumerate(['Concepto', 'Monto (S/)']):
+                tg.rows[0].cells[i].paragraphs[0].add_run(t).bold = True
+            for g in gastos:
+                cells = tg.add_row().cells
+                cells[0].text = str(g.get('descripcion', '') or '')
+                cells[1].text = str(g.get('monto', '') or '')
+            if monto_gastando:
+                p = doc.add_paragraph()
+                r = p.add_run('Monto gastado total: ')
+                r.bold = True
+                p.add_run(f'S/ {monto_gastando}')
+
     # Materiales usados
     if materiales:
-        doc.add_heading('3. Materiales Usados', level=1)
+        doc.add_heading('4. Materiales Usados', level=1)
         tm = doc.add_table(rows=1, cols=5)
         tm.style = 'Light Grid Accent 1'
         hdr = tm.rows[0].cells
@@ -2443,12 +2559,12 @@ def api_wo_informe():
 
     # Bitácora
     if bitacora:
-        doc.add_heading('4. Bitácora', level=1)
+        doc.add_heading('5. Bitácora', level=1)
         doc.add_paragraph(bitacora)
 
     # Historial de cambios
     if hist:
-        doc.add_heading('5. Historial de Cambios', level=1)
+        doc.add_heading('6. Historial de Cambios', level=1)
         th = doc.add_table(rows=1, cols=4)
         th.style = 'Light Grid Accent 1'
         for i, t in enumerate(['Fecha', 'Usuario', 'Campo', 'Cambio (anterior → nuevo)']):
@@ -2462,7 +2578,7 @@ def api_wo_informe():
             cells[3].text = cambio
 
     # Evidencia fotográfica
-    doc.add_heading('6. Evidencia Fotográfica', level=1)
+    doc.add_heading('7. Evidencia Fotográfica', level=1)
     for ev in evidencia:
         if not ev['urls'] and not ev['bitacora']:
             continue
