@@ -375,7 +375,44 @@
         display: inline-flex; align-items: center; justify-content: center; transition: all .15s ease;
     }
     .wo-history-btn:hover { color: var(--ios-blue); border-color: var(--ios-blue); }
-    @media (max-width: 640px) { .wo-summary { grid-template-columns: 1fr 1fr; } .wo-form { grid-template-columns: 1fr; } }
+    .evidencia-titulo {
+        margin-top: 18px; font-size: 13px; font-weight: 800; color: var(--ios-label);
+        display: flex; align-items: center; gap: 8px;
+    }
+    .evidencia-titulo i { color: var(--ios-blue); }
+    .evidencia-fotos { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 10px; }
+    .evidencia-slot {
+        position: relative; aspect-ratio: 1 / 1; border-radius: 12px; overflow: hidden;
+        border: 2px dashed var(--ios-hairline); background: var(--ios-fill);
+        display: flex; align-items: center; justify-content: center; cursor: pointer;
+        transition: all .15s ease; min-width: 0;
+    }
+    .evidencia-slot:hover { border-color: var(--ios-blue); }
+    .evidencia-slot.disable { opacity: 0.5; cursor: not-allowed; }
+    .evidencia-slot.disable:hover { border-color: var(--ios-hairline); }
+    .evidencia-slot.has-img { border: 2px solid var(--ios-hairline); cursor: default; }
+    .evidencia-slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .evidencia-slot-empty { font-size: 22px; font-weight: 300; color: var(--ios-gray-1); }
+    .evidencia-slot-uploading { position: absolute; inset: 0; background: rgba(0,0,0,0.45); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .evidencia-slot-del {
+        position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%;
+        background: rgba(0,0,0,0.6); color: #fff; border: none; cursor: pointer; font-size: 12px;
+        display: flex; align-items: center; justify-content: center; transition: all .15s ease;
+    }
+    .evidencia-slot-del:hover { background: #ff3b30; }
+    .evidencia-lightbox {
+        position: fixed; inset: 0; z-index: 30000; background: rgba(0,0,0,0.85);
+        display: none; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;
+    }
+    .evidencia-lightbox.show { display: flex; }
+    .evidencia-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+    .evidencia-lightbox-close {
+        position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border-radius: 50%;
+        background: rgba(255,255,255,0.15); color: #fff; border: none; cursor: pointer; font-size: 16px;
+        display: flex; align-items: center; justify-content: center; transition: background .15s ease;
+    }
+    .evidencia-lightbox-close:hover { background: rgba(255,255,255,0.3); }
+    @media (max-width: 640px) { .evidencia-fotos { grid-template-columns: repeat(3, 1fr); } .wo-summary { grid-template-columns: 1fr 1fr; } .wo-form { grid-template-columns: 1fr; } }
 </style>
 
 <!-- Modal Nuevo Registro -->
@@ -404,8 +441,9 @@
                 <div class="wo-tabs" style="margin-bottom:0;">
                     <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i class="fa-solid fa-list-ul"></i> Detalle</button>
                     <button type="button" class="wo-tab" id="wo-tab-material" onclick="cambiarWoTab('material')"><i class="fa-solid fa-toolbox"></i> Material</button>
-                    <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
+                    <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i class="fa-solid fa-camera"></i> Evidencia</button>
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i class="fa-solid fa-arrows-spin"></i> Estado</button>
+                    <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
                 </div>
             </div>
             <div class="wo-head-actions">
@@ -520,6 +558,32 @@
                     <div id="wo-historial" class="wo-timeline"><div class="wo-empty">Cargando historial...</div></div>
                 </div>
             </div>
+            <div id="wo-panel-evidencia" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Evidencia fotográfica</div>
+
+                    <div class="evidencia-titulo"><i class="fa-solid fa-play"></i> Tiempo Inicio</div>
+                    <div class="evidencia-fotos" id="evidencia-fotos-inicio"></div>
+                    <div class="wo-field full">
+                        <label><i class="fa-solid fa-book"></i> Bitácora de inicio</label>
+                        <textarea id="evidencia-bitacora-inicio" placeholder="Registra el historial del inicio del trabajo..."></textarea>
+                    </div>
+
+                    <div class="evidencia-titulo"><i class="fa-solid fa-gears"></i> Tiempo Proceso</div>
+                    <div class="evidencia-fotos" id="evidencia-fotos-proceso"></div>
+                    <div class="wo-field full">
+                        <label><i class="fa-solid fa-book"></i> Bitácora de proceso</label>
+                        <textarea id="evidencia-bitacora-proceso" placeholder="Registra el historial del proceso del trabajo..."></textarea>
+                    </div>
+
+                    <div class="evidencia-titulo"><i class="fa-solid fa-flag-checkered"></i> Tiempo Cierre</div>
+                    <div class="evidencia-fotos" id="evidencia-fotos-cierre"></div>
+                    <div class="wo-field full">
+                        <label><i class="fa-solid fa-book"></i> Bitácora de cierre</label>
+                        <textarea id="evidencia-bitacora-cierre" placeholder="Registra el historial del cierre del trabajo..."></textarea>
+                    </div>
+                </div>
+            </div>
             <div id="wo-panel-estado" style="display:none;">
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-arrows-spin"></i> Historial de estados
@@ -530,6 +594,12 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Lightbox Evidencia -->
+<div id="evidencia-lightbox" class="evidencia-lightbox" onclick="cerrarEvidenciaFoto(event)">
+    <button type="button" class="evidencia-lightbox-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    <img id="evidencia-lightbox-img" alt="Vista ampliada de evidencia">
 </div>
 
 <!-- Modal Importar -->
@@ -2102,8 +2172,15 @@
     }
 
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') cerrarModalRegistro();
-        if (e.key === 'Escape') cerrarWoModal();
+        if (e.key === 'Escape') {
+            const lb = document.getElementById('evidencia-lightbox');
+            if (lb && lb.classList.contains('show')) {
+                cerrarEvidenciaFoto();
+                return;
+            }
+            cerrarModalRegistro();
+            cerrarWoModal();
+        }
     });
 
     // --- DETALLE WO (Modal de resumen y gestión) ---
@@ -2114,6 +2191,8 @@
     let woMateriales = [];
     let woEditable = true;
     let serviciosEditorOpen = false;
+    let evidenciaState = null;
+    const EVIDENCIA_TIPOS = ['inicio', 'proceso', 'cierre'];
 
     const MOTIVO_AVERIA_OPCIONES = [
         'Accidente vehicular', 'Acoplador sucio', 'Buffer mal acondicionado', 'Cámara inundada',
@@ -2183,6 +2262,174 @@
         return s;
     }
 
+    // --- Evidencia fotográfica (Tiempo Inicio / Proceso / Cierre) ---
+    function parseEvidenciaArr(val) {
+        try {
+            const arr = JSON.parse(val || '[]');
+            return Array.isArray(arr) ? arr.slice(0, 5) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function initEvidencia(data) {
+        evidenciaState = {};
+        EVIDENCIA_TIPOS.forEach(t => {
+            evidenciaState[t] = {
+                fotos: parseEvidenciaArr(data['_EVIDENCIA_' + t.toUpperCase()]),
+                bitacora: data['_BITACORA_' + t.toUpperCase()] || ''
+            };
+        });
+        EVIDENCIA_TIPOS.forEach(t => {
+            const bit = document.getElementById('evidencia-bitacora-' + t);
+            if (bit) bit.value = evidenciaState[t].bitacora;
+        });
+        renderEvidenciaSlots();
+    }
+
+    function renderEvidenciaSlots() {
+        EVIDENCIA_TIPOS.forEach(t => renderEvidenciaGrupo(t));
+    }
+
+    function renderEvidenciaGrupo(tipo) {
+        const cont = document.getElementById('evidencia-fotos-' + tipo);
+        if (!cont || !evidenciaState) return;
+        const st = evidenciaState[tipo];
+        const editable = woEditable;
+        cont.innerHTML = '';
+        for (let i = 0; i < 5; i++) {
+            const url = st.fotos[i];
+            const slot = document.createElement('div');
+            slot.className = 'evidencia-slot' + (url ? ' has-img' : '') + (editable ? '' : ' disable');
+            if (url) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Evidencia ' + (i + 1);
+                img.loading = 'lazy';
+                img.onerror = () => {
+                    evidenciaState[tipo].fotos[i] = null;
+                    renderEvidenciaGrupo(tipo);
+                };
+                img.addEventListener('click', ev => {
+                    ev.stopPropagation();
+                    abrirEvidenciaFoto(url);
+                });
+                slot.appendChild(img);
+                if (editable) {
+                    const del = document.createElement('button');
+                    del.className = 'evidencia-slot-del';
+                    del.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    del.title = 'Eliminar foto';
+                    del.addEventListener('click', ev => {
+                        ev.stopPropagation();
+                        evidenciaEliminar(tipo, i);
+                    });
+                    slot.appendChild(del);
+                }
+            } else {
+                const empty = document.createElement('div');
+                empty.className = 'evidencia-slot-empty';
+                empty.textContent = '+';
+                slot.appendChild(empty);
+                if (editable) {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.style.display = 'none';
+                    slot.appendChild(input);
+                    slot.addEventListener('click', () => {
+                        if (!editable || slot.dataset.uploading === '1') return;
+                        input.click();
+                    });
+                    input.addEventListener('change', () => {
+                        if (input.files && input.files[0]) evidenciaSubir(tipo, i, input.files[0]);
+                        input.value = '';
+                    });
+                }
+            }
+            cont.appendChild(slot);
+        }
+    }
+
+    function evidenciaSubir(tipo, indice, file) {
+        const cont = document.getElementById('evidencia-fotos-' + tipo);
+        const slot = cont ? cont.children[indice] : null;
+        if (!slot) return;
+        slot.dataset.uploading = '1';
+        const empty = slot.querySelector('.evidencia-slot-empty');
+        if (empty) empty.style.visibility = 'hidden';
+        const up = document.createElement('div');
+        up.className = 'evidencia-slot-uploading';
+        up.textContent = 'Subiendo...';
+        slot.appendChild(up);
+
+        const fd = new FormData();
+        fd.append('key', woKey);
+        fd.append('tipo', tipo);
+        fd.append('indice', String(indice));
+        fd.append('foto', file);
+
+        fetch('/api/evidencia/subir', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success && res.url) {
+                    evidenciaState[tipo].fotos[indice] = res.url;
+                } else {
+                    alert('Error al subir la foto: ' + (res.error || 'desconocido'));
+                }
+            })
+            .catch(() => alert('Error de red al subir la foto.'))
+            .finally(() => renderEvidenciaGrupo(tipo));
+    }
+
+    function evidenciaEliminar(tipo, indice) {
+        fetch('/api/evidencia/eliminar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: woKey, tipo: tipo, indice: indice })
+        })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    evidenciaState[tipo].fotos[indice] = null;
+                } else {
+                    alert('Error al eliminar la foto: ' + (res.error || 'desconocido'));
+                }
+            })
+            .catch(() => alert('Error de red al eliminar la foto.'))
+            .finally(() => renderEvidenciaGrupo(tipo));
+    }
+
+    function abrirEvidenciaFoto(url) {
+        const lb = document.getElementById('evidencia-lightbox');
+        const img = document.getElementById('evidencia-lightbox-img');
+        if (!lb || !img) return;
+        img.src = url;
+        lb.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function cerrarEvidenciaFoto(event) {
+        const lb = document.getElementById('evidencia-lightbox');
+        if (!lb) return;
+        if (event && event.target.tagName === 'IMG') return;
+        lb.classList.remove('show');
+        document.body.style.overflow = '';
+        document.getElementById('evidencia-lightbox-img').src = '';
+    }
+
+    function recolectarEvidencia() {
+        const out = {};
+        EVIDENCIA_TIPOS.forEach(t => {
+            const bit = document.getElementById('evidencia-bitacora-' + t);
+            const fotos = (evidenciaState && evidenciaState[t].fotos) || [];
+            const has = fotos.some(f => f);
+            out['_EVIDENCIA_' + t.toUpperCase()] = has ? JSON.stringify(fotos) : '';
+            out['_BITACORA_' + t.toUpperCase()] = bit ? bit.value : '';
+        });
+        return out;
+    }
+
     function abrirWoModal(row) {
         const data = row.getData();
         woRow = row;
@@ -2228,12 +2475,14 @@
         const editable = !isDemo;
         woEditable = editable;
         document.querySelectorAll('.wo-form input, .wo-form select, .wo-form textarea').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => { el.disabled = !editable; });
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
         const canEditServicios = ["admin", "supervisor"].includes("{{ session.get('rol') }}");
         document.getElementById('btn-servicios').style.display = (editable && canEditServicios) ? '' : 'none';
         const btnAgMat = document.getElementById('btn-wo-agregar-material');
         if (btnAgMat) btnAgMat.style.display = editable ? '' : 'none';
 
+        initEvidencia(data);
         document.getElementById('modal-wo').style.display = 'flex';
         cargarWoMeta(data);
     }
@@ -2533,6 +2782,7 @@
                 'BITACORA': document.getElementById('wo-bitacora').value
             }
         };
+        Object.assign(payload.data, recolectarEvidencia());
         // Enviar solo los campos que realmente cambiaron (incluye borrar dejando vacío).
         const orig = woRow ? woRow.getData() : {};
         Object.keys(payload.data).forEach(k => {
@@ -2561,15 +2811,19 @@
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         document.getElementById('wo-tab-material').classList.toggle('active', tab === 'material');
         document.getElementById('wo-tab-historial').classList.toggle('active', tab === 'historial');
+        document.getElementById('wo-tab-evidencia').classList.toggle('active', tab === 'evidencia');
         document.getElementById('wo-tab-estado').classList.toggle('active', tab === 'estado');
         document.getElementById('wo-panel-detalle').style.display = tab === 'detalle' ? '' : 'none';
         document.getElementById('wo-panel-material').style.display = tab === 'material' ? '' : 'none';
         document.getElementById('wo-panel-historial').style.display = tab === 'historial' ? '' : 'none';
+        document.getElementById('wo-panel-evidencia').style.display = tab === 'evidencia' ? '' : 'none';
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
         if (tab === 'historial') {
             cargarWoHistorial();
         } else if (tab === 'estado') {
             cargarWoEstado();
+        } else if (tab === 'evidencia') {
+            renderEvidenciaSlots();
         }
     }
 
@@ -2745,6 +2999,7 @@
     function cerrarWoModal() {
         document.getElementById('modal-wo').style.display = 'none';
         woRow = null; woKey = null;
+        evidenciaState = null;
     }
 
     function copiarAlPortapapeles(texto) {

@@ -5,3 +5,5 @@ openpyxl
 Werkzeug
 gunicorn
 psycopg2-binary
+Pillow
+boto3

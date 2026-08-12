@@ -1,14 +1,19 @@
 import os
+import glob
 import json
 import logging
+import tempfile
+import mimetypes
 import pandas as pd
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, Response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from functools import wraps
 import io
 from datetime import datetime, timedelta
 from collections import Counter
+from PIL import Image, ImageOps
 
 # Setup Flask application
 app = Flask(__name__)
@@ -23,6 +28,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nucleus_dev_key_change_me')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 MB
+app.config['EVIDENCIA_DIR'] = os.path.join(BASE_DIR, 'static', 'evidencia')
+os.makedirs(app.config['EVIDENCIA_DIR'], exist_ok=True)
+app.config['EVIDENCIA_MAX_LADO'] = int(os.environ.get('EVIDENCIA_MAX_LADO', 1600))
+app.config['EVIDENCIA_CALIDAD'] = int(os.environ.get('EVIDENCIA_CALIDAD', 80))
+# Backblaze B2 (opcional): si se configuran estas variables, las fotos se suben a B2.
+app.config['B2_ENDPOINT_URL'] = os.environ.get('B2_ENDPOINT_URL', '')
+app.config['B2_KEY_ID'] = os.environ.get('B2_KEY_ID', '')
+app.config['B2_APP_KEY'] = os.environ.get('B2_APP_KEY', '')
+app.config['B2_BUCKET'] = os.environ.get('B2_BUCKET', '')
+app.config['B2_REGION'] = os.environ.get('B2_REGION', 'us-west-004')
 
 db = SQLAlchemy(app)
 
@@ -2364,6 +2379,165 @@ def api_clean():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
+# --- Evidencia fotográfica (Tiempo Inicio / Proceso / Cierre) ---
+EVIDENCIA_TIPOS = ('inicio', 'proceso', 'cierre')
+EVIDENCIA_MAX_POR_TIPO = 5
+EVIDENCIA_EXT_ALLOWED = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic'}
+
+def evidencia_folder(pid, key):
+    return os.path.join(app.config['EVIDENCIA_DIR'], str(pid), secure_filename(str(key)))
+
+def evidencia_limpiar_slot(pid, key, tipo, indice):
+    folder = evidencia_folder(pid, key)
+    for old in glob.glob(os.path.join(folder, f'{tipo}_{int(indice)}.*')):
+        try:
+            os.remove(old)
+        except Exception:
+            pass
+
+def evidencia_comprimir(ruta, calidad=None, max_lado=None):
+    """Comprime y redimensiona una imagen para ahorrar almacenamiento.
+    Devuelve True si se comprimió correctamente; si no puede (ej. HEIC),
+    deja el archivo original tal cual."""
+    calidad = calidad if calidad is not None else app.config['EVIDENCIA_CALIDAD']
+    max_lado = max_lado if max_lado is not None else app.config['EVIDENCIA_MAX_LADO']
+    try:
+        img = Image.open(ruta)
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGBA')
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[-1])
+            img = bg
+        else:
+            img = img.convert('RGB')
+        w, h = img.size
+        lado_max = max(w, h)
+        if lado_max > max_lado:
+            ratio = max_lado / lado_max
+            img = img.resize((max(1, int(w * ratio)), max(1, int(h * ratio))), Image.LANCZOS)
+        img.save(ruta, 'JPEG', quality=calidad, optimize=True)
+        return True
+    except Exception:
+        return False
+
+def evidencia_usa_b2():
+    return bool(app.config.get('B2_BUCKET') and app.config.get('B2_KEY_ID') and app.config.get('B2_APP_KEY'))
+
+def b2_cliente():
+    import boto3
+    endpoint = app.config['B2_ENDPOINT_URL'] or f"https://s3.{app.config['B2_REGION']}.backblazeb2.com"
+    return boto3.client(
+        's3',
+        endpoint_url=endpoint,
+        aws_access_key_id=app.config['B2_KEY_ID'],
+        aws_secret_access_key=app.config['B2_APP_KEY'],
+        region_name=app.config['B2_REGION'],
+    )
+
+def evidencia_eliminar_b2(key, tipo, indice):
+    client = b2_cliente()
+    bucket = app.config['B2_BUCKET']
+    prefix = f'{key}/{tipo}_{int(indice)}.'
+    try:
+        resp = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        for o in resp.get('Contents', []):
+            client.delete_object(Bucket=bucket, Key=o['Key'])
+    except Exception:
+        pass
+
+@app.route('/api/evidencia/subir', methods=['POST'])
+@login_required
+def api_evidencia_subir():
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para subir evidencia.'}), 403
+    pid = session.get('current_proyecto_id')
+    key = (request.form.get('key') or '').strip()
+    tipo = (request.form.get('tipo') or '').strip().lower()
+    try:
+        indice = int(request.form.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Índice inválido'}), 400
+    file = request.files.get('foto')
+    if not key or tipo not in EVIDENCIA_TIPOS:
+        return jsonify({'error': 'Datos incompletos'}), 400
+    if indice < 0 or indice >= EVIDENCIA_MAX_POR_TIPO:
+        return jsonify({'error': 'Índice fuera de rango'}), 400
+    if file is None or not file.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in EVIDENCIA_EXT_ALLOWED:
+        return jsonify({'error': f'Formato no permitido: {ext}. Usa {", ".join(sorted(EVIDENCIA_EXT_ALLOWED))}'}), 400
+
+    # Guardar a un archivo temporal, comprimir y luego mover/subir.
+    fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
+    os.close(fd)
+    try:
+        file.save(ruta_tmp)
+        nombre = f'{tipo}_{indice}{ext}'
+        if evidencia_comprimir(ruta_tmp):
+            if not nombre.lower().endswith('.jpg'):
+                nueva = ruta_tmp + '.jpg'
+                os.rename(ruta_tmp, nueva)
+                ruta_tmp = nueva
+                nombre = f'{tipo}_{indice}.jpg'
+
+        if evidencia_usa_b2():
+            evidencia_eliminar_b2(key, tipo, indice)
+            b2_cliente().upload_file(ruta_tmp, app.config['B2_BUCKET'], f'{key}/{nombre}')
+        else:
+            folder = evidencia_folder(pid, key)
+            os.makedirs(folder, exist_ok=True)
+            evidencia_limpiar_slot(pid, key, tipo, indice)
+            os.replace(ruta_tmp, os.path.join(folder, nombre))
+
+        url = f'/api/evidencia/foto/{pid}/{secure_filename(str(key))}/{nombre}'
+        return jsonify({'success': True, 'url': url})
+    finally:
+        if os.path.exists(ruta_tmp):
+            try:
+                os.remove(ruta_tmp)
+            except Exception:
+                pass
+
+@app.route('/api/evidencia/eliminar', methods=['POST'])
+@login_required
+def api_evidencia_eliminar():
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos.'}), 403
+    pid = session.get('current_proyecto_id')
+    data = request.json or {}
+    key = (data.get('key') or '').strip()
+    tipo = (data.get('tipo') or '').strip().lower()
+    try:
+        indice = int(data.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Índice inválido'}), 400
+    if not key or tipo not in EVIDENCIA_TIPOS or indice < 0 or indice >= EVIDENCIA_MAX_POR_TIPO:
+        return jsonify({'error': 'Datos incompletos'}), 400
+    if evidencia_usa_b2():
+        evidencia_eliminar_b2(key, tipo, indice)
+    else:
+        evidencia_limpiar_slot(pid, key, tipo, indice)
+    return jsonify({'success': True})
+
+@app.route('/api/evidencia/foto/<int:pid>/<path:key>/<path:nombre>')
+@login_required
+def api_evidencia_foto(pid, key, nombre):
+    if pid != session.get('current_proyecto_id'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    nombre = os.path.basename(nombre)
+    if evidencia_usa_b2():
+        try:
+            obj = b2_cliente().get_object(Bucket=app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
+            data = obj['Body'].read()
+            mt = mimetypes.guess_type(nombre)[0] or 'application/octet-stream'
+            return Response(data, mimetype=mt)
+        except Exception:
+            return jsonify({'error': 'No encontrado'}), 404
+    folder = evidencia_folder(pid, key)
+    return send_from_directory(folder, nombre)
 
 @app.route('/healthz')
 def healthz():
