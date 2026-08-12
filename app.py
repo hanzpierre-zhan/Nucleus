@@ -2250,6 +2250,267 @@ def api_wo_historial():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/wo/informe')
+@login_required
+def api_wo_informe():
+    """Genera un informe Word (.docx) con el estado actual e historia de un WO."""
+    from flask import make_response
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    pid = session.get('current_proyecto_id')
+    key_val = (request.args.get('key') or '').strip()
+    if not key_val:
+        return jsonify({'error': 'Falta el identificador del WO'}), 400
+
+    record = NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first()
+    if not record:
+        return jsonify({'error': 'Registro no encontrado'}), 404
+    row = json.loads(record.data_json)
+    row['_key'] = key_val
+
+    proy = db.session.get(Proyecto, pid)
+    proy_nombre = proy.nombre if proy else ''
+
+    def get_val(partial, default=''):
+        for k, v in row.items():
+            if partial.lower() in str(k).lower():
+                return v if v is not None else default
+        return default
+
+    def peru_fmt(s):
+        if not s:
+            return ''
+        try:
+            dt = datetime.strptime(str(s).strip(), '%Y-%m-%d %H:%M:%S')
+        except Exception:
+            try:
+                dt = datetime.fromisoformat(str(s).strip().replace('T', ' ')[:19])
+            except Exception:
+                return str(s)
+        dt = dt - timedelta(hours=5)
+        return dt.strftime('%d/%m/%Y %H:%M:%S')
+
+    # Datos clave del WO
+    wo_number = str(get_val('Número de WO', row.get('_key', key_val))).strip() or key_val
+    estado = str(get_val('wo state', get_val('estado'))).strip()
+    tecnico = str(get_val('tecnico asignado')).strip()
+    # Solo para el informe: la contrata siempre es COBRA y el técnico lleva (COBRA).
+    contrata_info = 'COBRA'
+    tecnico_info = f'{tecnico} (COBRA)' if tecnico else ''
+
+    # Materiales (campo MATERIALES JSON)
+    materiales = []
+    raw_mat = get_val('materiales')
+    if isinstance(raw_mat, str):
+        try:
+            arr = json.loads(raw_mat)
+            if isinstance(arr, list):
+                materiales = arr
+        except Exception:
+            materiales = []
+    elif isinstance(raw_mat, list):
+        materiales = raw_mat
+
+    # Bitácora general
+    bitacora = str(get_val('bitácora') or get_val('bitacora')).strip()
+
+    # Evidencia: URLs guardadas + bitácoras por tipo
+    ev_tipos = [
+        ('INICIO', 'Evidencia de Inicio'),
+        ('PROCESO', 'Evidencia de Proceso'),
+        ('CIERRE', 'Evidencia de Cierre'),
+    ]
+    evidencia = []
+    for tkey, tlabel in ev_tipos:
+        raw_urls = row.get(f'_EVIDENCIA_{tkey}', '')
+        urls = []
+        if isinstance(raw_urls, str):
+            try:
+                arr = json.loads(raw_urls)
+                if isinstance(arr, list):
+                    urls = [u for u in arr if u]
+            except Exception:
+                urls = []
+        elif isinstance(raw_urls, list):
+            urls = [u for u in raw_urls if u]
+        evidencia.append({
+            'tipo': tkey,
+            'label': tlabel,
+            'urls': urls,
+            'bitacora': str(row.get(f'_BITACORA_{tkey}', '') or '').strip()
+        })
+
+    # Historial de cambios
+    hist = (HistorialCambios.query
+            .filter_by(proyecto_id=pid, key_value=key_val)
+            .order_by(HistorialCambios.fecha.desc(), HistorialCambios.id.desc())
+            .all())
+
+    # --- Construcción del documento ---
+    doc = Document()
+
+    # Estilos base
+    normal = doc.styles['Normal']
+    normal.font.name = 'Calibri'
+    normal.font.size = Pt(10)
+
+    # Encabezado: empresa + título
+    h = doc.add_paragraph()
+    run = h.add_run('COBRA PERÚ')
+    run.bold = True
+    run.font.size = Pt(22)
+    run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+    h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub = doc.add_paragraph()
+    srun = sub.add_run('Informe de Avería — Detalle e Historial')
+    srun.font.size = Pt(13)
+    srun.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Línea separadora
+    sep = doc.add_paragraph()
+    srun2 = sep.add_run('—' * 40)
+    srun2.font.color.rgb = RGBColor(0xBB, 0xBB, 0xBB)
+
+    # Datos generales
+    doc.add_heading('1. Datos Generales', level=1)
+    datos = [
+        ('N° de WO', wo_number),
+        ('Estado', estado),
+        ('Proyecto', proy_nombre),
+        ('Técnico asignado', tecnico_info),
+        ('Contrata', contrata_info),
+        ('Servicio', str(get_val('servicio')).strip()),
+        ('Ciudad', str(get_val('ciudad')).strip()),
+        ('Motivo de avería', str(get_val('motivo de avería')).strip()),
+        ('Solución', str(get_val('solución')).strip()),
+        ('¿Se instaló mufas?', str(get_val('se instaló mufas')).strip()),
+        ('Inicio de parada', peru_fmt(str(get_val('inicio de parada')).strip())),
+        ('Fin de parada', peru_fmt(str(get_val('fin de parada')).strip())),
+        ('Monto aprobado', str(get_val('monto aprobado')).strip()),
+        ('Monto gastando', str(get_val('monto gastando')).strip()),
+        ('¿Requiere correctivo final?', str(get_val('requiere correctivo final')).strip()),
+        ('Fecha de creación (WO)', peru_fmt(str(get_val('Fecha de creación (WO Creation date)')).strip())),
+        ('Fecha closed', peru_fmt(str(get_val('Fecha closed')).strip())),
+    ]
+    table = doc.add_table(rows=0, cols=2)
+    table.style = 'Light Grid Accent 1'
+    table.alignment = WD_TABLE_ALIGNMENT.LEFT
+    for k, v in datos:
+        cells = table.add_row().cells
+        cells[0].width = Inches(2.3)
+        cells[0].paragraphs[0].add_run(k).bold = True
+        cells[1].paragraphs[0].add_run(v or '—')
+
+    # Estado actual de las columnas del registro (todo lo demás con valor)
+    resto = {}
+    for k, v in row.items():
+        if k.startswith('_'):
+            continue
+        if k in ('MATERIALES', 'MATERIAL USADO'):
+            continue
+        s = '' if v is None else str(v)
+        if s.strip():
+            resto[k] = s.strip()
+    if resto:
+        doc.add_heading('2. Estado Actual del Registro', level=1)
+        t2 = doc.add_table(rows=0, cols=2)
+        t2.style = 'Light Grid Accent 1'
+        for k, v in resto.items():
+            cells = t2.add_row().cells
+            cells[0].width = Inches(2.3)
+            cells[0].paragraphs[0].add_run(k).bold = True
+            cells[1].paragraphs[0].add_run(v)
+
+    # Materiales usados
+    if materiales:
+        doc.add_heading('3. Materiales Usados', level=1)
+        tm = doc.add_table(rows=1, cols=5)
+        tm.style = 'Light Grid Accent 1'
+        hdr = tm.rows[0].cells
+        for i, t in enumerate(['Código', 'Descripción', 'Tipo', 'UM', 'Cantidad']):
+            hdr[i].paragraphs[0].add_run(t).bold = True
+        for m in materiales:
+            cells = tm.add_row().cells
+            cells[0].text = str(m.get('codigo', '') or '')
+            cells[1].text = str(m.get('descripcion', '') or '')
+            cells[2].text = str(m.get('tipo', '') or '')
+            cells[3].text = str(m.get('um', '') or '')
+            cells[4].text = str(m.get('cantidad', '') or '')
+
+    # Bitácora
+    if bitacora:
+        doc.add_heading('4. Bitácora', level=1)
+        doc.add_paragraph(bitacora)
+
+    # Historial de cambios
+    if hist:
+        doc.add_heading('5. Historial de Cambios', level=1)
+        th = doc.add_table(rows=1, cols=4)
+        th.style = 'Light Grid Accent 1'
+        for i, t in enumerate(['Fecha', 'Usuario', 'Campo', 'Cambio (anterior → nuevo)']):
+            th.rows[0].cells[i].paragraphs[0].add_run(t).bold = True
+        for hc in hist:
+            cells = th.add_row().cells
+            cells[0].text = peru_fmt((hc.fecha - timedelta(hours=0)).strftime('%Y-%m-%d %H:%M:%S')) if hc.fecha else ''
+            cells[1].text = hc.username
+            cells[2].text = hc.campo_modificado
+            cambio = f'{hc.valor_anterior or ""} → {hc.valor_nuevo or ""}'
+            cells[3].text = cambio
+
+    # Evidencia fotográfica
+    doc.add_heading('6. Evidencia Fotográfica', level=1)
+    for ev in evidencia:
+        if not ev['urls'] and not ev['bitacora']:
+            continue
+        doc.add_heading(ev['label'], level=2)
+        if ev['bitacora']:
+            p = doc.add_paragraph()
+            r = p.add_run('Nota: ')
+            r.bold = True
+            p.add_run(ev['bitacora'])
+        for url in ev['urls']:
+            nombre = os.path.basename(str(url).split('?')[0])
+            img_bytes = None
+            if evidencia_usa_b2():
+                try:
+                    obj = b2_cliente().get_object(Bucket=app.config['B2_BUCKET'], Key=f'{key_val}/{nombre}')
+                    img_bytes = obj['Body'].read()
+                except Exception:
+                    img_bytes = None
+            else:
+                ruta = os.path.join(evidencia_folder(pid, key_val), nombre)
+                if os.path.exists(ruta):
+                    with open(ruta, 'rb') as f:
+                        img_bytes = f.read()
+            if img_bytes:
+                try:
+                    doc.add_picture(io.BytesIO(img_bytes), width=Inches(3.5))
+                except Exception:
+                    doc.add_paragraph(f'(Imagen no embebible: {nombre})')
+            else:
+                doc.add_paragraph(f'(Imagen no encontrada: {nombre})')
+
+    # Pie de documento
+    doc.add_paragraph()
+    pie = doc.add_paragraph()
+    prun = pie.add_run('Generado por Nucleus — COBRA PERÚ')
+    prun.font.size = Pt(8)
+    prun.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+    # Salida
+    output = io.BytesIO()
+    doc.save(output)
+    output.seek(0)
+    safe_key = secure_filename(key_val) or 'WO'
+    response = make_response(output.read())
+    response.headers['Content-Disposition'] = f'attachment; filename=Informe_{safe_key}.docx'
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    return response
+
 @app.route('/api/rows/bulk_update', methods=['POST'])
 @login_required
 def api_rows_bulk_update():

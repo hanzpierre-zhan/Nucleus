@@ -447,6 +447,7 @@
                 </div>
             </div>
             <div class="wo-head-actions">
+                <button onclick="descargarInformeWO()" id="btn-wo-word" class="mar-btn-copy" title="Descargar informe Word"><i class="fa-solid fa-file-word"></i></button>
                 <button onclick="copiarPlantillaWO()" id="btn-wo-copiar" class="mar-btn-copy" title="Copiar plantilla"><i class="fa-solid fa-copy"></i></button>
                 <button id="btn-wo-save" onclick="guardarWoModal()" class="mar-btn-primary" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
                 <button onclick="cerrarWoModal()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
@@ -3058,6 +3059,32 @@
             catch (e) { reject(e); }
             document.body.removeChild(ta);
         });
+    }
+
+    function descargarInformeWO() {
+        if (!woKey) { alert('No hay WO seleccionado.'); return; }
+        const btn = document.getElementById('btn-wo-word');
+        if (btn) btn.disabled = true;
+        fetch('/api/wo/informe?key=' + encodeURIComponent(woKey))
+            .then(r => {
+                if (r.headers.get('Content-Type') && r.headers.get('Content-Type').includes('application/json')) {
+                    return r.json().then(j => { throw new Error(j.error || 'Error al generar el informe'); });
+                }
+                if (!r.ok) throw new Error('Error al generar el informe');
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Informe_' + woKey + '.docx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => alert(err.message || 'Error de red'))
+            .finally(() => { if (btn) btn.disabled = false; });
     }
 
     function copiarPlantillaWO() {
