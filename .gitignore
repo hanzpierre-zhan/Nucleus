@@ -34,4 +34,4 @@ ENV/
 *.log
 
 # Databases (Descomentar si NO quieres subir la base de datos)
-# nucleus.db
+nucleus.db
