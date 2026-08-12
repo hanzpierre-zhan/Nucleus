@@ -874,6 +874,24 @@
         return `${m}m`;
     };
 
+    // Estado del semáforo de SLA Cumplimiento según el avance del tiempo.
+    const slaCumplimientoEstado = (info, slaLimit) => {
+        if (!info || slaLimit <= 0) return { texto: '', color: '', fg: '', rank: 3 };
+        if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
+            return { texto: 'NO APLICA', color: '#8E8E93', fg: '#fff', rank: 2 };
+        }
+        if (info.stateVal === 'closed') {
+            const cumplio = info.mins <= slaLimit;
+            if (cumplio) return { texto: 'SLA CUMPLIDO', color: '#28A745', fg: '#fff', rank: 0 };
+            return { texto: 'SLA VENCIDO', color: '#DC3545', fg: '#fff', rank: 1 };
+        }
+        const pct = (info.mins / slaLimit) * 100;
+        if (pct < 50) return { texto: 'SLA DENTRO DE PLAZO', color: '#28A745', fg: '#fff', rank: 0 };
+        if (pct < 80) return { texto: 'SLA DEBE ATENDERSE', color: '#FFC107', fg: '#212529', rank: 0 };
+        if (pct < 100) return { texto: 'SLA POR VENCER', color: '#DC3545', fg: '#fff', rank: 1 };
+        return { texto: 'SLA VENCIDO', color: '#DC3545', fg: '#fff', rank: 1 };
+    };
+
     const formatHoursMinsSecs = (ms) => {
         if (ms === null || ms === undefined || isNaN(ms)) return "";
         const totalSecs = Math.floor(ms / 1000);
@@ -1462,17 +1480,14 @@
             };
         }
 
-        // SLA Cumplimiento: cerradas/en curso → cumplió o no; canceladas/rejected → NO APLICA.
+        // SLA Cumplimiento: semáforo según el avance del tiempo (DENTRO DE PLAZO / DEBE ATENDERSE / POR VENCER / VENCIDO / CUMPLIDO / NO APLICA).
         if (fieldName && fieldName.trim() === "SLA Cumplimiento") {
             colDef.width = 150;
             colDef.sorter = function(a, b, aRow, bRow, column, dir, sorterParams) {
                 const rank = (row) => {
                     const info = computarSlaData(row.getData());
-                    if (!info) return 3;
                     const slaLimit = getSlaThresholdData(row.getData());
-                    if (slaLimit <= 0) return 3;
-                    if (info.stateVal === 'canceled' || info.stateVal === 'rejected') return 2;
-                    return info.mins <= slaLimit ? 0 : 1;
+                    return slaCumplimientoEstado(info, slaLimit).rank;
                 };
                 return rank(aRow) - rank(bRow);
             };
@@ -1480,31 +1495,17 @@
                 const q = String(headerValue || '').trim().toLowerCase();
                 if (!q) return true;
                 const info = computarSlaData(rowData);
-                if (!info) return false;
                 const slaLimit = getSlaThresholdData(rowData);
-                let txt = '';
-                if (slaLimit <= 0) {
-                    txt = '';
-                } else if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
-                    txt = 'NO APLICA';
-                } else {
-                    txt = info.mins <= slaLimit ? 'SLA CUMPLIO' : 'SLA NO CUMPLIO';
-                }
+                const txt = slaCumplimientoEstado(info, slaLimit).texto;
                 return txt.toLowerCase().indexOf(q) !== -1;
             };
             colDef.formatter = function(cell) {
                 const row = cell.getRow();
                 const info = computarSla(row);
-                if (!info) return "";
                 const slaLimit = getSlaThreshold(row);
-                if (slaLimit <= 0) return "";
-                if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
-                    return `<span style="background:#8E8E93; color:#fff; padding:3px 10px; border-radius:12px; font-weight:800; font-size:11px; display:inline-block;">NO APLICA</span>`;
-                }
-                const cumplio = info.mins <= slaLimit;
-                const bg = cumplio ? "#28A745" : "#DC3545";
-                const texto = cumplio ? "SLA CUMPLIO" : "SLA NO CUMPLIO";
-                return `<span style="background:${bg}; color:#fff; padding:3px 10px; border-radius:12px; font-weight:800; font-size:11px; display:inline-block;">${texto}</span>`;
+                const st = slaCumplimientoEstado(info, slaLimit);
+                if (!st.texto) return "";
+                return `<span style="background:${st.color}; color:${st.fg}; padding:3px 10px; border-radius:12px; font-weight:800; font-size:11px; display:inline-block;">${st.texto}</span>`;
             };
         }
 
