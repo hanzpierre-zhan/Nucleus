@@ -671,7 +671,7 @@
         ).join('');
     }
 
-    // --- PEXT: tarjetas de resumen con los KPIs más importantes ---
+    // --- PEXT: tarjetas de los estados del SLA Cumplimiento + estados de la WO ---
     function renderCardsStats(container) {
         const norm = v => String(v == null ? '' : v).trim().toLowerCase();
         const val = (row, ...keys) => {
@@ -681,28 +681,33 @@
             }
             return null;
         };
-        const EN_PROCESO = ['unscheduled', 'dispatched', 'accepted', 'inprocess', 'running'];
-        const CERRADAS = ['closed', 'canceled', 'complete'];
-        let enProceso = 0, cerradas = 0, criticas = 0, p1 = 0, sinTecnico = 0, dispatched = 0;
+        const slaCounts = {
+            'SLA CUMPLIDO': 0,
+            'SLA VENCIDO': 0,
+            'SLA DENTRO DE PLAZO': 0,
+            'SLA DEBE ATENDERSE': 0,
+            'SLA POR VENCER': 0,
+            'NO APLICA': 0
+        };
+        const woCounts = { unscheduled: 0, dispatched: 0, accepted: 0, inprocess: 0 };
         rawData.forEach(r => {
+            const st = slaCumplimientoEstado(computarSlaData(r), getSlaThresholdData(r));
+            if (st.texto && st.texto in slaCounts) slaCounts[st.texto]++;
             const woState = String(val(r, 'estado de la tarea (wo state)', 'estado del tt', 'estado') || '').trim().toLowerCase();
-            if (woState === 'dispatched') dispatched++;
-            if (EN_PROCESO.includes(woState)) enProceso++;
-            else if (CERRADAS.includes(woState)) cerradas++;
-            if (norm(val(r, 'fault level')) === 'critical') criticas++;
-            if (norm(val(r, 'prioridad del site')) === 'p1') p1++;
-            if (!String(val(r, 'tecnico asignado') || '').trim()) sinTecnico++;
+            if (woState in woCounts) woCounts[woState]++;
         });
         const cards = [
-            ['#007AFF', 'fa-database', 'Total registros', rawData.length],
-            ['#FF9500', 'fa-spinner', 'En proceso', enProceso],
-            ['#34C759', 'fa-circle-check', 'Cerradas', cerradas],
-            ['#FF3B30', 'fa-bell', 'Críticas', criticas],
-            ['#AF52DE', 'fa-arrow-trend-up', 'Prioridad P1', p1],
-            ['#5856D6', 'fa-user-slash', 'Sin técnico', sinTecnico],
-            ['#FF9F0A', 'fa-paper-plane', 'Dispatched', dispatched]
+            ['#28A745', 'fa-circle-check', 'SLA CUMPLIDO', slaCounts['SLA CUMPLIDO']],
+            ['#8B0000', 'fa-circle-xmark', 'SLA VENCIDO', slaCounts['SLA VENCIDO']],
+            ['#FFC107', 'fa-exclamation-triangle', 'SLA DEBE ATENDERSE', slaCounts['SLA DEBE ATENDERSE']],
+            ['#DC3545', 'fa-hourglass-half', 'SLA POR VENCER', slaCounts['SLA POR VENCER']],
+            ['#8E8E93', 'fa-calendar', 'Unscheduled', woCounts.unscheduled],
+            ['#AF52DE', 'fa-paper-plane', 'Dispatched', woCounts.dispatched],
+            ['#007AFF', 'fa-check-double', 'Accepted', woCounts.accepted],
+            ['#FF9500', 'fa-spinner', 'Inprocess', woCounts.inprocess]
         ];
         container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
         container.innerHTML = cards.map(c =>
             `<div class="data-stat">` +
                 `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
@@ -710,8 +715,6 @@
             `</div>`
         ).join('');
     }
-
-    buildDataStats();
 
     const kpiAlarmFormatter = function(cell) {
         const val = cell.getValue();
@@ -891,6 +894,8 @@
         if (pct < 100) return { texto: 'SLA POR VENCER', color: '#DC3545', fg: '#fff', rank: 1 };
         return { texto: 'SLA VENCIDO', color: '#8B0000', fg: '#fff', rank: 1 };
     };
+
+    buildDataStats();
 
     const formatHoursMinsSecs = (ms) => {
         if (ms === null || ms === undefined || isNaN(ms)) return "";
