@@ -883,13 +883,13 @@
         if (info.stateVal === 'closed') {
             const cumplio = info.mins <= slaLimit;
             if (cumplio) return { texto: 'SLA CUMPLIDO', color: '#28A745', fg: '#fff', rank: 0 };
-            return { texto: 'SLA VENCIDO', color: '#DC3545', fg: '#fff', rank: 1 };
+            return { texto: 'SLA VENCIDO', color: '#8B0000', fg: '#fff', rank: 1 };
         }
         const pct = (info.mins / slaLimit) * 100;
         if (pct < 50) return { texto: 'SLA DENTRO DE PLAZO', color: '#28A745', fg: '#fff', rank: 0 };
         if (pct < 80) return { texto: 'SLA DEBE ATENDERSE', color: '#FFC107', fg: '#212529', rank: 0 };
         if (pct < 100) return { texto: 'SLA POR VENCER', color: '#DC3545', fg: '#fff', rank: 1 };
-        return { texto: 'SLA VENCIDO', color: '#DC3545', fg: '#fff', rank: 1 };
+        return { texto: 'SLA VENCIDO', color: '#8B0000', fg: '#fff', rank: 1 };
     };
 
     const formatHoursMinsSecs = (ms) => {
@@ -1456,21 +1456,22 @@
 
                 if (info.stateVal === 'closed') {
                     const cumplio = slaLimit > 0 && info.mins <= slaLimit;
-                    cell.getElement().style.background = cumplio ? "#28A745" : "#DC3545";
+                    cell.getElement().style.background = cumplio ? "#28A745" : "#8B0000";
                     cell.getElement().style.color = "#FFFFFF";
                     cell.getElement().style.fontWeight = "800";
                     cell.getElement().setAttribute("title", `SLA: ${txt} (Límite SLA: ${formatHoursMins(slaLimit)})`);
                 } else if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
-                    // Informativo, sin semáforo
-                    cell.getElement().style.background = "";
-                    cell.getElement().style.color = "";
-                    cell.getElement().style.fontWeight = "";
+                    // Informativo, en gris (NO APLICA)
+                    cell.getElement().style.background = "#8E8E93";
+                    cell.getElement().style.color = "#FFFFFF";
+                    cell.getElement().style.fontWeight = "800";
                     cell.getElement().setAttribute("title", `Cancelado (creación → ${info.stateVal}): ${txt}`);
                 } else {
                     let bg, fg;
                     if (pct < 50) { bg = "#28A745"; fg = "#FFFFFF"; }
                     else if (pct < 80) { bg = "#FFC107"; fg = "#212529"; }
-                    else { bg = "#DC3545"; fg = "#FFFFFF"; }
+                    else if (pct < 100) { bg = "#DC3545"; fg = "#FFFFFF"; }
+                    else { bg = "#8B0000"; fg = "#FFFFFF"; }
                     cell.getElement().style.background = bg;
                     cell.getElement().style.color = fg;
                     cell.getElement().style.fontWeight = "800";
