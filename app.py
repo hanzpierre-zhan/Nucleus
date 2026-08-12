@@ -465,6 +465,48 @@ with app.app_context():
                                          valor=json.dumps(default_servicios, ensure_ascii=False)))
     db.session.commit()
 
+    # --- Backfill: historial de estado inicial para registros históricos ---
+    # Los registros importados antes de existir el seguimiento de cambios de estado
+    # no tienen fila en historial_cambios. Se crea una entrada 'IMPORT' con el estado
+    # actual para que el historial/estado de cada WO sea visible y no se pierda info.
+    # Es idempotente: se ejecuta una sola vez por proyecto (flag en app_config).
+    WO_STATE_COL_BF = 'Estado de la tarea (WO State)'
+    STATE_TS_COL_BF = 'FECHA CAMBIO ESTADO'
+    for proy in Proyecto.query.all():
+        bf_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='historial_backfill_done').first()
+        if bf_cfg:
+            continue
+        hist_keys = set(kv for (kv,) in db.session.query(HistorialCambios.key_value).filter(
+            HistorialCambios.proyecto_id == proy.id,
+            HistorialCambios.campo_modificado == WO_STATE_COL_BF).distinct().all())
+        n = 0
+        for r in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+            if r.key_value in hist_keys:
+                continue
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            st = str(d.get(WO_STATE_COL_BF, '')).strip()
+            if not st:
+                continue
+            fecha = datetime.utcnow()
+            fec_txt = str(d.get(STATE_TS_COL_BF, '')).strip()
+            if fec_txt:
+                try:
+                    fecha = datetime.strptime(fec_txt[:19], '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    pass
+            db.session.add(HistorialCambios(
+                proyecto_id=proy.id, usuario_id=None, username='IMPORT',
+                key_value=r.key_value, campo_modificado=WO_STATE_COL_BF,
+                valor_anterior='', valor_nuevo=st, fecha=fecha))
+            n += 1
+        if n:
+            print(f"Backfill historial de estado: {n} registros (proyecto {proy.nombre})")
+        db.session.add(AppConfig(proyecto_id=proy.id, clave='historial_backfill_done', valor='1'))
+        db.session.commit()
+
 def safe_json_dumps(obj):
     return json.dumps(obj, ensure_ascii=False)
 
@@ -596,26 +638,18 @@ def index():
     config_key = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
     pk = config_key.valor if config_key else 'NO_DEF'
     
-    # Keys con al menos un cambio de estado registrado (por importación o manual).
-    # Se combinan dos fuentes:
-    #  1) filas de historial_cambios con campo 'Estado de la tarea (WO State)'
-    #  2) registros cuya data tiene el campo 'FECHA CAMBIO ESTADO' no vacío
-    #     (marca que escribe la importación cuando detecta un cambio de estado)
-    STATE_MARKER = 'FECHA CAMBIO ESTADO'
-    changed_keys_set = set()
-    hist_rows = db.session.query(HistorialCambios.key_value).filter(
+    # Keys con MÁS DE UN cambio de estado registrado (por importación o manual).
+    # Cada transición de estado genera una fila en historial_cambios; el filtro
+    # solo muestra los WO con más de una transición registrada (>= 2).
+    WO_STATE_COL_CH = 'Estado de la tarea (WO State)'
+    hist_counts = db.session.query(
+        HistorialCambios.key_value,
+        db.func.count(HistorialCambios.id)
+    ).filter(
         HistorialCambios.proyecto_id == pid,
-        HistorialCambios.campo_modificado == 'Estado de la tarea (WO State)'
-    ).distinct().all()
-    for k in hist_rows:
-        changed_keys_set.add(k[0])
-    for r in rows:
-        try:
-            d = json.loads(r.data_json)
-        except Exception:
-            continue
-        if str(d.get(STATE_MARKER, '')).strip():
-            changed_keys_set.add(r.key_value)
+        HistorialCambios.campo_modificado == WO_STATE_COL_CH
+    ).group_by(HistorialCambios.key_value).all()
+    changed_keys_set = set(k for k, cnt in hist_counts if cnt > 1)
     changed_keys = sorted(changed_keys_set)
     
     cols = sorted(list(columns_set))
@@ -1304,9 +1338,12 @@ def api_import_process():
                         current_data[k] = v
                 new_state = str(current_data.get(WO_STATE_COL, '')).strip()
                 new_state_l = new_state.lower()
-                if new_state and new_state != old_state:
-                    current_data[STATE_TS_COL] = now_str
-                    dynamic_cols.add(STATE_TS_COL)
+                if new_state != old_state:
+                    # Registrar TODA transición (incluye quedarse vacío), de modo
+                    # que el historial nunca pierda cambios de estado por importación.
+                    if new_state_l != old_state.lower():
+                        current_data[STATE_TS_COL] = now_str
+                        dynamic_cols.add(STATE_TS_COL)
                     db.session.add(HistorialCambios(
                         proyecto_id=pid,
                         usuario_id=None,

@@ -14,7 +14,7 @@
         <span class="topbar-switch-label">Manuales</span>
     </label>
 
-    <label class="topbar-switch" title="Mostrar solo las filas cuyo estado cambió en la última importación">
+    <label class="topbar-switch" title="Mostrar solo las filas cuyo estado cambió más de una vez (importación o manual)">
         <input type="checkbox" id="import-cambios-toggle" onchange="toggleImportCambios(this)">
         <span class="topbar-switch-track" style="background: #FF9500;"></span>
         <span class="topbar-switch-label">Cambios</span>
@@ -1641,7 +1641,7 @@
         const show = cb.checked;
         if (show) {
             if (changedKeys.size === 0) {
-                alert('Aún no hay filas con cambios de estado registrados.');
+                alert('Aún no hay filas con más de un cambio de estado registrado.');
                 cb.checked = false;
                 return;
             }
@@ -1909,7 +1909,11 @@
                 box.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> ' + data.error;
             } else {
                 box.className = 'result-box success';
-                box.innerHTML = `<i class="fa-solid fa-circle-check"></i> <b>Importación exitosa.</b> Añadidos: ${data.added} · Actualizados: ${data.updated} · Ignorados: ${data.ignored}`;
+                let resumen = `<i class="fa-solid fa-circle-check"></i> <b>Importación exitosa.</b> Añadidos: ${data.added} · Actualizados: ${data.updated} · Ignorados: ${data.ignored}`;
+                if (data.consolidated) resumen += ` · Consolidados: ${data.consolidated}`;
+                resumen += `<br><span style="display:inline-block;margin-top:8px;">Recarga para ver los cambios de estado y el historial actualizado.</span> `;
+                resumen += `<button type="button" class="mar-btn-primary" onclick="location.reload()" style="margin-left:6px;padding:4px 12px;font-size:13px;"><i class="fa-solid fa-rotate"></i> Recargar</button>`;
+                box.innerHTML = resumen;
             }
         } catch (e) {
             box.className = 'result-box error';
