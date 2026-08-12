@@ -1958,8 +1958,48 @@
     });
 
     function descargarExcel() {
-        if (typeof table === 'undefined') return;
-        table.download("xlsx", "Nucleus_Base.xlsx", { sheetName: "Data" });
+        if (typeof XLSX === 'undefined') {
+            alert("Librería de exportación no disponible.");
+            return;
+        }
+
+        // TODAS las filas (sin aplicar filtros de la tabla) y TODAS las columnas reales
+        // (importadas + manuales). Se excluyen solo columnas calculadas (KPI_*).
+        const exportCols = rawCols.filter(c => {
+            if (!c) return false;
+            const up = String(c).trim().toUpperCase();
+            if (up.startsWith('KPI_')) return false;
+            return true;
+        });
+
+        const rows = [];
+        const headers = exportCols.map(c => String(c).trim());
+        rows.push(headers);
+
+        rawData.forEach(r => {
+            const line = [];
+            exportCols.forEach(c => {
+                const up = String(c).trim().toUpperCase();
+                let v = r[c];
+                if (up === 'SLA') {
+                    const info = computarSlaData(r);
+                    v = info ? (info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins)) : '';
+                } else if (up === 'SLA CUMPLIMIENTO') {
+                    const info = computarSlaData(r);
+                    const lim = getSlaThresholdData(r);
+                    v = slaCumplimientoEstado(info, lim).texto;
+                }
+                line.push(v === null || v === undefined ? '' : v);
+            });
+            rows.push(line);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = exportCols.map(() => ({ wch: 20 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Data");
+        const proy = (currentProjectNombre || 'Nucleus').trim().replace(/[\\/:*?"<>|]/g, '_');
+        XLSX.writeFile(wb, `Nucleus_${proy}.xlsx`);
     }
 
     // --- NUEVO REGISTRO (Modal) ---

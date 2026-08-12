@@ -1,6 +1,7 @@
 import os
 import glob
 import json
+import time
 import logging
 import tempfile
 import mimetypes
@@ -30,7 +31,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nucleus_dev_key_change_
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 MB
 app.config['EVIDENCIA_DIR'] = os.path.join(BASE_DIR, 'static', 'evidencia')
 os.makedirs(app.config['EVIDENCIA_DIR'], exist_ok=True)
-app.config['EVIDENCIA_MAX_LADO'] = int(os.environ.get('EVIDENCIA_MAX_LADO', 1600))
+app.config['EVIDENCIA_MAX_LADO'] = int(os.environ.get('EVIDENCIA_MAX_LADO', 1280))
 app.config['EVIDENCIA_CALIDAD'] = int(os.environ.get('EVIDENCIA_CALIDAD', 80))
 # Backblaze B2 (opcional): si se configuran estas variables, las fotos se suben a B2.
 app.config['B2_ENDPOINT_URL'] = os.environ.get('B2_ENDPOINT_URL', '')
@@ -2492,7 +2493,7 @@ def api_evidencia_subir():
             evidencia_limpiar_slot(pid, key, tipo, indice)
             os.replace(ruta_tmp, os.path.join(folder, nombre))
 
-        url = f'/api/evidencia/foto/{pid}/{secure_filename(str(key))}/{nombre}'
+        url = f'/api/evidencia/foto/{pid}/{secure_filename(str(key))}/{nombre}?v={int(time.time())}'
         return jsonify({'success': True, 'url': url})
     finally:
         if os.path.exists(ruta_tmp):
@@ -2533,11 +2534,13 @@ def api_evidencia_foto(pid, key, nombre):
             obj = b2_cliente().get_object(Bucket=app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
             data = obj['Body'].read()
             mt = mimetypes.guess_type(nombre)[0] or 'application/octet-stream'
-            return Response(data, mimetype=mt)
+            resp = Response(data, mimetype=mt)
+            resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
+            return resp
         except Exception:
             return jsonify({'error': 'No encontrado'}), 404
     folder = evidencia_folder(pid, key)
-    return send_from_directory(folder, nombre)
+    return send_from_directory(folder, nombre, max_age=604800)
 
 @app.route('/healthz')
 def healthz():
