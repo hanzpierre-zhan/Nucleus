@@ -596,12 +596,27 @@ def index():
     config_key = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
     pk = config_key.valor if config_key else 'NO_DEF'
     
-    # Keys con al menos un cambio de estado registrado (por importación o manual)
-    changed_rows = db.session.query(HistorialCambios.key_value).filter(
+    # Keys con al menos un cambio de estado registrado (por importación o manual).
+    # Se combinan dos fuentes:
+    #  1) filas de historial_cambios con campo 'Estado de la tarea (WO State)'
+    #  2) registros cuya data tiene el campo 'FECHA CAMBIO ESTADO' no vacío
+    #     (marca que escribe la importación cuando detecta un cambio de estado)
+    STATE_MARKER = 'FECHA CAMBIO ESTADO'
+    changed_keys_set = set()
+    hist_rows = db.session.query(HistorialCambios.key_value).filter(
         HistorialCambios.proyecto_id == pid,
         HistorialCambios.campo_modificado == 'Estado de la tarea (WO State)'
     ).distinct().all()
-    changed_keys = [k[0] for k in changed_rows]
+    for k in hist_rows:
+        changed_keys_set.add(k[0])
+    for r in rows:
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
+        if str(d.get(STATE_MARKER, '')).strip():
+            changed_keys_set.add(r.key_value)
+    changed_keys = sorted(changed_keys_set)
     
     cols = sorted(list(columns_set))
     if '_key' in cols: cols.remove('_key')
