@@ -820,6 +820,50 @@
         };
     };
 
+    const getDataVal = (data, partialKey) => {
+        const targetKey = Object.keys(data).find(k => k.toLowerCase().includes(partialKey.toLowerCase()));
+        return targetKey ? data[targetKey] : null;
+    };
+
+    const computarSlaData = (data) => {
+        const creation = parseDate(getDataVal(data, "Fecha de creación (WO Creation date)") || getDataVal(data, "creation date") || getDataVal(data, "fecha_ticket"));
+        if (!creation) return null;
+        const stateVal = String(getDataVal(data, "wo state") || getDataVal(data, "estado") || '').trim().toLowerCase();
+        let endDate = null;
+        if (stateVal === 'closed') {
+            endDate = parseDate(getDataVal(data, "Fecha closed") || getDataVal(data, "Fecha de closed") || getDataVal(data, "close") || getDataVal(data, "cierre"));
+        } else if (stateVal === 'canceled' || stateVal === 'rejected') {
+            endDate = parseDate(getDataVal(data, "Fecha cancelación WO") || getDataVal(data, "Fecha cancelacion WO") || getDataVal(data, "cancel"));
+            if (!endDate) endDate = parseDate(data['_fecha_cancel_reject']);
+        } else {
+            endDate = new Date();
+        }
+        if (!endDate) return null;
+        const diffMs = Math.max(0, endDate.getTime() - creation.getTime());
+        return {
+            stateVal: stateVal,
+            diffMs: diffMs,
+            mins: Math.floor(diffMs / 60000),
+            isActive: !['closed', 'canceled', 'rejected'].includes(stateVal)
+        };
+    };
+
+    const getSlaThresholdData = (data) => {
+        const val = getDataVal(data, "SLA");
+        if (val !== null && val !== undefined) {
+            const str = String(val).trim();
+            if (/^\d+$/.test(str)) return parseInt(str, 10);
+            const hrsMatch = str.match(/(\d+)\s*HRS/i);
+            if (hrsMatch) return parseInt(hrsMatch[1], 10) * 60;
+        }
+        const faultLevel = String(getDataVal(data, "Fault Level") || '').trim().toLowerCase();
+        if (faultLevel === 'critical') return 480;
+        if (faultLevel === 'alta') return 600;
+        if (faultLevel === 'media') return 2880;
+        if (faultLevel === 'baja') return 4320;
+        return 360;
+    };
+
     const formatHoursMins = (mins) => {
         if (mins === null || mins === undefined || isNaN(mins)) return "";
         const hrs = Math.floor(mins / 60);
@@ -1368,6 +1412,21 @@
         // SLA: creación → closed. Si está canceled/rejected, usa la fecha de cancelación WO.
         if (fieldName && fieldName.trim() === "SLA") {
             colDef.width = 130;
+            colDef.sorter = function(a, b, aRow, bRow, column, dir, sorterParams) {
+                const ia = computarSlaData(aRow.getData());
+                const ib = computarSlaData(bRow.getData());
+                const va = ia ? ia.mins : -1;
+                const vb = ib ? ib.mins : -1;
+                return va - vb;
+            };
+            colDef.headerFilterFunc = function(headerValue, rowValue, rowData, filterParams) {
+                const q = String(headerValue || '').trim().toLowerCase();
+                if (!q) return true;
+                const info = computarSlaData(rowData);
+                if (!info) return false;
+                const txt = info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins);
+                return txt.toLowerCase().indexOf(q) !== -1;
+            };
             colDef.formatter = function(cell) {
                 const row = cell.getRow();
                 const info = computarSla(row);
@@ -1406,6 +1465,33 @@
         // SLA Cumplimiento: cerradas/en curso → cumplió o no; canceladas/rejected → NO APLICA.
         if (fieldName && fieldName.trim() === "SLA Cumplimiento") {
             colDef.width = 150;
+            colDef.sorter = function(a, b, aRow, bRow, column, dir, sorterParams) {
+                const rank = (row) => {
+                    const info = computarSlaData(row.getData());
+                    if (!info) return 3;
+                    const slaLimit = getSlaThresholdData(row.getData());
+                    if (slaLimit <= 0) return 3;
+                    if (info.stateVal === 'canceled' || info.stateVal === 'rejected') return 2;
+                    return info.mins <= slaLimit ? 0 : 1;
+                };
+                return rank(aRow) - rank(bRow);
+            };
+            colDef.headerFilterFunc = function(headerValue, rowValue, rowData, filterParams) {
+                const q = String(headerValue || '').trim().toLowerCase();
+                if (!q) return true;
+                const info = computarSlaData(rowData);
+                if (!info) return false;
+                const slaLimit = getSlaThresholdData(rowData);
+                let txt = '';
+                if (slaLimit <= 0) {
+                    txt = '';
+                } else if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
+                    txt = 'NO APLICA';
+                } else {
+                    txt = info.mins <= slaLimit ? 'SLA CUMPLIO' : 'SLA NO CUMPLIO';
+                }
+                return txt.toLowerCase().indexOf(q) !== -1;
+            };
             colDef.formatter = function(cell) {
                 const row = cell.getRow();
                 const info = computarSla(row);
