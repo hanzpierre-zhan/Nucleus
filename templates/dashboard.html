@@ -142,7 +142,7 @@
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div class="dash-project-switch">
                         {% for p in proyectos_list %}
-                        {% if p.nombre in ['FLM', 'PEXT', 'Dataper'] %}
+                        {% if p.nombre in ['FLM', 'PEXT', 'Dataper', 'Material'] %}
                         <a href="/switch_project/{{ p.id }}?next=/dashboard" class="dash-project-pill {% if p.id == session.get('current_proyecto_id') %}active{% endif %}" title="Ver dashboard de {{ p.nombre }}">
                             <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i>{{ p.nombre }}
                         </a>

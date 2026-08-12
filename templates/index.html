@@ -263,12 +263,38 @@
         background: #fff; color: var(--ios-blue, #007AFF);
         box-shadow: 0 1px 4px rgba(0,0,0,0.14);
     }
-    .wo-header { align-items: center; flex-wrap: nowrap; gap: 12px; }
+    .wo-material-row {
+        display: grid; grid-template-columns: minmax(140px, 1fr) 90px 80px 90px 34px;
+        gap: 8px; align-items: center; margin-bottom: 8px;
+    }
+    .wo-material-row select,
+    .wo-material-row input[type="number"],
+    .wo-material-row input[type="text"] {
+        width: 100%; padding: 8px 10px; border-radius: 10px;
+        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
+        font-family: inherit; font-size: 12.5px; color: var(--ios-label);
+        outline: none;
+    }
+    .wo-material-row select:focus,
+    .wo-material-row input[type="number"]:focus,
+    .wo-material-row input[type="text"]:focus { border-color: var(--ios-blue); }
+    .wo-material-row input[type="text"][readonly] {
+        background: var(--ios-fill); color: var(--ios-gray-1);
+        border-color: var(--ios-hairline); cursor: default;
+    }
+    .wo-material-del {
+        width: 32px; height: 32px; border: none; border-radius: 9px;
+        background: #FFE9E9; color: #FF3B30; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+        transition: all .15s ease;
+    }
+    .wo-material-del:hover { background: #FFD3D3; }
+    .wo-header { align-items: center; flex-wrap: wrap; gap: 10px 14px; }
     .wo-header .wo-title { margin: 0; font-size: 15px; white-space: nowrap; }
     .wo-header .wo-tabs { flex-shrink: 0; }
     .wo-header .wo-tab { padding: 6px 12px; font-size: 12px; }
-    .wo-head-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
-    .wo-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .wo-head-left { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; min-width: 0; }
+    .wo-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
     .wo-head-actions .mar-btn-copy,
     .wo-head-actions .mar-btn-ghost,
     .wo-head-actions .mar-btn-primary {
@@ -381,9 +407,9 @@
     <div class="mar-modal wo-modal">
         <div class="mar-header wo-header">
             <div class="wo-head-left">
-                <h3 class="wo-title"><i class="fa-solid fa-briefcase"></i> Detalle de <span id="wo-title">WO</span></h3>
                 <div class="wo-tabs" style="margin-bottom:0;">
                     <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i class="fa-solid fa-list-ul"></i> Detalle</button>
+                    <button type="button" class="wo-tab" id="wo-tab-material" onclick="cambiarWoTab('material')"><i class="fa-solid fa-toolbox"></i> Material</button>
                     <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i class="fa-solid fa-arrows-spin"></i> Estado</button>
                 </div>
@@ -397,7 +423,7 @@
         <div class="wo-body">
             <div id="wo-panel-detalle">
             <div class="wo-section">
-                <div class="wo-section-title"><i class="fa-solid fa-list-ul"></i> Resumen del registro</div>
+                <div class="wo-section-title"><i class="fa-solid fa-briefcase"></i> Detalle de <span id="wo-title">WO</span></div>
                 <div id="wo-summary" class="wo-summary"><div class="wo-empty">Cargando...</div></div>
             </div>
             <div class="wo-section">
@@ -451,10 +477,6 @@
                         <input type="text" id="wo-lon-mufa" autocomplete="off" placeholder="Ej: -74.587859°">
                     </div>
                     <div class="wo-field">
-                        <label><i class="fa-solid fa-toolbox"></i> Material usado</label>
-                        <input type="text" id="wo-material-usado" autocomplete="off">
-                    </div>
-                    <div class="wo-field">
                         <label><i class="fa-solid fa-wand-magic-sparkles"></i> Solución</label>
                         <select id="wo-solucion"><option value="">— Seleccionar —</option></select>
                     </div>
@@ -488,6 +510,13 @@
                     </div>
                 </div>
             </div>
+            </div>
+            <div id="wo-panel-material" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-toolbox"></i> Materiales usados en la obra</div>
+                    <div id="wo-material-list"><div class="wo-empty">Cargando...</div></div>
+                    <button type="button" id="btn-wo-agregar-material" class="mar-btn-ghost" onclick="agregarFilaMaterial()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar material</button>
+                </div>
             </div>
             <div id="wo-panel-historial" style="display:none;">
                 <div class="wo-section">
@@ -822,8 +851,8 @@
         return parts.join(' ');
     };
 
-    // Ensure SLA columns exist in rawCols dynamically, except for Dataper
-    if (currentProjectNombre.trim().toLowerCase() !== 'dataper') {
+    // Ensure SLA columns exist in rawCols dynamically, except for Dataper and Material
+    if (currentProjectNombre.trim().toLowerCase() !== 'dataper' && currentProjectNombre.trim().toLowerCase() !== 'material') {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
                 rawCols.push(slaName);
@@ -1864,7 +1893,7 @@
         if (body) body.innerHTML = '';
     }
 
-    const IMPORT_TYPE = currentProjectNombre.trim().toLowerCase() === 'dataper' ? 'manual_cols' : 'base';
+    const IMPORT_TYPE = ['dataper', 'material'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
     let importFileToUpload = null;
 
     function abrirModalImportar() {
@@ -1995,6 +2024,8 @@
     let woKey = null;
     let woServicios = [];
     let woTecnicos = [];
+    let woMateriales = [];
+    let woEditable = true;
     let serviciosEditorOpen = false;
 
     const MOTIVO_AVERIA_OPCIONES = [
@@ -2099,7 +2130,6 @@
         }
         document.getElementById('wo-lat-mufa').value = woLatMufa;
         document.getElementById('wo-lon-mufa').value = woLonMufa;
-        document.getElementById('wo-material-usado').value = data['MATERIAL USADO'] || '';
         document.getElementById('wo-inicio-parada').value = toDatetimeLocal(data['INICIO DE PARADA']);
         document.getElementById('wo-fin-parada').value = toDatetimeLocal(data['FIN DE PARADA']);
         document.getElementById('wo-requiere-correctivo').value = data['REQUIERE CORRECTIVO FINAL'] || '';
@@ -2109,10 +2139,13 @@
 
         const isDemo = "{{ session.get('rol') }}" === "demo";
         const editable = !isDemo;
+        woEditable = editable;
         document.querySelectorAll('.wo-form input, .wo-form select, .wo-form textarea').forEach(el => { el.disabled = !editable; });
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
         const canEditServicios = ["admin", "supervisor"].includes("{{ session.get('rol') }}");
         document.getElementById('btn-servicios').style.display = (editable && canEditServicios) ? '' : 'none';
+        const btnAgMat = document.getElementById('btn-wo-agregar-material');
+        if (btnAgMat) btnAgMat.style.display = editable ? '' : 'none';
 
         document.getElementById('modal-wo').style.display = 'flex';
         cargarWoMeta(data);
@@ -2149,6 +2182,7 @@
             if (!res.success) return;
             woServicios = res.servicios || [];
             woTecnicos = res.tecnicos || [];
+            woMateriales = res.materiales || [];
 
             const sSel = document.getElementById('wo-servicio');
             sSel.innerHTML = '<option value="">— Seleccionar —</option>';
@@ -2172,6 +2206,7 @@
             const currentTech = data['TECNICO ASIGNADO'] || '';
             if (currentTech) tSel.value = currentTech;
             if (!document.getElementById('wo-contrata').value) onTecnicoChange();
+            renderWoMaterialList(data);
         }).catch(() => {});
     }
 
@@ -2183,6 +2218,124 @@
         }
     }
     document.getElementById('wo-tecnico').addEventListener('change', onTecnicoChange);
+
+    function renderWoMaterialList(data) {
+        const cont = document.getElementById('wo-material-list');
+        if (!cont) return;
+        cont.innerHTML = '';
+        let saved = [];
+        try {
+            saved = JSON.parse(data['MATERIALES'] || '[]') || [];
+        } catch (e) { saved = []; }
+        if (!Array.isArray(saved)) saved = [];
+        saved.forEach(m => agregarFilaMaterial(m.codigo, m.cantidad, m.tipo, m.um));
+        if (!saved.length) {
+            cont.innerHTML = '<div class="wo-empty">Sin materiales registrados. Usa "Agregar material" para registrar lo usado en la obra.</div>';
+        }
+    }
+
+    function agregarFilaMaterial(codigo, cantidad, tipo, um) {
+        const cont = document.getElementById('wo-material-list');
+        if (!cont) return;
+        const emptyMsg = cont.querySelector('.wo-empty');
+        if (emptyMsg) emptyMsg.remove();
+
+        const row = document.createElement('div');
+        row.className = 'wo-material-row';
+
+        const sel = document.createElement('select');
+        const ph = document.createElement('option');
+        ph.value = ''; ph.textContent = '— Seleccionar material —';
+        sel.appendChild(ph);
+        woMateriales.forEach(m => {
+            const o = document.createElement('option');
+            o.value = m.codigo;
+            o.textContent = m.descripcion ? `${m.descripcion} (${m.codigo})` : m.codigo;
+            o.dataset.descripcion = m.descripcion || '';
+            o.dataset.tipo = m.tipo || '';
+            o.dataset.um = m.um || '';
+            sel.appendChild(o);
+        });
+        if (codigo) sel.value = codigo;
+        row.appendChild(sel);
+
+        const tipoInp = document.createElement('input');
+        tipoInp.type = 'text';
+        tipoInp.placeholder = 'Tipo';
+        tipoInp.readOnly = true;
+        tipoInp.title = 'Tipo del material (autocompletado)';
+        tipoInp.value = tipo || '';
+        row.appendChild(tipoInp);
+
+        const umInp = document.createElement('input');
+        umInp.type = 'text';
+        umInp.placeholder = 'UM';
+        umInp.readOnly = true;
+        umInp.title = 'Unidad de medida (autocompletado)';
+        umInp.value = um || '';
+        row.appendChild(umInp);
+
+        const qty = document.createElement('input');
+        qty.type = 'number';
+        qty.min = '0';
+        qty.step = '0.01';
+        qty.placeholder = 'Cantidad';
+        qty.value = cantidad || '';
+        row.appendChild(qty);
+
+        const autofill = () => {
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt) return;
+            tipoInp.value = opt.dataset.tipo || '';
+            umInp.value = opt.dataset.um || '';
+        };
+        sel.addEventListener('change', autofill);
+        if (codigo) autofill();
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'wo-material-del';
+        del.title = 'Quitar material';
+        del.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+        del.onclick = () => {
+            row.remove();
+            if (!cont.querySelector('.wo-material-row')) {
+                cont.innerHTML = '<div class="wo-empty">Sin materiales registrados. Usa "Agregar material" para registrar lo usado en la obra.</div>';
+            }
+        };
+        row.appendChild(del);
+
+        if (!woEditable) {
+            sel.disabled = true;
+            qty.disabled = true;
+            del.disabled = true;
+            del.style.display = 'none';
+        }
+
+        cont.appendChild(row);
+    }
+
+    function recogerMateriales() {
+        const cont = document.getElementById('wo-material-list');
+        if (!cont) return [];
+        const items = [];
+        cont.querySelectorAll('.wo-material-row').forEach(row => {
+            const sel = row.querySelector('select');
+            const qty = row.querySelector('input[type="number"]');
+            if (!sel || !sel.value) return;
+            const opt = sel.options[sel.selectedIndex];
+            const tipoInp = row.querySelectorAll('input[readonly]')[0];
+            const umInp = row.querySelectorAll('input[readonly]')[1];
+            items.push({
+                codigo: sel.value,
+                descripcion: (opt && opt.dataset.descripcion) || '',
+                tipo: tipoInp ? tipoInp.value : '',
+                um: umInp ? umInp.value : '',
+                cantidad: qty ? String(qty.value).trim() : ''
+            });
+        });
+        return items;
+    }
 
     function toggleServiciosEditor() {
         const editor = document.getElementById('servicios-editor');
@@ -2286,7 +2439,7 @@
                 'SE INSTALÓ MUFAS': document.getElementById('wo-se-instalo-mufas').value,
                 'LATITUD MUFAS': document.getElementById('wo-lat-mufa').value.trim(),
                 'LONGITUD MUFAS': document.getElementById('wo-lon-mufa').value.trim(),
-                'MATERIAL USADO': document.getElementById('wo-material-usado').value.trim(),
+                'MATERIALES': JSON.stringify(recogerMateriales()),
                 'INICIO DE PARADA': fromDatetimeLocal(document.getElementById('wo-inicio-parada').value),
                 'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value),
                 'REQUIERE CORRECTIVO FINAL': document.getElementById('wo-requiere-correctivo').value,
@@ -2319,9 +2472,11 @@
 
     function cambiarWoTab(tab) {
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
+        document.getElementById('wo-tab-material').classList.toggle('active', tab === 'material');
         document.getElementById('wo-tab-historial').classList.toggle('active', tab === 'historial');
         document.getElementById('wo-tab-estado').classList.toggle('active', tab === 'estado');
         document.getElementById('wo-panel-detalle').style.display = tab === 'detalle' ? '' : 'none';
+        document.getElementById('wo-panel-material').style.display = tab === 'material' ? '' : 'none';
         document.getElementById('wo-panel-historial').style.display = tab === 'historial' ? '' : 'none';
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
         if (tab === 'historial') {
@@ -2353,7 +2508,7 @@
         ['SE INSTALÓ MUFAS', '¿Mufas?'],
         ['LATITUD MUFAS', 'Lat mufas'],
         ['LONGITUD MUFAS', 'Long mufas'],
-        ['MATERIAL USADO', 'Material'],
+        ['MATERIALES', 'Materiales'],
         ['SOLUCIÓN', 'Solución'],
         ['REQUIERE CORRECTIVO FINAL', '¿Correctivo final?'],
         ['INICIO DE PARADA', 'Inicio parada'],
@@ -2411,6 +2566,16 @@
                 const full = key === 'BITACORA' ? ' full' : '';
                 let v = data[key];
                 if (key === 'FECHA CAMBIO ESTADO') v = utcToPeru(v);
+                if (key === 'MATERIALES') {
+                    try {
+                        const arr = JSON.parse(v || '[]') || [];
+                        v = arr.map(m => {
+                            const extra = [m.tipo, m.um].filter(Boolean).join(' / ');
+                            const q = m.cantidad ? ' x' + m.cantidad : '';
+                            return (m.descripcion || m.codigo || '') + q + (extra ? ' [' + extra + ']' : '');
+                        }).filter(Boolean).join('<br>');
+                    } catch (e) { v = v || ''; }
+                }
                 if (v === null || v === undefined || String(v).trim() === '') v = '—';
                 else v = String(v);
                 return '<div class="wt-cell' + changed + full + '"><span class="wt-lbl">' + escapeHtml(label) + '</span><span class="wt-val">' + escapeHtml(v) + '</span></div>';
@@ -2541,6 +2706,14 @@
             line('Ubicación de mufas (Long)', val('wo-lon-mufa')),
             line('Requiere correctivo Final?', val('wo-requiere-correctivo'))
         ];
+        const materiales = recogerMateriales();
+        if (materiales.length) {
+            lines.push('Materiales:');
+            materiales.forEach(m => {
+                const extra = [m.tipo, m.um].filter(Boolean).join('/');
+                lines.push(`- ${m.descripcion || m.codigo}${m.cantidad ? ' x' + m.cantidad : ''}${extra ? ' [' + extra + ']' : ''}`);
+            });
+        }
         const texto = lines.join('\n');
         if (!texto) { alert('No hay datos para copiar'); return; }
         const btn = document.getElementById('btn-wo-copiar');

@@ -63,6 +63,13 @@
                 </a>
                 {% endif %}
                 {% endfor %}
+                {% for p in proyectos_list %}
+                {% if p.nombre == 'Material' %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
+                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
+                </a>
+                {% endif %}
+                {% endfor %}
 
                 {% if (session.get('rol') or '').lower() in ['admin', 'demo'] %}
                 <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">

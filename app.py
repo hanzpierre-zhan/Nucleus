@@ -386,8 +386,9 @@ with app.app_context():
     except Exception:
         db.session.rollback()
 
-    # Migration: Ensure fixed projects FLM, PEXT, Dataper exist
-    fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.')]
+    # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
+    fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
+             ('Material', 'Materiales Disponibles')]
     for nombre, desc in fixed:
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
@@ -419,6 +420,34 @@ with app.app_context():
         schema_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='app_schema').first()
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=dataper.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: Configure Material columns (COD_MATERIAL, DESCRIPCION_MATERIAL, PROYECTO, UM, TIPO)
+    material_proy = Proyecto.query.filter_by(nombre='Material').first()
+    if material_proy:
+        material_proy.icono = 'fa-boxes-stacked'
+        material_cols = [
+            {'nombre': 'COD_MATERIAL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'DESCRIPCION_MATERIAL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'PROYECTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'UM', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TIPO', 'tipo': 'texto', 'opciones': []}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(material_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=material_proy.id, clave='manual_columns', valor=json.dumps(material_cols, ensure_ascii=False)))
+
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            pk_cfg.valor = 'COD_MATERIAL'
+        else:
+            db.session.add(AppConfig(proyecto_id=material_proy.id, clave='primary_key', valor='COD_MATERIAL'))
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=material_proy.id, clave='app_schema', valor=json.dumps([])))
         db.session.commit()
 
     # Migration: "Fault Level" es dato de origen (inmutable) -> no debe ser columna manual editable.
@@ -825,8 +854,8 @@ def api_admin_proyecto():
         pid = request.json.get('id')
         if not pid: return jsonify({'error': 'ID requerido'}), 400
         p = db.session.get(Proyecto, pid)
-        if p and p.nombre in ('FLM', 'PEXT', 'Dataper'):
-            return jsonify({'error': 'Los proyectos FLM, PEXT y Dataper no se pueden eliminar.'}), 403
+        if p and p.nombre in ('FLM', 'PEXT', 'Dataper', 'Material'):
+            return jsonify({'error': 'Los proyectos FLM, PEXT, Dataper y Material no se pueden eliminar.'}), 403
         try:
             # Cascading delete manually for safety (or set up models with cascade)
             # We must not delete the project 1 (Pangeaco) if it's the only one or a protected one?
@@ -1314,7 +1343,8 @@ def api_import_process():
             'MOTIVO DE AVERÍA', 'MOTIVO DE AVERIA', 'SOLUCIÓN', 'SOLUCION',
             'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'SE INSTALO MUFAS',
             'LATITUD MUFAS', 'LATITUD Mufas', 'LONGITUD MUFAS', 'LONGITUD Mufas',
-            'UBICACIÓN DE MUFAS', 'UBICACION DE MUFAS'
+            'UBICACIÓN DE MUFAS', 'UBICACION DE MUFAS',
+            'MATERIALES'
         ])
         
         for idx, row in df.iterrows():
@@ -2125,7 +2155,33 @@ def api_wo_meta():
                 tecnicos.append({'nombre': t, 'contrata': str(d.get('CONTRATA') or '').strip()})
         tecnicos.sort(key=lambda x: x['nombre'])
 
-        return jsonify({'success': True, 'servicios': servicios, 'tecnicos': tecnicos, 'proyecto': proy_nombre})
+        # Materiales desde MATERIAL, filtrados por el PROYECTO actual
+        materiales = []
+        material_proy = Proyecto.query.filter_by(nombre='Material').first()
+        if material_proy:
+            seen = set()
+            for r in NucleusData.query.filter_by(proyecto_id=material_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                pr = str(d.get('PROYECTO') or '').strip()
+                if proy_nombre and pr and pr != proy_nombre:
+                    continue
+                desc = str(d.get('DESCRIPCION_MATERIAL') or '').strip()
+                if not desc or desc in seen:
+                    continue
+                seen.add(desc)
+                materiales.append({
+                    'codigo': str(d.get('COD_MATERIAL') or '').strip(),
+                    'descripcion': desc,
+                    'tipo': str(d.get('TIPO') or '').strip(),
+                    'um': str(d.get('UM') or '').strip()
+                })
+        materiales.sort(key=lambda x: x['descripcion'])
+
+        return jsonify({'success': True, 'servicios': servicios, 'tecnicos': tecnicos,
+                        'materiales': materiales, 'proyecto': proy_nombre})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

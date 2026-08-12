@@ -27,12 +27,12 @@
                             <td>{{ p.id }}</td>
                             <td style="font-weight: 600;">
                                 <i class="fa-solid {{ p.icono or 'fa-folder-open' }}" style="margin-right: 8px; color: var(--ios-blue);"></i>{{ p.nombre }}
-                                {% if p.nombre in ['FLM', 'PEXT', 'Dataper'] %}
+                                {% if p.nombre in ['FLM', 'PEXT', 'Dataper', 'Material'] %}
                                 <span class="role-badge admin" title="Proyecto fijo">FIJO</span>
                                 {% endif %}
                             </td>
                             <td style="text-align: right;">
-                                {% if p.nombre not in ['FLM', 'PEXT', 'Dataper'] and session.get('rol') != 'demo' %}
+                                {% if p.nombre not in ['FLM', 'PEXT', 'Dataper', 'Material'] and session.get('rol') != 'demo' %}
                                 <button onclick="eliminarProyecto({{ p.id }}, '{{ p.nombre }}')" class="btn-icon btn-danger" title="Eliminar Proyecto">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
@@ -44,7 +44,7 @@
                 </table>
             </div>
             <p style="font-size: 11px; color: var(--ios-gray-1); margin-top: 10px;">
-                <i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Los proyectos FLM, PEXT y Dataper son fijos y no se pueden eliminar.
+                <i class="fa-solid fa-lock" style="margin-right: 4px;"></i> Los proyectos FLM, PEXT, Dataper y Material son fijos y no se pueden eliminar.
             </p>
         </div>
 
