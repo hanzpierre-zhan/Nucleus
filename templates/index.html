@@ -833,6 +833,22 @@
 
     const looksLikeDatetime = (v) => /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(String(v || '').trim());
 
+    // Convierte un timestamp 'YYYY-MM-DD HH:MM:SS' guardado en UTC a hora de Perú (UTC-5).
+    const utcToPeru = (s) => {
+        if (!s) return '';
+        const m = String(s).trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+        if (!m) return String(s);
+        const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+        if (isNaN(d.getTime())) return String(s);
+        const p = new Date(d.getTime() - 5 * 3600 * 1000);
+        const pad = n => String(n).padStart(2, '0');
+        let h = p.getUTCHours();
+        const ampm = h < 12 ? 'a. m.' : 'p. m.';
+        h = h % 12; if (h === 0) h = 12;
+        return pad(p.getUTCDate()) + '/' + pad(p.getUTCMonth() + 1) + '/' + p.getUTCFullYear() +
+            ', ' + h + ':' + pad(p.getUTCMinutes()) + ':' + pad(p.getUTCSeconds()) + ' ' + ampm;
+    };
+
     function isDateTimeColumn(field, rows) {
         const name = String(field || '').toUpperCase();
         if (!rows || !rows.length) {
@@ -1287,6 +1303,16 @@
                     </div>
                 `;
             };
+        }
+
+        // FECHA CAMBIO ESTADO: guardada en UTC -> mostrar en hora de Perú (UTC-5)
+        if (fieldName === "FECHA CAMBIO ESTADO") {
+            colDef.formatter = function(cell) {
+                const v = cell.getValue();
+                if (v === null || v === undefined || String(v).trim() === '') return '';
+                return utcToPeru(v);
+            };
+            colDef.tooltip = function(cell) { return utcToPeru(cell.getValue()); };
         }
 
         // Site Priority badge: clean badge layout with background tint
@@ -2107,7 +2133,8 @@
         visible.forEach(f => {
             const key = Object.keys(data).find(k => norm(k) === norm(f));
             if (!key) return;
-            const v = data[key];
+            let v = data[key];
+            if (key === 'FECHA CAMBIO ESTADO') v = utcToPeru(v);
             if (v === '' || v === null || v === undefined) return;
             items.push({ k: key, v: v });
         });
@@ -2383,6 +2410,7 @@
                 const changed = normField && normField === normKey(key) ? ' changed' : '';
                 const full = key === 'BITACORA' ? ' full' : '';
                 let v = data[key];
+                if (key === 'FECHA CAMBIO ESTADO') v = utcToPeru(v);
                 if (v === null || v === undefined || String(v).trim() === '') v = '—';
                 else v = String(v);
                 return '<div class="wt-cell' + changed + full + '"><span class="wt-lbl">' + escapeHtml(label) + '</span><span class="wt-val">' + escapeHtml(v) + '</span></div>';

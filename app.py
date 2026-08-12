@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import Counter
 
 # Setup Flask application
@@ -1304,7 +1304,7 @@ def api_import_process():
         CANCEL_REJECT_TS_COL = '_fecha_cancel_reject'
         DISPATCHED_STATES = {'dispatched'}
         TERMINAL_STATES = {'canceled', 'rejected'}
-        now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
         # Campos protegidos: la importación NO pisa los datos editados manualmente.
         # EXCEPCIÓN: en modo 'manual_cols' (Dataper) el archivo ES la fuente de datos manuales.
@@ -1966,11 +1966,11 @@ def api_rows_update():
             )
             db.session.add(historial)
             if str(field).strip() == 'Estado de la tarea (WO State)':
-                row_dict['FECHA CAMBIO ESTADO'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                row_dict['FECHA CAMBIO ESTADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         
         row_dict[field] = value
         row_dict['_ultimo_usuario_manual'] = session.get('username')
-        row_dict['_fecha_ultima_act_manual'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         
         # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
         tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
@@ -2170,7 +2170,8 @@ def api_wo_historial():
             'valor_anterior': h.valor_anterior or '',
             'valor_nuevo': h.valor_nuevo or '',
             'username': h.username,
-            'fecha': h.fecha.isoformat() if h.fecha else None
+            # La fecha se guarda en UTC y se convierte a hora de Perú (UTC-5).
+            'fecha': (h.fecha - timedelta(hours=5)).isoformat() if h.fecha else None
         } for h in rows]
         return jsonify({'success': True, 'historial': items})
     except Exception as e:
@@ -2209,11 +2210,11 @@ def api_rows_bulk_update():
                 db.session.add(historial)
             row_dict[field] = value
         row_dict['_ultimo_usuario_manual'] = session.get('username')
-        row_dict['_fecha_ultima_act_manual'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
         new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
         if new_state and new_state != old_state:
-            row_dict['FECHA CAMBIO ESTADO'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            row_dict['FECHA CAMBIO ESTADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
         # --- Instant Logic: TablaMaestra ---
         tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
