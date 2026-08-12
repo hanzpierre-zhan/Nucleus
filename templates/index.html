@@ -843,52 +843,230 @@
         return seen >= 2 && dt === seen;
     }
 
-    function dateRangeHeaderFilter(headerValue, params, onChanged) {
-        const wrap = document.createElement('div');
-        wrap.style.cssText = 'position:relative;display:flex;flex-direction:column;gap:2px;width:100%;';
-        const init = headerValue && typeof headerValue === 'object' ? headerValue : {};
-        const from = document.createElement('input');
-        from.type = 'date';
-        from.value = init.from || '';
-        from.title = 'Desde';
-        from.style.cssText = 'width:100%;min-width:0;font-size:11px;padding:1px 2px;border:1px solid #ccc;border-radius:4px;';
-        const to = document.createElement('input');
-        to.type = 'date';
-        to.value = init.to || '';
-        to.title = 'Hasta';
-        to.style.cssText = 'width:100%;min-width:0;font-size:11px;padding:1px 2px;border:1px solid #ccc;border-radius:4px;';
-        const clear = document.createElement('button');
-        clear.textContent = '×';
-        clear.title = 'Limpiar filtro de fecha';
-        clear.style.cssText = 'position:absolute;right:2px;top:1px;font-size:10px;line-height:1;padding:1px 4px;cursor:pointer;border:none;background:transparent;color:#999;z-index:5;';
-        const emit = () => {
-            const val = { from: from.value, to: to.value };
-            onChanged((val.from || val.to) ? val : '');
-        };
-        from.addEventListener('change', emit);
-        to.addEventListener('change', emit);
-        clear.addEventListener('click', (e) => { e.preventDefault(); from.value = ''; to.value = ''; emit(); });
-        wrap.appendChild(from);
-        wrap.appendChild(to);
-        wrap.appendChild(clear);
-        return wrap;
+    // --- Filtro jerárquico estilo Excel: Año -> Mes -> Día (popup del embudo) ---
+    const DATE_MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const dateFilterRegistry = {};
+
+    function countDaysIn(months) {
+        let n = 0;
+        for (const m of Object.keys(months)) n += Object.keys(months[m]).length;
+        return n;
     }
 
-    function dateRangeHeaderFunc(headerValue, rowValue, rowData, params) {
-        if (!headerValue || typeof headerValue !== 'object' || (!headerValue.from && !headerValue.to)) return true;
-        const v = String(rowValue === undefined || rowValue === null ? '' : rowValue).trim();
-        if (!v) return false;
-        const t = new Date(v.replace(' ', 'T')).getTime();
-        if (isNaN(t)) return true;
-        if (headerValue.from) {
-            const fromT = new Date(headerValue.from + 'T00:00:00').getTime();
-            if (t < fromT) return false;
+    function customDateHeaderPopup(e, column) {
+        e.stopPropagation();
+        const field = column.getField();
+        const table = column.getTable();
+
+        const container = document.createElement("div");
+        container.style.cssText = "padding:15px;background:var(--ios-card-bg);color:var(--ios-label);border:1px solid var(--ios-hairline);box-shadow:var(--shadow-soft);min-width:270px;max-height:420px;overflow-y:auto;font-size:12px;border-radius:12px;";
+
+        // --- Acciones ---
+        const headerActions = document.createElement("div");
+        headerActions.style.cssText = "margin-bottom:12px;display:flex;gap:6px;border-bottom:1px solid var(--excel-border);padding-bottom:12px;";
+        const btnBase = "padding:8px 10px;cursor:pointer;border:none;border-radius:4px;font-weight:bold;font-size:12px;";
+        const applyBtn = document.createElement("button");
+        applyBtn.innerHTML = "<i class='fa-solid fa-check'></i> Aplicar";
+        applyBtn.style.cssText = btnBase + "background:#007AFF;color:white;flex:1;";
+        const clearBtn = document.createElement("button");
+        clearBtn.innerHTML = "<i class='fa-solid fa-eraser'></i> Limpiar";
+        clearBtn.style.cssText = btnBase + "background:#d13438;color:white;flex:1;";
+        const expBtn = document.createElement("button");
+        expBtn.innerHTML = "<i class='fa-solid fa-bars'></i>";
+        expBtn.title = "Expandir/contraer todo";
+        expBtn.style.cssText = btnBase + "background:#5856d6;color:white;width:34px;";
+        headerActions.appendChild(applyBtn);
+        headerActions.appendChild(clearBtn);
+        headerActions.appendChild(expBtn);
+        container.appendChild(headerActions);
+
+        // --- Datos ---
+        const dayCount = {};
+        table.getData().forEach(r => {
+            const s = String(r[field] === undefined || r[field] === null ? '' : r[field]).trim();
+            if (!s) return;
+            const day = s.slice(0, 10);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(day)) dayCount[day] = (dayCount[day] || 0) + 1;
+        });
+
+        const years = {};
+        Object.keys(dayCount).sort().forEach(day => {
+            const [y, m] = day.split('-');
+            if (!years[y]) years[y] = {};
+            if (!years[y][m]) years[y][m] = {};
+            years[y][m][day] = dayCount[day];
+        });
+
+        const oldFn = dateFilterRegistry[field];
+        let selected = new Set(oldFn && oldFn.selectedDays ? oldFn.selectedDays : []);
+
+        // --- Render ---
+        const list = document.createElement("div");
+        container.appendChild(list);
+
+        function updateMonthCb(monthCb, children) {
+            const kids = children.querySelectorAll("input[type='checkbox'][data-day]");
+            const checked = Array.from(kids).filter(k => k.checked).length;
+            monthCb.checked = kids.length > 0 && checked === kids.length;
+            monthCb.indeterminate = checked > 0 && checked < kids.length;
         }
-        if (headerValue.to) {
-            const toT = new Date(headerValue.to + 'T23:59:59').getTime();
-            if (t > toT) return false;
+
+        function makeDayRow(day, count, monthCb, monthChildren) {
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:6px;";
+            row.style.cursor = "pointer";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.dataset.day = day;
+            cb.checked = selected.has(day);
+            const [y, m, d] = day.split('-');
+            const lbl = document.createElement("span");
+            lbl.textContent = d;
+            lbl.style.fontWeight = "600";
+            const cnt = document.createElement("span");
+            cnt.textContent = "(" + count + ")";
+            cnt.style.cssText = "color:var(--ios-gray-1);font-size:11px;margin-left:auto;";
+            row.appendChild(cb);
+            row.appendChild(lbl);
+            row.appendChild(cnt);
+            const refreshMonth = () => updateMonthCb(monthCb, monthChildren);
+            row.addEventListener('click', (ev) => { if (ev.target === cb) return; cb.checked = !cb.checked; refreshMonth(); });
+            cb.addEventListener('change', refreshMonth);
+            return row;
         }
-        return true;
+
+        function makeMonthGroup(y, m, days, yearWrap) {
+            const wrap = document.createElement("div");
+            wrap.style.marginBottom = "2px";
+            const head = document.createElement("div");
+            head.style.cssText = "display:flex;align-items:center;gap:8px;padding:3px 6px;cursor:pointer;border-radius:6px;background:rgba(0,0,0,0.03);";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.dataset.month = y + '-' + m;
+            cb.checked = Object.keys(days).every(d => selected.has(d));
+            cb.indeterminate = !cb.checked && Object.keys(days).some(d => selected.has(d));
+            const togg = document.createElement("span");
+            togg.textContent = "▸";
+            togg.style.cssText = "width:12px;font-size:10px;color:var(--ios-gray-1);text-align:center;";
+            const lbl = document.createElement("span");
+            lbl.textContent = DATE_MONTHS[parseInt(m, 10) - 1] || m;
+            lbl.style.fontWeight = "600";
+            const cnt = document.createElement("span");
+            cnt.textContent = "(" + Object.keys(days).length + ")";
+            cnt.style.cssText = "color:var(--ios-gray-1);font-size:11px;margin-left:auto;";
+            head.appendChild(cb);
+            head.appendChild(togg);
+            head.appendChild(lbl);
+            head.appendChild(cnt);
+            const children = document.createElement("div");
+            children.style.marginLeft = "20px";
+            children.style.display = "none";
+            Object.keys(days).sort().forEach(d => children.appendChild(makeDayRow(d, days[d], cb, children)));
+            head.addEventListener('click', (ev) => {
+                if (ev.target === cb) return;
+                children.style.display = children.style.display === "none" ? "block" : "none";
+                togg.textContent = children.style.display === "none" ? "▸" : "▾";
+            });
+            cb.addEventListener('change', () => {
+                children.querySelectorAll("input[type='checkbox'][data-day]").forEach(k => k.checked = cb.checked);
+                const yearCb = yearWrap.querySelector("input[type='checkbox'][data-year]");
+                updateYearCb(yearCb, yearWrap);
+            });
+            wrap.appendChild(head);
+            wrap.appendChild(children);
+            return wrap;
+        }
+
+        function updateYearCb(yearCb, yearWrap) {
+            const kids = yearWrap.querySelectorAll("input[type='checkbox'][data-day]");
+            const checked = Array.from(kids).filter(k => k.checked).length;
+            yearCb.checked = kids.length > 0 && checked === kids.length;
+            yearCb.indeterminate = checked > 0 && checked < kids.length;
+        }
+
+        function makeYearGroup(y, months) {
+            const wrap = document.createElement("div");
+            wrap.className = 'df-group';
+            wrap.style.marginBottom = "4px";
+            const head = document.createElement("div");
+            head.style.cssText = "display:flex;align-items:center;gap:8px;padding:4px 6px;cursor:pointer;border-radius:6px;background:rgba(0,0,0,0.06);";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.dataset.year = y;
+            const togg = document.createElement("span");
+            togg.textContent = "▸";
+            togg.style.cssText = "width:12px;font-size:10px;color:var(--ios-gray-1);text-align:center;";
+            const lbl = document.createElement("span");
+            lbl.textContent = y;
+            lbl.style.fontWeight = "700";
+            const cnt = document.createElement("span");
+            cnt.textContent = "(" + countDaysIn(months) + ")";
+            cnt.style.cssText = "color:var(--ios-gray-1);font-size:11px;margin-left:auto;";
+            head.appendChild(cb);
+            head.appendChild(togg);
+            head.appendChild(lbl);
+            head.appendChild(cnt);
+            const children = document.createElement("div");
+            children.style.marginLeft = "20px";
+            children.style.display = "none";
+            Object.keys(months).sort().forEach(m => children.appendChild(makeMonthGroup(y, m, months[m], wrap)));
+            head.addEventListener('click', (ev) => {
+                if (ev.target === cb) return;
+                children.style.display = children.style.display === "none" ? "block" : "none";
+                togg.textContent = children.style.display === "none" ? "▸" : "▾";
+            });
+            cb.addEventListener('change', () => {
+                children.querySelectorAll("input[type='checkbox']").forEach(k => { if (k.dataset.month || k.dataset.day) k.checked = cb.checked; });
+            });
+            wrap.appendChild(head);
+            wrap.appendChild(children);
+            return wrap;
+        }
+
+        Object.keys(years).sort().reverse().forEach(y => list.appendChild(makeYearGroup(y, years[y])));
+
+        function collectSelected() {
+            const days = [];
+            list.querySelectorAll("input[type='checkbox'][data-day]:checked").forEach(k => days.push(k.dataset.day));
+            return days;
+        }
+
+        clearBtn.onclick = (ex) => {
+            ex.preventDefault();
+            list.querySelectorAll("input[type='checkbox']").forEach(k => k.checked = false);
+        };
+
+        expBtn.onclick = (ex) => {
+            ex.preventDefault();
+            const allHidden = list.querySelectorAll(".df-group > div[style*='display: none']").length > 0;
+            list.querySelectorAll('.df-group').forEach(g => {
+                const ch = g.querySelector(":scope > div:nth-child(2)");
+                if (ch) {
+                    ch.style.display = allHidden ? "block" : "none";
+                    const togg = g.querySelector(":scope > div:nth-child(1) span");
+                    if (togg) togg.textContent = allHidden ? "▾" : "▸";
+                }
+            });
+        };
+
+        applyBtn.onclick = () => {
+            const days = collectSelected();
+            const old = dateFilterRegistry[field];
+            if (old) { table.removeFilter(old); delete dateFilterRegistry[field]; }
+            if (days.length && days.length < Object.keys(dayCount).length) {
+                const set = new Set(days);
+                const filterFn = function(data) {
+                    const s = String(data[field] === undefined || data[field] === null ? '' : data[field]).trim();
+                    return s ? set.has(s.slice(0, 10)) : false;
+                };
+                filterFn.selectedDays = days;
+                dateFilterRegistry[field] = filterFn;
+                table.addFilter(filterFn);
+            }
+            document.body.click();
+        };
+
+        return container;
     }
 
     const kpiColumns = [];
@@ -925,11 +1103,9 @@
             tooltip: true
         };
 
-        // Filtro de rango de fechas para columnas que contienen fecha+hora
+        // Filtro jerárquico (Año/Mes/Día) para columnas de fecha+hora via el popup del embudo
         if (isDateTimeColumn(fieldName, rawData)) {
-            colDef.headerFilter = dateRangeHeaderFilter;
-            colDef.headerFilterFunc = dateRangeHeaderFunc;
-            colDef.headerFilterParams = {};
+            colDef.headerPopup = customDateHeaderPopup;
         }
 
         // 1. PRIMARY KEY
