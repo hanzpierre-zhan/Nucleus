@@ -14,6 +14,12 @@
         <span class="topbar-switch-label">Manuales</span>
     </label>
 
+    <label class="topbar-switch" title="Mostrar solo las filas cuyo estado cambió en la última importación">
+        <input type="checkbox" id="import-cambios-toggle" onchange="toggleImportCambios(this)">
+        <span class="topbar-switch-track" style="background: #FF9500;"></span>
+        <span class="topbar-switch-label">Cambios</span>
+    </label>
+
     <div style="flex: 1;"></div>
 
     <div class="col-visibility-wrap">
@@ -549,6 +555,7 @@
     const rawCols = {{ columns | safe }};
     const manualColsConfig = {{ manual_cols | safe }};
     const kpiMeta = {{ kpi_meta | safe }};
+    const changedKeys = new Set({{ changed_keys | safe }});
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
 
@@ -1628,6 +1635,27 @@
         localStorage.setItem('nucleus-manual-cols-visible', show ? '1' : '0');
     }
 
+    let importCambiosFilter = null;
+
+    function toggleImportCambios(cb) {
+        const show = cb.checked;
+        if (show) {
+            if (changedKeys.size === 0) {
+                alert('Aún no hay filas con cambios de estado registrados.');
+                cb.checked = false;
+                return;
+            }
+            importCambiosFilter = function(data) {
+                return changedKeys.has(data['_key']);
+            };
+            table.addFilter(importCambiosFilter);
+        } else {
+            if (importCambiosFilter) table.removeFilter(importCambiosFilter);
+            importCambiosFilter = null;
+        }
+        localStorage.setItem('nucleus-import-cambios', show ? '1' : '0');
+    }
+
     function applyManualColumnsState() {
         const saved = localStorage.getItem('nucleus-manual-cols-visible');
         const cb = document.getElementById('manual-cols-toggle');
@@ -1641,7 +1669,16 @@
         }
     }
 
+    function applyImportCambiosState() {
+        const saved = localStorage.getItem('nucleus-import-cambios');
+        const cb = document.getElementById('import-cambios-toggle');
+        if (!cb) return;
+        cb.checked = saved === '1';
+        if (saved === '1') toggleImportCambios(cb);
+    }
+
     applyManualColumnsState();
+    applyImportCambiosState();
 
     function resetLayout() {
         if (confirm('¿Restaurar orden y visibilidad de las columnas al estado por defecto original?')) {

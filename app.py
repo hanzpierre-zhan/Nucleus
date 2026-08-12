@@ -596,6 +596,13 @@ def index():
     config_key = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
     pk = config_key.valor if config_key else 'NO_DEF'
     
+    # Keys con al menos un cambio de estado registrado (por importación o manual)
+    changed_rows = db.session.query(HistorialCambios.key_value).filter(
+        HistorialCambios.proyecto_id == pid,
+        HistorialCambios.campo_modificado == 'Estado de la tarea (WO State)'
+    ).distinct().all()
+    changed_keys = [k[0] for k in changed_rows]
+    
     cols = sorted(list(columns_set))
     if '_key' in cols: cols.remove('_key')
     cols.insert(0, '_key')
@@ -614,6 +621,7 @@ def index():
                           pk=pk, 
                           manual_cols=json.dumps(manual_cols_data),
                           kpi_meta=json.dumps(kpi_meta),
+                          changed_keys=json.dumps(changed_keys),
                           proyecto_id=pid,
                           proyectos_list=proyectos)
 
