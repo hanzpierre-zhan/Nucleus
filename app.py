@@ -148,6 +148,20 @@ class Tecnico(db.Model):
     especialidad = db.Column(db.String(120), default='')
     telefono = db.Column(db.String(30), default='')
 
+class Cotizacion(db.Model):
+    __tablename__ = 'cotizaciones'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    key_value = db.Column(db.String(100), nullable=False, index=True)
+    numero = db.Column(db.String(50), nullable=False)
+    nota = db.Column(db.Text, default='')
+    cotizado_por = db.Column(db.String(100), default='')
+    revisado_por = db.Column(db.String(100), default='')
+    gastos_json = db.Column(db.Text, default='[]')
+    mano_obra_json = db.Column(db.Text, default='[]')
+    fecha_generacion = db.Column(db.DateTime, default=datetime.utcnow)
+    bloqueada = db.Column(db.Boolean, default=True)
+
 # Auth Decorator
 def login_required(f):
     @wraps(f)
@@ -366,6 +380,35 @@ with app.app_context():
         admin = Usuario(username='admin', password_hash=generate_password_hash('admin123'), rol='admin')
         db.session.add(admin)
         db.session.commit()
+
+    # Migration: allow multiple cotizaciones per key_value (drop unique constraint)
+    try:
+        cot_tables = inspect(db.engine).get_table_names()
+        if 'cotizaciones' in cot_tables:
+            if is_sqlite:
+                # SQLite: check the table DDL for the unique constraint (it's a CONSTRAINT, not an index)
+                sql = db.session.execute(db.text(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='cotizaciones'"
+                )).scalar() or ''
+                if '_proj_key_coti_uc' in sql:
+                    db.session.execute(db.text("ALTER TABLE cotizaciones RENAME TO cotizaciones_old"))
+                    db.session.commit()
+                    db.create_all()
+                    cols = [c['name'] for c in inspect(db.engine).get_columns('cotizaciones_old')]
+                    collist = ', '.join(cols)
+                    db.session.execute(db.text(
+                        f"INSERT INTO cotizaciones ({collist}) SELECT {collist} FROM cotizaciones_old"
+                    ))
+                    db.session.execute(db.text("DROP TABLE cotizaciones_old"))
+                    db.session.commit()
+                    print("Cotizaciones: unique constraint removed (SQLite)")
+            else:
+                # Postgres: drop named constraint directly
+                db.session.execute(db.text("ALTER TABLE cotizaciones DROP CONSTRAINT IF EXISTS _proj_key_coti_uc"))
+                db.session.commit()
+                print("Cotizaciones: unique constraint removed (Postgres)")
+    except Exception as e:
+        print("Warning: cotizaciones migration:", e)
         
     # Create Default Project "Pangeaco" ONLY when the DB is completely empty (fresh install)
     if not Proyecto.query.first():
@@ -2952,6 +2995,510 @@ def api_evidencia_foto(pid, key, nombre):
 @app.route('/healthz')
 def healthz():
     return 'OK', 200
+
+# ---- COTIZACION -------------------------------------------------------
+@app.route('/api/cotizacion/estado', methods=['GET'])
+@login_required
+def api_cotizacion_estado():
+    """Devuelve si la cotización de este ticket ya fue generada (bloqueada)."""
+    pid = session.get('current_proyecto_id')
+    key = request.args.get('key', '').strip()
+    if not pid or not key:
+        return jsonify({'bloqueada': False})
+    cot = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if cot:
+        return jsonify({
+            'bloqueada': cot.bloqueada,
+            'numero': cot.numero,
+            'nota': cot.nota,
+            'cotizado_por': cot.cotizado_por,
+            'revisado_por': cot.revisado_por,
+            'fecha': cot.fecha_generacion.strftime('%d/%m/%Y') if cot.fecha_generacion else ''
+        })
+    return jsonify({'bloqueada': False})
+
+@app.route('/api/cotizacion/lista', methods=['GET'])
+@login_required
+def api_cotizacion_lista():
+    """Devuelve todas las cotizaciones del ticket (puede haber varias)."""
+    pid = session.get('current_proyecto_id')
+    key = request.args.get('key', '').strip()
+    if not pid or not key:
+        return jsonify({'lista': []})
+    cots = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key).order_by(Cotizacion.id.asc()).all()
+    lista = [{
+        'id': c.id,
+        'numero': c.numero,
+        'nota': c.nota,
+        'cotizado_por': c.cotizado_por,
+        'revisado_por': c.revisado_por,
+        'fecha': c.fecha_generacion.strftime('%d/%m/%Y') if c.fecha_generacion else '',
+        'bloqueada': c.bloqueada,
+        'gastos': json.loads(c.gastos_json or '[]'),
+        'mano_obra': json.loads(c.mano_obra_json or '[]'),
+    } for c in cots]
+    return jsonify({'lista': lista})
+
+@app.route('/api/cotizacion/desbloquear', methods=['POST'])
+@login_required
+def api_cotizacion_desbloquear():
+    """Solo admin puede desbloquear una cotización para permitir edición."""
+    if session.get('rol') != 'admin':
+        return jsonify({'error': 'Solo admin puede desbloquear cotizaciones.'}), 403
+    pid = session.get('current_proyecto_id')
+    data = request.json or {}
+    key = data.get('key', '').strip()
+    cid = data.get('cotizacion_id')
+    if not pid or not key:
+        return jsonify({'error': 'Datos incompletos'}), 400
+    query = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key)
+    if cid:
+        query = query.filter_by(id=cid)
+    cot = query.first()
+    if not cot:
+        return jsonify({'error': 'Cotización no encontrada'}), 404
+    cot.bloqueada = False
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/cotizacion/eliminar', methods=['POST'])
+@login_required
+def api_cotizacion_eliminar():
+    """Solo admin puede eliminar una cotización."""
+    if session.get('rol') != 'admin':
+        return jsonify({'error': 'Solo admin puede eliminar cotizaciones.'}), 403
+    pid = session.get('current_proyecto_id')
+    data = request.json or {}
+    key = data.get('key', '').strip()
+    cid = data.get('cotizacion_id')
+    if not pid or not key or not cid:
+        return jsonify({'error': 'Datos incompletos'}), 400
+    cot = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
+    if not cot:
+        return jsonify({'error': 'Cotización no encontrada'}), 404
+    db.session.delete(cot)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/cotizacion/generar', methods=['POST'])
+@login_required
+def api_cotizacion_generar():
+    """
+    Guarda la cotización en BD (bloqueándola) y devuelve un PDF listo para descargar.
+    Cada generación crea una NUEVA cotización para el ticket (puede haber varias).
+    Datos del cliente fijos: HUAWEI DEL PERU, RUC 20507646728, etc.
+    """
+    pid = session.get('current_proyecto_id')
+    user_rol = str(session.get('rol') or '').strip().lower()
+    data = request.json or {}
+    key = data.get('key', '').strip()
+    if not pid or not key:
+        return jsonify({'error': 'Datos incompletos'}), 400
+
+    # Admin puede regenerar una cotización existente desbloqueada (opcional: cotizacion_id)
+    cid = data.get('cotizacion_id')
+    cot_existente = None
+    if cid:
+        cot_existente = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
+        if cot_existente and cot_existente.bloqueada and user_rol != 'admin':
+            return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
+
+    numero = data.get('numero', '').strip()
+    nota = data.get('nota', '').strip()
+    gastos = data.get('gastos', [])
+    mano_obra = data.get('mano_obra', [])
+
+    # Obtener nombre del gestor actual como "Cotizado por" y "Revisado por"
+    usuario = db.session.get(Usuario, session.get('user_id'))
+    nombre_gestor = (usuario.nombre or usuario.username) if usuario else (session.get('username') or '')
+
+    # Guardar en BD (nueva fila si no se pasa cotizacion_id, o regenerar esa)
+    if cot_existente:
+        cot_existente.numero = numero
+        cot_existente.nota = nota
+        cot_existente.cotizado_por = nombre_gestor
+        cot_existente.revisado_por = nombre_gestor
+        cot_existente.gastos_json = json.dumps(gastos, ensure_ascii=False)
+        cot_existente.mano_obra_json = json.dumps(mano_obra, ensure_ascii=False)
+        cot_existente.fecha_generacion = datetime.utcnow()
+        cot_existente.bloqueada = True
+        db.session.commit()
+    else:
+        cot_existente = Cotizacion(
+            proyecto_id=pid,
+            key_value=key,
+            numero=numero,
+            nota=nota,
+            cotizado_por=nombre_gestor,
+            revisado_por=nombre_gestor,
+            gastos_json=json.dumps(gastos, ensure_ascii=False),
+            mano_obra_json=json.dumps(mano_obra, ensure_ascii=False),
+            fecha_generacion=datetime.utcnow(),
+            bloqueada=True
+        )
+        db.session.add(cot_existente)
+        db.session.commit()
+
+    # Actualizar también los campos en NucleusData para que quede persistido
+    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if rec:
+        d = json.loads(rec.data_json)
+        d['COTIZACION_GASTOS'] = json.dumps(gastos, ensure_ascii=False)
+        d['COTIZACION_MANO_OBRA'] = json.dumps(mano_obra, ensure_ascii=False)
+        d['COTIZACION_NOTA'] = nota
+        d['COTIZACION_NUMERO'] = numero
+        d['COTIZACION_BLOQUEADA'] = '1'
+        rec.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
+
+    # Generar PDF
+    try:
+        pdf_bytes = _generar_pdf_cotizacion(
+            numero=numero,
+            nota=nota,
+            ticket=key,
+            cotizado_por=nombre_gestor,
+            revisado_por=nombre_gestor,
+            fecha=datetime.now().strftime('%d/%m/%Y'),
+            gastos=gastos,
+            mano_obra=mano_obra
+        )
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    safe_num = numero.replace('/', '-').replace(' ', '_')
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fecha, gastos, mano_obra):
+    """Genera el PDF de cotización con el formato exacto de la imagen."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+    from reportlab.pdfgen import canvas
+    from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame
+
+    buf = io.BytesIO()
+    PAGE_W, PAGE_H = A4
+    M = 15 * mm  # margen
+
+    # Colores corporativos
+    NAVY = colors.HexColor('#1B3A6B')
+    WHITE = colors.white
+    LIGHT_GRAY = colors.HexColor('#F2F2F2')
+    MID_GRAY = colors.HexColor('#D9D9D9')
+    DARK = colors.HexColor('#1a1a1a')
+
+    def fmt_soles(v):
+        try:
+            f = float(v)
+            return f'S/ {f:,.2f}'
+        except:
+            return 'S/ -'
+
+    def safe_str(v):
+        return str(v) if v is not None else ''
+
+    # Calcular subtotales
+    subtotal_a = sum(float(g.get('total_p', 0) or 0) for g in gastos)
+    subtotal_b = sum(float(m.get('total_p', 0) or 0) for m in mano_obra)
+    total_ab = subtotal_a + subtotal_b
+
+    # Estilos de párrafo
+    style_normal = ParagraphStyle('normal', fontName='Helvetica', fontSize=8, leading=10)
+    style_bold = ParagraphStyle('bold', fontName='Helvetica-Bold', fontSize=8, leading=10)
+    style_title = ParagraphStyle('title', fontName='Helvetica-Bold', fontSize=14, leading=18, textColor=NAVY)
+    style_header_white = ParagraphStyle('hw', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=WHITE)
+    style_section = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=WHITE)
+    style_right = ParagraphStyle('right', fontName='Helvetica', fontSize=8, leading=10, alignment=TA_RIGHT)
+    style_right_bold = ParagraphStyle('rb', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_RIGHT)
+
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                             leftMargin=M, rightMargin=M,
+                             topMargin=M, bottomMargin=M)
+    W = PAGE_W - 2 * M
+    story = []
+
+    # ---- CABECERA: Logo | N° Cotización ---
+    logo_path = os.path.join(BASE_DIR, 'static', 'img', 'cobra-logo.png')
+    if os.path.exists(logo_path):
+        logo = RLImage(logo_path, width=45*mm, height=25*mm)
+    else:
+        logo = Paragraph('<b>cobra</b>', style_title)
+
+    num_para = Paragraph(f'<b>N° Cotización :&nbsp;&nbsp;&nbsp;{numero}</b>', style_title)
+    header_data = [[logo, num_para]]
+    header_tbl = Table(header_data, colWidths=[W * 0.4, W * 0.6])
+    header_tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(header_tbl)
+    story.append(Spacer(1, 3 * mm))
+
+    # ---- SECCIÓN A: DATOS DEL CLIENTE ---
+    def section_row(label):
+        return [Paragraph(f'<b>{label}</b>', style_header_white), '', '', '']
+
+    def client_row(label, value, label2='', value2=''):
+        cells = [
+            Paragraph(f'<b>{label}</b>', style_bold),
+            Paragraph(safe_str(value), style_normal),
+            Paragraph(f'<b>{label2}</b>', style_bold) if label2 else '',
+            Paragraph(safe_str(value2), style_normal) if value2 else '',
+        ]
+        return cells
+
+    c1 = W * 0.18
+    c2 = W * 0.42
+    c3 = W * 0.12
+    c4 = W * 0.28
+
+    sec_a_data = [
+        [Paragraph('<b>A: DATOS DEL CLIENTE</b>', style_header_white), '', '', ''],
+        client_row('Cliente:', 'HUAWEI DEL PERU', 'RUC:', '20507646728'),
+        client_row('Domicilio:', 'Cal. las Begonias Nro. 415 Int. 2301'),
+        client_row('Solicitado por:', 'Even Vivar'),
+        client_row('Validador:', 'Sergio Huaman'),
+        client_row('Nota:', nota or ''),
+    ]
+    sec_a_tbl = Table(sec_a_data, colWidths=[c1, c2, c3, c4])
+    sec_a_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('SPAN', (0, 0), (-1, 0)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('SPAN', (1, 2), (3, 2)),
+        ('SPAN', (1, 3), (3, 3)),
+        ('SPAN', (1, 4), (3, 4)),
+        ('SPAN', (1, 5), (3, 5)),
+    ]))
+    story.append(sec_a_tbl)
+    story.append(Spacer(1, 2 * mm))
+
+    # ---- SECCIÓN B: DATOS DE COTIZACIÓN ---
+    sec_b_data = [
+        [Paragraph('<b>B: DATOS DE COTIZACION</b>', style_header_white), '', '', ''],
+        client_row('Cotizado por:', 'Dennis Unton', 'Fecha:', fecha),
+        client_row('Revisado por:', 'Dennis Unton', 'Fecha:', fecha),
+    ]
+    sec_b_tbl = Table(sec_b_data, colWidths=[c1, c2, c3, c4])
+    sec_b_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('SPAN', (0, 0), (-1, 0)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(sec_b_tbl)
+    story.append(Spacer(1, 2 * mm))
+
+    # ---- TABLA 1: Materiales, Herramientas y/o Homologaciones ---
+    col_item = W * 0.06
+    col_cod  = W * 0.07
+    col_desc = W * 0.37
+    col_cant = W * 0.08
+    col_pu   = W * 0.18
+    col_tp   = W * 0.24
+
+    t1_cols = [col_item, col_cod, col_desc, col_cant, col_pu, col_tp]
+
+    t1_header_sub = [Paragraph('<b>1. Materiales,  Herramientas y/o Homologaciones</b>', style_section), '', '', '', '', '']
+    t1_col_header = [
+        Paragraph('<b>Item</b>', style_bold),
+        Paragraph('<b>Cod.</b>', style_bold),
+        Paragraph('<b>Descripción</b>', style_bold),
+        Paragraph('<b>Cant</b>', style_bold),
+        Paragraph('<b>Precio unid.</b>', style_bold),
+        Paragraph('<b>Total P.</b>', style_bold),
+    ]
+
+    t1_rows = [t1_header_sub, t1_col_header]
+    MAX_ROWS_1 = max(len(gastos), 4)
+    for i in range(MAX_ROWS_1):
+        if i < len(gastos):
+            g = gastos[i]
+            row = [
+                Paragraph(safe_str(g.get('item', i+1)), style_normal),
+                Paragraph(safe_str(g.get('cod', 'SC')), style_normal),
+                Paragraph(safe_str(g.get('descripcion', '')), style_normal),
+                Paragraph(safe_str(g.get('cant', '')), style_normal),
+                Paragraph(fmt_soles(g.get('precio_unid', '')), style_right),
+                Paragraph(fmt_soles(g.get('total_p', '')), style_right),
+            ]
+        else:
+            row = ['', '', '', '', Paragraph('S/', style_right), Paragraph('-', style_right)]
+        t1_rows.append(row)
+
+    # Fila Total subtotal A
+    t1_rows.append([
+        '', '', '', '', '',
+        '',
+    ])
+    t1_rows.append([
+        Paragraph('<b>Total</b>', style_bold), '', '', '', '',
+        Paragraph(f'<b>Subtotal_B&nbsp;&nbsp;&nbsp;{fmt_soles(subtotal_a)}</b>', style_right_bold),
+    ])
+
+    t1_tbl = Table(t1_rows, colWidths=t1_cols)
+    n_data_rows_1 = len(t1_rows)
+    t1_style = [
+        # Sub-header navy
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('SPAN', (0, 0), (-1, 0)),
+        # Col header
+        ('BACKGROUND', (0, 1), (-1, 1), LIGHT_GRAY),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 2), (-1, n_data_rows_1-3), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Total row
+        ('BACKGROUND', (0, n_data_rows_1-1), (-1, n_data_rows_1-1), LIGHT_GRAY),
+        ('SPAN', (0, n_data_rows_1-1), (3, n_data_rows_1-1)),
+        ('SPAN', (4, n_data_rows_1-1), (4, n_data_rows_1-1)),
+    ]
+    t1_tbl.setStyle(TableStyle(t1_style))
+    story.append(t1_tbl)
+    story.append(Spacer(1, 3 * mm))
+
+    # ---- TABLA 2: Mano de Obra ---
+    t2_cols = [col_item, col_cod, col_desc, col_cant, col_pu, col_tp]
+
+    t2_header_sub = [Paragraph('<b>2. Mano de Obra</b>', style_section), '', '', '', '', '']
+    t2_col_header = [
+        Paragraph('<b>Item</b>', style_bold),
+        Paragraph('<b>Cod.</b>', style_bold),
+        Paragraph('<b>Descripción</b>', style_bold),
+        Paragraph('<b>Cant</b>', style_bold),
+        Paragraph('<b>Precio unid.</b>', style_bold),
+        Paragraph('<b>Total P.</b>', style_bold),
+    ]
+
+    t2_rows = [t2_header_sub, t2_col_header]
+    MAX_ROWS_2 = max(len(mano_obra), 4)
+    for i in range(MAX_ROWS_2):
+        if i < len(mano_obra):
+            m = mano_obra[i]
+            row = [
+                Paragraph(safe_str(m.get('item', i+1)), style_normal),
+                Paragraph(safe_str(m.get('cod', 'SC')), style_normal),
+                Paragraph(safe_str(m.get('descripcion', '')), style_normal),
+                Paragraph(safe_str(m.get('cant', '')), style_normal),
+                Paragraph(fmt_soles(m.get('precio_unid', '')), style_right),
+                Paragraph(fmt_soles(m.get('total_p', '')), style_right),
+            ]
+        else:
+            row = ['', '', '', '', '', '']
+        t2_rows.append(row)
+
+    t2_rows.append([
+        Paragraph('<b>Total</b>', style_bold), '', '', '', '',
+        Paragraph(f'<b>Subtotal_B&nbsp;&nbsp;&nbsp;{fmt_soles(subtotal_b)}</b>', style_right_bold),
+    ])
+
+    t2_tbl = Table(t2_rows, colWidths=t2_cols)
+    n_data_rows_2 = len(t2_rows)
+    t2_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('SPAN', (0, 0), (-1, 0)),
+        ('BACKGROUND', (0, 1), (-1, 1), LIGHT_GRAY),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 2), (-1, n_data_rows_2-2), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, n_data_rows_2-1), (-1, n_data_rows_2-1), LIGHT_GRAY),
+        ('SPAN', (0, n_data_rows_2-1), (4, n_data_rows_2-1)),
+    ]
+    t2_tbl.setStyle(TableStyle(t2_style))
+    story.append(t2_tbl)
+    story.append(Spacer(1, 5 * mm))
+
+    # ---- CONDICIONES COMERCIALES + TOTAL FINAL ---
+    # Layout exacto de la imagen:
+    # [Condiciones Comerciales | (vacío) | (vacío) | (vacío)]
+    # [texto condiciones       | Total Cotización (A+B) | S/ | monto]
+    try:
+        total_val = f'{total_ab:,.2f}'
+    except:
+        total_val = '0.00'
+
+    cond_col_left = W * 0.50
+    cond_col_mid  = W * 0.25
+    cond_col_soles = W * 0.07
+    cond_col_monto = W * 0.18
+
+    style_cond_hdr = ParagraphStyle('condh', fontName='Helvetica-Bold', fontSize=8, leading=10)
+    style_cond_body = ParagraphStyle('condb', fontName='Helvetica', fontSize=8, leading=12)
+    style_total_label = ParagraphStyle('tl', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_CENTER)
+    style_soles = ParagraphStyle('sol', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_CENTER)
+    style_monto = ParagraphStyle('mnt', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_RIGHT)
+
+    cond_lines = 'Moneda Nacional soles (S/)<br/>Pagos Según contrato<br/>No incluye IGV'
+    cond_data = [
+        [
+            Paragraph('<b>Condiciones Comerciales</b>', style_cond_hdr),
+            '', '', ''
+        ],
+        [
+            Paragraph(cond_lines, style_cond_body),
+            Paragraph('<b>Total Cotización (A+B)</b>', style_total_label),
+            Paragraph('<b>S/</b>', style_soles),
+            Paragraph(f'<b>{total_val}</b>', style_monto),
+        ],
+    ]
+    cond_tbl = Table(cond_data, colWidths=[cond_col_left, cond_col_mid, cond_col_soles, cond_col_monto])
+    cond_tbl.setStyle(TableStyle([
+        ('BOX',  (0, 0), (-1, -1), 0.5, MID_GRAY),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        # Header row
+        ('BACKGROUND', (0, 0), (-1, 0), LIGHT_GRAY),
+        ('SPAN', (0, 0), (-1, 0)),
+        # Data row bg
+        ('BACKGROUND', (0, 1), (0, 1), WHITE),
+        ('BACKGROUND', (1, 1), (3, 1), LIGHT_GRAY),
+        # Padding
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (2, 1), (3, 1), 'RIGHT'),
+    ]))
+    story.append(cond_tbl)
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+# -----------------------------------------------------------------------
 
 if __name__ == '__main__':
     app.run(debug=True, port=int(os.environ.get('PORT', 5000)))

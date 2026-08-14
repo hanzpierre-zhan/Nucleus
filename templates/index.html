@@ -8,6 +8,7 @@
         <i class="fa-solid fa-list-ol"></i> Cargando...
     </span>
 
+    {% if session.get('rol') == 'admin' %}
     <label class="topbar-switch" title="Mostrar u ocultar de golpe las columnas manuales de la tabla">
         <input type="checkbox" id="manual-cols-toggle" onchange="toggleManualColumns(this)">
         <span class="topbar-switch-track"></span>
@@ -35,6 +36,9 @@
             <div id="col-list" class="col-visibility-list"></div>
         </div>
     </div>
+    {% else %}
+    <div style="flex: 1;"></div>
+    {% endif %}
 
     <!-- Botón Excel (Verde) -->
     <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
@@ -329,6 +333,13 @@
         outline: none; text-align: center;
     }
     .wo-coti-nota { text-align: left; font-weight: 500; }
+    .wo-coti-select {
+        flex: 1; min-width: 180px; padding: 6px 10px; border-radius: 8px;
+        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
+        font-family: inherit; font-size: 12px; color: var(--ios-label); outline: none;
+        height: 30px;
+    }
+    .wo-coti-select:focus { border-color: var(--ios-blue); }
     .wo-gasto-row input[type="number"],
     .wo-gasto-row input[type="text"],
     .wo-coti-row input[type="number"],
@@ -615,70 +626,92 @@
                 </div>
             </div>
             <div id="wo-panel-cotizacion" style="display:none;">
-                <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-file-invoice"></i> Datos de Cotización</div>
-                    <div class="wo-coti-meta">
-                        <div class="wo-meta-field">
-                            <span class="wo-meta-lbl">Nota</span>
-                            <input type="text" id="wo-coti-nota" class="wo-coti-num-input wo-coti-nota" placeholder="Escribir una nota...">
+                <!-- Selector de cotizaciones + botón para crear nueva -->
+                <div class="wo-section" id="wo-coti-entry-section">
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <select id="wo-coti-select" class="wo-coti-select" onchange="seleccionarCotizacionLista(this.value)">
+                            <option value="">— Cotizaciones del ticket —</option>
+                        </select>
+                        <button type="button" id="btn-abrir-coti" onclick="abrirRegistroCotizacion()" title="Nueva cotización" style="background:#007AFF; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1; flex-shrink:0;"><i class="fa-solid fa-plus"></i></button>
+                        <span id="badge-coti-bloqueada" title="Cotización bloqueada" style="display:none; background:#FF3B30; color:#fff; width:30px; height:30px; font-size:13px; border-radius:50%; letter-spacing:0.3px; align-items:center; justify-content:center;"><i class="fa-solid fa-lock"></i></span>
+                        {% if session.get('rol') == 'admin' %}
+                        <button type="button" id="btn-coti-desbloquear" onclick="desbloquearCotizacion()" title="Desbloquear cotización" style="display:none; background:#FF9500; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i class="fa-solid fa-lock-open"></i></button>
+                        <button type="button" id="btn-coti-eliminar" onclick="eliminarCotizacion()" title="Eliminar cotización" style="display:none; background:#FF3B30; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i class="fa-solid fa-trash-can"></i></button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Formulario completo (oculto hasta que se presione el botón) -->
+                <div id="wo-coti-form-body" style="display:none;">
+                    <div class="wo-section">
+                        <div class="wo-section-title">
+                            <i class="fa-solid fa-file-invoice"></i> Datos de Cotización
+                            <button type="button" onclick="cerrarRegistroCotizacion()" style="margin-left:auto; background:none; border:none; color:var(--ios-label2); cursor:pointer; font-size:13px;" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
                         </div>
-                        <div class="wo-meta-field">
-                            <span class="wo-meta-lbl">N° Cotización</span>
-                            <div class="wo-coti-numero">
-                                <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(-1)" title="Disminuir correlativo"><i class="fa-solid fa-minus"></i></button>
-                                <input type="text" id="wo-coti-numero" class="wo-coti-num-input" value="HW-2026-0000038" readonly>
-                                <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(1)" title="Aumentar correlativo"><i class="fa-solid fa-plus"></i></button>
+                        <div class="wo-coti-meta">
+                            <div class="wo-meta-field">
+                                <span class="wo-meta-lbl">Nota</span>
+                                <input type="text" id="wo-coti-nota" class="wo-coti-num-input wo-coti-nota" placeholder="Escribir una nota...">
+                            </div>
+                            <div class="wo-meta-field">
+                                <span class="wo-meta-lbl">N° Cotización</span>
+                                <div class="wo-coti-numero">
+                                    <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(-1)" title="Disminuir correlativo"><i class="fa-solid fa-minus"></i></button>
+                                    <input type="text" id="wo-coti-numero" class="wo-coti-num-input" value="HW-2026-0000001" readonly>
+                                    <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(1)" title="Aumentar correlativo"><i class="fa-solid fa-plus"></i></button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-boxes-stacked"></i> Materiales, Herramientas y/o Homologaciones</div>
-                    <div class="wo-coti-row wo-coti-header">
-                        <span>Item</span>
-                        <span>Cód</span>
-                        <span>Descripción</span>
-                        <span>Cant</span>
-                        <span>Precio Cobra</span>
-                        <span>Precio Unid</span>
-                        <span>Total P</span>
-                        <span></span>
+                    <div class="wo-section">
+                        <div class="wo-section-title"><i class="fa-solid fa-boxes-stacked"></i> Materiales, Herramientas y/o Homologaciones</div>
+                        <div class="wo-coti-row wo-coti-header">
+                            <span>Item</span>
+                            <span>Cód</span>
+                            <span>Descripción</span>
+                            <span>Cant</span>
+                            <span>Precio Cobra</span>
+                            <span>Precio Unid</span>
+                            <span>Total P</span>
+                            <span></span>
+                        </div>
+                        <div id="wo-gastos-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+                        <div class="wo-coti-row wo-coti-subtotal">
+                            <span></span><span></span><span></span><span></span><span></span>
+                            <span class="wo-subtotal-lbl">Subtotal A</span>
+                            <span id="wo-subtotal-a" class="wo-subtotal-val">0.00</span>
+                            <span></span>
+                        </div>
+                        <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost" onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
                     </div>
-                    <div id="wo-gastos-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
-                    <div class="wo-coti-row wo-coti-subtotal">
-                        <span></span><span></span><span></span><span></span><span></span>
-                        <span class="wo-subtotal-lbl">Subtotal A</span>
-                        <span id="wo-subtotal-a" class="wo-subtotal-val">0.00</span>
-                        <span></span>
+                    <div class="wo-section">
+                        <div class="wo-section-title"><i class="fa-solid fa-helmet-safety"></i> Mano de Obra</div>
+                        <div class="wo-coti-row wo-coti-header">
+                            <span>Item</span>
+                            <span>Cód</span>
+                            <span>Descripción</span>
+                            <span>Cant</span>
+                            <span>Precio Cobra</span>
+                            <span>Precio Unid</span>
+                            <span>Total P</span>
+                            <span></span>
+                        </div>
+                        <div id="wo-mo-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+                        <div class="wo-coti-row wo-coti-subtotal">
+                            <span></span><span></span><span></span><span></span><span></span>
+                            <span class="wo-subtotal-lbl">Subtotal B</span>
+                            <span id="wo-subtotal-b" class="wo-subtotal-val">0.00</span>
+                            <span></span>
+                        </div>
+                        <button type="button" id="btn-wo-agregar-mo" class="mar-btn-ghost" onclick="agregarFilaManoObra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
                     </div>
-                    <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost" onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
-                </div>
-                <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-helmet-safety"></i> Mano de Obra</div>
-                    <div class="wo-coti-row wo-coti-header">
-                        <span>Item</span>
-                        <span>Cód</span>
-                        <span>Descripción</span>
-                        <span>Cant</span>
-                        <span>Precio Cobra</span>
-                        <span>Precio Unid</span>
-                        <span>Total P</span>
-                        <span></span>
+                    <div class="wo-total-coti">
+                        <span class="wo-total-lbl">Total Cotización (A+B)</span>
+                        <span id="wo-total-coti" class="wo-total-val">0.00</span>
                     </div>
-                    <div id="wo-mo-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
-                    <div class="wo-coti-row wo-coti-subtotal">
-                        <span></span><span></span><span></span><span></span><span></span>
-                        <span class="wo-subtotal-lbl">Subtotal B</span>
-                        <span id="wo-subtotal-b" class="wo-subtotal-val">0.00</span>
-                        <span></span>
-                    </div>
-                    <button type="button" id="btn-wo-agregar-mo" class="mar-btn-ghost" onclick="agregarFilaManoObra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
+                    <button type="button" id="btn-wo-generar-coti" class="mar-btn-primary" style="margin-top: 12px;" onclick="generarCotizacion()"><i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización</button>
+                    <button type="button" id="btn-wo-redownload-coti" class="mar-btn-ghost" style="margin-top: 12px; margin-left: 8px; display:none;" onclick="reDescargarCotizacion()"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</button>
                 </div>
-                <div class="wo-total-coti">
-                    <span class="wo-total-lbl">Total Cotización (A+B)</span>
-                    <span id="wo-total-coti" class="wo-total-val">0.00</span>
-                </div>
-                <button type="button" id="btn-wo-generar-coti" class="mar-btn-primary" style="margin-top: 12px;" onclick="generarCotizacion()"><i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización</button>
             </div>
             <div id="wo-panel-historial" style="display:none;">
                 <div class="wo-section">
@@ -1091,7 +1124,7 @@
         const pct = (info.mins / slaLimit) * 100;
         if (pct < 50) return { texto: 'SLA DENTRO DE PLAZO', color: '#28A745', fg: '#fff', rank: 0 };
         if (pct < 80) return { texto: 'SLA DEBE ATENDERSE', color: '#FFC107', fg: '#212529', rank: 0 };
-        if (pct < 100) return { texto: 'SLA POR VENCER', color: '#DC3545', fg: '#fff', rank: 1 };
+        if (pct < 100) return { texto: 'SLA POR VENCER', color: '#dc3545', fg: '#fff', rank: 1 };
         return { texto: 'SLA VENCIDO', color: '#8B0000', fg: '#fff', rank: 1 };
     };
 
@@ -1898,7 +1931,7 @@
         clipboard: true, // Allow copy-paste
         clipboardPasteAction: "replace", // Replace cell contents on paste
         history: true,
-        movableColumns: true, // Allow user to drag column headers
+        movableColumns: isAdmin, // Only admin can drag/reorder column headers
         persistence: { columns: ["width", "visible", "order"] }, // Remember layout
         persistenceID: "nucleus-layout-{{ proyecto_id }}" // Unique per project
     });
@@ -2658,9 +2691,18 @@
         if (btnAgMo) btnAgMo.style.display = editable ? '' : 'none';
         document.querySelectorAll('.wo-coti-num-btn').forEach(b => { b.style.display = editable ? '' : 'none'; });
 
+        // Cargar nota y número de cotización desde datos guardados
+        const notaEl = document.getElementById('wo-coti-nota');
+        const numEl  = document.getElementById('wo-coti-numero');
+        if (notaEl) notaEl.value = data['COTIZACION_NOTA'] || '';
+        if (numEl && data['COTIZACION_NUMERO']) numEl.value = data['COTIZACION_NUMERO'];
+
         initEvidencia(data);
         document.getElementById('modal-wo').style.display = 'flex';
         cargarWoMeta(data);
+        // Verificar estado de cotización con el servidor (bloqueada o no)
+        _aplicarEstadoCotizacion(false); // reset primero
+        cargarListaCotizaciones();
     }
 
     function renderWoSummary(data) {
@@ -2870,6 +2912,21 @@
         let num = parseInt(digits, 10) + delta;
         if (num < 0) num = 0;
         input.value = prefix + String(num).padStart(digits.length, '0');
+    }
+
+    function _sugerirNumeroCotizacion() {
+        const sel = document.getElementById('wo-coti-select');
+        let max = 0, prefix = 'HW-2026-';
+        if (sel) {
+            Array.from(sel.options).forEach(o => {
+                if (!o.value) return;
+                const m = String(o.textContent).match(/^(.+?)(\d+)/);
+                if (!m) return;
+                const n = parseInt(m[2], 10);
+                if (!isNaN(n) && n > max) { max = n; prefix = m[1]; }
+            });
+        }
+        return prefix + String(max + 1).padStart(7, '0');
     }
 
     function agregarFilaCoti(sec, datos) {
@@ -3175,6 +3232,8 @@
                 'MATERIALES': JSON.stringify(recogerMateriales()),
                 'COTIZACION_GASTOS': JSON.stringify(recogerGastos()),
                 'COTIZACION_MANO_OBRA': JSON.stringify(recogerManoObra()),
+                'COTIZACION_NOTA': (document.getElementById('wo-coti-nota') || {}).value || '',
+                'COTIZACION_NUMERO': (document.getElementById('wo-coti-numero') || {}).value || '',
                 'INICIO DE PARADA': fromDatetimeLocal(document.getElementById('wo-inicio-parada').value),
                 'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value),
                 'REQUIERE CORRECTIVO FINAL': document.getElementById('wo-requiere-correctivo').value,
@@ -3182,7 +3241,7 @@
             }
         };
         Object.assign(payload.data, recolectarEvidencia());
-        // Enviar solo los campos que realmente cambiaron (incluye borrar dejando vacío).
+        cond_lines = 'Moneda Nacional soles (S/)<br/>Pagos Según contrato<br/>No incluye IGV';
         const orig = woRow ? woRow.getData() : {};
         Object.keys(payload.data).forEach(k => {
             const nv = (payload.data[k] === null || payload.data[k] === undefined) ? '' : String(payload.data[k]).trim();
@@ -3440,8 +3499,263 @@
         });
     }
 
+    // ---- Cotización: generar PDF y guardar (bloqueando) ----
+    let _cotiIsBloqueada = false;
+    let _cotiActivaId = null;
+
+    function _aplicarEstadoCotizacion(bloqueada) {
+        _cotiIsBloqueada = bloqueada;
+        const badge = document.getElementById('badge-coti-bloqueada');
+        const btnDesbloquear = document.getElementById('btn-coti-desbloquear');
+        const btnGenerar = document.getElementById('btn-wo-generar-coti');
+        const btnRedownload = document.getElementById('btn-wo-redownload-coti');
+        const notaEl = document.getElementById('wo-coti-nota');
+        const numBtns = document.querySelectorAll('.wo-coti-num-btn');
+        const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
+        const btnAgMo = document.getElementById('btn-wo-agregar-mo');
+
+        if (bloqueada) {
+            if (badge) { badge.style.display = 'inline-flex'; badge.style.alignItems = 'center'; badge.style.justifyContent = 'center'; }
+            if (btnDesbloquear) btnDesbloquear.style.display = '';
+            if (btnGenerar) btnGenerar.style.display = 'none';
+            if (btnRedownload) btnRedownload.style.display = '';
+            if (notaEl) notaEl.disabled = true;
+            numBtns.forEach(b => b.style.display = 'none');
+            if (btnAgGasto) btnAgGasto.style.display = 'none';
+            if (btnAgMo) btnAgMo.style.display = 'none';
+            // Deshabilitar inputs dentro de las tablas de cotización
+            ['wo-gastos-list', 'wo-mo-list'].forEach(id => {
+                const cont = document.getElementById(id);
+                if (cont) cont.querySelectorAll('input, select, button').forEach(el => {
+                    el.disabled = true;
+                    if (el.tagName === 'BUTTON') el.style.display = 'none';
+                });
+            });
+        } else {
+            if (badge) badge.style.display = 'none';
+            if (btnDesbloquear) btnDesbloquear.style.display = 'none';
+            if (btnGenerar) btnGenerar.style.display = '';
+            if (btnRedownload) btnRedownload.style.display = 'none';
+            if (notaEl) notaEl.disabled = false;
+            if (woEditable) numBtns.forEach(b => b.style.display = '');
+            if (woEditable && btnAgGasto) btnAgGasto.style.display = '';
+            if (woEditable && btnAgMo) btnAgMo.style.display = '';
+            ['wo-gastos-list', 'wo-mo-list'].forEach(id => {
+                const cont = document.getElementById(id);
+                if (cont && woEditable) cont.querySelectorAll('input, select, button').forEach(el => {
+                    el.disabled = false;
+                    if (el.classList.contains('wo-material-del')) el.style.display = '';
+                });
+            });
+        }
+    }
+
+    // ---- Abrir / Cerrar el formulario de cotización ----
+    function abrirRegistroCotizacion() {
+        // Nueva cotización: limpiar formulario y quitar selección
+        _cotiActivaId = null;
+        _aplicarEstadoCotizacion(false);
+        const sel = document.getElementById('wo-coti-select');
+        if (sel) sel.value = '';
+        document.getElementById('wo-coti-nota').value = '';
+        document.getElementById('wo-coti-numero').value = _sugerirNumeroCotizacion();
+        const listG = document.getElementById('wo-gastos-list');
+        if (listG) listG.innerHTML = '<div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div>';
+        const listMo = document.getElementById('wo-mo-list');
+        if (listMo) listMo.innerHTML = '<div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div>';
+        document.getElementById('wo-subtotal-a').textContent = '0.00';
+        document.getElementById('wo-subtotal-b').textContent = '0.00';
+        document.getElementById('wo-total-coti').textContent = '0.00';
+        const formBody = document.getElementById('wo-coti-form-body');
+        const btnEliminar = document.getElementById('btn-coti-eliminar');
+        if (formBody) formBody.style.display = '';
+        if (btnEliminar) btnEliminar.style.display = 'none';
+    }
+
+    function cerrarRegistroCotizacion() {
+        const formBody = document.getElementById('wo-coti-form-body');
+        if (formBody) formBody.style.display = 'none';
+    }
+
+    function seleccionarCotizacionLista(val) {
+        if (!val) return;
+        const id = parseInt(val, 10);
+        _cargarCotizacionExistente(id);
+    }
+
+    function _cargarCotizacionExistente(id) {
+        fetch('/api/cotizacion/lista?key=' + encodeURIComponent(woKey))
+            .then(r => r.json())
+            .then(res => {
+                const lista = res.lista || [];
+                const cot = lista.find(c => c.id === id);
+                if (!cot) return;
+                _cotiActivaId = cot.id;
+                // Cargar datos en el formulario
+                document.getElementById('wo-coti-numero').value = cot.numero || '';
+                document.getElementById('wo-coti-nota').value = cot.nota || '';
+                renderWoGastosList({ 'COTIZACION_GASTOS': JSON.stringify(cot.gastos || []) });
+                renderWoManoObraList({ 'COTIZACION_MANO_OBRA': JSON.stringify(cot.mano_obra || []) });
+                _aplicarEstadoCotizacion(!!cot.bloqueada);
+                const btnEliminar = document.getElementById('btn-coti-eliminar');
+                if (btnEliminar) btnEliminar.style.display = '';
+                const formBody = document.getElementById('wo-coti-form-body');
+                if (formBody) formBody.style.display = '';
+            })
+            .catch(() => {});
+    }
+
+    function cargarListaCotizaciones() {
+        if (!woKey) return;
+        fetch('/api/cotizacion/lista?key=' + encodeURIComponent(woKey))
+            .then(r => r.json())
+            .then(res => {
+                const lista = res.lista || [];
+                const sel = document.getElementById('wo-coti-select');
+                if (!sel) return;
+                sel.innerHTML = '<option value="">— Cotizaciones del ticket —</option>';
+                lista.forEach(c => {
+                    const o = document.createElement('option');
+                    o.value = c.id;
+                    let txt = c.numero || ('Cotización #' + c.id);
+                    if (c.fecha) txt += ' · ' + c.fecha;
+                    if (c.bloqueada) txt += ' · BLOQUEADA';
+                    o.textContent = txt;
+                    sel.appendChild(o);
+                });
+                // Restaurar selección si ya había una activa
+                if (_cotiActivaId != null && lista.some(c => c.id === _cotiActivaId)) {
+                    sel.value = _cotiActivaId;
+                } else if (lista.length) {
+                    _cotiActivaId = lista[lista.length - 1].id;
+                    sel.value = _cotiActivaId;
+                    _cargarCotizacionExistente(_cotiActivaId);
+                } else {
+                    _cotiActivaId = null;
+                    _aplicarEstadoCotizacion(false);
+                }
+            })
+            .catch(() => _aplicarEstadoCotizacion(false));
+    }
+
     function generarCotizacion() {
-        // Próximamente: generación del documento de cotización.
+        if (!woKey) { alert('No hay ticket seleccionado.'); return; }
+        const numero = (document.getElementById('wo-coti-numero') || {}).value || '';
+        const nota   = (document.getElementById('wo-coti-nota') || {}).value || '';
+        if (!numero.trim()) { alert('Ingresa el N° Cotización antes de generar.'); return; }
+
+        const gastos    = recogerGastos();
+        const manoObra  = recogerManoObra();
+
+        if (!confirm(`¿Generar y guardar la cotización ${numero}?\n\nUna vez generada, los datos quedarán BLOQUEADOS.\nSolo el administrador podrá modificarlos.`)) return;
+
+        const btn = document.getElementById('btn-wo-generar-coti');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...'; }
+
+        fetch('/api/cotizacion/generar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: woKey, numero, nota, gastos, mano_obra: manoObra, cotizacion_id: _cotiActivaId })
+        })
+        .then(r => {
+            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+            return r.blob();
+        })
+        .then(blob => {
+            // Descargar PDF
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Cotizacion_' + numero.replace(/[/\s]/g, '_') + '.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            // Bloquear panel y refrescar lista
+            _aplicarEstadoCotizacion(true);
+            cargarListaCotizaciones();
+        })
+        .catch(err => alert(err.message || 'Error de red'))
+        .finally(() => {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización'; }
+        });
+    }
+
+    function reDescargarCotizacion() {
+        if (!woKey) return;
+        const numero = (document.getElementById('wo-coti-numero') || {}).value || woKey;
+        const nota   = (document.getElementById('wo-coti-nota') || {}).value || '';
+        const gastos    = recogerGastos();
+        const manoObra  = recogerManoObra();
+        const btn = document.getElementById('btn-wo-redownload-coti');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+        fetch('/api/cotizacion/generar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: woKey, numero, nota, gastos, mano_obra: manoObra, cotizacion_id: _cotiActivaId })
+        })
+        .then(r => {
+            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+            return r.blob();
+        })
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Cotizacion_' + numero.replace(/[/\s]/g, '_') + '.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        })
+        .catch(err => alert(err.message || 'Error de red'))
+        .finally(() => { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Descargar PDF'; } });
+    }
+
+    function desbloquearCotizacion() {
+        if (!woKey) return;
+        if (!confirm('¿Desbloquear la cotización para edición? Esta acción solo está disponible para administradores.')) return;
+        fetch('/api/cotizacion/desbloquear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: woKey, cotizacion_id: _cotiActivaId })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                _aplicarEstadoCotizacion(false);
+                cargarListaCotizaciones();
+                alert('Cotización desbloqueada. Ya puede editar los datos.');
+            } else {
+                alert('Error: ' + (res.error || 'No se pudo desbloquear'));
+            }
+        })
+        .catch(() => alert('Error de red'));
+    }
+
+    function eliminarCotizacion() {
+        if (!woKey || _cotiActivaId == null) return;
+        if (!confirm('¿Eliminar esta cotización? Esta acción no se puede deshacer.')) return;
+        fetch('/api/cotizacion/eliminar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: woKey, cotizacion_id: _cotiActivaId })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                _cotiActivaId = null;
+                const btnEliminar = document.getElementById('btn-coti-eliminar');
+                if (btnEliminar) btnEliminar.style.display = 'none';
+                const formBody = document.getElementById('wo-coti-form-body');
+                if (formBody) formBody.style.display = 'none';
+                cargarListaCotizaciones();
+                alert('Cotización eliminada.');
+            } else {
+                alert('Error: ' + (res.error || 'No se pudo eliminar'));
+            }
+        })
+        .catch(() => alert('Error de red'));
     }
 
     function descargarInformeWO() {
