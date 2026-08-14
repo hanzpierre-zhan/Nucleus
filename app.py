@@ -553,6 +553,44 @@ with app.app_context():
                                          valor=json.dumps(default_servicios, ensure_ascii=False)))
     db.session.commit()
 
+    # Migration: Asegurar columnas de detalle para FLM (campos que llena el gestor en el modal WO).
+    # Si falta alguna, se agrega a manual_columns para que aparezcan en la tabla y en el botón Columnas.
+    flm_proy = Proyecto.query.filter_by(nombre='FLM').first()
+    if flm_proy:
+        flm_cfg = AppConfig.query.filter_by(proyecto_id=flm_proy.id, clave='manual_columns').first()
+        try:
+            flm_cols = json.loads(flm_cfg.valor) if flm_cfg else []
+            if not isinstance(flm_cols, list):
+                flm_cols = []
+        except Exception:
+            flm_cols = []
+        flm_names = {str(c.get('nombre', '')).strip() for c in flm_cols if isinstance(c, dict)}
+        flm_detalle_cols = [
+            {'nombre': 'SERVICIO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CIUDAD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SOLUCIÓN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí', 'No']}
+        ]
+        for col in flm_detalle_cols:
+            if col['nombre'] not in flm_names:
+                flm_cols.append(col)
+                flm_names.add(col['nombre'])
+        if flm_cfg:
+            flm_cfg.valor = json.dumps(flm_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=flm_proy.id, clave='manual_columns', valor=json.dumps(flm_cols, ensure_ascii=False)))
+        db.session.commit()
+
     # Migration: Campos del checklist de PEXT (datos del gestor al atender la incidencia)
     pext_checklist = Proyecto.query.filter_by(nombre='PEXT').first()
     if pext_checklist:

@@ -1475,8 +1475,9 @@
             return;
         }
 
-        // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas
-        if (isManual && nonManualCount >= 5) {
+        // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas.
+        // Excepción: TECNICO ASIGNADO siempre se muestra (FLM).
+        if (isManual && nonManualCount >= 5 && fieldName !== 'TECNICO ASIGNADO') {
             colDef.visible = false;
         } 
         
