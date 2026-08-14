@@ -8,7 +8,9 @@
         <i class="fa-solid fa-list-ol"></i> Cargando...
     </span>
 
-    {% if session.get('rol') == 'admin' %}
+    {% set rol_es_admin = session.get('rol') == 'admin' %}
+    {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM', 'PEXT'] %}
+    {% if rol_es_admin and proy_flm_pext %}
     <label class="topbar-switch" title="Mostrar u ocultar de golpe las columnas manuales de la tabla">
         <input type="checkbox" id="manual-cols-toggle" onchange="toggleManualColumns(this)">
         <span class="topbar-switch-track"></span>
@@ -45,12 +47,7 @@
         <i class="fa-solid fa-file-excel"></i> Excel
     </button>
 
-    {% if session.get('rol') not in ['gestor', 'demo'] %}
-    <!-- Botón Añadir (Azul) -->
-    <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir Nuevo Registro">
-        <i class="fa-solid fa-plus"></i> Añadir
-    </button>
-
+    {% if session.get('rol') == 'admin' %}
     <!-- Botón Importar Masivo (Teal) -->
     <button onclick="abrirModalImportar()" class="action-pill pill-teal" title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">
         <i class="fa-solid fa-file-arrow-up"></i> Importar
@@ -62,11 +59,9 @@
     </a>
 
     <!-- Botón Eliminar (Rojo - aparece al seleccionar filas) - solo admin -->
-    {% if session.get('rol') == 'admin' %}
     <button id="btn-delete-rows" onclick="eliminarRegistros()" class="action-pill pill-red" style="display:none;" title="Eliminar Registros Seleccionados">
         <i class="fa-solid fa-trash-can"></i> Eliminar
     </button>
-    {% endif %}
     {% endif %}
 </div>
 <div id="data-stats" class="data-stats"></div>
