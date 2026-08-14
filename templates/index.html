@@ -262,7 +262,7 @@
         box-shadow: 0 1px 4px rgba(0,0,0,0.14);
     }
     .wo-material-row {
-        display: grid; grid-template-columns: minmax(140px, 1fr) 90px 80px 90px 34px;
+        display: grid; grid-template-columns: minmax(140px, 1fr) 120px 34px;
         gap: 8px; align-items: center; margin-bottom: 8px;
     }
     .wo-material-row select,
@@ -541,14 +541,14 @@
             <div class="wo-section">
                 <div class="wo-section-title"><i class="fa-solid fa-sliders"></i> Gestión</div>
                 <div class="wo-form">
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-wrench"></i> Servicio
+                    <div class="wo-field" id="wof-servicio">
+                        <label><i class="fa-solid fa-wrench"></i> <span class="wof-servicio-label">Servicio</span>
                             <button type="button" id="btn-servicios" class="wo-serv-btn" title="Editar opciones de servicio" onclick="toggleServiciosEditor()"><i class="fa-solid fa-gear"></i></button>
                         </label>
                         <select id="wo-servicio"><option value="">— Seleccionar —</option></select>
                         <div id="servicios-editor" class="servicios-editor" style="display:none;"></div>
                     </div>
-                    <div class="wo-field">
+                    <div class="wo-field" id="wof-ciudad">
                         <label><i class="fa-solid fa-city"></i> Ciudad</label>
                         <input type="text" id="wo-ciudad" autocomplete="off">
                     </div>
@@ -560,35 +560,35 @@
                         <label><i class="fa-solid fa-building"></i> Contrata</label>
                         <input type="text" id="wo-contrata" autocomplete="off">
                     </div>
-                    <div class="wo-field">
+                    <div class="wo-field" id="wof-latitud">
                         <label><i class="fa-solid fa-arrow-up-wide-short"></i> Coordenadas del corte (Lat)</label>
                         <input type="text" id="wo-latitud" autocomplete="off" placeholder="Ej: -8.405357°">
                     </div>
-                    <div class="wo-field">
+                    <div class="wo-field" id="wof-longitud">
                         <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Coordenadas del corte (Long)</label>
                         <input type="text" id="wo-longitud" autocomplete="off" placeholder="Ej: -74.587859°">
                     </div>
-                    <div class="wo-field">
+                    <div class="wo-field" id="wof-motivo">
                         <label><i class="fa-solid fa-triangle-exclamation"></i> Motivo de avería</label>
                         <select id="wo-motivo"><option value="">— Seleccionar —</option></select>
                     </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-boxes-stacked"></i> ¿Se instaló mufas?</label>
+                    <div class="wo-field" id="wof-se-instalo-mufas">
+                        <label><i class="fa-solid fa-boxes-stacked"></i> <span class="wof-mufas-label">¿Se instaló mufas?</span></label>
                         <select id="wo-se-instalo-mufas">
                             <option value="">— Seleccionar —</option>
                             <option value="Sí">Sí</option>
                             <option value="No">No</option>
                         </select>
                     </div>
-                    <div class="wo-field">
+                    <div class="wo-field" id="wof-lat-mufa">
                         <label><i class="fa-solid fa-arrow-up-wide-short"></i> Ubicación de mufas (Lat)</label>
                         <input type="text" id="wo-lat-mufa" autocomplete="off" placeholder="Ej: -8.405357°">
                     </div>
-                    <div class="wo-field">
+                    <div class="wo-field" id="wof-lon-mufa">
                         <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Ubicación de mufas (Long)</label>
                         <input type="text" id="wo-lon-mufa" autocomplete="off" placeholder="Ej: -74.587859°">
                     </div>
-                    <div class="wo-field">
+                    <div class="wo-field" id="wof-solucion">
                         <label><i class="fa-solid fa-wand-magic-sparkles"></i> Solución</label>
                         <select id="wo-solucion"><option value="">— Seleccionar —</option></select>
                     </div>
@@ -623,6 +623,11 @@
                     <div class="wo-section-title"><i class="fa-solid fa-toolbox"></i> Materiales usados en la obra</div>
                     <div id="wo-material-list"><div class="wo-empty">Cargando...</div></div>
                     <button type="button" id="btn-wo-agregar-material" class="mar-btn-ghost" onclick="agregarFilaMaterial()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar material</button>
+                </div>
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-gas-pump"></i> Gasolina</div>
+                    <div id="wo-gasolina-list"><div class="wo-empty">Sin registros de gasolina.</div></div>
+                    <button type="button" id="btn-wo-agregar-gasolina" class="mar-btn-ghost" onclick="agregarFilaGasolina()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar gasolina</button>
                 </div>
             </div>
             <div id="wo-panel-cotizacion" style="display:none;">
@@ -814,6 +819,7 @@
     const changedKeys = new Set({{ changed_keys | safe }});
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
     const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
+    const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
 
     const FAULT_COLORS = {
         'Critical': { bg: '#dc3545', fg: '#fff', hrs: '8hrs' },
@@ -2633,11 +2639,46 @@
         return out;
     }
 
+    function aplicarConfigWoPorProyecto() {
+        // Personaliza el formulario WO según el proyecto.
+        // FLM: renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
+        if (!IS_FLM) return;
+
+        // Servicio -> Restricción
+        document.querySelectorAll('.wof-servicio-label').forEach(l => { l.textContent = 'Restricción'; });
+        // ¿Se instaló mufas? -> ¿Se usó grupo electrógeno?
+        document.querySelectorAll('.wof-mufas-label').forEach(l => { l.textContent = '¿Se usó grupo electrógeno?'; });
+
+        // Ocultar campos no aplicables en FLM
+        ['wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-motivo', 'wof-lat-mufa', 'wof-lon-mufa']
+            .forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+
+        // FLM: ocultar botón de informe Word
+        const btnWord = document.getElementById('btn-wo-word');
+        if (btnWord) btnWord.style.display = 'none';
+
+        // Solución: desplegable -> texto libre en FLM
+        const solSel = document.getElementById('wo-solucion');
+        if (solSel && solSel.tagName === 'SELECT') {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = 'wo-solucion';
+            input.autocomplete = 'off';
+            input.value = solSel.value;
+            solSel.replaceWith(input);
+        }
+    }
+
     function abrirWoModal(row) {
         const data = row.getData();
         woRow = row;
         woKey = data._key;
         document.getElementById('wo-title').textContent = String(woKey || 'WO');
+
+        aplicarConfigWoPorProyecto();
 
         renderWoSummary(data);
         cargarWoHistorial();
@@ -2647,7 +2688,12 @@
         document.getElementById('wo-tecnico').value = '';
         document.getElementById('wo-contrata').value = data['CONTRATA'] || '';
         fillSelect('wo-motivo', MOTIVO_AVERIA_OPCIONES, data['MOTIVO DE AVERÍA'] || data['MOTIVO DE AVERIA'] || '');
-        fillSelect('wo-solucion', SOLUCION_OPCIONES, data['SOLUCIÓN'] || data['SOLUCION'] || '');
+        const woSolEl = document.getElementById('wo-solucion');
+        if (woSolEl && woSolEl.tagName === 'SELECT') {
+            fillSelect('wo-solucion', SOLUCION_OPCIONES, data['SOLUCIÓN'] || data['SOLUCION'] || '');
+        } else if (woSolEl) {
+            woSolEl.value = data['SOLUCIÓN'] || data['SOLUCION'] || '';
+        }
         let woLat = data['LATITUD'] || data['Latitud'] || '';
         let woLon = data['LONGITUD'] || data['Longitud'] || '';
         if (!woLat && !woLon && data['COORDENADAS DEL CORTE']) {
@@ -2685,6 +2731,8 @@
         document.getElementById('btn-servicios').style.display = (editable && canEditServicios) ? '' : 'none';
         const btnAgMat = document.getElementById('btn-wo-agregar-material');
         if (btnAgMat) btnAgMat.style.display = editable ? '' : 'none';
+        const btnAgGas = document.getElementById('btn-wo-agregar-gasolina');
+        if (btnAgGas) btnAgGas.style.display = editable ? '' : 'none';
         const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
         if (btnAgGasto) btnAgGasto.style.display = editable ? '' : 'none';
         const btnAgMo = document.getElementById('btn-wo-agregar-mo');
@@ -2766,6 +2814,7 @@
             if (currentTech) tSel.value = currentTech;
             if (!document.getElementById('wo-contrata').value) onTecnicoChange();
             renderWoMaterialList(data);
+            renderWoGasolinaList(data);
         }).catch(() => {});
     }
 
@@ -2787,13 +2836,13 @@
             saved = JSON.parse(data['MATERIALES'] || '[]') || [];
         } catch (e) { saved = []; }
         if (!Array.isArray(saved)) saved = [];
-        saved.forEach(m => agregarFilaMaterial(m.codigo, m.cantidad, m.tipo, m.um));
+        saved.forEach(m => agregarFilaMaterial(m.descripcion || m.codigo || '', m.cantidad));
         if (!saved.length) {
             cont.innerHTML = '<div class="wo-empty">Sin materiales registrados. Usa "Agregar material" para registrar lo usado en la obra.</div>';
         }
     }
 
-    function agregarFilaMaterial(codigo, cantidad, tipo, um) {
+    function agregarFilaMaterial(descripcion, cantidad) {
         const cont = document.getElementById('wo-material-list');
         if (!cont) return;
         const emptyMsg = cont.querySelector('.wo-empty');
@@ -2802,37 +2851,12 @@
         const row = document.createElement('div');
         row.className = 'wo-material-row';
 
-        const sel = document.createElement('select');
-        const ph = document.createElement('option');
-        ph.value = ''; ph.textContent = '— Seleccionar material —';
-        sel.appendChild(ph);
-        woMateriales.forEach(m => {
-            const o = document.createElement('option');
-            o.value = m.codigo;
-            o.textContent = m.descripcion ? `${m.descripcion} (${m.codigo})` : m.codigo;
-            o.dataset.descripcion = m.descripcion || '';
-            o.dataset.tipo = m.tipo || '';
-            o.dataset.um = m.um || '';
-            sel.appendChild(o);
-        });
-        if (codigo) sel.value = codigo;
-        row.appendChild(sel);
-
-        const tipoInp = document.createElement('input');
-        tipoInp.type = 'text';
-        tipoInp.placeholder = 'Tipo';
-        tipoInp.readOnly = true;
-        tipoInp.title = 'Tipo del material (autocompletado)';
-        tipoInp.value = tipo || '';
-        row.appendChild(tipoInp);
-
-        const umInp = document.createElement('input');
-        umInp.type = 'text';
-        umInp.placeholder = 'UM';
-        umInp.readOnly = true;
-        umInp.title = 'Unidad de medida (autocompletado)';
-        umInp.value = um || '';
-        row.appendChild(umInp);
+        const txt = document.createElement('input');
+        txt.type = 'text';
+        txt.placeholder = 'Descripción del material';
+        txt.autocomplete = 'off';
+        txt.value = descripcion || '';
+        row.appendChild(txt);
 
         const qty = document.createElement('input');
         qty.type = 'number';
@@ -2841,15 +2865,6 @@
         qty.placeholder = 'Cantidad';
         qty.value = cantidad || '';
         row.appendChild(qty);
-
-        const autofill = () => {
-            const opt = sel.options[sel.selectedIndex];
-            if (!opt) return;
-            tipoInp.value = opt.dataset.tipo || '';
-            umInp.value = opt.dataset.um || '';
-        };
-        sel.addEventListener('change', autofill);
-        if (codigo) autofill();
 
         const del = document.createElement('button');
         del.type = 'button';
@@ -2865,7 +2880,7 @@
         row.appendChild(del);
 
         if (!woEditable) {
-            sel.disabled = true;
+            txt.disabled = true;
             qty.disabled = true;
             del.disabled = true;
             del.style.display = 'none';
@@ -2874,22 +2889,94 @@
         cont.appendChild(row);
     }
 
+    function renderWoGasolinaList(data) {
+        const cont = document.getElementById('wo-gasolina-list');
+        if (!cont) return;
+        cont.innerHTML = '';
+        let saved = [];
+        try {
+            saved = JSON.parse(data['GASOLINA'] || '[]') || [];
+        } catch (e) { saved = []; }
+        if (!Array.isArray(saved)) saved = [];
+        saved.forEach(g => agregarFilaGasolina(g.descripcion, g.cantidad));
+        if (!saved.length) {
+            cont.innerHTML = '<div class="wo-empty">Sin registros de gasolina.</div>';
+        }
+    }
+
+    function agregarFilaGasolina(descripcion, cantidad) {
+        const cont = document.getElementById('wo-gasolina-list');
+        if (!cont) return;
+        const emptyMsg = cont.querySelector('.wo-empty');
+        if (emptyMsg) emptyMsg.remove();
+
+        const row = document.createElement('div');
+        row.className = 'wo-material-row';
+
+        const txt = document.createElement('input');
+        txt.type = 'text';
+        txt.placeholder = 'Descripción (ej: Gasolina 90)';
+        txt.autocomplete = 'off';
+        txt.value = descripcion || '';
+        row.appendChild(txt);
+
+        const qty = document.createElement('input');
+        qty.type = 'number';
+        qty.min = '0';
+        qty.step = '0.01';
+        qty.placeholder = 'Cantidad (gal)';
+        qty.value = cantidad || '';
+        row.appendChild(qty);
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'wo-material-del';
+        del.title = 'Quitar gasolina';
+        del.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+        del.onclick = () => {
+            row.remove();
+            if (!cont.querySelector('.wo-material-row')) {
+                cont.innerHTML = '<div class="wo-empty">Sin registros de gasolina.</div>';
+            }
+        };
+        row.appendChild(del);
+
+        if (!woEditable) {
+            txt.disabled = true;
+            qty.disabled = true;
+            del.disabled = true;
+            del.style.display = 'none';
+        }
+
+        cont.appendChild(row);
+    }
+
+    function recogerGasolina() {
+        const cont = document.getElementById('wo-gasolina-list');
+        if (!cont) return [];
+        const items = [];
+        cont.querySelectorAll('.wo-material-row').forEach(row => {
+            const txt = row.querySelector('input[type="text"]');
+            const qty = row.querySelector('input[type="number"]');
+            if (!txt || !txt.value.trim()) return;
+            items.push({
+                descripcion: txt.value.trim(),
+                cantidad: qty ? String(qty.value).trim() : ''
+            });
+        });
+        return items;
+    }
+
     function recogerMateriales() {
         const cont = document.getElementById('wo-material-list');
         if (!cont) return [];
         const items = [];
         cont.querySelectorAll('.wo-material-row').forEach(row => {
-            const sel = row.querySelector('select');
+            const txt = row.querySelector('input[type="text"]');
             const qty = row.querySelector('input[type="number"]');
-            if (!sel || !sel.value) return;
-            const opt = sel.options[sel.selectedIndex];
-            const tipoInp = row.querySelectorAll('input[readonly]')[0];
-            const umInp = row.querySelectorAll('input[readonly]')[1];
+            if (!txt || !txt.value.trim()) return;
             items.push({
-                codigo: sel.value,
-                descripcion: (opt && opt.dataset.descripcion) || '',
-                tipo: tipoInp ? tipoInp.value : '',
-                um: umInp ? umInp.value : '',
+                descripcion: txt.value.trim(),
                 cantidad: qty ? String(qty.value).trim() : ''
             });
         });
@@ -3230,6 +3317,7 @@
                 'LATITUD MUFAS': document.getElementById('wo-lat-mufa').value.trim(),
                 'LONGITUD MUFAS': document.getElementById('wo-lon-mufa').value.trim(),
                 'MATERIALES': JSON.stringify(recogerMateriales()),
+                'GASOLINA': JSON.stringify(recogerGasolina()),
                 'COTIZACION_GASTOS': JSON.stringify(recogerGastos()),
                 'COTIZACION_MANO_OBRA': JSON.stringify(recogerManoObra()),
                 'COTIZACION_NOTA': (document.getElementById('wo-coti-nota') || {}).value || '',
@@ -3816,8 +3904,14 @@
         if (materiales.length) {
             lines.push('Materiales:');
             materiales.forEach(m => {
-                const extra = [m.tipo, m.um].filter(Boolean).join('/');
-                lines.push(`- ${m.descripcion || m.codigo}${m.cantidad ? ' x' + m.cantidad : ''}${extra ? ' [' + extra + ']' : ''}`);
+                lines.push(`- ${m.descripcion}${m.cantidad ? ' x' + m.cantidad : ''}`);
+            });
+        }
+        const gasolina = recogerGasolina();
+        if (gasolina.length) {
+            lines.push('Gasolina:');
+            gasolina.forEach(g => {
+                lines.push(`- ${g.descripcion}${g.cantidad ? ' x' + g.cantidad : ''}`);
             });
         }
         const gastos = recogerGastos();

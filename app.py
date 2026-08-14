@@ -2253,9 +2253,6 @@ def api_rows_delete():
 def api_wo_meta():
     pid = session.get('current_proyecto_id')
     try:
-        proy = db.session.get(Proyecto, pid)
-        proy_nombre = proy.nombre if proy else ''
-
         # Opciones de SERVICIO (configurables por proyecto)
         scfg = AppConfig.query.filter_by(proyecto_id=pid, clave='servicio_opciones').first()
         if scfg:
@@ -2394,6 +2391,10 @@ def api_wo_informe():
 
     proy = db.session.get(Proyecto, pid)
     proy_nombre = proy.nombre if proy else ''
+
+    # FLM ya no usa informe Word
+    if proy_nombre.strip().lower() == 'flm':
+        return jsonify({'error': 'Informe Word no disponible para FLM.'}), 403
 
     def get_val(partial, default=''):
         for k, v in row.items():
