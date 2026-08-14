@@ -620,10 +620,6 @@
                     </div>
                 </div>
             </div>
-            <div class="wo-section" style="padding-top: 0;">
-                <button onclick="descargarInformeWO()" id="btn-wo-word" class="mar-btn-primary" title="Descargar informe Word"><i class="fa-solid fa-file-word"></i> Descargar informe Word</button>
-            </div>
-            </div>
             <div id="wo-panel-material" style="display:none;">
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-toolbox"></i> Materiales usados en la obra</div>
@@ -2721,10 +2717,6 @@
                     if (el) el.style.display = 'none';
                 });
 
-            // FLM: ocultar botón de informe Word
-            const btnWord = document.getElementById('btn-wo-word');
-            if (btnWord) btnWord.style.display = 'none';
-
             // Solución: desplegable -> texto libre en FLM
             const solSel = document.getElementById('wo-solucion');
             if (solSel && solSel.tagName === 'SELECT') {
@@ -3943,32 +3935,6 @@
             }
         })
         .catch(() => alert('Error de red'));
-    }
-
-    function descargarInformeWO() {
-        if (!woKey) { alert('No hay WO seleccionado.'); return; }
-        const btn = document.getElementById('btn-wo-word');
-        if (btn) btn.disabled = true;
-        fetch('/api/wo/informe?key=' + encodeURIComponent(woKey))
-            .then(r => {
-                if (r.headers.get('Content-Type') && r.headers.get('Content-Type').includes('application/json')) {
-                    return r.json().then(j => { throw new Error(j.error || 'Error al generar el informe'); });
-                }
-                if (!r.ok) throw new Error('Error al generar el informe');
-                return r.blob();
-            })
-            .then(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'Informe_' + woKey + '.docx';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            })
-            .catch(err => alert(err.message || 'Error de red'))
-            .finally(() => { if (btn) btn.disabled = false; });
     }
 
     function copiarPlantillaWO() {
