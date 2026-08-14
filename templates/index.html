@@ -138,6 +138,9 @@
     .data-stat-meta { display: flex; flex-direction: column; min-width: 0; }
     .data-stat-meta b { font-size: 17px; color: var(--ios-label); line-height: 1.1; white-space: nowrap; }
     .data-stat-meta span { font-size: 10px; font-weight: 600; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .data-stat.stat-active {
+        border-color: var(--ios-blue); box-shadow: 0 0 0 2px rgba(0,122,255,0.25);
+    }
 
     /* ===== Modal Detalle WO ===== */
     .wo-modal { max-width: 780px; }
@@ -954,11 +957,56 @@
         container.style.display = 'grid';
         container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
         container.innerHTML = cards.map(c =>
-            `<div class="data-stat">` +
+            `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" ` +
+                `data-tipo="${c[2] === 'SLA CUMPLIDO' || c[2] === 'SLA VENCIDO' || c[2] === 'SLA DENTRO DE PLAZO' || c[2] === 'SLA DEBE ATENDERSE' || c[2] === 'SLA POR VENCER' ? 'sla' : 'wo'}" ` +
+                `data-sla="${c[2]}" data-wo="${c[2]}">` +
                 `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
                 `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
             `</div>`
         ).join('');
+    }
+
+    // Filtra la tabla al hacer click en una tarjeta de PEXT/FLM.
+    // 'sla' → filtra por el semáforo de SLA Cumplimiento de cada fila.
+    // 'wo'  → filtra por el estado de la WO.
+    // Un segundo click sobre la misma tarjeta quita el filtro.
+    let _tarjetaFiltroActiva = null;
+    function filtrarPorTarjeta(el) {
+        const tipo = el.getAttribute('data-tipo');
+        const valor = el.getAttribute('data-sla') || el.getAttribute('data-wo');
+        if (!table) return;
+
+        if (_tarjetaFiltroActiva === valor) {
+            _tarjetaFiltroActiva = null;
+            table.clearFilter();
+            document.querySelectorAll('#data-stats .data-stat').forEach(d => d.classList.remove('stat-active'));
+            return;
+        }
+
+        const norm = v => String(v == null ? '' : v).trim().toLowerCase();
+        const val = (row, ...keys) => {
+            for (const k of keys) {
+                const key = Object.keys(row).find(x => norm(x) === k);
+                if (key !== undefined && row[key] != null && String(row[key]).trim() !== '') return row[key];
+            }
+            return null;
+        };
+
+        if (tipo === 'sla') {
+            table.setFilter((rowData) => {
+                const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData));
+                return st.texto === valor;
+            });
+        } else {
+            table.setFilter((rowData) => {
+                const woState = String(val(rowData, 'estado de la tarea (wo state)', 'estado del tt', 'estado') || '').trim().toLowerCase();
+                return woState === norm(valor);
+            });
+        }
+
+        _tarjetaFiltroActiva = valor;
+        document.querySelectorAll('#data-stats .data-stat').forEach(d => d.classList.remove('stat-active'));
+        el.classList.add('stat-active');
     }
 
     const kpiAlarmFormatter = function(cell) {
