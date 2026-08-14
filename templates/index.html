@@ -825,6 +825,7 @@
     const MANUAL_PROJECT = ['dataper', 'material', 'site name'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
+    const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
 
     const FAULT_COLORS = {
         'Critical': { bg: '#dc3545', fg: '#fff', hrs: '8hrs' },
@@ -2659,33 +2660,45 @@
     function aplicarConfigWoPorProyecto() {
         // Personaliza el formulario WO según el proyecto.
         // FLM: renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
-        if (!IS_FLM) return;
+        if (IS_FLM) {
+            // Servicio -> Restricción
+            document.querySelectorAll('.wof-servicio-label').forEach(l => { l.textContent = 'Restricción'; });
+            // ¿Se instaló mufas? -> ¿Se usó grupo electrógeno?
+            document.querySelectorAll('.wof-mufas-label').forEach(l => { l.textContent = '¿Se usó grupo electrógeno?'; });
 
-        // Servicio -> Restricción
-        document.querySelectorAll('.wof-servicio-label').forEach(l => { l.textContent = 'Restricción'; });
-        // ¿Se instaló mufas? -> ¿Se usó grupo electrógeno?
-        document.querySelectorAll('.wof-mufas-label').forEach(l => { l.textContent = '¿Se usó grupo electrógeno?'; });
+            // Ocultar campos no aplicables en FLM
+            ['wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-motivo', 'wof-lat-mufa', 'wof-lon-mufa']
+                .forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.display = 'none';
+                });
 
-        // Ocultar campos no aplicables en FLM
-        ['wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-motivo', 'wof-lat-mufa', 'wof-lon-mufa']
-            .forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.style.display = 'none';
-            });
+            // FLM: ocultar botón de informe Word
+            const btnWord = document.getElementById('btn-wo-word');
+            if (btnWord) btnWord.style.display = 'none';
 
-        // FLM: ocultar botón de informe Word
-        const btnWord = document.getElementById('btn-wo-word');
-        if (btnWord) btnWord.style.display = 'none';
+            // Solución: desplegable -> texto libre en FLM
+            const solSel = document.getElementById('wo-solucion');
+            if (solSel && solSel.tagName === 'SELECT') {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = 'wo-solucion';
+                input.autocomplete = 'off';
+                input.value = solSel.value;
+                solSel.replaceWith(input);
+            }
+        }
 
-        // Solución: desplegable -> texto libre en FLM
-        const solSel = document.getElementById('wo-solucion');
-        if (solSel && solSel.tagName === 'SELECT') {
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.id = 'wo-solucion';
-            input.autocomplete = 'off';
-            input.value = solSel.value;
-            solSel.replaceWith(input);
+        // PEXT: sin pestaña Cotización ni sección Gasolina (son solo de FLM).
+        if (IS_PEXT) {
+            const tabCoti = document.getElementById('wo-tab-cotizacion');
+            if (tabCoti) tabCoti.style.display = 'none';
+            const panelCoti = document.getElementById('wo-panel-cotizacion');
+            if (panelCoti) panelCoti.style.display = 'none';
+
+            // Sección Gasolina dentro de la pestaña Material
+            const secGasolina = document.querySelector('#wo-panel-material .wo-section:last-child');
+            if (secGasolina) secGasolina.style.display = 'none';
         }
     }
 
@@ -2868,11 +2881,29 @@
         const row = document.createElement('div');
         row.className = 'wo-material-row';
 
-        const txt = document.createElement('input');
-        txt.type = 'text';
-        txt.placeholder = 'Descripción del material';
-        txt.autocomplete = 'off';
-        txt.value = descripcion || '';
+        // En PEXT el material se elige de una lista desplegable con los materiales
+        // declarados de la tabla Material (PROYECTO=PEXT). En FLM se escribe a mano.
+        const txt = document.createElement('select');
+        if (IS_PEXT) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '— Seleccionar material —';
+            txt.appendChild(opt);
+            (woMateriales || []).forEach(m => {
+                const o = document.createElement('option');
+                o.value = m.codigo ? (m.codigo + ' | ' + m.descripcion) : m.descripcion;
+                o.textContent = (m.codigo ? '[' + m.codigo + '] ' : '') + m.descripcion;
+                txt.appendChild(o);
+            });
+            if (descripcion) txt.value = descripcion;
+        } else {
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.placeholder = 'Descripción del material';
+            inp.autocomplete = 'off';
+            inp.value = descripcion || '';
+            row.appendChild(inp);
+        }
         row.appendChild(txt);
 
         const qty = document.createElement('input');
@@ -2897,6 +2928,7 @@
         row.appendChild(del);
 
         if (!woEditable) {
+            if (row.querySelector('input[type="text"]')) row.querySelector('input[type="text"]').disabled = true;
             txt.disabled = true;
             qty.disabled = true;
             del.disabled = true;
@@ -2989,11 +3021,13 @@
         if (!cont) return [];
         const items = [];
         cont.querySelectorAll('.wo-material-row').forEach(row => {
+            const sel = row.querySelector('select');
             const txt = row.querySelector('input[type="text"]');
             const qty = row.querySelector('input[type="number"]');
-            if (!txt || !txt.value.trim()) return;
+            const desc = sel ? sel.value : (txt ? txt.value : '');
+            if (!desc || !String(desc).trim()) return;
             items.push({
-                descripcion: txt.value.trim(),
+                descripcion: String(desc).trim(),
                 cantidad: qty ? String(qty.value).trim() : ''
             });
         });

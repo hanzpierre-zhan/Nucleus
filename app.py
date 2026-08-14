@@ -2467,6 +2467,8 @@ def api_rows_delete():
 @login_required
 def api_wo_meta():
     pid = session.get('current_proyecto_id')
+    proy_obj = db.session.get(Proyecto, pid) if pid else None
+    proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
     try:
         # Opciones de SERVICIO (configurables por proyecto)
         scfg = AppConfig.query.filter_by(proyecto_id=pid, clave='servicio_opciones').first()
