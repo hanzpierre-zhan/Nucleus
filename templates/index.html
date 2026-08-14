@@ -47,6 +47,14 @@
         <i class="fa-solid fa-file-excel"></i> Excel
     </button>
 
+    {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
+    {% if proy_nombre in ['dataper', 'material', 'site name'] %}
+    <!-- Botón Añadir Registro (Azul) -->
+    <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
+        <i class="fa-solid fa-plus"></i> Añadir
+    </button>
+    {% endif %}
+
     {% if session.get('rol') == 'admin' %}
     <!-- Botón Importar Masivo (Teal) -->
     <button onclick="abrirModalImportar()" class="action-pill pill-teal" title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">
@@ -814,6 +822,8 @@
     const changedKeys = new Set({{ changed_keys | safe }});
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
     const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
+    const MANUAL_PROJECT = ['dataper', 'material', 'site name'].includes(currentProjectNombre.trim().toLowerCase());
+    const pkName = "{{ pk }}";
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
 
     const FAULT_COLORS = {
@@ -1146,8 +1156,9 @@
         return parts.join(' ');
     };
 
-    // Ensure SLA columns exist in rawCols dynamically, except for Dataper and Material
-    if (currentProjectNombre.trim().toLowerCase() !== 'dataper' && currentProjectNombre.trim().toLowerCase() !== 'material') {
+    // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
+    const noSla = ['dataper', 'material', 'site name'];
+    if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
                 rawCols.push(slaName);
@@ -1467,6 +1478,12 @@
                 return `<span class="wo-link">${escapeHtml(v)}</span>`;
             };
             keyColumn = colDef;
+            return;
+        }
+
+        // Dataper, Material y Site Name: la PK se muestra como columna _key (llave).
+        // Evitamos agregar la columna real al datatable para no duplicarla bajo ninguna circunstancia.
+        if (MANUAL_PROJECT && fieldName === pkName) {
             return;
         }
 
@@ -1965,6 +1982,7 @@
             table.getColumns().forEach(col => {
                 const def = col.getDefinition();
                 if (def.field === '_key') return; // protect key
+                if (MANUAL_PROJECT && def.field === pkName) return; // protect duplicate PK
 
                 const isVisible = col.isVisible();
                 const checked = isVisible ? "checked" : "";
@@ -1988,6 +2006,7 @@
         table.getColumns().forEach(col => {
             const def = col.getDefinition();
             if (def.field === '_key') return;
+            if (MANUAL_PROJECT && def.field === pkName) return; // protect duplicate PK
             const shouldShow = (col.isVisible() !== visible);
             if (shouldShow) table.toggleColumn(def.field);
         });
@@ -2006,6 +2025,7 @@
         table.getColumns().forEach(col => {
             const field = col.getDefinition().field;
             if (!manualNamesSet.has(field)) return;
+            if (MANUAL_PROJECT && field === pkName) return; // protect duplicate PK
             if (show && !col.isVisible()) col.show();
             if (!show && col.isVisible()) col.hide();
         });
@@ -2041,6 +2061,7 @@
         if (saved === '1') {
             table.getColumns().forEach(col => {
                 const field = col.getDefinition().field;
+                if (MANUAL_PROJECT && field === pkName) return; // protect duplicate PK
                 if (manualNamesSet.has(field) && !col.isVisible()) col.show();
             });
         }
@@ -2255,7 +2276,7 @@
         if (body) body.innerHTML = '';
     }
 
-    const IMPORT_TYPE = ['dataper', 'material'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
+    const IMPORT_TYPE = ['dataper', 'material', 'site name'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
     let importFileToUpload = null;
 
     function abrirModalImportar() {

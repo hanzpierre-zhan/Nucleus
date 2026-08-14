@@ -447,7 +447,7 @@ with app.app_context():
 
     # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
-             ('Material', 'Materiales Disponibles')]
+             ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)')]
     for nombre, desc in fixed:
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
@@ -507,6 +507,31 @@ with app.app_context():
         schema_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='app_schema').first()
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=material_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: Configure Site Name columns (NOMBRE DE SITE, DIRECCION, LATITUD, LONGITUD, ESTADO)
+    site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
+    if site_proy:
+        site_cols = [
+            {'nombre': 'NOMBRE DE SITE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'DIRECCION', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'ESTADO', 'tipo': 'lista', 'opciones': ['ACTIVO', 'INACTIVO']}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(site_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='manual_columns', valor=json.dumps(site_cols, ensure_ascii=False)))
+
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='primary_key').first()
+        if not pk_cfg:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='NOMBRE DE SITE'))
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor=json.dumps([])))
         db.session.commit()
 
     # Migration: "Fault Level" es dato de origen (inmutable) -> no debe ser columna manual editable.
@@ -716,6 +741,10 @@ def get_menu_proyectos(user_id, user_rol):
         extra = Proyecto.query.filter(Proyecto.nombre.in_(['Dataper', 'Material'])).all()
         extra_ids = {e.id for e in proyectos}
         proyectos = proyectos + [e for e in extra if e.id not in extra_ids]
+    if 'FLM' in nombres:
+        site = Proyecto.query.filter_by(nombre='Site Name').first()
+        if site and site.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [site]
     return proyectos
 
 @app.route('/logout')
@@ -730,7 +759,8 @@ def switch_project(pid):
     if session.get('rol') not in ['admin', 'demo']:
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
         if not acceso:
-            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado
+            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado.
+            # Site Name: permitir solo si el usuario tiene FLM asignado.
             proy = db.session.get(Proyecto, pid)
             if proy and proy.nombre in ('Dataper', 'Material'):
                 accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
@@ -738,6 +768,16 @@ def switch_project(pid):
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
                     if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Site Name':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
                         allowed = True
                         break
                 if not allowed:
@@ -784,7 +824,8 @@ def index():
     if not is_privileged:
         acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
         if not acc:
-            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado
+            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado.
+            # Site Name: permitir solo si el usuario tiene FLM asignado.
             proy_check = db.session.get(Proyecto, pid)
             if proy_check and proy_check.nombre in ('Dataper', 'Material'):
                 accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
@@ -792,6 +833,17 @@ def index():
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
                     if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Site Name':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
                         allowed = True
                         break
                 if not allowed:
@@ -846,6 +898,34 @@ def index():
                 if ap and ap.nombre in ('FLM', 'PEXT'):
                     allowed_proy.add(ap.nombre)
         raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip() in allowed_proy]
+
+    # Cruce dinámico: Site Name → FLM. Se agregan a cada fila de FLM las columnas
+    # DIRECCION, LATITUD, LONGITUD tomadas del proyecto "Site Name" cruzando por
+    # la columna "Nombre de Site" ↔ "NOMBRE DE SITE", solo registros ACTIVOS.
+    if proy_actual_nombre == 'FLM':
+        site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
+        if site_proy:
+            site_map = {}
+            for sr in NucleusData.query.filter_by(proyecto_id=site_proy.id).all():
+                sd = json.loads(sr.data_json)
+                if str(sd.get('ESTADO', '')).strip().upper() != 'ACTIVO':
+                    continue
+                nombre_site = str(sd.get('NOMBRE DE SITE', '')).strip()
+                if not nombre_site:
+                    continue
+                site_map[nombre_site] = {
+                    'DIRECCION': sd.get('DIRECCION', ''),
+                    'LATITUD': sd.get('LATITUD', ''),
+                    'LONGITUD': sd.get('LONGITUD', ''),
+                }
+            for d in raw_data:
+                clave = str(d.get('Nombre de Site', '')).strip()
+                info = site_map.get(clave)
+                if info:
+                    d['DIRECCION'] = info['DIRECCION']
+                    d['LATITUD'] = info['LATITUD']
+                    d['LONGITUD'] = info['LONGITUD']
+            columns_set |= {'DIRECCION', 'LATITUD', 'LONGITUD'}
 
     data = apply_data_restrictions(raw_data, res_obj)
         
