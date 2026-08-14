@@ -463,7 +463,7 @@ with app.app_context():
             {'nombre': 'CELULAR', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'DEPARTAMENTO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'PROYECTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT']},
             {'nombre': 'ESTADO', 'tipo': 'lista', 'opciones': ['ACTIVO', 'CESADO']}
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='manual_columns').first()
@@ -488,7 +488,7 @@ with app.app_context():
         material_cols = [
             {'nombre': 'COD_MATERIAL', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'DESCRIPCION_MATERIAL', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'PROYECTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT']},
             {'nombre': 'UM', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'TIPO', 'tipo': 'texto', 'opciones': []}
         ]
@@ -700,6 +700,24 @@ def get_session_info():
     pid = int(pid_raw) if pid_raw else None
     return uid, rol, pid
 
+
+def get_menu_proyectos(user_id, user_rol):
+    """Proyectos que se muestran en el menú lateral.
+    - admin/demo: todos.
+    - resto: sus accesos + Dataper/Material si tiene FLM o PEXT asignado."""
+    is_privileged = user_rol in ('admin', 'demo')
+    if is_privileged:
+        return Proyecto.query.order_by(Proyecto.id).all()
+    accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+    pids = [a.proyecto_id for a in accesos]
+    proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
+    nombres = {p.nombre for p in proyectos}
+    if 'FLM' in nombres or 'PEXT' in nombres:
+        extra = Proyecto.query.filter(Proyecto.nombre.in_(['Dataper', 'Material'])).all()
+        extra_ids = {e.id for e in proyectos}
+        proyectos = proyectos + [e for e in extra if e.id not in extra_ids]
+    return proyectos
+
 @app.route('/logout')
 def logout():
     session.clear()
@@ -712,7 +730,20 @@ def switch_project(pid):
     if session.get('rol') not in ['admin', 'demo']:
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
         if not acceso:
-            return redirect(url_for('index'))
+            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado
+            proy = db.session.get(Proyecto, pid)
+            if proy and proy.nombre in ('Dataper', 'Material'):
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            else:
+                return redirect(url_for('index'))
             
     proj = db.session.get(Proyecto, pid)
     proj = db.session.get(Proyecto, pid)
@@ -753,8 +784,22 @@ def index():
     if not is_privileged:
         acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
         if not acc:
-            session.clear()
-            return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado
+            proy_check = db.session.get(Proyecto, pid)
+            if proy_check and proy_check.nombre in ('Dataper', 'Material'):
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            else:
+                session.clear()
+                return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
         try:
             res_obj = json.loads(acc.restricciones or '{}')
         except:
@@ -785,7 +830,23 @@ def index():
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
         raw_data.append(d)
-        
+
+    # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
+    # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
+    proy_actual = db.session.get(Proyecto, pid)
+    proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    if proy_actual_nombre in ('Dataper', 'Material'):
+        if is_privileged:
+            allowed_proy = {'FLM', 'PEXT'}
+        else:
+            accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+            allowed_proy = set()
+            for a in accs:
+                ap = db.session.get(Proyecto, a.proyecto_id)
+                if ap and ap.nombre in ('FLM', 'PEXT'):
+                    allowed_proy.add(ap.nombre)
+        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip() in allowed_proy]
+
     data = apply_data_restrictions(raw_data, res_obj)
         
     data, kpi_meta = inject_kpis(pid, data)
@@ -812,12 +873,7 @@ def index():
     cols.insert(0, '_key')
     
     # List allowed projects for the menu
-    if is_privileged:
-        proyectos = Proyecto.query.all()
-    else:
-        accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
-        pids = [a.proyecto_id for a in accesos]
-        proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).all()
+    proyectos = get_menu_proyectos(user_id, user_rol)
     
     return render_template('index.html', 
                           data=json.dumps(data), 
@@ -845,8 +901,21 @@ def dashboard():
     if not is_privileged:
         acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
         if not acc:
-            session.clear()
-            return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            proy_check = db.session.get(Proyecto, pid)
+            if proy_check and proy_check.nombre in ('Dataper', 'Material'):
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            else:
+                session.clear()
+                return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
         try:
             res_obj = json.loads(acc.restricciones or '{}')
         except:
@@ -874,6 +943,22 @@ def dashboard():
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
         raw_data.append(d)
+
+    # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
+    # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
+    proy_actual = db.session.get(Proyecto, pid)
+    proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    if proy_actual_nombre in ('Dataper', 'Material'):
+        if is_privileged:
+            allowed_proy = {'FLM', 'PEXT'}
+        else:
+            accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+            allowed_proy = set()
+            for a in accs:
+                ap = db.session.get(Proyecto, a.proyecto_id)
+                if ap and ap.nombre in ('FLM', 'PEXT'):
+                    allowed_proy.add(ap.nombre)
+        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip() in allowed_proy]
         
     data = apply_data_restrictions(raw_data, res_obj)
         
@@ -882,12 +967,7 @@ def dashboard():
     cols = sorted(list(columns_set))
     
     # List allowed projects for the menu
-    if is_privileged:
-        proyectos = Proyecto.query.all()
-    else:
-        accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
-        pids = [a.proyecto_id for a in accesos]
-        proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).all()
+    proyectos = get_menu_proyectos(user_id, user_rol)
 
     # Load saved configurations
     dash_config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_charts').first()
@@ -1384,6 +1464,23 @@ def api_import_process():
             file_key = candidate if candidate in df.columns else str(df.columns[0])
         if file_key not in df.columns:
             return jsonify({'error': f'Key {file_key} not found in headers.'}), 400
+
+        # Validación interna: FLM y PEXT deben traer la columna CATEGORY con el valor
+        # correcto para evitar importar por error datos de otro proceso/mundo.
+        proy_act = Proyecto.query.get(pid)
+        proy_act_nombre = proy_act.nombre.strip().upper() if proy_act and proy_act.nombre else ''
+        category_esperado = None
+        if proy_act_nombre == 'FLM':
+            category_esperado = 'O&M CRM'
+        elif proy_act_nombre == 'PEXT':
+            category_esperado = 'O&M PEXT'
+        if category_esperado:
+            cat_col = next((c for c in df.columns if c.strip().upper() == 'CATEGORY'), None)
+            if cat_col is None:
+                return jsonify({'error': f'El archivo no contiene la columna CATEGORY. La importación de {proy_act_nombre} requiere la categoría "{category_esperado}".'}), 400
+            valores_cat = {str(v).strip() for v in df[cat_col].dropna().tolist()}
+            if valores_cat and not valores_cat.issubset({category_esperado}):
+                return jsonify({'error': f'La columna CATEGORY debe contener únicamente "{category_esperado}" para {proy_act_nombre}. Valores detectados: {", ".join(sorted(valores_cat))}.'}), 400
 
         # Modo columnas manuales: por defecto solo llave + columnas manuales del archivo
         if import_type == 'manual_cols' and not columns_to_keep:

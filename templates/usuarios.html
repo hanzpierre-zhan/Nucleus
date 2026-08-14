@@ -244,10 +244,12 @@
                         <label>Proyectos a los que accede</label>
                         <div class="proj-selector" id="proj-selector">
                             {% for p in proyectos %}
+                            {% if p.nombre in ['FLM', 'PEXT'] %}
                             <label class="proj-chk">
                                 <input type="checkbox" class="proj-check" value="{{ p.id }}">
                                 <i class="fa-solid fa-folder"></i> {{ p.nombre }}
                             </label>
+                            {% endif %}
                             {% endfor %}
                         </div>
                     </div>

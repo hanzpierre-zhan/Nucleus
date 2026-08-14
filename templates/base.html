@@ -71,6 +71,17 @@
                 {% endif %}
                 {% endfor %}
 
+                {% set has_flm = proyectos_list | selectattr('nombre', 'equalto', 'FLM') | list | length > 0 %}
+                {% if has_flm %}
+                <a href="#" class="sidebar-link" title="Cotización">
+                    <i class="fa-solid fa-file-invoice-dollar"></i> <span class="sidebar-link-text">Cotización</span>
+                </a>
+
+                <a href="#" class="sidebar-link" title="Site Name">
+                    <i class="fa-solid fa-location-dot"></i> <span class="sidebar-link-text">Site Name</span>
+                </a>
+                {% endif %}
+
                 {% if (session.get('rol') or '').lower() in ['admin', 'demo'] %}
                 <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
                     <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
