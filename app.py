@@ -2392,9 +2392,7 @@ def api_wo_informe():
     elif isinstance(raw_mat, list):
         materiales = raw_mat
 
-    # Cotización (montos + gastos JSON)
-    monto_aprobado = str(get_val('monto aprobado') or '').strip()
-    monto_gastando = str(get_val('monto gastando') or '').strip()
+    # Cotización (Materiales, Herramientas y/o Homologaciones)
     gastos = []
     raw_gastos = get_val('cotizacion_gastos')
     if isinstance(raw_gastos, str):
@@ -2406,6 +2404,19 @@ def api_wo_informe():
             gastos = []
     elif isinstance(raw_gastos, list):
         gastos = raw_gastos
+
+    # Mano de Obra
+    mano_obra = []
+    raw_mo = get_val('cotizacion_mano_obra')
+    if isinstance(raw_mo, str):
+        try:
+            arr = json.loads(raw_mo)
+            if isinstance(arr, list):
+                mano_obra = arr
+        except Exception:
+            mano_obra = []
+    elif isinstance(raw_mo, list):
+        mano_obra = raw_mo
 
     # Bitácora general
     bitacora = str(get_val('bitácora') or get_val('bitacora')).strip()
@@ -2483,8 +2494,6 @@ def api_wo_informe():
         ('¿Se instaló mufas?', str(get_val('se instaló mufas')).strip()),
         ('Inicio de parada', peru_fmt(str(get_val('inicio de parada')).strip())),
         ('Fin de parada', peru_fmt(str(get_val('fin de parada')).strip())),
-        ('Monto aprobado', str(get_val('monto aprobado')).strip()),
-        ('Monto gastando', str(get_val('monto gastando')).strip()),
         ('¿Requiere correctivo final?', str(get_val('requiere correctivo final')).strip()),
         ('Fecha de creación (WO)', peru_fmt(str(get_val('Fecha de creación (WO Creation date)')).strip())),
         ('Fecha closed', peru_fmt(str(get_val('Fecha closed')).strip())),
@@ -2503,7 +2512,7 @@ def api_wo_informe():
     for k, v in row.items():
         if k.startswith('_'):
             continue
-        if k in ('MATERIALES', 'MATERIAL USADO'):
+        if k in ('MATERIALES', 'MATERIAL USADO', 'COTIZACION_GASTOS', 'COTIZACION_MANO_OBRA'):
             continue
         s = '' if v is None else str(v)
         if s.strip():
@@ -2518,28 +2527,49 @@ def api_wo_informe():
             cells[0].paragraphs[0].add_run(k).bold = True
             cells[1].paragraphs[0].add_run(v)
 
-    # Cotización
-    if monto_aprobado or monto_gastando or gastos:
+    # Cotización (Materiales, Herramientas y/o Homologaciones + Mano de Obra)
+    coti_secciones = [
+        ('Materiales, Herramientas y/o Homologaciones', gastos, 'Subtotal A'),
+        ('Mano de Obra', mano_obra, 'Subtotal B'),
+    ]
+    if gastos or mano_obra:
         doc.add_heading('3. Cotización', level=1)
-        if monto_aprobado:
+        total_cotizacion = 0.0
+        for sec_nombre, sec_items, subtotal_lbl in coti_secciones:
+            if not sec_items:
+                continue
             p = doc.add_paragraph()
-            r = p.add_run('Monto aprobado: ')
+            r = p.add_run(sec_nombre)
             r.bold = True
-            p.add_run(f'S/ {monto_aprobado}')
-        if gastos:
-            tg = doc.add_table(rows=1, cols=2)
+            r.font.size = Pt(12)
+            tg = doc.add_table(rows=1, cols=7)
             tg.style = 'Light Grid Accent 1'
-            for i, t in enumerate(['Concepto', 'Monto (S/)']):
+            for i, t in enumerate(['Item', 'Cód', 'Descripción', 'Cant', 'Precio Cobra', 'Precio Unid', 'Total P']):
                 tg.rows[0].cells[i].paragraphs[0].add_run(t).bold = True
-            for g in gastos:
+            subtotal_sec = 0.0
+            for g in sec_items:
                 cells = tg.add_row().cells
-                cells[0].text = str(g.get('descripcion', '') or '')
-                cells[1].text = str(g.get('monto', '') or '')
-            if monto_gastando:
-                p = doc.add_paragraph()
-                r = p.add_run('Monto gastado total: ')
-                r.bold = True
-                p.add_run(f'S/ {monto_gastando}')
+                cells[0].text = str(g.get('item', '') or '')
+                cells[1].text = str(g.get('cod', '') or '')
+                cells[2].text = str(g.get('descripcion', '') or '')
+                cells[3].text = str(g.get('cant', '') or '')
+                cells[4].text = str(g.get('precio_cobra', '') or '')
+                cells[5].text = str(g.get('precio_unid', '') or '')
+                cells[6].text = str(g.get('total_p', '') or '')
+                try:
+                    subtotal_sec += float(g.get('total_p', 0) or 0)
+                except Exception:
+                    pass
+            total_cotizacion += subtotal_sec
+            ps = doc.add_paragraph()
+            rs = ps.add_run(f'{subtotal_lbl}: ')
+            rs.bold = True
+            ps.add_run(f'S/ {subtotal_sec:.2f}')
+        pt = doc.add_paragraph()
+        rt = pt.add_run('Total Cotización (A+B): ')
+        rt.bold = True
+        rt.font.size = Pt(12)
+        pt.add_run(f'S/ {total_cotizacion:.2f}')
 
     # Materiales usados
     if materiales:

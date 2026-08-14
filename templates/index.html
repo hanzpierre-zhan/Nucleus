@@ -284,18 +284,73 @@
     }
     .wo-material-del:hover { background: #FFD3D3; }
     .wo-gasto-row {
-        display: grid; grid-template-columns: minmax(160px, 1fr) 130px 34px;
+        display: grid; grid-template-columns: 46px 70px minmax(180px, 1fr) 60px 100px 90px 90px 34px;
         gap: 8px; align-items: center; margin-bottom: 8px;
     }
+    .wo-coti-row { display: grid; grid-template-columns: 46px 70px minmax(180px, 1fr) 60px 100px 90px 90px 34px; gap: 8px; align-items: center; }
+    .wo-coti-header {
+        padding: 6px 0; font-size: 11px; font-weight: 700; color: var(--ios-gray-2);
+        text-transform: uppercase; letter-spacing: .3px; border-bottom: 1px solid var(--ios-hairline);
+        margin-bottom: 8px;
+    }
+    .wo-coti-subtotal {
+        margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--ios-hairline);
+        font-size: 13px; font-weight: 700; color: var(--ios-label);
+    }
+    .wo-subtotal-lbl { text-align: right; }
+    .wo-subtotal-val { color: var(--ios-blue, #007AFF); }
+    .wo-total-coti {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-top: 8px; padding: 10px 14px;
+        border-top: 2px solid var(--ios-blue, #007AFF);
+        font-size: 13px; font-weight: 800; color: var(--ios-label);
+    }
+    .wo-total-val { color: var(--ios-blue, #007AFF); }
+    .wo-coti-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+    .wo-meta-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .wo-meta-lbl {
+        font-size: 11px; font-weight: 700; color: var(--ios-gray-2);
+        text-transform: uppercase; letter-spacing: .3px;
+    }
+    .wo-coti-numero {
+        display: flex; align-items: center; gap: 8px;
+    }
+    .wo-coti-num-btn {
+        width: 30px; height: 30px; border: none; border-radius: 9px;
+        background: var(--ios-fill); color: var(--ios-blue, #007AFF); cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+        transition: all .15s ease;
+    }
+    .wo-coti-num-btn:hover { background: var(--ios-blue, #007AFF); color: #fff; }
+    .wo-coti-num-input {
+        flex: 1; padding: 8px 12px; border-radius: 10px;
+        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
+        font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ios-label);
+        outline: none; text-align: center;
+    }
+    .wo-coti-nota { text-align: left; font-weight: 500; }
     .wo-gasto-row input[type="number"],
-    .wo-gasto-row input[type="text"] {
+    .wo-gasto-row input[type="text"],
+    .wo-coti-row input[type="number"],
+    .wo-coti-row input[type="text"] {
         width: 100%; padding: 8px 10px; border-radius: 10px;
         border: 1px solid var(--ios-hairline); background: var(--ios-fill);
         font-family: inherit; font-size: 12.5px; color: var(--ios-label);
         outline: none;
     }
     .wo-gasto-row input[type="number"]:focus,
-    .wo-gasto-row input[type="text"]:focus { border-color: var(--ios-blue); }
+    .wo-gasto-row input[type="text"]:focus,
+    .wo-coti-row input[type="number"]:focus,
+    .wo-coti-row input[type="text"]:focus { border-color: var(--ios-blue); }
+    .wo-coti-item {
+        text-align: center; font-weight: 700; background: var(--ios-fill) !important;
+        color: var(--ios-gray-1); border-color: var(--ios-hairline); cursor: default;
+    }
+    .wo-coti-auto {
+        background: var(--ios-fill) !important; color: var(--ios-gray-1);
+        border-color: var(--ios-hairline); cursor: default; font-weight: 600;
+    }
+    .wo-coti-row .wo-material-del { justify-self: center; }
     .wo-header { align-items: center; flex-wrap: wrap; gap: 10px 14px; }
     .wo-header .wo-title { margin: 0; font-size: 15px; white-space: nowrap; }
     .wo-header .wo-tabs { flex-shrink: 0; }
@@ -461,7 +516,6 @@
                 </div>
             </div>
             <div class="wo-head-actions">
-                <button onclick="descargarInformeWO()" id="btn-wo-word" class="mar-btn-copy" title="Descargar informe Word"><i class="fa-solid fa-file-word"></i></button>
                 <button onclick="copiarPlantillaWO()" id="btn-wo-copiar" class="mar-btn-copy" title="Copiar plantilla"><i class="fa-solid fa-copy"></i></button>
                 <button id="btn-wo-save" onclick="guardarWoModal()" class="mar-btn-primary" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
                 <button onclick="cerrarWoModal()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
@@ -549,6 +603,9 @@
                     </div>
                 </div>
             </div>
+            <div class="wo-section" style="padding-top: 0;">
+                <button onclick="descargarInformeWO()" id="btn-wo-word" class="mar-btn-primary" title="Descargar informe Word"><i class="fa-solid fa-file-word"></i> Descargar informe Word</button>
+            </div>
             </div>
             <div id="wo-panel-material" style="display:none;">
                 <div class="wo-section">
@@ -559,20 +616,69 @@
             </div>
             <div id="wo-panel-cotizacion" style="display:none;">
                 <div class="wo-section">
-                    <div class="wo-form">
-                        <div class="wo-field">
-                            <label><i class="fa-solid fa-hand-holding-dollar"></i> Monto aprobado (S/)</label>
-                            <input type="number" id="wo-monto-aprobado" step="0.01" min="0" placeholder="0.00">
+                    <div class="wo-section-title"><i class="fa-solid fa-file-invoice"></i> Datos de Cotización</div>
+                    <div class="wo-coti-meta">
+                        <div class="wo-meta-field">
+                            <span class="wo-meta-lbl">Nota</span>
+                            <input type="text" id="wo-coti-nota" class="wo-coti-num-input wo-coti-nota" placeholder="Escribir una nota...">
                         </div>
-                        <div class="wo-field">
-                            <label><i class="fa-solid fa-circle-dollar-to-slot"></i> Monto gastado total (S/)</label>
-                            <input type="number" id="wo-monto-gastando" step="0.01" min="0" placeholder="0.00" readonly title="Se calcula con los gastos registrados">
+                        <div class="wo-meta-field">
+                            <span class="wo-meta-lbl">N° Cotización</span>
+                            <div class="wo-coti-numero">
+                                <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(-1)" title="Disminuir correlativo"><i class="fa-solid fa-minus"></i></button>
+                                <input type="text" id="wo-coti-numero" class="wo-coti-num-input" value="HW-2026-0000038" readonly>
+                                <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(1)" title="Aumentar correlativo"><i class="fa-solid fa-plus"></i></button>
+                            </div>
                         </div>
                     </div>
-                    <div class="wo-section-title" style="margin-top:16px;"><i class="fa-solid fa-receipt"></i> Gastos registrados</div>
-                    <div id="wo-gastos-list"><div class="wo-empty">Sin gastos registrados.</div></div>
-                    <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost" onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar gasto</button>
                 </div>
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-boxes-stacked"></i> Materiales, Herramientas y/o Homologaciones</div>
+                    <div class="wo-coti-row wo-coti-header">
+                        <span>Item</span>
+                        <span>Cód</span>
+                        <span>Descripción</span>
+                        <span>Cant</span>
+                        <span>Precio Cobra</span>
+                        <span>Precio Unid</span>
+                        <span>Total P</span>
+                        <span></span>
+                    </div>
+                    <div id="wo-gastos-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+                    <div class="wo-coti-row wo-coti-subtotal">
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span class="wo-subtotal-lbl">Subtotal A</span>
+                        <span id="wo-subtotal-a" class="wo-subtotal-val">0.00</span>
+                        <span></span>
+                    </div>
+                    <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost" onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
+                </div>
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-helmet-safety"></i> Mano de Obra</div>
+                    <div class="wo-coti-row wo-coti-header">
+                        <span>Item</span>
+                        <span>Cód</span>
+                        <span>Descripción</span>
+                        <span>Cant</span>
+                        <span>Precio Cobra</span>
+                        <span>Precio Unid</span>
+                        <span>Total P</span>
+                        <span></span>
+                    </div>
+                    <div id="wo-mo-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+                    <div class="wo-coti-row wo-coti-subtotal">
+                        <span></span><span></span><span></span><span></span><span></span>
+                        <span class="wo-subtotal-lbl">Subtotal B</span>
+                        <span id="wo-subtotal-b" class="wo-subtotal-val">0.00</span>
+                        <span></span>
+                    </div>
+                    <button type="button" id="btn-wo-agregar-mo" class="mar-btn-ghost" onclick="agregarFilaManoObra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
+                </div>
+                <div class="wo-total-coti">
+                    <span class="wo-total-lbl">Total Cotización (A+B)</span>
+                    <span id="wo-total-coti" class="wo-total-val">0.00</span>
+                </div>
+                <button type="button" id="btn-wo-generar-coti" class="mar-btn-primary" style="margin-top: 12px;" onclick="generarCotizacion()"><i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización</button>
             </div>
             <div id="wo-panel-historial" style="display:none;">
                 <div class="wo-section">
@@ -674,7 +780,7 @@
     const kpiMeta = {{ kpi_meta | safe }};
     const changedKeys = new Set({{ changed_keys | safe }});
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
-    const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
+    const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
 
     const FAULT_COLORS = {
         'Critical': { bg: '#dc3545', fg: '#fff', hrs: '8hrs' },
@@ -726,7 +832,7 @@
         if (!container) return;
         const proy = currentProjectNombre.trim().toLowerCase();
 
-        if (proy === 'pext') {
+        if (proy === 'pext' || proy === 'flm') {
             renderCardsStats(container);
             return;
         }
@@ -1323,7 +1429,7 @@
             colDef.formatter = function(cell) {
                 const v = cell.getValue();
                 if (v === null || v === undefined || String(v).trim() === '') return '';
-                if (!IS_PEXT) return escapeHtml(v);
+                if (!IS_WO_PROJECT) return escapeHtml(v);
                 return `<span class="wo-link">${escapeHtml(v)}</span>`;
             };
             keyColumn = colDef;
@@ -2293,7 +2399,7 @@
     }
 
     function isWoColumn(field) {
-        if (!IS_PEXT) return false;
+        if (!IS_WO_PROJECT) return false;
         return String(field || '').trim().toLowerCase() === '_key';
     }
 
@@ -2531,15 +2637,15 @@
         document.getElementById('wo-inicio-parada').value = toDatetimeLocal(data['INICIO DE PARADA']);
         document.getElementById('wo-fin-parada').value = toDatetimeLocal(data['FIN DE PARADA']);
         document.getElementById('wo-requiere-correctivo').value = data['REQUIERE CORRECTIVO FINAL'] || '';
-        document.getElementById('wo-monto-aprobado').value = data['MONTO APROBADO'] != null ? data['MONTO APROBADO'] : '';
-        document.getElementById('wo-monto-gastando').value = data['MONTO GASTANDO'] != null ? data['MONTO GASTANDO'] : '';
         document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
 
         const isDemo = "{{ session.get('rol') }}" === "demo";
         const editable = !isDemo;
         woEditable = editable;
         renderWoGastosList(data);
+        renderWoManoObraList(data);
         document.querySelectorAll('.wo-form input, .wo-form select, .wo-form textarea').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-coti-nota').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => { el.disabled = !editable; });
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
         const canEditServicios = ["admin", "supervisor"].includes("{{ session.get('rol') }}");
@@ -2548,6 +2654,9 @@
         if (btnAgMat) btnAgMat.style.display = editable ? '' : 'none';
         const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
         if (btnAgGasto) btnAgGasto.style.display = editable ? '' : 'none';
+        const btnAgMo = document.getElementById('btn-wo-agregar-mo');
+        if (btnAgMo) btnAgMo.style.display = editable ? '' : 'none';
+        document.querySelectorAll('.wo-coti-num-btn').forEach(b => { b.style.display = editable ? '' : 'none'; });
 
         initEvidencia(data);
         document.getElementById('modal-wo').style.display = 'flex';
@@ -2745,107 +2854,223 @@
         return items;
     }
 
-    function agregarFilaGasto(descripcion, monto) {
-        const cont = document.getElementById('wo-gastos-list');
+    function cotiCfg(sec) {
+        return {
+            materiales: { cont: 'wo-gastos-list', totalEl: 'wo-subtotal-a', key: 'COTIZACION_GASTOS' },
+            manoObra: { cont: 'wo-mo-list', totalEl: 'wo-subtotal-b', key: 'COTIZACION_MANO_OBRA' }
+        }[sec];
+    }
+
+    function cambiarCotiNumero(delta) {
+        const input = document.getElementById('wo-coti-numero');
+        if (!input) return;
+        const m = String(input.value).match(/^(.+?)(\d+)$/);
+        if (!m) return;
+        const prefix = m[1], digits = m[2];
+        let num = parseInt(digits, 10) + delta;
+        if (num < 0) num = 0;
+        input.value = prefix + String(num).padStart(digits.length, '0');
+    }
+
+    function agregarFilaCoti(sec, datos) {
+        const cfg = cotiCfg(sec);
+        const cont = document.getElementById(cfg.cont);
         if (!cont) return;
         const emptyMsg = cont.querySelector('.wo-empty');
         if (emptyMsg) emptyMsg.remove();
+        datos = datos || {};
 
         const row = document.createElement('div');
-        row.className = 'wo-gasto-row';
+        row.className = 'wo-gasto-row wo-coti-row';
 
-        const desc = document.createElement('input');
-        desc.type = 'text';
-        desc.placeholder = '¿Qué estás gastando?';
-        desc.value = descripcion || '';
-        row.appendChild(desc);
+        const itemInp = document.createElement('input');
+        itemInp.type = 'text';
+        itemInp.className = 'wo-coti-item';
+        itemInp.readOnly = true;
+        row.appendChild(itemInp);
 
-        const montoInp = document.createElement('input');
-        montoInp.type = 'number';
-        montoInp.min = '0';
-        montoInp.step = '0.01';
-        montoInp.placeholder = 'Monto (S/)';
-        montoInp.value = monto || '';
-        row.appendChild(montoInp);
+        const codInp = document.createElement('input');
+        codInp.type = 'text';
+        codInp.className = 'wo-coti-cod';
+        codInp.placeholder = 'Cód';
+        codInp.value = datos.cod || 'SC';
+        row.appendChild(codInp);
 
-        const recalc = () => calcularMontoGastado();
-        desc.addEventListener('input', recalc);
-        montoInp.addEventListener('input', recalc);
+        const descInp = document.createElement('input');
+        descInp.type = 'text';
+        descInp.className = 'wo-coti-desc';
+        descInp.placeholder = 'Descripción';
+        descInp.value = datos.descripcion || '';
+        row.appendChild(descInp);
+
+        const cantInp = document.createElement('input');
+        cantInp.type = 'number';
+        cantInp.className = 'wo-coti-cant';
+        cantInp.min = '0';
+        cantInp.step = 'any';
+        cantInp.placeholder = 'Cant';
+        if (datos.cant != null) cantInp.value = datos.cant;
+        row.appendChild(cantInp);
+
+        const pcInp = document.createElement('input');
+        pcInp.type = 'number';
+        pcInp.className = 'wo-coti-pc';
+        pcInp.min = '0';
+        pcInp.step = '0.01';
+        pcInp.placeholder = 'P. Cobra';
+        if (datos.precio_cobra != null) pcInp.value = datos.precio_cobra;
+        row.appendChild(pcInp);
+
+        const puInp = document.createElement('input');
+        puInp.type = 'text';
+        puInp.className = 'wo-coti-pu wo-coti-auto';
+        puInp.readOnly = true;
+        if (datos.precio_unid != null) puInp.value = datos.precio_unid;
+        row.appendChild(puInp);
+
+        const tpInp = document.createElement('input');
+        tpInp.type = 'text';
+        tpInp.className = 'wo-coti-tp wo-coti-auto';
+        tpInp.readOnly = true;
+        if (datos.total_p != null) tpInp.value = datos.total_p;
+        row.appendChild(tpInp);
+
+        const recalc = () => {
+            const pc = parseFloat(pcInp.value);
+            const pu = isNaN(pc) || pc <= 0 ? 0 : pc * 1.3;
+            puInp.value = pu > 0 ? pu.toFixed(2) : '';
+            const cant = parseFloat(cantInp.value);
+            const tot = (isNaN(cant) ? 0 : cant) * pu;
+            tpInp.value = tot > 0 ? tot.toFixed(2) : '';
+            calcularSubtotalCoti(cfg.cont, cfg.totalEl);
+        };
+        cantInp.addEventListener('input', recalc);
+        pcInp.addEventListener('input', recalc);
 
         const del = document.createElement('button');
         del.type = 'button';
         del.className = 'wo-material-del';
-        del.title = 'Quitar gasto';
+        del.title = 'Quitar item';
         del.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
         del.onclick = () => {
             row.remove();
-            calcularMontoGastado();
+            reordenarItemsCoti(cfg.cont);
+            calcularSubtotalCoti(cfg.cont, cfg.totalEl);
             if (!cont.querySelector('.wo-gasto-row')) {
-                cont.innerHTML = '<div class="wo-empty">Sin gastos registrados. Usa "Agregar gasto" para registrar lo que vas gastando.</div>';
+                cont.innerHTML = '<div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div>';
             }
         };
         row.appendChild(del);
 
         if (!woEditable) {
-            desc.disabled = true;
-            montoInp.disabled = true;
+            [codInp, descInp, cantInp, pcInp].forEach(el => { el.disabled = true; });
             del.disabled = true;
             del.style.display = 'none';
         }
 
         cont.appendChild(row);
-        calcularMontoGastado();
+        reordenarItemsCoti(cfg.cont);
+        recalc();
     }
 
-    function recogerGastos() {
-        const cont = document.getElementById('wo-gastos-list');
+    function reordenarItemsCoti(contId) {
+        const cont = document.getElementById(contId);
+        if (!cont) return;
+        cont.querySelectorAll('.wo-gasto-row').forEach((r, i) => {
+            const item = r.querySelector('.wo-coti-item');
+            if (item) item.value = i + 1;
+        });
+    }
+
+    function recogerItemsCoti(contId) {
+        const cont = document.getElementById(contId);
         if (!cont) return [];
         const items = [];
         cont.querySelectorAll('.wo-gasto-row').forEach(row => {
-            const desc = row.querySelector('input[type="text"]');
-            const montoInp = row.querySelector('input[type="number"]');
-            if (!desc && !montoInp) return;
+            const item = row.querySelector('.wo-coti-item');
+            const cod = row.querySelector('.wo-coti-cod');
+            const desc = row.querySelector('.wo-coti-desc');
+            const cant = row.querySelector('.wo-coti-cant');
+            const pc = row.querySelector('.wo-coti-pc');
+            const pu = row.querySelector('.wo-coti-pu');
+            const tp = row.querySelector('.wo-coti-tp');
+            if (!desc && !cod && !cant && !pc) return;
             const d = desc ? desc.value.trim() : '';
-            const m = montoInp ? String(montoInp.value).trim() : '';
-            if (!d && !m) return;
-            items.push({ descripcion: d, monto: m });
+            if (!d && !(cant && String(cant.value).trim()) && !(pc && String(pc.value).trim())) return;
+            items.push({
+                item: item ? item.value : '',
+                cod: cod ? cod.value.trim() : '',
+                descripcion: d,
+                cant: cant ? cant.value : '',
+                precio_cobra: pc ? pc.value : '',
+                precio_unid: pu ? pu.value : '',
+                total_p: tp ? tp.value : ''
+            });
         });
         return items;
     }
 
-    function calcularMontoGastado() {
-        const cont = document.getElementById('wo-gastos-list');
-        const totalEl = document.getElementById('wo-monto-gastando');
+    function calcularSubtotalCoti(contId, totalElId) {
+        const cont = document.getElementById(contId);
+        const totalEl = document.getElementById(totalElId);
         let total = 0;
         if (cont) {
             cont.querySelectorAll('.wo-gasto-row').forEach(row => {
-                const montoInp = row.querySelector('input[type="number"]');
-                const v = parseFloat(montoInp ? montoInp.value : 0);
+                const tp = row.querySelector('.wo-coti-tp');
+                const v = parseFloat(tp ? tp.value : 0);
                 if (!isNaN(v) && v > 0) total += v;
             });
         }
-        if (totalEl) totalEl.value = total > 0 ? total.toFixed(2) : '';
+        if (totalEl) totalEl.textContent = total > 0 ? total.toFixed(2) : '0.00';
+        actualizarTotalCotizacion();
         return total;
     }
 
-    function renderWoGastosList(data) {
-        const cont = document.getElementById('wo-gastos-list');
+    function actualizarTotalCotizacion() {
+        const totalEl = document.getElementById('wo-total-coti');
+        if (!totalEl) return;
+        let tot = 0;
+        ['wo-gastos-list', 'wo-mo-list'].forEach(contId => {
+            const cont = document.getElementById(contId);
+            if (!cont) return;
+            cont.querySelectorAll('.wo-gasto-row').forEach(row => {
+                const tp = row.querySelector('.wo-coti-tp');
+                const v = parseFloat(tp ? tp.value : 0);
+                if (!isNaN(v) && v > 0) tot += v;
+            });
+        });
+        totalEl.textContent = tot > 0 ? tot.toFixed(2) : '0.00';
+        return tot;
+    }
+
+    function renderCotiList(data, sec) {
+        const cfg = cotiCfg(sec);
+        const cont = document.getElementById(cfg.cont);
         if (!cont) return;
         cont.innerHTML = '';
         let saved = [];
         try {
-            saved = JSON.parse(data['COTIZACION_GASTOS'] || '[]') || [];
+            saved = JSON.parse(data[cfg.key] || '[]') || [];
         } catch (e) { saved = []; }
         if (!Array.isArray(saved)) saved = [];
-        saved.forEach(g => agregarFilaGasto(g.descripcion, g.monto));
+        saved.forEach(g => agregarFilaCoti(sec, g));
         if (!saved.length) {
-            cont.innerHTML = '<div class="wo-empty">Sin gastos registrados. Usa "Agregar gasto" para registrar lo que vas gastando.</div>';
+            cont.innerHTML = '<div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div>';
         }
-        const gastandoEl = document.getElementById('wo-monto-gastando');
-        if (!saved.length && gastandoEl && data['MONTO GASTANDO'] != null && String(data['MONTO GASTANDO']).trim() !== '') {
-            gastandoEl.value = data['MONTO GASTANDO'];
-        }
+        calcularSubtotalCoti(cfg.cont, cfg.totalEl);
     }
+
+    // --- Wrappers: Materiales, Herramientas y/o Homologaciones ---
+    function agregarFilaGasto(datos) { return agregarFilaCoti('materiales', datos); }
+    function reordenarItems() { return reordenarItemsCoti('wo-gastos-list'); }
+    function recogerGastos() { return recogerItemsCoti('wo-gastos-list'); }
+    function calcularMontoGastado() { return calcularSubtotalCoti('wo-gastos-list', 'wo-subtotal-a'); }
+    function renderWoGastosList(data) { return renderCotiList(data, 'materiales'); }
+
+    // --- Mano de Obra ---
+    function agregarFilaManoObra(datos) { return agregarFilaCoti('manoObra', datos); }
+    function recogerManoObra() { return recogerItemsCoti('wo-mo-list'); }
+    function renderWoManoObraList(data) { return renderCotiList(data, 'manoObra'); }
 
     function toggleServiciosEditor() {
         const editor = document.getElementById('servicios-editor');
@@ -2940,8 +3165,6 @@
                 'CIUDAD': document.getElementById('wo-ciudad').value.trim(),
                 'TECNICO ASIGNADO': document.getElementById('wo-tecnico').value,
                 'CONTRATA': document.getElementById('wo-contrata').value.trim(),
-                'MONTO APROBADO': document.getElementById('wo-monto-aprobado').value,
-                'MONTO GASTANDO': document.getElementById('wo-monto-gastando').value,
                 'MOTIVO DE AVERÍA': document.getElementById('wo-motivo').value,
                 'SOLUCIÓN': document.getElementById('wo-solucion').value,
                 'LATITUD': document.getElementById('wo-latitud').value.trim(),
@@ -2951,6 +3174,7 @@
                 'LONGITUD MUFAS': document.getElementById('wo-lon-mufa').value.trim(),
                 'MATERIALES': JSON.stringify(recogerMateriales()),
                 'COTIZACION_GASTOS': JSON.stringify(recogerGastos()),
+                'COTIZACION_MANO_OBRA': JSON.stringify(recogerManoObra()),
                 'INICIO DE PARADA': fromDatetimeLocal(document.getElementById('wo-inicio-parada').value),
                 'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value),
                 'REQUIERE CORRECTIVO FINAL': document.getElementById('wo-requiere-correctivo').value,
@@ -3003,6 +3227,7 @@
             renderEvidenciaSlots();
         } else if (tab === 'cotizacion') {
             calcularMontoGastado();
+            calcularSubtotalCoti('wo-mo-list', 'wo-subtotal-b');
         }
     }
 
@@ -3033,9 +3258,8 @@
         ['REQUIERE CORRECTIVO FINAL', '¿Correctivo final?'],
         ['INICIO DE PARADA', 'Inicio parada'],
         ['FIN DE PARADA', 'Fin parada'],
-        ['MONTO APROBADO', 'M. Aprob'],
-        ['MONTO GASTANDO', 'M. Gast'],
-        ['COTIZACION_GASTOS', 'Gastos'],
+        ['COTIZACION_GASTOS', 'Cotización'],
+        ['COTIZACION_MANO_OBRA', 'Mano de Obra'],
         ['BITACORA', 'Bitácora']
     ];
 
@@ -3097,12 +3321,14 @@
                         }).filter(Boolean).join('<br>');
                     } catch (e) { v = v || ''; }
                 }
-                if (key === 'COTIZACION_GASTOS') {
+                if (key === 'COTIZACION_GASTOS' || key === 'COTIZACION_MANO_OBRA') {
                     try {
                         const arr = JSON.parse(v || '[]') || [];
                         v = arr.map(g => {
-                            const m = g.monto ? ' = S/ ' + g.monto : '';
-                            return (g.descripcion || 'Gasto') + m;
+                            const parts = [(g.item || ''), (g.cod || 'SC'), (g.descripcion || 'Item')];
+                            if (g.cant) parts.push('x' + g.cant);
+                            if (g.total_p) parts.push('= S/ ' + g.total_p);
+                            return parts.filter(Boolean).join(' ');
                         }).filter(Boolean).join('<br>');
                     } catch (e) { v = v || ''; }
                 }
@@ -3214,6 +3440,10 @@
         });
     }
 
+    function generarCotizacion() {
+        // Próximamente: generación del documento de cotización.
+    }
+
     function descargarInformeWO() {
         if (!woKey) { alert('No hay WO seleccionado.'); return; }
         const btn = document.getElementById('btn-wo-word');
@@ -3278,14 +3508,23 @@
         }
         const gastos = recogerGastos();
         if (gastos.length) {
-            lines.push('Gastos:');
+            lines.push('Materiales, Herramientas y/o Homologaciones:');
             gastos.forEach(g => {
-                lines.push(`- ${g.descripcion || 'Gasto'}${g.monto ? ' = S/ ' + g.monto : ''}`);
+                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
             });
-            lines.push(`Total gastado: S/ ${calcularMontoGastado().toFixed(2)}`);
+            lines.push(`Subtotal A: S/ ${calcularMontoGastado().toFixed(2)}`);
         }
-        const montoAprobado = val('wo-monto-aprobado');
-        if (montoAprobado) lines.push(`Monto aprobado: S/ ${montoAprobado}`);
+        const manoObra = recogerManoObra();
+        if (manoObra.length) {
+            lines.push('Mano de Obra:');
+            manoObra.forEach(g => {
+                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
+            });
+            lines.push(`Subtotal B: S/ ${calcularSubtotalCoti('wo-mo-list', 'wo-subtotal-b').toFixed(2)}`);
+        }
+        if (gastos.length || manoObra.length) {
+            lines.push(`Total Cotización (A+B): S/ ${actualizarTotalCotizacion().toFixed(2)}`);
+        }
         const texto = lines.join('\n');
         if (!texto) { alert('No hay datos para copiar'); return; }
         const btn = document.getElementById('btn-wo-copiar');
