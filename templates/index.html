@@ -305,10 +305,16 @@
     }
     .wo-material-del:hover { background: #FFD3D3; }
     .wo-gasto-row {
-        display: grid; grid-template-columns: 46px 70px minmax(180px, 1fr) 60px 100px 90px 90px 34px;
+        display: grid; grid-template-columns: 46px 70px minmax(150px, 1fr) 64px 60px 100px 90px 90px 34px;
         gap: 8px; align-items: center; margin-bottom: 8px;
     }
-    .wo-coti-row { display: grid; grid-template-columns: 46px 70px minmax(180px, 1fr) 60px 100px 90px 90px 34px; gap: 8px; align-items: center; }
+    .wo-coti-row { display: grid; grid-template-columns: 46px 70px minmax(150px, 1fr) 64px 60px 100px 90px 90px 34px; gap: 8px; align-items: center; }
+    .wo-coti-num-input.wo-coti-margen-input {
+        width: 70px; padding: 6px 10px; border-radius: 8px;
+        border: 1.5px solid var(--ios-blue, #007AFF);
+        background: #fff; font-family: inherit; font-size: 13px; font-weight: 700;
+        color: var(--ios-label); outline: none; text-align: center; height: 30px; box-sizing: border-box;
+    }
     .wo-coti-header {
         padding: 6px 0; font-size: 11px; font-weight: 700; color: var(--ios-gray-2);
         text-transform: uppercase; letter-spacing: .3px; border-bottom: 1px solid var(--ios-hairline);
@@ -327,28 +333,23 @@
         font-size: 13px; font-weight: 800; color: var(--ios-label);
     }
     .wo-total-val { color: var(--ios-blue, #007AFF); }
-    .wo-coti-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+    .wo-coti-meta { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; margin-top: 6px; }
     .wo-meta-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
     .wo-meta-lbl {
         font-size: 11px; font-weight: 700; color: var(--ios-gray-2);
         text-transform: uppercase; letter-spacing: .3px;
     }
     .wo-coti-numero {
-        display: flex; align-items: center; gap: 8px;
+        display: flex; align-items: center; gap: 6px;
     }
-    .wo-coti-num-btn {
-        width: 30px; height: 30px; border: none; border-radius: 9px;
-        background: var(--ios-fill); color: var(--ios-blue, #007AFF); cursor: pointer;
-        display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
-        transition: all .15s ease;
-    }
-    .wo-coti-num-btn:hover { background: var(--ios-blue, #007AFF); color: #fff; }
     .wo-coti-num-input {
         flex: 1; padding: 8px 12px; border-radius: 10px;
         border: 1px solid var(--ios-hairline); background: var(--ios-fill);
         font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ios-label);
-        outline: none; text-align: center;
+        outline: none; text-align: center; box-sizing: border-box;
     }
+    .wo-coti-prefix { font-size: 13px; font-weight: 700; color: var(--ios-gray-2); white-space: nowrap; flex-shrink: 0; }
+    .wo-coti-num-input.wo-coti-num-digits { flex: 0 0 72px; }
     .wo-coti-nota { text-align: left; font-weight: 500; }
     .wo-coti-select {
         flex: 1; min-width: 180px; padding: 6px 10px; border-radius: 8px;
@@ -631,9 +632,6 @@
                     </div>
                 </div>
             </div>
-            <div class="wo-section" style="padding-top: 0;">
-                <button onclick="descargarInformeWO()" id="btn-wo-word" class="mar-btn-primary" title="Descargar informe Word"><i class="fa-solid fa-file-word"></i> Descargar informe Word</button>
-            </div>
             </div>
             <div id="wo-panel-material" style="display:none;">
                 <div class="wo-section">
@@ -678,26 +676,30 @@
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">N° Cotización</span>
                                 <div class="wo-coti-numero">
-                                    <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(-1)" title="Disminuir correlativo"><i class="fa-solid fa-minus"></i></button>
-                                    <input type="text" id="wo-coti-numero" class="wo-coti-num-input" value="HW-2026-0000001" readonly>
-                                    <button type="button" class="wo-coti-num-btn" onclick="cambiarCotiNumero(1)" title="Aumentar correlativo"><i class="fa-solid fa-plus"></i></button>
+                                    <span class="wo-coti-prefix">HW-</span>
+                                    <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits" value="0000001" maxlength="7" inputmode="numeric" title="Correlativo (7 dígitos)">
                                 </div>
+                            </div>
+                            <div class="wo-meta-field">
+                                <span class="wo-meta-lbl">Margen %</span>
+                                <input type="number" id="wo-coti-margen" class="wo-coti-num-input wo-coti-margen-input" value="30" min="0" step="any" title="Porcentaje adicional al Precio Cobra para calcular el Precio Unid">
                             </div>
                         </div>
                     </div>
                     <div class="wo-section">
                         <div class="wo-section-title"><i class="fa-solid fa-boxes-stacked"></i> Materiales, Herramientas y/o Homologaciones</div>
-                        <div class="wo-coti-row wo-coti-header">
-                            <span>Item</span>
-                            <span>Cód</span>
-                            <span>Descripción</span>
-                            <span>Cant</span>
-                            <span>Precio Cobra</span>
-                            <span>Precio Unid</span>
-                            <span>Total P</span>
-                            <span></span>
-                        </div>
-                        <div id="wo-gastos-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+<div class="wo-coti-row wo-coti-header">
+                        <span>Item</span>
+                        <span>Cód</span>
+                        <span>Descripción</span>
+                        <span>Unid</span>
+                        <span>Cant</span>
+                        <span>Precio Cobra</span>
+                        <span>Precio Unid</span>
+                        <span>Total P</span>
+                        <span></span>
+                    </div>
+                    <div id="wo-gastos-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
                         <div class="wo-coti-row wo-coti-subtotal">
                             <span></span><span></span><span></span><span></span><span></span>
                             <span class="wo-subtotal-lbl">Subtotal A</span>
@@ -708,17 +710,18 @@
                     </div>
                     <div class="wo-section">
                         <div class="wo-section-title"><i class="fa-solid fa-helmet-safety"></i> Mano de Obra</div>
-                        <div class="wo-coti-row wo-coti-header">
-                            <span>Item</span>
-                            <span>Cód</span>
-                            <span>Descripción</span>
-                            <span>Cant</span>
-                            <span>Precio Cobra</span>
-                            <span>Precio Unid</span>
-                            <span>Total P</span>
-                            <span></span>
-                        </div>
-                        <div id="wo-mo-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+<div class="wo-coti-row wo-coti-header">
+                        <span>Item</span>
+                        <span>Cód</span>
+                        <span>Descripción</span>
+                        <span>Unid</span>
+                        <span>Cant</span>
+                        <span>Precio Cobra</span>
+                        <span>Precio Unid</span>
+                        <span>Total P</span>
+                        <span></span>
+                    </div>
+                    <div id="wo-mo-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
                         <div class="wo-coti-row wo-coti-subtotal">
                             <span></span><span></span><span></span><span></span><span></span>
                             <span class="wo-subtotal-lbl">Subtotal B</span>
@@ -2972,6 +2975,7 @@ table.on("dataFiltered", function (filters, rows) {
         renderWoManoObraList(data);
         document.querySelectorAll('.wo-form input, .wo-form select, .wo-form textarea').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-coti-nota').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => { el.disabled = !editable; });
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
         const canEditServicios = ["admin", "supervisor"].includes("{{ session.get('rol') }}");
@@ -2984,13 +2988,40 @@ table.on("dataFiltered", function (filters, rows) {
         if (btnAgGasto) btnAgGasto.style.display = editable ? '' : 'none';
         const btnAgMo = document.getElementById('btn-wo-agregar-mo');
         if (btnAgMo) btnAgMo.style.display = editable ? '' : 'none';
-        document.querySelectorAll('.wo-coti-num-btn').forEach(b => { b.style.display = editable ? '' : 'none'; });
+        document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !editable; });
 
         // Cargar nota y número de cotización desde datos guardados
         const notaEl = document.getElementById('wo-coti-nota');
-        const numEl  = document.getElementById('wo-coti-numero');
         if (notaEl) notaEl.value = data['COTIZACION_NOTA'] || '';
-        if (numEl && data['COTIZACION_NUMERO']) numEl.value = data['COTIZACION_NUMERO'];
+        if (data['COTIZACION_NUMERO']) setNumeroCotizacion(data['COTIZACION_NUMERO']);
+        else {
+            const pfxEl = document.querySelector('.wo-coti-prefix');
+            if (pfxEl) pfxEl.textContent = prefijoCotizacion();
+        }
+
+        // Input de correlativo: solo dígitos, máx 7, y siempre rellenar a 7 al salir
+        const numInp = document.getElementById('wo-coti-numero');
+        if (numInp && !numInp.dataset.numInit) {
+            numInp.dataset.numInit = '1';
+            numInp.addEventListener('input', () => {
+                numInp.value = (numInp.value || '').replace(/\D/g, '').slice(0, 7);
+            });
+            numInp.addEventListener('blur', () => {
+                numInp.value = (numInp.value || '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
+            });
+        }
+        if (numInp) numInp.disabled = !editable;
+
+        // Margen % de cotización: cargar, aplicar a las filas y conectar guardado
+        const margenEl = document.getElementById('wo-coti-margen');
+        if (margenEl && !margenEl.dataset.margenInit) {
+            margenEl.dataset.margenInit = '1';
+            margenEl.addEventListener('change', () => {
+                aplicarMargenATodas();
+                guardarMargenCotizacion();
+            });
+        }
+        cargarMargenCotizacion();
 
         initEvidencia(data);
         document.getElementById('modal-wo').style.display = 'flex';
@@ -3258,20 +3289,94 @@ table.on("dataFiltered", function (filters, rows) {
         }[sec];
     }
 
-    function cambiarCotiNumero(delta) {
+    function prefijoCotizacion() {
+        return 'HW-' + new Date().getFullYear() + '-';
+    }
+
+    function splitNumeroCoti(val) {
+        const v = String(val || '');
+        const m = v.match(/(\d+)$/);
+        if (!m) return { prefix: prefijoCotizacion(), digits: '0000001' };
+        let prefix = v.slice(0, v.length - m[1].length);
+        if (!/^HW-\d{4}-$/.test(prefix)) prefix = prefijoCotizacion();
+        return { prefix: prefix, digits: m[1] };
+    }
+
+    function setNumeroCotizacion(val) {
+        const sp = splitNumeroCoti(val);
         const input = document.getElementById('wo-coti-numero');
-        if (!input) return;
-        const m = String(input.value).match(/^(.+?)(\d+)$/);
-        if (!m) return;
-        const prefix = m[1], digits = m[2];
-        let num = parseInt(digits, 10) + delta;
-        if (num < 0) num = 0;
-        input.value = prefix + String(num).padStart(digits.length, '0');
+        if (input) input.value = sp.digits.padStart(7, '0');
+        const pref = document.querySelector('.wo-coti-prefix');
+        if (pref) pref.textContent = sp.prefix;
+    }
+
+    function obtenerNumeroCotizacion() {
+        const input = document.getElementById('wo-coti-numero');
+        const pref = document.querySelector('.wo-coti-prefix');
+        const digits = (input ? input.value : '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
+        const pfx = pref ? pref.textContent : '';
+        return (/^HW-\d{4}-$/.test(pfx) ? pfx : prefijoCotizacion()) + digits;
+    }
+
+    function obtenerMargenPct() {
+        const el = document.getElementById('wo-coti-margen');
+        const v = parseFloat(el ? el.value : '');
+        return (isNaN(v) || v < 0) ? 30 : v;
+    }
+
+    function aplicarMargenATodas() {
+        ['wo-gastos-list', 'wo-mo-list'].forEach(contId => {
+            const cont = document.getElementById(contId);
+            if (!cont) return;
+            cont.querySelectorAll('.wo-gasto-row').forEach(row => {
+                const pc = row.querySelector('.wo-coti-pc');
+                const pu = row.querySelector('.wo-coti-pu');
+                const cant = row.querySelector('.wo-coti-cant');
+                const unid = row.querySelector('.wo-coti-unid');
+                const tp = row.querySelector('.wo-coti-tp');
+                if (!pc || !pu || !tp) return;
+                const pcv = parseFloat(pc.value);
+                const puv = (isNaN(pcv) || pcv <= 0) ? 0 : pcv * (1 + obtenerMargenPct() / 100);
+                pu.value = puv > 0 ? puv.toFixed(2) : '';
+                const cantv = parseFloat(cant.value);
+                const unidv = parseFloat(unid ? unid.value : '');
+                const uv = (isNaN(unidv) || unidv <= 0) ? 1 : unidv;
+                const tot = (isNaN(cantv) ? 0 : cantv) * puv * uv;
+                tp.value = tot > 0 ? tot.toFixed(2) : '';
+            });
+        });
+        calcularSubtotalCoti('wo-gastos-list', 'wo-subtotal-a');
+        calcularSubtotalCoti('wo-mo-list', 'wo-subtotal-b');
+    }
+
+    function cargarMargenCotizacion() {
+        fetch('/api/config/cotizacion_margen')
+            .then(r => r.json())
+            .then(d => {
+                if (d && d.porcentaje != null) {
+                    const el = document.getElementById('wo-coti-margen');
+                    if (el) el.value = d.porcentaje;
+                }
+                aplicarMargenATodas();
+            })
+            .catch(() => aplicarMargenATodas());
+    }
+
+    function guardarMargenCotizacion() {
+        const el = document.getElementById('wo-coti-margen');
+        if (!el) return;
+        const v = parseFloat(el.value);
+        if (isNaN(v) || v < 0) return;
+        fetch('/api/config/cotizacion_margen', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ porcentaje: v })
+        });
     }
 
     function _sugerirNumeroCotizacion() {
         const sel = document.getElementById('wo-coti-select');
-        let max = 0, prefix = 'HW-2026-';
+        let max = 0, prefix = prefijoCotizacion();
         if (sel) {
             Array.from(sel.options).forEach(o => {
                 if (!o.value) return;
@@ -3315,6 +3420,15 @@ table.on("dataFiltered", function (filters, rows) {
         descInp.value = datos.descripcion || '';
         row.appendChild(descInp);
 
+        const unidInp = document.createElement('input');
+        unidInp.type = 'number';
+        unidInp.className = 'wo-coti-unid';
+        unidInp.min = '0';
+        unidInp.step = 'any';
+        unidInp.placeholder = 'Unid';
+        unidInp.value = datos.unid || '';
+        row.appendChild(unidInp);
+
         const cantInp = document.createElement('input');
         cantInp.type = 'number';
         cantInp.className = 'wo-coti-cant';
@@ -3349,15 +3463,18 @@ table.on("dataFiltered", function (filters, rows) {
 
         const recalc = () => {
             const pc = parseFloat(pcInp.value);
-            const pu = isNaN(pc) || pc <= 0 ? 0 : pc * 1.3;
+            const pu = isNaN(pc) || pc <= 0 ? 0 : pc * (1 + obtenerMargenPct() / 100);
             puInp.value = pu > 0 ? pu.toFixed(2) : '';
             const cant = parseFloat(cantInp.value);
-            const tot = (isNaN(cant) ? 0 : cant) * pu;
+            const unid = parseFloat(unidInp.value);
+            const u = (isNaN(unid) || unid <= 0) ? 1 : unid;
+            const tot = (isNaN(cant) ? 0 : cant) * pu * u;
             tpInp.value = tot > 0 ? tot.toFixed(2) : '';
             calcularSubtotalCoti(cfg.cont, cfg.totalEl);
         };
         cantInp.addEventListener('input', recalc);
         pcInp.addEventListener('input', recalc);
+        unidInp.addEventListener('input', recalc);
 
         const del = document.createElement('button');
         del.type = 'button';
@@ -3375,7 +3492,7 @@ table.on("dataFiltered", function (filters, rows) {
         row.appendChild(del);
 
         if (!woEditable) {
-            [codInp, descInp, cantInp, pcInp].forEach(el => { el.disabled = true; });
+            [codInp, descInp, unidInp, cantInp, pcInp].forEach(el => { el.disabled = true; });
             del.disabled = true;
             del.style.display = 'none';
         }
@@ -3402,6 +3519,7 @@ table.on("dataFiltered", function (filters, rows) {
             const item = row.querySelector('.wo-coti-item');
             const cod = row.querySelector('.wo-coti-cod');
             const desc = row.querySelector('.wo-coti-desc');
+            const unid = row.querySelector('.wo-coti-unid');
             const cant = row.querySelector('.wo-coti-cant');
             const pc = row.querySelector('.wo-coti-pc');
             const pu = row.querySelector('.wo-coti-pu');
@@ -3413,6 +3531,7 @@ table.on("dataFiltered", function (filters, rows) {
                 item: item ? item.value : '',
                 cod: cod ? cod.value.trim() : '',
                 descripcion: d,
+                unid: unid ? unid.value.trim() : '',
                 cant: cant ? cant.value : '',
                 precio_cobra: pc ? pc.value : '',
                 precio_unid: pu ? pu.value : '',
@@ -3589,7 +3708,7 @@ table.on("dataFiltered", function (filters, rows) {
                 'COTIZACION_GASTOS': JSON.stringify(recogerGastos()),
                 'COTIZACION_MANO_OBRA': JSON.stringify(recogerManoObra()),
                 'COTIZACION_NOTA': (document.getElementById('wo-coti-nota') || {}).value || '',
-                'COTIZACION_NUMERO': (document.getElementById('wo-coti-numero') || {}).value || '',
+                'COTIZACION_NUMERO': obtenerNumeroCotizacion(),
                 'INICIO DE PARADA': fromDatetimeLocal(document.getElementById('wo-inicio-parada').value),
                 'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value),
                 'REQUIERE CORRECTIVO FINAL': document.getElementById('wo-requiere-correctivo').value,
@@ -3741,6 +3860,7 @@ table.on("dataFiltered", function (filters, rows) {
                         const arr = JSON.parse(v || '[]') || [];
                         v = arr.map(g => {
                             const parts = [(g.item || ''), (g.cod || 'SC'), (g.descripcion || 'Item')];
+                            if (g.unid) parts.push(g.unid);
                             if (g.cant) parts.push('x' + g.cant);
                             if (g.total_p) parts.push('= S/ ' + g.total_p);
                             return parts.filter(Boolean).join(' ');
@@ -3866,7 +3986,6 @@ table.on("dataFiltered", function (filters, rows) {
         const btnGenerar = document.getElementById('btn-wo-generar-coti');
         const btnRedownload = document.getElementById('btn-wo-redownload-coti');
         const notaEl = document.getElementById('wo-coti-nota');
-        const numBtns = document.querySelectorAll('.wo-coti-num-btn');
         const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
         const btnAgMo = document.getElementById('btn-wo-agregar-mo');
 
@@ -3876,7 +3995,6 @@ table.on("dataFiltered", function (filters, rows) {
             if (btnGenerar) btnGenerar.style.display = 'none';
             if (btnRedownload) btnRedownload.style.display = '';
             if (notaEl) notaEl.disabled = true;
-            numBtns.forEach(b => b.style.display = 'none');
             if (btnAgGasto) btnAgGasto.style.display = 'none';
             if (btnAgMo) btnAgMo.style.display = 'none';
             // Deshabilitar inputs dentro de las tablas de cotización
@@ -3893,7 +4011,6 @@ table.on("dataFiltered", function (filters, rows) {
             if (btnGenerar) btnGenerar.style.display = '';
             if (btnRedownload) btnRedownload.style.display = 'none';
             if (notaEl) notaEl.disabled = false;
-            if (woEditable) numBtns.forEach(b => b.style.display = '');
             if (woEditable && btnAgGasto) btnAgGasto.style.display = '';
             if (woEditable && btnAgMo) btnAgMo.style.display = '';
             ['wo-gastos-list', 'wo-mo-list'].forEach(id => {
@@ -3914,7 +4031,7 @@ table.on("dataFiltered", function (filters, rows) {
         const sel = document.getElementById('wo-coti-select');
         if (sel) sel.value = '';
         document.getElementById('wo-coti-nota').value = '';
-        document.getElementById('wo-coti-numero').value = _sugerirNumeroCotizacion();
+        setNumeroCotizacion(_sugerirNumeroCotizacion());
         const listG = document.getElementById('wo-gastos-list');
         if (listG) listG.innerHTML = '<div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div>';
         const listMo = document.getElementById('wo-mo-list');
@@ -3948,7 +4065,7 @@ table.on("dataFiltered", function (filters, rows) {
                 if (!cot) return;
                 _cotiActivaId = cot.id;
                 // Cargar datos en el formulario
-                document.getElementById('wo-coti-numero').value = cot.numero || '';
+                setNumeroCotizacion(cot.numero || '');
                 document.getElementById('wo-coti-nota').value = cot.nota || '';
                 renderWoGastosList({ 'COTIZACION_GASTOS': JSON.stringify(cot.gastos || []) });
                 renderWoManoObraList({ 'COTIZACION_MANO_OBRA': JSON.stringify(cot.mano_obra || []) });
@@ -3996,7 +4113,7 @@ table.on("dataFiltered", function (filters, rows) {
 
     function generarCotizacion() {
         if (!woKey) { alert('No hay ticket seleccionado.'); return; }
-        const numero = (document.getElementById('wo-coti-numero') || {}).value || '';
+        const numero = obtenerNumeroCotizacion();
         const nota   = (document.getElementById('wo-coti-nota') || {}).value || '';
         if (!numero.trim()) { alert('Ingresa el N° Cotización antes de generar.'); return; }
 
@@ -4039,7 +4156,7 @@ table.on("dataFiltered", function (filters, rows) {
 
     function reDescargarCotizacion() {
         if (!woKey) return;
-        const numero = (document.getElementById('wo-coti-numero') || {}).value || woKey;
+        const numero = obtenerNumeroCotizacion() || woKey;
         const nota   = (document.getElementById('wo-coti-nota') || {}).value || '';
         const gastos    = recogerGastos();
         const manoObra  = recogerManoObra();
@@ -4160,7 +4277,7 @@ table.on("dataFiltered", function (filters, rows) {
         if (gastos.length) {
             lines.push('Materiales, Herramientas y/o Homologaciones:');
             gastos.forEach(g => {
-                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
+                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | ${g.unid || '1'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
             });
             lines.push(`Subtotal A: S/ ${calcularMontoGastado().toFixed(2)}`);
         }
@@ -4168,7 +4285,7 @@ table.on("dataFiltered", function (filters, rows) {
         if (manoObra.length) {
             lines.push('Mano de Obra:');
             manoObra.forEach(g => {
-                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
+                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | ${g.unid || '1'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
             });
             lines.push(`Subtotal B: S/ ${calcularSubtotalCoti('wo-mo-list', 'wo-subtotal-b').toFixed(2)}`);
         }

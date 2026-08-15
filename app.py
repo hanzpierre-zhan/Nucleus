@@ -2281,6 +2281,38 @@ def api_config_consolidation():
         db.session.commit()
         return jsonify({'success': True})
 
+@app.route('/api/config/cotizacion_margen', methods=['GET', 'POST'])
+@login_required
+def api_config_cotizacion_margen():
+    """Porcentaje de margen aplicado al Precio Cobra para calcular Precio Unid (default 30)."""
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar el margen de cotización.'}), 403
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_margen_pct').first()
+
+    if request.method == 'GET':
+        if config:
+            try:
+                return jsonify({'porcentaje': float(config.valor)})
+            except Exception:
+                pass
+        return jsonify({'porcentaje': 30})
+
+    if request.method == 'POST':
+        data = request.json or {}
+        try:
+            pct = float(data.get('porcentaje', 30))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Porcentaje inválido'}), 400
+        if pct < 0:
+            return jsonify({'error': 'El porcentaje no puede ser negativo'}), 400
+        if config:
+            config.valor = safe_json_dumps(pct)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='cotizacion_margen_pct', valor=safe_json_dumps(pct)))
+        db.session.commit()
+        return jsonify({'success': True, 'porcentaje': pct})
+
 @app.route('/api/master/template/<tipo>')
 @login_required
 def api_master_template(tipo):
@@ -3098,7 +3130,7 @@ def api_cotizacion_generar():
 
 def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fecha, gastos, mano_obra):
     """Genera el PDF de cotización con el formato exacto de la imagen."""
-    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.lib.units import mm
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
@@ -3108,8 +3140,8 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
     from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame
 
     buf = io.BytesIO()
-    PAGE_W, PAGE_H = A4
-    M = 15 * mm  # margen
+    PAGE_W, PAGE_H = landscape(A4)
+    M = 6 * mm  # margen
 
     # Colores corporativos
     NAVY = colors.HexColor('#1B3A6B')
@@ -3134,15 +3166,15 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
     total_ab = subtotal_a + subtotal_b
 
     # Estilos de párrafo
-    style_normal = ParagraphStyle('normal', fontName='Helvetica', fontSize=8, leading=10)
-    style_bold = ParagraphStyle('bold', fontName='Helvetica-Bold', fontSize=8, leading=10)
-    style_title = ParagraphStyle('title', fontName='Helvetica-Bold', fontSize=14, leading=18, textColor=NAVY)
-    style_header_white = ParagraphStyle('hw', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=WHITE)
-    style_section = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=WHITE)
-    style_right = ParagraphStyle('right', fontName='Helvetica', fontSize=8, leading=10, alignment=TA_RIGHT)
-    style_right_bold = ParagraphStyle('rb', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_RIGHT)
+    style_normal = ParagraphStyle('normal', fontName='Helvetica', fontSize=7, leading=8)
+    style_bold = ParagraphStyle('bold', fontName='Helvetica-Bold', fontSize=7, leading=8)
+    style_title = ParagraphStyle('title', fontName='Helvetica-Bold', fontSize=12, leading=15, textColor=NAVY)
+    style_header_white = ParagraphStyle('hw', fontName='Helvetica-Bold', fontSize=7, leading=8, textColor=WHITE)
+    style_section = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=7, leading=8, textColor=WHITE)
+    style_right = ParagraphStyle('right', fontName='Helvetica', fontSize=7, leading=8, alignment=TA_RIGHT)
+    style_right_bold = ParagraphStyle('rb', fontName='Helvetica-Bold', fontSize=7, leading=8, alignment=TA_RIGHT)
 
-    doc = SimpleDocTemplate(buf, pagesize=A4,
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
                              leftMargin=M, rightMargin=M,
                              topMargin=M, bottomMargin=M)
     W = PAGE_W - 2 * M
@@ -3151,7 +3183,7 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
     # ---- CABECERA: Logo | N° Cotización ---
     logo_path = os.path.join(BASE_DIR, 'static', 'img', 'cobra-logo.png')
     if os.path.exists(logo_path):
-        logo = RLImage(logo_path, width=45*mm, height=25*mm)
+        logo = RLImage(logo_path, width=30*mm, height=17*mm)
     else:
         logo = Paragraph('<b>cobra</b>', style_title)
 
@@ -3161,11 +3193,11 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
     header_tbl.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
     ]))
     story.append(header_tbl)
-    story.append(Spacer(1, 3 * mm))
+    story.append(Spacer(1, 1.5 * mm))
 
     # ---- SECCIÓN A: DATOS DEL CLIENTE ---
     def section_row(label):
@@ -3200,8 +3232,8 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
         ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
         ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
         ('LEFTPADDING', (0, 0), (-1, -1), 5),
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
@@ -3211,7 +3243,7 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
         ('SPAN', (1, 5), (3, 5)),
     ]))
     story.append(sec_a_tbl)
-    story.append(Spacer(1, 2 * mm))
+    story.append(Spacer(1, 1 * mm))
 
     # ---- SECCIÓN B: DATOS DE COTIZACIÓN ---
     sec_b_data = [
@@ -3226,37 +3258,39 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
         ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
         ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
         ('LEFTPADDING', (0, 0), (-1, -1), 5),
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
     story.append(sec_b_tbl)
-    story.append(Spacer(1, 2 * mm))
+    story.append(Spacer(1, 1 * mm))
 
     # ---- TABLA 1: Materiales, Herramientas y/o Homologaciones ---
     col_item = W * 0.06
     col_cod  = W * 0.07
-    col_desc = W * 0.37
+    col_desc = W * 0.30
+    col_unid = W * 0.07
     col_cant = W * 0.08
     col_pu   = W * 0.18
     col_tp   = W * 0.24
 
-    t1_cols = [col_item, col_cod, col_desc, col_cant, col_pu, col_tp]
+    t1_cols = [col_item, col_cod, col_desc, col_unid, col_cant, col_pu, col_tp]
 
-    t1_header_sub = [Paragraph('<b>1. Materiales,  Herramientas y/o Homologaciones</b>', style_section), '', '', '', '', '']
+    t1_header_sub = [Paragraph('<b>1. Materiales,  Herramientas y/o Homologaciones</b>', style_section), '', '', '', '', '', '']
     t1_col_header = [
         Paragraph('<b>Item</b>', style_bold),
         Paragraph('<b>Cod.</b>', style_bold),
         Paragraph('<b>Descripción</b>', style_bold),
+        Paragraph('<b>Unid</b>', style_bold),
         Paragraph('<b>Cant</b>', style_bold),
         Paragraph('<b>Precio unid.</b>', style_bold),
         Paragraph('<b>Total P.</b>', style_bold),
     ]
 
     t1_rows = [t1_header_sub, t1_col_header]
-    MAX_ROWS_1 = max(len(gastos), 4)
+    MAX_ROWS_1 = max(len(gastos), 2)
     for i in range(MAX_ROWS_1):
         if i < len(gastos):
             g = gastos[i]
@@ -3264,22 +3298,23 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
                 Paragraph(safe_str(g.get('item', i+1)), style_normal),
                 Paragraph(safe_str(g.get('cod', 'SC')), style_normal),
                 Paragraph(safe_str(g.get('descripcion', '')), style_normal),
+                Paragraph(safe_str(g.get('unid', '')), style_normal),
                 Paragraph(safe_str(g.get('cant', '')), style_normal),
                 Paragraph(fmt_soles(g.get('precio_unid', '')), style_right),
                 Paragraph(fmt_soles(g.get('total_p', '')), style_right),
             ]
         else:
-            row = ['', '', '', '', Paragraph('S/', style_right), Paragraph('-', style_right)]
+            row = ['', '', '', '', '', Paragraph('S/', style_right), Paragraph('-', style_right)]
         t1_rows.append(row)
 
     # Fila Total subtotal A
     t1_rows.append([
-        '', '', '', '', '',
+        '', '', '', '', '', '',
         '',
     ])
     t1_rows.append([
-        Paragraph('<b>Total</b>', style_bold), '', '', '', '',
-        Paragraph(f'<b>Subtotal_B&nbsp;&nbsp;&nbsp;{fmt_soles(subtotal_a)}</b>', style_right_bold),
+        Paragraph('<b>Total</b>', style_bold), '', '', '', '', '',
+        Paragraph(f'<b>Subtotal_A&nbsp;&nbsp;&nbsp;{fmt_soles(subtotal_a)}</b>', style_right_bold),
     ])
 
     t1_tbl = Table(t1_rows, colWidths=t1_cols)
@@ -3293,35 +3328,36 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
         ('BACKGROUND', (0, 1), (-1, 1), LIGHT_GRAY),
         ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
         ('ROWBACKGROUNDS', (0, 2), (-1, n_data_rows_1-3), [WHITE, LIGHT_GRAY]),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
         ('LEFTPADDING', (0, 0), (-1, -1), 4),
         ('RIGHTPADDING', (0, 0), (-1, -1), 4),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         # Total row
         ('BACKGROUND', (0, n_data_rows_1-1), (-1, n_data_rows_1-1), LIGHT_GRAY),
-        ('SPAN', (0, n_data_rows_1-1), (3, n_data_rows_1-1)),
-        ('SPAN', (4, n_data_rows_1-1), (4, n_data_rows_1-1)),
+        ('SPAN', (0, n_data_rows_1-1), (4, n_data_rows_1-1)),
+        ('SPAN', (5, n_data_rows_1-1), (5, n_data_rows_1-1)),
     ]
     t1_tbl.setStyle(TableStyle(t1_style))
     story.append(t1_tbl)
-    story.append(Spacer(1, 3 * mm))
+    story.append(Spacer(1, 1.5 * mm))
 
     # ---- TABLA 2: Mano de Obra ---
-    t2_cols = [col_item, col_cod, col_desc, col_cant, col_pu, col_tp]
+    t2_cols = [col_item, col_cod, col_desc, col_unid, col_cant, col_pu, col_tp]
 
-    t2_header_sub = [Paragraph('<b>2. Mano de Obra</b>', style_section), '', '', '', '', '']
+    t2_header_sub = [Paragraph('<b>2. Mano de Obra</b>', style_section), '', '', '', '', '', '']
     t2_col_header = [
         Paragraph('<b>Item</b>', style_bold),
         Paragraph('<b>Cod.</b>', style_bold),
         Paragraph('<b>Descripción</b>', style_bold),
+        Paragraph('<b>Unid</b>', style_bold),
         Paragraph('<b>Cant</b>', style_bold),
         Paragraph('<b>Precio unid.</b>', style_bold),
         Paragraph('<b>Total P.</b>', style_bold),
     ]
 
     t2_rows = [t2_header_sub, t2_col_header]
-    MAX_ROWS_2 = max(len(mano_obra), 4)
+    MAX_ROWS_2 = max(len(mano_obra), 2)
     for i in range(MAX_ROWS_2):
         if i < len(mano_obra):
             m = mano_obra[i]
@@ -3329,16 +3365,17 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
                 Paragraph(safe_str(m.get('item', i+1)), style_normal),
                 Paragraph(safe_str(m.get('cod', 'SC')), style_normal),
                 Paragraph(safe_str(m.get('descripcion', '')), style_normal),
+                Paragraph(safe_str(m.get('unid', '')), style_normal),
                 Paragraph(safe_str(m.get('cant', '')), style_normal),
                 Paragraph(fmt_soles(m.get('precio_unid', '')), style_right),
                 Paragraph(fmt_soles(m.get('total_p', '')), style_right),
             ]
         else:
-            row = ['', '', '', '', '', '']
+            row = ['', '', '', '', '', '', '']
         t2_rows.append(row)
 
     t2_rows.append([
-        Paragraph('<b>Total</b>', style_bold), '', '', '', '',
+        Paragraph('<b>Total</b>', style_bold), '', '', '', '', '',
         Paragraph(f'<b>Subtotal_B&nbsp;&nbsp;&nbsp;{fmt_soles(subtotal_b)}</b>', style_right_bold),
     ])
 
@@ -3351,17 +3388,17 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
         ('BACKGROUND', (0, 1), (-1, 1), LIGHT_GRAY),
         ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
         ('ROWBACKGROUNDS', (0, 2), (-1, n_data_rows_2-2), [WHITE, LIGHT_GRAY]),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
         ('LEFTPADDING', (0, 0), (-1, -1), 4),
         ('RIGHTPADDING', (0, 0), (-1, -1), 4),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('BACKGROUND', (0, n_data_rows_2-1), (-1, n_data_rows_2-1), LIGHT_GRAY),
-        ('SPAN', (0, n_data_rows_2-1), (4, n_data_rows_2-1)),
+        ('SPAN', (0, n_data_rows_2-1), (5, n_data_rows_2-1)),
     ]
     t2_tbl.setStyle(TableStyle(t2_style))
     story.append(t2_tbl)
-    story.append(Spacer(1, 5 * mm))
+    story.append(Spacer(1, 2 * mm))
 
     # ---- CONDICIONES COMERCIALES + TOTAL FINAL ---
     # Layout exacto de la imagen:
@@ -3377,11 +3414,11 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
     cond_col_soles = W * 0.07
     cond_col_monto = W * 0.18
 
-    style_cond_hdr = ParagraphStyle('condh', fontName='Helvetica-Bold', fontSize=8, leading=10)
-    style_cond_body = ParagraphStyle('condb', fontName='Helvetica', fontSize=8, leading=12)
-    style_total_label = ParagraphStyle('tl', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_CENTER)
-    style_soles = ParagraphStyle('sol', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_CENTER)
-    style_monto = ParagraphStyle('mnt', fontName='Helvetica-Bold', fontSize=8, leading=10, alignment=TA_RIGHT)
+    style_cond_hdr = ParagraphStyle('condh', fontName='Helvetica-Bold', fontSize=7, leading=9)
+    style_cond_body = ParagraphStyle('condb', fontName='Helvetica', fontSize=7, leading=10)
+    style_total_label = ParagraphStyle('tl', fontName='Helvetica-Bold', fontSize=7, leading=9, alignment=TA_CENTER)
+    style_soles = ParagraphStyle('sol', fontName='Helvetica-Bold', fontSize=7, leading=9, alignment=TA_CENTER)
+    style_monto = ParagraphStyle('mnt', fontName='Helvetica-Bold', fontSize=7, leading=9, alignment=TA_RIGHT)
 
     cond_lines = 'Moneda Nacional soles (S/)<br/>Pagos Según contrato<br/>No incluye IGV'
     cond_data = [
@@ -3407,8 +3444,8 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
         ('BACKGROUND', (0, 1), (0, 1), WHITE),
         ('BACKGROUND', (1, 1), (3, 1), LIGHT_GRAY),
         # Padding
-        ('TOPPADDING',    (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING',    (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
         ('LEFTPADDING',   (0, 0), (-1, -1), 5),
         ('RIGHTPADDING',  (0, 0), (-1, -1), 5),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
