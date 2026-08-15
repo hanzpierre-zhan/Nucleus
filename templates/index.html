@@ -36,6 +36,9 @@
             </div>
             <p class="col-visibility-hint">Desmarca lo que no quieras ver.</p>
             <div id="col-list" class="col-visibility-list"></div>
+            <div class="col-visibility-footer">
+                <button type="button" class="col-visibility-link" onclick="resetLayout()" title="Restaurar al estado original"><i class="fa-solid fa-rotate-left"></i> Restaurar</button>
+            </div>
         </div>
     </div>
     {% else %}
@@ -141,6 +144,14 @@
     .data-stat.stat-active {
         border-color: var(--ios-blue); box-shadow: 0 0 0 2px rgba(0,122,255,0.25);
     }
+    .btn-marcar-no-atendido {
+        border: none; background: none; cursor: pointer; font-size: 15px;
+        color: var(--ios-gray-1); padding: 4px; border-radius: 6px; line-height: 1;
+        transition: all .15s ease;
+    }
+    .btn-marcar-no-atendido:hover { background: rgba(255,59,48,0.12); color: #FF3B30; }
+    .tabulator-row.row-no-atendido { opacity: 0.45; background: #F2F2F7 !important; }
+    .tabulator-row.row-no-atendido .tabulator-cell { color: var(--ios-gray-1); }
 
     /* ===== Modal Detalle WO ===== */
     .wo-modal { max-width: 780px; }
@@ -620,6 +631,10 @@
                     </div>
                 </div>
             </div>
+            <div class="wo-section" style="padding-top: 0;">
+                <button onclick="descargarInformeWO()" id="btn-wo-word" class="mar-btn-primary" title="Descargar informe Word"><i class="fa-solid fa-file-word"></i> Descargar informe Word</button>
+            </div>
+            </div>
             <div id="wo-panel-material" style="display:none;">
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-toolbox"></i> Materiales usados en la obra</div>
@@ -817,6 +832,8 @@
     const rawData = {{ data | safe }};
     const rawCols = {{ columns | safe }};
     const manualColsConfig = {{ manual_cols | safe }};
+    const columnLayout = {{ column_layout | safe }} || [];
+    const hasServerLayout = Array.isArray(columnLayout) && columnLayout.length > 0;
     const kpiMeta = {{ kpi_meta | safe }};
     const changedKeys = new Set({{ changed_keys | safe }});
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
@@ -935,7 +952,7 @@
         };
         const woCounts = { unscheduled: 0, dispatched: 0, accepted: 0, inprocess: 0 };
         rawData.forEach(r => {
-            const st = slaCumplimientoEstado(computarSlaData(r), getSlaThresholdData(r));
+            const st = slaCumplimientoEstado(computarSlaData(r), getSlaThresholdData(r), esCanceladoOM(r));
             if (st.texto && st.texto in slaCounts) slaCounts[st.texto]++;
             const woState = String(val(r, 'estado de la tarea (wo state)', 'estado del tt', 'estado') || '').trim().toLowerCase();
             if (woState in woCounts) woCounts[woState]++;
@@ -945,6 +962,7 @@
             ['#8B0000', 'fa-circle-xmark', 'SLA VENCIDO', slaCounts['SLA VENCIDO']],
             ['#FFC107', 'fa-exclamation-triangle', 'SLA DEBE ATENDERSE', slaCounts['SLA DEBE ATENDERSE']],
             ['#DC3545', 'fa-hourglass-half', 'SLA POR VENCER', slaCounts['SLA POR VENCER']],
+            ['#8E8E93', 'fa-ban', 'NO APLICA', slaCounts['NO APLICA']],
             ['#8E8E93', 'fa-calendar', 'Unscheduled', woCounts.unscheduled],
             ['#AF52DE', 'fa-paper-plane', 'Dispatched', woCounts.dispatched],
             ['#007AFF', 'fa-check-double', 'Accepted', woCounts.accepted],
@@ -954,7 +972,7 @@
         container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
         container.innerHTML = cards.map(c =>
             `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" ` +
-                `data-tipo="${c[2] === 'SLA CUMPLIDO' || c[2] === 'SLA VENCIDO' || c[2] === 'SLA DENTRO DE PLAZO' || c[2] === 'SLA DEBE ATENDERSE' || c[2] === 'SLA POR VENCER' ? 'sla' : 'wo'}" ` +
+                `data-tipo="${['SLA CUMPLIDO','SLA VENCIDO','SLA DENTRO DE PLAZO','SLA DEBE ATENDERSE','SLA POR VENCER','NO APLICA'].includes(c[2]) ? 'sla' : 'wo'}" ` +
                 `data-sla="${c[2]}" data-wo="${c[2]}">` +
                 `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
                 `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
@@ -990,7 +1008,7 @@
 
         if (tipo === 'sla') {
             table.setFilter((rowData) => {
-                const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData));
+                const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData), esCanceladoOM(rowData));
                 return st.texto === valor;
             });
         } else {
@@ -1003,6 +1021,42 @@
         _tarjetaFiltroActiva = valor;
         document.querySelectorAll('#data-stats .data-stat').forEach(d => d.classList.remove('stat-active'));
         el.classList.add('stat-active');
+    }
+
+    // Marca un WO de PEXT como "No atendido / Cancelado O&M", pidiendo el motivo.
+    function marcarNoAtendido(row) {
+        if (!row) return;
+        const data = row.getData();
+        const key = data._key;
+        if (!key) return;
+        const cancelado = String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
+                          String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
+
+        if (cancelado) {
+            alert('Motivo registrado: ' + (data['MOTIVO NO ATENDIDO'] || 'No especificado'));
+            return;
+        }
+
+        const motivo = prompt('Motivo por el cual NO se atiende este WO (Cancelado O&M):', '');
+        if (motivo === null) return; // canceló
+        const motivoFinal = String(motivo).trim();
+        if (!motivoFinal) { alert('Debes indicar un motivo.'); return; }
+
+        fetch('/api/rows/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: key, field: 'CANCELADO O&M', value: 'SÍ' })
+        }).then(r => r.json()).then(res1 => {
+            if (res1.error) { alert('Error: ' + res1.error); return; }
+            return fetch('/api/rows/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: key, field: 'MOTIVO NO ATENDIDO', value: motivoFinal })
+            }).then(r => r.json());
+        }).then(res2 => {
+            if (res2 && res2.error) { alert('Error: ' + res2.error); return; }
+            if (table) table.setData(table.getData()); // recarga para reflejar atenuación
+        }).catch(() => alert('Error de red'));
     }
 
     const kpiAlarmFormatter = function(cell) {
@@ -1167,7 +1221,11 @@
     };
 
     // Estado del semáforo de SLA Cumplimiento según el avance del tiempo.
-    const slaCumplimientoEstado = (info, slaLimit) => {
+    const esCanceladoOM = (data) =>
+        String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
+        String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
+    const slaCumplimientoEstado = (info, slaLimit, canceladoOM) => {
+        if (canceladoOM) return { texto: 'NO APLICA', color: '#8E8E93', fg: '#fff', rank: 2 };
         if (!info || slaLimit <= 0) return { texto: '', color: '', fg: '', rank: 3 };
         if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
             return { texto: 'NO APLICA', color: '#8E8E93', fg: '#fff', rank: 2 };
@@ -1476,6 +1534,24 @@
     const restColumns = [];
     let keyColumn = null;
 
+    // Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
+    const layoutOrderMap = new Map();
+    const layoutVisibleMap = new Map();
+    if (hasServerLayout) {
+        columnLayout.forEach((c, i) => {
+            if (c && c.field) {
+                layoutOrderMap.set(c.field, i);
+                layoutVisibleMap.set(c.field, c.visible !== false);
+            }
+        });
+        rawCols.sort((a, b) => {
+            const ia = layoutOrderMap.has(a) ? layoutOrderMap.get(a) : Infinity;
+            const ib = layoutOrderMap.has(b) ? layoutOrderMap.get(b) : Infinity;
+            if (ia === ib) return String(a).localeCompare(String(b));
+            return ia - ib;
+        });
+    }
+
     // Manual columns: se ocultan por defecto cuando la tabla tiene muchas columnas importadas
     // (así no se llena la "sábana"); el gestor las revela con el botón "Manuales".
     const manualNamesSet = new Set(manualColsConfig.map(mc => mc.nombre));
@@ -1534,8 +1610,12 @@
 
         // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas.
         // Excepción: TECNICO ASIGNADO siempre se muestra (FLM).
-        if (isManual && nonManualCount >= 5 && fieldName !== 'TECNICO ASIGNADO') {
+        // Si el admin guardó un layout, ese manda sobre el ocultado por defecto.
+        if (!hasServerLayout && isManual && nonManualCount >= 5 && fieldName !== 'TECNICO ASIGNADO') {
             colDef.visible = false;
+        }
+        if (hasServerLayout && layoutVisibleMap.has(fieldName)) {
+            colDef.visible = layoutVisibleMap.get(fieldName);
         } 
         
         // 2. KPI ALARM (Dilación - Frozen columns on the left)
@@ -1790,7 +1870,7 @@
                 const rank = (row) => {
                     const info = computarSlaData(row.getData());
                     const slaLimit = getSlaThresholdData(row.getData());
-                    return slaCumplimientoEstado(info, slaLimit).rank;
+                    return slaCumplimientoEstado(info, slaLimit, esCanceladoOM(row.getData())).rank;
                 };
                 return rank(aRow) - rank(bRow);
             };
@@ -1799,14 +1879,14 @@
                 if (!q) return true;
                 const info = computarSlaData(rowData);
                 const slaLimit = getSlaThresholdData(rowData);
-                const txt = slaCumplimientoEstado(info, slaLimit).texto;
+                const txt = slaCumplimientoEstado(info, slaLimit, esCanceladoOM(rowData)).texto;
                 return txt.toLowerCase().indexOf(q) !== -1;
             };
             colDef.formatter = function(cell) {
                 const row = cell.getRow();
                 const info = computarSla(row);
                 const slaLimit = getSlaThreshold(row);
-                const st = slaCumplimientoEstado(info, slaLimit);
+                const st = slaCumplimientoEstado(info, slaLimit, esCanceladoOM(row.getData()));
                 if (!st.texto) return "";
                 return `<span style="background:${st.color}; color:${st.fg}; padding:3px 10px; border-radius:12px; font-weight:800; font-size:11px; display:inline-block;">${st.texto}</span>`;
             };
@@ -1834,9 +1914,42 @@
     };
     const tableColumns = [
         ...(isAdmin ? [selectCol] : []),
-        ...kpiColumns
     ];
+
+    // PEXT: columna de acción para marcar un WO como "No atendido / Cancelado O&M".
+    // Va al costado del cuadrado de check (selección).
+    if (IS_PEXT) {
+        tableColumns.push({
+            title: "",
+            field: "_accion",
+            width: 44,
+            minWidth: 44,
+            maxWidth: 44,
+            resizable: false,
+            frozen: true,
+            headerSort: false,
+            hozAlign: "center",
+            formatter: function(cell) {
+                const row = cell.getRow().getData();
+                const cancelado = String(row['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
+                                  String(row['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn-marcar-no-atendido';
+                btn.title = cancelado ? 'Ver motivo de no atención' : 'Marcar como no atendido';
+                btn.innerHTML = cancelado
+                    ? '<i class="fa-solid fa-ban"></i>'
+                    : '<i class="fa-solid fa-circle-minus"></i>';
+                btn.onclick = (e) => { e.stopPropagation(); marcarNoAtendido(cell.getRow()); };
+                return btn;
+            },
+            cellClick: function(e, cell) {}
+        });
+    }
+
+    tableColumns.push(...kpiColumns);
     if (keyColumn) tableColumns.push(keyColumn);
+
     tableColumns.push(...restColumns);
 
     function tabulatorSelectAll(cb) {
@@ -1992,25 +2105,41 @@
         rowHeight: 25, // Compact Excel feel
         selectable: isAdmin, // Solo admin puede seleccionar (desde el checkbox)
         selectableRangeMode: false, // Sin seleccion por clic en la fila
+        rowFormatter: function(row) {
+            // PEXT: atenuar filas marcadas como no atendido / Cancelado O&M.
+            if (IS_PEXT) {
+                const d = row.getData();
+                const cancelado = String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
+                                  String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
+                const el = row.getElement();
+                if (el) el.classList.toggle('row-no-atendido', cancelado);
+            }
+        },
         clipboard: true, // Allow copy-paste
         clipboardPasteAction: "replace", // Replace cell contents on paste
         history: true,
         movableColumns: isAdmin, // Only admin can drag/reorder column headers
-        persistence: { columns: ["width", "visible", "order"] }, // Remember layout
+        persistence: { columns: ["width"] }, // Orden y visibilidad: definiciones o layout del admin (servidor); aquí solo ancho
         persistenceID: "nucleus-layout-{{ proyecto_id }}" // Unique per project
     });
 
-    table.on("dataFiltered", function (filters, rows) {
+table.on("dataFiltered", function (filters, rows) {
         const status = document.getElementById('status-record-count');
         if (!status) return;
         const total = rawData.length;
-        const filteredCount = rows.length; // Use the direct rows argument from the event
+        const filteredCount = rows.length; // Use the direct rows value from the event
         if (filteredCount === total) {
             status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
         } else {
             status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${filteredCount} | ${total}`;
         }
     });
+
+    // Auto-guardar el orden de columnas al arrastrar (solo admin).
+    if (isAdmin) {
+        table.on("columnMoved", function() { saveColumnLayout(); });
+        table.on("columnVisibilityChanged", function() { saveColumnLayout(); });
+    }
 
     // Force initial count text on page load
     const statusEl = document.getElementById('status-record-count');
@@ -2036,7 +2165,7 @@
                 const div = document.createElement('label');
                 div.className = 'col-visibility-item';
                 div.innerHTML = `
-                    <input type="checkbox" ${checked} onchange="table.toggleColumn('${def.field}')">
+                    <input type="checkbox" ${checked} onchange="toggleColumnAuto('${def.field}')">
                     <span>${def.title}</span>
                 `;
                 list.appendChild(div);
@@ -2047,6 +2176,11 @@
         }
     }
 
+    function toggleColumnAuto(field) {
+        table.toggleColumn(field);
+        saveColumnLayout(true);
+    }
+
     function setAllColumns(visible) {
         table.getColumns().forEach(col => {
             const def = col.getDefinition();
@@ -2055,6 +2189,7 @@
             const shouldShow = (col.isVisible() !== visible);
             if (shouldShow) table.toggleColumn(def.field);
         });
+        saveColumnLayout(true);
         // Refresh the checkboxes without closing the menu
         const menu = document.getElementById('col-menu');
         const list = document.getElementById('col-list');
@@ -2074,6 +2209,7 @@
             if (show && !col.isVisible()) col.show();
             if (!show && col.isVisible()) col.hide();
         });
+        saveColumnLayout(true);
         localStorage.setItem('nucleus-manual-cols-visible', show ? '1' : '0');
     }
 
@@ -2099,6 +2235,8 @@
     }
 
     function applyManualColumnsState() {
+        if (!isAdmin) return; // Los no-admin siempre ven lo que define el admin (servidor o por defecto)
+        if (hasServerLayout) return; // La visibilidad la define el layout del admin (servidor)
         const saved = localStorage.getItem('nucleus-manual-cols-visible');
         const cb = document.getElementById('manual-cols-toggle');
         if (!cb) return;
@@ -2123,10 +2261,49 @@
     applyManualColumnsState();
     applyImportCambiosState();
 
+    function saveColumnLayout(showToast) {
+        if (!isAdmin) return;
+        const cols = table.getColumns().map(c => {
+            const def = c.getDefinition();
+            if (!def.field || def.field === '_key' || def.field === '_accion' || def.field.startsWith('KPI_')) return null;
+            return { field: def.field, visible: c.isVisible() };
+        }).filter(Boolean);
+        fetch('/api/columns/layout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ columns: cols })
+        }).then(r => r.json()).then(res => {
+            if (res.success && showToast) woToast('Configuración de columnas guardada para todos los usuarios.');
+        }).catch(() => {});
+    }
+
+    function woToast(msg) {
+        let el = document.getElementById('wo-col-save-toast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'wo-col-save-toast';
+            el.style.cssText = 'position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#1C1C1E; color:#fff; padding:10px 16px; border-radius:10px; font-size:13px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,.25); z-index:99999; opacity:0; transition:opacity .25s; pointer-events:none;';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        el.style.opacity = '1';
+        clearTimeout(el._t);
+        el._t = setTimeout(() => { el.style.opacity = '0'; }, 1800);
+    }
+
     function resetLayout() {
         if (confirm('¿Restaurar orden y visibilidad de las columnas al estado por defecto original?')) {
             localStorage.removeItem('tabulator-nucleus-layout');
-            location.reload();
+            const done = () => location.reload();
+            if (isAdmin && hasServerLayout) {
+                fetch('/api/columns/layout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ columns: [] })
+                }).then(done).catch(done);
+            } else {
+                done();
+            }
         }
     }
 

@@ -951,6 +951,10 @@ def index():
     cols = sorted(list(columns_set))
     if '_key' in cols: cols.remove('_key')
     cols.insert(0, '_key')
+
+    # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
+    layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+    column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
     
     # List allowed projects for the menu
     proyectos = get_menu_proyectos(user_id, user_rol)
@@ -960,6 +964,7 @@ def index():
                           columns=json.dumps(cols), 
                           pk=pk, 
                           manual_cols=json.dumps(manual_cols_data),
+                          column_layout=json.dumps(column_layout),
                           kpi_meta=json.dumps(kpi_meta),
                           changed_keys=json.dumps(changed_keys),
                           proyecto_id=pid,
@@ -2141,6 +2146,37 @@ def api_manual_columns():
             config.valor = safe_json_dumps(cols)
             db.session.commit()
         return jsonify({'success': True})
+
+@app.route('/api/columns/layout', methods=['GET', 'POST'])
+@login_required
+def api_columns_layout():
+    """Orden y visibilidad de columnas definidos por el admin; se aplican a todos los usuarios."""
+    pid = session.get('current_proyecto_id')
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+    if request.method == 'GET':
+        return jsonify(json.loads(config.valor) if config and config.valor else [])
+    if session.get('rol') != 'admin':
+        return jsonify({'error': 'Solo el administrador puede configurar las columnas.'}), 403
+    data = request.get_json(silent=True) or {}
+    columns = data.get('columns') or []
+    cleaned = []
+    for c in columns:
+        if not isinstance(c, dict):
+            continue
+        field = str(c.get('field', '')).strip()
+        if not field or field == '_key' or field.startswith('KPI_'):
+            continue
+        cleaned.append({'field': field, 'visible': bool(c.get('visible', True))})
+    if cleaned:
+        if config:
+            config.valor = safe_json_dumps(cleaned)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='column_layout', valor=safe_json_dumps(cleaned)))
+    else:
+        if config:
+            db.session.delete(config)
+    db.session.commit()
+    return jsonify({'success': True})
 
 @app.route('/api/master/dashboard_charts', methods=['GET', 'POST'])
 @login_required
