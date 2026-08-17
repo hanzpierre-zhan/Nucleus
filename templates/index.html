@@ -932,6 +932,11 @@
             return;
         }
 
+        if (proy === 'combustible') {
+            buildCombustibleStats(container);
+            return;
+        }
+
         const norm = v => String(v == null ? '' : v).trim().toUpperCase();
         let hasEstado = false, hasProyecto = false;
         let activos = 0, cesados = 0, flm = 0, pext = 0;
@@ -962,6 +967,62 @@
             `<div class="data-stat">` +
                 `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
                 `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
+            `</div>`
+        ).join('');
+    }
+
+    // --- Combustible: galones disponibles por zona vs galones gastados ---
+    function buildCombustibleStats(container) {
+        const norm = v => String(v == null ? '' : v).trim().toUpperCase();
+        const parseGal = v => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.').trim()); return isNaN(n) ? 0 : n; };
+
+        // Disponibles por zona: suma el saldo actual de cada generador (QR ASIGNADO) agrupado por su ZONA.
+        const dispByZona = {};
+        Object.keys(genSaldoMap || {}).forEach(qr => {
+            const zona = String(genZonaMap && genZonaMap[qr] || '').trim().toUpperCase();
+            if (!zona) return;
+            dispByZona[zona] = (dispByZona[zona] || 0) + parseGal(genSaldoMap[qr]);
+        });
+
+        // Gastados por zona: suma GALONES de los movimientos GASTO agrupados por ZONA del registro.
+        const gastByZona = {};
+        rawData.forEach(r => {
+            if (norm(r.MOVIMIENTO) !== 'GASTO') return;
+            const zona = String(r['ZONA'] || genZonaMap && genZonaMap[r['QR ASIGNADO']] || '').trim().toUpperCase();
+            if (!zona) return;
+            gastByZona[zona] = (gastByZona[zona] || 0) + parseGal(r.GALONES);
+        });
+
+        const zonas = [...new Set([...Object.keys(dispByZona), ...Object.keys(gastByZona)])].sort();
+        if (zonas.length === 0) return;
+
+        // Totales generales: galones registrados (INGRESO), gastados y disponibles.
+        let totalIngresado = 0, totalGastado = 0;
+        Object.keys(dispByZona).forEach(z => totalIngresado += (dispByZona[z] || 0));
+        Object.keys(gastByZona).forEach(z => totalGastado += (gastByZona[z] || 0));
+        const totalDisponible = totalIngresado - totalGastado;
+
+        // Mismo estilo de tarjetas que PEXT/FLM: icono + número + etiqueta, en grid.
+        const cards = [];
+        cards.push(['#5856D6', 'fa-gas-pump', 'TOTAL', `${totalIngresado.toFixed(1)} gal`, 'GALONES REGISTRADOS']);
+        cards.push(['#FF3B30', 'fa-fire', 'GASTADO', `${totalGastado.toFixed(1)} gal`, 'TOTAL GASTADO']);
+        cards.push(['#34C759', 'fa-circle-check', 'DISPONIBLE', `${totalDisponible.toFixed(1)} gal`, 'DISPONIBLE POR ZONA']);
+        zonas.forEach(z => {
+            cards.push([
+                '#007AFF', 'fa-location-dot', z,
+                `${(dispByZona[z] || 0).toFixed(1)} gal`,
+                `Total: ${((dispByZona[z] || 0) + (gastByZona[z] || 0)).toFixed(1)} · Gastados: ${(gastByZona[z] || 0).toFixed(1)}`
+            ]);
+        });
+        const totalesSet = new Set(['TOTAL', 'GASTADO', 'DISPONIBLE']);
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
+        container.innerHTML = cards.map(c =>
+            (totalesSet.has(c[2])
+                ? `<div class="data-stat">`
+                : `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" data-tipo="zona" data-zona="${escapeHtml(c[2])}">`) +
+                `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
+                `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[4]}</span></div>` +
             `</div>`
         ).join('');
     }
@@ -1021,7 +1082,7 @@
     let _tarjetaFiltroActiva = null;
     function filtrarPorTarjeta(el) {
         const tipo = el.getAttribute('data-tipo');
-        const valor = el.getAttribute('data-sla') || el.getAttribute('data-wo');
+        const valor = el.getAttribute('data-sla') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
         if (!table) return;
 
         if (_tarjetaFiltroActiva === valor) {
@@ -1044,6 +1105,11 @@
             table.setFilter((rowData) => {
                 const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData), esCanceladoOM(rowData));
                 return st.texto === valor;
+            });
+        } else if (tipo === 'zona') {
+            table.setFilter((rowData) => {
+                const zona = String(rowData['ZONA'] || genZonaMap && genZonaMap[rowData['QR ASIGNADO']] || '').trim().toUpperCase();
+                return zona === norm(valor).toUpperCase();
             });
         } else {
             table.setFilter((rowData) => {
@@ -1800,8 +1866,10 @@
         }
 
         // Combustible: formateadores especiales
-        if (['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase())) {
-            if (fieldName === 'QR ASIGNADO') {
+        const proyCombGen = ['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase());
+        const isCombustibleProy = currentProjectNombre.trim().toLowerCase() === 'combustible';
+        if (proyCombGen) {
+            if (isCombustibleProy && fieldName === 'QR ASIGNADO') {
                 colDef.editor = false;
                 colDef.formatter = function(cell) {
                     const v = cell.getValue();
@@ -3096,9 +3164,10 @@ table.on("dataFiltered", function (filters, rows) {
         if (isWoColumn(field)) {
             abrirWoModal(cell.getRow());
         }
-        // Combustible / Generadores: clic en QR ASIGNADO abre el detalle del registro.
-        const proyCombGen = ['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase());
-        if (proyCombGen && String(field || '').trim().toLowerCase() === 'qr asignado') {
+        // Combustible: clic en QR ASIGNADO abre el detalle del registro.
+        const proyCombGenClick = ['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase());
+        if (proyCombGenClick && currentProjectNombre.trim().toLowerCase() === 'combustible' &&
+            String(field || '').trim().toLowerCase() === 'qr asignado') {
             abrirCombDetalle(cell.getRow());
         }
     });

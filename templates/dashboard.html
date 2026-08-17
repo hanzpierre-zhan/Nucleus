@@ -142,7 +142,7 @@
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div class="dash-project-switch">
                         {% for p in proyectos_list %}
-                        {% if p.nombre in ['FLM', 'PEXT'] %}
+                        {% if p.nombre in ['FLM', 'PEXT', 'Combustible'] %}
                         <a href="/switch_project/{{ p.id }}?next=/dashboard" class="dash-project-pill {% if p.id == session.get('current_proyecto_id') %}active{% endif %}" title="Ver dashboard de {{ p.nombre }}">
                             <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i>{{ p.nombre }}
                         </a>
@@ -160,6 +160,11 @@
             <!-- KPI Gallery Bar -->
             <div id="kpi-gallery" class="kpi-bar">
                 <!-- KPIs saved go here -->
+            </div>
+
+            <!-- Combustible: Galones por Zona -->
+            <div id="comb-gallery" class="kpi-bar" style="display:none;">
+                <!-- Galones disponibles vs gastados por zona -->
             </div>
         </div>
 
@@ -779,6 +784,7 @@
     const SAVED_FILTER_CONFIGS = {{ saved_filters | safe }};
     const USER_ROLE = "{{ session.get('rol') }}".toLowerCase();
     const IS_GESTOR = (USER_ROLE === 'gestor' || USER_ROLE === 'demo');
+    const PROYECTO_NOMBRE = "{{ proyecto_nombre }}";
 
     let savedCharts = [...SAVED_CHART_CONFIGS];
     let savedKPIs = [...SAVED_KPI_CONFIGS];
@@ -871,6 +877,7 @@
 
         renderFilters();
         renderKPIs();
+        renderCombustibleCards();
         renderGallery();
         updateFilterView();
 
@@ -1190,7 +1197,7 @@
     function syncDashboard() {
         updateFilterView();
         clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => { renderKPIs(); renderGallery(); }, 60);
+        syncTimer = setTimeout(() => { renderKPIs(); renderCombustibleCards(); renderGallery(); }, 60);
     }
 
     function updateFilterView() {
@@ -1544,6 +1551,79 @@
             `;
             bar.appendChild(card);
         });
+    }
+
+    // --- Combustible: galones disponibles por zona vs galones gastados ---
+    function renderCombustibleCards() {
+        const gal = document.getElementById('comb-gallery');
+        if (!gal) return;
+        if (String(PROYECTO_NOMBRE || '').trim().toLowerCase() !== 'combustible') {
+            gal.style.display = 'none';
+            return;
+        }
+        const norm = v => String(v == null ? '' : v).trim().toUpperCase();
+        const parseGal = v => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.').trim()); return isNaN(n) ? 0 : n; };
+        const src = filterData(DATA_RAW);
+
+        // Disponibles por zona: INGRESOS - GASTOS acumulados agrupados por ZONA del registro.
+        const dispByZona = {};
+        src.forEach(r => {
+            const zona = String(r['ZONA'] || '').trim().toUpperCase();
+            if (!zona) return;
+            const g = parseGal(r['GALONES']);
+            dispByZona[zona] = (dispByZona[zona] || 0) + (norm(r['MOVIMIENTO']) === 'GASTO' ? -g : g);
+        });
+
+        // Gastados por zona: suma de GALONES de los movimientos GASTO.
+        const gastByZona = {};
+        src.forEach(r => {
+            if (norm(r['MOVIMIENTO']) !== 'GASTO') return;
+            const zona = String(r['ZONA'] || '').trim().toUpperCase();
+            if (!zona) return;
+            gastByZona[zona] = (gastByZona[zona] || 0) + parseGal(r['GALONES']);
+        });
+
+        const zonas = [...new Set([...Object.keys(dispByZona), ...Object.keys(gastByZona)])].sort();
+        if (zonas.length === 0) { gal.style.display = 'none'; return; }
+
+        gal.style.display = 'flex';
+
+        // Totales generales: galones registrados (INGRESO), gastados y disponibles.
+        let totalIngresado = 0, totalGastado = 0;
+        Object.keys(dispByZona).forEach(z => totalIngresado += (dispByZona[z] || 0));
+        Object.keys(gastByZona).forEach(z => totalGastado += (gastByZona[z] || 0));
+        const totalDisponible = totalIngresado - totalGastado;
+
+        const kpiCard = (icon, color, title, val, sub) =>
+            `<div class="kpi-card" style="min-width:170px;">` +
+                `<div class="kpi-card-title"><i class="fa-solid ${icon}" style="color:${color};"></i> ${esc(title)}</div>` +
+                `<div class="kpi-card-val"><span style="color:${color};">${val}</span></div>` +
+                `${sub ? `<div style="font-size:11px;color:var(--ios-gray-1);font-weight:600;margin-top:2px;">${sub}</div>` : ''}` +
+            `</div>`;
+
+        let html = '';
+        html += kpiCard('fa-gas-pump', '#5856D6', 'TOTAL GALONES', totalIngresado.toFixed(1), 'Registrados');
+        html += kpiCard('fa-fire', '#FF3B30', 'TOTAL GASTADO', totalGastado.toFixed(1), '');
+        html += kpiCard('fa-circle-check', '#34C759', 'DISPONIBLE', totalDisponible.toFixed(1), 'Por zona');
+        html += zonas.map(z => {
+            const active = (globalFilters['ZONA'] || '').toString() === String(z) ||
+                (Array.isArray(globalFilters['ZONA']) && globalFilters['ZONA'].includes(z));
+            return `<div class="kpi-card" style="min-width:180px;cursor:pointer;${active ? 'border-color:#007AFF;box-shadow:0 0 0 2px rgba(0,122,255,0.25);' : ''}" onclick="toggleCombZona('${esc(z)}')" title="Filtrar por ${esc(z)}">` +
+                `<div class="kpi-card-title"><i class="fa-solid fa-location-dot"></i> ${esc(z)}</div>` +
+                `<div class="kpi-card-val"><span style="color:#34C759;">${(dispByZona[z] || 0).toFixed(1)}</span></div>` +
+                `<div style="font-size:11px;color:var(--ios-gray-1);font-weight:600;margin-top:2px;"><i class="fa-solid fa-fire" style="color:#FF3B30;"></i> Gastados: <b style="color:#FF3B30;">${(gastByZona[z] || 0).toFixed(1)}</b></div>` +
+            `</div>`;
+        }).join('');
+        gal.innerHTML = html;
+    }
+
+    // Filtra las gráficas/tarjetas por ZONA al hacer click en una tarjeta de Combustible.
+    function toggleCombZona(zona) {
+        const v = String(zona);
+        const cur = globalFilters['ZONA'];
+        if (String(cur) === v || (Array.isArray(cur) && cur.length === 1 && cur[0] === v)) delete globalFilters['ZONA'];
+        else globalFilters['ZONA'] = [v];
+        syncDashboard();
     }
 
     function renderGallery() {
