@@ -335,6 +335,77 @@ def apply_data_restrictions(data_list, res_obj):
     return filtered
 
 
+def _parse_galones(n):
+    """Convierte un valor de galones a float (acepta coma o punto)."""
+    try:
+        return float(str(n or '').replace(',', '.').strip())
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _flm_wo_list():
+    """Lista de WOs (CM) declarados en el proyecto FLM, para el buscador de Combustible."""
+    try:
+        flm_proy = Proyecto.query.filter_by(nombre='FLM').first()
+        if not flm_proy:
+            return []
+        wo_set = set()
+        wo_key = None
+        for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).limit(5).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            for k in d.keys():
+                if 'WO' in k.upper() and 'NUMBER' in k.upper() or 'Número de WO' in k or 'Numero de WO' in k:
+                    wo_key = k
+                    break
+            if wo_key:
+                break
+        if wo_key:
+            for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                wo = str(d.get(wo_key, '')).strip()
+                if wo:
+                    wo_set.add(wo)
+        else:
+            for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                for k, v in d.items():
+                    if 'WO' in str(k).upper():
+                        w = str(v).strip()
+                        if w:
+                            wo_set.add(w)
+        return sorted(wo_set)
+    except Exception:
+        return []
+
+
+def _combustible_saldo(pid, generador):
+    """Saldo disponible (INGRESOS - GASTOS) actual de un generador en Combustible."""
+    try:
+        bal = 0.0
+        for r in NucleusData.query.filter_by(proyecto_id=pid).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if str(d.get('QR ASIGNADO', '')).strip() != generador:
+                continue
+            mov = str(d.get('MOVIMIENTO', '')).strip().upper()
+            g = _parse_galones(d.get('GALONES'))
+            bal = bal + g if mov != 'GASTO' else bal - g
+        return bal
+    except Exception:
+        return 0.0
+
+
 # --- DB INIT & MIGRATION ---
 with app.app_context():
     is_sqlite = db.engine.dialect.name == 'sqlite'
@@ -447,7 +518,8 @@ with app.app_context():
 
     # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
-             ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)')]
+             ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
+             ('Combustible', 'Consumo de Combustible (solo FLM)')]
     for nombre, desc in fixed:
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
@@ -532,6 +604,103 @@ with app.app_context():
         schema_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first()
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: Configure Generadores columns (SERIE DE EQUIPO, TIPO, TECNICO ASIGNADO, ZONA, QR ASIGNADO)
+    gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
+    if gen_proy:
+        gen_proy.icono = 'fa-bolt'
+        gen_cols = [
+            {'nombre': 'QR ASIGNADO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SERIE DE EQUIPO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL']},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
+            {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(gen_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=gen_proy.id, clave='manual_columns', valor=json.dumps(gen_cols, ensure_ascii=False)))
+
+        # QR ASIGNADO es la llave del negocio (el usuario la llena). La llave interna
+        # pasa a ser auto-generada para permitir QR vacíos mientras se van asignando.
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            db.session.delete(pk_cfg)
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=gen_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: Seed Generadores con los equipos declarados (SERIE DE EQUIPO).
+    # Solo inserta las series que aún no existan (idempotente).
+    gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
+    if gen_proy:
+        series = ['06-0002-3145', '06-002-3141', '06-0002-3196', '06-0002-3184',
+                  '06-0002-3140', '06-0002-3132', '06-0002-3108', '06-0002-3207',
+                  '06-0002-3139', '06-0002-3123', '06-0002-3115', '06-0002-3117',
+                  '06-0002-3226', '06-0002-3210', '06-0002-3182', '06-0002-3174',
+                  '06-0002-3154', '06-0002-3126', '06-0002-3106', '06-0002-3102',
+                  '06-0002-3118', '06-0002-3213', '06-0002-3193', '06-0002-3129',
+                  '06-0002-3179', '06-0002-3114']
+        existing_keys = {r.key_value for r in NucleusData.query.filter_by(proyecto_id=gen_proy.id).all()}
+        for s in series:
+            if s not in existing_keys:
+                db.session.add(NucleusData(proyecto_id=gen_proy.id, key_value=s,
+                                           data_json=json.dumps({'SERIE DE EQUIPO': s}, ensure_ascii=False)))
+        # Asegurar que los registros existentes tengan los nuevos campos (QR ASIGNADO vacío
+        # para que el usuario lo llene, ZONA y TECNICO ASIGNADO inicialmente vacíos).
+        for r in NucleusData.query.filter_by(proyecto_id=gen_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            changed = False
+            if 'QR ASIGNADO' not in d:
+                d['QR ASIGNADO'] = ''
+                changed = True
+            if 'ZONA' not in d:
+                d['ZONA'] = ''
+                changed = True
+            if 'TECNICO ASIGNADO' not in d:
+                d['TECNICO ASIGNADO'] = ''
+                changed = True
+            if changed:
+                r.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
+
+    # Migration: Configure Combustible columns (QR ASIGNADO, TIPO, TECNICO ASIGNADO)
+    comb_proy = Proyecto.query.filter_by(nombre='Combustible').first()
+    if comb_proy:
+        comb_proy.icono = 'fa-gas-pump'
+        comb_cols = [
+            {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
+            {'nombre': 'QR ASIGNADO', 'tipo': 'lista', 'opciones': []},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL']},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
+            {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOVIMIENTO', 'tipo': 'lista', 'opciones': ['INGRESO', 'GASTO']},
+            {'nombre': 'NUMERO FACTURA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'GALONES', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FOTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'WO NUMBER', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(comb_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='manual_columns', valor=json.dumps(comb_cols, ensure_ascii=False)))
+
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            db.session.delete(pk_cfg)
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='app_schema', valor=json.dumps([])))
         db.session.commit()
 
     # Migration: "Fault Level" es dato de origen (inmutable) -> no debe ser columna manual editable.
@@ -745,6 +914,12 @@ def get_menu_proyectos(user_id, user_rol):
         site = Proyecto.query.filter_by(nombre='Site Name').first()
         if site and site.id not in {e.id for e in proyectos}:
             proyectos = proyectos + [site]
+        gen = Proyecto.query.filter_by(nombre='Generadores').first()
+        if gen and gen.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [gen]
+        comb = Proyecto.query.filter_by(nombre='Combustible').first()
+        if comb and comb.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [comb]
     return proyectos
 
 @app.route('/logout')
@@ -773,6 +948,26 @@ def switch_project(pid):
                 if not allowed:
                     return redirect(url_for('index'))
             elif proy and proy.nombre == 'Site Name':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Generadores':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Combustible':
                 accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
                 allowed = False
                 for a in accs:
@@ -849,6 +1044,28 @@ def index():
                 if not allowed:
                     session.clear()
                     return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Generadores':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Combustible':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
             else:
                 session.clear()
                 return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
@@ -865,7 +1082,67 @@ def index():
     manual_cols_data = json.loads(manual_cfg.valor) if manual_cfg else []
     for mc in manual_cols_data:
         columns_set.add(mc['nombre'])
-        
+
+    # Generadores: el campo TECNICO ASIGNADO se llena dinámicamente con los técnicos
+    # activos de Dataper con PROYECTO=FLM (catálogo declarado por el admin).
+    # Combustible: QR ASIGNADO lista los QR declarados en Generadores, TIPO se
+    # autocompleta desde el mapa generador->TIPO, TECNICO ASIGNADO lista los técnicos FLM.
+    proy_actual = db.session.get(Proyecto, pid)
+    proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    if proy_actual_nombre in ('Generadores', 'Combustible'):
+        dataper_proy = Proyecto.query.filter_by(nombre='Dataper').first()
+        tecnicos_set = set()
+        if dataper_proy:
+            for r in NucleusData.query.filter_by(proyecto_id=dataper_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                est = str(d.get('ESTADO', '')).strip().upper()
+                if est and est != 'ACTIVO':
+                    continue
+                pr = str(d.get('PROYECTO', '')).strip()
+                if pr and pr != 'FLM':
+                    continue
+                t = str(d.get('TECNICO', '')).strip()
+                if t:
+                    tecnicos_set.add(t)
+        tecnicos_list = sorted(tecnicos_set)
+        for mc in manual_cols_data:
+            if mc.get('nombre') == 'TECNICO ASIGNADO':
+                mc['opciones'] = tecnicos_list
+
+    gen_tipo_map = {}
+    gen_tecnico_map = {}
+    gen_zona_map = {}
+    wo_list = []
+    if proy_actual_nombre == 'Combustible':
+        gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
+        series_list = []
+        if gen_proy:
+            for r in NucleusData.query.filter_by(proyecto_id=gen_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                serie = str(d.get('QR ASIGNADO', '')).strip()
+                if not serie:
+                    continue
+                series_list.append(serie)
+                gen_tipo_map[serie] = str(d.get('TIPO', '')).strip()
+                gen_tecnico_map[serie] = str(d.get('TECNICO ASIGNADO', '')).strip()
+                gen_zona_map[serie] = str(d.get('ZONA', '')).strip()
+        series_list = sorted(set(series_list))
+        for mc in manual_cols_data:
+            if mc.get('nombre') == 'QR ASIGNADO':
+                mc['opciones'] = series_list
+
+        # WOs del proyecto FLM para el buscador del campo WO NUMBER
+        wo_list = _flm_wo_list()
+        for mc in manual_cols_data:
+            if mc.get('nombre') == 'WO NUMBER':
+                mc['opciones'] = wo_list
+    
     # Add KPI columns to the set so frontend can see them
     kpi_configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
     for k in kpi_configs:
@@ -885,8 +1162,6 @@ def index():
 
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
     # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
-    proy_actual = db.session.get(Proyecto, pid)
-    proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
     if proy_actual_nombre in ('Dataper', 'Material'):
         if is_privileged:
             allowed_proy = {'FLM', 'PEXT'}
@@ -928,7 +1203,32 @@ def index():
             columns_set |= {'DIRECCION', 'LATITUD', 'LONGITUD'}
 
     data = apply_data_restrictions(raw_data, res_obj)
-        
+
+    # Combustible: saldo disponible por generador (INGRESOS - GASTOS acumulados)
+    # y columna SALDO DISPONIBLE para saber cuántos galones quedan por generador.
+    gen_saldo_map = {}
+    if proy_actual_nombre == 'Combustible':
+        try:
+            def _parse_gal(n):
+                try:
+                    return float(str(n or '').replace(',', '.').strip())
+                except (ValueError, TypeError):
+                    return 0.0
+            ordered = sorted(data, key=lambda d: (str(d.get('FECHA', '') or ''), str(d.get('_key', '') or '')))
+            balance = {}
+            for d in ordered:
+                gen = str(d.get('QR ASIGNADO', '')).strip()
+                mov = str(d.get('MOVIMIENTO', '')).strip().upper()
+                g = _parse_gal(d.get('GALONES'))
+                bal = balance.get(gen, 0.0)
+                bal = bal + g if mov != 'GASTO' else bal - g
+                balance[gen] = bal
+                d['SALDO DISPONIBLE'] = round(bal, 2)
+            gen_saldo_map = balance
+            columns_set.add('SALDO DISPONIBLE')
+        except Exception:
+            pass
+
     data, kpi_meta = inject_kpis(pid, data)
 
     config_key = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
@@ -967,6 +1267,11 @@ def index():
                           column_layout=json.dumps(column_layout),
                           kpi_meta=json.dumps(kpi_meta),
                           changed_keys=json.dumps(changed_keys),
+                          gen_tipo_map=json.dumps(gen_tipo_map),
+                          gen_tecnico_map=json.dumps(gen_tecnico_map),
+                          gen_zona_map=json.dumps(gen_zona_map),
+                          gen_saldo_map=json.dumps(gen_saldo_map),
+                          wo_list=json.dumps(wo_list),
                           proyecto_id=pid,
                           proyectos_list=proyectos)
 
@@ -987,7 +1292,7 @@ def dashboard():
         acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
         if not acc:
             proy_check = db.session.get(Proyecto, pid)
-            if proy_check and proy_check.nombre in ('Dataper', 'Material'):
+            if proy_check and proy_check.nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible'):
                 accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
                 allowed = False
                 for a in accs:
@@ -2402,6 +2707,42 @@ def api_rows_update():
         if not record: return jsonify({'error': 'Record not found'}), 404
         row_dict = json.loads(record.data_json)
         
+        # Combustible: el gestor solo puede completar información pendiente (campos
+        # vacíos); los campos ya registrados solo los edita el admin.
+        proy_obj = db.session.get(Proyecto, pid)
+        proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
+        if proy_nombre == 'Combustible':
+            valor_actual = str(row_dict.get(field, '') or '').strip()
+            if session.get('rol') != 'admin' and valor_actual:
+                return jsonify({'error': f'El campo {field} ya está registrado. Solo el administrador puede editarlo.'}), 403
+            if field == 'GESTOR':
+                return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró el movimiento.'}), 400
+            if field == 'WO NUMBER' and str(value or '').strip():
+                # Solo CMs del universo FLM; vacío = CM PENDIENTE.
+                wo = str(value).strip()
+                if wo not in _flm_wo_list():
+                    return jsonify({'error': 'El WO ingresado no pertenece al universo de FLM. Deja el campo vacío para CM PENDIENTE o selecciona un CM válido.'}), 400
+            if field in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO'):
+                new_gen = str(value if field == 'QR ASIGNADO' else row_dict.get('QR ASIGNADO', '')).strip()
+                new_mov = str(value if field == 'MOVIMIENTO' else row_dict.get('MOVIMIENTO', '')).strip().upper()
+                new_gal = _parse_galones(value if field == 'GALONES' else row_dict.get('GALONES'))
+                # Calcular saldo excluyendo ESTE registro (para simular el cambio)
+                temp_bal = 0.0
+                for r in NucleusData.query.filter_by(proyecto_id=pid).all():
+                    if r.id == record.id:
+                        continue
+                    try:
+                        rd = json.loads(r.data_json)
+                    except Exception:
+                        continue
+                    if str(rd.get('QR ASIGNADO', '')).strip() != new_gen:
+                        continue
+                    rm = str(rd.get('MOVIMIENTO', '')).strip().upper()
+                    g = _parse_galones(rd.get('GALONES'))
+                    temp_bal = temp_bal + g if rm != 'GASTO' else temp_bal - g
+                if new_mov == 'GASTO' and new_gal > temp_bal + 1e-9:
+                    return jsonify({'error': f'Saldo insuficiente. Disponible: {temp_bal:g} galones. Se intentó gastar: {new_gal:g}.'}), 400
+        
         # Guardar en el historial de cambios (solo si el valor realmente cambió)
         valor_anterior = row_dict.get(field, '')
         if str(valor_anterior) != str(value):
@@ -2501,6 +2842,30 @@ def api_rows_add():
         row_data = data.get('data') or {}
         if not isinstance(row_data, dict):
             row_data = {}
+
+        # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
+        proy_obj = db.session.get(Proyecto, pid)
+        proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
+        if proy_nombre == 'Combustible':
+            row_data['GESTOR'] = session.get('username', '')
+            mov = str(row_data.get('MOVIMIENTO', '')).strip().upper()
+            gen = str(row_data.get('QR ASIGNADO', '')).strip()
+            gal = row_data.get('GALONES')
+            wo = str(row_data.get('WO NUMBER', '')).strip()
+            if wo and wo not in _flm_wo_list():
+                return jsonify({'error': 'El WO ingresado no pertenece al universo de FLM. Deja el campo vacío para CM PENDIENTE o selecciona un CM válido.'}), 400
+            if mov == 'GASTO':
+                try:
+                    gal_n = float(str(gal or '').replace(',', '.').strip())
+                except (ValueError, TypeError):
+                    return jsonify({'error': 'Ingrese la cantidad de GALONES.'}), 400
+                if not gen:
+                    return jsonify({'error': 'Seleccione el QR ASIGNADO.'}), 400
+                # saldo actual del generador (sin incluir este nuevo gasto)
+                saldo = _combustible_saldo(pid, gen)
+                if gal_n > saldo + 1e-9:
+                    return jsonify({'error': f'Saldo insuficiente. Disponible: {saldo:g} galones. Se intentó gastar: {gal_n:g}.'}), 400
+
         new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=json.dumps(row_data))
         db.session.add(new_record)
         db.session.commit()
@@ -2514,8 +2879,17 @@ def api_rows_add():
 @login_required
 def api_rows_delete():
     pid = session.get('current_proyecto_id')
-    if session.get('rol') in ['demo', 'gestor']:
+    # Los gestores pueden eliminar solo en proyectos manuales (Dataper, Material,
+    # Site Name, Generadores), nunca en WOs (FLM/PEXT).
+    proy_obj = db.session.get(Proyecto, pid) if pid else None
+    proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
+    manual = proy_nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible')
+    if session.get('rol') == 'demo':
         return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
+    if session.get('rol') == 'gestor' and not manual:
+        return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
+    if proy_nombre == 'Combustible' and session.get('rol') != 'admin':
+        return jsonify({'error': 'No tienes permisos para eliminar movimientos de Combustible. Solo el administrador puede eliminar lo registrado.'}), 403
     try:
         data = request.json
         keys = data.get('keys', [])
@@ -2531,6 +2905,32 @@ def api_rows_delete():
         return jsonify({'error': str(e)}), 500
 
 # --- WO DETAIL (Modal de detalle del registro) ---
+@app.route('/api/combustible/por_wo', methods=['GET'])
+@login_required
+def api_combustible_por_wo():
+    """Movimientos de Combustible (INGRESO/GASTO) asociados al WO (campo WO NUMBER)."""
+    wo = request.args.get('wo', '').strip()
+    if not wo:
+        return jsonify({'movimientos': []})
+    try:
+        comb_proy = Proyecto.query.filter_by(nombre='Combustible').first()
+        if not comb_proy:
+            return jsonify({'movimientos': []})
+        rows = []
+        for r in NucleusData.query.filter_by(proyecto_id=comb_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if str(d.get('WO NUMBER', '')).strip() != wo:
+                continue
+            d['_key'] = r.key_value
+            rows.append(d)
+        rows.sort(key=lambda d: (str(d.get('FECHA', '') or ''), str(d.get('_key', '') or '')))
+        return jsonify({'movimientos': rows})
+    except Exception:
+        return jsonify({'movimientos': []})
+
 @app.route('/api/wo/meta', methods=['GET'])
 @login_required
 def api_wo_meta():
@@ -2865,7 +3265,7 @@ def api_evidencia_subir():
     except (TypeError, ValueError):
         return jsonify({'error': 'Índice inválido'}), 400
     file = request.files.get('foto')
-    if not key or tipo not in EVIDENCIA_TIPOS:
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb',):
         return jsonify({'error': 'Datos incompletos'}), 400
     if indice < 0 or indice >= EVIDENCIA_MAX_POR_TIPO:
         return jsonify({'error': 'Índice fuera de rango'}), 400

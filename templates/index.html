@@ -51,7 +51,7 @@
     </button>
 
     {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
-    {% if proy_nombre in ['dataper', 'material', 'site name'] %}
+    {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible'] %}
     <!-- Botón Añadir Registro (Azul) -->
     <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
         <i class="fa-solid fa-plus"></i> Añadir
@@ -530,6 +530,36 @@
     </div>
 </div>
 
+<!-- Modal Detalle Combustible/Generadores -->
+<div id="modal-comb-detalle" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarCombDetalle();">
+    <div class="mar-modal wo-modal">
+        <div class="mar-header wo-header">
+            <div>
+                <h3><i class="fa-solid fa-qrcode"></i> Detalle del Registro</h3>
+                <p>Completa la información pendiente del movimiento.</p>
+            </div>
+            <button onclick="cerrarCombDetalle()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="wo-body">
+            <div class="wo-section">
+                <div class="wo-section-title"><i class="fa-solid fa-id-card"></i> <span id="comb-detalle-titulo">Registro</span></div>
+                <div id="comb-detalle-grid" class="wo-form"><div class="wo-empty">Cargando...</div></div>
+            </div>
+            <div class="wo-section" id="comb-detalle-foto-sec" style="display:none;">
+                <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Foto del movimiento</div>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                    <img id="comb-detalle-foto" src="" alt="Foto" style="max-width:180px; max-height:180px; border-radius:12px; border:1px solid var(--excel-border); cursor:zoom-in; object-fit:cover;" onclick="abrirEvidenciaFoto(this.src);">
+                    <button type="button" id="comb-detalle-foto-btn" style="display:none;" class="mar-btn-ghost" onclick="combDetalleSubirFoto()"><i class="fa-solid fa-camera"></i> Subir/Cambiar foto</button>
+                </div>
+            </div>
+        </div>
+        <div class="mar-footer">
+            <button onclick="cerrarCombDetalle()" class="mar-btn-ghost">Cerrar</button>
+            <button id="comb-detalle-guardar" onclick="guardarCombDetalle()" class="mar-btn-primary" style="display:none;"><i class="fa-solid fa-check"></i> Guardar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Detalle WO -->
 <div id="modal-wo" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarWoModal();">
     <div class="mar-modal wo-modal">
@@ -537,7 +567,7 @@
             <div class="wo-head-left">
                 <div class="wo-tabs" style="margin-bottom:0;">
                     <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i class="fa-solid fa-list-ul"></i> Detalle</button>
-                    <button type="button" class="wo-tab" id="wo-tab-material" onclick="cambiarWoTab('material')"><i class="fa-solid fa-toolbox"></i> Material</button>
+                    <button type="button" class="wo-tab" id="wo-tab-gastos" onclick="cambiarWoTab('gastos')"><i class="fa-solid fa-gas-pump"></i> Gastos</button>
                     <button type="button" class="wo-tab" id="wo-tab-cotizacion" onclick="cambiarWoTab('cotizacion')"><i class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i class="fa-solid fa-camera"></i> Evidencia</button>
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i class="fa-solid fa-arrows-spin"></i> Estado</button>
@@ -633,16 +663,10 @@
                 </div>
             </div>
             </div>
-            <div id="wo-panel-material" style="display:none;">
+            <div id="wo-panel-gastos" style="display:none;">
                 <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-toolbox"></i> Materiales usados en la obra</div>
-                    <div id="wo-material-list"><div class="wo-empty">Cargando...</div></div>
-                    <button type="button" id="btn-wo-agregar-material" class="mar-btn-ghost" onclick="agregarFilaMaterial()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar material</button>
-                </div>
-                <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-gas-pump"></i> Gasolina</div>
-                    <div id="wo-gasolina-list"><div class="wo-empty">Sin registros de gasolina.</div></div>
-                    <button type="button" id="btn-wo-agregar-gasolina" class="mar-btn-ghost" onclick="agregarFilaGasolina()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar gasolina</button>
+                    <div class="wo-section-title"><i class="fa-solid fa-gas-pump"></i> Movimientos de Combustible asociados al WO</div>
+                    <div id="wo-gastos-comb-list"><div class="wo-empty">Cargando...</div></div>
                 </div>
             </div>
             <div id="wo-panel-cotizacion" style="display:none;">
@@ -838,10 +862,17 @@
     const columnLayout = {{ column_layout | safe }} || [];
     const hasServerLayout = Array.isArray(columnLayout) && columnLayout.length > 0;
     const kpiMeta = {{ kpi_meta | safe }};
+    const genTipoMap = {{ gen_tipo_map | safe }};
+    const genTecnicoMap = {{ gen_tecnico_map | safe }};
+    const genZonaMap = {{ gen_zona_map | safe }};
+    const genSaldoMap = {{ gen_saldo_map | safe }};
+    const woList = {{ wo_list | safe }};
     const changedKeys = new Set({{ changed_keys | safe }});
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
+    const USER_ROLE = "{{ session.get('rol') }}";
+    const USER_IS_ADMIN = USER_ROLE === "admin";
     const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
-    const MANUAL_PROJECT = ['dataper', 'material', 'site name'].includes(currentProjectNombre.trim().toLowerCase());
+    const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
@@ -1263,7 +1294,7 @@
     };
 
     // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
-    const noSla = ['dataper', 'material', 'site name'];
+    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible'];
     if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
@@ -1595,6 +1626,11 @@
             colDef.frozen = true;
             colDef.title = "<i class='fa-solid fa-key' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> {{ pk }}";
             colDef.cssClass = "key-column";
+            // Combustible y Generadores: la llave visible es QR ASIGNADO; el ID interno (NO_DEF) se oculta.
+            if (['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase())) {
+                colDef.visible = false;
+                colDef.headerFilter = false;
+            }
             colDef.formatter = function(cell) {
                 const v = cell.getValue();
                 if (v === null || v === undefined || String(v).trim() === '') return '';
@@ -1703,26 +1739,56 @@
         if (isManual) {
             colDef.title = "<i class='fa-solid fa-pen-to-square' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> " + fieldName;
             const isDemo = "{{ session.get('rol') }}" === "demo";
+            const isAdminUser = "{{ session.get('rol') }}" === "admin";
+            const isCombustible = currentProjectNombre.trim().toLowerCase() === 'combustible';
 
-            if (!isDemo) {
+            // Combustible: solo el admin puede editar lo ya registrado; los gestores solo crean.
+            const canEditCombustible = !isCombustible || isAdminUser;
+            if (!isDemo && canEditCombustible) {
                 if (manualDef.tipo === 'texto') {
-                    colDef.editor = "input";
+                    if (isCombustible && fieldName === 'WO NUMBER') {
+                        // Buscador de WOs (más de 1000): autocomplete filtra al escribir.
+                        // Solo acepta CMs del universo FLM; vacío = CM PENDIENTE.
+                        colDef.editor = "list";
+                        colDef.editorParams = {
+                            values: woList,
+                            clearable: true,
+                            autocomplete: true,
+                            listOnEmpty: false,
+                            freetext: false
+                        };
+                    } else {
+                        colDef.editor = "input";
+                    }
                 } else if (manualDef.tipo === 'lista') {
-                    colDef.editor = "list";
-                    colDef.editorParams = { 
-                        values: manualDef.opciones, 
-                        clearable: true,
-                        autocomplete: true,
-                        listOnEmpty: true,
-                        freetext: false
-                    };
-                    colDef.headerFilter = "list";
-                    colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
+                    if (isCombustible && (fieldName === 'TIPO' || fieldName === 'TECNICO ASIGNADO')) {
+                        // TIPO / TECNICO ASIGNADO se llenan automáticamente según el QR ASIGNADO: no editable
+                        colDef.editor = false;
+                    } else {
+                        colDef.editor = "list";
+                        colDef.editorParams = { 
+                            values: manualDef.opciones, 
+                            clearable: true,
+                            autocomplete: true,
+                            listOnEmpty: true,
+                            freetext: false
+                        };
+                        colDef.headerFilter = "list";
+                        colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
+                    }
                 } else if (manualDef.tipo === 'fecha') {
                     colDef.formatter = "datetime";
                     colDef.formatterParams = { inputFormat: "yyyy-MM-dd", outputFormat: "dd/MM/yyyy", invalidPlaceholder: "" };
                     colDef.editor = "input";
                     colDef.editorParams = { mask: "99/99/9999", maskAutoFill: true };
+                }
+                if (isCombustible && fieldName === 'GESTOR') {
+                    // Quién registró: no editable
+                    colDef.editor = false;
+                }
+                if (isCombustible && fieldName === 'ZONA') {
+                    // ZONA se llena automáticamente según el QR ASIGNADO: no editable
+                    colDef.editor = false;
                 }
             } else {
                 // Formatting for demo without editor
@@ -1730,6 +1796,69 @@
                     colDef.formatter = "datetime";
                     colDef.formatterParams = { inputFormat: "yyyy-MM-dd", outputFormat: "dd/MM/yyyy", invalidPlaceholder: "" };
                 }
+            }
+        }
+
+        // Combustible: formateadores especiales
+        if (['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase())) {
+            if (fieldName === 'QR ASIGNADO') {
+                colDef.editor = false;
+                colDef.formatter = function(cell) {
+                    const v = cell.getValue();
+                    if (!String(v || '').trim()) return v;
+                    return `<span style="color:#007AFF; font-weight:600; text-decoration:underline; cursor:pointer;" title="Ver/editar registro">${escapeHtml(v)}</span>`;
+                };
+            }
+            if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'SALDO DISPONIBLE') {
+                colDef.editor = false;
+                colDef.hozAlign = "center";
+                colDef.formatter = function(cell) {
+                    const v = cell.getValue();
+                    const n = parseFloat(v);
+                    if (isNaN(n)) return '';
+                    const color = n < 0 ? '#FF3B30' : (n === 0 ? '#8E8E93' : '#34C759');
+                    return `<div style="font-weight:700; color:${color}; text-align:center;">${n}</div>`;
+                };
+            }
+            if (fieldName === 'MOVIMIENTO') {
+                colDef.formatter = function(cell) {
+                    const v = String(cell.getValue() || '').trim().toUpperCase();
+                    if (v === 'INGRESO') {
+                        return `<span style="display:inline-block; font-weight:700; color:#007AFF; background:rgba(0,122,255,0.10); border:1px solid rgba(0,122,255,0.35); border-radius:999px; padding:3px 10px; font-size:11px;">INGRESO</span>`;
+                    }
+                    if (v === 'GASTO') {
+                        return `<span style="display:inline-block; font-weight:700; color:#FF3B30; background:rgba(255,59,48,0.10); border:1px solid rgba(255,59,48,0.35); border-radius:999px; padding:3px 10px; font-size:11px;">GASTO</span>`;
+                    }
+                    return v;
+                };
+            }
+            if (fieldName === 'WO NUMBER') {
+                colDef.formatter = function(cell) {
+                    const v = cell.getValue();
+                    if (!String(v || '').trim()) {
+                        return `<span class="badge badge-pendiente">CM PENDIENTE</span>`;
+                    }
+                    return v;
+                };
+            }
+            if (fieldName === 'FOTO') {
+                colDef.editor = false;
+                colDef.hozAlign = "center";
+                colDef.formatter = function(cell) {
+                    const url = String(cell.getValue() || '').trim();
+                    const rowKey = escapeHtml(String(cell.getRow().getData()._key || ''));
+                    const estado = url
+                        ? `<span style="color:#007AFF; font-weight:600; cursor:pointer; text-decoration:underline;">Foto Cargada</span>`
+                        : `<span style="color:var(--ios-gray-2); font-size:11px;">Sin foto</span>`;
+                    const camBtn = USER_IS_ADMIN
+                        ? `<button type="button" title="Subir/cambiar foto" style="border:none;background:rgba(0,122,255,0.10);color:#007AFF;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); combSubirFoto('${rowKey}', this)"><i class="fa-solid fa-camera"></i></button>`
+                        : '';
+                    return `<div style="display:inline-flex; align-items:center; gap:6px;">${estado}${camBtn}</div>`;
+                };
+                colDef.cellClick = function(e, cell) {
+                    const url = String(cell.getValue() || '').trim();
+                    if (url) abrirEvidenciaFoto(url);
+                };
             }
         }
 
@@ -2109,13 +2238,18 @@
         selectable: isAdmin, // Solo admin puede seleccionar (desde el checkbox)
         selectableRangeMode: false, // Sin seleccion por clic en la fila
         rowFormatter: function(row) {
+            const d = row.getData();
+            const el = row.getElement();
             // PEXT: atenuar filas marcadas como no atendido / Cancelado O&M.
             if (IS_PEXT) {
-                const d = row.getData();
                 const cancelado = String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
                                   String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
-                const el = row.getElement();
                 if (el) el.classList.toggle('row-no-atendido', cancelado);
+            }
+            // Combustible: sin WO → CM PENDIENTE (destacar en rojo para completar luego)
+            if (currentProjectNombre.trim().toLowerCase() === 'combustible') {
+                const wo = String(d['WO NUMBER'] || '').trim();
+                if (el) el.classList.toggle('row-cm-pendiente', !wo);
             }
         },
         clipboard: true, // Allow copy-paste
@@ -2333,6 +2467,28 @@ table.on("dataFiltered", function (filters, rows) {
         const key = cell.getRow().getData()._key;
         let val = cell.getValue();
 
+        // Combustible: si se edita QR ASIGNADO, autocompletar TIPO, TECNICO ASIGNADO y ZONA en la misma fila
+        if (field === 'QR ASIGNADO' && currentProjectNombre.trim().toLowerCase() === 'combustible') {
+            const t = genTipoMap && genTipoMap[val];
+            const tec = genTecnicoMap && genTecnicoMap[val];
+            const zona = genZonaMap && genZonaMap[val];
+            const row = cell.getRow();
+            if (t) row.getCell('TIPO').setValue(t);
+            if (tec) row.getCell('TECNICO ASIGNADO').setValue(tec);
+            if (zona) row.getCell('ZONA').setValue(zona);
+            ['TIPO', 'TECNICO ASIGNADO', 'ZONA'].forEach(autoField => {
+                const autoVal = { 'TIPO': t, 'TECNICO ASIGNADO': tec, 'ZONA': zona }[autoField];
+                const manualCol = manualColsConfig.find(mc => mc.nombre === autoField);
+                if (manualCol && autoVal) {
+                    fetch('/api/rows/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: key, field: autoField, value: autoVal })
+                    }).then(r => r.json()).catch(() => {});
+                }
+            });
+        }
+
         // If it's a date and format is DD/MM/YYYY, convert to YYYY-MM-DD for the database
         if (manualDef.tipo === 'fecha' && val && val.includes('/')) {
             const parts = val.split('/');
@@ -2425,6 +2581,16 @@ table.on("dataFiltered", function (filters, rows) {
         const body = document.getElementById('mar-fields');
         body.innerHTML = '';
 
+        // Combustible: modal personalizado (MOVIMIENTO, TIPO auto según la QR ASIGNADO,
+        // WO buscador, GESTOR automático). Se construye antes del flujo genérico.
+        if (currentProjectNombre.trim().toLowerCase() === 'combustible') {
+            aniadirRegistroCombustible(body);
+            document.getElementById('modal-add-registro').style.display = 'flex';
+            const first = body.querySelector('input, select');
+            if (first) setTimeout(() => first.focus(), 60);
+            return;
+        }
+
         // Solo columnas mostradas (visibles), sin columnas calculadas (KPI_)
         const cols = table.getColumns().filter(c => {
             const f = c.getDefinition().field;
@@ -2489,9 +2655,229 @@ table.on("dataFiltered", function (filters, rows) {
             body.appendChild(wrap);
         });
 
+        // Combustible: modal personalizado (MOVIMIENTO, TIPO auto según la QR ASIGNADO, WO buscador)
         document.getElementById('modal-add-registro').style.display = 'flex';
         const first = body.querySelector('input, select');
         if (first) setTimeout(() => first.focus(), 60);
+    }
+
+    function aniadirRegistroCombustible(body) {
+        const mcc = {};
+        manualColsConfig.forEach(mc => mcc[mc.nombre] = mc);
+
+        function mkField(nombre, el, dataField, extra) {
+            const wrap = document.createElement('div');
+            wrap.className = 'mar-field';
+            if (extra && extra.movGroup) wrap.dataset.movGroup = extra.movGroup;
+            const label = document.createElement('label');
+            label.textContent = nombre;
+            wrap.appendChild(label);
+            el.dataset.field = dataField;
+            el.dataset.pk = '0';
+            if (extra && extra.readonly) el.readOnly = true;
+            wrap.appendChild(el);
+            body.appendChild(wrap);
+            return wrap;
+        }
+
+        // MOVIMIENTO
+        const selMov = document.createElement('select');
+        selMov.value = 'INGRESO';
+        ['INGRESO', 'GASTO'].forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            selMov.appendChild(opt);
+        });
+        const movWrap = mkField('MOVIMIENTO', selMov, 'MOVIMIENTO');
+
+        // FECHA
+        const inpFecha = document.createElement('input');
+        inpFecha.type = 'date';
+        inpFecha.value = new Date().toISOString().slice(0, 10);
+        mkField('FECHA', inpFecha, 'FECHA');
+
+        // QR ASIGNADO
+        const selGen = document.createElement('select');
+        const ph = document.createElement('option');
+        ph.value = ''; ph.textContent = '— Seleccionar —';
+        selGen.appendChild(ph);
+        (mcc['QR ASIGNADO'] && mcc['QR ASIGNADO'].opciones || []).forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            selGen.appendChild(opt);
+        });
+        mkField('QR ASIGNADO', selGen, 'QR ASIGNADO');
+
+        // TIPO (se llena solo según el generador declarado)
+        const selTipo = document.createElement('select');
+        selTipo.disabled = true;
+        selTipo.title = 'Se llena automáticamente según el generador declarado';
+        ['PROPIO', 'ALQUILADO', 'ENTEL'].forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            selTipo.appendChild(opt);
+        });
+        mkField('TIPO', selTipo, 'TIPO');
+
+        // TECNICO ASIGNADO (se llena solo según el QR ASIGNADO)
+        const selTec = document.createElement('input');
+        selTec.type = 'text';
+        selTec.disabled = true;
+        selTec.placeholder = 'Se llena automáticamente';
+        selTec.title = 'Se llena automáticamente según el QR ASIGNADO';
+        mkField('TECNICO ASIGNADO', selTec, 'TECNICO ASIGNADO');
+
+        // ZONA (se llena solo según el QR ASIGNADO)
+        const selZona = document.createElement('input');
+        selZona.type = 'text';
+        selZona.disabled = true;
+        selZona.placeholder = 'Se llena automáticamente';
+        selZona.title = 'Se llena automáticamente según el QR ASIGNADO';
+        mkField('ZONA', selZona, 'ZONA');
+
+        // NUMERO FACTURA (solo INGRESO)
+        const inpFact = document.createElement('input');
+        inpFact.type = 'text';
+        inpFact.placeholder = 'N° de factura o guía';
+        mkField('NUMERO FACTURA', inpFact, 'NUMERO FACTURA', { movGroup: 'INGRESO' });
+
+        // GALONES
+        const inpGal = document.createElement('input');
+        inpGal.type = 'text';
+        inpGal.placeholder = 'Ej: 10 o 7.5';
+        mkField('GALONES', inpGal, 'GALONES');
+
+        // FOTO (ingreso o gasto)
+        const fotoWrap = document.createElement('div');
+        fotoWrap.className = 'mar-field full';
+        const fotoLabel = document.createElement('label');
+        fotoLabel.textContent = 'FOTO';
+        fotoWrap.appendChild(fotoLabel);
+        const fotoRow = document.createElement('div');
+        fotoRow.style.cssText = 'display:flex; align-items:center; gap:10px;';
+        const fotoPreview = document.createElement('img');
+        fotoPreview.style.cssText = 'width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid var(--excel-border);background:var(--excel-bg);display:none;';
+        const fotoBtn = document.createElement('button');
+        fotoBtn.type = 'button';
+        fotoBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Subir foto';
+        fotoBtn.style.cssText = 'border:1px dashed #007AFF; background:rgba(0,122,255,0.06); color:#007AFF; border-radius:10px; padding:9px 14px; font-size:12px; font-weight:600; cursor:pointer;';
+        const fotoInput = document.createElement('input');
+        fotoInput.type = 'file';
+        fotoInput.accept = 'image/*';
+        fotoInput.style.display = 'none';
+        const fotoHidden = document.createElement('input');
+        fotoHidden.type = 'hidden';
+        fotoHidden.dataset.field = 'FOTO';
+        fotoHidden.dataset.pk = '0';
+        fotoHidden.value = '';
+        fotoRow.appendChild(fotoPreview);
+        fotoRow.appendChild(fotoBtn);
+        fotoRow.appendChild(fotoInput);
+        fotoRow.appendChild(fotoHidden);
+        fotoWrap.appendChild(fotoRow);
+        body.appendChild(fotoWrap);
+
+        fotoBtn.addEventListener('click', function (e) { e.preventDefault(); fotoInput.click(); });
+        fotoInput.addEventListener('change', function () {
+            if (!this.files || !this.files[0]) return;
+            const fd = new FormData();
+            fd.append('foto', this.files[0]);
+            fd.append('tipo', 'comb');
+            fd.append('indice', '0');
+            fd.append('key', 'comb-' + Date.now());
+            fotoBtn.disabled = true;
+            fotoBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Subiendo...';
+            fetch('/api/evidencia/subir', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(res => {
+                    fotoBtn.disabled = false;
+                    if (res.success) {
+                        fotoHidden.value = res.url;
+                        fotoPreview.src = res.url;
+                        fotoPreview.style.display = 'block';
+                        fotoBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Cambiar foto';
+                    } else {
+                        fotoBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Subir foto';
+                        alert('Error al subir la foto: ' + (res.error || 'desconocido'));
+                    }
+                })
+                .catch(() => {
+                    fotoBtn.disabled = false;
+                    fotoBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Subir foto';
+                    alert('Error de red al subir la foto.');
+                });
+        });
+
+        // WO NUMBER (INGRESO y GASTO) con buscador
+        const inpWo = document.createElement('input');
+        inpWo.type = 'text';
+        inpWo.placeholder = 'Buscar WO...';
+        inpWo.setAttribute('list', 'wo-datalist');
+        mkField('WO NUMBER', inpWo, 'WO NUMBER');
+
+        // Datalist de WOs (buscador)
+        if (!document.getElementById('wo-datalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'wo-datalist';
+            (woList || []).forEach(wo => {
+                const opt = document.createElement('option');
+                opt.value = wo;
+                dl.appendChild(opt);
+            });
+            document.body.appendChild(dl);
+        }
+
+        // Autocompletar TIPO, TECNICO ASIGNADO y ZONA según el QR ASIGNADO
+        selGen.addEventListener('change', function () {
+            const qr = this.value;
+            selTipo.value = (genTipoMap && genTipoMap[qr]) || '';
+            selTec.value = (genTecnicoMap && genTecnicoMap[qr]) || '';
+            selZona.value = (genZonaMap && genZonaMap[qr]) || '';
+            // En GASTO, precargar GALONES con el saldo disponible del generador
+            if (selMov.value === 'GASTO') {
+                const saldo = (genSaldoMap && genSaldoMap[qr]) || 0;
+                inpGal.value = saldo ? String(saldo) : '';
+                inpGal.placeholder = saldo ? `Disponible: ${saldo}` : 'Ej: 10 o 7.5';
+            }
+        });
+
+        // Mostrar/ocultar campos según MOVIMIENTO
+        function syncMov() {
+            const isGasto = selMov.value === 'GASTO';
+            body.querySelectorAll('.mar-field[data-mov-group]').forEach(w => {
+                const vis = (w.dataset.movGroup === selMov.value);
+                w.style.display = vis ? '' : 'none';
+                if (!vis) {
+                    const inp = w.querySelector('input');
+                    if (inp) inp.value = '';
+                }
+            });
+            // En GASTO con QR ya seleccionado, precargar GALONES con el saldo disponible
+            if (isGasto && selGen.value) {
+                const saldo = (genSaldoMap && genSaldoMap[selGen.value]) || 0;
+                inpGal.value = saldo ? String(saldo) : '';
+                inpGal.placeholder = saldo ? `Disponible: ${saldo}` : 'Ej: 10 o 7.5';
+            } else if (!isGasto) {
+                inpGal.placeholder = 'Ej: 10 o 7.5';
+            }
+            // Alerta CM PENDIENTE si se guarda sin WO
+            const aviso = document.getElementById('comb-aviso-pendiente');
+            if (!inpWo.value.trim()) {
+                if (!aviso) {
+                    const a = document.createElement('div');
+                    a.id = 'comb-aviso-pendiente';
+                    a.className = 'mar-empty';
+                    a.style.cssText = 'grid-column:1/-1; text-align:left; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.25); border-radius:12px; padding:10px 14px; color:#FF3B30; font-size:12px; display:flex; align-items:center; gap:8px;';
+                    a.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Si guardas sin WO quedará como <b>CM PENDIENTE</b>.';
+                    body.appendChild(a);
+                }
+            } else if (aviso) {
+                aviso.remove();
+            }
+        }
+        selMov.addEventListener('change', syncMov);
+        inpWo.addEventListener('input', syncMov);
+        syncMov();
     }
 
     function cerrarModalRegistro() {
@@ -2501,7 +2887,7 @@ table.on("dataFiltered", function (filters, rows) {
         if (body) body.innerHTML = '';
     }
 
-    const IMPORT_TYPE = ['dataper', 'material', 'site name'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
+    const IMPORT_TYPE = ['dataper', 'material', 'site name', 'generadores', 'combustible'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
     let importFileToUpload = null;
 
     function abrirModalImportar() {
@@ -2608,6 +2994,21 @@ table.on("dataFiltered", function (filters, rows) {
 
         if (!ok) { alert('El campo principal es obligatorio.'); return; }
 
+        // Combustible: sin WO, confirmar que quedará como CM PENDIENTE
+        if (currentProjectNombre.trim().toLowerCase() === 'combustible') {
+            const mov = data['MOVIMIENTO'] || '';
+            const wo = (data['WO NUMBER'] || '').trim();
+            if (!wo) {
+                if (!confirm('El movimiento quedará registrado como CM PENDIENTE (sin WO). ¿Deseas continuar?')) return;
+            }
+            if (wo && woList && !woList.includes(wo)) {
+                alert('El WO ingresado no pertenece al universo de FLM. Selecciona un CM válido o déjalo en CM PENDIENTE.');
+                return;
+            }
+            if (!data['QR ASIGNADO']) { alert('Seleccione el QR ASIGNADO.'); return; }
+            if (!data['GALONES']) { alert('Ingrese la cantidad de GALONES.'); return; }
+        }
+
         fetch('/api/rows/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2631,6 +3032,7 @@ table.on("dataFiltered", function (filters, rows) {
             }
             cerrarModalRegistro();
             cerrarWoModal();
+            cerrarCombDetalle();
         }
     });
 
@@ -2693,6 +3095,11 @@ table.on("dataFiltered", function (filters, rows) {
         }
         if (isWoColumn(field)) {
             abrirWoModal(cell.getRow());
+        }
+        // Combustible / Generadores: clic en QR ASIGNADO abre el detalle del registro.
+        const proyCombGen = ['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase());
+        if (proyCombGen && String(field || '').trim().toLowerCase() === 'qr asignado') {
+            abrirCombDetalle(cell.getRow());
         }
     });
 
@@ -2860,6 +3267,45 @@ table.on("dataFiltered", function (filters, rows) {
         document.body.style.overflow = 'hidden';
     }
 
+    // Combustible: subir/cambiar foto de un registro existente (columna FOTO).
+    function combSubirFoto(key, btn) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        input.onchange = function () {
+            if (!input.files || !input.files[0]) return;
+            const fd = new FormData();
+            fd.append('foto', input.files[0]);
+            fd.append('tipo', 'comb');
+            fd.append('indice', '0');
+            fd.append('key', key);
+            const oldHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+            fetch('/api/evidencia/subir', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        return fetch('/api/rows/update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ key: key, field: 'FOTO', value: res.url })
+                        }).then(r => r.json());
+                    }
+                    throw new Error(res.error || 'Error al subir la foto.');
+                })
+                .then(() => location.reload())
+                .catch(err => {
+                    alert('Error: ' + (err.message || 'desconocido'));
+                    btn.innerHTML = oldHtml;
+                    btn.disabled = false;
+                });
+        };
+        document.body.appendChild(input);
+        input.click();
+    }
+
     function cerrarEvidenciaFoto(event) {
         const lb = document.getElementById('evidencia-lightbox');
         if (!lb) return;
@@ -2909,17 +3355,227 @@ table.on("dataFiltered", function (filters, rows) {
             }
         }
 
-        // PEXT: sin pestaña Cotización ni sección Gasolina (son solo de FLM).
+        // PEXT: sin pestaña Cotización ni Gastos (Combustible es solo de FLM).
         if (IS_PEXT) {
             const tabCoti = document.getElementById('wo-tab-cotizacion');
             if (tabCoti) tabCoti.style.display = 'none';
             const panelCoti = document.getElementById('wo-panel-cotizacion');
             if (panelCoti) panelCoti.style.display = 'none';
-
-            // Sección Gasolina dentro de la pestaña Material
-            const secGasolina = document.querySelector('#wo-panel-material .wo-section:last-child');
-            if (secGasolina) secGasolina.style.display = 'none';
+            const tabGastos = document.getElementById('wo-tab-gastos');
+            if (tabGastos) tabGastos.style.display = 'none';
+            const panelGastos = document.getElementById('wo-panel-gastos');
+            if (panelGastos) panelGastos.style.display = 'none';
         }
+    }
+
+    let combDetalleKey = null;
+    let combDetalleOrig = {};
+
+    function abrirCombDetalle(row) {
+        const data = row.getData();
+        const modal = document.getElementById('modal-comb-detalle');
+        if (!modal) return;
+        combDetalleKey = String(data['_key'] || '');
+        combDetalleOrig = {};
+        document.getElementById('comb-detalle-titulo').textContent = combDetalleKey;
+
+        const grid = document.getElementById('comb-detalle-grid');
+        const campos = [
+            { field: 'FECHA', tipo: 'fecha' },
+            { field: 'QR ASIGNADO', tipo: 'lista' },
+            { field: 'TIPO', tipo: 'lista' },
+            { field: 'TECNICO ASIGNADO', tipo: 'texto' },
+            { field: 'ZONA', tipo: 'texto' },
+            { field: 'MOVIMIENTO', tipo: 'lista' },
+            { field: 'GALONES', tipo: 'texto' },
+            { field: 'NUMERO FACTURA', tipo: 'texto' },
+            { field: 'WO NUMBER', tipo: 'texto' },
+            { field: 'GESTOR', tipo: 'texto' }
+        ];
+        const items = [];
+        campos.forEach(c => {
+            const key = Object.keys(data).find(real => String(real).trim().toLowerCase() === c.field.toLowerCase());
+            const rawVal = key ? data[key] : '';
+            const val = (rawVal === null || rawVal === undefined) ? '' : String(rawVal);
+            combDetalleOrig[c.field] = val;
+
+            // Editabilidad: admin edita todo; gestor solo completa campos vacíos.
+            let editable = USER_IS_ADMIN || val.trim() === '';
+            if (c.field === 'GESTOR') editable = false;
+
+            let control = '';
+            if (editable) {
+                if (c.tipo === 'fecha') {
+                    control = `<input type="date" data-field="${c.field}" value="${escapeHtml(val)}">`;
+                } else if (c.field === 'MOVIMIENTO') {
+                    control = `<select data-field="MOVIMIENTO">
+                        <option value="">— Seleccionar —</option>
+                        <option value="INGRESO"${val === 'INGRESO' ? ' selected' : ''}>INGRESO</option>
+                        <option value="GASTO"${val === 'GASTO' ? ' selected' : ''}>GASTO</option>
+                    </select>`;
+                } else if (c.field === 'QR ASIGNADO') {
+                    const opts = (manualColsConfig.find(mc => mc.nombre === 'QR ASIGNADO') || {}).opciones || [];
+                    control = `<select data-field="QR ASIGNADO">
+                        <option value="">— Seleccionar —</option>
+                        ${opts.map(o => `<option value="${escapeHtml(o)}"${val === o ? ' selected' : ''}>${escapeHtml(o)}</option>`).join('')}
+                    </select>`;
+                } else if (c.field === 'TIPO') {
+                    control = `<select data-field="TIPO">
+                        <option value="">— Seleccionar —</option>
+                        ${['PROPIO', 'ALQUILADO', 'ENTEL'].map(o => `<option value="${o}"${val === o ? ' selected' : ''}>${o}</option>`).join('')}
+                    </select>`;
+                } else if (c.field === 'WO NUMBER') {
+                    control = `<input type="text" data-field="WO NUMBER" list="wo-datalist" value="${escapeHtml(val)}" placeholder="Buscar WO...">`;
+                } else {
+                    control = `<input type="text" data-field="${c.field}" value="${escapeHtml(val)}">`;
+                }
+            } else {
+                control = `<div style="padding:7px 0; color:var(--ios-gray-1); font-size:13px; font-weight:600;">${escapeHtml(val || '—')}</div>`;
+            }
+            const lock = !editable && c.field !== 'GESTOR' && val.trim() !== ''
+                ? `<i class="fa-solid fa-lock" title="Solo el administrador puede editar" style="color:var(--ios-gray-3); font-size:10px;"></i>`
+                : '';
+            items.push(`<div class="wo-field">
+                <label>${escapeHtml(c.field)} ${lock}</label>
+                ${control}
+            </div>`);
+        });
+        grid.innerHTML = items.join('');
+
+        // Autocompletar TIPO/TECNICO/ZONA al elegir QR ASIGNADO
+        const qrSel = grid.querySelector('[data-field="QR ASIGNADO"]');
+        if (qrSel) {
+            qrSel.addEventListener('change', function () {
+                const qr = this.value;
+                const t = genTipoMap && genTipoMap[qr];
+                const tec = genTecnicoMap && genTecnicoMap[qr];
+                const zona = genZonaMap && genZonaMap[qr];
+                const set = (field, val) => {
+                    const el = grid.querySelector(`[data-field="${field}"]`);
+                    if (el && el.tagName === 'SELECT') {
+                        el.value = val || '';
+                    } else if (el) {
+                        el.value = val || '';
+                    }
+                };
+                set('TIPO', t);
+                set('TECNICO ASIGNADO', tec);
+                set('ZONA', zona);
+            });
+        }
+
+        // Foto
+        const fotoSec = document.getElementById('comb-detalle-foto-sec');
+        const fotoImg = document.getElementById('comb-detalle-foto');
+        const foto = String(data['FOTO'] || '').trim();
+        if (foto) {
+            fotoImg.src = foto;
+            fotoSec.style.display = '';
+        } else {
+            fotoImg.src = '';
+            fotoSec.style.display = 'none';
+        }
+        const fotoBtn = document.getElementById('comb-detalle-foto-btn');
+        if (fotoBtn) fotoBtn.style.display = USER_IS_ADMIN ? '' : 'none';
+
+        const guardarBtn = document.getElementById('comb-detalle-guardar');
+        if (guardarBtn) guardarBtn.style.display = USER_IS_ADMIN || hasPendientes(data) ? '' : 'none';
+
+        modal.style.display = 'flex';
+    }
+
+    function hasPendientes(data) {
+        return ['WO NUMBER', 'FECHA', 'QR ASIGNADO', 'GALONES', 'MOVIMIENTO', 'NUMERO FACTURA'].some(f => {
+            const key = Object.keys(data).find(real => String(real).trim().toLowerCase() === f.toLowerCase());
+            const v = key ? data[key] : '';
+            return (v === null || v === undefined || String(v).trim() === '');
+        });
+    }
+
+    function guardarCombDetalle() {
+        if (!combDetalleKey) return;
+        const grid = document.getElementById('comb-detalle-grid');
+        const cambios = [];
+        grid.querySelectorAll('[data-field]').forEach(el => {
+            const field = el.dataset.field;
+            const nuevo = el.value !== null && el.value !== undefined ? String(el.value).trim() : '';
+            const orig = String(combDetalleOrig[field] || '').trim();
+            if (nuevo === orig) return;
+            if (field === 'GESTOR') return;
+            if (!USER_IS_ADMIN && orig !== '') {
+                alert('El campo "' + field + '" ya está registrado. Solo el administrador puede editarlo.');
+                return;
+            }
+            cambios.push({ field: field, value: nuevo });
+        });
+        if (!cambios.length) { cerrarCombDetalle(); return; }
+        const btn = document.getElementById('comb-detalle-guardar');
+        if (btn) { btn.disabled = true; }
+        let i = 0;
+        const next = () => {
+            if (i >= cambios.length) {
+                cerrarCombDetalle();
+                location.reload();
+                return;
+            }
+            const c = cambios[i];
+            fetch('/api/rows/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: combDetalleKey, field: c.field, value: c.value })
+            }).then(r => r.json()).then(res => {
+                i++;
+                if (!res.success) {
+                    alert('Error al guardar ' + c.field + ': ' + res.error);
+                    if (btn) { btn.disabled = false; }
+                    return;
+                }
+                next();
+            }).catch(() => {
+                i++;
+                alert('Error de red al guardar ' + c.field);
+                if (btn) { btn.disabled = false; }
+            });
+        };
+        next();
+    }
+
+    function combDetalleSubirFoto() {
+        if (!combDetalleKey) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        input.onchange = function () {
+            if (!input.files || !input.files[0]) return;
+            const fd = new FormData();
+            fd.append('foto', input.files[0]);
+            fd.append('tipo', 'comb');
+            fd.append('indice', '0');
+            fd.append('key', combDetalleKey);
+            fetch('/api/evidencia/subir', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(res => {
+                    if (!res.success) throw new Error(res.error || 'Error al subir la foto.');
+                    return fetch('/api/rows/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: combDetalleKey, field: 'FOTO', value: res.url })
+                    }).then(r => r.json());
+                })
+                .then(res => {
+                    if (!res.success) throw new Error(res.error || 'Error al guardar la foto.');
+                    location.reload();
+                })
+                .catch(err => alert('Error: ' + err.message));
+        };
+        document.body.appendChild(input);
+        input.click();
+    }
+
+    function cerrarCombDetalle() {
+        const modal = document.getElementById('modal-comb-detalle');
+        if (modal) modal.style.display = 'none';
     }
 
     function abrirWoModal(row) {
@@ -2980,10 +3636,6 @@ table.on("dataFiltered", function (filters, rows) {
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
         const canEditServicios = ["admin", "supervisor"].includes("{{ session.get('rol') }}");
         document.getElementById('btn-servicios').style.display = (editable && canEditServicios) ? '' : 'none';
-        const btnAgMat = document.getElementById('btn-wo-agregar-material');
-        if (btnAgMat) btnAgMat.style.display = editable ? '' : 'none';
-        const btnAgGas = document.getElementById('btn-wo-agregar-gasolina');
-        if (btnAgGas) btnAgGas.style.display = editable ? '' : 'none';
         const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
         if (btnAgGasto) btnAgGasto.style.display = editable ? '' : 'none';
         const btnAgMo = document.getElementById('btn-wo-agregar-mo');
@@ -3091,8 +3743,7 @@ table.on("dataFiltered", function (filters, rows) {
             const currentTech = data['TECNICO ASIGNADO'] || '';
             if (currentTech) tSel.value = currentTech;
             if (!document.getElementById('wo-contrata').value) onTecnicoChange();
-            renderWoMaterialList(data);
-            renderWoGasolinaList(data);
+            cargarGastosCombustible();
         }).catch(() => {});
     }
 
@@ -3102,6 +3753,81 @@ table.on("dataFiltered", function (filters, rows) {
         if (opt && opt.dataset && opt.dataset.contrata) {
             document.getElementById('wo-contrata').value = opt.dataset.contrata;
         }
+    }
+
+    // Gastos: movimientos de Combustible (INGRESO/GASTO) asociados al WO (solo lectura).
+    function cargarGastosCombustible() {
+        const cont = document.getElementById('wo-gastos-comb-list');
+        if (!cont || !woKey) return;
+        cont.innerHTML = '<div class="wo-empty">Cargando...</div>';
+        fetch('/api/combustible/por_wo?wo=' + encodeURIComponent(woKey))
+            .then(r => r.json())
+            .then(res => {
+                const movs = (res && res.movimientos) || [];
+                if (!movs.length) {
+                    cont.innerHTML = '<div class="wo-empty">Sin movimientos de combustible asociados a este WO.</div>';
+                    return;
+                }
+                let totalIngreso = 0, totalGasto = 0;
+                movs.forEach(m => {
+                    const g = parseFloat(String(m['GALONES'] || '0').replace(',', '.'));
+                    if (String(m['MOVIMIENTO'] || '').toUpperCase() === 'GASTO') totalGasto += (isNaN(g) ? 0 : g);
+                    else totalIngreso += (isNaN(g) ? 0 : g);
+                });
+                const rows = movs.map(m => {
+                    const mov = String(m['MOVIMIENTO'] || '').trim().toUpperCase();
+                    const badge = mov === 'INGRESO'
+                        ? `<span style="display:inline-block; font-weight:700; color:#007AFF; background:rgba(0,122,255,0.10); border:1px solid rgba(0,122,255,0.35); border-radius:999px; padding:2px 8px; font-size:10px;">INGRESO</span>`
+                        : `<span style="display:inline-block; font-weight:700; color:#FF3B30; background:rgba(255,59,48,0.10); border:1px solid rgba(255,59,48,0.35); border-radius:999px; padding:2px 8px; font-size:10px;">GASTO</span>`;
+                    const foto = m['FOTO'] ? `<a href="#" onclick="event.preventDefault(); abrirEvidenciaFoto('${escapeHtml(String(m['FOTO']).replace(/'/g, "\\'"))}');">Ver</a>` : '—';
+                    return `<tr>
+                        <td>${escapeHtml(m['FECHA'] || '')}</td>
+                        <td>${badge}</td>
+                        <td>${escapeHtml(m['QR ASIGNADO'] || '')}</td>
+                        <td>${escapeHtml(m['TECNICO ASIGNADO'] || '')}</td>
+                        <td>${escapeHtml(m['ZONA'] || '')}</td>
+                        <td style="text-align:right; font-weight:700;">${escapeHtml(m['GALONES'] || '')}</td>
+                        <td>${escapeHtml(m['NUMERO FACTURA'] || '')}</td>
+                        <td style="text-align:center;">${foto}</td>
+                    </tr>`;
+                });
+                const neto = totalIngreso - totalGasto;
+                cont.innerHTML = `
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+                        <div style="background:rgba(0,122,255,0.08); border:1px solid rgba(0,122,255,0.25); border-radius:12px; padding:8px 14px;">
+                            <span style="font-size:11px; color:var(--ios-gray-2); display:block;">Total Ingresos</span>
+                            <b style="color:#007AFF; font-size:16px;">${totalIngreso.toFixed(2)}</b>
+                        </div>
+                        <div style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.25); border-radius:12px; padding:8px 14px;">
+                            <span style="font-size:11px; color:var(--ios-gray-2); display:block;">Total Gastos</span>
+                            <b style="color:#FF3B30; font-size:16px;">${totalGasto.toFixed(2)}</b>
+                        </div>
+                        <div style="background:rgba(52,199,89,0.08); border:1px solid rgba(52,199,89,0.25); border-radius:12px; padding:8px 14px;">
+                            <span style="font-size:11px; color:var(--ios-gray-2); display:block;">Neto</span>
+                            <b style="color:${neto < 0 ? '#FF3B30' : '#34C759'}; font-size:16px;">${neto.toFixed(2)}</b>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">FECHA</th>
+                                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">MOVIMIENTO</th>
+                                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">QR</th>
+                                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">TÉCNICO</th>
+                                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">ZONA</th>
+                                    <th style="text-align:right; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">GALONES</th>
+                                    <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">FACTURA</th>
+                                    <th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--excel-border); color:var(--ios-gray-2); font-weight:600;">FOTO</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows.join('')}</tbody>
+                        </table>
+                    </div>`;
+            })
+            .catch(() => {
+                cont.innerHTML = '<div class="wo-empty">Error al cargar los movimientos de combustible.</div>';
+            });
     }
     document.getElementById('wo-tecnico').addEventListener('change', onTecnicoChange);
 
@@ -3703,8 +4429,6 @@ table.on("dataFiltered", function (filters, rows) {
                 'SE INSTALÓ MUFAS': document.getElementById('wo-se-instalo-mufas').value,
                 'LATITUD MUFAS': document.getElementById('wo-lat-mufa').value.trim(),
                 'LONGITUD MUFAS': document.getElementById('wo-lon-mufa').value.trim(),
-                'MATERIALES': JSON.stringify(recogerMateriales()),
-                'GASOLINA': JSON.stringify(recogerGasolina()),
                 'COTIZACION_GASTOS': JSON.stringify(recogerGastos()),
                 'COTIZACION_MANO_OBRA': JSON.stringify(recogerManoObra()),
                 'COTIZACION_NOTA': (document.getElementById('wo-coti-nota') || {}).value || '',
@@ -3742,18 +4466,20 @@ table.on("dataFiltered", function (filters, rows) {
 
     function cambiarWoTab(tab) {
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
-        document.getElementById('wo-tab-material').classList.toggle('active', tab === 'material');
+        document.getElementById('wo-tab-gastos').classList.toggle('active', tab === 'gastos');
         document.getElementById('wo-tab-cotizacion').classList.toggle('active', tab === 'cotizacion');
         document.getElementById('wo-tab-historial').classList.toggle('active', tab === 'historial');
         document.getElementById('wo-tab-evidencia').classList.toggle('active', tab === 'evidencia');
         document.getElementById('wo-tab-estado').classList.toggle('active', tab === 'estado');
         document.getElementById('wo-panel-detalle').style.display = tab === 'detalle' ? '' : 'none';
-        document.getElementById('wo-panel-material').style.display = tab === 'material' ? '' : 'none';
+        document.getElementById('wo-panel-gastos').style.display = tab === 'gastos' ? '' : 'none';
         document.getElementById('wo-panel-cotizacion').style.display = tab === 'cotizacion' ? '' : 'none';
         document.getElementById('wo-panel-historial').style.display = tab === 'historial' ? '' : 'none';
         document.getElementById('wo-panel-evidencia').style.display = tab === 'evidencia' ? '' : 'none';
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
-        if (tab === 'historial') {
+        if (tab === 'gastos') {
+            cargarGastosCombustible();
+        } else if (tab === 'historial') {
             cargarWoHistorial();
         } else if (tab === 'estado') {
             cargarWoEstado();
@@ -4264,13 +4990,6 @@ table.on("dataFiltered", function (filters, rows) {
             lines.push('Materiales:');
             materiales.forEach(m => {
                 lines.push(`- ${m.descripcion}${m.cantidad ? ' x' + m.cantidad : ''}`);
-            });
-        }
-        const gasolina = recogerGasolina();
-        if (gasolina.length) {
-            lines.push('Gasolina:');
-            gasolina.forEach(g => {
-                lines.push(`- ${g.descripcion}${g.cantidad ? ' x' + g.cantidad : ''}`);
             });
         }
         const gastos = recogerGastos();

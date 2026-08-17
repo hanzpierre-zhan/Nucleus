@@ -48,7 +48,7 @@
 
                 <div class="sidebar-section-label">Proyectos</div>
                 {% for p in proyectos_list %}
-                {% if p.nombre in ['FLM', 'PEXT'] %}
+                {% if p.nombre in ['FLM', 'PEXT', 'Combustible'] %}
                 <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
                     <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
                 </a>
@@ -70,24 +70,13 @@
                 </a>
                 {% endif %}
                 {% endfor %}
-
-                {% set has_flm = proyectos_list | selectattr('nombre', 'equalto', 'FLM') | list | length > 0 %}
-                {% if has_flm %}
-                {% set site_proy = proyectos_list | selectattr('nombre', 'equalto', 'Site Name') | list %}
-                <a href="#" class="sidebar-link" title="Cotización">
-                    <i class="fa-solid fa-file-invoice-dollar"></i> <span class="sidebar-link-text">Cotización</span>
-                </a>
-
-                {% if site_proy %}
-                <a href="/switch_project/{{ site_proy[0].id }}?next=/" class="sidebar-link {% if request.path == '/' and site_proy[0].id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
-                    <i class="fa-solid fa-location-dot"></i> <span class="sidebar-link-text">Site Name</span>
-                </a>
-                {% else %}
-                <a href="#" class="sidebar-link" title="Site Name">
-                    <i class="fa-solid fa-location-dot"></i> <span class="sidebar-link-text">Site Name</span>
+                {% for p in proyectos_list %}
+                {% if p.nombre == 'Generadores' %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
+                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
                 </a>
                 {% endif %}
-                {% endif %}
+                {% endfor %}
 
                 {% if (session.get('rol') or '').lower() in ['admin', 'demo'] %}
                 <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
