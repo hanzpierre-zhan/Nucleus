@@ -877,7 +877,12 @@
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
 
-    const FAULT_COLORS = {
+    const FAULT_COLORS = IS_FLM ? {
+        'Critical': { bg: '#dc3545', fg: '#fff', hrs: '4hrs' },
+        'Alta':     { bg: '#fd7e14', fg: '#fff', hrs: '5hrs' },
+        'Media':    { bg: '#ffc107', fg: '#212529', hrs: '12hrs' },
+        'Baja':     { bg: '#28a745', fg: '#fff', hrs: '48hrs' }
+    } : {
         'Critical': { bg: '#dc3545', fg: '#fff', hrs: '8hrs' },
         'Alta':     { bg: '#fd7e14', fg: '#fff', hrs: '10hrs' },
         'Media':    { bg: '#ffc107', fg: '#212529', hrs: '48hrs' },
@@ -1207,10 +1212,17 @@
         
         // Fallback based on Fault Level
         const faultLevel = String(getRowVal(row, "Fault Level") || '').trim().toLowerCase();
-        if (faultLevel === 'critical') return 480;
-        if (faultLevel === 'alta') return 600;
-        if (faultLevel === 'media') return 2880;
-        if (faultLevel === 'baja') return 4320;
+        if (IS_FLM) {
+            if (faultLevel === 'critical') return 240;
+            if (faultLevel === 'alta') return 300;
+            if (faultLevel === 'media') return 720;
+            if (faultLevel === 'baja') return 2880;
+        } else {
+            if (faultLevel === 'critical') return 480;
+            if (faultLevel === 'alta') return 600;
+            if (faultLevel === 'media') return 2880;
+            if (faultLevel === 'baja') return 4320;
+        }
         
         return 360; // default 6 hours
     };
@@ -1303,10 +1315,17 @@
             if (hrsMatch) return parseInt(hrsMatch[1], 10) * 60;
         }
         const faultLevel = String(getDataVal(data, "Fault Level") || '').trim().toLowerCase();
-        if (faultLevel === 'critical') return 480;
-        if (faultLevel === 'alta') return 600;
-        if (faultLevel === 'media') return 2880;
-        if (faultLevel === 'baja') return 4320;
+        if (IS_FLM) {
+            if (faultLevel === 'critical') return 240;
+            if (faultLevel === 'alta') return 300;
+            if (faultLevel === 'media') return 720;
+            if (faultLevel === 'baja') return 2880;
+        } else {
+            if (faultLevel === 'critical') return 480;
+            if (faultLevel === 'alta') return 600;
+            if (faultLevel === 'media') return 2880;
+            if (faultLevel === 'baja') return 4320;
+        }
         return 360;
     };
 

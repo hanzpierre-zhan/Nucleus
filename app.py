@@ -730,7 +730,9 @@ with app.app_context():
         for nivel, hrs in fault_rules:
             exists = TablaMaestra.query.filter_by(proyecto_id=pext.id, columna_criterio='Fault Level',
                                                   valor_criterio=nivel, nueva_columna='Hrs Respuesta').first()
-            if not exists:
+            if exists:
+                exists.nuevo_valor = hrs
+            else:
                 db.session.add(TablaMaestra(proyecto_id=pext.id, columna_criterio='Fault Level',
                                             valor_criterio=nivel, nueva_columna='Hrs Respuesta', nuevo_valor=hrs))
         db.session.commit()
