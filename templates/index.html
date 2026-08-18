@@ -1846,9 +1846,21 @@
                         colDef.editor = "input";
                     }
                 } else if (manualDef.tipo === 'lista') {
-                    if (isCombustible && (fieldName === 'TIPO' || fieldName === 'TECNICO ASIGNADO')) {
-                        // TIPO / TECNICO ASIGNADO se llenan automáticamente según el QR ASIGNADO: no editable
+                    if (isCombustible && fieldName === 'TIPO') {
+                        // TIPO se llena automáticamente según el QR ASIGNADO: no editable
                         colDef.editor = false;
+                    } else if (isCombustible && fieldName === 'TECNICO ASIGNADO') {
+                        // TECNICO ASIGNADO: se llena según el QR pero se puede cambiar
+                        colDef.editor = "list";
+                        colDef.editorParams = {
+                            values: manualDef.opciones,
+                            clearable: true,
+                            autocomplete: true,
+                            listOnEmpty: true,
+                            freetext: false
+                        };
+                        colDef.headerFilter = "list";
+                        colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
                     } else {
                         colDef.editor = "list";
                         colDef.editorParams = { 
@@ -2806,12 +2818,17 @@ table.on("dataFiltered", function (filters, rows) {
         });
         mkField('TIPO', selTipo, 'TIPO');
 
-        // TECNICO ASIGNADO (se llena solo según el QR ASIGNADO)
-        const selTec = document.createElement('input');
-        selTec.type = 'text';
-        selTec.disabled = true;
-        selTec.placeholder = 'Se llena automáticamente';
-        selTec.title = 'Se llena automáticamente según el QR ASIGNADO';
+        // TECNICO ASIGNADO (se llena con el técnico del QR, pero permite elegir otro)
+        const selTec = document.createElement('select');
+        const tecPh = document.createElement('option');
+        tecPh.value = ''; tecPh.textContent = '— Seleccionar —';
+        selTec.appendChild(tecPh);
+        (mcc['TECNICO ASIGNADO'] && mcc['TECNICO ASIGNADO'].opciones || []).forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o;
+            selTec.appendChild(opt);
+        });
+        selTec.title = 'Técnico del generador; puedes cambiarlo';
         mkField('TECNICO ASIGNADO', selTec, 'TECNICO ASIGNADO');
 
         // ZONA (se llena solo según el QR ASIGNADO)
@@ -2833,6 +2850,12 @@ table.on("dataFiltered", function (filters, rows) {
         inpGal.type = 'text';
         inpGal.placeholder = 'Ej: 10 o 7.5';
         mkField('GALONES', inpGal, 'GALONES');
+
+        // COMENTARIOS
+        const inpCom = document.createElement('input');
+        inpCom.type = 'text';
+        inpCom.placeholder = 'Escribe un comentario (opcional)';
+        mkField('COMENTARIOS', inpCom, 'COMENTARIOS');
 
         // FOTO (ingreso o gasto)
         const fotoWrap = document.createElement('div');

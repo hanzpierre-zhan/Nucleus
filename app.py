@@ -686,7 +686,8 @@ with app.app_context():
             {'nombre': 'GALONES', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FOTO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'WO NUMBER', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []}
+            {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'COMENTARIOS', 'tipo': 'texto', 'opciones': []}
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='manual_columns').first()
         if mc_cfg:
