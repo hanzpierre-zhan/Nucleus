@@ -681,6 +681,7 @@ with app.app_context():
             {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL']},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
             {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'NOMBRE DE SITE', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'MOVIMIENTO', 'tipo': 'lista', 'opciones': ['INGRESO', 'GASTO']},
             {'nombre': 'NUMERO FACTURA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'GALONES', 'tipo': 'texto', 'opciones': []},
