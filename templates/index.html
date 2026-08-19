@@ -1949,7 +1949,7 @@
                     const estado = url
                         ? `<span style="color:#007AFF; font-weight:600; cursor:pointer; text-decoration:underline;">Foto Cargada</span>`
                         : `<span style="color:var(--ios-gray-2); font-size:11px;">Sin foto</span>`;
-                    const camBtn = USER_IS_ADMIN
+                    const camBtn = (USER_IS_ADMIN || !url)
                         ? `<button type="button" title="Subir/cambiar foto" style="border:none;background:rgba(0,122,255,0.10);color:#007AFF;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); combSubirFoto('${rowKey}', this)"><i class="fa-solid fa-camera"></i></button>`
                         : '';
                     return `<div style="display:inline-flex; align-items:center; gap:6px;">${estado}${camBtn}</div>`;
@@ -3587,7 +3587,7 @@ table.on("dataFiltered", function (filters, rows) {
             fotoSec.style.display = 'none';
         }
         const fotoBtn = document.getElementById('comb-detalle-foto-btn');
-        if (fotoBtn) fotoBtn.style.display = USER_IS_ADMIN ? '' : 'none';
+        if (fotoBtn) fotoBtn.style.display = (USER_IS_ADMIN || !foto) ? '' : 'none';
 
         const guardarBtn = document.getElementById('comb-detalle-guardar');
         if (guardarBtn) guardarBtn.style.display = USER_IS_ADMIN || hasPendientes(data) ? '' : 'none';
