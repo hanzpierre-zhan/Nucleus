@@ -2876,9 +2876,6 @@ def api_rows_add():
             mov = str(row_data.get('MOVIMIENTO', '')).strip().upper()
             gen = str(row_data.get('QR ASIGNADO', '')).strip()
             gal = row_data.get('GALONES')
-            wo = str(row_data.get('WO NUMBER', '')).strip()
-            if wo and wo not in _flm_wo_list():
-                return jsonify({'error': 'El WO ingresado no pertenece al universo de FLM. Deja el campo vacío para CM PENDIENTE o selecciona un CM válido.'}), 400
             if mov == 'GASTO':
                 try:
                     gal_n = float(str(gal or '').replace(',', '.').strip())
