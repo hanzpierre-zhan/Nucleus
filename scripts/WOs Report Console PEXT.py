@@ -374,7 +374,7 @@ def main():
         seleccionar_dropdown(driver, "#genericfield2", "O&M PEXT")
 
         ahora = datetime.now()
-        inicio = ahora - timedelta(days=10)
+        inicio = ahora - timedelta(days=3)
         print("Rellenando fechas de creacion...")
         configurar_fecha(driver, "#creation_date_start_filter", inicio, True)
         time.sleep(1)
@@ -436,6 +436,22 @@ def main():
                             key=lambda f: os.path.getmtime(
                                 os.path.join(CARPETA_DESCARGA, f)))
                         print("Descargado:", archivo_descargado)
+                        # Renombrar al nombre estandar
+                        ext = os.path.splitext(archivo_descargado)[1]
+                        nuevo_nombre = "WOs List PEXT" + ext
+                        ruta_orig = os.path.join(CARPETA_DESCARGA, archivo_descargado)
+                        ruta_nueva = os.path.join(CARPETA_DESCARGA, nuevo_nombre)
+                        if os.path.exists(ruta_nueva):
+                            try:
+                                os.remove(ruta_nueva)
+                            except Exception as e:
+                                print("  No se pudo eliminar el anterior:", nuevo_nombre, e)
+                        try:
+                            os.rename(ruta_orig, ruta_nueva)
+                            archivo_descargado = nuevo_nombre
+                            print("Renombrado a:", archivo_descargado)
+                        except Exception as e:
+                            print("  No se pudo renombrar:", e)
                         break
                     if time.time() - ultimo_aviso > 30:
                         print("  aun procesando...")

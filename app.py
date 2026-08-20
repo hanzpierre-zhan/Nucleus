@@ -1981,8 +1981,25 @@ def api_import_process():
             db.session.add(AppConfig(proyecto_id=pid, clave='primary_key', valor=system_pk))
             db.session.commit()
             
-        existing_records_list = NucleusData.query.filter_by(proyecto_id=pid).all()
-        existing_records = {r.key_value: r for r in existing_records_list}
+        # Delta: consultar solo las filas cuyas claves vienen en el archivo,
+        # en chunks de 400 (limite de parametros de SQLite) para no traer toda la tabla.
+        imported_keys = set()
+        for _v in df[file_key].tolist():
+            _s = str(_v).strip()
+            if _s:
+                imported_keys.add(_s)
+
+        existing_records = {}
+        if imported_keys:
+            key_list = sorted(imported_keys)
+            for i in range(0, len(key_list), 400):
+                chunk = key_list[i:i + 400]
+                chunk_records = NucleusData.query.filter(
+                    NucleusData.proyecto_id == pid,
+                    NucleusData.key_value.in_(chunk)
+                ).all()
+                for r in chunk_records:
+                    existing_records[r.key_value] = r
         
         # Consolidation Config
         cons_cfg_row = AppConfig.query.filter_by(proyecto_id=pid, clave='consolidation_config').first()
@@ -1991,7 +2008,6 @@ def api_import_process():
         
         updated, added, ignored, consolidated = 0, 0, 0, 0
         dynamic_cols = set()
-        imported_keys = set()
 
         WO_STATE_COL = 'Estado de la tarea (WO State)'
         STATE_TS_COL = 'FECHA CAMBIO ESTADO'
@@ -2141,10 +2157,15 @@ def api_import_process():
         # Absence-based Consolidation (Optimized to avoid SQLite parameter limits)
         absent_consolidated = 0
         if import_type == 'base' and cons_cfg.get('auto_consolidate_missing'):
-            # Python-based comparison is safer and faster for large datasets
-            # existing_records contains all records of the project currently in DB
-            for kv, rec in existing_records.items():
+            # Consulta solo la columna key_value (no el data_json pesado)
+            # para comparar las claves existentes contra las del archivo.
+            all_existing_keys = [r[0] for r in db.session.query(NucleusData.key_value)
+                                 .filter(NucleusData.proyecto_id == pid).all()]
+            for kv in all_existing_keys:
                 if kv not in imported_keys:
+                    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=kv).first()
+                    if rec is None:
+                        continue
                     new_hist = NucleusHistory(proyecto_id=pid, key_value=rec.key_value, data_json=rec.data_json)
                     db.session.add(new_hist)
                     db.session.delete(rec)
