@@ -161,6 +161,10 @@ class Cotizacion(db.Model):
     mano_obra_json = db.Column(db.Text, default='[]')
     fecha_generacion = db.Column(db.DateTime, default=datetime.utcnow)
     bloqueada = db.Column(db.Boolean, default=True)
+    formato = db.Column(db.String(20), default='')
+    site = db.Column(db.String(200), default='')
+    supervisor = db.Column(db.String(120), default='')
+    items_json = db.Column(db.Text, default='[]')
 
 # Auth Decorator
 def login_required(f):
@@ -480,7 +484,24 @@ with app.app_context():
                 print("Cotizaciones: unique constraint removed (Postgres)")
     except Exception as e:
         print("Warning: cotizaciones migration:", e)
-        
+
+    # Migration: cotizaciones formato Cobra (FLM): formato, site, supervisor, items_json
+    try:
+        if 'cotizaciones' in inspect(db.engine).get_table_names():
+            cot_cols = [c['name'] for c in inspect(db.engine).get_columns('cotizaciones')]
+            with db.engine.begin() as conn:
+                if 'formato' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN formato VARCHAR(20) DEFAULT ''"))
+                if 'site' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN site VARCHAR(200) DEFAULT ''"))
+                if 'supervisor' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN supervisor VARCHAR(120) DEFAULT ''"))
+                if 'items_json' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN items_json TEXT DEFAULT '[]'"))
+            print("Cotizaciones: columnas formato Cobra listas")
+    except Exception as e:
+        print("Warning: cotizaciones cobra migration:", e)
+
     # Create Default Project "Pangeaco" ONLY when the DB is completely empty (fresh install)
     if not Proyecto.query.first():
         pangeaco = Proyecto(nombre='Pangeaco', descripcion='Proyecto inicial migrado')
@@ -614,6 +635,7 @@ with app.app_context():
             {'nombre': 'QR ASIGNADO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SERIE DE EQUIPO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL']},
+            {'nombre': 'TIPO DE COMBUSTIBLE', 'tipo': 'lista', 'opciones': ['GASOLINA', 'PETROLEO', 'DIESEL']},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
             {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []}
         ]
@@ -667,6 +689,9 @@ with app.app_context():
             if 'TECNICO ASIGNADO' not in d:
                 d['TECNICO ASIGNADO'] = ''
                 changed = True
+            if 'TIPO DE COMBUSTIBLE' not in d:
+                d['TIPO DE COMBUSTIBLE'] = ''
+                changed = True
             if changed:
                 r.data_json = json.dumps(d, ensure_ascii=False)
         db.session.commit()
@@ -687,6 +712,7 @@ with app.app_context():
             {'nombre': 'GALONES', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FOTO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'WO NUMBER', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'ID DE REPORTE', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'COMENTARIOS', 'tipo': 'texto', 'opciones': []}
         ]
@@ -703,6 +729,16 @@ with app.app_context():
         schema_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='app_schema').first()
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='app_schema', valor=json.dumps([])))
+
+        # Asegurar que los registros existentes tengan el nuevo campo ID DE REPORTE (vacío).
+        for r in NucleusData.query.filter_by(proyecto_id=comb_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if 'ID DE REPORTE' not in d:
+                d['ID DE REPORTE'] = ''
+                r.data_json = json.dumps(d, ensure_ascii=False)
         db.session.commit()
 
     # Migration: "Fault Level" es dato de origen (inmutable) -> no debe ser columna manual editable.
@@ -3412,6 +3448,11 @@ def api_cotizacion_lista():
         'bloqueada': c.bloqueada,
         'gastos': json.loads(c.gastos_json or '[]'),
         'mano_obra': json.loads(c.mano_obra_json or '[]'),
+        'formato': c.formato or '',
+        'site': c.site or '',
+        'supervisor': c.supervisor or '',
+        'objetivo': c.nota or '',
+        'items': json.loads(c.items_json or '[]'),
     } for c in cots]
     return jsonify({'lista': lista})
 
@@ -3484,6 +3525,15 @@ def api_cotizacion_generar():
     gastos = data.get('gastos', [])
     mano_obra = data.get('mano_obra', [])
 
+    # Formato Cobra (FLM): items unicos con TIPO/UND/FEE
+    formato = str(data.get('formato', '') or '').strip().lower()
+    site = str(data.get('site', '') or '').strip()
+    supervisor = str(data.get('supervisor', '') or '').strip()
+    objetivo = str(data.get('objetivo', '') or '').strip()
+    items_cobra = data.get('items', [])
+    if formato == 'cobra':
+        nota = objetivo
+
     # Obtener nombre del gestor actual como "Cotizado por" y "Revisado por"
     usuario = db.session.get(Usuario, session.get('user_id'))
     nombre_gestor = (usuario.nombre or usuario.username) if usuario else (session.get('username') or '')
@@ -3498,6 +3548,11 @@ def api_cotizacion_generar():
         cot_existente.mano_obra_json = json.dumps(mano_obra, ensure_ascii=False)
         cot_existente.fecha_generacion = datetime.utcnow()
         cot_existente.bloqueada = True
+        if formato == 'cobra':
+            cot_existente.formato = 'cobra'
+            cot_existente.site = site
+            cot_existente.supervisor = supervisor
+            cot_existente.items_json = json.dumps(items_cobra, ensure_ascii=False)
         db.session.commit()
     else:
         cot_existente = Cotizacion(
@@ -3510,7 +3565,11 @@ def api_cotizacion_generar():
             gastos_json=json.dumps(gastos, ensure_ascii=False),
             mano_obra_json=json.dumps(mano_obra, ensure_ascii=False),
             fecha_generacion=datetime.utcnow(),
-            bloqueada=True
+            bloqueada=True,
+            formato='cobra' if formato == 'cobra' else '',
+            site=site,
+            supervisor=supervisor,
+            items_json=json.dumps(items_cobra, ensure_ascii=False) if formato == 'cobra' else '[]'
         )
         db.session.add(cot_existente)
         db.session.commit()
@@ -3519,8 +3578,11 @@ def api_cotizacion_generar():
     rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
     if rec:
         d = json.loads(rec.data_json)
-        d['COTIZACION_GASTOS'] = json.dumps(gastos, ensure_ascii=False)
-        d['COTIZACION_MANO_OBRA'] = json.dumps(mano_obra, ensure_ascii=False)
+        if formato == 'cobra':
+            d['COTIZACION_ITEMS'] = json.dumps(items_cobra, ensure_ascii=False)
+        else:
+            d['COTIZACION_GASTOS'] = json.dumps(gastos, ensure_ascii=False)
+            d['COTIZACION_MANO_OBRA'] = json.dumps(mano_obra, ensure_ascii=False)
         d['COTIZACION_NOTA'] = nota
         d['COTIZACION_NUMERO'] = numero
         d['COTIZACION_BLOQUEADA'] = '1'
@@ -3529,16 +3591,27 @@ def api_cotizacion_generar():
 
     # Generar PDF
     try:
-        pdf_bytes = _generar_pdf_cotizacion(
-            numero=numero,
-            nota=nota,
-            ticket=key,
-            cotizado_por=nombre_gestor,
-            revisado_por=nombre_gestor,
-            fecha=datetime.now().strftime('%d/%m/%Y'),
-            gastos=gastos,
-            mano_obra=mano_obra
-        )
+        if formato == 'cobra':
+            pdf_bytes = _generar_pdf_cotizacion_cobra(
+                numero=numero,
+                site=site,
+                supervisor=supervisor,
+                objetivo=objetivo,
+                ticket=key,
+                elaborado_por=nombre_gestor,
+                items=items_cobra
+            )
+        else:
+            pdf_bytes = _generar_pdf_cotizacion(
+                numero=numero,
+                nota=nota,
+                ticket=key,
+                cotizado_por=nombre_gestor,
+                revisado_por=nombre_gestor,
+                fecha=datetime.now().strftime('%d/%m/%Y'),
+                gastos=gastos,
+                mano_obra=mano_obra
+            )
     except Exception as e:
         return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
 
@@ -3874,6 +3947,233 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
         ('ALIGN', (2, 1), (3, 1), 'RIGHT'),
     ]))
     story.append(cond_tbl)
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+
+def _fecha_larga_es(fecha=None):
+    """Fecha en formato largo español: 'viernes, 21 de Agosto de 2026'."""
+    DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+    MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+             'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    f = fecha or datetime.now()
+    return f'{DIAS[f.weekday()]}, {f.day} de {MESES[f.month - 1]} de {f.year}'
+
+
+def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, elaborado_por, items):
+    """
+    Genera el PDF de cotizacion FLM con el formato Cobra:
+    cabecera (FECHA/EMPRESA/DIRIGIDO A/SITE/N COTIZACION/OBJETIVO + RESPONSABLE/
+    ELABORADO POR/SUPERVISOR/TICKET), tabla unica de items con FEE y secciones
+    fijas de cierre.
+    """
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+
+    buf = io.BytesIO()
+    PAGE_W, PAGE_H = landscape(A4)
+    M = 8 * mm
+
+    NAVY = colors.HexColor('#1F4E79')
+    STEEL = colors.HexColor('#2E75B6')
+    WHITE = colors.white
+    LIGHT_GRAY = colors.HexColor('#F2F2F2')
+    MID_GRAY = colors.HexColor('#BFBFBF')
+    YELLOW = colors.HexColor('#FFF2CC')
+    DARK = colors.HexColor('#1a1a1a')
+
+    def safe_str(v):
+        return str(v) if v is not None else ''
+
+    def fmt_soles(v):
+        try:
+            return f'S/ {float(v):,.2f}'
+        except Exception:
+            return 'S/ 0.00'
+
+    def fmt_num(v):
+        try:
+            f = float(v)
+            return ('%g' % f) if f == int(f) else f'{f:,.2f}'
+        except Exception:
+            return ''
+
+    # ---- Estilos ----
+    st_norm = ParagraphStyle('n', fontName='Helvetica', fontSize=8, leading=10)
+    st_bold = ParagraphStyle('b', fontName='Helvetica-Bold', fontSize=8, leading=10)
+    st_hdr_w = ParagraphStyle('hw', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=WHITE)
+    st_sec = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=9, leading=11, textColor=DARK)
+    st_cell_c = ParagraphStyle('cc', fontName='Helvetica', fontSize=8, leading=10, alignment=TA_CENTER)
+    st_cell_r = ParagraphStyle('cr', fontName='Helvetica', fontSize=8, leading=10, alignment=TA_RIGHT)
+
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=M, rightMargin=M,
+                            topMargin=M, bottomMargin=M)
+    W = PAGE_W - 2 * M
+    story = []
+
+    # ---- LOGO + Supplier name and RUC No ----
+    logo_path = os.path.join(BASE_DIR, 'static', 'img', 'cobra-logo.png')
+    logo_cell = []
+    if os.path.exists(logo_path):
+        logo_cell.append(RLImage(logo_path, width=42 * mm, height=20 * mm))
+    else:
+        logo_cell.append(Paragraph('<b>cobra</b>', ParagraphStyle(
+            'lg', fontName='Helvetica-Bold', fontSize=22, leading=24, textColor=NAVY)))
+    logo_cell.append(Paragraph('<b>Supplier name and RUC No</b>', ParagraphStyle(
+        'sn', fontName='Helvetica-Bold', fontSize=8, leading=10)))
+
+    fecha_str = _fecha_larga_es()
+    num_para = Paragraph(f'<b>N° COTIZACIÓN :&nbsp;&nbsp;&nbsp;&nbsp;{safe_str(numero)}</b>',
+                         ParagraphStyle('np', fontName='Helvetica-Bold', fontSize=12, leading=15))
+    head_tbl = Table([[logo_cell, num_para]], colWidths=[W * 0.45, W * 0.55])
+    head_tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(head_tbl)
+    story.append(Spacer(1, 2 * mm))
+
+    # ---- CABECERA DE DATOS (4 columnas) ----
+    c1, c2, c3, c4 = W * 0.14, W * 0.36, W * 0.14, W * 0.36
+
+    def row_lbl(lbl, val, lbl2='', val2=''):
+        return [
+            Paragraph(f'<b>{lbl}</b>', st_bold),
+            Paragraph(safe_str(val), st_norm),
+            Paragraph(f'<b>{lbl2}</b>', st_bold) if lbl2 else '',
+            Paragraph(safe_str(val2), st_norm) if val2 else '',
+        ]
+
+    hdr_data = [
+        row_lbl('FECHA:', fecha_str),
+        row_lbl('EMPRESA:', 'Cobra Perú'),
+        row_lbl('DIRIGIDO A :', 'Huawei del Perú', 'RESPONSABLE', 'Dennis Unton'),
+        row_lbl('SITE:', site, 'ELABORADO POR', elaborado_por),
+        row_lbl('N° COTIZACIÓN :', numero, 'SUPERVISOR', supervisor),
+        row_lbl('OBJETIVO:', objetivo, 'TICKET', ticket),
+    ]
+    hdr_tbl = Table(hdr_data, colWidths=[c1, c2, c3, c4])
+    hdr_tbl.setStyle(TableStyle([
+        ('GRID', (0, 0), (-1, -1), 0.4, MID_GRAY),
+        ('BACKGROUND', (0, 0), (0, -1), LIGHT_GRAY),
+        ('BACKGROUND', (2, 0), (2, -1), LIGHT_GRAY),
+        # N° COTIZACION resaltado en amarillo
+        ('BACKGROUND', (0, 4), (1, 4), YELLOW),
+        ('SPAN', (1, 0), (3, 0)),   # FECHA valor ancho
+        ('SPAN', (1, 1), (3, 1)),   # EMPRESA valor ancho
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(hdr_tbl)
+    story.append(Spacer(1, 3 * mm))
+
+    # ---- TABLA DE ITEMS ----
+    col_correl = W * 0.065
+    col_tipo = W * 0.09
+    col_texto = W * 0.27
+    col_und = W * 0.055
+    col_cant = W * 0.065
+    col_vu = W * 0.10
+    col_fee = W * 0.06
+    col_vt = W * 0.115
+    col_coment = W * 0.18
+    it_cols = [col_correl, col_tipo, col_texto, col_und, col_cant, col_vu, col_fee, col_vt, col_coment]
+
+    it_header = [
+        Paragraph('<b>CORRELATIVO</b>', st_hdr_w),
+        Paragraph('<b>TIPO</b>', st_hdr_w),
+        Paragraph('<b>TEXTO EXPLICATIVO</b>', st_hdr_w),
+        Paragraph('<b>UND</b>', st_hdr_w),
+        Paragraph('<b>CANTIDAD</b>', st_hdr_w),
+        Paragraph('<b>VALOR UNITARIO</b>', st_hdr_w),
+        Paragraph('<b>FEE %</b>', st_hdr_w),
+        Paragraph('<b>VALOR TOTAL</b>', st_hdr_w),
+        Paragraph('<b>COMENTARIOS</b>', st_hdr_w),
+    ]
+
+    it_rows = [it_header]
+    items_ok = []
+    for i, it in enumerate(items or []):
+        try:
+            cant = float(str(it.get('cantidad', '') or 0).replace(',', '.'))
+        except Exception:
+            cant = 0.0
+        try:
+            vu = float(str(it.get('valor_unitario', '') or 0).replace(',', '.'))
+        except Exception:
+            vu = 0.0
+        tipo = str(it.get('tipo', '') or '').strip().upper()
+        fee = 5.0 if tipo == 'LPU' else 0.0
+        vt = cant * vu * (1 + fee / 100.0)
+        items_ok.append(vt)
+        it_rows.append([
+            Paragraph(str(i + 1), st_cell_c),
+            Paragraph(safe_str(tipo), st_cell_c),
+            Paragraph(safe_str(it.get('texto', '')), st_norm),
+            Paragraph(safe_str(it.get('und', '')), st_cell_c),
+            Paragraph(fmt_num(cant), st_cell_r),
+            Paragraph(fmt_soles(vu), st_cell_r),
+            Paragraph(f'{fee:g}%', st_cell_c),
+            Paragraph(fmt_soles(vt), st_cell_r),
+            Paragraph(safe_str(it.get('comentarios', '')), st_norm),
+        ])
+
+    total_fee = sum(items_ok)
+    it_rows.append([
+        '', '', '', '', '', '',
+        Paragraph('<b>sub total + FEE</b>', st_bold),
+        Paragraph(f'<b>{fmt_soles(total_fee)}</b>', st_cell_r),
+        '',
+    ])
+
+    n_it = len(it_rows)
+    it_tbl = Table(it_rows, colWidths=it_cols, repeatRows=1)
+    it_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), STEEL),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('GRID', (0, 0), (-1, -1), 0.4, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, max(n_it - 2, 1)), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Fila total resaltada
+        ('BACKGROUND', (0, n_it - 1), (-1, n_it - 1), YELLOW),
+        ('SPAN', (0, n_it - 1), (5, n_it - 1)),
+        ('ALIGN', (6, n_it - 1), (7, n_it - 1), 'RIGHT'),
+    ]
+    if not items_ok:
+        it_style.append(('SPAN', (0, 1), (-1, 1)))
+        it_rows.append([Paragraph('Sin items registrados.', st_norm), '', '', '', '', '', '', '', ''])
+    it_tbl.setStyle(TableStyle(it_style))
+    story.append(it_tbl)
+    story.append(Spacer(1, 4 * mm))
+
+    # ---- SECCIONES FIJAS DE CIERRE ----
+    for titulo in ['TIEMPO DE ENTREGA', 'LUGAR DE ENTREGA',
+                   'VALIDEZ DE LA OFERTA', 'CONDICIONES GENERALES']:
+        sec_tbl = Table([[Paragraph(f'<b>{titulo}</b>', st_sec)]], colWidths=[W])
+        sec_tbl.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.5, MID_GRAY),
+            ('BACKGROUND', (0, 0), (-1, -1), LIGHT_GRAY),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(sec_tbl)
+        story.append(Spacer(1, 1.5 * mm))
 
     doc.build(story)
     buf.seek(0)
