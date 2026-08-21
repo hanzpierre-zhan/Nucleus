@@ -2989,10 +2989,11 @@ table.on("dataFiltered", function (filters, rows) {
                 });
         });
 
-        // WO NUMBER (INGRESO y GASTO) con buscador
+        // WO NUMBER (INGRESO y GASTO): caja libre, acepta cualquier código.
+        // Vacío = CM PENDIENTE (se confirma al guardar).
         const inpWo = document.createElement('input');
         inpWo.type = 'text';
-        inpWo.placeholder = 'Buscar WO...';
+        inpWo.placeholder = 'WO o cualquier código';
         inpWo.setAttribute('list', 'wo-datalist');
         mkField('WO NUMBER', inpWo, 'WO NUMBER');
 
@@ -3181,10 +3182,6 @@ table.on("dataFiltered", function (filters, rows) {
             const wo = (data['WO NUMBER'] || '').trim();
             if (!wo) {
                 if (!confirm('El movimiento quedará registrado como CM PENDIENTE (sin WO). ¿Deseas continuar?')) return;
-            }
-            if (wo && woList && !woList.includes(wo)) {
-                alert('El WO ingresado no pertenece al universo de FLM. Selecciona un CM válido o déjalo en CM PENDIENTE.');
-                return;
             }
             if (!data['QR ASIGNADO']) { alert('Seleccione el QR ASIGNADO.'); return; }
             if (!data['GALONES']) { alert('Ingrese la cantidad de GALONES.'); return; }
