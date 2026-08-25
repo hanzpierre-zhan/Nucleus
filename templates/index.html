@@ -1994,6 +1994,15 @@
                     return true;
                 };
             }
+            // SITE: solo supervisor/admin puede editar; gestores solo lectura
+            const isSiteProy = currentProjectNombre.trim().toLowerCase() === 'site';
+            if (isSiteProy) {
+                const canEditSite = isAdminUser || "{{ session.get('rol') }}" === "supervisor";
+                if (!canEditSite) {
+                    colDef.editor = false;
+                    colDef.editable = false;
+                }
+            }
         }
 
         // Combustible: formateadores especiales

@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  .main-content { max-width: none !important; padding: 12px 16px !important; }
+  .mapa-layout { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
+  @media (max-width: 1000px) { .mapa-layout { grid-template-columns: 1fr; } }
+  #map { height: calc(100vh - 120px); min-height: 560px; border-radius: 16px; border: 1px solid #E5E5EA; background: #E5E5EA; width: 100%; }
+  .mapa-panel { background: #fff; border: 1px solid #E5E5EA; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 14px; position: sticky; top: 16px; max-height: calc(100vh - 100px); overflow-y: auto; }
+  .mapa-panel h3 { margin: 0; font-size: 16px; font-weight: 700; color: #1C1C1E; display: flex; align-items: center; gap: 8px; }
+  .mapa-panel .hint { font-size: 12px; color: #8E8E93; line-height: 1.4; }
+  .search-wrap { position: relative; }
+  .search-wrap input { width: 100%; padding: 10px 36px 10px 12px; border: 1px solid #E5E5EA; border-radius: 12px; font-size: 13px; outline: none; background: #F2F2F7; box-sizing: border-box; }
+  .search-wrap input:focus { border-color: #007AFF; background: #fff; }
+  .search-wrap .icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #8E8E93; pointer-events: none; }
+  .suggest-list { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: #fff; border: 1px solid #E5E5EA; border-radius: 12px; max-height: 260px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+  .suggest-list.show { display: block; }
+  .suggest-item { padding: 9px 12px; cursor: pointer; font-size: 12px; border-bottom: 1px solid #F2F2F7; display: flex; flex-direction: column; gap: 2px; }
+  .suggest-item:last-child { border-bottom: none; }
+  .suggest-item:hover { background: #F2F2F7; }
+  .suggest-item .nm { font-weight: 600; color: #1C1C1E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggest-item .cd { font-size: 11px; color: #8E8E93; }
+  .site-detail { background: #F2F2F7; border: 1px solid #E5E5EA; border-radius: 12px; padding: 12px; display: none; }
+  .site-detail.show { display: block; }
+  .site-detail .row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px solid #E5E5EA; font-size: 12px; }
+  .site-detail .row:last-child { border-bottom: none; }
+  .site-detail .k { color: #8E8E93; font-weight: 500; flex-shrink: 0; }
+  .site-detail .v { color: #1C1C1E; font-weight: 600; text-align: right; word-break: break-word; }
+  .btn-clear { width: 100%; padding: 8px; border: 1px solid #E5E5EA; background: #fff; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; color: #1C1C1E; }
+  .btn-clear:hover { background: #F2F2F7; }
+  .legend { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #8E8E93; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.1); }
+  .leaflet-popup-content-wrapper { border-radius: 12px !important; }
+  #map-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.9); padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #1C1C1E; z-index: 400; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+</style>
+
+<div class="mapa-layout">
+  <div id="map" style="position:relative;">
+    <div id="map-loading"><i class="fa-solid fa-spinner fa-spin" style="color:#007AFF;"></i> Cargando {{ sites_count }} sites...</div>
+  </div>
+  <div class="mapa-panel">
+    <h3><i class="fa-solid fa-map-location-dot" style="color:#007AFF;"></i> Mapa de Sites</h3>
+    <p class="hint">Busca un site por <b>código</b> o <b>nombre</b>. Se resaltará entre los <span id="total-sites">{{ sites_count }}</span> sites del maestro.</p>
+
+    <div class="search-wrap">
+      <input type="text" id="site-search" placeholder="Seleccionar site — escribe o elige de la lista..." autocomplete="off" readonly onfocus="this.removeAttribute('readonly')">
+      <span class="icon" style="pointer-events:auto; cursor:pointer;" onclick="document.getElementById('site-search').focus()"><i class="fa-solid fa-chevron-down" style="font-size:11px;"></i></span>
+      <div id="suggest" class="suggest-list"></div>
+    </div>
+
+    <div style="display:flex; gap:8px;">
+      <button type="button" class="btn-clear" onclick="limpiarResaltado()" style="flex:1;"><i class="fa-solid fa-eraser"></i> Limpiar</button>
+      <button type="button" class="btn-clear" onclick="ajustarVista()" style="flex:1;"><i class="fa-solid fa-expand"></i> Ver todo</button>
+    </div>
+
+    <div id="site-detail" class="site-detail"></div>
+
+    <div class="legend">
+      <span class="dot" style="background:#007AFF;"></span> Site
+      <span class="dot" style="background:#FF3B30; width:14px; height:14px;"></span> Resaltado
+    </div>
+    <div class="hint" style="font-size:11px;">Total: <b id="total-sites-2">{{ sites_count }}</b> sites con coordenadas válidas.</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let SITES = [];
+let map, markers = [], highlighted = null, highlightCircle = null;
+let allBounds = null;
+
+function escapeHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([-9.19, -75.015], 6);
+  const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 19,
+    subdomains: 'abcd'
+  });
+  const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+    maxZoom: 19
+  });
+  satelite.addTo(map);
+  L.control.layers({ "Satélite": satelite, "Calles": carto }, null, { position: 'topright', collapsed: true }).addTo(map);
+
+  if (!SITES.length) {
+    document.getElementById('map-loading').innerHTML = 'Sin sites con coordenadas';
+    return;
+  }
+
+  const latlngs = [];
+  SITES.forEach(s => {
+    const ll = [s.lat, s.lng];
+    latlngs.push(ll);
+    const m = L.circleMarker(ll, {
+      radius: 5,
+      fillColor: '#007AFF',
+      color: '#fff',
+      weight: 1.5,
+      opacity: 1,
+      fillOpacity: 0.85
+    }).addTo(map);
+    m.siteData = s;
+    m.bindPopup(`
+      <div style="min-width:220px; font-family: -apple-system, sans-serif;">
+        <div style="font-weight:700; font-size:13px; color:#1C1C1E; margin-bottom:6px;">${escapeHtml(s.nombre || s.codigo)}</div>
+        <div style="font-size:11px; color:#8E8E93; margin-bottom:8px;">${escapeHtml(s.codigo)} &middot; ${escapeHtml(s.estado || '')}</div>
+        <div style="font-size:12px; line-height:1.4; color:#3A3A3C;">
+          <div><b>Depto:</b> ${escapeHtml(s.departamento || '')} - ${escapeHtml(s.provincia || '')}</div>
+          <div><b>Distrito:</b> ${escapeHtml(s.distrito || '')}</div>
+          <div><b>Dirección:</b> ${escapeHtml(s.direccion || '')}</div>
+          <div><b>Coords:</b> ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+        </div>
+      </div>
+    `);
+    markers.push(m);
+  });
+  allBounds = L.latLngBounds(latlngs);
+  map.fitBounds(allBounds.pad(0.08));
+  setTimeout(() => map.invalidateSize(), 200);
+  document.getElementById('map-loading').style.display = 'none';
+}
+
+function resaltarSite(site) {
+  if (highlighted) {
+    highlighted.setStyle({ fillColor: '#007AFF', radius: 5 });
+  }
+  if (highlightCircle) { map.removeLayer(highlightCircle); highlightCircle = null; }
+  const m = markers.find(x => x.siteData.codigo === site.codigo && x.siteData.nombre === site.nombre);
+  if (!m) return;
+  highlighted = m;
+  m.setStyle({ fillColor: '#FF3B30', radius: 8, fillOpacity: 1, weight: 2 });
+  m.bringToFront();
+  highlightCircle = L.circle([site.lat, site.lng], { radius: 300, color: '#FF3B30', weight: 2, fillColor: '#FF3B30', fillOpacity: 0.12 }).addTo(map);
+  map.setView([site.lat, site.lng], 13, { animate: true });
+  m.openPopup();
+  const det = document.getElementById('site-detail');
+  det.classList.add('show');
+  det.innerHTML = `
+    <div style="font-weight:700; font-size:13px; color:#1C1C1E; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+      <span style="width:10px; height:10px; border-radius:50%; background:#FF3B30; display:inline-block;"></span>
+      ${escapeHtml(site.nombre || site.codigo)}
+    </div>
+    <div class="row"><span class="k">Código</span><span class="v">${escapeHtml(site.codigo)}</span></div>
+    <div class="row"><span class="k">Estado</span><span class="v">${escapeHtml(site.estado)}</span></div>
+    <div class="row"><span class="k">Prioridad</span><span class="v">${escapeHtml(site.prioridad || '')}</span></div>
+    <div class="row"><span class="k">Departamento</span><span class="v">${escapeHtml(site.departamento)}</span></div>
+    <div class="row"><span class="k">Distrito</span><span class="v">${escapeHtml(site.distrito)}</span></div>
+    <div class="row"><span class="k">Dirección</span><span class="v">${escapeHtml(site.direccion)}</span></div>
+    <div class="row"><span class="k">Coords</span><span class="v">${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}</span></div>
+    <div class="row"><span class="k">Supervisor</span><span class="v">${escapeHtml(site.supervisor || '')}</span></div>
+  `;
+}
+
+function limpiarResaltado() {
+  if (highlighted) highlighted.setStyle({ fillColor: '#007AFF', radius: 5 });
+  highlighted = null;
+  if (highlightCircle) { map.removeLayer(highlightCircle); highlightCircle = null; }
+  document.getElementById('site-detail').classList.remove('show');
+  document.getElementById('site-search').value = '';
+  hideSuggest();
+  if (allBounds) map.fitBounds(allBounds.pad(0.08));
+}
+function ajustarVista() { if (allBounds) map.fitBounds(allBounds.pad(0.08)); }
+
+function showSuggest(list) {
+  const box = document.getElementById('suggest');
+  if (!list.length) { box.classList.remove('show'); box.innerHTML = ''; return; }
+  box.innerHTML = list.slice(0, 12).map(s => `
+    <div class="suggest-item" data-codigo="${escapeHtml(s.codigo)}">
+      <span class="nm">${escapeHtml(s.nombre || s.codigo)}</span>
+      <span class="cd">${escapeHtml(s.codigo)} · ${escapeHtml(s.departamento || '')} - ${escapeHtml(s.distrito || '')}</span>
+    </div>
+  `).join('');
+  box.classList.add('show');
+  box.querySelectorAll('.suggest-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const cod = el.getAttribute('data-codigo');
+      const site = SITES.find(x => x.codigo === cod);
+      if (site) { document.getElementById('site-search').value = site.nombre || site.codigo; resaltarSite(site); }
+      hideSuggest();
+    });
+  });
+}
+function hideSuggest() { document.getElementById('suggest').classList.remove('show'); }
+
+document.getElementById('site-search').addEventListener('input', function() {
+  const q = this.value.trim().toLowerCase();
+  if (!q) { showSuggest(SITES.slice(0, 50)); return; }
+  const res = SITES.filter(s =>
+    String(s.codigo||'').toLowerCase().includes(q) ||
+    String(s.nombre||'').toLowerCase().includes(q)
+  );
+  showSuggest(res);
+});
+document.getElementById('site-search').addEventListener('focus', function() {
+  const q = this.value.trim().toLowerCase();
+  if (!q) {
+    showSuggest(SITES.slice(0, 50));
+  } else {
+    const res = SITES.filter(s =>
+      String(s.codigo||'').toLowerCase().includes(q) ||
+      String(s.nombre||'').toLowerCase().includes(q)
+    );
+    showSuggest(res);
+  }
+});
+document.getElementById('site-search').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    const q = this.value.trim().toLowerCase();
+    const hit = SITES.find(s => String(s.codigo||'').toLowerCase() === q || String(s.nombre||'').toLowerCase() === q)
+               || SITES.find(s => String(s.nombre||'').toLowerCase().includes(q) || String(s.codigo||'').toLowerCase().includes(q));
+    if (hit) { resaltarSite(hit); hideSuggest(); }
+  } else if (e.key === 'Escape') hideSuggest();
+});
+document.addEventListener('click', function(e) {
+  const wrap = e.target.closest('.search-wrap');
+  if (!wrap) hideSuggest();
+});
+
+// Cargar datos vía API (evita HTML gigante)
+fetch('/api/sites')
+  .then(r => r.json())
+  .then(data => {
+    SITES = data;
+    document.getElementById('total-sites').textContent = data.length;
+    const el2 = document.getElementById('total-sites-2');
+    if (el2) el2.textContent = data.length;
+    initMap();
+  })
+  .catch(err => {
+    console.error('Error cargando sites', err);
+    document.getElementById('map-loading').innerHTML = '<span style="color:#FF3B30;">Error cargando sites</span>';
+  });
+</script>
+{% endblock %}

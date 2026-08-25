@@ -540,7 +540,8 @@ with app.app_context():
     # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
              ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
-             ('Combustible', 'Consumo de Combustible (solo FLM)'), ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)')]
+             ('Combustible', 'Consumo de Combustible (solo FLM)'), ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)'),
+             ('SITE', 'Maestro de Sites – Libro1 (39 columnas)')]
     for nombre, desc in fixed:
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
@@ -788,6 +789,67 @@ with app.app_context():
             db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='app_schema', valor=json.dumps([])))
         db.session.commit()
 
+    # Migration: Configure SITE columns (maestro Libro1 – 39 columnas)
+    site_proy = Proyecto.query.filter_by(nombre='SITE').first()
+    if site_proy:
+        site_proy.icono = 'fa-location-dot'
+        site_cols = [
+            {'nombre': 'Código Site', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Nombre Site', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Estado', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Prioridad', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Departamento', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Provincia', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Distrito', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Dirección', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Latitud (°)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Longitud (°)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Región', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Coordinador O&M Sitios', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Tipo de Torre', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Altura de Torre (m)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Tipo de Estación', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Cobicador', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Infraestructura Critica', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Tipo de Site', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Sede', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Week', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Oficinas FM', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CITY', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'REGION HW', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SUBCON', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TEAMS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'BASE SUPERVISOR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CELULAR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CORREO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'REGIONAL MANAGER HUAWEI', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CEL RM', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CORREO RM', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'GRUPOS ELECTROGENOS (60)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'GRUPOS ELECTROGENOS ENTEL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'AVR  % CORTES', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '4X4', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MINIVAN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTOCARGA', 'tipo': 'texto', 'opciones': []},
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(site_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='manual_columns', valor=json.dumps(site_cols, ensure_ascii=False)))
+        # La llave del maestro es el Código Site (también se usa como campo "site")
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            pk_cfg.valor = 'Código Site'
+        else:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='Código Site'))
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
     # Migration: "Fault Level" es dato de origen (inmutable) -> no debe ser columna manual editable.
     # Se elimina de la configuracion para que nadie pueda editarla (ni admin).
     pext = Proyecto.query.filter_by(nombre='PEXT').first()
@@ -1010,6 +1072,9 @@ def get_menu_proyectos(user_id, user_rol):
         cotp = Proyecto.query.filter_by(nombre='Cotizaciones').first()
         if cotp and cotp.id not in {e.id for e in proyectos}:
             proyectos = proyectos + [cotp]
+        site2 = Proyecto.query.filter_by(nombre='SITE').first()
+        if site2 and site2.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [site2]
     return proyectos
 
 @app.route('/logout')
@@ -1068,6 +1133,16 @@ def switch_project(pid):
                 if not allowed:
                     return redirect(url_for('index'))
             elif proy and proy.nombre == 'Cotizaciones':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'SITE':
                 accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
                 allowed = False
                 for a in accs:
@@ -2818,6 +2893,10 @@ def api_rows_update():
     pid = session.get('current_proyecto_id')
     if session.get('rol') == 'demo':
         return jsonify({'error': 'Rol DEMO no tiene permisos para actualizar datos.'}), 403
+    # SITE: solo supervisor/admin puede editar
+    _proy_chk = db.session.get(Proyecto, pid)
+    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('admin', 'supervisor'):
+        return jsonify({'error': 'Solo supervisor o admin puede editar sites.'}), 403
     try:
         data = request.json
         key_val = data.get('key')
@@ -2949,6 +3028,9 @@ def api_rows_add():
     pid = session.get('current_proyecto_id')
     if session.get('rol') == 'demo':
         return jsonify({'error': 'Rol DEMO no tiene permisos para añadir registros.'}), 403
+    _proy_chk = db.session.get(Proyecto, pid)
+    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('admin', 'supervisor'):
+        return jsonify({'error': 'Solo supervisor o admin puede añadir sites.'}), 403
     try:
         data = request.json
         key_val = str(data.get('key', '')).strip()
@@ -3036,13 +3118,15 @@ def api_rows_delete():
     # Site Name, Generadores), nunca en WOs (FLM/PEXT).
     proy_obj = db.session.get(Proyecto, pid) if pid else None
     proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
-    manual = proy_nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible')
+    manual = proy_nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE')
     if session.get('rol') == 'demo':
         return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
     if session.get('rol') == 'gestor' and not manual:
         return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
     if proy_nombre == 'Combustible' and session.get('rol') != 'admin':
         return jsonify({'error': 'No tienes permisos para eliminar movimientos de Combustible. Solo el administrador puede eliminar lo registrado.'}), 403
+    if proy_nombre == 'SITE' and session.get('rol') not in ('admin', 'supervisor'):
+        return jsonify({'error': 'Solo supervisor o admin puede eliminar sites.'}), 403
     try:
         data = request.json
         keys = data.get('keys', [])
@@ -4462,6 +4546,89 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     doc.build(story)
     buf.seek(0)
     return buf.read()
+
+# ── Mapa SITE ──────────────────────────────────────────────────────────
+@app.route('/mapa-site')
+@app.route('/mapa')
+@login_required
+def mapa_site():
+    """Mapa de sites del maestro SITE (lat/lng) con buscador para resaltar."""
+    user_id = session.get('user_id')
+    user_rol = session.get('rol')
+    # Permiso: admin/demo o cualquier usuario con FLM (como SITE en el menú)
+    proy_site = Proyecto.query.filter_by(nombre='SITE').first()
+    if not proy_site:
+        from flask import abort
+        abort(404)
+    if user_rol not in ('admin', 'demo'):
+        # Debe tener FLM para ver el mapa de sites
+        flm = Proyecto.query.filter_by(nombre='FLM').first()
+        has_flm = False
+        if flm:
+            has_flm = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=flm.id).first() is not None
+        if not has_flm:
+            has_flm = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy_site.id).first() is not None
+        if not has_flm:
+            from flask import redirect, url_for
+            return redirect(url_for('index'))
+    # Contar sites con coordenadas válidas (para el hint)
+    count_valid = 0
+    for r in NucleusData.query.filter_by(proyecto_id=proy_site.id).all():
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
+        lat_raw = d.get('Latitud (°)', '') or d.get('Latitud', '') or d.get('LATITUD', '')
+        lng_raw = d.get('Longitud (°)', '') or d.get('Longitud', '') or d.get('LONGITUD', '')
+        try:
+            lat = float(str(lat_raw).replace(',', '.').strip())
+            lng = float(str(lng_raw).replace(',', '.').strip())
+        except Exception:
+            continue
+        if -90 <= lat <= 90 and -180 <= lng <= 180 and not (lat == 0 and lng == 0):
+            count_valid += 1
+    proyectos = get_menu_proyectos(user_id, user_rol)
+    return render_template('mapa_site.html', sites_count=count_valid, proyectos_list=proyectos)
+
+@app.route('/api/sites')
+@login_required
+def api_sites():
+    """API que devuelve todos los sites con coordenadas válidas para el mapa."""
+    proy_site = Proyecto.query.filter_by(nombre='SITE').first()
+    if not proy_site:
+        return jsonify([])
+    sites = []
+    for r in NucleusData.query.filter_by(proyecto_id=proy_site.id).all():
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
+        lat_raw = d.get('Latitud (°)', '') or d.get('Latitud', '') or d.get('LATITUD', '')
+        lng_raw = d.get('Longitud (°)', '') or d.get('Longitud', '') or d.get('LONGITUD', '')
+        try:
+            lat = float(str(lat_raw).replace(',', '.').strip())
+            lng = float(str(lng_raw).replace(',', '.').strip())
+        except Exception:
+            continue
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            continue
+        if lat == 0 and lng == 0:
+            continue
+        sites.append({
+            'codigo': d.get('Código Site', '') or d.get('Codigo Site', '') or r.key_value,
+            'nombre': d.get('Nombre Site', ''),
+            'lat': lat,
+            'lng': lng,
+            'estado': d.get('Estado', ''),
+            'prioridad': d.get('Prioridad', ''),
+            'departamento': d.get('Departamento', ''),
+            'provincia': d.get('Provincia', ''),
+            'distrito': d.get('Distrito', ''),
+            'direccion': d.get('Dirección', '') or d.get('Direccion', ''),
+            'region': d.get('Región', '') or d.get('Region', ''),
+            'supervisor': d.get('SUPERVISOR', ''),
+        })
+    return jsonify(sites)
 
 # -----------------------------------------------------------------------
 

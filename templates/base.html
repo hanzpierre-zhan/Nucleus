@@ -77,6 +77,16 @@
                 </a>
                 {% endif %}
                 {% endfor %}
+                {% for p in proyectos_list %}
+                {% if p.nombre == 'SITE' %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
+                    <i class="fa-solid {{ p.icono or 'fa-location-dot' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
+                </a>
+                {% endif %}
+                {% endfor %}
+                <a href="/mapa-site" class="sidebar-link {% if request.path == '/mapa-site' or request.path == '/mapa' %}active{% endif %}" data-nav="/mapa-site">
+                    <i class="fa-solid fa-map-location-dot"></i> <span class="sidebar-link-text">Mapa Sites</span>
+                </a>
 
                 {% if (session.get('rol') or '').lower() in ['admin', 'demo'] %}
                 <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
