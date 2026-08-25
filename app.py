@@ -4162,8 +4162,13 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     story.append(Spacer(1, 4 * mm))
 
     # ---- SECCIONES FIJAS DE CIERRE ----
-    for titulo in ['TIEMPO DE ENTREGA', 'LUGAR DE ENTREGA',
-                   'VALIDEZ DE LA OFERTA', 'CONDICIONES GENERALES']:
+    secciones_cierre = {
+        'TIEMPO DE ENTREGA': '',
+        'LUGAR DE ENTREGA': 'En la puerta del site',
+        'VALIDEZ DE LA OFERTA': '15 días calendario',
+        'CONDICIONES GENERALES': ''
+    }
+    for titulo, contenido in secciones_cierre.items():
         sec_tbl = Table([[Paragraph(f'<b>{titulo}</b>', st_sec)]], colWidths=[W])
         sec_tbl.setStyle(TableStyle([
             ('BOX', (0, 0), (-1, -1), 0.5, MID_GRAY),
@@ -4173,6 +4178,14 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ]))
         story.append(sec_tbl)
+        if contenido:
+            body_tbl = Table([[Paragraph(contenido, st_norm)]], colWidths=[W])
+            body_tbl.setStyle(TableStyle([
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(body_tbl)
         story.append(Spacer(1, 1.5 * mm))
 
     doc.build(story)

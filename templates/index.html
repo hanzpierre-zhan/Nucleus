@@ -3843,7 +3843,8 @@ table.on("dataFiltered", function (filters, rows) {
                 numInp.value = (numInp.value || '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
             });
         }
-        if (numInp) numInp.disabled = !editable;
+        // N° COTIZACIÓN: en FLM (formato Cobra) siempre editable; TICKET permanece bloqueado.
+        if (numInp && !ES_FLM) numInp.disabled = !editable;
 
         // Margen % de cotización: cargar, aplicar a las filas y conectar guardado
         const margenEl = document.getElementById('wo-coti-margen');
