@@ -2861,14 +2861,17 @@ def api_rows_update():
                     return jsonify({'error': f'Saldo insuficiente. Disponible: {temp_bal:g} galones. Se intentó gastar: {new_gal:g}.'}), 400
 
         # Cotizaciones: GESTOR y la llave (N° COTIZACION) no se editan; una vez
-        # GENERADA, solo el admin puede corregir el registro.
+        # GENERADA, solo el admin puede corregir, salvo NUMERO WO cuando está en CM-PENDIENTE.
         if proy_nombre == 'Cotizaciones':
             if field == 'GESTOR':
                 return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró la cotización.'}), 400
             if field == 'N° COTIZACION':
                 return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
             if session.get('rol') != 'admin' and str(row_dict.get('GENERADA', '') or '') == '1':
-                return jsonify({'error': 'Esta cotización ya fue GENERADA y está bloqueada. Solo el administrador puede editarla.'}), 403
+                if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
+                    pass
+                else:
+                    return jsonify({'error': 'Esta cotización ya fue GENERADA y está bloqueada. Solo el administrador puede editarla.'}), 403
         
         # Guardar en el historial de cambios (solo si el valor realmente cambió)
         valor_anterior = row_dict.get(field, '')
@@ -3637,7 +3640,8 @@ def api_cotizacion_descargar_registro():
 
 def _cotizacion_registro_pdf_response(rec):
     """Construye el PDF Cobra desde un registro del módulo Cotizaciones.
-    Solo si la cotización ya fue GENERADA (bloqueo respetado en todas las vías)."""
+    Solo si la cotización ya fue GENERADA (bloqueo respetado en todas las vías).
+    Si NUMERO WO está vacío, muestra CM-PENDIENTE como en Combustible."""
     try:
         d = json.loads(rec.data_json)
     except Exception:
@@ -3649,12 +3653,22 @@ def _cotizacion_registro_pdf_response(rec):
     except Exception:
         items = []
     numero = str(d.get('N° COTIZACION', '') or '')
+    # NUMERO WO → CM-PENDIENTE si está vacío, igual que Combustible
+    numero_wo = str(d.get('NUMERO WO', '') or '').strip()
+    ticket_raw = str(d.get('TICKET', '') or '').strip()
+    # Para el PDF, el campo TICKET muestra el NUMERO WO asociado o CM-PENDIENTE
+    pdf_ticket = numero_wo if numero_wo else "CM-PENDIENTE"
+    # Si TICKET tiene valor y es distinto, lo anteponemos, pero si es igual o vacío, usamos el display
+    if ticket_raw and ticket_raw != numero_wo and ticket_raw != "CM-PENDIENTE":
+        # Si ambos tienen valor y son distintos, priorizar NUMERO WO pero dejar constancia
+        # Por ahora, mostrar NUMERO WO (con CM-PENDIENTE si vacío)
+        pass
     pdf_bytes = _generar_pdf_cotizacion_cobra(
         numero=numero,
         site=str(d.get('SITE', '') or ''),
         supervisor=str(d.get('SUPERVISOR', '') or ''),
         objetivo=str(d.get('OBJETIVO', '') or ''),
-        ticket=str(d.get('TICKET', '') or ''),
+        ticket=pdf_ticket,
         elaborado_por=str(d.get('GESTOR', '') or session.get('username', '')),
         items=items
     )
