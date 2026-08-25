@@ -1241,6 +1241,17 @@ def index():
                 if not allowed:
                     session.clear()
                     return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Cotizaciones':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
             else:
                 session.clear()
                 return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
@@ -1766,12 +1777,15 @@ def api_admin_usuario():
         try:
             u = db.session.get(Usuario, uid)
             if u:
-                # Delete permissions too
+                # Nullify history records referencing this user (FK nullable)
+                HistorialCambios.query.filter_by(usuario_id=uid).update({'usuario_id': None})
+                # Delete project access permissions
                 AccesoProyecto.query.filter_by(usuario_id=uid).delete()
                 db.session.delete(u)
                 db.session.commit()
             return jsonify({'success': True})
         except Exception as e:
+            db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
 @app.route('/api/admin/usuario/duplicar', methods=['POST'])
