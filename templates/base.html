@@ -48,7 +48,7 @@
 
                 <div class="sidebar-section-label">Proyectos</div>
                 {% for p in proyectos_list %}
-                {% if p.nombre in ['FLM', 'PEXT', 'Combustible'] %}
+                {% if p.nombre in ['FLM', 'PEXT', 'Combustible', 'Cotizaciones'] %}
                 <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
                     <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
                 </a>

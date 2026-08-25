@@ -51,7 +51,7 @@
     </button>
 
     {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
-    {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible'] %}
+    {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
     <!-- Botón Añadir Registro (Azul) -->
     <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
         <i class="fa-solid fa-plus"></i> Añadir
@@ -528,7 +528,8 @@
         <div id="mar-fields" class="mar-body"></div>
         <div class="mar-footer">
             <button onclick="cerrarModalRegistro()" class="mar-btn-ghost">Cancelar</button>
-            <button onclick="guardarModalRegistro()" class="mar-btn-primary"><i class="fa-solid fa-check"></i> Guardar Registro</button>
+            <button id="btn-mar-generar-coti" onclick="guardarModalRegistro('generar')" class="mar-btn-primary" style="display:none;"><i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización</button>
+            <button id="btn-mar-label-guardar" onclick="guardarModalRegistro()" class="mar-btn-primary"><i class="fa-solid fa-check"></i> Guardar</button>
         </div>
     </div>
 </div>
@@ -673,8 +674,8 @@
                 </div>
             </div>
             <div id="wo-panel-cotizacion" style="display:none;">
-                <!-- Selector de cotizaciones + botón para crear nueva -->
-                <div class="wo-section" id="wo-coti-entry-section">
+                <!-- Selector de cotizaciones (oculto: el listado de asociadas se muestra en la tabla de abajo) -->
+                <div class="wo-section" id="wo-coti-entry-section" style="display:none;">
                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                         <select id="wo-coti-select" class="wo-coti-select" onchange="seleccionarCotizacionLista(this.value)">
                             <option value="">— Cotizaciones del ticket —</option>
@@ -686,6 +687,12 @@
                         <button type="button" id="btn-coti-eliminar" onclick="eliminarCotizacion()" title="Eliminar cotización" style="display:none; background:#FF3B30; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i class="fa-solid fa-trash-can"></i></button>
                         {% endif %}
                     </div>
+                </div>
+
+                <!-- Cotizaciones asociadas por NUMERO WO (como Gastos refleja Combustible) -->
+                <div class="wo-section" id="wo-coti-asociadas-section" style="display:none;">
+                    <div class="wo-section-title"><i class="fa-solid fa-link"></i> Cotizaciones registradas para este WO</div>
+                    <div id="wo-coti-asociadas-list"><div class="wo-empty">Sin cotizaciones asociadas a este WO.</div></div>
                 </div>
 
                 <!-- Formulario completo (oculto hasta que se presione el botón) -->
@@ -937,7 +944,7 @@
     const USER_ROLE = "{{ session.get('rol') }}";
     const USER_IS_ADMIN = USER_ROLE === "admin";
     const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
-    const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible'].includes(currentProjectNombre.trim().toLowerCase());
+    const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
@@ -1444,7 +1451,7 @@
     };
 
     // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
-    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible'];
+    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'];
     if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
@@ -1959,6 +1966,20 @@
                     colDef.formatterParams = { inputFormat: "yyyy-MM-dd", outputFormat: "dd/MM/yyyy", invalidPlaceholder: "" };
                 }
             }
+
+            // Cotizaciones: GESTOR y SUB TOTAL no editables; una vez GENERADA,
+            // la fila se bloquea para gestores (solo admin puede corregir).
+            const isCotizacionesProy = currentProjectNombre.trim().toLowerCase() === 'cotizaciones';
+            if (isCotizacionesProy) {
+                if (fieldName === 'GESTOR' || fieldName === 'SUB TOTAL + FEE') {
+                    colDef.editor = false;
+                }
+                colDef.editable = function(cell) {
+                    const d = cell.getRow().getData() || {};
+                    if (String(d['GENERADA'] || '') === '1' && !isAdminUser) return false;
+                    return true;
+                };
+            }
         }
 
         // Combustible: formateadores especiales
@@ -2247,6 +2268,37 @@
     if (keyColumn) tableColumns.push(keyColumn);
 
     tableColumns.push(...restColumns);
+
+    // Cotizaciones: columna de descarga al FINAL (a la derecha de SUB TOTAL + FEE),
+    // con dinámica "Sin PDF" / "PDF generado" como FOTO en Combustible.
+    if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
+        tableColumns.push({
+            title: "PDF",
+            field: "_descargar_coti",
+            width: 130,
+            minWidth: 120,
+            maxWidth: 160,
+            resizable: false,
+            headerSort: false,
+            hozAlign: "center",
+            formatter: function(cell) {
+                const row = cell.getRow().getData();
+                const generada = String(row['GENERADA'] || '') === '1';
+                const rowKey = escapeHtml(String(row['_key'] != null ? row['_key'] : ''));
+                if (generada) {
+                    return `<div style="display:inline-flex; align-items:center; gap:6px;">
+                        <span style="color:#34C759; font-weight:600; font-size:11px;">PDF generado</span>
+                        <button type="button" title="Descargar cotización" style="border:none;background:rgba(52,199,89,0.12);color:#34C759;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); descargarCotizacionRegistroKey('${rowKey}')"><i class="fa-solid fa-download"></i></button>
+                    </div>`;
+                }
+                return `<div style="display:inline-flex; align-items:center; gap:6px;">
+                    <span style="color:var(--ios-gray-2); font-size:11px;">Sin PDF</span>
+                    <span title="Genera la cotización para poder descargarla" style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:rgba(142,142,147,0.10);color:#8E8E93;font-size:11px;"><i class="fa-solid fa-file-pdf"></i></span>
+                </div>`;
+            },
+            cellClick: function(e, cell) {}
+        });
+    }
 
     function tabulatorSelectAll(cb) {
         const rows = table.getRows("active");
@@ -2755,6 +2807,18 @@ table.on("dataFiltered", function (filters, rows) {
             return;
         }
 
+        // Cotizaciones: modal personalizado (datos del formato Cobra + items con
+        // sub total + FEE; GESTOR se asigna automáticamente en el servidor).
+        if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
+            aniadirRegistroCotizaciones(body);
+            const btnGenCoti = document.getElementById('btn-mar-generar-coti');
+            if (btnGenCoti) btnGenCoti.style.display = '';
+            document.getElementById('modal-add-registro').style.display = 'flex';
+            const first = body.querySelector('input, select');
+            if (first) setTimeout(() => first.focus(), 60);
+            return;
+        }
+
         // Solo columnas mostradas (visibles), sin columnas calculadas (KPI_)
         const cols = table.getColumns().filter(c => {
             const f = c.getDefinition().field;
@@ -3062,6 +3126,316 @@ table.on("dataFiltered", function (filters, rows) {
         syncMov();
     }
 
+    // ===== Cotizaciones: modal personalizado (mismo esquema del formato Cobra) =====
+    function aniadirRegistroCotizaciones(body) {
+        function mkField(nombre, el, dataField, extra) {
+            const wrap = document.createElement('div');
+            wrap.className = 'mar-field';
+            const label = document.createElement('label');
+            label.textContent = nombre;
+            wrap.appendChild(label);
+            el.dataset.field = dataField;
+            el.dataset.pk = '0';
+            if (extra && extra.readonly) el.readOnly = true;
+            wrap.appendChild(el);
+            body.appendChild(wrap);
+            return wrap;
+        }
+        function mkTxt(nombre, dataField, placeholder) {
+            const inp = document.createElement('input');
+            inp.type = 'text';
+            inp.placeholder = placeholder || '';
+            mkField(nombre, inp, dataField);
+            return inp;
+        }
+
+        // FECHA (hoy por defecto)
+        const inpFecha = document.createElement('input');
+        inpFecha.type = 'date';
+        inpFecha.value = new Date().toISOString().slice(0, 10);
+        mkField('FECHA', inpFecha, 'FECHA');
+
+        // N° COTIZACION (HW-AAAA-XXXXXXX, correlativo editable)
+        const numWrap = document.createElement('div');
+        numWrap.className = 'mar-field';
+        const numLbl = document.createElement('label');
+        numLbl.textContent = 'N° COTIZACION';
+        numWrap.appendChild(numLbl);
+        const numRow = document.createElement('div');
+        numRow.style.cssText = 'display:flex; align-items:center; gap:4px;';
+        const numPrefix = document.createElement('span');
+        numPrefix.textContent = 'HW-' + new Date().getFullYear() + '-';
+        numPrefix.style.cssText = 'font-size:13px; font-weight:700; color:var(--ios-label2); white-space:nowrap;';
+        const numInp = document.createElement('input');
+        numInp.type = 'text';
+        numInp.placeholder = '0000001';
+        numInp.maxLength = 7;
+        numInp.inputMode = 'numeric';
+        numInp.dataset.field = '_COT_NUM_DIGITS';
+        numInp.dataset.pk = '1';
+        numRow.appendChild(numPrefix);
+        numRow.appendChild(numInp);
+        numWrap.appendChild(numRow);
+        body.appendChild(numWrap);
+
+        // Campos del formato Cobra
+        mkTxt('TICKET', 'TICKET', 'CM-AAAAMMDD-XXXXXXX');
+        mkTxt('SITE', 'SITE', 'Site...');
+        mkTxt('SUPERVISOR', 'SUPERVISOR', 'Nombre del supervisor...');
+        mkTxt('OBJETIVO', 'OBJETIVO', 'Título / objetivo...');
+
+        // Campos de control
+        mkTxt('NUMERO WO', 'NUMERO WO', 'N° de WO...');
+        mkTxt('NOMBRE SITE', 'NOMBRE SITE', 'Nombre del site (control)...');
+
+        // Sección de items (fuera de .mar-field para no interferir con el guardado genérico)
+        const sec = document.createElement('div');
+        sec.style.cssText = 'grid-column:1/-1; margin-top:6px;';
+        sec.innerHTML =
+            '<div style="font-size:12px; font-weight:700; color:var(--ios-label2); margin-bottom:6px;">ITEMS</div>' +
+            '<div class="wo-cobra-row wo-coti-header">' +
+                '<span>CORRELATIVO</span><span>TIPO</span><span>TEXTO EXPLICATIVO</span><span>UND</span>' +
+                '<span>CANTIDAD</span><span>VALOR UNITARIO</span><span>FEE %</span><span>VALOR TOTAL</span><span>COMENTARIOS</span><span></span>' +
+            '</div>' +
+            '<div id="cot-reg-items-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>' +
+            '<div class="wo-cobra-row wo-coti-subtotal">' +
+                '<span></span><span></span><span></span><span></span><span></span><span></span><span></span>' +
+                '<span class="wo-subtotal-lbl">sub total + FEE</span>' +
+                '<span id="cot-reg-subtotal" class="wo-subtotal-val">0.00</span>' +
+                '<span></span>' +
+            '</div>';
+        body.appendChild(sec);
+
+        const btnItem = document.createElement('button');
+        btnItem.type = 'button';
+        btnItem.className = 'mar-btn-ghost';
+        btnItem.innerHTML = '<i class="fa-solid fa-plus"></i> Agregar item';
+        btnItem.onclick = () => cotRegAgregarFila();
+        body.appendChild(btnItem);
+
+        // Correlativo automático: solo lectura, consecutivo desde 0000031.
+        numInp.value = _sugerirCorrelativoCotiReg();
+        numInp.readOnly = true;
+        numInp.style.background = '#F2F2F7';
+        numInp.style.color = '#3C3C43';
+        numInp.title = 'Consecutivo automático';
+
+        cotRegAgregarFila();
+        setTimeout(() => inpFecha.focus(), 60);
+    }
+
+    function cotRegAgregarFila(datos) {
+        const cont = document.getElementById('cot-reg-items-list');
+        if (!cont) return;
+        const emptyMsg = cont.querySelector('.wo-empty');
+        if (emptyMsg) emptyMsg.remove();
+        datos = datos || {};
+
+        const row = document.createElement('div');
+        row.className = 'wo-gasto-row wo-cobra-row';
+
+        const itemInp = document.createElement('input');
+        itemInp.type = 'text';
+        itemInp.className = 'wo-coti-item';
+        itemInp.readOnly = true;
+        row.appendChild(itemInp);
+
+        const selTipo = document.createElement('select');
+        selTipo.className = 'wo-cobra-tipo';
+        ['', 'REEMBOLSABLE', 'LPU'].forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o; opt.textContent = o || '—';
+            selTipo.appendChild(opt);
+        });
+        selTipo.value = datos.tipo || '';
+        row.appendChild(selTipo);
+
+        const txtInp = document.createElement('input');
+        txtInp.type = 'text';
+        txtInp.className = 'wo-cobra-texto';
+        txtInp.placeholder = 'Texto explicativo...';
+        txtInp.value = datos.texto || '';
+        row.appendChild(txtInp);
+
+        const selUnd = document.createElement('select');
+        selUnd.className = 'wo-cobra-und';
+        [''].concat(UND_COBRA).forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u; opt.textContent = u || '—';
+            selUnd.appendChild(opt);
+        });
+        selUnd.value = datos.und || '';
+        row.appendChild(selUnd);
+
+        const cantInp = document.createElement('input');
+        cantInp.type = 'number';
+        cantInp.className = 'wo-cobra-cant';
+        cantInp.min = '0';
+        cantInp.step = 'any';
+        cantInp.placeholder = 'Cant.';
+        if (datos.cantidad != null) cantInp.value = datos.cantidad;
+        row.appendChild(cantInp);
+
+        const vuInp = document.createElement('input');
+        vuInp.type = 'number';
+        vuInp.className = 'wo-cobra-vu';
+        vuInp.min = '0';
+        vuInp.step = '0.01';
+        vuInp.placeholder = 'S/';
+        if (datos.valor_unitario != null) vuInp.value = datos.valor_unitario;
+        row.appendChild(vuInp);
+
+        const feeInp = document.createElement('input');
+        feeInp.type = 'text';
+        feeInp.className = 'wo-cobra-fee wo-coti-auto';
+        feeInp.readOnly = true;
+        row.appendChild(feeInp);
+
+        const vtInp = document.createElement('input');
+        vtInp.type = 'text';
+        vtInp.className = 'wo-cobra-vt wo-coti-auto';
+        vtInp.readOnly = true;
+        if (datos.valor_total != null) vtInp.value = datos.valor_total;
+        row.appendChild(vtInp);
+
+        const comInp = document.createElement('input');
+        comInp.type = 'text';
+        comInp.className = 'wo-cobra-coment';
+        comInp.placeholder = 'Comentarios...';
+        comInp.value = datos.comentarios || '';
+        row.appendChild(comInp);
+
+        const recalc = () => {
+            const tipo = (selTipo.value || '').toUpperCase();
+            const fee = tipo === 'REEMBOLSABLE' ? 5 : 0;
+            feeInp.value = selTipo.value ? (fee + '%') : '';
+            const cant = parseFloat(cantInp.value);
+            const vu = parseFloat(vuInp.value);
+            const vt = ((isNaN(cant) ? 0 : cant) * (isNaN(vu) ? 0 : vu)) * (1 + fee / 100);
+            vtInp.value = vt > 0 ? vt.toFixed(2) : '';
+            cotRegTotal();
+        };
+        selTipo.addEventListener('change', recalc);
+        cantInp.addEventListener('input', recalc);
+        vuInp.addEventListener('input', recalc);
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'wo-material-del';
+        del.title = 'Quitar item';
+        del.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+        del.onclick = () => {
+            row.remove();
+            cotRegReordenar();
+            cotRegTotal();
+            if (!cont.querySelector('.wo-gasto-row')) {
+                cont.innerHTML = '<div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div>';
+            }
+        };
+        row.appendChild(del);
+
+        cont.appendChild(row);
+        cotRegReordenar();
+        recalc();
+    }
+
+    function cotRegReordenar() {
+        const cont = document.getElementById('cot-reg-items-list');
+        if (!cont) return;
+        cont.querySelectorAll('.wo-gasto-row').forEach((r, i) => {
+            const item = r.querySelector('.wo-coti-item');
+            if (item) item.value = i + 1;
+        });
+    }
+
+    function cotRegRecoger() {
+        const cont = document.getElementById('cot-reg-items-list');
+        if (!cont) return [];
+        const items = [];
+        cont.querySelectorAll('.wo-gasto-row').forEach(row => {
+            const tipo = row.querySelector('.wo-cobra-tipo');
+            const texto = row.querySelector('.wo-cobra-texto');
+            const und = row.querySelector('.wo-cobra-und');
+            const cant = row.querySelector('.wo-cobra-cant');
+            const vu = row.querySelector('.wo-cobra-vu');
+            const vt = row.querySelector('.wo-cobra-vt');
+            const com = row.querySelector('.wo-cobra-coment');
+            const t = texto ? texto.value.trim() : '';
+            if (!t && !(cant && String(cant.value).trim()) && !(vu && String(vu.value).trim())) return;
+            items.push({
+                tipo: tipo ? tipo.value.trim().toUpperCase() : '',
+                texto: t,
+                und: und ? und.value.trim() : '',
+                cantidad: cant ? cant.value : '',
+                valor_unitario: vu ? vu.value : '',
+                valor_total: vt ? vt.value : '',
+                comentarios: com ? com.value.trim() : ''
+            });
+        });
+        return items;
+    }
+
+    function cotRegTotal() {
+        let tot = 0;
+        const cont = document.getElementById('cot-reg-items-list');
+        if (cont) {
+            cont.querySelectorAll('.wo-gasto-row').forEach(row => {
+                const vt = row.querySelector('.wo-cobra-vt');
+                const v = parseFloat(vt ? vt.value : 0);
+                if (!isNaN(v) && v > 0) tot += v;
+            });
+        }
+        const totalEl = document.getElementById('cot-reg-subtotal');
+        if (totalEl) totalEl.textContent = tot > 0 ? tot.toFixed(2) : '0.00';
+        return tot;
+    }
+
+    // Sugerencia de correlativo: máximo existente + 1 (arranque: 0000031)
+    function _sugerirCorrelativoCotiReg() {
+        const yr = String(new Date().getFullYear());
+        let maxn = 30;
+        (typeof rawData !== 'undefined' ? rawData : []).forEach(r => {
+            const k = String(r['_key'] != null ? r['_key'] : (r['N° COTIZACION'] || ''));
+            const m = k.match(/^HW-(\d{4})-(\d{7})$/);
+            if (m && m[1] === yr) {
+                const n = parseInt(m[2], 10);
+                if (!isNaN(n) && n > maxn) maxn = n;
+            }
+        });
+        return String(maxn + 1).padStart(7, '0');
+    }
+
+    // Descarga directa del PDF desde la tabla del módulo Cotizaciones
+    function descargarCotizacionRegistroKey(keyVal) {
+        keyVal = String(keyVal || '').trim();
+        if (!keyVal) { alert('Registro sin N° de cotización.'); return; }
+        fetch('/api/cotizacion/registro_pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: keyVal })
+        })
+        .then(r => {
+            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+            return r.blob();
+        })
+        .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Cotizacion_' + keyVal.replace(/[/\s]/g, '_') + '.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        })
+        .catch(err => alert(err.message || 'Error de red'));
+    }
+
+    function descargarCotizacionRegistro(row) {
+        const d = row.getData();
+        descargarCotizacionRegistroKey(d['_key']);
+    }
+
     function cerrarModalRegistro() {
         const modal = document.getElementById('modal-add-registro');
         if (modal) modal.style.display = 'none';
@@ -3069,7 +3443,7 @@ table.on("dataFiltered", function (filters, rows) {
         if (body) body.innerHTML = '';
     }
 
-    const IMPORT_TYPE = ['dataper', 'material', 'site name', 'generadores', 'combustible'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
+    const IMPORT_TYPE = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
     let importFileToUpload = null;
 
     function abrirModalImportar() {
@@ -3154,7 +3528,7 @@ table.on("dataFiltered", function (filters, rows) {
         }
     }
 
-    function guardarModalRegistro() {
+    function guardarModalRegistro(modo) {
         const inputs = document.querySelectorAll('#mar-fields .mar-field input, #mar-fields .mar-field select');
         const data = {};
         let key = '';
@@ -3176,6 +3550,24 @@ table.on("dataFiltered", function (filters, rows) {
 
         if (!ok) { alert('El campo principal es obligatorio.'); return; }
 
+        // Cotizaciones: la llave es el N° de cotización completo (HW-AAAA-XXXXXXX).
+        // Se adjuntan los items y el sub total + FEE; el GESTOR lo asigna el servidor.
+        let esGenerar = false;
+        if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
+            const digits = (data['_COT_NUM_DIGITS'] || key || '').replace(/\D/g, '');
+            delete data['_COT_NUM_DIGITS'];
+            if (!digits) { alert('Ingrese el correlativo del N° de cotización.'); return; }
+            data['N° COTIZACION'] = 'HW-' + new Date().getFullYear() + '-' + digits.padStart(7, '0');
+            key = data['N° COTIZACION'];
+            const itemsReg = cotRegRecoger();
+            let totReg = 0;
+            itemsReg.forEach(it => { const v = parseFloat(it.valor_total); if (!isNaN(v)) totReg += v; });
+            data['ITEMS_JSON'] = JSON.stringify(itemsReg);
+            data['SUB TOTAL + FEE'] = totReg > 0 ? totReg.toFixed(2) : '';
+            esGenerar = (modo === 'generar');
+            if (esGenerar && !itemsReg.length) { alert('Agrega al menos un item antes de generar la cotización.'); return; }
+        }
+
         // Combustible: sin WO, confirmar que quedará como CM PENDIENTE
         if (currentProjectNombre.trim().toLowerCase() === 'combustible') {
             const mov = data['MOVIMIENTO'] || '';
@@ -3193,12 +3585,35 @@ table.on("dataFiltered", function (filters, rows) {
             body: JSON.stringify({ key: key, data: data })
         }).then(r => r.json()).then(res => {
             if (res.success) {
+                if (esGenerar) {
+                    // Generar: marca GENERADA (bloquea edición) y descarga el PDF
+                    return fetch('/api/cotizacion/registro_generar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ key: key })
+                    }).then(r => {
+                        if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                        return r.blob();
+                    }).then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'Cotizacion_' + key.replace(/[/\s]/g, '_') + '.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }).then(() => {
+                        cerrarModalRegistro();
+                        location.reload();
+                    });
+                }
                 cerrarModalRegistro();
                 location.reload(); // Refleja cambios y KPIs calculados
             } else {
                 alert("Error: " + res.error);
             }
-        });
+        }).catch(err => { if (err && err.message) alert(err.message); });
     }
 
     document.addEventListener('keydown', function(e) {
@@ -4393,7 +4808,7 @@ table.on("dataFiltered", function (filters, rows) {
 
         const recalc = () => {
             const tipo = (selTipo.value || '').toUpperCase();
-            const fee = tipo === 'LPU' ? 5 : 0;
+            const fee = tipo === 'REEMBOLSABLE' ? 5 : 0;
             feeInp.value = selTipo.value ? (fee + '%') : '';
             const cant = parseFloat(cantInp.value);
             const vu = parseFloat(vuInp.value);
@@ -5078,6 +5493,7 @@ table.on("dataFiltered", function (filters, rows) {
     // ---- Cotización: generar PDF y guardar (bloqueando) ----
     let _cotiIsBloqueada = false;
     let _cotiActivaId = null;
+    let _cotiRegistrosLista = [];
 
     function _aplicarEstadoCotizacion(bloqueada) {
         _cotiIsBloqueada = bloqueada;
@@ -5166,8 +5582,41 @@ table.on("dataFiltered", function (filters, rows) {
 
     function seleccionarCotizacionLista(val) {
         if (!val) return;
+        const s = String(val);
+        if (/^R\d+$/.test(s)) { _cargarCotizacionRegistro(parseInt(s.slice(1), 10)); return; }
         const id = parseInt(val, 10);
         _cargarCotizacionExistente(id);
+    }
+
+    // Cotización proveniente del módulo "Cotizaciones" (solo lectura + descarga PDF)
+    function _cargarCotizacionRegistro(nid) {
+        const cot = (_cotiRegistrosLista || []).find(r => parseInt(String(r.id).slice(1), 10) === nid);
+        if (!cot) return;
+        _cotiActivaId = String(cot.id);
+        setNumeroCotizacion(cot.numero || '');
+        const siteEl = document.getElementById('wo-coti-site');
+        const supEl = document.getElementById('wo-coti-supervisor');
+        const objEl = document.getElementById('wo-coti-objetivo');
+        const tickEl = document.getElementById('wo-coti-ticket');
+        if (siteEl) siteEl.value = cot.site || '';
+        if (supEl) supEl.value = cot.supervisor || '';
+        if (objEl) objEl.value = cot.objetivo || '';
+        if (tickEl) tickEl.value = cot.ticket || woKey || '';
+        const listItems = document.getElementById('wo-items-list');
+        if (listItems) {
+            listItems.innerHTML = '';
+            (cot.items || []).forEach(it => agregarFilaCobra(it));
+            if (!(cot.items || []).length) {
+                listItems.innerHTML = '<div class="wo-empty">Sin registros.</div>';
+            }
+            calcularTotalCobra();
+        }
+        // Estado bloqueado: oculta "Generar" y muestra "Descargar PDF" (descarga desde el módulo)
+        _aplicarEstadoCotizacion(true);
+        const btnEliminar = document.getElementById('btn-coti-eliminar');
+        if (btnEliminar) btnEliminar.style.display = 'none';
+        const formBody = document.getElementById('wo-coti-form-body');
+        if (formBody) formBody.style.display = '';
     }
 
     function _cargarCotizacionExistente(id) {
@@ -5218,31 +5667,104 @@ table.on("dataFiltered", function (filters, rows) {
             .then(r => r.json())
             .then(res => {
                 const lista = res.lista || [];
-                const sel = document.getElementById('wo-coti-select');
-                if (!sel) return;
-                sel.innerHTML = '<option value="">— Cotizaciones del ticket —</option>';
-                lista.forEach(c => {
-                    const o = document.createElement('option');
-                    o.value = c.id;
-                    let txt = c.numero || ('Cotización #' + c.id);
-                    if (c.fecha) txt += ' · ' + c.fecha;
-                    if (c.bloqueada) txt += ' · BLOQUEADA';
-                    o.textContent = txt;
-                    sel.appendChild(o);
-                });
-                // Restaurar selección si ya había una activa
-                if (_cotiActivaId != null && lista.some(c => c.id === _cotiActivaId)) {
-                    sel.value = _cotiActivaId;
-                } else if (lista.length) {
-                    _cotiActivaId = lista[lista.length - 1].id;
-                    sel.value = _cotiActivaId;
-                    _cargarCotizacionExistente(_cotiActivaId);
-                } else {
-                    _cotiActivaId = null;
-                    _aplicarEstadoCotizacion(false);
-                }
+                fetch('/api/cotizacion/registro?key=' + encodeURIComponent(woKey))
+                    .then(r => r.json())
+                    .then(reg => {
+                        _cotiRegistrosLista = reg.lista || [];
+                        pintarListaCotizaciones(lista, _cotiRegistrosLista);
+                    })
+                    .catch(() => { _cotiRegistrosLista = []; pintarListaCotizaciones(lista, []); });
             })
             .catch(() => _aplicarEstadoCotizacion(false));
+    }
+
+    function pintarListaCotizaciones(lista, registros) {
+        const sel = document.getElementById('wo-coti-select');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— Cotizaciones del ticket —</option>';
+        lista.forEach(c => {
+            const o = document.createElement('option');
+            o.value = c.id;
+            let txt = c.numero || ('Cotización #' + c.id);
+            if (c.fecha) txt += ' · ' + c.fecha;
+            if (c.bloqueada) txt += ' · BLOQUEADA';
+            o.textContent = txt;
+            sel.appendChild(o);
+        });
+        // Cotizaciones registradas en el módulo "Cotizaciones" (asociadas por NUMERO WO)
+        (registros || []).forEach(c => {
+            const o = document.createElement('option');
+            o.value = c.id; // "R<id>"
+            let txt = 'REG · ' + (c.numero || 'sin N°');
+            if (c.fecha) txt += ' · ' + c.fecha;
+            o.textContent = txt;
+            sel.appendChild(o);
+        });
+        // Restaurar selección si ya había una activa
+        const activaStr = String(_cotiActivaId == null ? '' : _cotiActivaId);
+        const existeNum = lista.some(c => String(c.id) === activaStr);
+        const existeReg = (registros || []).some(c => c.id === activaStr);
+        if (activaStr && existeNum) {
+            sel.value = activaStr;
+        } else if (activaStr && existeReg) {
+            sel.value = activaStr;
+        } else if (lista.length) {
+            _cotiActivaId = lista[lista.length - 1].id;
+            sel.value = _cotiActivaId;
+            _cargarCotizacionExistente(_cotiActivaId);
+        } else {
+            _cotiActivaId = null;
+            _aplicarEstadoCotizacion(false);
+        }
+
+        // Renderizar tabla de cotizaciones asociadas por NUMERO WO (como Gastos)
+        const sec = document.getElementById('wo-coti-asociadas-section');
+        const cont = document.getElementById('wo-coti-asociadas-list');
+        if (sec && cont) {
+            if (!registros || !registros.length) {
+                sec.style.display = 'none';
+                cont.innerHTML = '<div class="wo-empty">Sin cotizaciones asociadas a este WO.</div>';
+            } else {
+                sec.style.display = '';
+                const rows = registros.map(c => {
+                    const generada = String(c.generada || '') === '1';
+                    const badge = generada
+                        ? '<span style="display:inline-block; font-weight:700; color:#34C759; background:rgba(52,199,89,0.12); border:1px solid rgba(52,199,89,0.35); border-radius:999px; padding:2px 8px; font-size:10px;">GENERADA</span>'
+                        : '<span style="display:inline-block; font-weight:700; color:#8E8E93; background:rgba(142,142,147,0.10); border:1px solid rgba(142,142,147,0.25); border-radius:999px; padding:2px 8px; font-size:10px;">PENDIENTE</span>';
+                    const dl = generada
+                        ? `<button type="button" title="Descargar PDF" style="border:none;background:rgba(52,199,89,0.12);color:#34C759;border-radius:6px;width:28px;height:28px;cursor:pointer;" onclick="event.stopPropagation(); _descargarCotiAsociada('${c.id}')"><i class="fa-solid fa-download"></i></button>`
+                        : '<span title="Aún no generada" style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:rgba(142,142,147,0.10);color:#8E8E93;"><i class="fa-solid fa-file-pdf"></i></span>';
+                    return `<tr style="cursor:pointer;" onclick="_cargarCotizacionRegistro(${parseInt(String(c.id).slice(1), 10)})">
+                        <td style="font-weight:600; white-space:nowrap;">${escapeHtml(c.numero || '')}</td>
+                        <td>${escapeHtml(c.fecha || '')}</td>
+                        <td>${escapeHtml(c.gestor || '')}</td>
+                        <td>${escapeHtml(c.site || '')}</td>
+                        <td>${escapeHtml(c.objetivo || '')}</td>
+                        <td style="text-align:right; font-weight:600;">${escapeHtml(c.sub_total || '')}</td>
+                        <td style="text-align:center;">${badge}</td>
+                        <td style="text-align:center;" onclick="event.stopPropagation()">${dl}</td>
+                    </tr>`;
+                }).join('');
+                cont.innerHTML = `<div style="overflow-x:auto;"><table class="wo-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+                    <thead><tr style="background:rgba(0,122,255,0.06);">
+                        <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">N° COTIZACION</th>
+                        <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">FECHA</th>
+                        <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">GESTOR</th>
+                        <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">SITE</th>
+                        <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">OBJETIVO</th>
+                        <th style="text-align:right; padding:6px 8px; border-bottom:1px solid var(--excel-border);">SUB TOTAL + FEE</th>
+                        <th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--excel-border);">ESTADO</th>
+                        <th style="text-align:center; padding:6px 8px; border-bottom:1px solid var(--excel-border);">PDF</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table></div>`;
+            }
+        }
+    }
+
+    function _descargarCotiAsociada(rid) {
+        _cotiActivaId = rid;
+        reDescargarCotizacion();
     }
 
     function generarCotizacion() {
@@ -5301,6 +5823,35 @@ table.on("dataFiltered", function (filters, rows) {
 
     function reDescargarCotizacion() {
         if (!woKey) return;
+        // Cotización del módulo "Cotizaciones": descargar directo desde el registro
+        if (/^R\d+$/.test(String(_cotiActivaId || ''))) {
+            const btnR = document.getElementById('btn-wo-redownload-coti');
+            if (btnR) { btnR.disabled = true; btnR.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+            fetch('/api/cotizacion/descargar_registro', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ registro_id: _cotiActivaId })
+            })
+            .then(r => {
+                if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                return r.blob();
+            })
+            .then(blob => {
+                const reg = (_cotiRegistrosLista || []).find(x => x.id === _cotiActivaId) || {};
+                const numF = (reg.numero || 'registro').replace(/[/\s]/g, '_');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Cotizacion_' + numF + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => alert(err.message || 'Error de red'))
+            .finally(() => { if (btnR) { btnR.disabled = false; btnR.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Descargar PDF'; } });
+            return;
+        }
         const numero = obtenerNumeroCotizacion() || woKey;
         const nota   = (document.getElementById('wo-coti-nota') || {}).value || '';
         let payload;
@@ -5342,6 +5893,10 @@ table.on("dataFiltered", function (filters, rows) {
 
     function desbloquearCotizacion() {
         if (!woKey) return;
+        if (/^R\d+$/.test(String(_cotiActivaId || ''))) {
+            alert('Esta cotización viene del módulo Cotizaciones. Edítala desde allí.');
+            return;
+        }
         if (!confirm('¿Desbloquear la cotización para edición? Esta acción solo está disponible para administradores.')) return;
         fetch('/api/cotizacion/desbloquear', {
             method: 'POST',
@@ -5363,6 +5918,10 @@ table.on("dataFiltered", function (filters, rows) {
 
     function eliminarCotizacion() {
         if (!woKey || _cotiActivaId == null) return;
+        if (/^R\d+$/.test(String(_cotiActivaId))) {
+            alert('Esta cotización viene del módulo Cotizaciones. Elimínala desde allí.');
+            return;
+        }
         if (!confirm('¿Eliminar esta cotización? Esta acción no se puede deshacer.')) return;
         fetch('/api/cotizacion/eliminar', {
             method: 'POST',

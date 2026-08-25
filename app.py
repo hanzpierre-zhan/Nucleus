@@ -540,7 +540,7 @@ with app.app_context():
     # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
              ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
-             ('Combustible', 'Consumo de Combustible (solo FLM)')]
+             ('Combustible', 'Consumo de Combustible (solo FLM)'), ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)')]
     for nombre, desc in fixed:
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
@@ -739,6 +739,53 @@ with app.app_context():
             if 'ID DE REPORTE' not in d:
                 d['ID DE REPORTE'] = ''
                 r.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
+
+    # Migration: Configure Cotizaciones columns (registro de cotizaciones FLM,
+    # mismo esquema del formato Cobra + campos de control NUMERO WO y NOMBRE SITE).
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if cot_proy:
+        cot_proy.icono = 'fa-file-invoice-dollar'
+        cot_cols = [
+            {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
+            {'nombre': 'N° COTIZACION', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TICKET', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'NUMERO WO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'NOMBRE SITE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SITE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'OBJETIVO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SUB TOTAL + FEE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(cot_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='manual_columns', valor=json.dumps(cot_cols, ensure_ascii=False)))
+
+        # La llave del negocio es el N° de cotización completo (HW-AAAA-XXXXXXX).
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            pk_cfg.valor = 'N° COTIZACION'
+        else:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='primary_key', valor='N° COTIZACION'))
+
+        # Re-key: registros creados antes con llave auto-numérica pasan a usar su N°.
+        for r in NucleusData.query.filter_by(proyecto_id=cot_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            num = str(d.get('N° COTIZACION', '') or '').strip()
+            if num and r.key_value != num:
+                dup = NucleusData.query.filter_by(proyecto_id=cot_proy.id, key_value=num).first()
+                if not dup:
+                    r.key_value = num
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='app_schema', valor=json.dumps([])))
         db.session.commit()
 
     # Migration: "Fault Level" es dato de origen (inmutable) -> no debe ser columna manual editable.
@@ -960,6 +1007,9 @@ def get_menu_proyectos(user_id, user_rol):
         comb = Proyecto.query.filter_by(nombre='Combustible').first()
         if comb and comb.id not in {e.id for e in proyectos}:
             proyectos = proyectos + [comb]
+        cotp = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+        if cotp and cotp.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [cotp]
     return proyectos
 
 @app.route('/logout')
@@ -1008,6 +1058,16 @@ def switch_project(pid):
                 if not allowed:
                     return redirect(url_for('index'))
             elif proy and proy.nombre == 'Combustible':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Cotizaciones':
                 accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
                 allowed = False
                 for a in accs:
@@ -2778,11 +2838,7 @@ def api_rows_update():
                 return jsonify({'error': f'El campo {field} ya está registrado. Solo el administrador puede editarlo.'}), 403
             if field == 'GESTOR':
                 return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró el movimiento.'}), 400
-            if field == 'WO NUMBER' and str(value or '').strip():
-                # Solo CMs del universo FLM; vacío = CM PENDIENTE.
-                wo = str(value).strip()
-                if wo not in _flm_wo_list():
-                    return jsonify({'error': 'El WO ingresado no pertenece al universo de FLM. Deja el campo vacío para CM PENDIENTE o selecciona un CM válido.'}), 400
+            # WO NUMBER libre: acepta cualquier código (vacío = CM PENDIENTE).
             if field in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO'):
                 new_gen = str(value if field == 'QR ASIGNADO' else row_dict.get('QR ASIGNADO', '')).strip()
                 new_mov = str(value if field == 'MOVIMIENTO' else row_dict.get('MOVIMIENTO', '')).strip().upper()
@@ -2803,6 +2859,16 @@ def api_rows_update():
                     temp_bal = temp_bal + g if rm != 'GASTO' else temp_bal - g
                 if new_mov == 'GASTO' and new_gal > temp_bal + 1e-9:
                     return jsonify({'error': f'Saldo insuficiente. Disponible: {temp_bal:g} galones. Se intentó gastar: {new_gal:g}.'}), 400
+
+        # Cotizaciones: GESTOR y la llave (N° COTIZACION) no se editan; una vez
+        # GENERADA, solo el admin puede corregir el registro.
+        if proy_nombre == 'Cotizaciones':
+            if field == 'GESTOR':
+                return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró la cotización.'}), 400
+            if field == 'N° COTIZACION':
+                return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
+            if session.get('rol') != 'admin' and str(row_dict.get('GENERADA', '') or '') == '1':
+                return jsonify({'error': 'Esta cotización ya fue GENERADA y está bloqueada. Solo el administrador puede editarla.'}), 403
         
         # Guardar en el historial de cambios (solo si el valor realmente cambió)
         valor_anterior = row_dict.get(field, '')
@@ -2923,6 +2989,32 @@ def api_rows_add():
                 saldo = _combustible_saldo(pid, gen)
                 if gal_n > saldo + 1e-9:
                     return jsonify({'error': f'Saldo insuficiente. Disponible: {saldo:g} galones. Se intentó gastar: {gal_n:g}.'}), 400
+
+        # Cotizaciones: GESTOR automático y N° correlativo NO editable (avanza desde 0000031).
+        if proy_nombre == 'Cotizaciones':
+            import re
+            from datetime import datetime as _dt
+            row_data['GESTOR'] = session.get('username', '')
+            yr = str(_dt.now().year)
+            maxn = 30
+            for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+                try:
+                    d2 = json.loads(rec.data_json)
+                    k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
+                    m = re.match(r'^HW-(\d{4})-(\d{7})$', k2)
+                    if m and m.group(1) == yr:
+                        n = int(m.group(2))
+                        if n > maxn:
+                            maxn = n
+                except Exception:
+                    continue
+            next_n = maxn + 1
+            key_val = f"HW-{yr}-{next_n:07d}"
+            row_data['N° COTIZACION'] = key_val
+            while NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first():
+                next_n += 1
+                key_val = f"HW-{yr}-{next_n:07d}"
+                row_data['N° COTIZACION'] = key_val
 
         new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=json.dumps(row_data))
         db.session.add(new_record)
@@ -3455,6 +3547,171 @@ def api_cotizacion_lista():
         'items': json.loads(c.items_json or '[]'),
     } for c in cots]
     return jsonify({'lista': lista})
+
+@app.route('/api/cotizacion/registro', methods=['GET'])
+@login_required
+def api_cotizacion_registro():
+    """Cotizaciones registradas en el módulo 'Cotizaciones' asociadas a un WO
+    de FLM (match por NUMERO WO). Se muestran en la pestaña Cotización del WO."""
+    key = request.args.get('key', '').strip()
+    if not key:
+        return jsonify({'lista': []})
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not cot_proy:
+        return jsonify({'lista': []})
+    klow = key.lower()
+    lista = []
+    regs = NucleusData.query.filter_by(proyecto_id=cot_proy.id).order_by(NucleusData.id.asc()).all()
+    for r in regs:
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
+        wo = str(d.get('NUMERO WO', '') or '').strip()
+        if not wo or wo.lower() != klow:
+            continue
+        try:
+            items = json.loads(d.get('ITEMS_JSON') or '[]')
+        except Exception:
+            items = []
+        lista.append({
+            'id': 'R' + str(r.id),
+            'numero': str(d.get('N° COTIZACION', '') or ''),
+            'fecha': str(d.get('FECHA', '') or ''),
+            'formato': 'cobra',
+            'site': str(d.get('SITE', '') or ''),
+            'supervisor': str(d.get('SUPERVISOR', '') or ''),
+            'objetivo': str(d.get('OBJETIVO', '') or ''),
+            'ticket': str(d.get('TICKET', '') or ''),
+            'gestor': str(d.get('GESTOR', '') or ''),
+            'generada': str(d.get('GENERADA', '') or ''),
+            'sub_total': str(d.get('SUB TOTAL + FEE', '') or ''),
+            'items': items,
+        })
+    return jsonify({'lista': lista})
+
+@app.route('/api/cotizacion/descargar_registro', methods=['POST'])
+@login_required
+def api_cotizacion_descargar_registro():
+    """Descarga el PDF de una cotización registrada en el módulo 'Cotizaciones'."""
+    data = request.json or {}
+    rid_raw = str(data.get('registro_id', '')).lstrip('R')
+    try:
+        rid = int(rid_raw)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Registro inválido'}), 400
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not cot_proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe'}), 404
+    rec = NucleusData.query.filter_by(id=rid, proyecto_id=cot_proy.id).first()
+    if not rec:
+        return jsonify({'error': 'Cotización no encontrada'}), 404
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    try:
+        items = json.loads(d.get('ITEMS_JSON') or '[]')
+    except Exception:
+        items = []
+    numero = str(d.get('N° COTIZACION', '') or '')
+    try:
+        pdf_bytes = _generar_pdf_cotizacion_cobra(
+            numero=numero,
+            site=str(d.get('SITE', '') or ''),
+            supervisor=str(d.get('SUPERVISOR', '') or ''),
+            objetivo=str(d.get('OBJETIVO', '') or ''),
+            ticket=str(d.get('TICKET', '') or ''),
+            elaborado_por=str(d.get('GESTOR', '') or ''),
+            items=items
+        )
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    safe_num = numero.replace('/', '-').replace(' ', '_') or 'cotizacion'
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+def _cotizacion_registro_pdf_response(rec):
+    """Construye el PDF Cobra desde un registro del módulo Cotizaciones.
+    Solo si la cotización ya fue GENERADA (bloqueo respetado en todas las vías)."""
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    if str(d.get('GENERADA', '') or '') != '1':
+        return jsonify({'error': 'La cotización aún no ha sido generada. Usa "Generar Cotización" primero.'}), 400
+    try:
+        items = json.loads(d.get('ITEMS_JSON') or '[]')
+    except Exception:
+        items = []
+    numero = str(d.get('N° COTIZACION', '') or '')
+    pdf_bytes = _generar_pdf_cotizacion_cobra(
+        numero=numero,
+        site=str(d.get('SITE', '') or ''),
+        supervisor=str(d.get('SUPERVISOR', '') or ''),
+        objetivo=str(d.get('OBJETIVO', '') or ''),
+        ticket=str(d.get('TICKET', '') or ''),
+        elaborado_por=str(d.get('GESTOR', '') or session.get('username', '')),
+        items=items
+    )
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    safe_num = numero.replace('/', '-').replace(' ', '_') or 'cotizacion'
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+def _obtener_registro_cotizacion():
+    """Valida proyecto actual = Cotizaciones y devuelve el registro por key."""
+    data = request.json or {}
+    key_val = str(data.get('key', '')).strip()
+    pid = session.get('current_proyecto_id')
+    proy_obj = db.session.get(Proyecto, pid)
+    if not key_val:
+        return None, None, ({'error': 'Falta la clave del registro'}, 400)
+    if not proy_obj or (proy_obj.nombre or '').strip().lower() != 'cotizaciones':
+        return None, None, ({'error': 'Proyecto inválido'}, 400)
+    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first()
+    if not rec:
+        return None, None, ({'error': 'Cotización no encontrada'}, 404)
+    return rec, proy_obj, None
+
+
+@app.route('/api/cotizacion/registro_pdf', methods=['POST'])
+@login_required
+def api_cotizacion_registro_pdf():
+    """Descarga directa del PDF desde la tabla del módulo Cotizaciones."""
+    rec, _proy, err = _obtener_registro_cotizacion()
+    if err:
+        return err
+    try:
+        return _cotizacion_registro_pdf_response(rec)
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+@app.route('/api/cotizacion/registro_generar', methods=['POST'])
+@login_required
+def api_cotizacion_registro_generar():
+    """Marca la cotización como GENERADA (bloquea edición para gestores) y devuelve el PDF."""
+    rec, _proy, err = _obtener_registro_cotizacion()
+    if err:
+        return err
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    d['GENERADA'] = '1'
+    rec.data_json = json.dumps(d, ensure_ascii=False)
+    db.session.commit()
+    try:
+        return _cotizacion_registro_pdf_response(rec)
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
 
 @app.route('/api/cotizacion/desbloquear', methods=['POST'])
 @login_required
@@ -4114,7 +4371,7 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
         except Exception:
             vu = 0.0
         tipo = str(it.get('tipo', '') or '').strip().upper()
-        fee = 5.0 if tipo == 'LPU' else 0.0
+        fee = 5.0 if tipo == 'REEMBOLSABLE' else 0.0
         vt = cant * vu * (1 + fee / 100.0)
         items_ok.append(vt)
         it_rows.append([
