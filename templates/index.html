@@ -3329,8 +3329,34 @@ table.on("dataFiltered", function (filters, rows) {
 
         mkTxt('OBJETIVO', 'OBJETIVO', 'Título / objetivo...');
 
-        // Campos de control
-        mkTxt('NUMERO WO', 'NUMERO WO', 'N° de WO...');
+        // NUMERO WO: datalist para autocompletado y texto libre
+        const inpNumeroWO = document.createElement('input');
+        inpNumeroWO.type = 'text';
+        inpNumeroWO.setAttribute('list', 'wo-list-datalist');
+        inpNumeroWO.placeholder = 'N° de WO...';
+        if (!document.getElementById('wo-list-datalist')) {
+            const dlWo = document.createElement('datalist');
+            dlWo.id = 'wo-list-datalist';
+            document.body.appendChild(dlWo);
+            if (window.woNamesCache && window.woNamesCache.length) {
+                window.woNamesCache.forEach(nm => {
+                    const opt = document.createElement('option');
+                    opt.value = nm;
+                    dlWo.appendChild(opt);
+                });
+            } else {
+                fetch('/api/wos_flm').then(r => r.json()).then(data => {
+                    const wos = (data || []).filter(Boolean).sort((a,b) => a.localeCompare(b));
+                    window.woNamesCache = wos;
+                    wos.forEach(nm => {
+                        const opt = document.createElement('option');
+                        opt.value = nm;
+                        dlWo.appendChild(opt);
+                    });
+                }).catch(() => {});
+            }
+        }
+        mkField('NUMERO WO', inpNumeroWO, 'NUMERO WO');
         
         // NOMBRE SITE: datalist para autocompletado y texto libre
         const inpNombreSite = document.createElement('input');

@@ -1997,31 +1997,31 @@ def api_import_preview():
 @app.route('/api/import/process', methods=['POST'])
 @login_required
 def api_import_process():
-    pid = session.get('current_proyecto_id')
-    if session.get('rol') == 'demo':
-        return jsonify({'error': 'Rol DEMO no tiene permisos para realizar importaciones.'}), 403
-    import_type = request.form.get('type') or 'base' # 'base' or 'cruce'
-    sum_duplicates = request.form.get('sum_duplicates') == 'true'
-    sum_type = request.form.get('sum_type', 'number')
-    consolidate_date = request.form.get('consolidate_date') == 'true'
-    date_column = request.form.get('date_column', '').strip()
-    cols_to_keep_str = request.form.get('columns_to_keep', '[]')
-    columns_to_keep = json.loads(cols_to_keep_str)
-    file_key = request.form.get('file_key', '').strip()
-
-    # Columnas manuales del proyecto (datos editados por gestores)
-    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
-    manual_columns_list = []
-    if manual_cfg:
-        for mc in json.loads(manual_cfg.valor):
-            if isinstance(mc, dict):
-                manual_columns_list.append(str(mc.get('nombre', '')).strip())
-    manual_columns_list = [c for c in manual_columns_list if c]
-    
-    file = request.files.get('file')
-    if not file: return jsonify({'error': 'No file'}), 400
-    
     try:
+        pid = session.get('current_proyecto_id')
+        if session.get('rol') == 'demo':
+            return jsonify({'error': 'Rol DEMO no tiene permisos para realizar importaciones.'}), 403
+        import_type = request.form.get('type') or 'base' # 'base' or 'cruce'
+        sum_duplicates = request.form.get('sum_duplicates') == 'true'
+        sum_type = request.form.get('sum_type', 'number')
+        consolidate_date = request.form.get('consolidate_date') == 'true'
+        date_column = request.form.get('date_column', '').strip()
+        cols_to_keep_str = request.form.get('columns_to_keep', '[]')
+        columns_to_keep = json.loads(cols_to_keep_str)
+        file_key = request.form.get('file_key', '').strip()
+
+        # Columnas manuales del proyecto (datos editados por gestores)
+        manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+        manual_columns_list = []
+        if manual_cfg:
+            for mc in json.loads(manual_cfg.valor):
+                if isinstance(mc, dict):
+                    manual_columns_list.append(str(mc.get('nombre', '')).strip())
+        manual_columns_list = [c for c in manual_columns_list if c]
+        
+        file = request.files.get('file')
+        if not file: return jsonify({'error': 'No file'}), 400
+        
         if file.filename.endswith('.csv'):
             df = pd.read_csv(file, encoding='utf-8', dtype=str)
         else:
@@ -3762,7 +3762,7 @@ def _cotizacion_registro_pdf_response(rec):
         pass
     pdf_bytes = _generar_pdf_cotizacion_cobra(
         numero=numero,
-        site=str(d.get('SITE', '') or ''),
+        site=str(d.get('SITE', '') or d.get('NOMBRE SITE', '') or ''),
         supervisor=str(d.get('SUPERVISOR', '') or ''),
         objetivo=str(d.get('OBJETIVO', '') or ''),
         ticket=pdf_ticket,
@@ -3895,7 +3895,7 @@ def api_cotizacion_generar():
 
     # Formato Cobra (FLM): items unicos con TIPO/UND/FEE
     formato = str(data.get('formato', '') or '').strip().lower()
-    site = str(data.get('site', '') or '').strip()
+    site = str(data.get('site', '') or data.get('nombre site', '') or data.get('NOMBRE SITE', '') or '').strip()
     supervisor = str(data.get('supervisor', '') or '').strip()
     objetivo = str(data.get('objetivo', '') or '').strip()
     items_cobra = data.get('items', [])
@@ -4644,6 +4644,17 @@ def api_sites():
         }
         sites.append(site_entry)
     return jsonify(sites)
+
+@app.route('/api/wos_flm')
+@login_required
+def api_wos_flm():
+    """Devuelve la lista de números de WO (CMs) del proyecto FLM para autocompletado."""
+    proy_flm = Proyecto.query.filter_by(nombre='FLM').first()
+    if not proy_flm:
+        return jsonify([])
+    # The key_value is the "Número de WO" in FLM
+    wos = [r.key_value for r in db.session.query(NucleusData.key_value).filter_by(proyecto_id=proy_flm.id).all()]
+    return jsonify(wos)
 
 # -----------------------------------------------------------------------
 
