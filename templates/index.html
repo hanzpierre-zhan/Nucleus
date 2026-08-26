@@ -4,7 +4,8 @@
 
 {% block content %}
 <div style="display: flex; align-items: center; gap: 8px; padding: 4px 14px 6px; flex-wrap: wrap;">
-    <span id="status-record-count" class="topbar-badge" title="Total de registros en la vista actual" style="margin-left:0;">
+    <span id="status-record-count" class="topbar-badge" title="Total de registros en la vista actual"
+        style="margin-left:0;">
         <i class="fa-solid fa-list-ol"></i> Cargando...
     </span>
 
@@ -37,7 +38,8 @@
             <p class="col-visibility-hint">Desmarca lo que no quieras ver.</p>
             <div id="col-list" class="col-visibility-list"></div>
             <div class="col-visibility-footer">
-                <button type="button" class="col-visibility-link" onclick="resetLayout()" title="Restaurar al estado original"><i class="fa-solid fa-rotate-left"></i> Restaurar</button>
+                <button type="button" class="col-visibility-link" onclick="resetLayout()"
+                    title="Restaurar al estado original"><i class="fa-solid fa-rotate-left"></i> Restaurar</button>
             </div>
         </div>
     </div>
@@ -60,17 +62,20 @@
 
     {% if session.get('rol') == 'admin' %}
     <!-- Botón Importar Masivo (Teal) -->
-    <button onclick="abrirModalImportar()" class="action-pill pill-teal" title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">
+    <button onclick="abrirModalImportar()" class="action-pill pill-teal"
+        title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">
         <i class="fa-solid fa-file-arrow-up"></i> Importar
     </button>
 
     <!-- Botón Plantilla (Verde) -->
-    <a href="/api/import/manual_template" download class="action-pill pill-green" title="Descargar plantilla Excel para importar">
+    <a href="/api/import/manual_template" download class="action-pill pill-green"
+        title="Descargar plantilla Excel para importar">
         <i class="fa-solid fa-download"></i> Plantilla
     </a>
 
     <!-- Botón Eliminar (Rojo - aparece al seleccionar filas) - solo admin -->
-    <button id="btn-delete-rows" onclick="eliminarRegistros()" class="action-pill pill-red" style="display:none;" title="Eliminar Registros Seleccionados">
+    <button id="btn-delete-rows" onclick="eliminarRegistros()" class="action-pill pill-red" style="display:none;"
+        title="Eliminar Registros Seleccionados">
         <i class="fa-solid fa-trash-can"></i> Eliminar
     </button>
     {% endif %}
@@ -80,65 +85,304 @@
 
 <style>
     .mar-overlay {
-        position: fixed; inset: 0; z-index: 20000;
-        background: rgba(0,0,0,0.45);
-        -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-        display: flex; align-items: center; justify-content: center; padding: 24px;
+        position: fixed;
+        inset: 0;
+        z-index: 20000;
+        background: rgba(0, 0, 0, 0.45);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
     }
+
     .mar-modal {
-        width: 100%; max-width: 760px; max-height: 90vh;
-        background: var(--ios-card-bg); border-radius: 20px;
-        box-shadow: 0 30px 60px rgba(0,0,0,0.35);
-        display: flex; flex-direction: column; overflow: hidden;
+        width: 100%;
+        max-width: 760px;
+        max-height: 90vh;
+        background: var(--ios-card-bg);
+        border-radius: 20px;
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
         animation: mar-in .18s ease;
     }
-    @keyframes mar-in { from { transform: translateY(12px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
-    .mar-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid var(--ios-hairline); }
-    .mar-header h3 { margin: 0; font-size: 17px; color: var(--ios-label); display: flex; align-items: center; gap: 10px; letter-spacing: -0.2px; }
-    .mar-header h3 i { color: #007AFF; }
-    .mar-header p { margin: 4px 0 0 0; font-size: 12px; color: var(--ios-gray-1); }
-    .mar-close { background: var(--ios-fill); border: none; color: var(--ios-secondary); width: 32px; height: 32px; border-radius: 10px; cursor: pointer; font-size: 14px; flex-shrink: 0; }
-    .mar-close:hover { background: var(--ios-gray-5); }
-    .mar-body { padding: 20px 24px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .mar-field { display: flex; flex-direction: column; gap: 6px; }
-    .mar-field.full { grid-column: 1 / -1; }
-    .mar-field label { font-size: 10px; font-weight: 700; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.5px; }
-    .mar-field label i { color: #007AFF; margin-right: 2px; }
-    .mar-field label em { color: #FF3B30; font-style: normal; }
-    .mar-field input, .mar-field select {
-        width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--excel-border);
-        border-radius: 10px; font-size: 13px; background: var(--excel-bg); color: var(--ios-label);
-        outline: none; box-sizing: border-box; transition: all .15s ease;
+
+    @keyframes mar-in {
+        from {
+            transform: translateY(12px) scale(.98);
+            opacity: 0;
+        }
+
+        to {
+            transform: none;
+            opacity: 1;
+        }
+    }
+
+    .mar-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--ios-hairline);
+    }
+
+    .mar-header h3 {
+        margin: 0;
+        font-size: 17px;
+        color: var(--ios-label);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        letter-spacing: -0.2px;
+    }
+
+    .mar-header h3 i {
+        color: #007AFF;
+    }
+
+    .mar-header p {
+        margin: 4px 0 0 0;
+        font-size: 12px;
+        color: var(--ios-gray-1);
+    }
+
+    .mar-close {
+        background: var(--ios-fill);
+        border: none;
+        color: var(--ios-secondary);
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        flex-shrink: 0;
+    }
+
+    .mar-close:hover {
+        background: var(--ios-gray-5);
+    }
+
+    .mar-body {
+        padding: 20px 24px;
+        overflow-y: auto;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
+
+    .mar-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .mar-field.full {
+        grid-column: 1 / -1;
+    }
+
+    .mar-field label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--ios-gray-1);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .mar-field label i {
+        color: #007AFF;
+        margin-right: 2px;
+    }
+
+    .mar-field label em {
+        color: #FF3B30;
+        font-style: normal;
+    }
+
+    .mar-field input,
+    .mar-field select {
+        width: 100%;
+        height: 40px;
+        padding: 0 12px;
+        border: 1px solid var(--excel-border);
+        border-radius: 10px;
+        font-size: 13px;
+        background: var(--excel-bg);
+        color: var(--ios-label);
+        outline: none;
+        box-sizing: border-box;
+        transition: all .15s ease;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     }
-    .mar-field input:focus, .mar-field select:focus { border-color: #007AFF; box-shadow: 0 0 0 3px rgba(0,122,255,0.15); }
-    .mar-field .mar-error, .mar-field input.mar-error, .mar-field select.mar-error { border-color: #FF3B30 !important; box-shadow: 0 0 0 3px rgba(255,59,48,0.12) !important; }
-    .mar-empty { grid-column: 1 / -1; text-align: center; color: var(--ios-gray-1); font-size: 13px; padding: 30px 0; }
-    .mar-footer { padding: 16px 24px; border-top: 1px solid var(--ios-hairline); display: flex; justify-content: flex-end; gap: 10px; background: var(--ios-fill); }
-    .mar-btn-ghost { background: var(--excel-bg); border: 1px solid var(--excel-border); color: var(--ios-secondary); padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
-    .mar-btn-ghost:hover { background: var(--ios-gray-5); }
-    .mar-btn-primary { background: linear-gradient(135deg, #007AFF, #0062CC); color: #fff; border: none; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(0,122,255,0.3); transition: all .15s ease; }
-    .mar-btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
-    .mar-btn-generar { background: linear-gradient(135deg, #007AFF, #005ecb); color: #fff; border: none; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3); transition: all .15s ease; }
-    .mar-btn-generar:hover { background: #005ecb; filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 122, 255, 0.4); }
-    .mar-btn-guardar { background: linear-gradient(135deg, #22C55E, #16A34A); color: #fff; border: none; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35); transition: all .15s ease; }
-    .mar-btn-guardar:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(34, 197, 94, 0.45); }
-    .mar-btn-copy { background: linear-gradient(135deg, #38b6ff, #007AFF); color: #fff; border: none; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(0,122,255,0.35); transition: all .15s ease; }
-    .mar-btn-copy:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+    .mar-field input:focus,
+    .mar-field select:focus {
+        border-color: #007AFF;
+        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+    }
+
+    .mar-field .mar-error,
+    .mar-field input.mar-error,
+    .mar-field select.mar-error {
+        border-color: #FF3B30 !important;
+        box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.12) !important;
+    }
+
+    .mar-empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        color: var(--ios-gray-1);
+        font-size: 13px;
+        padding: 30px 0;
+    }
+
+    .mar-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--ios-hairline);
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        background: var(--ios-fill);
+    }
+
+    .mar-btn-ghost {
+        background: var(--excel-bg);
+        border: 1px solid var(--excel-border);
+        color: var(--ios-secondary);
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all .15s ease;
+    }
+
+    .mar-btn-ghost:hover {
+        background: var(--ios-gray-5);
+    }
+
+    .mar-btn-primary {
+        background: linear-gradient(135deg, #007AFF, #0062CC);
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 8px 18px rgba(0, 122, 255, 0.3);
+        transition: all .15s ease;
+    }
+
+    .mar-btn-primary:hover {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+    }
+
+    .mar-btn-generar {
+        background: linear-gradient(135deg, #007AFF, #005ecb);
+        color: #fff;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3);
+        transition: all .15s ease;
+    }
+
+    .mar-btn-generar:hover {
+        background: #005ecb;
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(0, 122, 255, 0.4);
+    }
+
+    .mar-btn-guardar {
+        background: linear-gradient(135deg, #22C55E, #16A34A);
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35);
+        transition: all .15s ease;
+    }
+
+    .mar-btn-guardar:hover {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(34, 197, 94, 0.45);
+    }
+
+    .mar-btn-copy {
+        background: linear-gradient(135deg, #38b6ff, #007AFF);
+        color: #fff;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 8px 18px rgba(0, 122, 255, 0.35);
+        transition: all .15s ease;
+    }
+
+    .mar-btn-copy:hover {
+        filter: brightness(1.08);
+        transform: translateY(-1px);
+    }
+
     .cot-badge-numero {
-        display: inline-flex; align-items: center; gap: 8px;
-        background: var(--excel-bg); border: 1px solid var(--excel-border);
-        border-radius: 12px; padding: 8px 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--excel-bg);
+        border: 1px solid var(--excel-border);
+        border-radius: 12px;
+        padding: 8px 14px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        font-size: 14px; font-weight: 700; color: var(--ios-label); letter-spacing: 0.8px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--ios-label);
+        letter-spacing: 0.8px;
     }
+
     .cot-badge-pill {
-        margin-left: 6px; font-size: 10px; font-weight: 600;
-        color: var(--ios-secondary); background: var(--ios-card-bg);
-        border: 1px solid var(--ios-hairline); border-radius: 20px;
-        padding: 2px 8px; letter-spacing: 0.3px;
+        margin-left: 6px;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--ios-secondary);
+        background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 20px;
+        padding: 2px 8px;
+        letter-spacing: 0.3px;
     }
-    @media (max-width: 640px) { .mar-body { grid-template-columns: 1fr; } }
+
+    @media (max-width: 640px) {
+        .mar-body {
+            grid-template-columns: 1fr;
+        }
+    }
 
     /* ===== Tarjetas de estadísticas ===== */
     #data-stats {
@@ -146,45 +390,125 @@
         grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
         gap: 10px;
     }
+
     .data-stat {
-        display: flex; align-items: center; gap: 10px;
-        background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
-        border-radius: 14px; padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 14px;
+        padding: 12px 14px;
     }
+
     .data-stat-ic {
-        width: 38px; height: 38px; border-radius: 10px;
-        display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 15px;
+        flex-shrink: 0;
     }
-    .data-stat-meta { display: flex; flex-direction: column; min-width: 0; }
-    .data-stat-meta b { font-size: 17px; color: var(--ios-label); line-height: 1.1; white-space: nowrap; }
-    .data-stat-meta span { font-size: 10px; font-weight: 600; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .data-stat-meta {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .data-stat-meta b {
+        font-size: 17px;
+        color: var(--ios-label);
+        line-height: 1.1;
+        white-space: nowrap;
+    }
+
+    .data-stat-meta span {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--ios-gray-1);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .data-stat.stat-active {
-        border-color: var(--ios-blue); box-shadow: 0 0 0 2px rgba(0,122,255,0.25);
+        border-color: var(--ios-blue);
+        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
     }
+
     .btn-marcar-no-atendido {
-        border: none; background: none; cursor: pointer; font-size: 15px;
-        color: var(--ios-gray-1); padding: 4px; border-radius: 6px; line-height: 1;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 15px;
+        color: var(--ios-gray-1);
+        padding: 4px;
+        border-radius: 6px;
+        line-height: 1;
         transition: all .15s ease;
     }
-    .btn-marcar-no-atendido:hover { background: rgba(255,59,48,0.12); color: #FF3B30; }
-    .tabulator-row.row-no-atendido { opacity: 0.45; background: #F2F2F7 !important; }
-    .tabulator-row.row-no-atendido .tabulator-cell { color: var(--ios-gray-1); }
+
+    .btn-marcar-no-atendido:hover {
+        background: rgba(255, 59, 48, 0.12);
+        color: #FF3B30;
+    }
+
+    .tabulator-row.row-no-atendido {
+        opacity: 0.45;
+        background: #F2F2F7 !important;
+    }
+
+    .tabulator-row.row-no-atendido .tabulator-cell {
+        color: var(--ios-gray-1);
+    }
 
     /* ===== Modal Detalle WO ===== */
-    .wo-modal { max-width: 780px; }
-    .wo-body { padding: 18px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; max-height: 70vh; }
-    .wo-section-title {
-        font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
-        color: var(--ios-gray-1); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+    .wo-modal {
+        max-width: 780px;
     }
+
+    .wo-body {
+        padding: 18px 24px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        max-height: 70vh;
+    }
+
+    .wo-section-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--ios-gray-1);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
     .wo-link {
         color: #007AFF;
         text-decoration: underline;
         cursor: pointer;
         font-weight: 600;
     }
-    .wo-link:hover { color: #0a84ff; text-decoration: underline; }
-    .wo-section-title i { color: var(--ios-blue); }
+
+    .wo-link:hover {
+        color: #0a84ff;
+        text-decoration: underline;
+    }
+
+    .wo-section-title i {
+        color: var(--ios-blue);
+    }
+
     .topbar-switch {
         display: inline-flex;
         align-items: center;
@@ -196,7 +520,11 @@
         color: var(--ios-gray-1, #8E8E93);
         white-space: nowrap;
     }
-    .topbar-switch input { display: none; }
+
+    .topbar-switch input {
+        display: none;
+    }
+
     .topbar-switch-track {
         width: 32px;
         height: 19px;
@@ -206,6 +534,7 @@
         transition: background 0.2s ease;
         flex-shrink: 0;
     }
+
     .topbar-switch-track::after {
         content: '';
         position: absolute;
@@ -215,198 +544,557 @@
         height: 15px;
         border-radius: 50%;
         background: #fff;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         transition: transform 0.2s ease;
     }
-    .topbar-switch input:checked + .topbar-switch-track {
+
+    .topbar-switch input:checked+.topbar-switch-track {
         background: var(--ios-blue, #007AFF);
     }
-    .topbar-switch input:checked + .topbar-switch-track::after {
+
+    .topbar-switch input:checked+.topbar-switch-track::after {
         transform: translateX(13px);
     }
-    .topbar-switch input:checked ~ .topbar-switch-label {
+
+    .topbar-switch input:checked~.topbar-switch-label {
         color: var(--ios-blue, #007AFF);
     }
+
     .wo-summary {
-        display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 14px;
-        background: var(--ios-fill); border: 1px solid var(--ios-hairline);
-        border-radius: 14px; padding: 14px 16px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px 14px;
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 14px;
+        padding: 14px 16px;
     }
-    .wo-summary-item { min-width: 0; }
-    .wo-summary-item .k { font-size: 9px; font-weight: 700; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 2px; }
-    .wo-summary-item .v { font-size: 13px; font-weight: 600; color: var(--ios-label); word-break: break-word; line-height: 1.35; }
-    .wo-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .wo-group { margin-top: 18px; }
-    .wo-group:first-child { margin-top: 0; }
-    .wo-field { display: flex; flex-direction: column; gap: 6px; }
-    .wo-field.full { grid-column: 1 / -1; }
+
+    .wo-summary-item {
+        min-width: 0;
+    }
+
+    .wo-summary-item .k {
+        font-size: 9px;
+        font-weight: 700;
+        color: var(--ios-gray-1);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-bottom: 2px;
+    }
+
+    .wo-summary-item .v {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ios-label);
+        word-break: break-word;
+        line-height: 1.35;
+    }
+
+    .wo-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+    }
+
+    .wo-group {
+        margin-top: 18px;
+    }
+
+    .wo-group:first-child {
+        margin-top: 0;
+    }
+
+    .wo-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .wo-field.full {
+        grid-column: 1 / -1;
+    }
+
     .wo-field label {
-        font-size: 10px; font-weight: 700; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: 0.5px;
-        display: flex; align-items: center; gap: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--ios-gray-1);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
-    .wo-field label i { color: var(--ios-blue); }
-    .wo-field input, .wo-field select, .wo-field textarea {
-        width: 100%; padding: 10px 12px; border: 1px solid var(--excel-border);
-        border-radius: 10px; font-size: 13px; background: var(--excel-bg); color: var(--ios-label);
-        outline: none; box-sizing: border-box; font-family: inherit; transition: all .15s ease;
+
+    .wo-field label i {
+        color: var(--ios-blue);
     }
-    .wo-field input:focus, .wo-field select:focus, .wo-field textarea:focus {
-        border-color: var(--ios-blue); box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+
+    .wo-field input,
+    .wo-field select,
+    .wo-field textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--excel-border);
+        border-radius: 10px;
+        font-size: 13px;
+        background: var(--excel-bg);
+        color: var(--ios-label);
+        outline: none;
+        box-sizing: border-box;
+        font-family: inherit;
+        transition: all .15s ease;
     }
-    .wo-field textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
-    .wo-field input[disabled], .wo-field select[disabled], .wo-field textarea[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+    .wo-field input:focus,
+    .wo-field select:focus,
+    .wo-field textarea:focus {
+        border-color: var(--ios-blue);
+        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+    }
+
+    .wo-field textarea {
+        resize: vertical;
+        min-height: 90px;
+        line-height: 1.5;
+    }
+
+    .wo-field input[disabled],
+    .wo-field select[disabled],
+    .wo-field textarea[disabled] {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
     .wo-serv-btn {
-        background: var(--ios-fill); border: 1px solid var(--ios-hairline); color: var(--ios-blue);
-        width: 22px; height: 22px; border-radius: 6px; cursor: pointer; font-size: 11px; padding: 0;
-        display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        color: var(--ios-blue);
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 11px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
     }
-    .wo-serv-btn:hover { background: var(--ios-blue-light); }
-    .servicios-editor { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
-    .servicios-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .wo-serv-btn:hover {
+        background: var(--ios-blue-light);
+    }
+
+    .servicios-editor {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .servicios-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
     .servicios-chip {
-        display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 12px;
-        background: var(--ios-blue-light); color: var(--ios-blue); border-radius: 16px;
-        font-size: 12px; font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px 4px 12px;
+        background: var(--ios-blue-light);
+        color: var(--ios-blue);
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 600;
     }
+
     .servicios-chip button {
-        background: none; border: none; color: var(--ios-red); cursor: pointer; font-size: 12px; padding: 0 2px;
+        background: none;
+        border: none;
+        color: var(--ios-red);
+        cursor: pointer;
+        font-size: 12px;
+        padding: 0 2px;
     }
-    .servicios-add { display: flex; gap: 8px; }
+
+    .servicios-add {
+        display: flex;
+        gap: 8px;
+    }
+
     .servicios-add input {
-        flex: 1; padding: 8px 12px; border: 1px solid var(--excel-border); border-radius: 10px;
-        font-size: 12px; background: var(--excel-bg); color: var(--ios-label); outline: none; font-family: inherit;
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--excel-border);
+        border-radius: 10px;
+        font-size: 12px;
+        background: var(--excel-bg);
+        color: var(--ios-label);
+        outline: none;
+        font-family: inherit;
     }
-    .servicios-add input:focus { border-color: var(--ios-blue); }
-    .wo-empty { font-size: 12px; color: var(--ios-gray-2); padding: 6px 0; }
+
+    .servicios-add input:focus {
+        border-color: var(--ios-blue);
+    }
+
+    .wo-empty {
+        font-size: 12px;
+        color: var(--ios-gray-2);
+        padding: 6px 0;
+    }
+
     .wo-tabs {
-        display: flex; gap: 4px; padding: 4px; margin-bottom: 14px;
-        background: var(--ios-fill); border: 1px solid var(--ios-hairline);
-        border-radius: 12px; width: fit-content;
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        margin-bottom: 14px;
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        width: fit-content;
     }
+
     .wo-tab {
-        border: none; background: transparent; cursor: pointer; font-family: inherit;
-        padding: 8px 18px; border-radius: 9px; font-size: 12.5px; font-weight: 700;
-        color: var(--ios-gray-1, #8E8E93); display: inline-flex; align-items: center; gap: 7px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-family: inherit;
+        padding: 8px 18px;
+        border-radius: 9px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--ios-gray-1, #8E8E93);
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
         transition: all .18s ease;
     }
-    .wo-tab i { font-size: 12px; }
-    .wo-tab:hover:not(.active) { color: var(--ios-label); background: rgba(0,0,0,0.04); }
+
+    .wo-tab i {
+        font-size: 12px;
+    }
+
+    .wo-tab:hover:not(.active) {
+        color: var(--ios-label);
+        background: rgba(0, 0, 0, 0.04);
+    }
+
     .wo-tab.active {
-        background: #fff; color: var(--ios-blue, #007AFF);
-        box-shadow: 0 1px 4px rgba(0,0,0,0.14);
+        background: #fff;
+        color: var(--ios-blue, #007AFF);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
     }
+
     .wo-material-row {
-        display: grid; grid-template-columns: minmax(140px, 1fr) 120px 34px;
-        gap: 8px; align-items: center; margin-bottom: 8px;
+        display: grid;
+        grid-template-columns: minmax(140px, 1fr) 120px 34px;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
     }
+
     .wo-material-row select,
     .wo-material-row input[type="number"],
     .wo-material-row input[type="text"] {
-        width: 100%; padding: 8px 10px; border-radius: 10px;
-        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
-        font-family: inherit; font-size: 12.5px; color: var(--ios-label);
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--ios-hairline);
+        background: var(--ios-fill);
+        font-family: inherit;
+        font-size: 12.5px;
+        color: var(--ios-label);
         outline: none;
     }
+
     .wo-material-row select:focus,
     .wo-material-row input[type="number"]:focus,
-    .wo-material-row input[type="text"]:focus { border-color: var(--ios-blue); }
-    .wo-material-row input[type="text"][readonly] {
-        background: var(--ios-fill); color: var(--ios-gray-1);
-        border-color: var(--ios-hairline); cursor: default;
+    .wo-material-row input[type="text"]:focus {
+        border-color: var(--ios-blue);
     }
+
+    .wo-material-row input[type="text"][readonly] {
+        background: var(--ios-fill);
+        color: var(--ios-gray-1);
+        border-color: var(--ios-hairline);
+        cursor: default;
+    }
+
     .wo-material-del {
-        width: 32px; height: 32px; border: none; border-radius: 9px;
-        background: #FFE9E9; color: #FF3B30; cursor: pointer;
-        display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: 9px;
+        background: #FFE9E9;
+        color: #FF3B30;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
         transition: all .15s ease;
     }
-    .wo-material-del:hover { background: #FFD3D3; }
+
+    .wo-material-del:hover {
+        background: #FFD3D3;
+    }
+
     .wo-gasto-row {
-        display: grid; grid-template-columns: 46px 70px minmax(150px, 1fr) 64px 60px 100px 90px 90px 34px;
-        gap: 8px; align-items: center; margin-bottom: 8px;
-    }
-    .wo-coti-row { display: grid; grid-template-columns: 46px 70px minmax(150px, 1fr) 64px 60px 100px 90px 90px 34px; gap: 8px; align-items: center; }
-    .wo-cobra-row { display: grid; grid-template-columns: 38px minmax(0,1.1fr) minmax(0,2.2fr) minmax(0,0.7fr) minmax(0,0.65fr) minmax(0,1fr) minmax(0,0.5fr) minmax(0,1fr) minmax(0,1.5fr) 30px; gap: 6px; align-items: center; }
-    .wo-cobra-row input, .wo-cobra-row select { width: 100%; min-width: 0; box-sizing: border-box; }
-    .wo-cobra-row .wo-coti-header-span { font-size: 10px; }
-    .wo-coti-num-input.wo-coti-margen-input {
-        width: 70px; padding: 6px 10px; border-radius: 8px;
-        border: 1.5px solid var(--ios-blue, #007AFF);
-        background: #fff; font-family: inherit; font-size: 13px; font-weight: 700;
-        color: var(--ios-label); outline: none; text-align: center; height: 30px; box-sizing: border-box;
-    }
-    .wo-coti-header {
-        padding: 6px 0; font-size: 11px; font-weight: 700; color: var(--ios-gray-2);
-        text-transform: uppercase; letter-spacing: .3px; border-bottom: 1px solid var(--ios-hairline);
+        display: grid;
+        grid-template-columns: 46px 70px minmax(150px, 1fr) 64px 60px 100px 90px 90px 34px;
+        gap: 8px;
+        align-items: center;
         margin-bottom: 8px;
     }
+
+    .wo-coti-row {
+        display: grid;
+        grid-template-columns: 46px 70px minmax(150px, 1fr) 64px 60px 100px 90px 90px 34px;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .wo-cobra-row {
+        display: grid;
+        grid-template-columns: 38px minmax(0, 1.1fr) minmax(0, 2.2fr) minmax(0, 0.7fr) minmax(0, 0.65fr) minmax(0, 1fr) minmax(0, 0.5fr) minmax(0, 1fr) minmax(0, 1.5fr) 30px;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .wo-cobra-row input,
+    .wo-cobra-row select {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    .wo-cobra-row .wo-coti-header-span {
+        font-size: 10px;
+    }
+
+    .wo-coti-num-input.wo-coti-margen-input {
+        width: 70px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1.5px solid var(--ios-blue, #007AFF);
+        background: #fff;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ios-label);
+        outline: none;
+        text-align: center;
+        height: 30px;
+        box-sizing: border-box;
+    }
+
+    .wo-coti-header {
+        padding: 6px 0;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--ios-gray-2);
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        border-bottom: 1px solid var(--ios-hairline);
+        margin-bottom: 8px;
+    }
+
     .wo-coti-subtotal {
-        margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--ios-hairline);
-        font-size: 13px; font-weight: 700; color: var(--ios-label);
+        margin-top: 6px;
+        padding-top: 8px;
+        border-top: 1px solid var(--ios-hairline);
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ios-label);
     }
-    .wo-subtotal-lbl { text-align: right; }
-    .wo-subtotal-val { color: var(--ios-blue, #007AFF); }
+
+    .wo-subtotal-lbl {
+        text-align: right;
+    }
+
+    .wo-subtotal-val {
+        color: var(--ios-blue, #007AFF);
+    }
+
     .wo-total-coti {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-top: 8px; padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 8px;
+        padding: 10px 14px;
         border-top: 2px solid var(--ios-blue, #007AFF);
-        font-size: 13px; font-weight: 800; color: var(--ios-label);
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ios-label);
     }
-    .wo-total-val { color: var(--ios-blue, #007AFF); }
-    .wo-coti-meta { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; margin-top: 6px; }
-    .wo-meta-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+
+    .wo-total-val {
+        color: var(--ios-blue, #007AFF);
+    }
+
+    .wo-coti-meta {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 12px;
+        margin-top: 6px;
+    }
+
+    .wo-meta-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
     .wo-meta-lbl {
-        font-size: 11px; font-weight: 700; color: var(--ios-gray-2);
-        text-transform: uppercase; letter-spacing: .3px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--ios-gray-2);
+        text-transform: uppercase;
+        letter-spacing: .3px;
     }
+
     .wo-coti-numero {
-        display: flex; align-items: center; gap: 6px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
+
     .wo-coti-num-input {
-        flex: 1; padding: 8px 12px; border-radius: 10px;
-        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
-        font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ios-label);
-        outline: none; text-align: center; box-sizing: border-box;
+        flex: 1;
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--ios-hairline);
+        background: var(--ios-fill);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ios-label);
+        outline: none;
+        text-align: center;
+        box-sizing: border-box;
     }
-    .wo-coti-prefix { font-size: 13px; font-weight: 700; color: var(--ios-gray-2); white-space: nowrap; flex-shrink: 0; }
-    .wo-coti-num-input.wo-coti-num-digits { flex: 0 0 72px; }
-    .wo-coti-nota { text-align: left; font-weight: 500; }
+
+    .wo-coti-prefix {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ios-gray-2);
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .wo-coti-num-input.wo-coti-num-digits {
+        flex: 0 0 72px;
+    }
+
+    .wo-coti-nota {
+        text-align: left;
+        font-weight: 500;
+    }
+
     .wo-coti-select {
-        flex: 1; min-width: 180px; padding: 6px 10px; border-radius: 8px;
-        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
-        font-family: inherit; font-size: 12px; color: var(--ios-label); outline: none;
+        flex: 1;
+        min-width: 180px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--ios-hairline);
+        background: var(--ios-fill);
+        font-family: inherit;
+        font-size: 12px;
+        color: var(--ios-label);
+        outline: none;
         height: 30px;
     }
-    .wo-coti-select:focus { border-color: var(--ios-blue); }
+
+    .wo-coti-select:focus {
+        border-color: var(--ios-blue);
+    }
+
     .wo-gasto-row input[type="number"],
     .wo-gasto-row input[type="text"],
     .wo-coti-row input[type="number"],
     .wo-coti-row input[type="text"] {
-        width: 100%; padding: 8px 10px; border-radius: 10px;
-        border: 1px solid var(--ios-hairline); background: var(--ios-fill);
-        font-family: inherit; font-size: 12.5px; color: var(--ios-label);
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--ios-hairline);
+        background: var(--ios-fill);
+        font-family: inherit;
+        font-size: 12.5px;
+        color: var(--ios-label);
         outline: none;
     }
+
     .wo-gasto-row input[type="number"]:focus,
     .wo-gasto-row input[type="text"]:focus,
     .wo-coti-row input[type="number"]:focus,
-    .wo-coti-row input[type="text"]:focus { border-color: var(--ios-blue); }
+    .wo-coti-row input[type="text"]:focus {
+        border-color: var(--ios-blue);
+    }
+
     .wo-coti-item {
-        text-align: center; font-weight: 700; background: var(--ios-fill) !important;
-        color: var(--ios-gray-1); border-color: var(--ios-hairline); cursor: default;
+        text-align: center;
+        font-weight: 700;
+        background: var(--ios-fill) !important;
+        color: var(--ios-gray-1);
+        border-color: var(--ios-hairline);
+        cursor: default;
     }
+
     .wo-coti-auto {
-        background: var(--ios-fill) !important; color: var(--ios-gray-1);
-        border-color: var(--ios-hairline); cursor: default; font-weight: 600;
+        background: var(--ios-fill) !important;
+        color: var(--ios-gray-1);
+        border-color: var(--ios-hairline);
+        cursor: default;
+        font-weight: 600;
     }
-    .wo-coti-row .wo-material-del { justify-self: center; }
-    .wo-header { align-items: center; flex-wrap: wrap; gap: 10px 14px; }
-    .wo-header .wo-title { margin: 0; font-size: 15px; white-space: nowrap; }
-    .wo-header .wo-tabs { flex-shrink: 0; }
-    .wo-header .wo-tab { padding: 6px 12px; font-size: 12px; }
-    .wo-head-left { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; min-width: 0; }
+
+    .wo-coti-row .wo-material-del {
+        justify-self: center;
+    }
+
+    .wo-header {
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+    }
+
+    .wo-header .wo-title {
+        margin: 0;
+        font-size: 15px;
+        white-space: nowrap;
+    }
+
+    .wo-header .wo-tabs {
+        flex-shrink: 0;
+    }
+
+    .wo-header .wo-tab {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+
+    .wo-head-left {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        min-width: 0;
+    }
+
     .mar-head-actions,
-    .wo-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+    .wo-head-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+        margin-left: auto;
+    }
+
     .mar-head-actions .mar-btn-copy,
     .mar-head-actions .mar-btn-generar,
     .mar-head-actions .mar-btn-ghost,
@@ -415,140 +1103,429 @@
     .wo-head-actions .mar-btn-copy,
     .wo-head-actions .mar-btn-ghost,
     .wo-head-actions .mar-btn-primary {
-        padding: 0; width: 32px; height: 32px; font-size: 13px; border-radius: 10px; white-space: nowrap;
-        display: inline-flex; align-items: center; justify-content: center; box-shadow: none; border: none; cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        font-size: 13px;
+        border-radius: 10px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: none;
+        border: none;
+        cursor: pointer;
     }
+
     .mar-head-actions .mar-btn-copy,
     .wo-head-actions .mar-btn-copy {
-        background: #FFE9A8; color: #7a5b00; border: 1px solid #f0d978;
+        background: #FFE9A8;
+        color: #7a5b00;
+        border: 1px solid #f0d978;
     }
+
     .mar-head-actions .mar-btn-copy:hover,
-    .wo-head-actions .mar-btn-copy:hover { background: #ffe08a; filter: none; transform: none; }
-    .mar-head-actions .mar-btn-generar {
-        background: #007AFF; color: #fff; border: none; box-shadow: 0 4px 10px rgba(0,122,255,0.35);
+    .wo-head-actions .mar-btn-copy:hover {
+        background: #ffe08a;
+        filter: none;
+        transform: none;
     }
-    .mar-head-actions .mar-btn-generar:hover { background: #0062CC; filter: none; transform: none; }
+
+    .mar-head-actions .mar-btn-generar {
+        background: #007AFF;
+        color: #fff;
+        border: none;
+        box-shadow: 0 4px 10px rgba(0, 122, 255, 0.35);
+    }
+
+    .mar-head-actions .mar-btn-generar:hover {
+        background: #0062CC;
+        filter: none;
+        transform: none;
+    }
+
     .mar-head-actions .mar-btn-primary,
     .mar-head-actions .mar-btn-guardar,
     .wo-head-actions .mar-btn-primary {
-        background: #34C759; color: #fff; box-shadow: 0 4px 10px rgba(52,199,89,0.35);
+        background: #34C759;
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(52, 199, 89, 0.35);
     }
+
     .mar-head-actions .mar-btn-primary:hover,
     .mar-head-actions .mar-btn-guardar:hover,
-    .wo-head-actions .mar-btn-primary:hover { background: #2fbb51; filter: none; transform: none; }
-    .mar-head-actions .mar-btn-ghost { display: none; }
-    .mar-head-actions .wo-btn-c { display: none; }
+    .wo-head-actions .mar-btn-primary:hover {
+        background: #2fbb51;
+        filter: none;
+        transform: none;
+    }
+
+    .mar-head-actions .mar-btn-ghost {
+        display: none;
+    }
+
+    .mar-head-actions .wo-btn-c {
+        display: none;
+    }
+
     .mar-head-actions .mar-close,
     .wo-head-actions .mar-close {
-        width: 32px; height: 32px; border-radius: 10px;
-        background: #FF3B30; color: #fff; font-size: 13px; border: none; cursor: pointer;
-        display: inline-flex; align-items: center; justify-content: center;
-        box-shadow: 0 4px 10px rgba(255,59,48,0.3);
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        background: #FF3B30;
+        color: #fff;
+        font-size: 13px;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3);
     }
+
     .mar-head-actions .mar-close:hover,
-    .wo-head-actions .mar-close:hover { background: #e23328; }
-    @media (max-width: 720px) { .wo-header { flex-wrap: wrap; } .wo-header .wo-title { white-space: normal; } }
+    .wo-head-actions .mar-close:hover {
+        background: #e23328;
+    }
+
+    @media (max-width: 720px) {
+        .wo-header {
+            flex-wrap: wrap;
+        }
+
+        .wo-header .wo-title {
+            white-space: normal;
+        }
+    }
+
     .wo-timeline {
         position: relative;
-        display: flex; flex-direction: column; gap: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
         padding: 4px 0 4px 18px;
     }
+
     .wo-timeline::before {
         content: '';
-        position: absolute; left: 4px; top: 6px; bottom: 6px;
-        width: 2px; background: var(--ios-hairline); border-radius: 2px;
+        position: absolute;
+        left: 4px;
+        top: 6px;
+        bottom: 6px;
+        width: 2px;
+        background: var(--ios-hairline);
+        border-radius: 2px;
     }
-    .wt-item { position: relative; }
+
+    .wt-item {
+        position: relative;
+    }
+
     .wt-item::before {
         content: '';
-        position: absolute; left: -18px; top: 12px;
-        width: 10px; height: 10px; border-radius: 50%;
+        position: absolute;
+        left: -18px;
+        top: 12px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
         background: var(--ios-blue, #007AFF);
-        border: 2px solid #fff; box-shadow: 0 0 0 2px var(--ios-blue, #007AFF);
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 2px var(--ios-blue, #007AFF);
         box-sizing: border-box;
     }
+
     .wt-card {
-        background: #fff; border: 1px solid var(--ios-hairline);
-        border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.07);
-        padding: 10px 12px; font-family: Arial, Helvetica, sans-serif;
+        background: #fff;
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+        padding: 10px 12px;
+        font-family: Arial, Helvetica, sans-serif;
     }
+
     .wt-head {
-        display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
         margin-bottom: 7px;
     }
-    .wt-agent { font-size: 12.5px; font-weight: 800; color: #1c2541; }
-    .wt-agent i { color: var(--ios-blue, #007AFF); margin-right: 5px; font-size: 11px; }
-    .wt-time { font-size: 10.5px; color: var(--ios-gray-2); font-weight: 600; white-space: nowrap; }
-    .wt-change {
-        font-size: 10.5px; color: var(--ios-gray-1); margin-bottom: 8px;
-        background: var(--ios-fill); border: 1px dashed var(--ios-hairline);
-        border-radius: 7px; padding: 4px 8px;
+
+    .wt-agent {
+        font-size: 12.5px;
+        font-weight: 800;
+        color: #1c2541;
     }
-    .wt-change b { color: var(--ios-label); text-transform: capitalize; }
-    .wt-change .wt-old { color: var(--ios-red); text-decoration: line-through; }
-    .wt-change .wt-arrow { color: var(--ios-gray-2); margin: 0 3px; }
-    .wt-change .wt-new { color: var(--ios-label); font-weight: 700; }
+
+    .wt-agent i {
+        color: var(--ios-blue, #007AFF);
+        margin-right: 5px;
+        font-size: 11px;
+    }
+
+    .wt-time {
+        font-size: 10.5px;
+        color: var(--ios-gray-2);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .wt-change {
+        font-size: 10.5px;
+        color: var(--ios-gray-1);
+        margin-bottom: 8px;
+        background: var(--ios-fill);
+        border: 1px dashed var(--ios-hairline);
+        border-radius: 7px;
+        padding: 4px 8px;
+    }
+
+    .wt-change b {
+        color: var(--ios-label);
+        text-transform: capitalize;
+    }
+
+    .wt-change .wt-old {
+        color: var(--ios-red);
+        text-decoration: line-through;
+    }
+
+    .wt-change .wt-arrow {
+        color: var(--ios-gray-2);
+        margin: 0 3px;
+    }
+
+    .wt-change .wt-new {
+        color: var(--ios-label);
+        font-weight: 700;
+    }
+
     .wt-grid {
-        display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
         gap: 1px 14px;
     }
+
     .wt-cell {
-        display: flex; gap: 6px; font-size: 10.5px; line-height: 1.35;
-        padding: 1px 0; min-width: 0;
+        display: flex;
+        gap: 6px;
+        font-size: 10.5px;
+        line-height: 1.35;
+        padding: 1px 0;
+        min-width: 0;
     }
+
     .wt-cell .wt-lbl {
-        color: var(--ios-gray-1); font-weight: 700; flex-shrink: 0; font-size: 9.5px;
+        color: var(--ios-gray-1);
+        font-weight: 700;
+        flex-shrink: 0;
+        font-size: 9.5px;
     }
-    .wt-cell .wt-lbl::after { content: ':'; }
-    .wt-cell .wt-val { color: #111; font-weight: 600; word-break: break-word; }
+
+    .wt-cell .wt-lbl::after {
+        content: ':';
+    }
+
+    .wt-cell .wt-val {
+        color: #111;
+        font-weight: 600;
+        word-break: break-word;
+    }
+
     .wt-cell.changed .wt-val {
-        background: #fff4c2; border-radius: 3px; padding: 0 3px; font-weight: 800; color: #000;
+        background: #fff4c2;
+        border-radius: 3px;
+        padding: 0 3px;
+        font-weight: 800;
+        color: #000;
     }
-    .wt-cell.full { grid-column: 1 / -1; }
+
+    .wt-cell.full {
+        grid-column: 1 / -1;
+    }
+
     .wo-history-btn {
-        margin-left: auto; background: none; border: 1px solid var(--ios-hairline); color: var(--ios-gray-1);
-        width: 26px; height: 26px; border-radius: 8px; cursor: pointer; font-size: 11px;
-        display: inline-flex; align-items: center; justify-content: center; transition: all .15s ease;
+        margin-left: auto;
+        background: none;
+        border: 1px solid var(--ios-hairline);
+        color: var(--ios-gray-1);
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 11px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .15s ease;
     }
-    .wo-history-btn:hover { color: var(--ios-blue); border-color: var(--ios-blue); }
+
+    .wo-history-btn:hover {
+        color: var(--ios-blue);
+        border-color: var(--ios-blue);
+    }
+
     .evidencia-titulo {
-        margin-top: 18px; font-size: 13px; font-weight: 800; color: var(--ios-label);
-        display: flex; align-items: center; gap: 8px;
+        margin-top: 18px;
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--ios-label);
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
-    .evidencia-titulo i { color: var(--ios-blue); }
-    .evidencia-fotos { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 10px; }
+
+    .evidencia-titulo i {
+        color: var(--ios-blue);
+    }
+
+    .evidencia-fotos {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+    }
+
     .evidencia-slot {
-        position: relative; aspect-ratio: 1 / 1; border-radius: 12px; overflow: hidden;
-        border: 2px dashed var(--ios-hairline); background: var(--ios-fill);
-        display: flex; align-items: center; justify-content: center; cursor: pointer;
-        transition: all .15s ease; min-width: 0;
+        position: relative;
+        aspect-ratio: 1 / 1;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 2px dashed var(--ios-hairline);
+        background: var(--ios-fill);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all .15s ease;
+        min-width: 0;
     }
-    .evidencia-slot:hover { border-color: var(--ios-blue); }
-    .evidencia-slot.disable { opacity: 0.5; cursor: not-allowed; }
-    .evidencia-slot.disable:hover { border-color: var(--ios-hairline); }
-    .evidencia-slot.has-img { border: 2px solid var(--ios-hairline); cursor: default; }
-    .evidencia-slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .evidencia-slot-empty { font-size: 22px; font-weight: 300; color: var(--ios-gray-1); }
-    .evidencia-slot-uploading { position: absolute; inset: 0; background: rgba(0,0,0,0.45); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+
+    .evidencia-slot:hover {
+        border-color: var(--ios-blue);
+    }
+
+    .evidencia-slot.disable {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .evidencia-slot.disable:hover {
+        border-color: var(--ios-hairline);
+    }
+
+    .evidencia-slot.has-img {
+        border: 2px solid var(--ios-hairline);
+        cursor: default;
+    }
+
+    .evidencia-slot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .evidencia-slot-empty {
+        font-size: 22px;
+        font-weight: 300;
+        color: var(--ios-gray-1);
+    }
+
+    .evidencia-slot-uploading {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
     .evidencia-slot-del {
-        position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 50%;
-        background: rgba(0,0,0,0.6); color: #fff; border: none; cursor: pointer; font-size: 12px;
-        display: flex; align-items: center; justify-content: center; transition: all .15s ease;
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all .15s ease;
     }
-    .evidencia-slot-del:hover { background: #ff3b30; }
+
+    .evidencia-slot-del:hover {
+        background: #ff3b30;
+    }
+
     .evidencia-lightbox {
-        position: fixed; inset: 0; z-index: 30000; background: rgba(0,0,0,0.85);
-        display: none; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;
+        position: fixed;
+        inset: 0;
+        z-index: 30000;
+        background: rgba(0, 0, 0, 0.85);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        cursor: zoom-out;
     }
-    .evidencia-lightbox.show { display: flex; }
-    .evidencia-lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+
+    .evidencia-lightbox.show {
+        display: flex;
+    }
+
+    .evidencia-lightbox img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 8px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    }
+
     .evidencia-lightbox-close {
-        position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border-radius: 50%;
-        background: rgba(255,255,255,0.15); color: #fff; border: none; cursor: pointer; font-size: 16px;
-        display: flex; align-items: center; justify-content: center; transition: background .15s ease;
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background .15s ease;
     }
-    .evidencia-lightbox-close:hover { background: rgba(255,255,255,0.3); }
-    @media (max-width: 640px) { .evidencia-fotos { grid-template-columns: repeat(3, 1fr); } .wo-summary { grid-template-columns: 1fr 1fr; } .wo-form { grid-template-columns: 1fr; } }
+
+    .evidencia-lightbox-close:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    @media (max-width: 640px) {
+        .evidencia-fotos {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .wo-summary {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .wo-form {
+            grid-template-columns: 1fr;
+        }
+    }
 </style>
 
 <!-- Modal Nuevo Registro -->
@@ -560,9 +1537,13 @@
                 <p>Completa los campos para añadir el registro a {{ session.get('current_proyecto_nombre', '') }}.</p>
             </div>
             <div class="mar-head-actions">
-                <button type="button" id="btn-mar-generar-coti" onclick="guardarModalRegistro('generar')" class="mar-btn-generar" style="display:none;" title="Generar Cotización"><i class="fa-solid fa-file-invoice-dollar"></i></button>
-                <button type="button" id="btn-mar-label-guardar" onclick="guardarModalRegistro()" class="mar-btn-guardar" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
-                <button type="button" onclick="cerrarModalRegistro()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" id="btn-mar-generar-coti" onclick="guardarModalRegistro('generar')"
+                    class="mar-btn-generar" style="display:none;" title="Generar Cotización"><i
+                        class="fa-solid fa-file-invoice-dollar"></i></button>
+                <button type="button" id="btn-mar-label-guardar" onclick="guardarModalRegistro()"
+                    class="mar-btn-guardar" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
+                <button type="button" onclick="cerrarModalRegistro()" class="mar-close" title="Cerrar"><i
+                        class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
         <div id="mar-fields" class="mar-body"></div>
@@ -578,20 +1559,28 @@
                 <p>Completa la información pendiente del movimiento.</p>
             </div>
             <div class="mar-head-actions">
-                <button type="button" id="comb-detalle-guardar" onclick="guardarCombDetalle()" class="mar-btn-guardar" style="display:none;" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
-                <button type="button" onclick="cerrarCombDetalle()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" id="comb-detalle-guardar" onclick="guardarCombDetalle()" class="mar-btn-guardar"
+                    style="display:none;" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
+                <button type="button" onclick="cerrarCombDetalle()" class="mar-close" title="Cerrar"><i
+                        class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
         <div class="wo-body">
             <div class="wo-section">
-                <div class="wo-section-title"><i class="fa-solid fa-id-card"></i> <span id="comb-detalle-titulo">Registro</span></div>
-                <div id="comb-detalle-grid" class="wo-form"><div class="wo-empty">Cargando...</div></div>
+                <div class="wo-section-title"><i class="fa-solid fa-id-card"></i> <span
+                        id="comb-detalle-titulo">Registro</span></div>
+                <div id="comb-detalle-grid" class="wo-form">
+                    <div class="wo-empty">Cargando...</div>
+                </div>
             </div>
             <div class="wo-section" id="comb-detalle-foto-sec" style="display:none;">
                 <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Foto del movimiento</div>
                 <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                    <img id="comb-detalle-foto" src="" alt="Foto" style="max-width:180px; max-height:180px; border-radius:12px; border:1px solid var(--excel-border); cursor:zoom-in; object-fit:cover;" onclick="abrirEvidenciaFoto(this.src);">
-                    <button type="button" id="comb-detalle-foto-btn" style="display:none;" class="mar-btn-ghost" onclick="combDetalleSubirFoto()"><i class="fa-solid fa-camera"></i> Subir/Cambiar foto</button>
+                    <img id="comb-detalle-foto" src="" alt="Foto"
+                        style="max-width:180px; max-height:180px; border-radius:12px; border:1px solid var(--excel-border); cursor:zoom-in; object-fit:cover;"
+                        onclick="abrirEvidenciaFoto(this.src);">
+                    <button type="button" id="comb-detalle-foto-btn" style="display:none;" class="mar-btn-ghost"
+                        onclick="combDetalleSubirFoto()"><i class="fa-solid fa-camera"></i> Subir/Cambiar foto</button>
                 </div>
             </div>
         </div>
@@ -604,129 +1593,171 @@
         <div class="mar-header wo-header">
             <div class="wo-head-left">
                 <div class="wo-tabs" style="margin-bottom:0;">
-                    <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i class="fa-solid fa-list-ul"></i> Detalle</button>
-                    <button type="button" class="wo-tab" id="wo-tab-gastos" onclick="cambiarWoTab('gastos')"><i class="fa-solid fa-gas-pump"></i> Gastos</button>
-                    <button type="button" class="wo-tab" id="wo-tab-cotizacion" onclick="cambiarWoTab('cotizacion')"><i class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
-                    <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i class="fa-solid fa-camera"></i> Evidencia</button>
-                    <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i class="fa-solid fa-arrows-spin"></i> Estado</button>
-                    <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
+                    <button type="button" class="wo-tab active" id="wo-tab-detalle" onclick="cambiarWoTab('detalle')"><i
+                            class="fa-solid fa-list-ul"></i> Detalle</button>
+                    <button type="button" class="wo-tab" id="wo-tab-gastos" onclick="cambiarWoTab('gastos')"><i
+                            class="fa-solid fa-gas-pump"></i> Gastos</button>
+                    <button type="button" class="wo-tab" id="wo-tab-cotizacion" onclick="cambiarWoTab('cotizacion')"><i
+                            class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
+                    <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i
+                            class="fa-solid fa-camera"></i> Evidencia</button>
+                    <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i
+                            class="fa-solid fa-arrows-spin"></i> Estado</button>
+                    <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i
+                            class="fa-solid fa-clock-rotate-left"></i> Historial</button>
                 </div>
             </div>
             <div class="wo-head-actions">
-                <button onclick="copiarPlantillaWO()" id="btn-wo-copiar" class="mar-btn-copy" title="Copiar plantilla"><i class="fa-solid fa-copy"></i></button>
-                <button id="btn-wo-save" onclick="guardarWoModal()" class="mar-btn-primary" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
-                <button onclick="cerrarWoModal()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+                <button onclick="copiarPlantillaWO()" id="btn-wo-copiar" class="mar-btn-copy"
+                    title="Copiar plantilla"><i class="fa-solid fa-copy"></i></button>
+                <button id="btn-wo-save" onclick="guardarWoModal()" class="mar-btn-primary" title="Guardar"><i
+                        class="fa-solid fa-floppy-disk"></i></button>
+                <button onclick="cerrarWoModal()" class="mar-close" title="Cerrar"><i
+                        class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
         <div class="wo-body">
             <div id="wo-panel-detalle">
-            <div class="wo-section">
-                <div class="wo-section-title"><i class="fa-solid fa-briefcase"></i> Detalle de <span id="wo-title">WO</span></div>
-                <div id="wo-summary" class="wo-summary"><div class="wo-empty">Cargando...</div></div>
-            </div>
-            <div class="wo-section">
-                <div class="wo-section-title"><i class="fa-solid fa-sliders"></i> Gestión</div>
-                <div class="wo-form">
-                    <div class="wo-field" id="wof-servicio">
-                        <label><i class="fa-solid fa-wrench"></i> <span class="wof-servicio-label">Servicio</span>
-                            <button type="button" id="btn-servicios" class="wo-serv-btn" title="Editar opciones de servicio" onclick="toggleServiciosEditor()"><i class="fa-solid fa-gear"></i></button>
-                        </label>
-                        <select id="wo-servicio"><option value="">— Seleccionar —</option></select>
-                        <div id="servicios-editor" class="servicios-editor" style="display:none;"></div>
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-briefcase"></i> Detalle de <span
+                            id="wo-title">WO</span></div>
+                    <div id="wo-summary" class="wo-summary">
+                        <div class="wo-empty">Cargando...</div>
                     </div>
-                    <div class="wo-field" id="wof-ciudad">
-                        <label><i class="fa-solid fa-city"></i> Ciudad</label>
-                        <input type="text" id="wo-ciudad" autocomplete="off">
-                    </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-user-gear"></i> Técnico asignado</label>
-                        <select id="wo-tecnico"><option value="">— Seleccionar —</option></select>
-                    </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-building"></i> Contrata</label>
-                        <input type="text" id="wo-contrata" autocomplete="off">
-                    </div>
-                    <div class="wo-field" id="wof-latitud">
-                        <label><i class="fa-solid fa-arrow-up-wide-short"></i> Coordenadas del corte (Lat)</label>
-                        <input type="text" id="wo-latitud" autocomplete="off" placeholder="Ej: -8.405357°">
-                    </div>
-                    <div class="wo-field" id="wof-longitud">
-                        <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Coordenadas del corte (Long)</label>
-                        <input type="text" id="wo-longitud" autocomplete="off" placeholder="Ej: -74.587859°">
-                    </div>
-                    <div class="wo-field" id="wof-motivo">
-                        <label><i class="fa-solid fa-triangle-exclamation"></i> Motivo de avería</label>
-                        <select id="wo-motivo"><option value="">— Seleccionar —</option></select>
-                    </div>
-                    <div class="wo-field" id="wof-se-instalo-mufas">
-                        <label><i class="fa-solid fa-boxes-stacked"></i> <span class="wof-mufas-label">¿Se instaló mufas?</span></label>
-                        <select id="wo-se-instalo-mufas">
-                            <option value="">— Seleccionar —</option>
-                            <option value="Sí">Sí</option>
-                            <option value="No">No</option>
-                        </select>
-                    </div>
-                    <div class="wo-field" id="wof-lat-mufa">
-                        <label><i class="fa-solid fa-arrow-up-wide-short"></i> Ubicación de mufas (Lat)</label>
-                        <input type="text" id="wo-lat-mufa" autocomplete="off" placeholder="Ej: -8.405357°">
-                    </div>
-                    <div class="wo-field" id="wof-lon-mufa">
-                        <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Ubicación de mufas (Long)</label>
-                        <input type="text" id="wo-lon-mufa" autocomplete="off" placeholder="Ej: -74.587859°">
-                    </div>
-                    <div class="wo-field" id="wof-solucion">
-                        <label><i class="fa-solid fa-wand-magic-sparkles"></i> Solución</label>
-                        <select id="wo-solucion"><option value="">— Seleccionar —</option></select>
-                    </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-circle-check"></i> ¿Requiere correctivo final?</label>
-                        <select id="wo-requiere-correctivo">
-                            <option value="">— Seleccionar —</option>
-                            <option value="Sí">Sí</option>
-                            <option value="No">No</option>
-                        </select>
-                    </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-play"></i> Inicio de parada</label>
-                        <input type="datetime-local" id="wo-inicio-parada">
-                    </div>
-                    <div class="wo-field">
-                        <label><i class="fa-solid fa-stop"></i> Fin de parada</label>
-                        <input type="datetime-local" id="wo-fin-parada">
-                    </div>
-                    <div class="wo-field full">
-                        <label><i class="fa-solid fa-book"></i> Bitácora</label>
-                        <textarea id="wo-bitacora" placeholder="Registrar novedades del trabajo..."></textarea>
+                </div>
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-sliders"></i> Gestión</div>
+                    <div class="wo-form">
+                        <div class="wo-field" id="wof-servicio">
+                            <label><i class="fa-solid fa-wrench"></i> <span class="wof-servicio-label">Servicio</span>
+                                <button type="button" id="btn-servicios" class="wo-serv-btn"
+                                    title="Editar opciones de servicio" onclick="toggleServiciosEditor()"><i
+                                        class="fa-solid fa-gear"></i></button>
+                            </label>
+                            <select id="wo-servicio">
+                                <option value="">— Seleccionar —</option>
+                            </select>
+                            <div id="servicios-editor" class="servicios-editor" style="display:none;"></div>
+                        </div>
+                        <div class="wo-field" id="wof-ciudad">
+                            <label><i class="fa-solid fa-city"></i> Ciudad</label>
+                            <input type="text" id="wo-ciudad" autocomplete="off">
+                        </div>
+                        <div class="wo-field">
+                            <label><i class="fa-solid fa-user-gear"></i> Técnico asignado</label>
+                            <select id="wo-tecnico">
+                                <option value="">— Seleccionar —</option>
+                            </select>
+                        </div>
+                        <div class="wo-field">
+                            <label><i class="fa-solid fa-building"></i> Contrata</label>
+                            <input type="text" id="wo-contrata" autocomplete="off">
+                        </div>
+                        <div class="wo-field" id="wof-latitud">
+                            <label><i class="fa-solid fa-arrow-up-wide-short"></i> Coordenadas del corte (Lat)</label>
+                            <input type="text" id="wo-latitud" autocomplete="off" placeholder="Ej: -8.405357°">
+                        </div>
+                        <div class="wo-field" id="wof-longitud">
+                            <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Coordenadas del corte
+                                (Long)</label>
+                            <input type="text" id="wo-longitud" autocomplete="off" placeholder="Ej: -74.587859°">
+                        </div>
+                        <div class="wo-field" id="wof-motivo">
+                            <label><i class="fa-solid fa-triangle-exclamation"></i> Motivo de avería</label>
+                            <select id="wo-motivo">
+                                <option value="">— Seleccionar —</option>
+                            </select>
+                        </div>
+                        <div class="wo-field" id="wof-se-instalo-mufas">
+                            <label><i class="fa-solid fa-boxes-stacked"></i> <span class="wof-mufas-label">¿Se instaló
+                                    mufas?</span></label>
+                            <select id="wo-se-instalo-mufas">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field" id="wof-lat-mufa">
+                            <label><i class="fa-solid fa-arrow-up-wide-short"></i> Ubicación de mufas (Lat)</label>
+                            <input type="text" id="wo-lat-mufa" autocomplete="off" placeholder="Ej: -8.405357°">
+                        </div>
+                        <div class="wo-field" id="wof-lon-mufa">
+                            <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Ubicación de mufas (Long)</label>
+                            <input type="text" id="wo-lon-mufa" autocomplete="off" placeholder="Ej: -74.587859°">
+                        </div>
+                        <div class="wo-field" id="wof-solucion">
+                            <label><i class="fa-solid fa-wand-magic-sparkles"></i> Solución</label>
+                            <select id="wo-solucion">
+                                <option value="">— Seleccionar —</option>
+                            </select>
+                        </div>
+                        <div class="wo-field">
+                            <label><i class="fa-solid fa-circle-check"></i> ¿Requiere correctivo final?</label>
+                            <select id="wo-requiere-correctivo">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field">
+                            <label><i class="fa-solid fa-play"></i> Inicio de parada</label>
+                            <input type="datetime-local" id="wo-inicio-parada">
+                        </div>
+                        <div class="wo-field">
+                            <label><i class="fa-solid fa-stop"></i> Fin de parada</label>
+                            <input type="datetime-local" id="wo-fin-parada">
+                        </div>
+                        <div class="wo-field full">
+                            <label><i class="fa-solid fa-book"></i> Bitácora</label>
+                            <textarea id="wo-bitacora" placeholder="Registrar novedades del trabajo..."></textarea>
+                        </div>
                     </div>
                 </div>
             </div>
-            </div>
             <div id="wo-panel-gastos" style="display:none;">
                 <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-gas-pump"></i> Movimientos de Combustible asociados al WO</div>
-                    <div id="wo-gastos-comb-list"><div class="wo-empty">Cargando...</div></div>
+                    <div class="wo-section-title"><i class="fa-solid fa-gas-pump"></i> Movimientos de Combustible
+                        asociados al WO</div>
+                    <div id="wo-gastos-comb-list">
+                        <div class="wo-empty">Cargando...</div>
+                    </div>
                 </div>
             </div>
             <div id="wo-panel-cotizacion" style="display:none;">
                 <!-- Selector de cotizaciones (oculto: el listado de asociadas se muestra en la tabla de abajo) -->
                 <div class="wo-section" id="wo-coti-entry-section" style="display:none;">
                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                        <select id="wo-coti-select" class="wo-coti-select" onchange="seleccionarCotizacionLista(this.value)">
+                        <select id="wo-coti-select" class="wo-coti-select"
+                            onchange="seleccionarCotizacionLista(this.value)">
                             <option value="">— Cotizaciones del ticket —</option>
                         </select>
-                        <button type="button" id="btn-abrir-coti" onclick="abrirRegistroCotizacion()" title="Nueva cotización" style="background:#007AFF; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1; flex-shrink:0;"><i class="fa-solid fa-plus"></i></button>
-                        <span id="badge-coti-bloqueada" title="Cotización bloqueada" style="display:none; background:#FF3B30; color:#fff; width:30px; height:30px; font-size:13px; border-radius:50%; letter-spacing:0.3px; align-items:center; justify-content:center;"><i class="fa-solid fa-lock"></i></span>
+                        <button type="button" id="btn-abrir-coti" onclick="abrirRegistroCotizacion()"
+                            title="Nueva cotización"
+                            style="background:#007AFF; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1; flex-shrink:0;"><i
+                                class="fa-solid fa-plus"></i></button>
+                        <span id="badge-coti-bloqueada" title="Cotización bloqueada"
+                            style="display:none; background:#FF3B30; color:#fff; width:30px; height:30px; font-size:13px; border-radius:50%; letter-spacing:0.3px; align-items:center; justify-content:center;"><i
+                                class="fa-solid fa-lock"></i></span>
                         {% if session.get('rol') == 'admin' %}
-                        <button type="button" id="btn-coti-desbloquear" onclick="desbloquearCotizacion()" title="Desbloquear cotización" style="display:none; background:#FF9500; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i class="fa-solid fa-lock-open"></i></button>
-                        <button type="button" id="btn-coti-eliminar" onclick="eliminarCotizacion()" title="Eliminar cotización" style="display:none; background:#FF3B30; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i class="fa-solid fa-trash-can"></i></button>
+                        <button type="button" id="btn-coti-desbloquear" onclick="desbloquearCotizacion()"
+                            title="Desbloquear cotización"
+                            style="display:none; background:#FF9500; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i
+                                class="fa-solid fa-lock-open"></i></button>
+                        <button type="button" id="btn-coti-eliminar" onclick="eliminarCotizacion()"
+                            title="Eliminar cotización"
+                            style="display:none; background:#FF3B30; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i
+                                class="fa-solid fa-trash-can"></i></button>
                         {% endif %}
                     </div>
                 </div>
 
                 <!-- Cotizaciones asociadas por NUMERO WO (como Gastos refleja Combustible) -->
                 <div class="wo-section" id="wo-coti-asociadas-section" style="display:none;">
-                    <div class="wo-section-title"><i class="fa-solid fa-link"></i> Cotizaciones registradas para este WO</div>
-                    <div id="wo-coti-asociadas-list"><div class="wo-empty">Sin cotizaciones asociadas a este WO.</div></div>
+                    <div class="wo-section-title"><i class="fa-solid fa-link"></i> Cotizaciones registradas para este WO
+                    </div>
+                    <div id="wo-coti-asociadas-list">
+                        <div class="wo-empty">Sin cotizaciones asociadas a este WO.</div>
+                    </div>
                 </div>
 
                 <!-- Formulario completo (oculto hasta que se presione el botón) -->
@@ -737,33 +1768,42 @@
                     <div class="wo-section">
                         <div class="wo-section-title">
                             <i class="fa-solid fa-file-invoice"></i> Datos de Cotización
-                            <button type="button" onclick="cerrarRegistroCotizacion()" style="margin-left:auto; background:none; border:none; color:var(--ios-label2); cursor:pointer; font-size:13px;" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+                            <button type="button" onclick="cerrarRegistroCotizacion()"
+                                style="margin-left:auto; background:none; border:none; color:var(--ios-label2); cursor:pointer; font-size:13px;"
+                                title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div class="wo-coti-meta">
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">TICKET</span>
-                                <input type="text" id="wo-coti-ticket" class="wo-coti-num-input" readonly placeholder="Automático" title="Ticket (automático)" style="background:#F2F2F7; color:#3C3C43;">
+                                <input type="text" id="wo-coti-ticket" class="wo-coti-num-input" readonly
+                                    placeholder="Automático" title="Ticket (automático)"
+                                    style="background:#F2F2F7; color:#3C3C43;">
                             </div>
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">N° Cotización</span>
                                 <div class="wo-coti-numero">
                                     <span class="wo-coti-prefix">HW-</span>
-                                    <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits" value="0000001" maxlength="7" inputmode="numeric" title="Correlativo (7 dígitos)">
+                                    <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits"
+                                        value="0000001" maxlength="7" inputmode="numeric"
+                                        title="Correlativo (7 dígitos)">
                                 </div>
                             </div>
                         </div>
                         <div class="wo-coti-meta" style="margin-top:8px; grid-template-columns: 1fr 1fr 1fr;">
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">SITE</span>
-                                <input type="text" id="wo-coti-site" class="wo-coti-num-input" placeholder="Pegar site...">
+                                <input type="text" id="wo-coti-site" class="wo-coti-num-input"
+                                    placeholder="Pegar site...">
                             </div>
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">SUPERVISOR</span>
-                                <input type="text" id="wo-coti-supervisor" class="wo-coti-num-input" placeholder="Nombre del supervisor...">
+                                <input type="text" id="wo-coti-supervisor" class="wo-coti-num-input"
+                                    placeholder="Nombre del supervisor...">
                             </div>
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">OBJETIVO</span>
-                                <input type="text" id="wo-coti-objetivo" class="wo-coti-num-input" placeholder="Título / objetivo...">
+                                <input type="text" id="wo-coti-objetivo" class="wo-coti-num-input"
+                                    placeholder="Título / objetivo...">
                             </div>
                         </div>
                     </div>
@@ -781,99 +1821,129 @@
                             <span>COMENTARIOS</span>
                             <span></span>
                         </div>
-                        <div id="wo-items-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+                        <div id="wo-items-list">
+                            <div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.
+                            </div>
+                        </div>
                         <div class="wo-cobra-row wo-coti-subtotal">
                             <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
                             <span class="wo-subtotal-lbl">sub total + FEE</span>
                             <span id="wo-subtotal-fee" class="wo-subtotal-val">0.00</span>
                             <span></span>
                         </div>
-                        <button type="button" id="btn-wo-agregar-item" class="mar-btn-ghost" onclick="agregarFilaCobra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
+                        <button type="button" id="btn-wo-agregar-item" class="mar-btn-ghost"
+                            onclick="agregarFilaCobra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
+                            Agregar item</button>
                     </div>
                     {% else %}
                     <!-- ===== FORMATO ANTERIOR (PEXT y otros) ===== -->
                     <div class="wo-section">
                         <div class="wo-section-title">
                             <i class="fa-solid fa-file-invoice"></i> Datos de Cotización
-                            <button type="button" onclick="cerrarRegistroCotizacion()" style="margin-left:auto; background:none; border:none; color:var(--ios-label2); cursor:pointer; font-size:13px;" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+                            <button type="button" onclick="cerrarRegistroCotizacion()"
+                                style="margin-left:auto; background:none; border:none; color:var(--ios-label2); cursor:pointer; font-size:13px;"
+                                title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div class="wo-coti-meta">
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">Nota</span>
-                                <input type="text" id="wo-coti-nota" class="wo-coti-num-input wo-coti-nota" placeholder="Escribir una nota...">
+                                <input type="text" id="wo-coti-nota" class="wo-coti-num-input wo-coti-nota"
+                                    placeholder="Escribir una nota...">
                             </div>
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">N° Cotización</span>
                                 <div class="wo-coti-numero">
                                     <span class="wo-coti-prefix">HW-</span>
-                                    <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits" value="0000001" maxlength="7" inputmode="numeric" title="Correlativo (7 dígitos)">
+                                    <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits"
+                                        value="0000001" maxlength="7" inputmode="numeric"
+                                        title="Correlativo (7 dígitos)">
                                 </div>
                             </div>
                             <div class="wo-meta-field">
                                 <span class="wo-meta-lbl">Margen %</span>
-                                <input type="number" id="wo-coti-margen" class="wo-coti-num-input wo-coti-margen-input" value="30" min="0" step="any" title="Porcentaje adicional al Precio Cobra para calcular el Precio Unid">
+                                <input type="number" id="wo-coti-margen" class="wo-coti-num-input wo-coti-margen-input"
+                                    value="30" min="0" step="any"
+                                    title="Porcentaje adicional al Precio Cobra para calcular el Precio Unid">
                             </div>
                         </div>
                     </div>
                     <div class="wo-section">
-                        <div class="wo-section-title"><i class="fa-solid fa-boxes-stacked"></i> Materiales, Herramientas y/o Homologaciones</div>
-<div class="wo-coti-row wo-coti-header">
-                        <span>Item</span>
-                        <span>Cód</span>
-                        <span>Descripción</span>
-                        <span>Unid</span>
-                        <span>Cant</span>
-                        <span>Precio Cobra</span>
-                        <span>Precio Unid</span>
-                        <span>Total P</span>
-                        <span></span>
-                    </div>
-                    <div id="wo-gastos-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+                        <div class="wo-section-title"><i class="fa-solid fa-boxes-stacked"></i> Materiales, Herramientas
+                            y/o Homologaciones</div>
+                        <div class="wo-coti-row wo-coti-header">
+                            <span>Item</span>
+                            <span>Cód</span>
+                            <span>Descripción</span>
+                            <span>Unid</span>
+                            <span>Cant</span>
+                            <span>Precio Cobra</span>
+                            <span>Precio Unid</span>
+                            <span>Total P</span>
+                            <span></span>
+                        </div>
+                        <div id="wo-gastos-list">
+                            <div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.
+                            </div>
+                        </div>
                         <div class="wo-coti-row wo-coti-subtotal">
                             <span></span><span></span><span></span><span></span><span></span>
                             <span class="wo-subtotal-lbl">Subtotal A</span>
                             <span id="wo-subtotal-a" class="wo-subtotal-val">0.00</span>
                             <span></span>
                         </div>
-                        <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost" onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
+                        <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost"
+                            onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
+                            Agregar item</button>
                     </div>
                     <div class="wo-section">
                         <div class="wo-section-title"><i class="fa-solid fa-helmet-safety"></i> Mano de Obra</div>
-<div class="wo-coti-row wo-coti-header">
-                        <span>Item</span>
-                        <span>Cód</span>
-                        <span>Descripción</span>
-                        <span>Unid</span>
-                        <span>Cant</span>
-                        <span>Precio Cobra</span>
-                        <span>Precio Unid</span>
-                        <span>Total P</span>
-                        <span></span>
-                    </div>
-                    <div id="wo-mo-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>
+                        <div class="wo-coti-row wo-coti-header">
+                            <span>Item</span>
+                            <span>Cód</span>
+                            <span>Descripción</span>
+                            <span>Unid</span>
+                            <span>Cant</span>
+                            <span>Precio Cobra</span>
+                            <span>Precio Unid</span>
+                            <span>Total P</span>
+                            <span></span>
+                        </div>
+                        <div id="wo-mo-list">
+                            <div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.
+                            </div>
+                        </div>
                         <div class="wo-coti-row wo-coti-subtotal">
                             <span></span><span></span><span></span><span></span><span></span>
                             <span class="wo-subtotal-lbl">Subtotal B</span>
                             <span id="wo-subtotal-b" class="wo-subtotal-val">0.00</span>
                             <span></span>
                         </div>
-                        <button type="button" id="btn-wo-agregar-mo" class="mar-btn-ghost" onclick="agregarFilaManoObra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i> Agregar item</button>
+                        <button type="button" id="btn-wo-agregar-mo" class="mar-btn-ghost"
+                            onclick="agregarFilaManoObra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
+                            Agregar item</button>
                     </div>
                     <div class="wo-total-coti">
                         <span class="wo-total-lbl">Total Cotización (A+B)</span>
                         <span id="wo-total-coti" class="wo-total-val">0.00</span>
                     </div>
                     {% endif %}
-                    <button type="button" id="btn-wo-generar-coti" class="mar-btn-primary" style="margin-top: 12px;" onclick="generarCotizacion()"><i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización</button>
-                    <button type="button" id="btn-wo-redownload-coti" class="mar-btn-ghost" style="margin-top: 12px; margin-left: 8px; display:none;" onclick="reDescargarCotizacion()"><i class="fa-solid fa-file-pdf"></i> Descargar PDF</button>
+                    <button type="button" id="btn-wo-generar-coti" class="mar-btn-primary" style="margin-top: 12px;"
+                        onclick="generarCotizacion()"><i class="fa-solid fa-file-invoice-dollar"></i> Generar
+                        Cotización</button>
+                    <button type="button" id="btn-wo-redownload-coti" class="mar-btn-ghost"
+                        style="margin-top: 12px; margin-left: 8px; display:none;" onclick="reDescargarCotizacion()"><i
+                            class="fa-solid fa-file-pdf"></i> Descargar PDF</button>
                 </div>
             </div>
             <div id="wo-panel-historial" style="display:none;">
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-clock-rotate-left"></i> Historial de cambios
-                        <button type="button" class="wo-history-btn" title="Actualizar historial" onclick="cargarWoHistorial()"><i class="fa-solid fa-rotate"></i></button>
+                        <button type="button" class="wo-history-btn" title="Actualizar historial"
+                            onclick="cargarWoHistorial()"><i class="fa-solid fa-rotate"></i></button>
                     </div>
-                    <div id="wo-historial" class="wo-timeline"><div class="wo-empty">Cargando historial...</div></div>
+                    <div id="wo-historial" class="wo-timeline">
+                        <div class="wo-empty">Cargando historial...</div>
+                    </div>
                 </div>
             </div>
             <div id="wo-panel-evidencia" style="display:none;">
@@ -884,30 +1954,36 @@
                     <div class="evidencia-fotos" id="evidencia-fotos-inicio"></div>
                     <div class="wo-field full">
                         <label><i class="fa-solid fa-book"></i> Bitácora de inicio</label>
-                        <textarea id="evidencia-bitacora-inicio" placeholder="Registra el historial del inicio del trabajo..."></textarea>
+                        <textarea id="evidencia-bitacora-inicio"
+                            placeholder="Registra el historial del inicio del trabajo..."></textarea>
                     </div>
 
                     <div class="evidencia-titulo"><i class="fa-solid fa-gears"></i> Tiempo Proceso</div>
                     <div class="evidencia-fotos" id="evidencia-fotos-proceso"></div>
                     <div class="wo-field full">
                         <label><i class="fa-solid fa-book"></i> Bitácora de proceso</label>
-                        <textarea id="evidencia-bitacora-proceso" placeholder="Registra el historial del proceso del trabajo..."></textarea>
+                        <textarea id="evidencia-bitacora-proceso"
+                            placeholder="Registra el historial del proceso del trabajo..."></textarea>
                     </div>
 
                     <div class="evidencia-titulo"><i class="fa-solid fa-flag-checkered"></i> Tiempo Cierre</div>
                     <div class="evidencia-fotos" id="evidencia-fotos-cierre"></div>
                     <div class="wo-field full">
                         <label><i class="fa-solid fa-book"></i> Bitácora de cierre</label>
-                        <textarea id="evidencia-bitacora-cierre" placeholder="Registra el historial del cierre del trabajo..."></textarea>
+                        <textarea id="evidencia-bitacora-cierre"
+                            placeholder="Registra el historial del cierre del trabajo..."></textarea>
                     </div>
                 </div>
             </div>
             <div id="wo-panel-estado" style="display:none;">
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-arrows-spin"></i> Historial de estados
-                        <button type="button" class="wo-history-btn" title="Actualizar estados" onclick="cargarWoEstado()"><i class="fa-solid fa-rotate"></i></button>
+                        <button type="button" class="wo-history-btn" title="Actualizar estados"
+                            onclick="cargarWoEstado()"><i class="fa-solid fa-rotate"></i></button>
                     </div>
-                    <div id="wo-estado" class="wo-timeline"><div class="wo-empty">Cargando estados...</div></div>
+                    <div id="wo-estado" class="wo-timeline">
+                        <div class="wo-empty">Cargando estados...</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -926,9 +2002,11 @@
         <div class="mar-header">
             <div>
                 <h3><i class="fa-solid fa-file-import"></i> Importar datos</h3>
-                <p>Actualiza existentes, agrega nuevos y conserva los datos manuales de {{ session.get('current_proyecto_nombre', '') }}.</p>
+                <p>Actualiza existentes, agrega nuevos y conserva los datos manuales de {{
+                    session.get('current_proyecto_nombre', '') }}.</p>
             </div>
-            <button onclick="cerrarModalImportar()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+            <button onclick="cerrarModalImportar()" class="mar-close" title="Cerrar"><i
+                    class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="mar-body" style="grid-template-columns: 1fr; display: block; overflow: visible;">
             <div class="dropzone" id="dz-import">
@@ -938,7 +2016,8 @@
                     <div class="dz-sub">Formatos compatibles: CSV, XLSX, XLS</div>
                 </div>
                 <span class="dz-btn">Seleccionar archivo</span>
-                <input type="file" id="import-file" accept=".csv, .xlsx, .xls" style="display:none;" onchange="importOnFileChosen()">
+                <input type="file" id="import-file" accept=".csv, .xlsx, .xls" style="display:none;"
+                    onchange="importOnFileChosen()">
             </div>
             <div class="file-chip" id="import-file-chip">
                 <i class="fa-solid fa-file-excel"></i>
@@ -946,14 +2025,16 @@
                     <div class="fc-name" id="import-file-name"></div>
                     <div class="fc-sub">Listo para importar</div>
                 </div>
-                <button type="button" class="btn-icon" onclick="importResetFile()" title="Quitar archivo"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" class="btn-icon" onclick="importResetFile()" title="Quitar archivo"><i
+                        class="fa-solid fa-xmark"></i></button>
             </div>
             <div id="import-result" class="result-box" style="display:none; margin-top: 12px;"></div>
         </div>
         <div class="mar-footer">
             <button onclick="cerrarModalImportar()" class="mar-btn-ghost">Cancelar</button>
             {% if session.get('rol') != 'demo' %}
-            <button id="btn-import-now" onclick="ejecutarImportarModal()" class="mar-btn-primary" disabled><i class="fa-solid fa-play"></i> Importar ahora</button>
+            <button id="btn-import-now" onclick="ejecutarImportarModal()" class="mar-btn-primary" disabled><i
+                    class="fa-solid fa-play"></i> Importar ahora</button>
             {% endif %}
         </div>
     </div>
@@ -985,30 +2066,30 @@
 
     const FAULT_COLORS = IS_FLM ? {
         'Critical': { bg: '#dc3545', fg: '#fff', hrs: '4hrs' },
-        'Alta':     { bg: '#fd7e14', fg: '#fff', hrs: '5hrs' },
-        'Media':    { bg: '#ffc107', fg: '#212529', hrs: '12hrs' },
-        'Baja':     { bg: '#28a745', fg: '#fff', hrs: '48hrs' }
+        'Alta': { bg: '#fd7e14', fg: '#fff', hrs: '5hrs' },
+        'Media': { bg: '#ffc107', fg: '#212529', hrs: '12hrs' },
+        'Baja': { bg: '#28a745', fg: '#fff', hrs: '48hrs' }
     } : {
         'Critical': { bg: '#dc3545', fg: '#fff', hrs: '8hrs' },
-        'Alta':     { bg: '#fd7e14', fg: '#fff', hrs: '10hrs' },
-        'Media':    { bg: '#ffc107', fg: '#212529', hrs: '48hrs' },
-        'Baja':     { bg: '#28a745', fg: '#fff', hrs: '72hrs' }
+        'Alta': { bg: '#fd7e14', fg: '#fff', hrs: '10hrs' },
+        'Media': { bg: '#ffc107', fg: '#212529', hrs: '48hrs' },
+        'Baja': { bg: '#28a745', fg: '#fff', hrs: '72hrs' }
     };
 
     const WO_STATE_COLORS = {
         'unscheduled': { bg: '#8E8E93', fg: '#8E8E93', iconText: 'U' },
-        'accepted':    { bg: '#007AFF', fg: '#007AFF', iconText: 'A' },
-        'dispatched':  { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
-        'inprocess':   { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
-        'rejected':    { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
-        'closed':      { bg: '#34C759', fg: '#34C759', iconText: 'C' },
-        'canceled':    { bg: '#00C4B4', fg: '#00C4B4', iconText: 'C' }
+        'accepted': { bg: '#007AFF', fg: '#007AFF', iconText: 'A' },
+        'dispatched': { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'inprocess': { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
+        'rejected': { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
+        'closed': { bg: '#34C759', fg: '#34C759', iconText: 'C' },
+        'canceled': { bg: '#00C4B4', fg: '#00C4B4', iconText: 'C' }
     };
 
     const SITE_PRIORITY_COLORS = {
         'p0+': { bg: '#8B0000', fg: '#8B0000', bgLight: '#8B00001A' }, // Dark Crimson Red
-        'p0':  { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' }, // Neon Pink-Red
-        '0':   { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' },
+        'p0': { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' }, // Neon Pink-Red
+        '0': { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' },
         'p1': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' }, // Standard Red
         'p2': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
         'p3': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
@@ -1018,18 +2099,18 @@
         '3': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
         '4': { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
         'critical': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
-        'crítica':  { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
-        'critica':  { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
-        'alta':     { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
-        'high':     { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
-        'media':    { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
-        'medium':   { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
-        'baja':     { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
-        'low':      { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
-        'vip':      { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
-        'gold':     { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
-        'silver':   { bg: '#8E8E93', fg: '#8E8E93', bgLight: '#8E8E931A' },
-        'bronze':   { bg: '#A25A34', fg: '#A25A34', bgLight: '#A25A341A' }
+        'crítica': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        'critica': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        'alta': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        'high': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        'media': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
+        'medium': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
+        'baja': { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
+        'low': { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
+        'vip': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
+        'gold': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
+        'silver': { bg: '#8E8E93', fg: '#8E8E93', bgLight: '#8E8E931A' },
+        'bronze': { bg: '#A25A34', fg: '#A25A34', bgLight: '#A25A341A' }
     };
 
     // --- Data stats: PEXT = tarjetas de KPIs; otros = tarjetas de conteo ---
@@ -1076,8 +2157,8 @@
         container.style.display = 'grid';
         container.innerHTML = cards.map(c =>
             `<div class="data-stat">` +
-                `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
-                `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
+            `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
+            `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
             `</div>`
         ).join('');
     }
@@ -1132,8 +2213,8 @@
             (totalesSet.has(c[2])
                 ? `<div class="data-stat">`
                 : `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" data-tipo="zona" data-zona="${escapeHtml(c[2])}">`) +
-                `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
-                `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[4]}</span></div>` +
+            `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
+            `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[4]}</span></div>` +
             `</div>`
         ).join('');
     }
@@ -1178,10 +2259,10 @@
         container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
         container.innerHTML = cards.map(c =>
             `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" ` +
-                `data-tipo="${['SLA CUMPLIDO','SLA VENCIDO','SLA DENTRO DE PLAZO','SLA DEBE ATENDERSE','SLA POR VENCER','NO APLICA'].includes(c[2]) ? 'sla' : 'wo'}" ` +
-                `data-sla="${c[2]}" data-wo="${c[2]}">` +
-                `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
-                `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
+            `data-tipo="${['SLA CUMPLIDO', 'SLA VENCIDO', 'SLA DENTRO DE PLAZO', 'SLA DEBE ATENDERSE', 'SLA POR VENCER', 'NO APLICA'].includes(c[2]) ? 'sla' : 'wo'}" ` +
+            `data-sla="${c[2]}" data-wo="${c[2]}">` +
+            `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
+            `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
             `</div>`
         ).join('');
     }
@@ -1241,7 +2322,7 @@
         const key = data._key;
         if (!key) return;
         const cancelado = String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
-                          String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
+            String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
 
         if (cancelado) {
             alert('Motivo registrado: ' + (data['MOTIVO NO ATENDIDO'] || 'No especificado'));
@@ -1270,7 +2351,7 @@
         }).catch(() => alert('Error de red'));
     }
 
-    const kpiAlarmFormatter = function(cell) {
+    const kpiAlarmFormatter = function (cell) {
         const val = cell.getValue();
         if (val === null || val === undefined) return "";
         const days = parseInt(val);
@@ -1315,7 +2396,7 @@
                 return parseInt(hrsMatch[1], 10) * 60;
             }
         }
-        
+
         // Fallback based on Fault Level
         const faultLevel = String(getRowVal(row, "Fault Level") || '').trim().toLowerCase();
         if (IS_FLM) {
@@ -1329,7 +2410,7 @@
             if (faultLevel === 'media') return 2880;
             if (faultLevel === 'baja') return 4320;
         }
-        
+
         return 360; // default 6 hours
     };
 
@@ -1475,12 +2556,12 @@
         const hrs = Math.floor(totalSecs / 3600);
         const mins = Math.floor((totalSecs % 3600) / 60);
         const secs = totalSecs % 60;
-        
+
         let parts = [];
         if (hrs > 0) parts.push(`${hrs}h`);
         if (mins > 0 || hrs > 0) parts.push(`${mins}m`);
         parts.push(`${secs}s`);
-        
+
         return parts.join(' ');
     };
 
@@ -1530,7 +2611,7 @@
     }
 
     // --- Filtro jerárquico estilo Excel: Año -> Mes -> Día (popup del embudo) ---
-    const DATE_MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const DATE_MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const dateFilterRegistry = {};
 
     function countDaysIn(months) {
@@ -1741,7 +2822,7 @@
             if (old) { table.removeFilter(old); delete dateFilterRegistry[field]; }
             if (days.length && days.length < Object.keys(dayCount).length) {
                 const set = new Set(days);
-                const filterFn = function(data) {
+                const filterFn = function (data) {
                     const s = String(data[field] === undefined || data[field] === null ? '' : data[field]).trim();
                     return s ? set.has(s.slice(0, 10)) : false;
                 };
@@ -1822,7 +2903,7 @@
                 colDef.visible = false;
                 colDef.headerFilter = false;
             }
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const v = cell.getValue();
                 if (v === null || v === undefined || String(v).trim() === '') return '';
                 const _isCot = currentProjectNombre.trim().toLowerCase() === 'cotizaciones';
@@ -1847,8 +2928,8 @@
         }
         if (hasServerLayout && layoutVisibleMap.has(fieldName)) {
             colDef.visible = layoutVisibleMap.get(fieldName);
-        } 
-        
+        }
+
         // 2. KPI ALARM (Dilación - Frozen columns on the left)
         if (fieldName.startsWith("KPI_")) {
             colDef.title = "<i class='fa-solid fa-gauge-high' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> " + fieldName.replace("KPI_", "");
@@ -1873,7 +2954,7 @@
         const hasStaticHighlight = kpiMeta.resaltadores && kpiMeta.resaltadores[fieldName];
 
         if (matchingMetas.length > 0 || hasStaticHighlight) {
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const rowData = cell.getRow().getData();
                 const val = String(cell.getValue() || '').trim();
                 if (!val) return "";
@@ -1884,15 +2965,15 @@
                 }
 
                 // --- PRIORITY 2: HEATMAP FREQUENCY (ACUMULADO) ---
-                for (let meta of matchingMetas) { 
+                for (let meta of matchingMetas) {
                     const dataRankMap = meta.ranks || {};
                     const keyParts = meta.cols_involved.map(c => String(rowData[c] || '').trim());
-                    if (keyParts.some(p => p === "")) continue; 
-                    
+                    if (keyParts.some(p => p === "")) continue;
+
                     const combinedKey = keyParts.join(" | ");
                     const rank = dataRankMap[combinedKey];
 
-                    if (!rank) continue; 
+                    if (!rank) continue;
 
                     // Respect specific KPI filters (Multi-filter support)
                     if (meta.filters && meta.filters.length > 0) {
@@ -1903,15 +2984,15 @@
                                 break;
                             }
                         }
-                        if (!matchesAll) continue; 
+                        if (!matchesAll) continue;
                     }
 
                     let classes = "rochozo-cell";
                     let style = "padding: 4px 8px; border-radius: 4px; text-align: center; width: 100%; transition: all 0.3s; font-weight: 700; box-sizing: border-box;";
-                    
+
                     if (rank === 1) {
                         classes += " rochozo-hit";
-                        style = ""; 
+                        style = "";
                     } else if (rank === 2) {
                         style += " background: #dc3545; color: white; box-shadow: 0 0 6px rgba(220, 53, 69, 0.4);"; // Rojo
                     } else if (rank === 3) {
@@ -1970,8 +3051,8 @@
                         colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
                     } else {
                         colDef.editor = "list";
-                        colDef.editorParams = { 
-                            values: manualDef.opciones, 
+                        colDef.editorParams = {
+                            values: manualDef.opciones,
                             clearable: true,
                             autocomplete: true,
                             listOnEmpty: true,
@@ -1981,7 +3062,7 @@
                         colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
                     }
                 } else if (manualDef.tipo === 'fecha') {
-                    colDef.formatter = function(cell) {
+                    colDef.formatter = function (cell) {
                         let v = cell.getValue();
                         if (v === null || v === undefined) return '';
                         v = String(v).trim();
@@ -2009,7 +3090,7 @@
             } else {
                 // Formatting for demo without editor
                 if (manualDef.tipo === 'fecha') {
-                    colDef.formatter = function(cell) {
+                    colDef.formatter = function (cell) {
                         let v = cell.getValue();
                         if (v === null || v === undefined) return '';
                         v = String(v).trim();
@@ -2035,7 +3116,7 @@
                     colDef.editor = false;
                 }
                 if (fieldName === 'NUMERO WO') {
-                    colDef.formatter = function(cell) {
+                    colDef.formatter = function (cell) {
                         const v = String(cell.getValue() || '').trim();
                         if (!v) {
                             return `<span style="display:inline-block; font-weight:700; color:#FF3B30; background:rgba(255,59,48,0.12); border:1px solid rgba(255,59,48,0.35); border-radius:999px; padding:2px 8px; font-size:10px;">CM-PENDIENTE</span>`;
@@ -2043,7 +3124,7 @@
                         return escapeHtml(v);
                     };
                 }
-                colDef.editable = function(cell) {
+                colDef.editable = function (cell) {
                     const d = cell.getRow().getData() || {};
                     const generada = String(d['GENERADA'] || '') === '1';
                     if (generada && !isAdminUser) {
@@ -2070,7 +3151,7 @@
         if (proyCombGen) {
             if (isCombustibleProy && fieldName === 'QR ASIGNADO') {
                 colDef.editor = false;
-                colDef.formatter = function(cell) {
+                colDef.formatter = function (cell) {
                     const v = cell.getValue();
                     if (!String(v || '').trim()) return v;
                     return `<span style="color:#007AFF; font-weight:600; text-decoration:underline; cursor:pointer;" title="Ver/editar registro">${escapeHtml(v)}</span>`;
@@ -2079,7 +3160,7 @@
             if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'SALDO DISPONIBLE') {
                 colDef.editor = false;
                 colDef.hozAlign = "center";
-                colDef.formatter = function(cell) {
+                colDef.formatter = function (cell) {
                     const v = cell.getValue();
                     const n = parseFloat(v);
                     if (isNaN(n)) return '';
@@ -2088,7 +3169,7 @@
                 };
             }
             if (fieldName === 'MOVIMIENTO') {
-                colDef.formatter = function(cell) {
+                colDef.formatter = function (cell) {
                     const v = String(cell.getValue() || '').trim().toUpperCase();
                     if (v === 'INGRESO') {
                         return `<span style="display:inline-block; font-weight:700; color:#007AFF; background:rgba(0,122,255,0.10); border:1px solid rgba(0,122,255,0.35); border-radius:999px; padding:3px 10px; font-size:11px;">INGRESO</span>`;
@@ -2100,7 +3181,7 @@
                 };
             }
             if (fieldName === 'WO NUMBER') {
-                colDef.formatter = function(cell) {
+                colDef.formatter = function (cell) {
                     const v = cell.getValue();
                     if (!String(v || '').trim()) {
                         return `<span class="badge badge-pendiente">CM PENDIENTE</span>`;
@@ -2111,7 +3192,7 @@
             if (fieldName === 'FOTO') {
                 colDef.editor = false;
                 colDef.hozAlign = "center";
-                colDef.formatter = function(cell) {
+                colDef.formatter = function (cell) {
                     const url = String(cell.getValue() || '').trim();
                     const rowKey = escapeHtml(String(cell.getRow().getData()._key || ''));
                     const estado = url
@@ -2122,7 +3203,7 @@
                         : '';
                     return `<div style="display:inline-flex; align-items:center; gap:6px;">${estado}${camBtn}</div>`;
                 };
-                colDef.cellClick = function(e, cell) {
+                colDef.cellClick = function (e, cell) {
                     const url = String(cell.getValue() || '').trim();
                     if (url) abrirEvidenciaFoto(url);
                 };
@@ -2132,7 +3213,7 @@
         // 4.5 SPECIAL COLOR FORMATTERS (by field name, manual or not)
         // Fault Level badge: level + hours, colored by criticality
         if (fieldName === "Fault Level") {
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const val = cell.getValue();
                 if (val === null || val === undefined || String(val).trim() === "") return "";
                 const color = FAULT_COLORS[String(val).trim()];
@@ -2143,7 +3224,7 @@
 
         // WO State badge: colored by work order state
         if (fieldName === "Estado de la tarea (WO State)") {
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const val = cell.getValue();
                 if (val === null || val === undefined || String(val).trim() === "") return "";
                 const valStr = String(val).trim();
@@ -2173,23 +3254,23 @@
 
         // FECHA CAMBIO ESTADO: guardada en UTC -> mostrar en hora de Perú (UTC-5)
         if (fieldName === "FECHA CAMBIO ESTADO") {
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const v = cell.getValue();
                 if (v === null || v === undefined || String(v).trim() === '') return '';
                 return utcToPeru(v);
             };
-            colDef.tooltip = function(cell) { return utcToPeru(cell.getValue()); };
+            colDef.tooltip = function (cell) { return utcToPeru(cell.getValue()); };
         }
 
         // Site Priority badge: clean badge layout with background tint
         if (fieldName && fieldName.trim().toUpperCase() === "PRIORIDAD DEL SITE") {
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const val = cell.getValue();
                 if (val === null || val === undefined || String(val).trim() === "") return "";
                 const valStr = String(val).trim();
                 const normVal = valStr.toLowerCase();
                 const color = SITE_PRIORITY_COLORS[normVal] || { bg: '#8E8E93', fg: '#8E8E93', bgLight: '#8E8E931A' };
-                
+
                 return `
                     <div style="display: inline-flex; align-items: center; height: 100%;">
                         <span style="
@@ -2211,14 +3292,14 @@
         // SLA: creación → closed. Si está canceled/rejected, usa la fecha de cancelación WO.
         if (fieldName && fieldName.trim() === "SLA") {
             colDef.width = 130;
-            colDef.sorter = function(a, b, aRow, bRow, column, dir, sorterParams) {
+            colDef.sorter = function (a, b, aRow, bRow, column, dir, sorterParams) {
                 const ia = computarSlaData(aRow.getData());
                 const ib = computarSlaData(bRow.getData());
                 const va = ia ? ia.mins : -1;
                 const vb = ib ? ib.mins : -1;
                 return va - vb;
             };
-            colDef.headerFilterFunc = function(headerValue, rowValue, rowData, filterParams) {
+            colDef.headerFilterFunc = function (headerValue, rowValue, rowData, filterParams) {
                 const q = String(headerValue || '').trim().toLowerCase();
                 if (!q) return true;
                 const info = computarSlaData(rowData);
@@ -2226,7 +3307,7 @@
                 const txt = info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins);
                 return txt.toLowerCase().indexOf(q) !== -1;
             };
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const row = cell.getRow();
                 const info = computarSla(row);
                 if (!info) return "";
@@ -2265,7 +3346,7 @@
         // SLA Cumplimiento: semáforo según el avance del tiempo (DENTRO DE PLAZO / DEBE ATENDERSE / POR VENCER / VENCIDO / CUMPLIDO / NO APLICA).
         if (fieldName && fieldName.trim() === "SLA Cumplimiento") {
             colDef.width = 150;
-            colDef.sorter = function(a, b, aRow, bRow, column, dir, sorterParams) {
+            colDef.sorter = function (a, b, aRow, bRow, column, dir, sorterParams) {
                 const rank = (row) => {
                     const info = computarSlaData(row.getData());
                     const slaLimit = getSlaThresholdData(row.getData());
@@ -2273,7 +3354,7 @@
                 };
                 return rank(aRow) - rank(bRow);
             };
-            colDef.headerFilterFunc = function(headerValue, rowValue, rowData, filterParams) {
+            colDef.headerFilterFunc = function (headerValue, rowValue, rowData, filterParams) {
                 const q = String(headerValue || '').trim().toLowerCase();
                 if (!q) return true;
                 const info = computarSlaData(rowData);
@@ -2281,7 +3362,7 @@
                 const txt = slaCumplimientoEstado(info, slaLimit, esCanceladoOM(rowData)).texto;
                 return txt.toLowerCase().indexOf(q) !== -1;
             };
-            colDef.formatter = function(cell) {
+            colDef.formatter = function (cell) {
                 const row = cell.getRow();
                 const info = computarSla(row);
                 const slaLimit = getSlaThreshold(row);
@@ -2298,7 +3379,7 @@
 
     const selectCol = {
         formatter: "rowSelection",
-        titleFormatter: function() {
+        titleFormatter: function () {
             return "<input type='checkbox' class='tabulator-select-all' onchange='tabulatorSelectAll(this)' />";
         },
         headerSort: false,
@@ -2328,10 +3409,10 @@
             frozen: true,
             headerSort: false,
             hozAlign: "center",
-            formatter: function(cell) {
+            formatter: function (cell) {
                 const row = cell.getRow().getData();
                 const cancelado = String(row['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
-                                  String(row['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
+                    String(row['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'btn-marcar-no-atendido';
@@ -2342,7 +3423,7 @@
                 btn.onclick = (e) => { e.stopPropagation(); marcarNoAtendido(cell.getRow()); };
                 return btn;
             },
-            cellClick: function(e, cell) {}
+            cellClick: function (e, cell) { }
         });
     }
 
@@ -2363,7 +3444,7 @@
             resizable: false,
             headerSort: false,
             hozAlign: "center",
-            formatter: function(cell) {
+            formatter: function (cell) {
                 const row = cell.getRow().getData();
                 const generada = String(row['GENERADA'] || '') === '1';
                 const rowKey = escapeHtml(String(row['_key'] != null ? row['_key'] : ''));
@@ -2378,7 +3459,7 @@
                     <button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(0,122,255,0.12);color:#007AFF;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); generarCotizacionExistente('${rowKey}')"><i class="fa-solid fa-file-circle-plus"></i></button>
                 </div>`;
             },
-            cellClick: function(e, cell) {}
+            cellClick: function (e, cell) { }
         });
     }
 
@@ -2535,13 +3616,13 @@
         rowHeight: 25, // Compact Excel feel
         selectable: isAdmin, // Solo admin puede seleccionar (desde el checkbox)
         selectableRangeMode: false, // Sin seleccion por clic en la fila
-        rowFormatter: function(row) {
+        rowFormatter: function (row) {
             const d = row.getData();
             const el = row.getElement();
             // PEXT: atenuar filas marcadas como no atendido / Cancelado O&M.
             if (IS_PEXT) {
                 const cancelado = String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
-                                  String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
+                    String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
                 if (el) el.classList.toggle('row-no-atendido', cancelado);
             }
             // Combustible: sin WO → CM PENDIENTE (destacar en rojo para completar luego)
@@ -2558,7 +3639,7 @@
         persistenceID: "nucleus-layout-{{ proyecto_id }}" // Unique per project
     });
 
-table.on("dataFiltered", function (filters, rows) {
+    table.on("dataFiltered", function (filters, rows) {
         const status = document.getElementById('status-record-count');
         if (!status) return;
         const total = rawData.length;
@@ -2572,8 +3653,8 @@ table.on("dataFiltered", function (filters, rows) {
 
     // Auto-guardar el orden de columnas al arrastrar (solo admin).
     if (isAdmin) {
-        table.on("columnMoved", function() { saveColumnLayout(); });
-        table.on("columnVisibilityChanged", function() { saveColumnLayout(); });
+        table.on("columnMoved", function () { saveColumnLayout(); });
+        table.on("columnVisibilityChanged", function () { saveColumnLayout(); });
     }
 
     // Force initial count text on page load
@@ -2658,7 +3739,7 @@ table.on("dataFiltered", function (filters, rows) {
                 cb.checked = false;
                 return;
             }
-            importCambiosFilter = function(data) {
+            importCambiosFilter = function (data) {
                 return changedKeys.has(data['_key']);
             };
             table.addFilter(importCambiosFilter);
@@ -2709,7 +3790,7 @@ table.on("dataFiltered", function (filters, rows) {
             body: JSON.stringify({ columns: cols })
         }).then(r => r.json()).then(res => {
             if (res.success && showToast) woToast('Configuración de columnas guardada para todos los usuarios.');
-        }).catch(() => {});
+        }).catch(() => { });
     }
 
     function woToast(msg) {
@@ -2757,7 +3838,7 @@ table.on("dataFiltered", function (filters, rows) {
     table.on("cellEdited", function (cell) {
         const isDemo = "{{ session.get('rol') }}" === "demo";
         if (isDemo) return;
-        
+
         const field = cell.getField();
         const manualDef = manualColsConfig.find(mc => mc.nombre === field);
         if (!manualDef) return; // Only manual cols can be updated via UI
@@ -2782,7 +3863,7 @@ table.on("dataFiltered", function (filters, rows) {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ key: key, field: autoField, value: autoVal })
-                    }).then(r => r.json()).catch(() => {});
+                    }).then(r => r.json()).catch(() => { });
                 }
             });
         }
@@ -2874,7 +3955,7 @@ table.on("dataFiltered", function (filters, rows) {
 
     // --- NUEVO REGISTRO (Modal) ---
     function escapeHtml(s) {
-        return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
     function aniadirRegistro() {
@@ -3082,14 +4163,14 @@ table.on("dataFiltered", function (filters, rows) {
                 });
             } else {
                 fetch('/api/sites').then(r => r.json()).then(data => {
-                    const nombres = (data || []).map(s => s.nombre).filter(Boolean).sort((a,b) => a.localeCompare(b));
+                    const nombres = (data || []).map(s => s.nombre).filter(Boolean).sort((a, b) => a.localeCompare(b));
                     window.siteNamesCache = nombres;
                     nombres.forEach(nm => {
                         const opt = document.createElement('option');
                         opt.value = nm;
                         dl.appendChild(opt);
                     });
-                }).catch(() => {});
+                }).catch(() => { });
             }
         }
         mkField('NOMBRE DE SITE', inpNombreSite, colNombreSite);
@@ -3305,7 +4386,7 @@ table.on("dataFiltered", function (filters, rows) {
 
         // Campos del formato Cobra
         mkTxt('TICKET', 'TICKET', 'CM-AAAAMMDD-XXXXXXX');
-        
+
         // SUPERVISOR: Lista desplegable con supervisores autorizados
         const selSupervisor = document.createElement('select');
         const supervisoresList = [
@@ -3313,7 +4394,9 @@ table.on("dataFiltered", function (filters, rows) {
             'QUISPE CASTRO, DENNIS GIOVANNI',
             'SOTELO TORRES, JESUS',
             'ENCARNACION VEGA, ROBERTO',
-            'HUANCAPAZA CONDORI, ELOY'
+            'HUANCAPAZA CONDORI, ELOY',
+            'UNTON SONCCO, DENNIS',
+            'LOPEZ VARGAS, EDWIN'
         ];
         const optSupDefault = document.createElement('option');
         optSupDefault.value = '';
@@ -3346,18 +4429,18 @@ table.on("dataFiltered", function (filters, rows) {
                 });
             } else {
                 fetch('/api/wos_flm').then(r => r.json()).then(data => {
-                    const wos = (data || []).filter(Boolean).sort((a,b) => a.localeCompare(b));
+                    const wos = (data || []).filter(Boolean).sort((a, b) => a.localeCompare(b));
                     window.woNamesCache = wos;
                     wos.forEach(nm => {
                         const opt = document.createElement('option');
                         opt.value = nm;
                         dlWo.appendChild(opt);
                     });
-                }).catch(() => {});
+                }).catch(() => { });
             }
         }
         mkField('NUMERO WO', inpNumeroWO, 'NUMERO WO');
-        
+
         // NOMBRE SITE: datalist para autocompletado y texto libre
         const inpNombreSite = document.createElement('input');
         inpNombreSite.type = 'text';
@@ -3375,14 +4458,14 @@ table.on("dataFiltered", function (filters, rows) {
                 });
             } else {
                 fetch('/api/sites').then(r => r.json()).then(data => {
-                    const nombres = (data || []).map(s => s.nombre).filter(Boolean).sort((a,b) => a.localeCompare(b));
+                    const nombres = (data || []).map(s => s.nombre).filter(Boolean).sort((a, b) => a.localeCompare(b));
                     window.siteNamesCache = nombres;
                     nombres.forEach(nm => {
                         const opt = document.createElement('option');
                         opt.value = nm;
                         dl.appendChild(opt);
                     });
-                }).catch(() => {});
+                }).catch(() => { });
             }
         }
         mkField('NOMBRE SITE', inpNombreSite, 'NOMBRE SITE');
@@ -3393,15 +4476,15 @@ table.on("dataFiltered", function (filters, rows) {
         sec.innerHTML =
             '<div style="font-size:12px; font-weight:700; color:var(--ios-label2); margin-bottom:6px;">ITEMS</div>' +
             '<div class="wo-cobra-row wo-coti-header">' +
-                '<span>CORRELATIVO</span><span>TIPO</span><span>TEXTO EXPLICATIVO</span><span>UND</span>' +
-                '<span>CANTIDAD</span><span>VALOR UNITARIO</span><span>FEE %</span><span>VALOR TOTAL</span><span>COMENTARIOS</span><span></span>' +
+            '<span>CORRELATIVO</span><span>TIPO</span><span>TEXTO EXPLICATIVO</span><span>UND</span>' +
+            '<span>CANTIDAD</span><span>VALOR UNITARIO</span><span>FEE %</span><span>VALOR TOTAL</span><span>COMENTARIOS</span><span></span>' +
             '</div>' +
             '<div id="cot-reg-items-list"><div class="wo-empty">Sin registros. Usa "Agregar item" para registrar lo que requieras.</div></div>' +
             '<div class="wo-cobra-row wo-coti-subtotal">' +
-                '<span></span><span></span><span></span><span></span><span></span><span></span><span></span>' +
-                '<span class="wo-subtotal-lbl">sub total + FEE</span>' +
-                '<span id="cot-reg-subtotal" class="wo-subtotal-val">0.00</span>' +
-                '<span></span>' +
+            '<span></span><span></span><span></span><span></span><span></span><span></span><span></span>' +
+            '<span class="wo-subtotal-lbl">sub total + FEE</span>' +
+            '<span id="cot-reg-subtotal" class="wo-subtotal-val">0.00</span>' +
+            '<span></span>' +
             '</div>';
         body.appendChild(sec);
 
@@ -3660,9 +4743,9 @@ table.on("dataFiltered", function (filters, rows) {
         if (cont) {
             cont.innerHTML = '';
             let items = [];
-            try { items = JSON.parse(data['ITEMS_JSON'] || '[]'); } catch(e) {}
+            try { items = JSON.parse(data['ITEMS_JSON'] || '[]'); } catch (e) { }
             if (!items.length) {
-                try { items = JSON.parse(data['ITEMS'] || '[]'); } catch(e) {}
+                try { items = JSON.parse(data['ITEMS'] || '[]'); } catch (e) { }
             }
             if (items.length) {
                 items.forEach(it => cotRegAgregarFila(it));
@@ -3717,21 +4800,21 @@ table.on("dataFiltered", function (filters, rows) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: keyVal })
         })
-        .then(r => {
-            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
-            return r.blob();
-        })
-        .then(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'Cotizacion_' + keyVal.replace(/[/\s]/g, '_') + '.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        })
-        .catch(err => alert(err.message || 'Error de red'));
+            .then(r => {
+                if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Cotizacion_' + keyVal.replace(/[/\s]/g, '_') + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => alert(err.message || 'Error de red'));
     }
 
     function descargarCotizacionRegistro(row) {
@@ -3749,22 +4832,22 @@ table.on("dataFiltered", function (filters, rows) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: keyVal })
         })
-        .then(r => {
-            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
-            return r.blob();
-        })
-        .then(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'Cotizacion_' + keyVal.replace(/[/\s]/g, '_') + '.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            location.reload();
-        })
-        .catch(err => alert(err.message || 'Error de red'));
+            .then(r => {
+                if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Cotizacion_' + keyVal.replace(/[/\s]/g, '_') + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                location.reload();
+            })
+            .catch(err => alert(err.message || 'Error de red'));
     }
 
     function generarCotiAsociada(rid) {
@@ -3779,24 +4862,24 @@ table.on("dataFiltered", function (filters, rows) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: targetKey })
         })
-        .then(r => {
-            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
-            return r.blob();
-        })
-        .then(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'Cotizacion_' + targetKey.replace(/[/\s]/g, '_') + '.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            // Refrescar el listado de asociadas y la tabla principal
-            cargarListaCotizaciones();
-            setTimeout(() => location.reload(), 800);
-        })
-        .catch(err => alert(err.message || 'Error de red'));
+            .then(r => {
+                if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Cotizacion_' + targetKey.replace(/[/\s]/g, '_') + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                // Refrescar el listado de asociadas y la tabla principal
+                cargarListaCotizaciones();
+                setTimeout(() => location.reload(), 800);
+            })
+            .catch(err => alert(err.message || 'Error de red'));
     }
 
     function cerrarModalRegistro() {
@@ -4054,7 +5137,7 @@ table.on("dataFiltered", function (filters, rows) {
         }).catch(err => { if (err && err.message) alert(err.message); });
     }
 
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
             const lb = document.getElementById('evidencia-lightbox');
             if (lb && lb.classList.contains('show')) {
@@ -4117,7 +5200,7 @@ table.on("dataFiltered", function (filters, rows) {
         return String(field || '').trim().toLowerCase() === '_key';
     }
 
-    table.on("cellClick", function(e, cell) {
+    table.on("cellClick", function (e, cell) {
         const field = cell.getColumn().getField();
         // La seleccion solo ocurre desde el checkbox (columna de seleccion sin field).
         // Cualquier otro clic deselecciona la fila.
@@ -4794,7 +5877,7 @@ table.on("dataFiltered", function (filters, rows) {
             if (currentTech) tSel.value = currentTech;
             if (!document.getElementById('wo-contrata').value) onTecnicoChange();
             cargarGastosCombustible();
-        }).catch(() => {});
+        }).catch(() => { });
     }
 
     function onTecnicoChange() {
@@ -5849,16 +6932,16 @@ table.on("dataFiltered", function (filters, rows) {
             item.className = 'wt-item';
             item.innerHTML =
                 '<div class="wt-card">' +
-                    '<div class="wt-head">' +
-                        '<span class="wt-agent"><i class="fa-solid fa-user"></i>' + escapeHtml(it.username || '—') + '</span>' +
-                        '<span class="wt-time">' + fechaStr + '</span>' +
-                    '</div>' +
-                    '<div class="wt-change"><b>' + escapeHtml(it.campo) + '</b>: ' +
-                        '<span class="wt-old">' + (oldV ? escapeHtml(oldV) : '(vacío)') + '</span>' +
-                        '<span class="wt-arrow">→</span>' +
-                        '<span class="wt-new">' + (newV ? escapeHtml(newV) : '(vacío)') + '</span>' +
-                    '</div>' +
-                    '<div class="wt-grid">' + gridCells + '</div>' +
+                '<div class="wt-head">' +
+                '<span class="wt-agent"><i class="fa-solid fa-user"></i>' + escapeHtml(it.username || '—') + '</span>' +
+                '<span class="wt-time">' + fechaStr + '</span>' +
+                '</div>' +
+                '<div class="wt-change"><b>' + escapeHtml(it.campo) + '</b>: ' +
+                '<span class="wt-old">' + (oldV ? escapeHtml(oldV) : '(vacío)') + '</span>' +
+                '<span class="wt-arrow">→</span>' +
+                '<span class="wt-new">' + (newV ? escapeHtml(newV) : '(vacío)') + '</span>' +
+                '</div>' +
+                '<div class="wt-grid">' + gridCells + '</div>' +
                 '</div>';
             cont.appendChild(item);
         });
@@ -5905,15 +6988,15 @@ table.on("dataFiltered", function (filters, rows) {
             item.className = 'wt-item';
             item.innerHTML =
                 '<div class="wt-card">' +
-                    '<div class="wt-head">' +
-                        '<span class="wt-agent"><i class="fa-solid fa-arrows-spin"></i> Cambio de estado</span>' +
-                        '<span class="wt-time">' + fechaStr + '</span>' +
-                    '</div>' +
-                    '<div class="wt-change">' +
-                        '<span class="wt-old">' + (it.valor_anterior ? escapeHtml(it.valor_anterior) : '(inicial)') + '</span>' +
-                        '<span class="wt-arrow">→</span>' +
-                        '<span class="wt-new" style="background:' + color.bg + '; color:#fff; padding:2px 10px; border-radius:12px; font-weight:700;">' + escapeHtml(newV || '(vacío)') + '</span>' +
-                    '</div>' +
+                '<div class="wt-head">' +
+                '<span class="wt-agent"><i class="fa-solid fa-arrows-spin"></i> Cambio de estado</span>' +
+                '<span class="wt-time">' + fechaStr + '</span>' +
+                '</div>' +
+                '<div class="wt-change">' +
+                '<span class="wt-old">' + (it.valor_anterior ? escapeHtml(it.valor_anterior) : '(inicial)') + '</span>' +
+                '<span class="wt-arrow">→</span>' +
+                '<span class="wt-new" style="background:' + color.bg + '; color:#fff; padding:2px 10px; border-radius:12px; font-weight:700;">' + escapeHtml(newV || '(vacío)') + '</span>' +
+                '</div>' +
                 '</div>';
             cont.appendChild(item);
         });
@@ -6111,7 +7194,7 @@ table.on("dataFiltered", function (filters, rows) {
                 const formBody = document.getElementById('wo-coti-form-body');
                 if (formBody) formBody.style.display = '';
             })
-            .catch(() => {});
+            .catch(() => { });
     }
 
     function cargarListaCotizaciones() {
@@ -6223,7 +7306,7 @@ table.on("dataFiltered", function (filters, rows) {
     function generarCotizacion() {
         if (!woKey) { alert('No hay ticket seleccionado.'); return; }
         const numero = obtenerNumeroCotizacion();
-        const nota   = (document.getElementById('wo-coti-nota') || {}).value || '';
+        const nota = (document.getElementById('wo-coti-nota') || {}).value || '';
         if (!numero.trim()) { alert('Ingresa el N° Cotización antes de generar.'); return; }
 
         let payload;
@@ -6235,8 +7318,8 @@ table.on("dataFiltered", function (filters, rows) {
             if (!items.length) { alert('Agrega al menos un item antes de generar.'); return; }
             payload = { key: woKey, numero, formato: 'cobra', site, supervisor, objetivo, items, cotizacion_id: _cotiActivaId };
         } else {
-            const gastos    = recogerGastos();
-            const manoObra  = recogerManoObra();
+            const gastos = recogerGastos();
+            const manoObra = recogerManoObra();
             payload = { key: woKey, numero, nota, gastos, mano_obra: manoObra, cotizacion_id: _cotiActivaId };
         }
 
@@ -6250,28 +7333,28 @@ table.on("dataFiltered", function (filters, rows) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         })
-        .then(r => {
-            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
-            return r.blob();
-        })
-        .then(blob => {
-            // Descargar PDF
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'Cotizacion_' + numero.replace(/[/\s]/g, '_') + '.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            // Bloquear panel y refrescar lista
-            _aplicarEstadoCotizacion(true);
-            cargarListaCotizaciones();
-        })
-        .catch(err => alert(err.message || 'Error de red'))
-        .finally(() => {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización'; }
-        });
+            .then(r => {
+                if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                return r.blob();
+            })
+            .then(blob => {
+                // Descargar PDF
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Cotizacion_' + numero.replace(/[/\s]/g, '_') + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                // Bloquear panel y refrescar lista
+                _aplicarEstadoCotizacion(true);
+                cargarListaCotizaciones();
+            })
+            .catch(err => alert(err.message || 'Error de red'))
+            .finally(() => {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización'; }
+            });
     }
 
     function reDescargarCotizacion() {
@@ -6285,28 +7368,28 @@ table.on("dataFiltered", function (filters, rows) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ registro_id: _cotiActivaId })
             })
-            .then(r => {
-                if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
-                return r.blob();
-            })
-            .then(blob => {
-                const reg = (_cotiRegistrosLista || []).find(x => x.id === _cotiActivaId) || {};
-                const numF = (reg.numero || 'registro').replace(/[/\s]/g, '_');
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'Cotizacion_' + numF + '.pdf';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            })
-            .catch(err => alert(err.message || 'Error de red'))
-            .finally(() => { if (btnR) { btnR.disabled = false; btnR.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Descargar PDF'; } });
+                .then(r => {
+                    if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                    return r.blob();
+                })
+                .then(blob => {
+                    const reg = (_cotiRegistrosLista || []).find(x => x.id === _cotiActivaId) || {};
+                    const numF = (reg.numero || 'registro').replace(/[/\s]/g, '_');
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'Cotizacion_' + numF + '.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                })
+                .catch(err => alert(err.message || 'Error de red'))
+                .finally(() => { if (btnR) { btnR.disabled = false; btnR.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Descargar PDF'; } });
             return;
         }
         const numero = obtenerNumeroCotizacion() || woKey;
-        const nota   = (document.getElementById('wo-coti-nota') || {}).value || '';
+        const nota = (document.getElementById('wo-coti-nota') || {}).value || '';
         let payload;
         if (ES_FLM) {
             const site = (document.getElementById('wo-coti-site') || {}).value || '';
@@ -6315,8 +7398,8 @@ table.on("dataFiltered", function (filters, rows) {
             const items = recogerItemsCobra();
             payload = { key: woKey, numero, formato: 'cobra', site, supervisor, objetivo, items, cotizacion_id: _cotiActivaId };
         } else {
-            const gastos    = recogerGastos();
-            const manoObra  = recogerManoObra();
+            const gastos = recogerGastos();
+            const manoObra = recogerManoObra();
             payload = { key: woKey, numero, nota, gastos, mano_obra: manoObra, cotizacion_id: _cotiActivaId };
         }
         const btn = document.getElementById('btn-wo-redownload-coti');
@@ -6326,22 +7409,22 @@ table.on("dataFiltered", function (filters, rows) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         })
-        .then(r => {
-            if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
-            return r.blob();
-        })
-        .then(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'Cotizacion_' + numero.replace(/[/\s]/g, '_') + '.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        })
-        .catch(err => alert(err.message || 'Error de red'))
-        .finally(() => { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Descargar PDF'; } });
+            .then(r => {
+                if (!r.ok) return r.json().then(j => { throw new Error(j.error || 'Error'); });
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Cotizacion_' + numero.replace(/[/\s]/g, '_') + '.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => alert(err.message || 'Error de red'))
+            .finally(() => { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-file-pdf"></i> Descargar PDF'; } });
     }
 
     function desbloquearCotizacion() {
@@ -6356,17 +7439,17 @@ table.on("dataFiltered", function (filters, rows) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: woKey, cotizacion_id: _cotiActivaId })
         })
-        .then(r => r.json())
-        .then(res => {
-            if (res.success) {
-                _aplicarEstadoCotizacion(false);
-                cargarListaCotizaciones();
-                alert('Cotización desbloqueada. Ya puede editar los datos.');
-            } else {
-                alert('Error: ' + (res.error || 'No se pudo desbloquear'));
-            }
-        })
-        .catch(() => alert('Error de red'));
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    _aplicarEstadoCotizacion(false);
+                    cargarListaCotizaciones();
+                    alert('Cotización desbloqueada. Ya puede editar los datos.');
+                } else {
+                    alert('Error: ' + (res.error || 'No se pudo desbloquear'));
+                }
+            })
+            .catch(() => alert('Error de red'));
     }
 
     function eliminarCotizacion() {
@@ -6381,21 +7464,21 @@ table.on("dataFiltered", function (filters, rows) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: woKey, cotizacion_id: _cotiActivaId })
         })
-        .then(r => r.json())
-        .then(res => {
-            if (res.success) {
-                _cotiActivaId = null;
-                const btnEliminar = document.getElementById('btn-coti-eliminar');
-                if (btnEliminar) btnEliminar.style.display = 'none';
-                const formBody = document.getElementById('wo-coti-form-body');
-                if (formBody) formBody.style.display = 'none';
-                cargarListaCotizaciones();
-                alert('Cotización eliminada.');
-            } else {
-                alert('Error: ' + (res.error || 'No se pudo eliminar'));
-            }
-        })
-        .catch(() => alert('Error de red'));
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    _cotiActivaId = null;
+                    const btnEliminar = document.getElementById('btn-coti-eliminar');
+                    if (btnEliminar) btnEliminar.style.display = 'none';
+                    const formBody = document.getElementById('wo-coti-form-body');
+                    if (formBody) formBody.style.display = 'none';
+                    cargarListaCotizaciones();
+                    alert('Cotización eliminada.');
+                } else {
+                    alert('Error: ' + (res.error || 'No se pudo eliminar'));
+                }
+            })
+            .catch(() => alert('Error de red'));
     }
 
     function copiarPlantillaWO() {
@@ -6505,7 +7588,7 @@ table.on("dataFiltered", function (filters, rows) {
     }
 
     // Monitor selection to show/hide delete button + sync select-all checkbox
-    table.on("rowSelectionChanged", function(data, rows) {
+    table.on("rowSelectionChanged", function (data, rows) {
         const btn = document.getElementById('btn-delete-rows');
         if (btn) {
             btn.style.display = rows.length > 0 ? "inline-flex" : "none";
