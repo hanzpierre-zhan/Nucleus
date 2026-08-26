@@ -125,6 +125,19 @@
     .mar-btn-guardar:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(34, 197, 94, 0.45); }
     .mar-btn-copy { background: linear-gradient(135deg, #38b6ff, #007AFF); color: #fff; border: none; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(0,122,255,0.35); transition: all .15s ease; }
     .mar-btn-copy:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .cot-badge-numero {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: var(--excel-bg); border: 1px solid var(--excel-border);
+        border-radius: 12px; padding: 8px 14px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 14px; font-weight: 700; color: var(--ios-label); letter-spacing: 0.8px;
+    }
+    .cot-badge-pill {
+        margin-left: 6px; font-size: 10px; font-weight: 600;
+        color: var(--ios-secondary); background: var(--ios-card-bg);
+        border: 1px solid var(--ios-hairline); border-radius: 20px;
+        padding: 2px 8px; letter-spacing: 0.3px;
+    }
     @media (max-width: 640px) { .mar-body { grid-template-columns: 1fr; } }
 
     /* ===== Tarjetas de estadísticas ===== */
@@ -1968,10 +1981,22 @@
                         colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
                     }
                 } else if (manualDef.tipo === 'fecha') {
-                    colDef.formatter = "datetime";
-                    colDef.formatterParams = { inputFormat: "yyyy-MM-dd", outputFormat: "dd/MM/yyyy", invalidPlaceholder: "" };
+                    colDef.formatter = function(cell) {
+                        let v = cell.getValue();
+                        if (v === null || v === undefined) return '';
+                        v = String(v).trim();
+                        if (!v) return '';
+                        let match = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+                        if (match) {
+                            const [, y, m, d, hh, mm] = match;
+                            if (hh !== undefined && mm !== undefined) {
+                                return `${d}/${m}/${y} ${hh}:${mm}`;
+                            }
+                            return `${d}/${m}/${y} 00:00`;
+                        }
+                        return escapeHtml(v);
+                    };
                     colDef.editor = "input";
-                    colDef.editorParams = { mask: "99/99/9999", maskAutoFill: true };
                 }
                 if (isCombustible && fieldName === 'GESTOR') {
                     // Quién registró: no editable
@@ -1984,8 +2009,21 @@
             } else {
                 // Formatting for demo without editor
                 if (manualDef.tipo === 'fecha') {
-                    colDef.formatter = "datetime";
-                    colDef.formatterParams = { inputFormat: "yyyy-MM-dd", outputFormat: "dd/MM/yyyy", invalidPlaceholder: "" };
+                    colDef.formatter = function(cell) {
+                        let v = cell.getValue();
+                        if (v === null || v === undefined) return '';
+                        v = String(v).trim();
+                        if (!v) return '';
+                        let match = v.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+                        if (match) {
+                            const [, y, m, d, hh, mm] = match;
+                            if (hh !== undefined && mm !== undefined) {
+                                return `${d}/${m}/${y} ${hh}:${mm}`;
+                            }
+                            return `${d}/${m}/${y} 00:00`;
+                        }
+                        return escapeHtml(v);
+                    };
                 }
             }
 
@@ -2749,12 +2787,17 @@ table.on("dataFiltered", function (filters, rows) {
             });
         }
 
-        // If it's a date and format is DD/MM/YYYY, convert to YYYY-MM-DD for the database
-        if (manualDef.tipo === 'fecha' && val && val.includes('/')) {
-            const parts = val.split('/');
-            if (parts.length === 3) {
-                val = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                // Crucial: Update the cell value to ISO so the formatter works correctly
+        // If it's a date and format is DD/MM/YYYY [HH:MM], convert to YYYY-MM-DD [HH:MM] for the database
+        if (manualDef.tipo === 'fecha' && val) {
+            let m = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{1,2}))?/);
+            if (m) {
+                const [, d, mo, y, hh, mm] = m;
+                const pad = n => String(n).padStart(2, '0');
+                if (hh !== undefined && mm !== undefined) {
+                    val = `${y}-${pad(mo)}-${pad(d)} ${pad(hh)}:${pad(mm)}`;
+                } else {
+                    val = `${y}-${pad(mo)}-${pad(d)} 00:00`;
+                }
                 cell.setValue(val, false);
             }
         }
@@ -2933,6 +2976,12 @@ table.on("dataFiltered", function (filters, rows) {
         if (first) setTimeout(() => first.focus(), 60);
     }
 
+    function _obtenerFechaHoraLocal() {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    }
+
     function aniadirRegistroCombustible(body) {
         const mcc = {};
         manualColsConfig.forEach(mc => mcc[mc.nombre] = mc);
@@ -2962,11 +3011,11 @@ table.on("dataFiltered", function (filters, rows) {
         });
         const movWrap = mkField('MOVIMIENTO', selMov, 'MOVIMIENTO');
 
-        // FECHA
+        // FECHA (Fecha y Hora)
         const inpFecha = document.createElement('input');
-        inpFecha.type = 'date';
-        inpFecha.value = new Date().toISOString().slice(0, 10);
-        mkField('FECHA', inpFecha, 'FECHA');
+        inpFecha.type = 'datetime-local';
+        inpFecha.value = _obtenerFechaHoraLocal();
+        mkField('FECHA Y HORA', inpFecha, 'FECHA');
 
         // QR ASIGNADO
         const selGen = document.createElement('select');
@@ -3011,6 +3060,39 @@ table.on("dataFiltered", function (filters, rows) {
         selZona.placeholder = 'Se llena automáticamente';
         selZona.title = 'Se llena automáticamente según el QR ASIGNADO';
         mkField('ZONA', selZona, 'ZONA');
+
+        // NOMBRE DE SITE: datalist para autocompletado y texto libre
+        const colNombreSite = (manualColsConfig.find(mc => {
+            const n = mc.nombre.trim().toLowerCase();
+            return n === 'nombre de site' || n === 'nombre site' || n === 'site';
+        }) || {}).nombre || 'NOMBRE DE SITE';
+        const inpNombreSite = document.createElement('input');
+        inpNombreSite.type = 'text';
+        inpNombreSite.setAttribute('list', 'site-list-datalist');
+        inpNombreSite.placeholder = 'Nombre del site...';
+        if (!document.getElementById('site-list-datalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'site-list-datalist';
+            document.body.appendChild(dl);
+            if (window.siteNamesCache && window.siteNamesCache.length) {
+                window.siteNamesCache.forEach(nm => {
+                    const opt = document.createElement('option');
+                    opt.value = nm;
+                    dl.appendChild(opt);
+                });
+            } else {
+                fetch('/api/sites').then(r => r.json()).then(data => {
+                    const nombres = (data || []).map(s => s.nombre).filter(Boolean).sort((a,b) => a.localeCompare(b));
+                    window.siteNamesCache = nombres;
+                    nombres.forEach(nm => {
+                        const opt = document.createElement('option');
+                        opt.value = nm;
+                        dl.appendChild(opt);
+                    });
+                }).catch(() => {});
+            }
+        }
+        mkField('NOMBRE DE SITE', inpNombreSite, colNombreSite);
 
         // NUMERO FACTURA (solo INGRESO)
         const inpFact = document.createElement('input');
@@ -3193,11 +3275,11 @@ table.on("dataFiltered", function (filters, rows) {
             return inp;
         }
 
-        // FECHA (hoy por defecto)
+        // FECHA (Fecha y Hora)
         const inpFecha = document.createElement('input');
-        inpFecha.type = 'date';
-        inpFecha.value = new Date().toISOString().slice(0, 10);
-        mkField('FECHA', inpFecha, 'FECHA');
+        inpFecha.type = 'datetime-local';
+        inpFecha.value = _obtenerFechaHoraLocal();
+        mkField('FECHA Y HORA', inpFecha, 'FECHA');
 
         // N° COTIZACION — consecutivo automático, solo lectura, más estético
         const numWrap = document.createElement('div');
@@ -3208,8 +3290,9 @@ table.on("dataFiltered", function (filters, rows) {
         numWrap.appendChild(numLbl);
         const fullNum = 'HW-' + new Date().getFullYear() + '-' + _sugerirCorrelativoCotiReg();
         const numBadge = document.createElement('div');
-        numBadge.style.cssText = 'display:inline-flex; align-items:center; gap:8px; background:#F2F2F7; border:1px solid #E5E5EA; border-radius:12px; padding:10px 16px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:14px; font-weight:700; color:#1C1C1E; letter-spacing:0.8px;';
-        numBadge.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:#007AFF; color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span>' + escapeHtml(fullNum) + '<span style="margin-left:6px; font-size:10px; font-weight:600; color:#8E8E93; background:#fff; border:1px solid #E5E5EA; border-radius:20px; padding:2px 8px; letter-spacing:0.3px;">AUTO</span>';
+        numBadge.className = 'cot-badge-numero';
+        numBadge.id = 'cot-badge-numero-disp';
+        numBadge.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:#007AFF; color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span> ' + escapeHtml(fullNum) + ' <span class="cot-badge-pill">AUTO</span>';
         // Hidden input para que guardarModalRegistro lo recoja como llave
         const numHidden = document.createElement('input');
         numHidden.type = 'hidden';
@@ -3222,7 +3305,28 @@ table.on("dataFiltered", function (filters, rows) {
 
         // Campos del formato Cobra
         mkTxt('TICKET', 'TICKET', 'CM-AAAAMMDD-XXXXXXX');
-        mkTxt('SUPERVISOR', 'SUPERVISOR', 'Nombre del supervisor...');
+        
+        // SUPERVISOR: Lista desplegable con supervisores autorizados
+        const selSupervisor = document.createElement('select');
+        const supervisoresList = [
+            'GONZALES CACERES, JORDAN ANIBAL',
+            'QUISPE CASTRO, DENNIS GIOVANNI',
+            'SOTELO TORRES, JESUS',
+            'ENCARNACION VEGA, ROBERTO',
+            'HUANCAPAZA CONDORI, ELOY'
+        ];
+        const optSupDefault = document.createElement('option');
+        optSupDefault.value = '';
+        optSupDefault.textContent = '— Seleccione Supervisor —';
+        selSupervisor.appendChild(optSupDefault);
+        supervisoresList.forEach(sup => {
+            const opt = document.createElement('option');
+            opt.value = sup;
+            opt.textContent = sup;
+            selSupervisor.appendChild(opt);
+        });
+        mkField('SUPERVISOR', selSupervisor, 'SUPERVISOR');
+
         mkTxt('OBJETIVO', 'OBJETIVO', 'Título / objetivo...');
 
         // Campos de control
@@ -3487,14 +3591,9 @@ table.on("dataFiltered", function (filters, rows) {
         body.innerHTML = '';
         aniadirRegistroCotizaciones(body);
         // Sobrescribir N° mostrado con el existente (no el siguiente sugerido)
-        const badge = body.querySelector('div[style*="F2F2F7"]');
-        // El badge es el div con el número; lo buscamos por contenido HW-
-        const allDivs = body.querySelectorAll('div');
-        for (const d of allDivs) {
-            if (d.textContent.includes('HW-') && d.textContent.includes('AUTO')) {
-                d.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:#007AFF; color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span>' + escapeHtml(key) + '<span style="margin-left:6px; font-size:10px; font-weight:600; color:#8E8E93; background:#fff; border:1px solid #E5E5EA; border-radius:20px; padding:2px 8px; letter-spacing:0.3px;">' + (generada ? 'GENERADA' : 'EDITANDO') + '</span>';
-                break;
-            }
+        const badge = document.getElementById('cot-badge-numero-disp') || body.querySelector('.cot-badge-numero');
+        if (badge) {
+            badge.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:#007AFF; color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span> ' + escapeHtml(key) + ' <span class="cot-badge-pill">' + (generada ? 'GENERADA' : 'EDITANDO') + '</span>';
         }
         const hidden = body.querySelector('input[data-field="_COT_NUM_DIGITS"]');
         if (hidden) {
@@ -3504,7 +3603,24 @@ table.on("dataFiltered", function (filters, rows) {
         // Rellenar campos
         const setVal = (field, val) => {
             const el = body.querySelector('[data-field="' + field + '"]');
-            if (el) el.value = val || '';
+            if (el) {
+                if (el.tagName === 'SELECT' && val && !Array.from(el.options).some(o => o.value === val)) {
+                    const opt = document.createElement('option');
+                    opt.value = val;
+                    opt.textContent = val;
+                    el.appendChild(opt);
+                }
+                if (el.type === 'datetime-local' && val) {
+                    let s = String(val).trim();
+                    if (s.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                        el.value = s + 'T00:00';
+                    } else {
+                        el.value = s.replace(' ', 'T').slice(0, 16);
+                    }
+                } else {
+                    el.value = val || '';
+                }
+            }
         };
         setVal('FECHA', data['FECHA'] || '');
         setVal('TICKET', data['TICKET'] || '');
@@ -3772,7 +3888,10 @@ table.on("dataFiltered", function (filters, rows) {
         inputs.forEach(inp => {
             const field = inp.dataset.field;
             const isPk = inp.dataset.pk === '1';
-            const val = (inp.value || '').trim();
+            let val = (inp.value || '').trim();
+            if (inp.type === 'datetime-local' && val) {
+                val = val.replace('T', ' ');
+            }
 
             if (isPk) {
                 key = val;
@@ -4300,7 +4419,14 @@ table.on("dataFiltered", function (filters, rows) {
             let control = '';
             if (editable) {
                 if (c.tipo === 'fecha') {
-                    control = `<input type="date" data-field="${c.field}" value="${escapeHtml(val)}">`;
+                    let s = String(val || '').trim();
+                    let valDt = '';
+                    if (s.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(s)) {
+                        valDt = s + 'T00:00';
+                    } else if (s) {
+                        valDt = s.replace(' ', 'T').slice(0, 16);
+                    }
+                    control = `<input type="datetime-local" data-field="${c.field}" value="${escapeHtml(valDt)}">`;
                 } else if (c.field === 'MOVIMIENTO') {
                     control = `<select data-field="MOVIMIENTO">
                         <option value="">— Seleccionar —</option>
@@ -4392,7 +4518,10 @@ table.on("dataFiltered", function (filters, rows) {
         const cambios = [];
         grid.querySelectorAll('[data-field]').forEach(el => {
             const field = el.dataset.field;
-            const nuevo = el.value !== null && el.value !== undefined ? String(el.value).trim() : '';
+            let nuevo = el.value !== null && el.value !== undefined ? String(el.value).trim() : '';
+            if (el.type === 'datetime-local' && nuevo) {
+                nuevo = nuevo.replace('T', ' ');
+            }
             const orig = String(combDetalleOrig[field] || '').trim();
             if (nuevo === orig) return;
             if (field === 'GESTOR') return;

@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from functools import wraps
 import io
+import re
 from datetime import datetime, timedelta
 from collections import Counter
 from PIL import Image, ImageOps
@@ -731,14 +732,21 @@ with app.app_context():
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='app_schema', valor=json.dumps([])))
 
-        # Asegurar que los registros existentes tengan el nuevo campo ID DE REPORTE (vacío).
+        # Asegurar que los registros existentes tengan ID DE REPORTE y fecha con hora por defecto (00:00).
         for r in NucleusData.query.filter_by(proyecto_id=comb_proy.id).all():
             try:
                 d = json.loads(r.data_json)
             except Exception:
                 continue
+            cambio = False
             if 'ID DE REPORTE' not in d:
                 d['ID DE REPORTE'] = ''
+                cambio = True
+            f_val = str(d.get('FECHA', '') or '').strip()
+            if len(f_val) == 10 and re.match(r'^\d{4}-\d{2}-\d{2}$', f_val):
+                d['FECHA'] = f"{f_val} 00:00"
+                cambio = True
+            if cambio:
                 r.data_json = json.dumps(d, ensure_ascii=False)
         db.session.commit()
 
@@ -772,17 +780,24 @@ with app.app_context():
         else:
             db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='primary_key', valor='N° COTIZACION'))
 
-        # Re-key: registros creados antes con llave auto-numérica pasan a usar su N°.
+        # Re-key: registros creados antes con llave auto-numérica pasan a usar su N°, y fechas sin hora toman 00:00.
         for r in NucleusData.query.filter_by(proyecto_id=cot_proy.id).all():
             try:
                 d = json.loads(r.data_json)
             except Exception:
                 continue
+            cambio = False
             num = str(d.get('N° COTIZACION', '') or '').strip()
             if num and r.key_value != num:
                 dup = NucleusData.query.filter_by(proyecto_id=cot_proy.id, key_value=num).first()
                 if not dup:
                     r.key_value = num
+            f_val = str(d.get('FECHA', '') or '').strip()
+            if len(f_val) == 10 and re.match(r'^\d{4}-\d{2}-\d{2}$', f_val):
+                d['FECHA'] = f"{f_val} 00:00"
+                cambio = True
+            if cambio:
+                r.data_json = json.dumps(d, ensure_ascii=False)
 
         schema_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='app_schema').first()
         if not schema_cfg:
