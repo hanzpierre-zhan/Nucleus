@@ -119,6 +119,10 @@
     .mar-btn-ghost:hover { background: var(--ios-gray-5); }
     .mar-btn-primary { background: linear-gradient(135deg, #007AFF, #0062CC); color: #fff; border: none; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(0,122,255,0.3); transition: all .15s ease; }
     .mar-btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .mar-btn-generar { background: linear-gradient(135deg, #007AFF, #005ecb); color: #fff; border: none; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3); transition: all .15s ease; }
+    .mar-btn-generar:hover { background: #005ecb; filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 122, 255, 0.4); }
+    .mar-btn-guardar { background: linear-gradient(135deg, #22C55E, #16A34A); color: #fff; border: none; padding: 10px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 6px 16px rgba(34, 197, 94, 0.35); transition: all .15s ease; }
+    .mar-btn-guardar:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(34, 197, 94, 0.45); }
     .mar-btn-copy { background: linear-gradient(135deg, #38b6ff, #007AFF); color: #fff; border: none; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 8px 18px rgba(0,122,255,0.35); transition: all .15s ease; }
     .mar-btn-copy:hover { filter: brightness(1.08); transform: translateY(-1px); }
     @media (max-width: 640px) { .mar-body { grid-template-columns: 1fr; } }
@@ -388,28 +392,47 @@
     .wo-header .wo-tabs { flex-shrink: 0; }
     .wo-header .wo-tab { padding: 6px 12px; font-size: 12px; }
     .wo-head-left { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; min-width: 0; }
+    .mar-head-actions,
     .wo-head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+    .mar-head-actions .mar-btn-copy,
+    .mar-head-actions .mar-btn-generar,
+    .mar-head-actions .mar-btn-ghost,
+    .mar-head-actions .mar-btn-primary,
+    .mar-head-actions .mar-btn-guardar,
     .wo-head-actions .mar-btn-copy,
     .wo-head-actions .mar-btn-ghost,
     .wo-head-actions .mar-btn-primary {
         padding: 0; width: 32px; height: 32px; font-size: 13px; border-radius: 10px; white-space: nowrap;
-        display: inline-flex; align-items: center; justify-content: center; box-shadow: none;
+        display: inline-flex; align-items: center; justify-content: center; box-shadow: none; border: none; cursor: pointer;
     }
+    .mar-head-actions .mar-btn-copy,
     .wo-head-actions .mar-btn-copy {
         background: #FFE9A8; color: #7a5b00; border: 1px solid #f0d978;
     }
+    .mar-head-actions .mar-btn-copy:hover,
     .wo-head-actions .mar-btn-copy:hover { background: #ffe08a; filter: none; transform: none; }
-    .wo-head-actions .mar-btn-primary {
-        background: #34C759; box-shadow: 0 4px 10px rgba(52,199,89,0.35);
+    .mar-head-actions .mar-btn-generar {
+        background: #007AFF; color: #fff; border: none; box-shadow: 0 4px 10px rgba(0,122,255,0.35);
     }
+    .mar-head-actions .mar-btn-generar:hover { background: #0062CC; filter: none; transform: none; }
+    .mar-head-actions .mar-btn-primary,
+    .mar-head-actions .mar-btn-guardar,
+    .wo-head-actions .mar-btn-primary {
+        background: #34C759; color: #fff; box-shadow: 0 4px 10px rgba(52,199,89,0.35);
+    }
+    .mar-head-actions .mar-btn-primary:hover,
+    .mar-head-actions .mar-btn-guardar:hover,
     .wo-head-actions .mar-btn-primary:hover { background: #2fbb51; filter: none; transform: none; }
-    .wo-head-actions .mar-btn-ghost { display: none; }
-    .wo-head-actions .wo-btn-c { display: none; }
+    .mar-head-actions .mar-btn-ghost { display: none; }
+    .mar-head-actions .wo-btn-c { display: none; }
+    .mar-head-actions .mar-close,
     .wo-head-actions .mar-close {
         width: 32px; height: 32px; border-radius: 10px;
-        background: #FF3B30; color: #fff; font-size: 13px;
+        background: #FF3B30; color: #fff; font-size: 13px; border: none; cursor: pointer;
+        display: inline-flex; align-items: center; justify-content: center;
         box-shadow: 0 4px 10px rgba(255,59,48,0.3);
     }
+    .mar-head-actions .mar-close:hover,
     .wo-head-actions .mar-close:hover { background: #e23328; }
     @media (max-width: 720px) { .wo-header { flex-wrap: wrap; } .wo-header .wo-title { white-space: normal; } }
     .wo-timeline {
@@ -516,33 +539,35 @@
 </style>
 
 <!-- Modal Nuevo Registro -->
-<div id="modal-add-registro" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarModalRegistro();">
+<div id="modal-add-registro" class="mar-overlay" style="display:none;">
     <div class="mar-modal">
         <div class="mar-header">
             <div>
                 <h3><i class="fa-solid fa-plus-circle"></i> Nuevo Registro</h3>
                 <p>Completa los campos para añadir el registro a {{ session.get('current_proyecto_nombre', '') }}.</p>
             </div>
-            <button onclick="cerrarModalRegistro()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+            <div class="mar-head-actions">
+                <button type="button" id="btn-mar-generar-coti" onclick="guardarModalRegistro('generar')" class="mar-btn-generar" style="display:none;" title="Generar Cotización"><i class="fa-solid fa-file-invoice-dollar"></i></button>
+                <button type="button" id="btn-mar-label-guardar" onclick="guardarModalRegistro()" class="mar-btn-guardar" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
+                <button type="button" onclick="cerrarModalRegistro()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+            </div>
         </div>
         <div id="mar-fields" class="mar-body"></div>
-        <div class="mar-footer">
-            <button onclick="cerrarModalRegistro()" class="mar-btn-ghost">Cancelar</button>
-            <button id="btn-mar-generar-coti" onclick="guardarModalRegistro('generar')" class="mar-btn-primary" style="display:none;"><i class="fa-solid fa-file-invoice-dollar"></i> Generar Cotización</button>
-            <button id="btn-mar-label-guardar" onclick="guardarModalRegistro()" class="mar-btn-primary"><i class="fa-solid fa-check"></i> Guardar</button>
-        </div>
     </div>
 </div>
 
 <!-- Modal Detalle Combustible/Generadores -->
-<div id="modal-comb-detalle" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarCombDetalle();">
+<div id="modal-comb-detalle" class="mar-overlay" style="display:none;">
     <div class="mar-modal wo-modal">
         <div class="mar-header wo-header">
             <div>
                 <h3><i class="fa-solid fa-qrcode"></i> Detalle del Registro</h3>
                 <p>Completa la información pendiente del movimiento.</p>
             </div>
-            <button onclick="cerrarCombDetalle()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+            <div class="mar-head-actions">
+                <button type="button" id="comb-detalle-guardar" onclick="guardarCombDetalle()" class="mar-btn-guardar" style="display:none;" title="Guardar"><i class="fa-solid fa-floppy-disk"></i></button>
+                <button type="button" onclick="cerrarCombDetalle()" class="mar-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+            </div>
         </div>
         <div class="wo-body">
             <div class="wo-section">
@@ -557,15 +582,11 @@
                 </div>
             </div>
         </div>
-        <div class="mar-footer">
-            <button onclick="cerrarCombDetalle()" class="mar-btn-ghost">Cerrar</button>
-            <button id="comb-detalle-guardar" onclick="guardarCombDetalle()" class="mar-btn-primary" style="display:none;"><i class="fa-solid fa-check"></i> Guardar</button>
-        </div>
     </div>
 </div>
 
 <!-- Modal Detalle WO -->
-<div id="modal-wo" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarWoModal();">
+<div id="modal-wo" class="mar-overlay" style="display:none;">
     <div class="mar-modal wo-modal">
         <div class="mar-header wo-header">
             <div class="wo-head-left">
@@ -887,7 +908,7 @@
 </div>
 
 <!-- Modal Importar -->
-<div id="modal-importar" class="mar-overlay" style="display:none;" onclick="if(event.target === this) cerrarModalImportar();">
+<div id="modal-importar" class="mar-overlay" style="display:none;">
     <div class="mar-modal" style="max-width: 560px;">
         <div class="mar-header">
             <div>
@@ -1010,7 +1031,7 @@
         }
 
         if (proy === 'combustible') {
-            buildCombustibleStats(container);
+            container.style.display = 'none';
             return;
         }
 
@@ -3201,13 +3222,40 @@ table.on("dataFiltered", function (filters, rows) {
 
         // Campos del formato Cobra
         mkTxt('TICKET', 'TICKET', 'CM-AAAAMMDD-XXXXXXX');
-        mkTxt('SITE', 'SITE', 'Site...');
         mkTxt('SUPERVISOR', 'SUPERVISOR', 'Nombre del supervisor...');
         mkTxt('OBJETIVO', 'OBJETIVO', 'Título / objetivo...');
 
         // Campos de control
         mkTxt('NUMERO WO', 'NUMERO WO', 'N° de WO...');
-        mkTxt('NOMBRE SITE', 'NOMBRE SITE', 'Nombre del site (control)...');
+        
+        // NOMBRE SITE: datalist para autocompletado y texto libre
+        const inpNombreSite = document.createElement('input');
+        inpNombreSite.type = 'text';
+        inpNombreSite.setAttribute('list', 'site-list-datalist');
+        inpNombreSite.placeholder = 'Nombre del site (control)...';
+        if (!document.getElementById('site-list-datalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'site-list-datalist';
+            document.body.appendChild(dl);
+            if (window.siteNamesCache && window.siteNamesCache.length) {
+                window.siteNamesCache.forEach(nm => {
+                    const opt = document.createElement('option');
+                    opt.value = nm;
+                    dl.appendChild(opt);
+                });
+            } else {
+                fetch('/api/sites').then(r => r.json()).then(data => {
+                    const nombres = (data || []).map(s => s.nombre).filter(Boolean).sort((a,b) => a.localeCompare(b));
+                    window.siteNamesCache = nombres;
+                    nombres.forEach(nm => {
+                        const opt = document.createElement('option');
+                        opt.value = nm;
+                        dl.appendChild(opt);
+                    });
+                }).catch(() => {});
+            }
+        }
+        mkField('NOMBRE SITE', inpNombreSite, 'NOMBRE SITE');
 
         // Sección de items (fuera de .mar-field para no interferir con el guardado genérico)
         const sec = document.createElement('div');
@@ -3460,7 +3508,7 @@ table.on("dataFiltered", function (filters, rows) {
         };
         setVal('FECHA', data['FECHA'] || '');
         setVal('TICKET', data['TICKET'] || '');
-        setVal('SITE', data['SITE'] || '');
+
         setVal('SUPERVISOR', data['SUPERVISOR'] || '');
         setVal('OBJETIVO', data['OBJETIVO'] || '');
         setVal('NUMERO WO', data['NUMERO WO'] || '');
@@ -3507,10 +3555,13 @@ table.on("dataFiltered", function (filters, rows) {
                 }
             });
         }
-        // Cambiar botones del footer
+        // Cambiar botones del header
         const btnGuardar = document.getElementById('btn-mar-label-guardar');
         const btnGenerar = document.getElementById('btn-mar-generar-coti');
-        if (btnGuardar) btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Actualizar';
+        if (btnGuardar) {
+            btnGuardar.title = 'Actualizar';
+            btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+        }
         if (btnGenerar) btnGenerar.style.display = ''; // permitir generar desde edición también
         document.getElementById('modal-add-registro').style.display = 'flex';
     }
@@ -3615,7 +3666,11 @@ table.on("dataFiltered", function (filters, rows) {
         cotiEditMode = false;
         cotiEditKey = null;
         const btnGuardar = document.getElementById('btn-mar-label-guardar');
-        if (btnGuardar) btnGuardar.innerHTML = '<i class="fa-solid fa-check"></i> Guardar';
+        if (btnGuardar) {
+            btnGuardar.disabled = false;
+            btnGuardar.title = 'Guardar';
+            btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+        }
         const btnGen = document.getElementById('btn-mar-generar-coti');
         if (btnGen) {
             // En modo normal, el botón Generar se muestra solo para cotizaciones al abrir el modal
@@ -3767,7 +3822,13 @@ table.on("dataFiltered", function (filters, rows) {
 
         // Si es edición de una cotización existente, actualizar campo por campo
         if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones' && cotiEditMode && cotiEditKey) {
-            const fieldsToUpdate = Object.keys(data);
+            const btn = document.getElementById('btn-mar-label-guardar');
+            const btnGen = document.getElementById('btn-mar-generar-coti');
+            const originalText = btn ? btn.innerHTML : '<i class="fa-solid fa-floppy-disk"></i>';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+            if (btnGen) btnGen.disabled = true;
+
+            const fieldsToUpdate = Object.keys(data).filter(f => f !== 'N° COTIZACION' && f !== 'GESTOR' && f !== '_COT_NUM_DIGITS' && !f.startsWith('_'));
             let chain = Promise.resolve();
             fieldsToUpdate.forEach(field => {
                 chain = chain.then(() => fetch('/api/rows/update', {
@@ -3781,6 +3842,7 @@ table.on("dataFiltered", function (filters, rows) {
             });
             chain.then(() => {
                 if (esGenerar) {
+                    if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
                     return fetch('/api/cotizacion/registro_generar', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -3802,7 +3864,11 @@ table.on("dataFiltered", function (filters, rows) {
             }).then(() => {
                 cerrarModalRegistro();
                 location.reload();
-            }).catch(err => alert(err.message || 'Error de red'));
+            }).catch(err => {
+                alert(err.message || 'Error de red');
+                if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+                if (btnGen) btnGen.disabled = false;
+            });
             return;
         }
 

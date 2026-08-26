@@ -2957,9 +2957,18 @@ def api_rows_update():
         # GENERADA, solo el admin puede corregir, salvo NUMERO WO cuando está en CM-PENDIENTE.
         if proy_nombre == 'Cotizaciones':
             if field == 'GESTOR':
-                return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró la cotización.'}), 400
+                valor_gestor = str(row_dict.get('GESTOR', '') or '').strip()
+                if valor_gestor and str(value).strip() != valor_gestor and session.get('rol') != 'admin':
+                    return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró la cotización.'}), 400
+                elif not valor_gestor:
+                    pass
+                else:
+                    return jsonify({'success': True})
             if field == 'N° COTIZACION':
-                return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
+                if str(value).strip() != str(key_val).strip():
+                    return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
+                else:
+                    return jsonify({'success': True})
             if session.get('rol') != 'admin' and str(row_dict.get('GENERADA', '') or '') == '1':
                 if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
                     pass
