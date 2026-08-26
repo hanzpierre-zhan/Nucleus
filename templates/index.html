@@ -3556,10 +3556,10 @@ table.on("dataFiltered", function (filters, rows) {
         return tot;
     }
 
-    // Sugerencia de correlativo: máximo existente + 1 (arranque: 0000031)
+    // Sugerencia de correlativo: máximo existente + 1 (arranque: 0000030)
     function _sugerirCorrelativoCotiReg() {
         const yr = String(new Date().getFullYear());
-        let maxn = 30;
+        let maxn = 29;
         (typeof rawData !== 'undefined' ? rawData : []).forEach(r => {
             const k = String(r['_key'] != null ? r['_key'] : (r['N° COTIZACION'] || ''));
             const m = k.match(/^HW-(\d{4})-(\d{7})$/);

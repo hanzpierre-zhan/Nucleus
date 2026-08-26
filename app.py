@@ -3113,13 +3113,13 @@ def api_rows_add():
                 if gal_n > saldo + 1e-9:
                     return jsonify({'error': f'Saldo insuficiente. Disponible: {saldo:g} galones. Se intentó gastar: {gal_n:g}.'}), 400
 
-        # Cotizaciones: GESTOR automático y N° correlativo NO editable (avanza desde 0000031).
+        # Cotizaciones: GESTOR automático y N° correlativo NO editable (avanza desde 0000030).
         if proy_nombre == 'Cotizaciones':
             import re
             from datetime import datetime as _dt
             row_data['GESTOR'] = session.get('username', '')
             yr = str(_dt.now().year)
-            maxn = 30
+            maxn = 29
             for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
                 try:
                     d2 = json.loads(rec.data_json)
