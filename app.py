@@ -542,7 +542,7 @@ with app.app_context():
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
              ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
              ('Combustible', 'Consumo de Combustible (solo FLM)'), ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)'),
-             ('SITE', 'Maestro de Sites – Libro1 (39 columnas)')]
+             ('SITE', 'Maestro de Sites – COBRA SITES (10 columnas)')]
     for nombre, desc in fixed:
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
@@ -659,21 +659,25 @@ with app.app_context():
         db.session.commit()
 
     # Migration: Seed Generadores con los equipos declarados (SERIE DE EQUIPO).
-    # Solo inserta las series que aún no existan (idempotente).
+    # Se ejecuta UNA SOLA VEZ al inicializar el proyecto para no reinsertar registros eliminados por el usuario.
     gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
     if gen_proy:
-        series = ['06-0002-3145', '06-002-3141', '06-0002-3196', '06-0002-3184',
-                  '06-0002-3140', '06-0002-3132', '06-0002-3108', '06-0002-3207',
-                  '06-0002-3139', '06-0002-3123', '06-0002-3115', '06-0002-3117',
-                  '06-0002-3226', '06-0002-3210', '06-0002-3182', '06-0002-3174',
-                  '06-0002-3154', '06-0002-3126', '06-0002-3106', '06-0002-3102',
-                  '06-0002-3118', '06-0002-3213', '06-0002-3193', '06-0002-3129',
-                  '06-0002-3179', '06-0002-3114']
-        existing_keys = {r.key_value for r in NucleusData.query.filter_by(proyecto_id=gen_proy.id).all()}
-        for s in series:
-            if s not in existing_keys:
-                db.session.add(NucleusData(proyecto_id=gen_proy.id, key_value=s,
-                                           data_json=json.dumps({'SERIE DE EQUIPO': s}, ensure_ascii=False)))
+        seed_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='seed_generadores_done').first()
+        if not seed_cfg:
+            existing_count = NucleusData.query.filter_by(proyecto_id=gen_proy.id).count()
+            if existing_count == 0:
+                series = ['06-0002-3145', '06-002-3141', '06-0002-3196', '06-0002-3184',
+                          '06-0002-3140', '06-0002-3132', '06-0002-3108', '06-0002-3207',
+                          '06-0002-3139', '06-0002-3123', '06-0002-3115', '06-0002-3117',
+                          '06-0002-3226', '06-0002-3210', '06-0002-3182', '06-0002-3174',
+                          '06-0002-3154', '06-0002-3126', '06-0002-3106', '06-0002-3102',
+                          '06-0002-3118', '06-0002-3213', '06-0002-3193', '06-0002-3129',
+                          '06-0002-3179', '06-0002-3114']
+                for s in series:
+                    db.session.add(NucleusData(proyecto_id=gen_proy.id, key_value=s,
+                                               data_json=json.dumps({'SERIE DE EQUIPO': s}, ensure_ascii=False)))
+            db.session.add(AppConfig(proyecto_id=gen_proy.id, clave='seed_generadores_done', valor='1'))
+            db.session.commit()
         # Asegurar que los registros existentes tengan los nuevos campos (QR ASIGNADO vacío
         # para que el usuario lo llene, ZONA y TECNICO ASIGNADO inicialmente vacíos).
         for r in NucleusData.query.filter_by(proyecto_id=gen_proy.id).all():
@@ -804,14 +808,14 @@ with app.app_context():
             db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='app_schema', valor=json.dumps([])))
         db.session.commit()
 
-    # Migration: Configure SITE columns (maestro Libro1 – 39 columnas)
+    # Migration: Configure SITE columns (maestro COBRA SITES – 10 columnas)
     site_proy = Proyecto.query.filter_by(nombre='SITE').first()
     if site_proy:
         site_proy.icono = 'fa-location-dot'
+        site_proy.descripcion = 'Maestro de Sites – COBRA SITES (10 columnas)'
         site_cols = [
-            {'nombre': 'Código Site', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Nombre Site', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Estado', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Código', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Nombre', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Prioridad', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Departamento', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Provincia', 'tipo': 'texto', 'opciones': []},
@@ -820,46 +824,18 @@ with app.app_context():
             {'nombre': 'Latitud (°)', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Longitud (°)', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Región', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Coordinador O&M Sitios', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Tipo de Torre', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Altura de Torre (m)', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Tipo de Estación', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Cobicador', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Infraestructura Critica', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Tipo de Site', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Sede', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Week', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Oficinas FM', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'CITY', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'REGION HW', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'SUBCON', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'TEAMS', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'BASE SUPERVISOR', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'CELULAR', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'CORREO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'REGIONAL MANAGER HUAWEI', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'CEL RM', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'CORREO RM', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'GRUPOS ELECTROGENOS (60)', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'GRUPOS ELECTROGENOS ENTEL', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'AVR  % CORTES', 'tipo': 'texto', 'opciones': []},
-            {'nombre': '4X4', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'MINIVAN', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'MOTO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'MOTOCARGA', 'tipo': 'texto', 'opciones': []},
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
         if mc_cfg:
             mc_cfg.valor = json.dumps(site_cols, ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=site_proy.id, clave='manual_columns', valor=json.dumps(site_cols, ensure_ascii=False)))
-        # La llave del maestro es el Código Site (también se usa como campo "site")
+        # La llave del maestro es el Código
         pk_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='primary_key').first()
         if pk_cfg:
-            pk_cfg.valor = 'Código Site'
+            pk_cfg.valor = 'Código'
         else:
-            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='Código Site'))
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='Código'))
         schema_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first()
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor=json.dumps([])))
@@ -2059,14 +2035,13 @@ def api_import_process():
         if file_key not in df.columns:
             return jsonify({'error': f'Key {file_key} not found in headers.'}), 400
 
-        # Validación interna: FLM y PEXT deben traer la columna CATEGORY con el valor
+        # Validación interna: PEXT debe traer la columna CATEGORY con el valor
         # correcto para evitar importar por error datos de otro proceso/mundo.
+        # FLM: sin restricción de CATEGORY (acepta cualquier valor).
         proy_act = Proyecto.query.get(pid)
         proy_act_nombre = proy_act.nombre.strip().upper() if proy_act and proy_act.nombre else ''
         category_esperado = None
-        if proy_act_nombre == 'FLM':
-            category_esperado = 'O&M CRM'
-        elif proy_act_nombre == 'PEXT':
+        if proy_act_nombre == 'PEXT':
             category_esperado = 'O&M PEXT'
         if category_esperado:
             cat_col = next((c for c in df.columns if c.strip().upper() == 'CATEGORY'), None)
@@ -4652,20 +4627,22 @@ def api_sites():
             continue
         if lat == 0 and lng == 0:
             continue
-        sites.append({
-            'codigo': d.get('Código Site', '') or d.get('Codigo Site', '') or r.key_value,
-            'nombre': d.get('Nombre Site', ''),
+        site_entry = {
+            'codigo': d.get('Código', '') or d.get('Código Site', '') or d.get('Codigo', '') or r.key_value,
+            'nombre': d.get('Nombre', '') or d.get('Nombre Site', ''),
             'lat': lat,
             'lng': lng,
-            'estado': d.get('Estado', ''),
-            'prioridad': d.get('Prioridad', ''),
+            'estado': d.get('Estado', '') or d.get('ESTADO', ''),
+            'prioridad': d.get('Prioridad', '') or d.get('PRIORIDAD', ''),
             'departamento': d.get('Departamento', ''),
             'provincia': d.get('Provincia', ''),
             'distrito': d.get('Distrito', ''),
             'direccion': d.get('Dirección', '') or d.get('Direccion', ''),
             'region': d.get('Región', '') or d.get('Region', ''),
-            'supervisor': d.get('SUPERVISOR', ''),
-        })
+            'supervisor': d.get('SUPERVISOR', '') or d.get('Supervisor', ''),
+            'all': {k: str(v) for k, v in d.items() if not k.startswith('_')},
+        }
+        sites.append(site_entry)
     return jsonify(sites)
 
 # -----------------------------------------------------------------------

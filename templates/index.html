@@ -1485,7 +1485,7 @@
     };
 
     // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
-    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'];
+    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site'];
     if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
