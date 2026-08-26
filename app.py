@@ -41,6 +41,17 @@ app.config['B2_APP_KEY'] = os.environ.get('B2_APP_KEY', '')
 app.config['B2_BUCKET'] = os.environ.get('B2_BUCKET', '')
 app.config['B2_REGION'] = os.environ.get('B2_REGION', 'us-west-004')
 
+from werkzeug.exceptions import HTTPException
+
+# Global error handlers to prevent HTML error pages breaking frontend JSON parsing
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Pass through HTTP errors
+    if isinstance(e, HTTPException):
+        return jsonify(error=e.description), e.code
+    # Non-HTTP exceptions
+    return jsonify(error=str(e)), 500
+
 db = SQLAlchemy(app)
 
 # --- MODELS ---
