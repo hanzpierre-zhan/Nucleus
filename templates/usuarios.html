@@ -313,14 +313,14 @@
 <script>
 let editUserId = null;
 
-async function setProjCheckboxes(projIds) {
+function setProjCheckboxes(projIds) {
     const ids = (projIds || []).map(Number);
     document.querySelectorAll('.proj-check').forEach(c => {
         c.checked = ids.includes(Number(c.value));
     });
 }
 
-async function getSelectedProyectos() {
+function getSelectedProyectos() {
     return Array.from(document.querySelectorAll('.proj-check:checked')).map(c => Number(c.value));
 }
 
