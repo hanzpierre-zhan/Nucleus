@@ -313,18 +313,18 @@
 <script>
 let editUserId = null;
 
-function setProjCheckboxes(projIds) {
+async function setProjCheckboxes(projIds) {
     const ids = (projIds || []).map(Number);
     document.querySelectorAll('.proj-check').forEach(c => {
         c.checked = ids.includes(Number(c.value));
     });
 }
 
-function getSelectedProyectos() {
+async function getSelectedProyectos() {
     return Array.from(document.querySelectorAll('.proj-check:checked')).map(c => Number(c.value));
 }
 
-function cancelarEdicion() {
+async function cancelarEdicion() {
     editUserId = null;
     document.getElementById('user-nombre').value = '';
     document.getElementById('user-name').value = '';
@@ -338,7 +338,7 @@ function cancelarEdicion() {
     if (cancel) cancel.style.display = 'none';
 }
 
-function editarUsuarioUI(id, nombre, username, rol, projIds) {
+async function editarUsuarioUI(id, nombre, username, rol, projIds) {
     document.getElementById('user-nombre').value = nombre;
     document.getElementById('user-name').value = username;
     document.getElementById('user-rol').value = rol;
@@ -353,7 +353,7 @@ function editarUsuarioUI(id, nombre, username, rol, projIds) {
     editUserId = id;
 }
 
-function crearUsuario() {
+async function crearUsuario() {
     const n = document.getElementById('user-nombre').value;
     const u = document.getElementById('user-name').value;
     const p = document.getElementById('user-pw').value;
@@ -380,8 +380,8 @@ function crearUsuario() {
     });
 }
 
-function eliminarUsuario(id, username) {
-    if(!confirm(`¿Eliminar al usuario "${username}"?`)) return;
+async function eliminarUsuario(id, username) {
+    if(!await nucleusConfirm(`¿Eliminar al usuario "${username}"?`)) return;
 
     fetch('/api/admin/usuario', {
         method: 'DELETE',
@@ -510,7 +510,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-function cargarValoresParaRegla(selectEl, dropdownId) {
+async function cargarValoresParaRegla(selectEl, dropdownId) {
     const col = selectEl.value;
     const pid = document.getElementById('permiso-proj-id').value;
     const dropdown = document.getElementById(dropdownId);
@@ -550,7 +550,7 @@ function cargarValoresParaRegla(selectEl, dropdownId) {
         });
 }
 
-function updateMultiSelect(dropdownId) {
+async function updateMultiSelect(dropdownId) {
     const dropdown = document.getElementById(dropdownId);
     const textSpan = document.getElementById(`text-${dropdownId}`);
     const hiddenInput = dropdown.parentElement.querySelector('.regla-val');
@@ -566,7 +566,7 @@ function updateMultiSelect(dropdownId) {
     }
 }
 
-function guardarPermiso() {
+async function guardarPermiso() {
     const uid = document.getElementById('permiso-user-id').value;
     const pid = document.getElementById('permiso-proj-id').value;
 
@@ -605,8 +605,8 @@ function guardarPermiso() {
     });
 }
 
-function eliminarPermiso(id) {
-    if(!confirm("¿Quitar acceso a este proyecto?")) return;
+async function eliminarPermiso(id) {
+    if(!await nucleusConfirm("¿Quitar acceso a este proyecto?")) return;
     fetch('/api/admin/permisos', {
         method: 'DELETE',
         headers: {'Content-Type': 'application/json'},

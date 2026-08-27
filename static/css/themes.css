@@ -1,0 +1,52 @@
+/* ============================================================
+   NUCLEUS — Temas (solo iOS + Neumorphism)
+   Neumorphism está en neumorphism.css
+   Este archivo solo aporta fixes de oscuro y selector
+   ============================================================ */
+
+/* ---------- FIX GLOBAL OSCURO — filtros y header siempre oscuros ---------- */
+body.dark-mode .tabulator-header,
+body.dark-mode .tabulator-col {
+  background: var(--ios-fill, #1C1C1E) !important;
+  border-color: var(--ios-hairline, rgba(255,255,255,0.10)) !important;
+}
+body.dark-mode .tabulator-header-filter input {
+  background: #2C2C2E !important;
+  border: 1px solid #3A3A3C !important;
+  color: #F2F2F7 !important;
+}
+body.dark-mode .tabulator-header-filter input::placeholder { color: #98989F !important; }
+body.dark-mode .tabulator-row,
+body.dark-mode .tabulator-row-even,
+body.dark-mode .tabulator-row-odd { background: var(--excel-bg, #1C1C1E) !important; }
+body.dark-mode .tabulator-cell { color: var(--excel-text, #F2F2F7) !important; }
+
+/* ---------- SELECTOR DE TEMAS ---------- */
+.theme-selector-wrap { position: relative; }
+.theme-selector-btn {
+  width: 34px; height: 34px; border-radius: 999px;
+  border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-secondary);
+  display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; transition: all .15s;
+}
+.theme-selector-btn:hover { color: var(--ios-blue); border-color: var(--ios-blue); transform: rotate(12deg); }
+.theme-selector-panel {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  width: 220px; background: var(--ios-card-bg); border:1px solid var(--ios-hairline);
+  border-radius: 16px; box-shadow: var(--shadow-soft); padding: 8px; z-index: 5000;
+  display:none;
+}
+.theme-selector-panel.show { display:block; animation: themeIn .14s ease; }
+@keyframes themeIn { from{opacity:0; transform: translateX(-50%) translateY(6px) scale(.98)} to{opacity:1; transform: translateX(-50%) translateY(0) scale(1)} }
+.theme-option {
+  display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:12px; cursor:pointer; transition: all .12s;
+  border:1px solid transparent;
+}
+.theme-option:hover { background: var(--ios-fill); }
+.theme-option.active { background: var(--ios-blue-light); border-color: rgba(0,122,255,0.18); }
+.theme-option-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.theme-option.active .theme-option-icon { background: var(--ios-blue); color:#fff; }
+.theme-option:not(.active) .theme-option-icon { background: var(--ios-fill); color: var(--ios-secondary); }
+.theme-option-main { flex:1; min-width:0; }
+.theme-option-name { font-size:13px; font-weight:700; color:var(--ios-label); line-height:1.2; }
+.theme-option-desc { font-size:11px; color:var(--ios-gray-1); line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.theme-option-check { color: var(--ios-blue); font-size:12px; }

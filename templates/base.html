@@ -11,18 +11,32 @@
     <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css?v=3.0">
+    <link rel="stylesheet" href="/static/css/neumorphism.css?v=1">
+    <link rel="stylesheet" href="/static/css/themes.css?v=2">
     <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <script>
-        // Aplica el tema guardado antes de que se pinte la interfaz
+        // Aplica temas guardados antes de pintar (migra neumorphism legacy)
         (function () {
             try {
                 if (localStorage.getItem('nucleus-theme') === 'dark') {
                     document.body.classList.add('dark-mode');
                 }
+                // Migrar neumorphism legacy -> theme-neumorphism
+                var fam = localStorage.getItem('nucleus-theme-family');
+                if (!fam) {
+                    var legacy = localStorage.getItem('nucleus-neumorphism');
+                    if (legacy !== 'off' && legacy !== null) fam = 'neumorphism';
+                    else if (legacy === 'off') fam = 'ios';
+                }
+                fam = fam || 'neumorphism';
+                // solo quedan ios y neumorphism — migrar cualquier otro viejo
+                if (['ios','neumorphism'].indexOf(fam)===-1) fam='neumorphism';
+                if (fam === 'neumorphism') document.body.classList.add('neumorphism');
+                try{ localStorage.setItem('nucleus-theme-family', fam); }catch(e){}
             } catch (e) {}
         })();
     </script>
@@ -104,6 +118,15 @@
                     </div>
                 </div>
                 <div class="sidebar-actions">
+                    <div class="theme-selector-wrap">
+                        <button id="theme-selector-btn" class="theme-selector-btn" title="Cambiar tema" aria-label="Temas">
+                            <i class="fa-solid fa-palette"></i>
+                        </button>
+                        <div id="theme-selector-panel" class="theme-selector-panel">
+                            <div class="theme-option" data-theme="ios"><div class="theme-option-icon"><i class="fa-solid fa-circle-half-stroke"></i></div><div class="theme-option-main"><div class="theme-option-name">iOS Clásico</div><div class="theme-option-desc">Claro, limpio</div></div><i class="fa-solid fa-check theme-option-check" style="display:none"></i></div>
+                            <div class="theme-option" data-theme="neumorphism"><div class="theme-option-icon"><i class="fa-solid fa-cube"></i></div><div class="theme-option-main"><div class="theme-option-name">Neumorphism</div><div class="theme-option-desc">Suave, táctil</div></div><i class="fa-solid fa-check theme-option-check" style="display:none"></i></div>
+                        </div>
+                    </div>
                     <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
                         <i class="fa-solid fa-moon"></i>
                     </button>
@@ -144,6 +167,46 @@
                 link.classList.toggle('active', link.getAttribute('href') === newFull);
             });
         });
+
+        // Selector de familias de tema (iOS / neumorphism / gradient / 3d / corporate / render)
+        (function () {
+            const btn = document.getElementById('theme-selector-btn');
+            const panel = document.getElementById('theme-selector-panel');
+            if (!btn || !panel) return;
+            const families = ['ios','neumorphism'];
+            function currentFamily(){
+                if(document.body.classList.contains('neumorphism')) return 'neumorphism';
+                return 'ios';
+            }
+            function applyTheme(fam){
+                document.body.classList.remove('neumorphism');
+                if(fam==='neumorphism') document.body.classList.add('neumorphism');
+                // limpiar temas viejos por si quedaron de antes
+                ['gradient','3d','corporate','render'].forEach(f=> document.body.classList.remove('theme-'+f));
+                try{ localStorage.setItem('nucleus-theme-family', fam); localStorage.setItem('nucleus-neumorphism', fam==='neumorphism' ? 'on' : 'off'); }catch(e){}
+                panel.querySelectorAll('.theme-option').forEach(o=>{
+                    const active = o.dataset.theme===fam;
+                    o.classList.toggle('active', active);
+                    o.querySelector('.theme-option-check').style.display = active ? 'block' : 'none';
+                });
+            }
+            // inicial
+            applyTheme(currentFamily());
+            btn.addEventListener('click', (e)=>{
+                e.stopPropagation();
+                const show = panel.classList.toggle('show');
+                if(show) applyTheme(currentFamily());
+            });
+            panel.querySelectorAll('.theme-option').forEach(o=>{
+                o.addEventListener('click', ()=>{
+                    applyTheme(o.dataset.theme);
+                    panel.classList.remove('show');
+                });
+            });
+            document.addEventListener('click', (e)=>{
+                if(!panel.contains(e.target) && e.target!==btn) panel.classList.remove('show');
+            });
+        })();
 
         // Toggle de tema claro/oscuro (persistente)
         (function () {
@@ -186,5 +249,89 @@
         })();
     </script>
     {% block scripts %}{% endblock %}
+
+    <!-- Nucleus Dialog — reemplaza alert/confirm/prompt nativos -->
+    <div id="nucleus-dialog" class="nucleus-dialog-overlay" aria-hidden="true">
+        <div class="nucleus-dialog-card" role="dialog" aria-modal="true" aria-labelledby="nucleus-dialog-title">
+            <div id="nucleus-dialog-icon" class="nucleus-dialog-icon"><i class="fa-solid fa-circle-info"></i></div>
+            <h3 id="nucleus-dialog-title" class="nucleus-dialog-title">Aviso</h3>
+            <div id="nucleus-dialog-message" class="nucleus-dialog-message"></div>
+            <input id="nucleus-dialog-input" class="nucleus-dialog-input" style="display:none" type="text" />
+            <div class="nucleus-dialog-actions">
+                <button id="nucleus-dialog-cancel" class="nucleus-dialog-btn nucleus-dialog-btn-secondary" type="button" style="display:none">Cancelar</button>
+                <button id="nucleus-dialog-ok" class="nucleus-dialog-btn nucleus-dialog-btn-primary" type="button">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Popup temático — reemplaza alert/confirm/prompt
+    (function(){
+        const overlay = document.getElementById('nucleus-dialog');
+        const titleEl = document.getElementById('nucleus-dialog-title');
+        const msgEl = document.getElementById('nucleus-dialog-message');
+        const inputEl = document.getElementById('nucleus-dialog-input');
+        const okBtn = document.getElementById('nucleus-dialog-ok');
+        const cancelBtn = document.getElementById('nucleus-dialog-cancel');
+        const iconEl = document.getElementById('nucleus-dialog-icon');
+        let _resolve = null;
+        let _type = 'alert';
+
+        function show({type='alert', title='Aviso', message='', defaultValue='', placeholder='', okText='Aceptar', cancelText='Cancelar', icon='fa-circle-info'}){
+            return new Promise(resolve=>{
+                _resolve = resolve;
+                _type = type;
+                titleEl.textContent = title;
+                msgEl.textContent = message;
+                iconEl.innerHTML = '<i class="fa-solid '+icon+'"></i>';
+                if(type==='prompt'){
+                    inputEl.style.display='block';
+                    inputEl.value = defaultValue||'';
+                    inputEl.placeholder = placeholder||'';
+                } else {
+                    inputEl.style.display='none';
+                }
+                okBtn.textContent = okText;
+                cancelBtn.textContent = cancelText;
+                cancelBtn.style.display = (type==='alert') ? 'none' : 'inline-flex';
+                overlay.classList.add('show');
+                overlay.setAttribute('aria-hidden','false');
+                setTimeout(()=>{ (type==='prompt'?inputEl:okBtn).focus(); }, 30);
+                document.body.style.overflow='hidden';
+            });
+        }
+        function close(result){
+            overlay.classList.remove('show');
+            overlay.setAttribute('aria-hidden','true');
+            document.body.style.overflow='';
+            if(_resolve){ const r=_resolve; _resolve=null; r(result); }
+        }
+        okBtn.addEventListener('click', ()=>{
+            if(_type==='prompt') close(inputEl.value);
+            else if(_type==='confirm') close(true);
+            else close(true);
+        });
+        cancelBtn.addEventListener('click', ()=>{
+            if(_type==='prompt') close(null);
+            else close(false);
+        });
+        overlay.addEventListener('click', (e)=>{ if(e.target===overlay) { if(_type==='prompt') close(null); else if(_type==='confirm') close(false); else close(true); } });
+        document.addEventListener('keydown', (e)=>{
+            if(!overlay.classList.contains('show')) return;
+            if(e.key==='Escape'){ e.preventDefault(); if(_type==='prompt') close(null); else if(_type==='confirm') close(false); else close(true); }
+            if(e.key==='Enter' && _type==='prompt'){ e.preventDefault(); close(inputEl.value); }
+            if(e.key==='Enter' && _type!=='prompt'){ e.preventDefault(); if(_type==='confirm') close(true); else close(true); }
+        });
+
+        window.nucleusAlert = (message, title='Aviso') => show({type:'alert', title, message: String(message), okText:'Entendido', icon:'fa-circle-info'});
+        window.nucleusConfirm = (message, title='Confirmar') => show({type:'confirm', title, message: String(message), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-circle-question'});
+        window.nucleusPrompt = (message, defaultValue='', title='Ingresar') => show({type:'prompt', title, message: String(message), defaultValue: String(defaultValue||''), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-pen-to-square'});
+        window._originalAlert = window.alert;
+        window._originalConfirm = window.confirm;
+        window._originalPrompt = window.prompt;
+        // Redirige alert nativo al popup temático (no bloqueante, fire-and-forget)
+        window.alert = function(msg){ try{ nucleusAlert(String(msg)); }catch(e){ window._originalAlert(String(msg)); } };
+    })();
+    </script>
 </body>
 </html>

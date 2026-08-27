@@ -1,0 +1,458 @@
+/* ============================================================
+   NUCLEUS — Neumorphism Preview (reversible)
+   Solo activo cuando body tiene clase .neumorphism
+   No rompe lógica: solo overrides de color / sombra / radio / tipografía
+   ============================================================ */
+
+/* --- Variables suaves (claro) --- */
+body.neumorphism {
+  --ios-bg: #E6ECF5;
+  --ios-fill: #E6ECF5;
+  --ios-card-bg: #E6ECF5;
+  --ios-hairline: rgba(163,177,198,0.18);
+  --ios-label: #1E2A3A;
+  --ios-secondary: #3A4A5E;
+  --excel-bg: #E6ECF5;
+  --excel-border: rgba(163,177,198,0.28);
+  --excel-cell-border: rgba(163,177,198,0.22);
+  --excel-ribbon-bg: #E6ECF5;
+  --tabulator-hover: rgba(0,122,255,0.06);
+  --shadow-soft: 10px 10px 22px rgba(163,177,198,0.55), -10px -10px 22px rgba(255,255,255,0.82);
+  --shadow-card: 7px 7px 16px rgba(163,177,198,0.50), -7px -7px 16px rgba(255,255,255,0.85);
+  --radius: 16px;
+  --radius-lg: 20px;
+}
+
+/* Fondo general */
+body.neumorphism,
+body.neumorphism html {
+  background: #E6ECF5 !important;
+}
+
+/* Sidebar */
+body.neumorphism .app-sidebar {
+  background: #E6ECF5 !important;
+  border-right: none !important;
+  box-shadow: 6px 0 18px rgba(163,177,198,0.38);
+}
+body.neumorphism .sidebar-link {
+  border-radius: 14px;
+  margin: 3px 0;
+}
+body.neumorphism .sidebar-link.active {
+  background: #E6ECF5 !important;
+  color: var(--ios-blue) !important;
+  box-shadow: inset 4px 4px 8px rgba(163,177,198,0.55), inset -4px -4px 8px rgba(255,255,255,0.9);
+  border: none;
+}
+body.neumorphism .sidebar-link.active i { color: var(--ios-blue) !important; }
+body.neumorphism .sidebar-link:hover:not(.active) {
+  background: rgba(255,255,255,0.55) !important;
+  box-shadow: 4px 4px 10px rgba(163,177,198,0.28), -4px -4px 10px rgba(255,255,255,0.7);
+}
+
+/* Topbar / bottombar */
+body.neumorphism .excel-topbar,
+body.neumorphism .excel-bottombar {
+  background: #E6ECF5 !important;
+  border-color: transparent !important;
+  box-shadow: 0 6px 16px rgba(163,177,198,0.28);
+}
+
+/* --- Botones superiores simétricos y con relieve --- */
+body.neumorphism .topbar-badge {
+  background: #E6ECF5 !important;
+  box-shadow: 4px 4px 8px rgba(163,177,198,0.45), -4px -4px 8px rgba(255,255,255,0.85);
+  border: none !important;
+  height: 34px;
+  padding: 0 16px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+body.neumorphism .action-pill {
+  height: 36px;
+  min-width: 96px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.3px;
+  border: none !important;
+  gap: 7px;
+  box-shadow: 5px 5px 10px rgba(163,177,198,0.42), -5px -5px 10px rgba(255,255,255,0.92);
+  transition: all .15s ease;
+}
+body.neumorphism .action-pill i { font-size: 13px; }
+body.neumorphism .action-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 6px 6px 14px rgba(163,177,198,0.48), -6px -6px 14px rgba(255,255,255,0.95);
+  filter: none;
+}
+body.neumorphism .action-pill:active {
+  box-shadow: inset 4px 4px 8px rgba(163,177,198,0.55), inset -4px -4px 8px rgba(255,255,255,0.9) !important;
+  transform: scale(0.98);
+}
+/* Colores con relieve + brillo suave */
+body.neumorphism .pill-blue {
+  background: linear-gradient(135deg, #007AFF, #0062D1) !important;
+  color: #fff !important;
+  box-shadow: 5px 5px 12px rgba(163,177,198,0.45), -5px -5px 12px rgba(255,255,255,0.88), 0 4px 14px rgba(0,122,255,0.28) !important;
+}
+body.neumorphism .pill-teal {
+  background: linear-gradient(135deg, #14B8A6, #0D9488) !important;
+  color: #fff !important;
+  box-shadow: 5px 5px 12px rgba(163,177,198,0.45), -5px -5px 12px rgba(255,255,255,0.88), 0 4px 14px rgba(20,184,166,0.26) !important;
+}
+body.neumorphism .pill-green {
+  background: linear-gradient(135deg, #34C759, #2AAE4A) !important;
+  color: #fff !important;
+  box-shadow: 5px 5px 12px rgba(163,177,198,0.45), -5px -5px 12px rgba(255,255,255,0.88), 0 4px 14px rgba(52,199,89,0.26) !important;
+}
+body.neumorphism .pill-red {
+  background: linear-gradient(135deg, #FF3B30, #E0342A) !important;
+  color: #fff !important;
+  box-shadow: 5px 5px 12px rgba(163,177,198,0.45), -5px -5px 12px rgba(255,255,255,0.88), 0 4px 14px rgba(255,59,48,0.26) !important;
+}
+body.neumorphism .pill-neutral {
+  background: #E6ECF5 !important;
+  color: var(--ios-secondary) !important;
+  box-shadow: 5px 5px 10px rgba(163,177,198,0.42), -5px -5px 10px rgba(255,255,255,0.92) !important;
+}
+body.neumorphism .pill-neutral:hover {
+  box-shadow: 6px 6px 14px rgba(163,177,198,0.48), -6px -6px 14px rgba(255,255,255,0.95) !important;
+}
+
+/* Cards */
+body.neumorphism .wizard-card,
+body.neumorphism .kpi-card,
+body.neumorphism .glass,
+body.neumorphism .tabulator,
+body.neumorphism .mar-modal {
+  background: #E6ECF5 !important;
+  border: none !important;
+  box-shadow: var(--shadow-card) !important;
+  border-radius: 20px !important;
+}
+body.neumorphism .kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 9px 9px 20px rgba(163,177,198,0.55), -9px -9px 20px rgba(255,255,255,0.9) !important;
+}
+
+/* Tabulator */
+body.neumorphism .tabulator-header,
+body.neumorphism .tabulator-col {
+  background: #E6ECF5 !important;
+  border-color: rgba(163,177,198,0.22) !important;
+}
+body.neumorphism .tabulator-row {
+  background: #E6ECF5 !important;
+}
+body.neumorphism .tabulator-row.tabulator-selected {
+  background: rgba(0,122,255,0.08) !important;
+  box-shadow: inset 3px 3px 6px rgba(163,177,198,0.35), inset -3px -3px 6px rgba(255,255,255,0.7) !important;
+}
+
+/* Inputs inset */
+body.neumorphism input[type="text"],
+body.neumorphism input[type="password"],
+body.neumorphism input[type="number"],
+body.neumorphism input[type="date"],
+body.neumorphism input[type="datetime-local"],
+body.neumorphism select,
+body.neumorphism textarea,
+body.neumorphism .nucleus-control {
+  background: #E6ECF5 !important;
+  border: none !important;
+  box-shadow: inset 4px 4px 8px rgba(163,177,198,0.50), inset -4px -4px 8px rgba(255,255,255,0.85) !important;
+  border-radius: 14px !important;
+}
+body.neumorphism input:focus,
+body.neumorphism select:focus,
+body.neumorphism textarea:focus,
+body.neumorphism .nucleus-control:focus {
+  box-shadow: inset 5px 5px 10px rgba(163,177,198,0.55), inset -5px -5px 10px rgba(255,255,255,0.9), 0 0 0 3px rgba(0,122,255,0.12) !important;
+}
+body.neumorphism .btn-action {
+  background: linear-gradient(135deg, #007AFF, #5856D6) !important;
+  box-shadow: 6px 6px 14px rgba(163,177,198,0.50), -6px -6px 14px rgba(255,255,255,0.85), 0 6px 16px rgba(0,122,255,0.28) !important;
+  border-radius: 14px !important;
+}
+
+/* Evidencia */
+body.neumorphism .evidencia-slot {
+  background: #E6ECF5 !important;
+  border: none !important;
+  box-shadow: inset 4px 4px 8px rgba(163,177,198,0.45), inset -4px -4px 8px rgba(255,255,255,0.85);
+  border-radius: 16px;
+}
+body.neumorphism .evidencia-slot.has-img {
+  box-shadow: 5px 5px 12px rgba(163,177,198,0.45), -5px -5px 12px rgba(255,255,255,0.85);
+  border: none !important;
+}
+body.neumorphism .evidencia-fotos.drag-over {
+  background: rgba(0,122,255,0.06) !important;
+  box-shadow: inset 4px 4px 10px rgba(163,177,198,0.45), inset -4px -4px 10px rgba(255,255,255,0.85) !important;
+  border-color: rgba(0,122,255,0.22) !important;
+}
+
+/* Dropdowns */
+body.neumorphism .dropdown-content,
+body.neumorphism .col-visibility-menu,
+body.neumorphism .custom-autocomplete {
+  background: #E6ECF5 !important;
+  border: none !important;
+  box-shadow: var(--shadow-soft) !important;
+  border-radius: 18px !important;
+}
+
+body.neumorphism { letter-spacing: 0.15px; }
+body.neumorphism .wizard-title,
+body.neumorphism .evidencia-titulo { letter-spacing: -0.3px; font-weight: 800; }
+body.neumorphism ::-webkit-scrollbar-thumb { background: rgba(163,177,198,0.45); }
+
+/* ===== LOGIN ===== */
+body.neumorphism .login-wrap { background: #E6ECF5 !important; }
+body.neumorphism .login-wrap::before,
+body.neumorphism .login-wrap::after { opacity: 0.22; }
+body.neumorphism .login-card {
+  background: #E6ECF5 !important;
+  border: none !important;
+  box-shadow: 12px 12px 24px rgba(163,177,198,0.55), -12px -12px 24px rgba(255,255,255,0.88) !important;
+  border-radius: 26px !important;
+}
+body.neumorphism .login-logo {
+  background: #E6ECF5 !important;
+  box-shadow: 6px 6px 12px rgba(163,177,198,0.50), -6px -6px 12px rgba(255,255,255,0.9) !important;
+}
+body.neumorphism .login-field input {
+  background: #E6ECF5 !important;
+  border: none !important;
+  box-shadow: inset 4px 4px 8px rgba(163,177,198,0.50), inset -4px -4px 8px rgba(255,255,255,0.85) !important;
+}
+body.neumorphism .login-btn {
+  border-radius: 14px !important;
+  box-shadow: 6px 6px 14px rgba(163,177,198,0.50), -6px -6px 14px rgba(255,255,255,0.85), 0 8px 20px rgba(0,122,255,0.32) !important;
+}
+body.neumorphism .login-btn:active {
+  box-shadow: inset 4px 4px 8px rgba(0,0,0,0.18), 0 4px 10px rgba(0,122,255,0.22) !important;
+}
+
+/* ============================================================
+   DARK + NEUMORPHISM — contraste corregido
+   ============================================================ */
+body.dark-mode.neumorphism {
+  --ios-bg: #181C24;
+  --ios-fill: #1E232F;
+  --ios-card-bg: #1E232F;
+  --ios-label: #E8ECF5;
+  --ios-secondary: #A8B0C4;
+  --ios-hairline: rgba(255,255,255,0.07);
+  --ios-blue-light: #1A2E4A;
+  --excel-bg: #1E232F;
+  --excel-border: rgba(255,255,255,0.08);
+  --excel-cell-border: rgba(255,255,255,0.06);
+  --excel-ribbon-bg: #1E232F;
+  --tabulator-hover: rgba(255,255,255,0.06);
+  --shadow-soft: 10px 10px 22px rgba(0,0,0,0.58), -10px -10px 22px rgba(42,48,66,0.45);
+  --shadow-card: 7px 7px 16px rgba(0,0,0,0.55), -7px -7px 16px rgba(42,48,66,0.38);
+  background: #181C24 !important;
+}
+body.dark-mode.neumorphism,
+body.dark-mode.neumorphism html {
+  background: #181C24 !important;
+}
+body.dark-mode.neumorphism .app-sidebar {
+  background: #181C24 !important;
+  box-shadow: 6px 0 18px rgba(0,0,0,0.55);
+  border-right: 1px solid rgba(255,255,255,0.06) !important;
+}
+body.dark-mode.neumorphism .sidebar-link { color: #C8D0E0 !important; }
+body.dark-mode.neumorphism .sidebar-link.active {
+  background: #1E232F !important;
+  color: #3B82F6 !important;
+  box-shadow: inset 4px 4px 8px rgba(0,0,0,0.55), inset -4px -4px 8px rgba(52,58,78,0.45) !important;
+}
+body.dark-mode.neumorphism .sidebar-link:hover:not(.active) {
+  background: rgba(255,255,255,0.06) !important;
+  box-shadow: 4px 4px 10px rgba(0,0,0,0.38), -4px -4px 10px rgba(45,50,66,0.28) !important;
+  color: #E8ECF5 !important;
+}
+body.dark-mode.neumorphism .excel-topbar,
+body.dark-mode.neumorphism .excel-bottombar {
+  background: #1E232F !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+  border-color: rgba(255,255,255,0.06) !important;
+}
+body.dark-mode.neumorphism .topbar-badge {
+  background: #1E232F !important;
+  color: #8BB4FF !important;
+  box-shadow: 4px 4px 8px rgba(0,0,0,0.5), -4px -4px 8px rgba(52,58,78,0.42) !important;
+}
+body.dark-mode.neumorphism .action-pill {
+  box-shadow: 5px 5px 10px rgba(0,0,0,0.5), -5px -5px 10px rgba(52,58,78,0.42) !important;
+}
+body.dark-mode.neumorphism .pill-neutral {
+  background: #1E232F !important;
+  color: #C8D0E0 !important;
+}
+body.dark-mode.neumorphism .pill-blue { background: linear-gradient(135deg, #0A84FF, #0066CC) !important; }
+body.dark-mode.neumorphism .pill-teal { background: linear-gradient(135deg, #14B8A6, #0F8A7A) !important; }
+body.dark-mode.neumorphism .pill-green { background: linear-gradient(135deg, #30D158, #28A745) !important; }
+body.dark-mode.neumorphism .pill-red { background: linear-gradient(135deg, #FF453A, #CC2F2B) !important; }
+
+body.dark-mode.neumorphism .wizard-card,
+body.dark-mode.neumorphism .kpi-card,
+body.dark-mode.neumorphism .glass,
+body.dark-mode.neumorphism .tabulator,
+body.dark-mode.neumorphism .mar-modal {
+  background: #1E232F !important;
+  box-shadow: var(--shadow-card) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+}
+body.dark-mode.neumorphism .kpi-card { border: 1px solid rgba(255,255,255,0.05) !important; }
+body.dark-mode.neumorphism .tabulator-header,
+body.dark-mode.neumorphism .tabulator-col { background: #1E232F !important; border-color: rgba(255,255,255,0.06) !important; }
+body.dark-mode.neumorphism .tabulator-col-title { color: #A8B0C4 !important; }
+body.dark-mode.neumorphism .tabulator-row { background: #1E232F !important; color: #E8ECF5 !important; }
+body.dark-mode.neumorphism .tabulator-cell { color: #E0E6F0 !important; border-color: rgba(255,255,255,0.06) !important; }
+body.dark-mode.neumorphism .tabulator-row.tabulator-selected { background: rgba(10,132,255,0.16) !important; }
+body.dark-mode.neumorphism ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); }
+body.dark-mode.neumorphism ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.24); }
+
+body.dark-mode.neumorphism input[type="text"],
+body.dark-mode.neumorphism input[type="password"],
+body.dark-mode.neumorphism input[type="number"],
+body.dark-mode.neumorphism input[type="date"],
+body.dark-mode.neumorphism input[type="datetime-local"],
+body.dark-mode.neumorphism select,
+body.dark-mode.neumorphism textarea,
+body.dark-mode.neumorphism .nucleus-control,
+body.dark-mode.neumorphism .tabulator-header-filter input {
+  background: #1E232F !important;
+  color: #E8ECF5 !important;
+  box-shadow: inset 4px 4px 8px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(52,58,78,0.42) !important;
+  border: none !important;
+}
+body.dark-mode.neumorphism .evidencia-slot {
+  background: #1E232F !important;
+  box-shadow: inset 4px 4px 8px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(52,58,78,0.38) !important;
+}
+body.dark-mode.neumorphism .evidencia-slot.has-img {
+  box-shadow: 5px 5px 12px rgba(0,0,0,0.5), -5px -5px 12px rgba(52,58,78,0.42) !important;
+}
+body.dark-mode.neumorphism .login-wrap { background: #181C24 !important; }
+body.dark-mode.neumorphism .login-card {
+  background: #1E232F !important;
+  box-shadow: 12px 12px 24px rgba(0,0,0,0.6), -12px -12px 24px rgba(42,48,66,0.45) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+}
+body.dark-mode.neumorphism .login-field input {
+  background: #1E232F !important;
+  color: #E8ECF5 !important;
+  box-shadow: inset 4px 4px 8px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(52,58,78,0.42) !important;
+}
+
+/* ============================================================
+   DIALOG / POPUP — acorde al tema (iOS + neumorphism claro/oscuro)
+   ============================================================ */
+.nucleus-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40000;
+  background: rgba(10,14,22,0.42);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  backdrop-filter: blur(10px) saturate(130%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+.nucleus-dialog-overlay.show { opacity: 1; pointer-events: auto; }
+.nucleus-dialog-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--ios-card-bg, #fff);
+  border: 1px solid var(--ios-hairline);
+  border-radius: 22px;
+  padding: 26px 24px 20px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.22), 0 8px 24px rgba(0,0,0,0.12);
+  transform: translateY(10px) scale(.98);
+  transition: transform .18s ease;
+}
+.nucleus-dialog-overlay.show .nucleus-dialog-card { transform: none; }
+body.neumorphism .nucleus-dialog-card {
+  background: #E6ECF5;
+  border: none;
+  box-shadow: 12px 12px 24px rgba(163,177,198,0.55), -12px -12px 24px rgba(255,255,255,0.88);
+}
+body.dark-mode.neumorphism .nucleus-dialog-card {
+  background: #1E232F;
+  box-shadow: 12px 12px 26px rgba(0,0,0,0.62), -12px -12px 26px rgba(42,48,66,0.42);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.nucleus-dialog-icon {
+  width: 42px; height: 42px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; margin-bottom: 14px;
+  background: var(--ios-blue-light);
+  color: var(--ios-blue);
+}
+body.neumorphism .nucleus-dialog-icon {
+  background: #E6ECF5;
+  box-shadow: inset 3px 3px 6px rgba(163,177,198,0.5), inset -3px -3px 6px rgba(255,255,255,0.9);
+}
+body.dark-mode.neumorphism .nucleus-dialog-icon {
+  background: #1E232F;
+  box-shadow: inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(52,58,78,0.38);
+  color: #3B82F6;
+}
+.nucleus-dialog-title { font-size: 16px; font-weight: 800; color: var(--ios-label); margin: 0 0 8px; letter-spacing: -0.2px; }
+.nucleus-dialog-message { font-size: 13.5px; line-height: 1.55; color: var(--ios-secondary); white-space: pre-line; word-break: break-word; }
+.nucleus-dialog-input {
+  width: 100%; margin-top: 16px;
+  height: 42px; border-radius: 12px; padding: 0 14px;
+  font-size: 14px; font-family: inherit; outline: none;
+  border: 1px solid var(--excel-border); background: var(--excel-bg); color: var(--ios-label);
+}
+body.neumorphism .nucleus-dialog-input {
+  border: none !important;
+  background: #E6ECF5 !important;
+  box-shadow: inset 4px 4px 8px rgba(163,177,198,0.5), inset -4px -4px 8px rgba(255,255,255,0.9) !important;
+}
+body.dark-mode.neumorphism .nucleus-dialog-input {
+  background: #1E232F !important; color: #E8ECF5 !important;
+  box-shadow: inset 4px 4px 8px rgba(0,0,0,0.5), inset -4px -4px 8px rgba(52,58,78,0.42) !important;
+}
+.nucleus-dialog-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px; flex-wrap: wrap; }
+.nucleus-dialog-btn {
+  min-width: 96px; height: 40px; padding: 0 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.2px;
+  border: none; cursor: pointer; transition: all .15s ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.nucleus-dialog-btn:active { transform: scale(0.98); }
+.nucleus-dialog-btn-secondary {
+  background: var(--ios-fill); color: var(--ios-label);
+  border: 1px solid var(--ios-hairline);
+}
+body.neumorphism .nucleus-dialog-btn-secondary {
+  background: #E6ECF5; border: none;
+  box-shadow: 4px 4px 8px rgba(163,177,198,0.45), -4px -4px 8px rgba(255,255,255,0.9);
+}
+body.dark-mode.neumorphism .nucleus-dialog-btn-secondary {
+  background: #1E232F; color:#C8D0E0; border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 4px 4px 8px rgba(0,0,0,0.5), -4px -4px 8px rgba(52,58,78,0.38);
+}
+.nucleus-dialog-btn-primary {
+  background: linear-gradient(135deg, #007AFF, #5856D6); color: #fff;
+  box-shadow: 0 6px 14px rgba(0,122,255,0.32);
+}
+body.neumorphism .nucleus-dialog-btn-primary {
+  box-shadow: 5px 5px 10px rgba(163,177,198,0.45), -5px -5px 10px rgba(255,255,255,0.9), 0 6px 14px rgba(0,122,255,0.28);
+}
+body.dark-mode.neumorphism .nucleus-dialog-btn-primary {
+  box-shadow: 0 6px 14px rgba(0,122,255,0.35);
+}

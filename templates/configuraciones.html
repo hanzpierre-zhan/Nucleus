@@ -28,7 +28,7 @@
 
 {% block scripts %}
 <script>
-    function loadData() {
+    async function loadData() {
         // Check if project needs initialization
         fetch('/api/admin/columnas?pid={{ session.get("current_proyecto_id") }}').then(r=>r.json()).then(cols => {
             if (cols.length === 0) {
@@ -37,11 +37,11 @@
         });
     }
 
-    function initManualProject() {
+    async function initManualProject() {
         const pk = document.getElementById('init-pk-name').value.trim();
         if (!pk) return alert("Debes ingresar un nombre para la columna principal.");
 
-        if (!confirm(`¿Inicializar proyecto con la columna principal "${pk}"?`)) return;
+        if (!await nucleusConfirm(`¿Inicializar proyecto con la columna principal "${pk}"?`)) return;
 
         fetch('/api/config/init_manual', {
             method: 'POST',

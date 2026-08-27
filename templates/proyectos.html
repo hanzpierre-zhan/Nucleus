@@ -101,8 +101,8 @@
 </div>
 
 <script>
-function eliminarProyecto(id, nombre) {
-    if(!confirm(`¿Estás SEGURO de eliminar el proyecto "${nombre}"?\n\n¡SE BORRARÁN TODOS SUS DATOS E IMPORTACIONES DE FORMA IRREVERSIBLE!`)) return;
+async function eliminarProyecto(id, nombre) {
+    if(!await nucleusConfirm(`¿Estás SEGURO de eliminar el proyecto "${nombre}"?\n\n¡SE BORRARÁN TODOS SUS DATOS E IMPORTACIONES DE FORMA IRREVERSIBLE!`)) return;
 
     fetch('/api/admin/proyecto', {
         method: 'DELETE',
@@ -114,7 +114,7 @@ function eliminarProyecto(id, nombre) {
     });
 }
 
-function cargarTecnicos() {
+async function cargarTecnicos() {
     const pid = document.getElementById('tecnico-proj-id').value;
     const form = document.getElementById('form-nuevo-tecnico');
     const container = document.getElementById('tecnicos-lista-container');
@@ -157,7 +157,7 @@ function cargarTecnicos() {
         });
 }
 
-function agregarTecnico() {
+async function agregarTecnico() {
     const pid = document.getElementById('tecnico-proj-id').value;
     const nombre = document.getElementById('tec-nombre').value;
     const contrata = document.getElementById('tec-contrata').value;
@@ -184,8 +184,8 @@ function agregarTecnico() {
     });
 }
 
-function eliminarTecnico(id) {
-    if(!confirm("¿Eliminar este técnico?")) return;
+async function eliminarTecnico(id) {
+    if(!await nucleusConfirm("¿Eliminar este técnico?")) return;
     fetch('/api/tecnicos', {
         method: 'DELETE',
         headers: {'Content-Type': 'application/json'},
