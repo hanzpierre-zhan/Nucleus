@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 from functools import wraps
 import io
 import re
+import zipfile
 from datetime import datetime, timedelta
 from collections import Counter
 from PIL import Image, ImageOps
@@ -3606,6 +3607,68 @@ def api_evidencia_foto(pid, key, nombre):
             return jsonify({'error': 'No encontrado'}), 404
     folder = evidencia_folder(pid, key)
     return send_from_directory(folder, nombre, max_age=604800)
+
+@app.route('/api/evidencia/zip/<int:pid>/<path:key>')
+@login_required
+def api_evidencia_zip(pid, key):
+    if pid != session.get('current_proyecto_id'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    key = (key or '').strip()
+    if not key:
+        return jsonify({'error': 'Ticket sin clave'}), 400
+    # Sanitizar para evitar path traversal
+    if '/' in key or '\\' in key or '..' in key:
+        return jsonify({'error': 'Clave inválida'}), 400
+    zip_buf = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        if evidencia_usa_b2():
+            try:
+                client = b2_cliente()
+                bucket = app.config['B2_BUCKET']
+                resp = client.list_objects_v2(Bucket=bucket, Prefix=f'{key}/')
+                for obj in resp.get('Contents', []):
+                    k = obj['Key']
+                    # solo archivos de evidencia de este ticket
+                    fname = os.path.basename(k)
+                    if not fname:
+                        continue
+                    # opcional: filtrar por tipos conocidos
+                    if not any(fname.startswith(t + '_') for t in EVIDENCIA_TIPOS) and not fname.startswith('comb_'):
+                        # incluir igual si está bajo el prefijo
+                        pass
+                    try:
+                        data = client.get_object(Bucket=bucket, Key=k)['Body'].read()
+                    except Exception:
+                        continue
+                    # Guardar en zip con carpeta por clave
+                    arcname = f'{key}/{fname}'
+                    zf.writestr(arcname, data)
+                    count += 1
+            except Exception as e:
+                return jsonify({'error': f'Error B2: {e}'}), 500
+        else:
+            folder = evidencia_folder(pid, key)
+            if os.path.isdir(folder):
+                for fp in glob.glob(os.path.join(folder, '*.*')):
+                    if not os.path.isfile(fp):
+                        continue
+                    fname = os.path.basename(fp)
+                    try:
+                        with open(fp, 'rb') as f:
+                            data = f.read()
+                    except Exception:
+                        continue
+                    zf.writestr(f'{key}/{fname}', data)
+                    count += 1
+    if count == 0:
+        return jsonify({'error': 'No hay fotos cargadas para este ticket'}), 404
+    zip_buf.seek(0)
+    return Response(
+        zip_buf.getvalue(),
+        mimetype='application/zip',
+        headers={'Content-Disposition': f'attachment; filename="evidencia_{secure_filename(key)}.zip"'}
+    )
 
 @app.route('/healthz')
 def healthz():

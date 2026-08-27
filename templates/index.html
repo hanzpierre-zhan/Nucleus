@@ -1367,6 +1367,28 @@
         border-color: var(--ios-blue);
     }
 
+    .wo-zip-btn {
+        margin-left: auto;
+        background: linear-gradient(135deg, #007AFF, #5856D6);
+        border: none;
+        color: #fff;
+        height: 28px;
+        padding: 0 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 4px 12px rgba(0,122,255,0.28);
+        transition: all .15s ease;
+    }
+    .wo-zip-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,122,255,0.36); }
+    .wo-zip-btn:active { transform: translateY(0) scale(0.98); }
+    .wo-zip-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
     .evidencia-titulo {
         margin-top: 18px;
         font-size: 13px;
@@ -1957,7 +1979,9 @@
             </div>
             <div id="wo-panel-evidencia" style="display:none;">
                 <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Evidencia fotográfica</div>
+                    <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Evidencia fotográfica
+                        <button type="button" id="btn-evidencia-zip" class="wo-zip-btn" onclick="descargarEvidenciaZip()" title="Descargar todas las fotos en ZIP"><i class="fa-solid fa-file-zipper"></i> Descargar ZIP</button>
+                    </div>
 
                     <div class="evidencia-titulo"><i class="fa-solid fa-play"></i> Tiempo Inicio</div>
                     <div class="evidencia-fotos" id="evidencia-fotos-inicio"></div>
@@ -2065,6 +2089,7 @@
     const woList = {{ wo_list | safe }};
     const changedKeys = new Set({{ changed_keys | safe }});
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
+    const currentProjectId = {{ session.get('current_proyecto_id', 0) }};
     const USER_ROLE = "{{ session.get('rol') }}";
     const USER_IS_ADMIN = USER_ROLE === "admin";
     const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
@@ -5422,6 +5447,37 @@
             })
             .catch(() => alert('Error de red al eliminar la foto.'))
             .finally(() => renderEvidenciaGrupo(tipo));
+    }
+
+    function descargarEvidenciaZip() {
+        if (!woKey) { nucleusAlert('No hay ticket seleccionado.'); return; }
+        const hasAny = EVIDENCIA_TIPOS.some(t => evidenciaState && evidenciaState[t] && evidenciaState[t].fotos.some(Boolean));
+        if (!hasAny) { nucleusAlert('No hay fotos cargadas para descargar.'); return; }
+        const btn = document.getElementById('btn-evidencia-zip');
+        const old = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...'; }
+        const pid = (typeof currentProjectId !== 'undefined' && currentProjectId) ? currentProjectId : 0;
+        fetch('/api/evidencia/zip/' + pid + '/' + encodeURIComponent(woKey))
+            .then(async r => {
+                if (!r.ok) {
+                    let msg = 'Error al generar ZIP';
+                    try { const j = await r.json(); msg = j.error || msg; } catch(e) {}
+                    throw new Error(msg);
+                }
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'evidencia_' + String(woKey).replace(/[^a-zA-Z0-9_-]/g,'_') + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => nucleusAlert(err.message || 'Error al generar ZIP'))
+            .finally(() => { if (btn) { btn.disabled = false; btn.innerHTML = old; } });
     }
 
     function abrirEvidenciaFoto(url) {
