@@ -1386,6 +1386,15 @@
         grid-template-columns: repeat(5, 1fr);
         gap: 10px;
         margin-top: 10px;
+        padding: 4px;
+        border-radius: 14px;
+        border: 2px dashed transparent;
+        transition: border-color .15s, background .15s;
+    }
+
+    .evidencia-fotos.drag-over {
+        border-color: var(--ios-blue);
+        background: rgba(0, 122, 255, 0.06);
     }
 
     .evidencia-slot {
@@ -5313,6 +5322,7 @@
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = 'image/*';
+                    input.multiple = true;
                     input.style.display = 'none';
                     slot.appendChild(input);
                     slot.addEventListener('click', () => {
@@ -5320,13 +5330,49 @@
                         input.click();
                     });
                     input.addEventListener('change', () => {
-                        if (input.files && input.files[0]) evidenciaSubir(tipo, i, input.files[0]);
+                        if (input.files && input.files.length) evidenciaSubirMultiples(tipo, i, input.files);
                         input.value = '';
                     });
                 }
             }
             cont.appendChild(slot);
         }
+        // Drag & drop sobre toda la fila (arrastrar desde WhatsApp / carpeta)
+        if (editable && !cont.dataset.dragInit) {
+            cont.dataset.dragInit = '1';
+            cont.addEventListener('dragover', e => { e.preventDefault(); cont.classList.add('drag-over'); });
+            cont.addEventListener('dragleave', e => { if (!cont.contains(e.relatedTarget)) cont.classList.remove('drag-over'); });
+            cont.addEventListener('drop', e => {
+                e.preventDefault();
+                cont.classList.remove('drag-over');
+                if (!editable || !evidenciaState) return;
+                const files = e.dataTransfer && e.dataTransfer.files;
+                if (files && files.length) {
+                    // buscar primer hueco libre para usar como base
+                    let firstEmpty = 0;
+                    for (let k = 0; k < 5; k++) if (!evidenciaState[tipo].fotos[k]) { firstEmpty = k; break; }
+                    evidenciaSubirMultiples(tipo, firstEmpty, files);
+                }
+            });
+        } else if (!editable) {
+            cont.classList.remove('drag-over');
+        }
+    }
+
+    function evidenciaSubirMultiples(tipo, indiceBase, fileList) {
+        if (!evidenciaState || !evidenciaState[tipo]) return;
+        const files = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
+        if (!files.length) { alert('Selecciona archivos de imagen.'); return; }
+        const st = evidenciaState[tipo];
+        // huecos libres
+        let empty = [];
+        for (let k = 0; k < 5; k++) if (!st.fotos[k]) empty.push(k);
+        // priorizar indiceBase si está libre
+        if (empty.includes(indiceBase)) empty = [indiceBase, ...empty.filter(x => x !== indiceBase)];
+        else if (empty.length === 0) { alert('No hay espacios libres en ' + tipo + ' (máximo 5). Elimina alguna foto primero.'); return; }
+        const aSubir = files.slice(0, empty.length);
+        if (files.length > empty.length) alert('Solo se subirán ' + empty.length + ' de ' + files.length + ' fotos (máximo 5 por bloque).');
+        aSubir.forEach((f, idx) => evidenciaSubir(tipo, empty[idx], f));
     }
 
     function evidenciaSubir(tipo, indice, file) {

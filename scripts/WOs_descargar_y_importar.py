@@ -214,7 +214,9 @@ def limpiar_descargas():
     for f in os.listdir(CARPETA):
         if (f.lower().endswith((".xlsx", ".xls", ".csv", ".zip"))
                 and not f.lower().startswith("wos list flm")
-                and not f.lower().startswith("wos list pext")):
+                and not f.lower().startswith("wos list pext")
+                and not f.lower().startswith("nucleus_site")
+                and not f.lower().startswith("cobra sites")):
             try:
                 os.remove(os.path.join(CARPETA, f))
                 print("  Eliminado archivo anterior:", f)
@@ -267,7 +269,7 @@ def abrir_dashboard(driver):
         print("Dashboard cargado.")
 
 
-def descargar_wo(driver, nombre_final, departamentos, categoria):
+def descargar_wo(driver, nombre_final, departamentos, categoria, dias_atras=3):
     """Rellena filtros, busca, exporta todo y renombra al nombre estandar."""
     print("Abriendo panel de filtros...")
     btn_filtros = esperar_elemento(driver, By.CSS_SELECTOR, "span.form-arrow-down",
@@ -278,11 +280,13 @@ def descargar_wo(driver, nombre_final, departamentos, categoria):
 
     print("Rellenando filtros...")
     seleccionar_dropdown(driver, "#wo_type_filter", "CM")
-    seleccionar_dropdown(driver, "#department_filter", departamentos)
-    seleccionar_dropdown(driver, "#genericfield2", categoria)
+    if departamentos:
+        seleccionar_dropdown(driver, "#department_filter", departamentos)
+    if categoria:
+        seleccionar_dropdown(driver, "#genericfield2", categoria)
 
     ahora = datetime.now()
-    inicio = ahora - timedelta(days=3)
+    inicio = ahora - timedelta(days=dias_atras)
     print("Rellenando fechas de creacion...")
     configurar_fecha(driver, "#creation_date_start_filter", inicio, True)
     time.sleep(1)
@@ -487,6 +491,44 @@ def importar_en_nucleus(driver, ruta_archivo, proyecto_nombre, proyecto_id, ya_l
     return True
 
 
+def filtrar_por_sitios_cobra(ruta_excel):
+    print("Filtrando archivo por sitios Nucleus_SITE:", ruta_excel)
+    try:
+        import pandas as pd
+        ruta_cobra = os.path.join(CARPETA, "Nucleus_SITE.xlsx")
+        
+        df_cobra = pd.read_excel(ruta_cobra, sheet_name="Data")
+        col_site_cobra = "NOMBRE SITE"
+        if col_site_cobra not in df_cobra.columns:
+            # Fallback a búsqueda dinámica si no existe exactamente "NOMBRE SITE"
+            col_site_cobra = next((c for c in df_cobra.columns if 'NOMBRE' in str(c).upper() and 'SITE' in str(c).upper()), None)
+            
+        if not col_site_cobra:
+            print("[AVISO] No se encontró columna NOMBRE SITE en Nucleus_SITE.xlsx")
+            return
+            
+        sitios_cobra = set(df_cobra[col_site_cobra].dropna().astype(str).str.strip().str.upper())
+        
+        df_wo = pd.read_excel(ruta_excel)
+        # Buscar columna de site en el excel descargado
+        col_site_wo = next((c for c in df_wo.columns if 'NOMBRE' in str(c).upper() and 'SITE' in str(c).upper()), None)
+        if not col_site_wo:
+            col_site_wo = next((c for c in df_wo.columns if 'SITE' in str(c).upper()), None)
+            
+        if not col_site_wo:
+            print("[AVISO] No se encontró columna de Site en el archivo descargado")
+            return
+            
+        df_wo['site_temp_upper'] = df_wo[col_site_wo].astype(str).str.strip().str.upper()
+        df_wo_filtrado = df_wo[df_wo['site_temp_upper'].isin(sitios_cobra)].copy()
+        df_wo_filtrado.drop(columns=['site_temp_upper'], inplace=True)
+        
+        df_wo_filtrado.to_excel(ruta_excel, index=False)
+        print(f"Archivo filtrado guardado. Filas resultantes: {len(df_wo_filtrado)} de {len(df_wo)} originales.")
+    except Exception as e:
+        print("Error al filtrar por sitios Nucleus_SITE:", e)
+
+
 def fase_descargar_flm():
     """Fase 1: descarga WOs List FLM en su propia sesion de Chrome."""
     print("\n========== FASE 1/3: DESCARGAR FLM ==========")
@@ -494,15 +536,23 @@ def fase_descargar_flm():
     try:
         login_teleows(driver)
         abrir_dashboard(driver)
+        # =========================================================
+        # MARCADOR: CRITERIOS DE FILTRO FLM
+        # =========================================================
+        # Aquí puedes modificar los filtros específicos para FLM:
+        # - departamentos: Lista de departamentos o None para quitar filtro
+        # - categoria: Nombre de categoría o None para quitar filtro
+        # - dias_atras: Días a retroceder desde la fecha actual
         ruta = descargar_wo(
             driver,
             nombre_final="WOs List FLM",
-            departamentos=["HUANUCO", "PASCO", "JUNIN", "HUANCAVELICA", "ICA",
-                           "CUSCO", "PUNO", "AREQUIPA", "TACNA", "APURIMAC",
-                           "AYACUCHO", "MADRE DE DIOS", "MOQUEGUA"],
-            categoria="O&M CRM")
+            departamentos=None,
+            categoria=None,
+            dias_atras=2)
+        # =========================================================
         if ruta and os.path.exists(ruta):
             print("OK: FLM descargado en", ruta)
+            filtrar_por_sitios_cobra(ruta)
             return ruta
         print("[ERROR] FLM no se descargo correctamente.")
         return None
@@ -517,11 +567,16 @@ def fase_descargar_pext():
     try:
         login_teleows(driver)
         abrir_dashboard(driver)
+        # =========================================================
+        # MARCADOR: CRITERIOS DE FILTRO PEXT
+        # =========================================================
+        # Aquí puedes modificar los filtros específicos para PEXT:
         ruta = descargar_wo(
             driver,
             nombre_final="WOs List PEXT",
             departamentos=["LIMA", "ICA", "AREQUIPA"],
             categoria="O&M PEXT")
+        # =========================================================
         if ruta and os.path.exists(ruta):
             print("OK: PEXT descargado en", ruta)
             return ruta
