@@ -774,7 +774,6 @@ with app.app_context():
         cot_cols = [
             {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
             {'nombre': 'N° COTIZACION', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'TICKET', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NUMERO WO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NOMBRE SITE', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SITE', 'tipo': 'texto', 'opciones': []},
@@ -4468,8 +4467,8 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     else:
         logo_cell.append(Paragraph('<b>cobra</b>', ParagraphStyle(
             'lg', fontName='Helvetica-Bold', fontSize=22, leading=24, textColor=NAVY)))
-    logo_cell.append(Paragraph('<b>Supplier name and RUC No</b>', ParagraphStyle(
-        'sn', fontName='Helvetica-Bold', fontSize=8, leading=10)))
+    logo_cell.append(Paragraph('COBRA PERU S.A.C. — RUC 20253881438', ParagraphStyle(
+        'ruc', fontName='Helvetica', fontSize=7, leading=9, textColor=colors.HexColor('#333333'))))
 
     fecha_str = _fecha_larga_es()
     num_para = Paragraph(f'<b>N° COTIZACIÓN :&nbsp;&nbsp;&nbsp;&nbsp;{safe_str(numero)}</b>',
@@ -4520,16 +4519,16 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     story.append(hdr_tbl)
     story.append(Spacer(1, 3 * mm))
 
-    # ---- TABLA DE ITEMS ----
+    # ---- TABLA DE ITEMS ---- (ajustado para que REEMBOLSABLE no se corte)
     col_correl = W * 0.065
-    col_tipo = W * 0.09
-    col_texto = W * 0.27
+    col_tipo = W * 0.11
+    col_texto = W * 0.26
     col_und = W * 0.055
     col_cant = W * 0.065
     col_vu = W * 0.10
     col_fee = W * 0.06
     col_vt = W * 0.115
-    col_coment = W * 0.18
+    col_coment = W * 0.17
     it_cols = [col_correl, col_tipo, col_texto, col_und, col_cant, col_vu, col_fee, col_vt, col_coment]
 
     it_header = [

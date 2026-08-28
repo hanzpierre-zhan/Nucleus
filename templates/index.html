@@ -109,6 +109,39 @@
         overflow: hidden;
         animation: mar-in .18s ease;
     }
+    .mar-modal.modal-cotizaciones {
+        max-width: 1100px;
+        width: 95vw;
+    }
+    /* Cotizaciones: textarea para textos largos con mejor visibilidad */
+    .wo-cobra-row textarea.wo-cobra-texto,
+    .wo-cobra-row textarea.wo-cobra-coment {
+        min-height: 36px;
+        max-height: 80px;
+        resize: vertical;
+        padding: 8px 10px;
+        line-height: 1.4;
+        font-size: 13px;
+        border-radius: 10px;
+        border: 1px solid var(--excel-border);
+        background: var(--excel-bg);
+        font-family: inherit;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .wo-cobra-row textarea.wo-cobra-texto:focus,
+    .wo-cobra-row textarea.wo-cobra-coment:focus {
+        border-color: var(--ios-blue);
+        box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+        outline: none;
+        z-index: 2;
+        position: relative;
+    }
+    /* Grid más ancho para cotizaciones cuando modal es ancho */
+    .modal-cotizaciones .wo-cobra-row {
+        grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 2.8fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 1.1fr) minmax(0, 0.6fr) minmax(0, 1.1fr) minmax(0, 1.8fr) 32px;
+    }
 
     @keyframes mar-in {
         from {
@@ -3998,6 +4031,8 @@
 
         const body = document.getElementById('mar-fields');
         body.innerHTML = '';
+        const _mEl0 = document.querySelector('#modal-add-registro .mar-modal');
+        if (_mEl0 && currentProjectNombre.trim().toLowerCase() !== 'cotizaciones') _mEl0.classList.remove('modal-cotizaciones');
 
         // Combustible: modal personalizado (MOVIMIENTO, TIPO auto según la QR ASIGNADO,
         // WO buscador, GESTOR automático). Se construye antes del flujo genérico.
@@ -4369,6 +4404,8 @@
 
     // ===== Cotizaciones: modal personalizado (mismo esquema del formato Cobra) =====
     function aniadirRegistroCotizaciones(body) {
+        const _modalEl = document.querySelector('#modal-add-registro .mar-modal');
+        if (_modalEl) _modalEl.classList.add('modal-cotizaciones');
         function mkField(nombre, el, dataField, extra) {
             const wrap = document.createElement('div');
             wrap.className = 'mar-field';
@@ -4417,9 +4454,6 @@
         numWrap.appendChild(numBadge);
         numWrap.appendChild(numHidden);
         body.appendChild(numWrap);
-
-        // Campos del formato Cobra
-        mkTxt('TICKET', 'TICKET', 'CM-AAAAMMDD-XXXXXXX');
 
         // SUPERVISOR: Lista desplegable con supervisores autorizados
         const selSupervisor = document.createElement('select');
@@ -4559,11 +4593,14 @@
         selTipo.value = datos.tipo || '';
         row.appendChild(selTipo);
 
-        const txtInp = document.createElement('input');
-        txtInp.type = 'text';
+        const txtInp = document.createElement('textarea');
         txtInp.className = 'wo-cobra-texto';
         txtInp.placeholder = 'Texto explicativo...';
         txtInp.value = datos.texto || '';
+        txtInp.rows = 1;
+        txtInp.title = datos.texto || '';
+        txtInp.addEventListener('input', function(){ this.style.height='auto'; this.style.height=(this.scrollHeight)+'px'; this.title=this.value; });
+        setTimeout(()=>{ try{ txtInp.style.height='auto'; txtInp.style.height=(txtInp.scrollHeight)+'px'; }catch(e){} }, 0);
         row.appendChild(txtInp);
 
         const selUnd = document.createElement('select');
@@ -4607,11 +4644,14 @@
         if (datos.valor_total != null) vtInp.value = datos.valor_total;
         row.appendChild(vtInp);
 
-        const comInp = document.createElement('input');
-        comInp.type = 'text';
+        const comInp = document.createElement('textarea');
         comInp.className = 'wo-cobra-coment';
         comInp.placeholder = 'Comentarios...';
         comInp.value = datos.comentarios || '';
+        comInp.rows = 1;
+        comInp.title = datos.comentarios || '';
+        comInp.addEventListener('input', function(){ this.style.height='auto'; this.style.height=(this.scrollHeight)+'px'; this.title=this.value; });
+        setTimeout(()=>{ try{ comInp.style.height='auto'; comInp.style.height=(comInp.scrollHeight)+'px'; }catch(e){} }, 0);
         row.appendChild(comInp);
 
         const recalc = () => {
@@ -4919,6 +4959,8 @@
     function cerrarModalRegistro() {
         const modal = document.getElementById('modal-add-registro');
         if (modal) modal.style.display = 'none';
+        const _mEl = document.querySelector('#modal-add-registro .mar-modal');
+        if (_mEl) _mEl.classList.remove('modal-cotizaciones');
         const body = document.getElementById('mar-fields');
         if (body) body.innerHTML = '';
         // Reset modo edición Cotizaciones
