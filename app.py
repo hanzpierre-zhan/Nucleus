@@ -3580,8 +3580,11 @@ def api_evidencia_eliminar():
         indice = int(data.get('indice'))
     except (TypeError, ValueError):
         return jsonify({'error': 'Índice inválido'}), 400
-    if not key or tipo not in EVIDENCIA_TIPOS or indice < 0 or indice >= EVIDENCIA_MAX_POR_TIPO:
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb',) or indice < 0 or indice >= EVIDENCIA_MAX_POR_TIPO:
         return jsonify({'error': 'Datos incompletos'}), 400
+    # Solo admin puede borrar foto de Combustible
+    if tipo == 'comb' and session.get('rol') != 'admin':
+        return jsonify({'error': 'Solo el administrador puede eliminar la foto.'}), 403
     if evidencia_usa_b2():
         evidencia_eliminar_b2(key, tipo, indice)
     else:

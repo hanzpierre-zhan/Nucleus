@@ -1645,6 +1645,8 @@
                         onclick="abrirEvidenciaFoto(this.src);">
                     <button type="button" id="comb-detalle-foto-btn" style="display:none;" class="mar-btn-ghost"
                         onclick="combDetalleSubirFoto()"><i class="fa-solid fa-camera"></i> Subir/Cambiar foto</button>
+                    <button type="button" id="comb-detalle-foto-del" style="display:none; color:#FF3B30; border-color: rgba(255,59,48,0.35); background: rgba(255,59,48,0.08);" class="mar-btn-ghost"
+                        onclick="combDetalleEliminarFoto()" title="Eliminar foto (solo admin)"><i class="fa-solid fa-trash-can"></i> Eliminar foto</button>
                 </div>
             </div>
         </div>
@@ -5750,6 +5752,8 @@
         }
         const fotoBtn = document.getElementById('comb-detalle-foto-btn');
         if (fotoBtn) fotoBtn.style.display = (USER_IS_ADMIN || !foto) ? '' : 'none';
+        const fotoDelBtn = document.getElementById('comb-detalle-foto-del');
+        if (fotoDelBtn) fotoDelBtn.style.display = (USER_IS_ADMIN && foto) ? '' : 'none';
 
         const guardarBtn = document.getElementById('comb-detalle-guardar');
         if (guardarBtn) guardarBtn.style.display = USER_IS_ADMIN || hasPendientes(data) ? '' : 'none';
@@ -5847,6 +5851,31 @@
         };
         document.body.appendChild(input);
         input.click();
+    }
+
+    async function combDetalleEliminarFoto() {
+        if (!combDetalleKey) return;
+        if (!USER_IS_ADMIN) return nucleusAlert('Solo el administrador puede eliminar la foto.');
+        if (!await nucleusConfirm('¿Eliminar la foto de este movimiento? Esta acción no se puede deshacer.')) return;
+        try {
+            const r1 = await fetch('/api/evidencia/eliminar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: combDetalleKey, tipo: 'comb', indice: 0 })
+            });
+            const j1 = await r1.json();
+            if (!r1.ok || !j1.success) throw new Error(j1.error || 'Error al eliminar archivo');
+            const r2 = await fetch('/api/rows/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: combDetalleKey, field: 'FOTO', value: '' })
+            });
+            const j2 = await r2.json();
+            if (!r2.ok || !j2.success) throw new Error(j2.error || 'Error al limpiar registro');
+            location.reload();
+        } catch (e) {
+            nucleusAlert('Error: ' + (e.message || 'No se pudo eliminar'));
+        }
     }
 
     function cerrarCombDetalle() {
