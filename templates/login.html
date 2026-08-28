@@ -170,8 +170,9 @@
                 var legacy = localStorage.getItem('nucleus-neumorphism');
                 if (legacy === 'off') fam = 'ios'; else fam = 'neumorphism';
             }
-            if (['ios','neumorphism'].indexOf(fam)===-1) fam='neumorphism';
+            if (['ios','neumorphism','vercel'].indexOf(fam)===-1) fam='neumorphism';
             if (fam === 'neumorphism') document.body.classList.add('neumorphism');
+            else if (fam === 'vercel') document.body.classList.add('theme-vercel');
         } catch (e) {}
     </script>
     <div class="login-wrap">

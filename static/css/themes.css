@@ -1,8 +1,102 @@
 /* ============================================================
-   NUCLEUS — Temas (solo iOS + Neumorphism)
+   NUCLEUS — Temas (iOS + Neumorphism + Vercel)
    Neumorphism está en neumorphism.css
-   Este archivo solo aporta fixes de oscuro y selector
    ============================================================ */
+
+/* ---------- VERCEL — inspirado 100% en Vercel (negro puro, bordes finos) ---------- */
+body.theme-vercel {
+  --ios-bg: #000000;
+  --ios-card-bg: #0A0A0A;
+  --ios-fill: #0A0A0A;
+  --ios-label: #EDEDED;
+  --ios-secondary: #888888;
+  --ios-gray-1: #666666;
+  --ios-gray-2: #555555;
+  --ios-hairline: #1F1F1F;
+  --ios-blue: #FFFFFF;
+  --ios-blue-dark: #EDEDED;
+  --ios-blue-light: #1A1A1A;
+  --excel-bg: #000000;
+  --excel-border: #1F1F1F;
+  --excel-cell-border: #1A1A1A;
+  --excel-text: #EDEDED;
+  --excel-selection: #1A1A1A;
+  --shadow-card: none;
+  --shadow-soft: none;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 6px;
+  font-family: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  background: #000000 !important;
+}
+body.theme-vercel .app-shell { background: #000000 !important; }
+body.theme-vercel .app-sidebar {
+  background: #000000 !important;
+  border-right: 1px solid #1A1A1A !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+body.theme-vercel .sidebar-logo { border-bottom: 1px solid #1A1A1A !important; }
+body.theme-vercel .sidebar-logo span { color: #FFFFFF !important; letter-spacing: 0.3px !important; font-weight: 600 !important; font-size: 13px !important; }
+body.theme-vercel .sidebar-link { color: #888888 !important; border-radius: 6px !important; font-size: 13px !important; font-weight: 400 !important; }
+body.theme-vercel .sidebar-link i { color: #666666 !important; }
+body.theme-vercel .sidebar-link:hover { background: #0A0A0A !important; color: #FFFFFF !important; }
+body.theme-vercel .sidebar-link:hover i { color: #FFFFFF !important; }
+body.theme-vercel .sidebar-link.active { background: #FFFFFF !important; color: #000000 !important; box-shadow: none !important; font-weight: 600 !important; }
+body.theme-vercel .sidebar-link.active i { color: #000000 !important; }
+body.theme-vercel .sidebar-section-label { color: #333333 !important; font-size: 10px !important; letter-spacing: 0.08em !important; }
+body.theme-vercel .sidebar-section-label::before { background: #333333 !important; }
+body.theme-vercel .excel-topbar, body.theme-vercel .excel-bottombar {
+  background: #000000 !important;
+  border-bottom: 1px solid #1A1A1A !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+body.theme-vercel .topbar-badge {
+  background: #0A0A0A !important;
+  border: 1px solid #1F1F1F !important;
+  color: #888888 !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+}
+body.theme-vercel .action-pill {
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  border: 1px solid #1F1F1F !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+}
+body.theme-vercel .action-pill:hover { transform: none !important; filter: none !important; }
+body.theme-vercel .pill-neutral { background: #0A0A0A !important; color: #EDEDED !important; border-color: #1F1F1F !important; }
+body.theme-vercel .pill-blue, body.theme-vercel .pill-teal, body.theme-vercel .pill-green { background: #FFFFFF !important; color: #000000 !important; border-color: #FFFFFF !important; }
+body.theme-vercel .pill-red { background: #0A0A0A !important; color: #FF3B30 !important; border-color: #1F1F1F !important; }
+body.theme-vercel .wizard-card, body.theme-vercel .kpi-card, body.theme-vercel .glass, body.theme-vercel .tabulator, body.theme-vercel .mar-modal {
+  background: #0A0A0A !important;
+  border: 1px solid #1F1F1F !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+}
+body.theme-vercel .tabulator-header, body.theme-vercel .tabulator-col { background: #0A0A0A !important; border-color: #1A1A1A !important; }
+body.theme-vercel .tabulator-col-title { color: #888888 !important; font-size: 11px !important; font-weight: 500 !important; letter-spacing: 0.04em !important; text-transform: uppercase !important; }
+body.theme-vercel .tabulator-row, body.theme-vercel .tabulator-cell { background: #000000 !important; color: #EDEDED !important; border-color: #1A1A1A !important; }
+body.theme-vercel .tabulator-row:hover { background: #0A0A0A !important; }
+body.theme-vercel input[type="text"], body.theme-vercel input[type="password"], body.theme-vercel input[type="number"], body.theme-vercel input[type="date"], body.theme-vercel input[type="datetime-local"], body.theme-vercel select, body.theme-vercel textarea, body.theme-vercel .nucleus-control {
+  background: #000000 !important;
+  border: 1px solid #1F1F1F !important;
+  color: #EDEDED !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+}
+body.theme-vercel input:focus, body.theme-vercel select:focus, body.theme-vercel textarea:focus { border-color: #333333 !important; box-shadow: none !important; }
+body.theme-vercel .login-wrap { background: #000000 !important; }
+body.theme-vercel .login-card { background: #0A0A0A !important; border: 1px solid #1F1F1F !important; box-shadow: none !important; }
+body.theme-vercel .evidencia-slot { background: #0A0A0A !important; border: 1px solid #1F1F1F !important; box-shadow: none !important; }
+body.theme-vercel .nucleus-dialog-overlay { background: rgba(0,0,0,0.7) !important; }
+body.theme-vercel .nucleus-dialog-card { background: #0A0A0A !important; border: 1px solid #1F1F1F !important; box-shadow: none !important; }
+
+/* Vercel claro (cuando dark-mode está OFF pero vercel activo, queda oscuro igual — Vercel es dark-first) */
+body.theme-vercel:not(.dark-mode) { background: #000000 !important; }
 
 /* ---------- FIX GLOBAL OSCURO — filtros y header siempre oscuros ---------- */
 body.dark-mode .tabulator-header,

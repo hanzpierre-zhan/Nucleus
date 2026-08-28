@@ -719,6 +719,7 @@ with app.app_context():
     if comb_proy:
         comb_proy.icono = 'fa-gas-pump'
         comb_cols = [
+            {'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
             {'nombre': 'QR ASIGNADO', 'tipo': 'lista', 'opciones': []},
             {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL']},
@@ -736,7 +737,16 @@ with app.app_context():
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='manual_columns').first()
         if mc_cfg:
-            mc_cfg.valor = json.dumps(comb_cols, ensure_ascii=False)
+            try:
+                existing = json.loads(mc_cfg.valor)
+                if not any(c.get('nombre') == 'N° ORDEN' for c in existing):
+                    # Migrar: insertar al inicio
+                    existing = [{'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []}] + existing
+                    mc_cfg.valor = json.dumps(existing, ensure_ascii=False)
+                else:
+                    mc_cfg.valor = json.dumps(comb_cols, ensure_ascii=False)
+            except Exception:
+                mc_cfg.valor = json.dumps(comb_cols, ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='manual_columns', valor=json.dumps(comb_cols, ensure_ascii=False)))
 
@@ -772,6 +782,7 @@ with app.app_context():
     if cot_proy:
         cot_proy.icono = 'fa-file-invoice-dollar'
         cot_cols = [
+            {'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
             {'nombre': 'N° COTIZACION', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NUMERO WO', 'tipo': 'texto', 'opciones': []},
@@ -784,7 +795,15 @@ with app.app_context():
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='manual_columns').first()
         if mc_cfg:
-            mc_cfg.valor = json.dumps(cot_cols, ensure_ascii=False)
+            try:
+                existing = json.loads(mc_cfg.valor)
+                if not any(c.get('nombre') == 'N° ORDEN' for c in existing):
+                    existing = [{'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []}] + existing
+                    mc_cfg.valor = json.dumps(existing, ensure_ascii=False)
+                else:
+                    mc_cfg.valor = json.dumps(cot_cols, ensure_ascii=False)
+            except Exception:
+                mc_cfg.valor = json.dumps(cot_cols, ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='manual_columns', valor=json.dumps(cot_cols, ensure_ascii=False)))
 
@@ -817,7 +836,61 @@ with app.app_context():
         schema_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='app_schema').first()
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='app_schema', valor=json.dumps([])))
+        # Correlativo Cotizaciones — salto a 61 solicitado, solo admin puede modificar
+        next_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
+        if not next_cfg:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='cotizacion_next_seq', valor='61'))
         db.session.commit()
+
+        # Migration: N° ORDEN correlativo para Cotizaciones y Combustible
+        for _pn in ['Cotizaciones', 'Combustible']:
+            _proj = Proyecto.query.filter_by(nombre=_pn).first()
+            if not _proj:
+                continue
+            _recs = NucleusData.query.filter_by(proyecto_id=_proj.id).all()
+            if not _recs:
+                continue
+            # Determinar máximo existente
+            _max = 0
+            _to_assign = []
+            for _r in _recs:
+                try:
+                    _d = json.loads(_r.data_json)
+                    _v = str(_d.get('N° ORDEN', '') or '').strip()
+                    if _v.isdigit():
+                        _max = max(_max, int(_v))
+                    else:
+                        _to_assign.append(_r)
+                except Exception:
+                    _to_assign.append(_r)
+            if _to_assign:
+                def _parse_fecha(_r):
+                    try:
+                        _d = json.loads(_r.data_json)
+                        _f = str(_d.get('FECHA', '') or '').strip()
+                        for _fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%d/%m/%Y %H:%M', '%d/%m/%Y', '%Y-%m-%dT%H:%M'):
+                            try:
+                                return datetime.strptime(_f[:16], _fmt)
+                            except Exception:
+                                continue
+                        return datetime.min
+                    except Exception:
+                        return datetime.min
+                _to_assign_sorted = sorted(_to_assign, key=lambda _r: (_parse_fecha(_r), _r.id))
+                _next = _max + 1
+                for _r in _to_assign_sorted:
+                    try:
+                        _d = json.loads(_r.data_json)
+                    except Exception:
+                        _d = {}
+                    _d['N° ORDEN'] = str(_next)
+                    _r.data_json = json.dumps(_d, ensure_ascii=False)
+                    _next += 1
+                db.session.commit()
+                # Si hay registros existentes sin ordenar y _max era 0, reasignar todos secuencialmente por FECHA para consistencia
+                if _max == 0 and len(_recs) == len(_to_assign):
+                    # Ya se hizo ordenado, está bien
+                    pass
 
     # Migration: Configure SITE columns (maestro COBRA SITES – 10 columnas)
     site_proy = Proyecto.query.filter_by(nombre='SITE').first()
@@ -1439,6 +1512,68 @@ def index():
     cols = sorted(list(columns_set))
     if '_key' in cols: cols.remove('_key')
     cols.insert(0, '_key')
+    # N° ORDEN siempre entre el check y N° COTIZACION (primero visible)
+    if 'N° ORDEN' in cols:
+        cols.remove('N° ORDEN')
+        # Para que quede: checkbox | N° ORDEN | N° COTIZACION (_key) | resto
+        if '_key' in cols:
+            cols.remove('_key')
+            cols.insert(0, '_key')
+            cols.insert(0, 'N° ORDEN')
+        else:
+            cols.insert(0, 'N° ORDEN')
+    # Si es Cotizaciones o Combustible y no hay layout guardado, forzar orden N° ORDEN primero
+    _proj_nombre_for_layout = (db.session.get(Proyecto, pid).nombre.strip().lower() if db.session.get(Proyecto, pid) and db.session.get(Proyecto, pid).nombre else '')
+    if _proj_nombre_for_layout in ('cotizaciones', 'combustible') and 'N° ORDEN' in cols:
+        # Asegurar que el layout guardado refleje este orden para futuras cargas
+        try:
+            _layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+            if _layout_cfg and _layout_cfg.valor:
+                _layout = json.loads(_layout_cfg.valor)
+                # Reordenar para que N° ORDEN esté primero
+                _order = {c['field']: i for i, c in enumerate(_layout)}
+                if 'N° ORDEN' in _order and '_key' in _order:
+                    # Si N° ORDEN está después de _key, moverlo antes
+                    if _order['N° ORDEN'] > _order['_key']:
+                        # Extraer y reinsertar
+                        _item_ord = next((x for x in _layout if x['field'] == 'N° ORDEN'), None)
+                        _item_key = next((x for x in _layout if x['field'] == '_key'), None)
+                        if _item_ord and _item_key:
+                            _layout = [x for x in _layout if x['field'] not in ('N° ORDEN', '_key')]
+                            _layout.insert(0, _item_ord)
+                            _layout.insert(1, _item_key)
+                            _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                            db.session.commit()
+                elif 'N° ORDEN' not in _order:
+                    _layout.insert(0, {'field': 'N° ORDEN', 'visible': True})
+                    _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                    db.session.commit()
+                # Asegurar que _key esté justo después de N° ORDEN (posición 1)
+                _order2 = {c['field']: i for i, c in enumerate(json.loads(_layout_cfg.valor))}
+                if 'N° ORDEN' in _order2 and '_key' in _order2 and _order2['_key'] != 1:
+                    _layout = json.loads(_layout_cfg.valor)
+                    _item_key = next((x for x in _layout if x['field'] == '_key'), None)
+                    if _item_key:
+                        _layout = [x for x in _layout if x['field'] != '_key']
+                        _layout.insert(1, _item_key)
+                        _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                        db.session.commit()
+                elif 'N° ORDEN' in _order2 and '_key' not in _order2:
+                    _layout = json.loads(_layout_cfg.valor)
+                    _layout.insert(1, {'field': '_key', 'visible': True})
+                    _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                    db.session.commit()
+            # Si no hay layout, crearlo con N° ORDEN primero
+            _layout_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+            if not _layout_cfg2 or not _layout_cfg2.valor or _layout_cfg2.valor.strip() in ('', '[]'):
+                _new_layout = [{'field': c, 'visible': True} for c in cols]
+                if _layout_cfg2:
+                    _layout_cfg2.valor = json.dumps(_new_layout, ensure_ascii=False)
+                else:
+                    db.session.add(AppConfig(proyecto_id=pid, clave='column_layout', valor=json.dumps(_new_layout, ensure_ascii=False)))
+                db.session.commit()
+        except Exception:
+            pass
 
     # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
     layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
@@ -2922,6 +3057,11 @@ def api_rows_update():
         if not record: return jsonify({'error': 'Record not found'}), 404
         row_dict = json.loads(record.data_json)
         
+        # N° ORDEN correlativo: no editable una vez asignado
+        if field == 'N° ORDEN':
+            cur_ord = str(row_dict.get('N° ORDEN', '') or '').strip()
+            if cur_ord and str(value).strip() != cur_ord and session.get('rol') != 'admin':
+                return jsonify({'error': 'El N° de orden es correlativo automático y no se puede editar.'}), 403
         # Combustible: el gestor solo puede completar información pendiente (campos
         # vacíos); los campos ya registrados solo los edita el admin.
         proy_obj = db.session.get(Proyecto, pid)
@@ -3124,6 +3264,19 @@ def api_rows_add():
                 next_n += 1
                 key_val = f"HW-{yr}-{next_n:07d}"
                 row_data['N° COTIZACION'] = key_val
+
+        # N° ORDEN correlativo para Cotizaciones y Combustible (siempre recalculado)
+        if proy_nombre in ('Cotizaciones', 'Combustible'):
+            max_ord = 0
+            for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+                try:
+                    d2 = json.loads(rec.data_json)
+                    v = str(d2.get('N° ORDEN', '') or '').strip()
+                    if v.isdigit():
+                        max_ord = max(max_ord, int(v))
+                except Exception:
+                    continue
+            row_data['N° ORDEN'] = str(max_ord + 1)
 
         new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=json.dumps(row_data))
         db.session.add(new_record)
@@ -3850,6 +4003,73 @@ def _cotizacion_registro_pdf_response(rec):
     safe_num = numero.replace('/', '-').replace(' ', '_') or 'cotizacion'
     resp.headers['Content-Type'] = 'application/pdf'
     resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+@app.route('/api/cotizacion/next_seq', methods=['GET', 'POST'])
+@login_required
+def api_cotizacion_next_seq():
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not cot_proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe'}), 404
+    if request.method == 'GET':
+        cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
+        try:
+            val = int(cfg.valor) if cfg and cfg.valor else 30
+        except Exception:
+            val = 30
+        return jsonify({'next': val})
+    if session.get('rol') != 'admin':
+        return jsonify({'error': 'Solo el admin puede configurar el correlativo'}), 403
+    data = request.json or {}
+    try:
+        nxt = int(data.get('next', 0))
+        if nxt < 1 or nxt > 9999999:
+            raise ValueError
+    except Exception:
+        return jsonify({'error': 'Valor inválido (1-9999999)'}), 400
+    cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
+    if not cfg:
+        cfg = AppConfig(proyecto_id=cot_proy.id, clave='cotizacion_next_seq', valor=str(nxt))
+        db.session.add(cfg)
+    else:
+        cfg.valor = str(nxt)
+    db.session.commit()
+    return jsonify({'success': True, 'next': nxt})
+
+
+@app.route('/api/cotizacion/previsualizar', methods=['POST'])
+@login_required
+def api_cotizacion_previsualizar():
+    """Genera PDF de previsualización sin guardar ni consumir correlativo."""
+    data = request.json or {}
+    numero = str(data.get('numero', '') or '').strip()
+    site = str(data.get('site', '') or data.get('nombre site', '') or '').strip()
+    supervisor = str(data.get('supervisor', '') or '').strip()
+    objetivo = str(data.get('objetivo', '') or str(data.get('nota', '') or '')).strip()
+    ticket = str(data.get('ticket', '') or str(data.get('numero_wo', '') or '')).strip()
+    if not ticket:
+        ticket = 'CM-PENDIENTE'
+    items = data.get('items', [])
+    # Validación mínima igual que generar
+    if not numero:
+        return jsonify({'error': 'Falta N° Cotización'}), 400
+    try:
+        pdf_bytes = _generar_pdf_cotizacion_cobra(
+            numero=numero,
+            site=site,
+            supervisor=supervisor,
+            objetivo=objetivo,
+            ticket=ticket,
+            elaborado_por=str(session.get('username', '') or ''),
+            items=items
+        )
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'inline; filename=Preview_{numero.replace("/", "-")}.pdf'
     return resp
 
 
@@ -4735,4 +4955,4 @@ def api_wos_flm():
 # -----------------------------------------------------------------------
 
 if __name__ == '__main__':
-    app.run(debug=True, port=int(os.environ.get('PORT', 5000)))
+    app.run(debug=True, port=int(os.environ.get('PORT', 5001)))

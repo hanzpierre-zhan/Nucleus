@@ -33,9 +33,9 @@
                     else if (legacy === 'off') fam = 'ios';
                 }
                 fam = fam || 'neumorphism';
-                // solo quedan ios y neumorphism — migrar cualquier otro viejo
-                if (['ios','neumorphism'].indexOf(fam)===-1) fam='neumorphism';
+                if (['ios','neumorphism','vercel'].indexOf(fam)===-1) fam='neumorphism';
                 if (fam === 'neumorphism') document.body.classList.add('neumorphism');
+                else if (fam === 'vercel') document.body.classList.add('theme-vercel');
                 try{ localStorage.setItem('nucleus-theme-family', fam); }catch(e){}
             } catch (e) {}
         })();
@@ -125,6 +125,7 @@
                         <div id="theme-selector-panel" class="theme-selector-panel">
                             <div class="theme-option" data-theme="ios"><div class="theme-option-icon"><i class="fa-solid fa-circle-half-stroke"></i></div><div class="theme-option-main"><div class="theme-option-name">iOS Clásico</div><div class="theme-option-desc">Claro, limpio</div></div><i class="fa-solid fa-check theme-option-check" style="display:none"></i></div>
                             <div class="theme-option" data-theme="neumorphism"><div class="theme-option-icon"><i class="fa-solid fa-cube"></i></div><div class="theme-option-main"><div class="theme-option-name">Neumorphism</div><div class="theme-option-desc">Suave, táctil</div></div><i class="fa-solid fa-check theme-option-check" style="display:none"></i></div>
+                            <div class="theme-option" data-theme="vercel"><div class="theme-option-icon"><i class="fa-solid fa-bolt"></i></div><div class="theme-option-main"><div class="theme-option-name">Vercel</div><div class="theme-option-desc">Negro puro, minimal</div></div><i class="fa-solid fa-check theme-option-check" style="display:none"></i></div>
                         </div>
                     </div>
                     <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
@@ -173,15 +174,18 @@
             const btn = document.getElementById('theme-selector-btn');
             const panel = document.getElementById('theme-selector-panel');
             if (!btn || !panel) return;
-            const families = ['ios','neumorphism'];
+            const families = ['ios','neumorphism','vercel'];
             function currentFamily(){
                 if(document.body.classList.contains('neumorphism')) return 'neumorphism';
+                if(document.body.classList.contains('theme-vercel')) return 'vercel';
                 return 'ios';
             }
             function applyTheme(fam){
                 document.body.classList.remove('neumorphism');
+                document.body.classList.remove('theme-vercel');
                 if(fam==='neumorphism') document.body.classList.add('neumorphism');
-                // limpiar temas viejos por si quedaron de antes
+                else if(fam==='vercel') document.body.classList.add('theme-vercel');
+                // limpiar temas viejos
                 ['gradient','3d','corporate','render'].forEach(f=> document.body.classList.remove('theme-'+f));
                 try{ localStorage.setItem('nucleus-theme-family', fam); localStorage.setItem('nucleus-neumorphism', fam==='neumorphism' ? 'on' : 'off'); }catch(e){}
                 panel.querySelectorAll('.theme-option').forEach(o=>{
