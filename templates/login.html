@@ -3,230 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar Sesión — Nucleus</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23007AFF' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23007AFF'/%3E%3C/svg%3E">
+    <title>Log in — Nucleus</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23fff'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/static/css/style.css?v=3.0">
-    <link rel="stylesheet" href="/static/css/neumorphism.css?v=1">
-    <link rel="stylesheet" href="/static/css/themes.css?v=2">
     <style>
-        /* ===== Login acorde a la interfaz Nucleus (iOS) ===== */
-        * { box-sizing: border-box; }
-        body, html {
-            margin: 0; padding: 0; height: 100%;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-            overflow: hidden;
-            -webkit-font-smoothing: antialiased;
-        }
-        .login-wrap {
-            position: relative;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--ios-bg);
-            overflow: hidden;
-        }
-        /* Auroras suaves con acentos de la app */
-        .login-wrap::before, .login-wrap::after {
-            content: "";
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(80px);
-            opacity: 0.4;
-            animation: drift 16s ease-in-out infinite;
-        }
-        .login-wrap::before {
-            width: 520px; height: 520px;
-            background: radial-gradient(circle, rgba(0,122,255,0.45), transparent 70%);
-            top: -140px; right: -120px;
-        }
-        .login-wrap::after {
-            width: 460px; height: 460px;
-            background: radial-gradient(circle, rgba(88,86,214,0.35), transparent 70%);
-            bottom: -140px; left: -100px;
-            animation-delay: -6s;
-        }
-        @keyframes drift {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            50% { transform: translate(30px, 20px) scale(1.08); }
-        }
-        /* Tarjeta frosted, igual que la interfaz */
-        .login-card {
-            position: relative;
-            z-index: 2;
-            width: 380px;
-            max-width: 92vw;
-            background: var(--ios-card-bg);
-            -webkit-backdrop-filter: blur(32px) saturate(180%);
-            backdrop-filter: blur(32px) saturate(180%);
-            border: 1px solid var(--ios-hairline);
-            border-radius: 22px;
-            padding: 40px 34px 30px;
-            text-align: center;
-            box-shadow: 0 24px 60px rgba(0,0,0,0.14);
-        }
-        .login-logo {
-            width: 84px; height: 84px;
-            margin: 0 auto 18px;
-            display: flex; align-items: center; justify-content: center;
-            background: var(--ios-blue-light);
-            border-radius: 22px;
-            box-shadow: 0 10px 26px rgba(0,122,255,0.22);
-        }
-        .login-logo svg { width: 46px; height: 46px; }
-        .login-title { color: var(--ios-label); font-size: 24px; font-weight: 700; letter-spacing: -0.5px; margin: 0 0 6px; }
-        .login-sub { color: var(--ios-gray-1); font-size: 13px; margin: 0 0 28px; font-weight: 400; }
-        .login-error {
-            display: flex; align-items: center; gap: 8px; justify-content: center;
-            background: rgba(255,59,48,0.10);
-            border: 1px solid rgba(255,59,48,0.35);
-            color: var(--ios-red);
-            padding: 10px 14px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 13px;
-        }
-        .login-field {
-            position: relative;
-            margin-bottom: 14px;
-        }
-        .login-field i {
-            position: absolute; left: 16px; top: 50%;
-            transform: translateY(-50%);
-            color: var(--ios-gray-1); font-size: 15px;
-        }
-        .login-field input {
-            width: 100%;
-            background: var(--ios-fill);
-            border: 1px solid var(--ios-hairline);
-            border-radius: 12px;
-            padding: 14px 46px 14px 44px;
-            font-size: 15px;
-            color: var(--ios-label);
-            outline: none;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-        .login-field input::placeholder { color: var(--ios-gray-2); }
-        .login-field input:focus {
-            border-color: var(--ios-blue);
-            box-shadow: 0 0 0 4px rgba(0,122,255,0.15);
-            background: var(--ios-card-bg);
-        }
-        .login-toggle {
-            position: absolute; right: 10px; top: 50%;
-            transform: translateY(-50%);
-            display: flex; align-items: center; justify-content: center;
-            width: 36px; height: 36px; padding: 0;
-            background: none; border: none; color: var(--ios-gray-1);
-            cursor: pointer; font-size: 14px;
-        }
-        .login-toggle:hover { color: var(--ios-blue); }
-        .login-btn {
-            width: 100%;
-            background: linear-gradient(135deg, var(--ios-blue), var(--ios-indigo));
-            border: none;
-            border-radius: 12px;
-            padding: 15px;
-            font-size: 16px;
-            font-weight: 700;
-            color: #fff;
-            cursor: pointer;
-            margin-top: 10px;
-            letter-spacing: 0.3px;
-            box-shadow: 0 10px 26px rgba(0,122,255,0.4);
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-        .login-btn:hover { transform: translateY(-2px); box-shadow: 0 14px 32px rgba(0,122,255,0.5); }
-        .login-btn:active { transform: translateY(0) scale(0.98); }
-        .login-btn:disabled { opacity: 0.7; }
-        .login-footer {
-            margin-top: 24px;
-            font-size: 11px;
-            color: var(--ios-gray-2);
-            line-height: 1.7;
-        }
-        .login-footer strong { color: var(--ios-gray-1); letter-spacing: 0.5px; }
-        .spinner-ring {
-            display: inline-block; width: 16px; height: 16px;
-            border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-            border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -3px;
-            margin-right: 8px;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        *{box-sizing:border-box}
+        html,body{margin:0;padding:0;height:100%;font-family:'Geist Sans','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#000;color:#ededed;-webkit-font-smoothing:antialiased}
+        .vl-page{min-height:100vh;background:#000;display:flex;flex-direction:column}
+        .vl-top{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0}
+        .vl-tri{font-size:18px;color:#fff;letter-spacing:2px}
+        .vl-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px 60px}
+        .vl-box{width:340px;max-width:100%}
+        .vl-title{font-size:22px;font-weight:600;text-align:center;margin:0 0 24px;letter-spacing:-0.3px}
+        .vl-error{display:flex;align-items:center;gap:8px;justify-content:center;background:#1a0a0a;border:1px solid #331111;color:#ff453a;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:13px}
+        .vl-field{position:relative;margin-bottom:12px}
+        .vl-field input{width:100%;height:40px;background:#0a0a0a;border:1px solid #222;border-radius:6px;padding:0 40px 0 14px;font-size:14px;color:#ededed;outline:none;transition:border-color .15s}
+        .vl-field input::placeholder{color:#666}
+        .vl-field input:focus{border-color:#333;background:#111}
+        .vl-field i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#666;font-size:13px;pointer-events:none}
+        .vl-field input.has-icon{padding-left:36px}
+        .vl-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:#666;cursor:pointer;font-size:13px}
+        .vl-eye:hover{color:#fff}
+        body.light .vl-eye{color:#999 !important}
+        body.light .vl-eye:hover{color:#000 !important}
+        .vl-btn{width:100%;height:40px;border-radius:6px;border:1px solid #fff;background:#fff;color:#000;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+        .vl-btn:hover{background:#ededed}
+        .vl-btn:disabled{opacity:.6;cursor:not-allowed}
+        .vl-btn-dark{width:100%;height:40px;border-radius:6px;border:1px solid #222;background:#000;color:#ededed;font-size:13px;font-weight:500;cursor:pointer;margin-top:10px}
+        .vl-btn-dark:hover{background:#0a0a0a;border-color:#333}
+        .vl-link{margin-top:16px;background:none;border:none;color:#888;font-size:12px;cursor:pointer;text-decoration:underline}
+        .vl-link:hover{color:#fff}
+        body.light .vl-link{color:#666 !important}
+        body.light .vl-link:hover{color:#000 !important}
+        .vl-panel{margin-top:12px;border:1px solid #1f1f1f;border-radius:8px;padding:16px;background:#0a0a0a;display:none}
+        .vl-panel input{width:100%;height:36px;background:#000;border:1px solid #222;border-radius:6px;padding:0 12px;margin-bottom:8px;color:#ededed;font-size:13px;outline:none}
+        .vl-panel input:focus{border-color:#333}
+        .vl-panel input::placeholder{color:#666}
+        .vl-msg{margin-top:8px;font-size:12px;display:none}
+        .vl-footer{margin-top:32px;text-align:center;font-size:11px;color:#444}
+        .vl-logo{color:#fff;display:flex;align-items:center;gap:8px;text-decoration:none}
+        .vl-logo svg{color:#fff}
+        body.light .vl-logo{color:#000 !important}
+        body.light .vl-logo svg{color:#000 !important}
+        .vl-theme-toggle{position:fixed;bottom:20px;left:20px;width:36px;height:36px;border-radius:50%;border:1px solid #222;background:#0a0a0a;color:#666;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;z-index:10;transition:all .15s}
+        .vl-theme-toggle:hover{color:#fff;border-color:#333}
+        body.light{background:#fff !important;color:#000 !important}
+        body.light .vl-page{background:#fff !important}
+        body.light .vl-field input{background:#fff !important;border-color:#eaeaea !important;color:#000 !important}
+        body.light .vl-field input::placeholder{color:#999 !important}
+        body.light .vl-panel{background:#f5f5f5 !important;border-color:#eaeaea !important}
+        body.light .vl-panel input{background:#fff !important;border-color:#eaeaea !important;color:#000 !important}
+        body.light .vl-btn{background:#000 !important;color:#fff !important;border-color:#000 !important}
+        body.light .vl-btn:hover{background:#111 !important}
+        body.light .vl-theme-toggle{background:#fff !important;border-color:#eaeaea !important;color:#666 !important}
+        .spinner-ring{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:6px}
+        @keyframes spin{to{transform:rotate(360deg)}}
     </style>
 </head>
 <body>
-    <script>
-        // Aplica temas guardados
-        try {
-            if (localStorage.getItem('nucleus-theme') === 'dark') {
-                document.body.classList.add('dark-mode');
-            }
-            var fam = localStorage.getItem('nucleus-theme-family');
-            if (!fam) {
-                var legacy = localStorage.getItem('nucleus-neumorphism');
-                if (legacy === 'off') fam = 'ios'; else fam = 'neumorphism';
-            }
-            if (['ios','neumorphism','vercel'].indexOf(fam)===-1) fam='neumorphism';
-            if (fam === 'neumorphism') document.body.classList.add('neumorphism');
-            else if (fam === 'vercel') document.body.classList.add('theme-vercel');
-        } catch (e) {}
-    </script>
-    <div class="login-wrap">
-        <div class="login-card">
-            <div class="login-logo">
-                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="#007AFF" stroke-width="2"/>
-                    <circle cx="12" cy="10" r="4" fill="#007AFF"/>
-                </svg>
-            </div>
-            <h1 class="login-title">Nucleus</h1>
-            <p class="login-sub">Inicia sesión para continuar</p>
-
-            {% if error %}
-            <div class="login-error">
-                <i class="fa-solid fa-circle-exclamation"></i> {{ error }}
-            </div>
-            {% endif %}
-
-            <form method="POST" id="login-form">
-                <div class="login-field">
-                    <i class="fa-solid fa-user"></i>
-                    <input type="text" name="username" placeholder="Usuario" required autocomplete="username">
+    <div class="vl-page">
+        <div class="vl-top"><a href="/" class="vl-logo"><svg width="28" height="28" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="4" fill="currentColor"/></svg><span style="font-size:14px;font-weight:700;letter-spacing:1px;">NUCLEUS</span></a></div>
+        <div class="vl-center">
+            <div class="vl-box">
+                <h1 class="vl-title">Log in to Nucleus</h1>
+                {% if error %}
+                <div class="vl-error"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>
+                {% endif %}
+                <form method="POST" id="login-form">
+                    <div class="vl-field">
+                        <input type="text" name="username" placeholder="Usuario" required autocomplete="username">
+                    </div>
+                    <div class="vl-field">
+                        <input type="password" name="password" id="password" placeholder="Contraseña" required autocomplete="current-password">
+                        <button type="button" class="vl-eye" onclick="togglePassword()" title="Mostrar"><i class="fa-solid fa-eye" id="eye-icon"></i></button>
+                    </div>
+                    <button type="submit" class="vl-btn" id="login-btn">Ingresar</button>
+                </form>
+                <div style="text-align:center">
+                    <button type="button" class="vl-link" onclick="toggleCambiar()">Cambiar contraseña</button>
                 </div>
-                <div class="login-field">
-                    <i class="fa-solid fa-lock"></i>
-                    <input type="password" name="password" id="password" placeholder="Contraseña" required autocomplete="current-password">
-                    <button type="button" class="login-toggle" onclick="togglePassword()" title="Mostrar contraseña">
-                        <i class="fa-solid fa-eye" id="eye-icon"></i>
-                    </button>
+                <div id="panel-cambiar" class="vl-panel">
+                    <input type="text" id="cp-user" placeholder="Usuario">
+                    <input type="password" id="cp-actual" placeholder="Contraseña actual">
+                    <input type="password" id="cp-nueva" placeholder="Nueva contraseña (mín 4)">
+                    <button type="button" class="vl-btn-dark" onclick="cambiarDesdeLogin()" id="btn-cp">Actualizar contraseña</button>
+                    <div id="cp-msg" class="vl-msg"></div>
                 </div>
-                <button type="submit" class="login-btn" id="login-btn">Iniciar Sesión</button>
-            </form>
-
-            <div class="login-footer">
-                &copy; 2026 Nucleus &mdash; Todos los derechos reservados<br>
-                <strong>HPVR</strong>
+                <div class="vl-footer">© 2026 Nucleus — HPVR</div>
             </div>
         </div>
+        <button id="login-theme-toggle" class="vl-theme-toggle" title="Cambiar tema"><i class="fa-solid fa-moon"></i></button>
     </div>
-
     <script>
-        function togglePassword() {
-            const p = document.getElementById('password');
-            const icon = document.getElementById('eye-icon');
-            const mostrar = p.type === 'password';
-            p.type = mostrar ? 'text' : 'password';
-            icon.className = mostrar ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+        (function(){const b=document.getElementById('login-theme-toggle');if(!b)return;const ic=b.querySelector('i');const apply=()=>{const light=document.body.classList.contains('light');ic.className=light?'fa-solid fa-moon':'fa-solid fa-sun'};try{if(localStorage.getItem('nucleus-theme')==='light')document.body.classList.add('light')}catch(e){}apply();b.addEventListener('click',()=>{document.body.classList.toggle('light');const light=document.body.classList.contains('light');try{localStorage.setItem('nucleus-theme',light?'light':'dark')}catch(e){}apply()})})();
+        function togglePassword(){const p=document.getElementById('password'),i=document.getElementById('eye-icon'),m=p.type==='password';p.type=m?'text':'password';i.className=m?'fa-solid fa-eye-slash':'fa-solid fa-eye'}
+        document.getElementById('login-form').addEventListener('submit',function(){const b=document.getElementById('login-btn');b.disabled=true;b.innerHTML='<span class="spinner-ring"></span> Ingresar'});
+        function toggleCambiar(){const p=document.getElementById('panel-cambiar');p.style.display=p.style.display==='none'||!p.style.display?'block':'none'}
+        async function cambiarDesdeLogin(){
+            const u=document.getElementById('cp-user').value.trim(),a=document.getElementById('cp-actual').value,n=document.getElementById('cp-nueva').value,msg=document.getElementById('cp-msg'),btn=document.getElementById('btn-cp');
+            msg.style.display='none';msg.textContent='';
+            if(!u||!a||!n){msg.textContent='Completa los 3 campos';msg.style.color='#ff453a';msg.style.display='block';return}
+            if(n.length<4){msg.textContent='Mínimo 4 caracteres';msg.style.color='#ff453a';msg.style.display='block';return}
+            btn.disabled=true;btn.textContent='Actualizando...';
+            try{const r=await fetch('/api/auth/cambiar-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,actual:a,nueva:n})});const j=await r.json();if(j.success){msg.style.color='#30d158';msg.textContent='Actualizada, ya puedes iniciar sesión';msg.style.display='block';document.getElementById('cp-actual').value='';document.getElementById('cp-nueva').value=''}else{msg.style.color='#ff453a';msg.textContent=j.error||'Error';msg.style.display='block'}}catch(e){msg.textContent='Error de red';msg.style.color='#ff453a';msg.style.display='block'}
+            btn.disabled=false;btn.textContent='Actualizar contraseña';
         }
-        document.getElementById('login-form').addEventListener('submit', function () {
-            const btn = document.getElementById('login-btn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-ring"></span> Ingresando...';
-        });
     </script>
 </body>
 </html>

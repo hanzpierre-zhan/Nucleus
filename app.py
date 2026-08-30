@@ -1025,7 +1025,9 @@ with app.app_context():
             {'nombre': 'ROBO HURTO', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
             {'nombre': 'SUPERVISOR ATENCIÓN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'CORREO CIERRE', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
-            {'nombre': 'MOTIVO NO ATENDIDO', 'tipo': 'texto', 'opciones': []}
+            {'nombre': 'MOTIVO NO ATENDIDO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FECHA NO ATENDIDO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'USUARIO NO ATENDIDO', 'tipo': 'texto', 'opciones': []}
         ]
         for col in pext_new_cols:
             if col['nombre'] not in existing_names:
@@ -1156,6 +1158,40 @@ def get_menu_proyectos(user_id, user_rol):
 def logout():
     session.clear()
     return redirect(url_for('login'))
+
+@app.route('/api/cambiar-password', methods=['POST'])
+@login_required
+def cambiar_password():
+    data = request.json or {}
+    actual = (data.get('actual') or '').strip()
+    nueva = (data.get('nueva') or '').strip()
+    if not actual or not nueva:
+        return jsonify({'error': 'Actual y nueva requeridas'}), 400
+    if len(nueva) < 4:
+        return jsonify({'error': 'La nueva contraseña debe tener al menos 4 caracteres'}), 400
+    u = db.session.get(Usuario, session.get('user_id'))
+    if not u or not check_password_hash(u.password_hash, actual):
+        return jsonify({'error': 'Contraseña actual incorrecta'}), 403
+    u.password_hash = generate_password_hash(nueva)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/auth/cambiar-password', methods=['POST'])
+def cambiar_password_public():
+    data = request.json or {}
+    username = (data.get('username') or '').strip()
+    actual = (data.get('actual') or '').strip()
+    nueva = (data.get('nueva') or '').strip()
+    if not username or not actual or not nueva:
+        return jsonify({'error': 'Usuario, actual y nueva requeridas'}), 400
+    if len(nueva) < 4:
+        return jsonify({'error': 'Mínimo 4 caracteres'}), 400
+    u = Usuario.query.filter_by(username=username).first()
+    if not u or not check_password_hash(u.password_hash, actual):
+        return jsonify({'error': 'Usuario o contraseña actual incorrecta'}), 403
+    u.password_hash = generate_password_hash(nueva)
+    db.session.commit()
+    return jsonify({'success': True})
 
 @app.route('/switch_project/<int:pid>')
 @login_required
@@ -1575,6 +1611,21 @@ def index():
         except Exception:
             pass
 
+    # FIX: N antes de N° COTIZACION/QR para Cotizaciones/Combustible (corrige layout guardado al revés)
+    try:
+        _pn_fix = (db.session.get(Proyecto, pid).nombre.strip().lower() if db.session.get(Proyecto, pid) else '')
+        if _pn_fix in ('cotizaciones','combustible'):
+            _cfg_fix = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+            if _cfg_fix and _cfg_fix.valor:
+                _lyt = json.loads(_cfg_fix.valor)
+                _fields = [c['field'] for c in _lyt]
+                if 'N° ORDEN' in _fields and '_key' in _fields and _fields.index('N° ORDEN') > _fields.index('_key'):
+                    _lyt = [c for c in _lyt if c['field'] not in ('N° ORDEN','_key')]
+                    _lyt.insert(0, {'field':'N° ORDEN','visible':True})
+                    _lyt.insert(1, {'field':'_key','visible':True})
+                    _cfg_fix.valor = json.dumps(_lyt, ensure_ascii=False)
+                    db.session.commit()
+    except: pass
     # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
     layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
@@ -3239,31 +3290,58 @@ def api_rows_add():
                 if gal_n > saldo + 1e-9:
                     return jsonify({'error': f'Saldo insuficiente. Disponible: {saldo:g} galones. Se intentó gastar: {gal_n:g}.'}), 400
 
-        # Cotizaciones: GESTOR automático y N° correlativo NO editable (avanza desde 0000030).
+        # Cotizaciones: GESTOR automático y N° COTIZACION maleable (solo se fija al generar)
         if proy_nombre == 'Cotizaciones':
             import re
             from datetime import datetime as _dt
             row_data['GESTOR'] = session.get('username', '')
             yr = str(_dt.now().year)
-            maxn = 29
-            for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+            user_coti = str(row_data.get('N° COTIZACION', '') or '').strip()
+            # Si el usuario proveyó un N° válido y no duplicado, respétalo (maleable)
+            if user_coti and re.match(r'^HW-\d{4}-\d{7}$', user_coti):
+                if not NucleusData.query.filter_by(proyecto_id=pid, key_value=user_coti).first():
+                    key_val = user_coti
+                    row_data['N° COTIZACION'] = key_val
+                else:
+                    # Duplicado -> genera siguiente
+                    user_coti = ''
+            if not user_coti or not re.match(r'^HW-\d{4}-\d{7}$', user_coti):
+                # Genera siguiente solo si no hay uno válido (al guardar sin generar, puede quedar vacío y se asignará al generar)
+                # Si viene vacío, genera igual para mantener llave única
+                cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_seq').first()
                 try:
-                    d2 = json.loads(rec.data_json)
-                    k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
-                    m = re.match(r'^HW-(\d{4})-(\d{7})$', k2)
-                    if m and m.group(1) == yr:
-                        n = int(m.group(2))
-                        if n > maxn:
-                            maxn = n
+                    cfg_n = int(str(cfg.valor).strip()) if cfg and cfg.valor and str(cfg.valor).strip().isdigit() else 30
                 except Exception:
-                    continue
-            next_n = maxn + 1
-            key_val = f"HW-{yr}-{next_n:07d}"
-            row_data['N° COTIZACION'] = key_val
-            while NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first():
-                next_n += 1
+                    cfg_n = 30
+                maxn = max(29, cfg_n - 1)
+                for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+                    try:
+                        d2 = json.loads(rec.data_json)
+                        k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
+                        m = re.match(r'^HW-(\d{4})-(\d{7})$', k2)
+                        if m and m.group(1) == yr:
+                            n = int(m.group(2))
+                            if n > maxn:
+                                maxn = n
+                    except Exception:
+                        continue
+                next_n = maxn + 1
                 key_val = f"HW-{yr}-{next_n:07d}"
                 row_data['N° COTIZACION'] = key_val
+                while NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first():
+                    next_n += 1
+                    key_val = f"HW-{yr}-{next_n:07d}"
+                    row_data['N° COTIZACION'] = key_val
+                try:
+                    nxt_val = str(next_n + 1)
+                    if cfg:
+                        cfg.valor = nxt_val
+                    else:
+                        db.session.add(AppConfig(proyecto_id=pid, clave='cotizacion_next_seq', valor=nxt_val))
+                except Exception:
+                    pass
+            else:
+                key_val = user_coti
 
         # N° ORDEN correlativo para Cotizaciones y Combustible (siempre recalculado)
         if proy_nombre in ('Cotizaciones', 'Combustible'):

@@ -239,7 +239,7 @@
         background: var(--ios-blue-light);
         padding: 8px 10px;
         border-radius: 10px;
-        border: 1px solid rgba(0,122,255,0.25);
+        border: 1px solid rgba(var(--ios-accent-rgb),0.25);
     }
 
     .config-hint {
@@ -270,7 +270,7 @@
 
     .config-select:focus {
         border-color: var(--ios-blue);
-        box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+        box-shadow: 0 0 0 3px rgba(var(--ios-accent-rgb),0.15);
     }
 
     .type-btn {
@@ -286,7 +286,7 @@
         background: var(--excel-green);
         color: white;
         border-color: var(--excel-green);
-        box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+        box-shadow: 0 4px 12px rgba(var(--ios-accent-rgb),0.3);
     }
 
     .btn-primary-dash {
@@ -341,9 +341,9 @@
     .dash-project-pill:hover { color: var(--ios-blue); }
 
     .dash-project-pill.active {
-        background: linear-gradient(135deg, #007AFF, #0A84FF);
+        background: linear-gradient(135deg, var(--ios-accent), #0A84FF);
         color: #fff;
-        box-shadow: 0 1px 4px rgba(0,122,255,0.4);
+        box-shadow: 0 1px 4px rgba(var(--ios-accent-rgb),0.4);
     }
 
     .sidebar-toggle-btn {
@@ -497,7 +497,7 @@
     }
     .filter-card {
         background: linear-gradient(135deg, #FFFFFF 0%, #F2F7FF 100%);
-        border: 1px solid rgba(0,122,255,0.25);
+        border: 1px solid rgba(var(--ios-accent-rgb),0.25);
         border-radius: 20px;
         padding: 4px 10px 4px 6px;
         min-width: 130px;
@@ -507,12 +507,12 @@
         align-items: center;
         gap: 8px;
         user-select: none;
-        box-shadow: 0 1px 5px rgba(0,122,255,0.10), inset 0 1px 0 rgba(255,255,255,0.8);
+        box-shadow: 0 1px 5px rgba(var(--ios-accent-rgb),0.10), inset 0 1px 0 rgba(255,255,255,0.8);
         transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
     }
     .filter-card:hover {
-        border-color: rgba(0,122,255,0.5);
-        box-shadow: 0 3px 12px rgba(0,122,255,0.18);
+        border-color: rgba(var(--ios-accent-rgb),0.5);
+        box-shadow: 0 3px 12px rgba(var(--ios-accent-rgb),0.18);
         transform: translateY(-1px);
     }
 
@@ -705,20 +705,20 @@
         display: flex;
         align-items: center;
         gap: 7px;
-        background: linear-gradient(135deg, rgba(0,122,255,0.10) 0%, rgba(0,122,255,0.04) 100%);
-        border: 1px solid rgba(0,122,255,0.30);
+        background: linear-gradient(135deg, rgba(var(--ios-accent-rgb),0.10) 0%, rgba(var(--ios-accent-rgb),0.04) 100%);
+        border: 1px solid rgba(var(--ios-accent-rgb),0.30);
         color: var(--ios-blue);
         border-radius: 20px;
         padding: 4px 8px 4px 5px;
         font-size: 11px;
         font-weight: 700;
-        box-shadow: 0 1px 4px rgba(0,122,255,0.14), inset 0 1px 0 rgba(255,255,255,0.7);
+        box-shadow: 0 1px 4px rgba(var(--ios-accent-rgb),0.14), inset 0 1px 0 rgba(255,255,255,0.7);
         transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
     }
 
     .sidebar-filter-chip:hover {
-        box-shadow: 0 3px 10px rgba(0,122,255,0.24);
-        border-color: rgba(0,122,255,0.5);
+        box-shadow: 0 3px 10px rgba(var(--ios-accent-rgb),0.24);
+        border-color: rgba(var(--ios-accent-rgb),0.5);
         transform: translateY(-1px);
     }
 
@@ -726,14 +726,14 @@
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #007AFF, #0A84FF);
+        background: linear-gradient(135deg, var(--ios-accent), #0A84FF);
         color: #fff;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         font-size: 9px;
         flex-shrink: 0;
-        box-shadow: 0 1px 3px rgba(0,122,255,0.45);
+        box-shadow: 0 1px 3px rgba(var(--ios-accent-rgb),0.45);
     }
 
     .chip-icon i { font-size: 9px; }
@@ -810,8 +810,16 @@
         return 'Aplica a gráficas y tarjetas';
     }
 
-    const PALETTE = ['#34A853', '#4285F4', '#FBBC05', '#EA4335', '#A142F4', '#24C1E0', '#FF6D01', '#5F6368'];
-    const BLUE = '#007AFF'; // Azul Nucleus (hex real: el canvas no resuelve var(--ios-blue))
+    const PALETTE = ['var(--ios-accent)', '#34C759', '#FF9500', '#FF3B30', '#AF52DE', '#5856D6', '#30B0C7', '#FF2D55'];
+    const BLUE = 'var(--ios-accent)';
+
+    function hexToRgba(hex, alpha) {
+        hex = hex.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -1317,33 +1325,35 @@
         if (t === 'horizontalBar') { t = 'bar'; axis = 'y'; }
         if (t === 'pie') t = 'doughnut'; // Gráfico circular con hueco en el centro
 
-        // Premium Line Gradient Fill
-        let premiumLineFill = 'rgba(0, 122, 255, 0.1)'; // Default fallback
+        // Premium Line Gradient Fill (theme-aware)
+        let premiumLineFill = 'rgba(var(--ios-accent-rgb), 0.1)'; // Default fallback
         if (t === 'line' && ctxEl) {
+            const isDark = document.body.classList.contains('dark-mode');
+            const accent = isDark ? '#0A84FF' : 'var(--ios-accent)';
             let gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(0, 122, 255, 0.45)'); // Azul iOS
-            gradient.addColorStop(1, 'rgba(0, 122, 255, 0.0)'); // Transparente difuminado abajo
+            gradient.addColorStop(0, hexToRgba(accent, 0.3));
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
             premiumLineFill = gradient;
         }
 
         // Dynamic Colors based on selection
-        const isDoughnut = (t === 'doughnut');
-        const activeFilterVal = globalFilters[config.groupCol];
-        const totalVal = values.reduce((a, b) => a + b, 0);
-        let maxIdx = -1, minIdx = -1;
-        if (isDoughnut && values.length > 1) {
-            maxIdx = values.indexOf(Math.max(...values));
-            minIdx = values.indexOf(Math.min(...values));
-            if (maxIdx === minIdx) { maxIdx = -1; minIdx = -1; }
+    const isDoughnut = (t === 'doughnut');
+    const activeFilterVal = globalFilters[config.groupCol];
+    const totalVal = values.reduce((a, b) => a + b, 0);
+    let maxIdx = -1, minIdx = -1;
+    if (isDoughnut && values.length > 1) {
+        maxIdx = values.indexOf(Math.max(...values));
+        minIdx = values.indexOf(Math.min(...values));
+        if (maxIdx === minIdx) { maxIdx = -1; minIdx = -1; }
+    }
+    const sliceColor = (i) => {
+        if (isDoughnut) {
+            if (i === maxIdx) return PALETTE[0]; // Mayor: primer color paleta
+            if (i === minIdx) return PALETTE[PALETTE.length - 1]; // Menor: último color paleta
+            return PALETTE[i % PALETTE.length];
         }
-        const sliceColor = (i) => {
-            if (isDoughnut) {
-                if (i === maxIdx) return '#FF3B30'; // Mayor: rojo llamativo
-                if (i === minIdx) return '#8E8E93'; // Menor: gris
-                return PALETTE[i % PALETTE.length];
-            }
-            return BLUE;
-        };
+        return PALETTE[0]; // Barra/linea: primer color
+    };
         const backgroundColors = labels.map((l, i) => {
             const baseColor = sliceColor(i);
             if (!activeFilterVal || (Array.isArray(activeFilterVal) && activeFilterVal.length === 0)) return baseColor;
@@ -1386,40 +1396,63 @@
             options: {
                 indexAxis: axis, responsive: true, maintainAspectRatio: false,
                 cutout: t === 'doughnut' ? '62%' : 0,
+                scales: {
+                    x: {
+                        grid: { color: getComputedStyle(document.body).getPropertyValue('--ios-hairline').trim() || '#E5E5EA' },
+                        ticks: { color: getComputedStyle(document.body).getPropertyValue('--ios-secondary').trim() || '#8E8E93', font: { size: 10, family: 'SF Pro Display, Segoe UI, Roboto, sans-serif' } }
+                    },
+                    y: {
+                        grid: { color: getComputedStyle(document.body).getPropertyValue('--ios-hairline').trim() || '#E5E5EA' },
+                        ticks: { color: getComputedStyle(document.body).getPropertyValue('--ios-secondary').trim() || '#8E8E93', font: { size: 10, family: 'SF Pro Display, Segoe UI, Roboto, sans-serif' } }
+                    }
+                },
                 plugins: {
                     legend: { 
                         display: t === 'doughnut', 
                         position: 'right',
-                        onClick: () => {} 
+                        onClick: () => {},
+                        labels: {
+                            color: getComputedStyle(document.body).getPropertyValue('--ios-label').trim() || '#1C1C1E',
+                            font: { size: 11, family: 'SF Pro Display, Segoe UI, Roboto, sans-serif' },
+                            padding: 16,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
                     },
                     centerText: { text: isDoughnut ? totalVal.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '' },
                     tooltip: {
+                        backgroundColor: getComputedStyle(document.body).getPropertyValue('--ios-card-bg').trim() || '#fff',
+                        titleColor: getComputedStyle(document.body).getPropertyValue('--ios-label').trim() || '#1C1C1E',
+                        bodyColor: getComputedStyle(document.body).getPropertyValue('--ios-secondary').trim() || '#8E8E93',
+                        borderColor: getComputedStyle(document.body).getPropertyValue('--ios-hairline').trim() || '#E5E5EA',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 8,
+                        displayColors: true,
                         callbacks: {
                             label: function(context) {
                                 let label = context.label || '';
                                 let val = 0;
                                 if (context.parsed !== undefined) {
-                                    // If axis is 'x', it's a vertical chart, value is y.
-                                    // If axis is 'y', it's a horizontal chart, value is x.
                                     val = (axis === 'x') ? context.parsed.y : context.parsed.x;
-                                    
-                                    // Fallback for pie/other charts where parsed is the value itself
                                     if (val === undefined || val === null) val = context.parsed;
                                 }
-                                
-                                // Format primary metric
                                 let mainValStr = (val !== undefined && val !== null) ? val.toLocaleString() : "0";
                                 if (config.op === 'sum_soles') {
                                     mainValStr = "S/. " + ((val !== undefined && val !== null) ? val.toLocaleString(undefined, {minimumFractionDigits:1}) : "0.0");
                                 }
-                                
                                 let finalLabel = `${label}: ${mainValStr}`;
-
                                 return finalLabel;
                             }
                         }
                     },
-                    title: { display: false }
+                    title: { 
+                display: !!config.title, 
+                text: config.title || '', 
+                font: { size: 14, weight: '600', family: 'SF Pro Display, Segoe UI, Roboto, sans-serif' },
+                color: getComputedStyle(document.body).getPropertyValue('--ios-label').trim() || '#1C1C1E',
+                padding: { top: 10, bottom: 20 }
+            },
                 },
                 interaction: {
                     mode: 'nearest',
@@ -1608,7 +1641,7 @@
         html += zonas.map(z => {
             const active = (globalFilters['ZONA'] || '').toString() === String(z) ||
                 (Array.isArray(globalFilters['ZONA']) && globalFilters['ZONA'].includes(z));
-            return `<div class="kpi-card" style="min-width:180px;cursor:pointer;${active ? 'border-color:#007AFF;box-shadow:0 0 0 2px rgba(0,122,255,0.25);' : ''}" onclick="toggleCombZona('${esc(z)}')" title="Filtrar por ${esc(z)}">` +
+            return `<div class="kpi-card" style="min-width:180px;cursor:pointer;${active ? 'border-color:var(--ios-accent);box-shadow:0 0 0 2px rgba(var(--ios-accent-rgb),0.25);' : ''}" onclick="toggleCombZona('${esc(z)}')" title="Filtrar por ${esc(z)}">` +
                 `<div class="kpi-card-title"><i class="fa-solid fa-location-dot"></i> ${esc(z)}</div>` +
                 `<div class="kpi-card-val"><span style="color:#34C759;">${(dispByZona[z] || 0).toFixed(1)}</span></div>` +
                 `<div style="font-size:11px;color:var(--ios-gray-1);font-weight:600;margin-top:2px;"><i class="fa-solid fa-fire" style="color:#FF3B30;"></i> Gastados: <b style="color:#FF3B30;">${(gastByZona[z] || 0).toFixed(1)}</b></div>` +

@@ -28,14 +28,10 @@
 
         <!-- Visibility Menu (Absolute positioned near topbar) -->
         <div id="col-menu" class="col-visibility-menu">
-            <div class="col-visibility-header">
-                <strong>Mostrar / Ocultar Columnas</strong>
-                <span class="col-visibility-actions">
-                    <button type="button" class="col-visibility-link" onclick="setAllColumns(true)">Todas</button>
-                    <button type="button" class="col-visibility-link" onclick="setAllColumns(false)">Ninguna</button>
-                </span>
+            <div class="col-visibility-header" style="justify-content:center; gap:8px;">
+                <button type="button" class="action-pill" style="height:28px; padding:0 12px; font-size:12px;" onclick="setAllColumns(true)">Todos</button>
+                <button type="button" class="action-pill" style="height:28px; padding:0 12px; font-size:12px; background:var(--ios-fill); color:var(--ios-label); border:1px solid var(--ios-hairline);" onclick="setAllColumns(false)">Limpiar</button>
             </div>
-            <p class="col-visibility-hint">Desmarca lo que no quieras ver.</p>
             <div id="col-list" class="col-visibility-list"></div>
             <div class="col-visibility-footer">
                 <button type="button" class="col-visibility-link" onclick="resetLayout()"
@@ -47,6 +43,14 @@
     <div style="flex: 1;"></div>
     {% endif %}
 
+    {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
+    {% if session.get('rol') == 'admin' and proy_nombre == 'cotizaciones' %}
+    <div id="admin-coti-next-top" style="display:flex; align-items:center; gap:6px; padding:0 12px; background:var(--ios-card-bg); border:1px solid var(--ios-hairline); border-radius:6px; height:64px; box-sizing:border-box;">
+        <span style="font-size:13px; font-weight:600; color:var(--ios-secondary);">Próximo: HW-<span id="top-next-year"></span>-</span>
+        <input type="number" id="top-next-seq" min="1" max="9999999" style="width:90px; height:36px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; font-weight:600; text-align:center; box-sizing:border-box;">
+        <button type="button" id="btn-top-next" style="height:36px; padding:0 14px; background:var(--ios-label); color:var(--ios-bg); border:1px solid var(--ios-label); border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Guardar</button>
+    </div>
+    {% endif %}
     <!-- Botón Excel (Verde) -->
     <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
         <i class="fa-solid fa-file-excel"></i> Excel
@@ -133,14 +137,34 @@
     .wo-cobra-row textarea.wo-cobra-texto:focus,
     .wo-cobra-row textarea.wo-cobra-coment:focus {
         border-color: var(--ios-blue);
-        box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+        box-shadow: 0 0 0 3px rgba(var(--ios-blue-rgb, 0, 122, 255),0.15);
         outline: none;
         z-index: 2;
         position: relative;
     }
     /* Grid más ancho para cotizaciones cuando modal es ancho */
     .modal-cotizaciones .wo-cobra-row {
-        grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 2.8fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 1.1fr) minmax(0, 0.6fr) minmax(0, 1.1fr) minmax(0, 1.8fr) 32px;
+        grid-template-columns: 40px 80px minmax(160px, 1.6fr) 60px 70px 90px 60px 100px minmax(150px, 1.4fr) 32px;
+        gap: 8px;
+        align-items: center;
+    }
+    #modal-add-registro .mar-modal{ max-width:1160px !important; width:96vw !important; }
+    #modal-add-registro .mar-body{ grid-template-columns: 1fr 1fr 1fr !important; }
+    .modal-cotizaciones .wo-cobra-row.wo-coti-header {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--ios-gray-1);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--ios-hairline);
+        margin-bottom: 8px;
+    }
+    .modal-cotizaciones .wo-cobra-row.wo-coti-header span {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: center;
     }
 
     @keyframes mar-in {
@@ -174,7 +198,7 @@
     }
 
     .mar-header h3 i {
-        color: #007AFF;
+        color: var(--ios-blue);
     }
 
     .mar-header p {
@@ -226,7 +250,7 @@
     }
 
     .mar-field label i {
-        color: #007AFF;
+        color: var(--ios-blue);
         margin-right: 2px;
     }
 
@@ -253,8 +277,8 @@
 
     .mar-field input:focus,
     .mar-field select:focus {
-        border-color: #007AFF;
-        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+        border-color: var(--ios-blue);
+        box-shadow: 0 0 0 3px rgba(var(--ios-accent-rgb), 0.15);
     }
 
     .mar-field .mar-error,
@@ -298,7 +322,7 @@
     }
 
     .mar-btn-primary {
-        background: linear-gradient(135deg, #007AFF, #0062CC);
+        background: linear-gradient(135deg, var(--ios-blue), var(--ios-accent-dark));
         color: #fff;
         border: none;
         padding: 10px 20px;
@@ -309,7 +333,7 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        box-shadow: 0 8px 18px rgba(0, 122, 255, 0.3);
+        box-shadow: 0 8px 18px rgba(var(--ios-accent-rgb), 0.3);
         transition: all .15s ease;
     }
 
@@ -319,7 +343,7 @@
     }
 
     .mar-btn-generar {
-        background: linear-gradient(135deg, #007AFF, #005ecb);
+        background: linear-gradient(135deg, var(--ios-blue), #005ecb);
         color: #fff;
         border: none;
         padding: 10px 18px;
@@ -330,7 +354,7 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3);
+        box-shadow: 0 4px 14px rgba(var(--ios-accent-rgb), 0.3);
         transition: all .15s ease;
     }
 
@@ -338,7 +362,7 @@
         background: #005ecb;
         filter: brightness(1.08);
         transform: translateY(-1px);
-        box-shadow: 0 6px 18px rgba(0, 122, 255, 0.4);
+        box-shadow: 0 6px 18px rgba(var(--ios-accent-rgb), 0.4);
     }
 
     .mar-btn-guardar {
@@ -364,7 +388,7 @@
     }
 
     .mar-btn-copy {
-        background: linear-gradient(135deg, #38b6ff, #007AFF);
+        background: linear-gradient(135deg, var(--ios-accent), var(--ios-accent));
         color: #fff;
         border: none;
         padding: 10px 18px;
@@ -375,7 +399,7 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        box-shadow: 0 8px 18px rgba(0, 122, 255, 0.35);
+        box-shadow: 0 8px 18px rgba(var(--ios-accent-rgb), 0.35);
         transition: all .15s ease;
     }
 
@@ -471,7 +495,7 @@
 
     .data-stat.stat-active {
         border-color: var(--ios-blue);
-        box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.25);
+        box-shadow: 0 0 0 2px rgba(var(--ios-accent-rgb), 0.25);
     }
 
     .btn-marcar-no-atendido {
@@ -527,7 +551,7 @@
     }
 
     .wo-link {
-        color: #007AFF;
+        color: var(--ios-blue);
         text-decoration: underline;
         cursor: pointer;
         font-weight: 600;
@@ -582,7 +606,7 @@
     }
 
     .topbar-switch input:checked+.topbar-switch-track {
-        background: var(--ios-blue, #007AFF);
+        background: var(--ios-accent);
     }
 
     .topbar-switch input:checked+.topbar-switch-track::after {
@@ -590,7 +614,7 @@
     }
 
     .topbar-switch input:checked~.topbar-switch-label {
-        color: var(--ios-blue, #007AFF);
+        color: var(--ios-accent);
     }
 
     .wo-summary {
@@ -683,7 +707,7 @@
     .wo-field select:focus,
     .wo-field textarea:focus {
         border-color: var(--ios-blue);
-        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+        box-shadow: 0 0 0 3px rgba(var(--ios-accent-rgb), 0.15);
     }
 
     .wo-field textarea {
@@ -818,7 +842,7 @@
 
     .wo-tab.active {
         background: #fff;
-        color: var(--ios-blue, #007AFF);
+        color: var(--ios-accent);
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
     }
 
@@ -913,7 +937,7 @@
         width: 70px;
         padding: 6px 10px;
         border-radius: 8px;
-        border: 1.5px solid var(--ios-blue, #007AFF);
+        border: 1.5px solid var(--ios-accent);
         background: #fff;
         font-family: inherit;
         font-size: 13px;
@@ -950,7 +974,7 @@
     }
 
     .wo-subtotal-val {
-        color: var(--ios-blue, #007AFF);
+        color: var(--ios-accent);
     }
 
     .wo-total-coti {
@@ -959,14 +983,14 @@
         justify-content: space-between;
         margin-top: 8px;
         padding: 10px 14px;
-        border-top: 2px solid var(--ios-blue, #007AFF);
+        border-top: 2px solid var(--ios-blue);
         font-size: 13px;
         font-weight: 800;
         color: var(--ios-label);
     }
 
     .wo-total-val {
-        color: var(--ios-blue, #007AFF);
+        color: var(--ios-accent);
     }
 
     .wo-coti-meta {
@@ -1165,14 +1189,14 @@
     }
 
     .mar-head-actions .mar-btn-generar {
-        background: #007AFF;
+        background: var(--ios-blue);
         color: #fff;
         border: none;
-        box-shadow: 0 4px 10px rgba(0, 122, 255, 0.35);
+        box-shadow: 0 4px 10px rgba(var(--ios-accent-rgb), 0.35);
     }
 
     .mar-head-actions .mar-btn-generar:hover {
-        background: #0062CC;
+        background: var(--ios-accent-dark);
         filter: none;
         transform: none;
     }
@@ -1263,9 +1287,9 @@
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background: var(--ios-blue, #007AFF);
+        background: var(--ios-accent);
         border: 2px solid #fff;
-        box-shadow: 0 0 0 2px var(--ios-blue, #007AFF);
+        box-shadow: 0 0 0 2px var(--ios-accent);
         box-sizing: border-box;
     }
 
@@ -1293,7 +1317,7 @@
     }
 
     .wt-agent i {
-        color: var(--ios-blue, #007AFF);
+        color: var(--ios-accent);
         margin-right: 5px;
         font-size: 11px;
     }
@@ -1402,7 +1426,7 @@
 
     .wo-zip-btn {
         margin-left: auto;
-        background: linear-gradient(135deg, #007AFF, #5856D6);
+        background: linear-gradient(135deg, var(--ios-blue), #5856D6);
         border: none;
         color: #fff;
         height: 28px;
@@ -1415,10 +1439,10 @@
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        box-shadow: 0 4px 12px rgba(0,122,255,0.28);
+        box-shadow: 0 4px 12px rgba(var(--ios-blue-rgb, 0, 122, 255),0.28);
         transition: all .15s ease;
     }
-    .wo-zip-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,122,255,0.36); }
+    .wo-zip-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(var(--ios-blue-rgb, 0, 122, 255),0.36); }
     .wo-zip-btn:active { transform: translateY(0) scale(0.98); }
     .wo-zip-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
@@ -1449,7 +1473,7 @@
 
     .evidencia-fotos.drag-over {
         border-color: var(--ios-blue);
-        background: rgba(0, 122, 255, 0.06);
+        background: rgba(var(--ios-accent-rgb), 0.06);
     }
 
     .evidencia-slot {
@@ -1801,7 +1825,7 @@
                         </select>
                         <button type="button" id="btn-abrir-coti" onclick="abrirRegistroCotizacion()"
                             title="Nueva cotización"
-                            style="background:#007AFF; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1; flex-shrink:0;"><i
+                            style="background:var(--ios-blue); color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1; flex-shrink:0;"><i
                                 class="fa-solid fa-plus"></i></button>
                         <span id="badge-coti-bloqueada" title="Cotización bloqueada"
                             style="display:none; background:#FF3B30; color:#fff; width:30px; height:30px; font-size:13px; border-radius:50%; letter-spacing:0.3px; align-items:center; justify-content:center;"><i
@@ -1899,8 +1923,8 @@
                             <span id="wo-subtotal-fee" class="wo-subtotal-val">0.00</span>
                             <span></span>
                         </div>
-                        <button type="button" id="btn-wo-agregar-item" class="mar-btn-ghost"
-                            onclick="agregarFilaCobra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
+<button type="button" id="btn-wo-agregar-item" class="mar-btn-primary"
+                            onclick="agregarFilaCoti()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
                             Agregar item</button>
                     </div>
                     {% else %}
@@ -1959,7 +1983,7 @@
                             <span id="wo-subtotal-a" class="wo-subtotal-val">0.00</span>
                             <span></span>
                         </div>
-                        <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-ghost"
+                        <button type="button" id="btn-wo-agregar-gasto" class="mar-btn-primary"
                             onclick="agregarFilaGasto()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
                             Agregar item</button>
                     </div>
@@ -1986,7 +2010,7 @@
                             <span id="wo-subtotal-b" class="wo-subtotal-val">0.00</span>
                             <span></span>
                         </div>
-                        <button type="button" id="btn-wo-agregar-mo" class="mar-btn-ghost"
+                        <button type="button" id="btn-wo-agregar-mo" class="mar-btn-primary"
                             onclick="agregarFilaManoObra()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
                             Agregar item</button>
                     </div>
@@ -2131,7 +2155,25 @@
     const USER_IS_ADMIN = USER_ROLE === "admin";
     let cotiNextSeqConfig = 61;
     if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
-        fetch('/api/cotizacion/next_seq').then(r=>r.json()).then(j=>{ if(j && j.next) cotiNextSeqConfig = parseInt(j.next,10); }).catch(()=>{});
+        fetch('/api/cotizacion/next_seq').then(r=>r.json()).then(j=>{ if(j && j.next){ cotiNextSeqConfig = parseInt(j.next,10); const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'); if(y) y.textContent=new Date().getFullYear(); if(inp) inp.value=String(cotiNextSeqConfig).padStart(7,'0'); } }).catch(()=>{});
+        setTimeout(()=>{
+            const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'), btn=document.getElementById('btn-top-next');
+            if(y) y.textContent=new Date().getFullYear();
+            if(inp && cotiNextSeqConfig) inp.value=String(cotiNextSeqConfig).padStart(7,'0');
+            if(btn) btn.onclick=async()=>{
+                const v=parseInt(inp.value,10);
+                if(!v||v<1){ nucleusAlert('Correlativo inválido'); return; }
+                btn.disabled=true; const old=btn.textContent; btn.textContent='Guardando...';
+                try{
+                    const r=await fetch('/api/cotizacion/next_seq',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({next:v})});
+                    const j=await r.json();
+                    if(!r.ok) throw new Error(j.error||'Error');
+                    cotiNextSeqConfig=v;
+                    nucleusAlert('Próximo correlativo guardado: HW-'+new Date().getFullYear()+'-'+String(v).padStart(7,'0'));
+                }catch(e){ nucleusAlert(e.message||'Error'); }
+                finally{ btn.disabled=false; btn.textContent=old; }
+            };
+        }, 400);
     }
     const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
     const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
@@ -2153,7 +2195,7 @@
 
     const WO_STATE_COLORS = {
         'unscheduled': { bg: '#8E8E93', fg: '#8E8E93', iconText: 'U' },
-        'accepted': { bg: '#007AFF', fg: '#007AFF', iconText: 'A' },
+        'accepted': { bg: "var(--ios-accent)", fg: "var(--ios-accent)", iconText: 'A' },
         'dispatched': { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
         'inprocess': { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
         'rejected': { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
@@ -2218,7 +2260,7 @@
         if (!hasEstado && !hasProyecto) return;
 
         const cards = [
-            ['#007AFF', 'fa-users', 'Personal', rawData.length]
+            ["var(--ios-accent)", "fa-users", "Personal", rawData.length]
         ];
         if (hasEstado) {
             cards.push(['#34C759', 'fa-user-check', 'Activos', activos]);
@@ -2276,7 +2318,7 @@
         cards.push(['#34C759', 'fa-circle-check', 'DISPONIBLE', `${totalDisponible.toFixed(1)} gal`, 'DISPONIBLE POR ZONA']);
         zonas.forEach(z => {
             cards.push([
-                '#007AFF', 'fa-location-dot', z,
+                'var(--ios-accent)', 'fa-location-dot', z,
                 `${(dispByZona[z] || 0).toFixed(1)} gal`,
                 `Total: ${((dispByZona[z] || 0) + (gastByZona[z] || 0)).toFixed(1)} · Gastados: ${(gastByZona[z] || 0).toFixed(1)}`
             ]);
@@ -2327,7 +2369,7 @@
             ['#8E8E93', 'fa-ban', 'NO APLICA', slaCounts['NO APLICA']],
             ['#8E8E93', 'fa-calendar', 'Unscheduled', woCounts.unscheduled],
             ['#AF52DE', 'fa-paper-plane', 'Dispatched', woCounts.dispatched],
-            ['#007AFF', 'fa-check-double', 'Accepted', woCounts.accepted],
+            ["var(--ios-accent)", "fa-check-double", "Accepted", woCounts.accepted],
             ['#FF9500', 'fa-spinner', 'Inprocess', woCounts.inprocess]
         ];
         container.style.display = 'grid';
@@ -2396,34 +2438,47 @@
         const data = row.getData();
         const key = data._key;
         if (!key) return;
+        const isSupervisor = (String("{{ session.get('rol') }}").trim().toLowerCase() === 'supervisor' || String("{{ session.get('rol') }}").trim().toLowerCase() === 'admin');
         const cancelado = String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
             String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
 
         if (cancelado) {
-            alert('Motivo registrado: ' + (data['MOTIVO NO ATENDIDO'] || 'No especificado'));
+            const detalle = `Motivo: ${data['MOTIVO NO ATENDIDO']||'No especificado'}\nFecha: ${data['FECHA NO ATENDIDO']||data['FECHA']||'-'}\nUsuario: ${data['USUARIO NO ATENDIDO']||data['_ultimo_usuario_manual']||'-'}`;
+            if (isSupervisor) {
+                const ok = await nucleusConfirm(detalle + '\n\n¿Habilitar nuevamente este WO?', 'Detalle No Atendido');
+                if (!ok) return;
+                const r = await fetch('/api/rows/update', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key: key, field: 'CANCELADO O&M', value: ''})});
+                const j = await r.json();
+                if (j.error) { nucleusAlert('Error: '+j.error); return; }
+                await fetch('/api/rows/update', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key: key, field: 'MOTIVO NO ATENDIDO', value: ''})});
+                await fetch('/api/rows/update', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key: key, field: 'FECHA NO ATENDIDO', value: ''})});
+                if (table) table.setData(table.getData());
+            } else {
+                nucleusAlert(detalle, 'Detalle No Atendido');
+            }
             return;
         }
 
-        const motivo = await nucleusPrompt('Motivo por el cual NO se atiende este WO (Cancelado O&M):', '');
-        if (motivo === null) return; // canceló
+        const motivo = await nucleusPrompt('Motivo por el cual NO se atiende este WO (Cancelado O&M):', '', 'Motivo');
+        if (motivo === null) return;
         const motivoFinal = String(motivo).trim();
-        if (!motivoFinal) { alert('Debes indicar un motivo.'); return; }
+        if (!motivoFinal) { nucleusAlert('Debes indicar un motivo.'); return; }
+        const fecha = await nucleusPrompt('Fecha del no atendido (YYYY-MM-DD HH:MM) — dejar vacío para ahora:', new Date().toISOString().slice(0,16).replace('T',' '), 'Fecha');
+        if (fecha === null) return;
+        const fechaFinal = String(fecha).trim() || new Date().toISOString().slice(0,16).replace('T',' ');
 
-        fetch('/api/rows/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: key, field: 'CANCELADO O&M', value: 'SÍ' })
-        }).then(r => r.json()).then(res1 => {
-            if (res1.error) { alert('Error: ' + res1.error); return; }
-            return fetch('/api/rows/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: key, field: 'MOTIVO NO ATENDIDO', value: motivoFinal })
-            }).then(r => r.json());
-        }).then(res2 => {
-            if (res2 && res2.error) { alert('Error: ' + res2.error); return; }
-            if (table) table.setData(table.getData()); // recarga para reflejar atenuación
-        }).catch(() => alert('Error de red'));
+        const payloads = [
+            {field:'CANCELADO O&M', value:'SÍ'},
+            {field:'MOTIVO NO ATENDIDO', value:motivoFinal},
+            {field:'FECHA NO ATENDIDO', value:fechaFinal},
+            {field:'USUARIO NO ATENDIDO', value:"{{ session.get('username') }}"}
+        ];
+        for(const p of payloads){
+            const r = await fetch('/api/rows/update', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key:key, field:p.field, value:p.value})});
+            const j = await r.json();
+            if(j.error){ nucleusAlert('Error: '+j.error); return; }
+        }
+        if (table) table.setData(table.getData());
     }
 
     const kpiAlarmFormatter = function (cell) {
@@ -2709,7 +2764,7 @@
         const btnBase = "padding:8px 10px;cursor:pointer;border:none;border-radius:4px;font-weight:bold;font-size:12px;";
         const applyBtn = document.createElement("button");
         applyBtn.innerHTML = "<i class='fa-solid fa-check'></i> Aplicar";
-        applyBtn.style.cssText = btnBase + "background:#007AFF;color:white;flex:1;";
+        applyBtn.style.cssText = btnBase + "background:var(--ios-blue);color:white;flex:1;";
         const clearBtn = document.createElement("button");
         clearBtn.innerHTML = "<i class='fa-solid fa-eraser'></i> Limpiar";
         clearBtn.style.cssText = btnBase + "background:#d13438;color:white;flex:1;";
@@ -2955,7 +3010,7 @@
             field: fieldName,
             headerFilter: "input",
             headerPopup: customHeaderPopup,
-            headerPopupIcon: "<i class='fa-solid fa-filter' style='font-size: 10px; color: #007AFF; opacity: 0.75;'></i>",
+            headerPopupIcon: "<i class='fa-solid fa-filter' style='font-size: 10px; color: var(--ios-blue); opacity: 0.75;'></i>",
             width: 150,
             minWidth: 60,
             maxWidth: 260,
@@ -2971,7 +3026,7 @@
         // 1. PRIMARY KEY
         if (fieldName === "_key") {
             colDef.frozen = true;
-            colDef.title = "<i class='fa-solid fa-key' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> {{ pk }}";
+            colDef.title = "<i class='fa-solid fa-key' style='color:var(--ios-blue); font-size:10px; opacity:0.8;'></i> {{ pk }}";
             colDef.cssClass = "key-column";
             // Combustible y Generadores: la llave visible es QR ASIGNADO; el ID interno (NO_DEF) se oculta.
             if (['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase())) {
@@ -3007,7 +3062,7 @@
 
         // 2. KPI ALARM (Dilación - Frozen columns on the left)
         if (fieldName.startsWith("KPI_")) {
-            colDef.title = "<i class='fa-solid fa-gauge-high' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> " + fieldName.replace("KPI_", "");
+            colDef.title = "<i class='fa-solid fa-gauge-high' style='color:var(--ios-blue); font-size:10px; opacity:0.8;'></i> " + fieldName.replace("KPI_", "");
             colDef.formatter = kpiAlarmFormatter;
             colDef.width = 130;
             colDef.hozAlign = "center";
@@ -3085,7 +3140,7 @@
 
         // 4. MANUAL COLUMNS (Editors and Specific Formatters)
         if (isManual) {
-            colDef.title = "<i class='fa-solid fa-pen-to-square' style='color:#007AFF; font-size:10px; opacity:0.8;'></i> " + fieldName;
+            colDef.title = "<i class='fa-solid fa-pen-to-square' style='color:var(--ios-blue); font-size:10px; opacity:0.8;'></i> " + fieldName;
             const isDemo = "{{ session.get('rol') }}" === "demo";
             const isAdminUser = "{{ session.get('rol') }}" === "admin";
             const isCombustible = currentProjectNombre.trim().toLowerCase() === 'combustible';
@@ -3113,14 +3168,14 @@
                         // TIPO se llena automáticamente según el QR ASIGNADO: no editable
                         colDef.editor = false;
                     } else if (isCombustible && fieldName === 'TECNICO ASIGNADO') {
-                        // TECNICO ASIGNADO: se llena según el QR pero se puede cambiar
+                        // TECNICO ASIGNADO: se llena según el QR pero se puede cambiar (combo editable)
                         colDef.editor = "list";
                         colDef.editorParams = {
                             values: manualDef.opciones,
                             clearable: true,
                             autocomplete: true,
                             listOnEmpty: true,
-                            freetext: false
+                            freetext: true
                         };
                         colDef.headerFilter = "list";
                         colDef.headerFilterParams = { values: manualDef.opciones, clearable: true };
@@ -3234,7 +3289,7 @@
                 colDef.formatter = function (cell) {
                     const v = cell.getValue();
                     if (!String(v || '').trim()) return v;
-                    return `<span style="color:#007AFF; font-weight:600; text-decoration:underline; cursor:pointer;" title="Ver/editar registro">${escapeHtml(v)}</span>`;
+                    return `<span style="color:var(--ios-blue); font-weight:600; text-decoration:underline; cursor:pointer;" title="Ver/editar registro">${escapeHtml(v)}</span>`;
                 };
             }
             if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'SALDO DISPONIBLE') {
@@ -3252,7 +3307,7 @@
                 colDef.formatter = function (cell) {
                     const v = String(cell.getValue() || '').trim().toUpperCase();
                     if (v === 'INGRESO') {
-                        return `<span style="display:inline-block; font-weight:700; color:#007AFF; background:rgba(0,122,255,0.10); border:1px solid rgba(0,122,255,0.35); border-radius:999px; padding:3px 10px; font-size:11px;">INGRESO</span>`;
+                        return `<span style="display:inline-block; font-weight:700; color:var(--ios-blue); background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.10); border:1px solid rgba(var(--ios-blue-rgb, 0, 122, 255),0.35); border-radius:999px; padding:3px 10px; font-size:11px;">INGRESO</span>`;
                     }
                     if (v === 'GASTO') {
                         return `<span style="display:inline-block; font-weight:700; color:#FF3B30; background:rgba(255,59,48,0.10); border:1px solid rgba(255,59,48,0.35); border-radius:999px; padding:3px 10px; font-size:11px;">GASTO</span>`;
@@ -3276,10 +3331,10 @@
                     const url = String(cell.getValue() || '').trim();
                     const rowKey = escapeHtml(String(cell.getRow().getData()._key || ''));
                     const estado = url
-                        ? `<span style="color:#007AFF; font-weight:600; cursor:pointer; text-decoration:underline;">Foto Cargada</span>`
+                        ? `<span style="color:var(--ios-blue); font-weight:600; cursor:pointer; text-decoration:underline;">Foto Cargada</span>`
                         : `<span style="color:var(--ios-gray-2); font-size:11px;">Sin foto</span>`;
                     const camBtn = (USER_IS_ADMIN || !url)
-                        ? `<button type="button" title="Subir/cambiar foto" style="border:none;background:rgba(0,122,255,0.10);color:#007AFF;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); combSubirFoto('${rowKey}', this)"><i class="fa-solid fa-camera"></i></button>`
+                        ? `<button type="button" title="Subir/cambiar foto" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.10);color:var(--ios-blue);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); combSubirFoto('${rowKey}', this)"><i class="fa-solid fa-camera"></i></button>`
                         : '';
                     return `<div style="display:inline-flex; align-items:center; gap:6px;">${estado}${camBtn}</div>`;
                 };
@@ -3536,7 +3591,7 @@
                 }
                 return `<div style="display:inline-flex; align-items:center; gap:6px;">
                     <span style="color:var(--ios-gray-2); font-size:11px;">Sin PDF</span>
-                    <button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(0,122,255,0.12);color:#007AFF;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); generarCotizacionExistente('${rowKey}')"><i class="fa-solid fa-file-circle-plus"></i></button>
+                    <button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.12);color:var(--ios-blue);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); generarCotizacionExistente('${rowKey}')"><i class="fa-solid fa-file-circle-plus"></i></button>
                 </div>`;
             },
             cellClick: function (e, cell) { }
@@ -3581,7 +3636,7 @@
         applyBtn.style.padding = "10px";
         applyBtn.style.cursor = "pointer";
         applyBtn.style.border = "none";
-        applyBtn.style.background = "#007AFF"; // blue
+        applyBtn.style.background = "var(--ios-accent)"; // blue
         applyBtn.style.color = "white";
         applyBtn.style.borderRadius = "4px";
         applyBtn.style.fontWeight = "bold";
@@ -3683,6 +3738,7 @@
         return container;
     }
 
+    tableColumns.forEach(c=>{ if(c.field==='N° ORDEN'){ c.title='N'; c.width=52; c.minWidth=44; c.maxWidth=60; }});
     if (tableColumns.length === 0) {
         tableColumns.push({ title: 'No Data', field: 'nodata' });
     }
@@ -3692,7 +3748,7 @@
         layout: "fitData", // Enable true horizontal scrolling for wide columns
         columns: tableColumns,
         height: "100%", // take up all space
-        headerHeight: 90, // Taller for wrapping + filter at bottom
+        headerHeight: 90, // Título + buscador
         rowHeight: 25, // Compact Excel feel
         selectable: isAdmin, // Solo admin puede seleccionar (desde el checkbox)
         selectableRangeMode: false, // Sin seleccion por clic en la fila
@@ -3718,7 +3774,7 @@
         persistence: { columns: ["width"] }, // Orden y visibilidad: definiciones o layout del admin (servidor); aquí solo ancho
         persistenceID: "nucleus-layout-{{ proyecto_id }}" // Unique per project
     });
-
+    // handlers deshabilitados
     table.on("dataFiltered", function (filters, rows) {
         const status = document.getElementById('status-record-count');
         if (!status) return;
@@ -4088,7 +4144,7 @@
         if (!hasPk) {
             const note = document.createElement('div');
             note.className = 'mar-empty';
-            note.style.cssText = 'grid-column: 1/-1; text-align:left; background: rgba(0,122,255,0.08); border:1px solid rgba(0,122,255,0.2); border-radius:12px; padding:10px 14px; color:#007AFF; font-size:12px; display:flex; align-items:center; gap:8px;';
+            note.style.cssText = 'grid-column: 1/-1; text-align:left; background: rgba(var(--ios-blue-rgb, 0, 122, 255),0.08); border:1px solid rgba(var(--ios-blue-rgb, 0, 122, 255),0.2); border-radius:12px; padding:10px 14px; color:var(--ios-blue); font-size:12px; display:flex; align-items:center; gap:8px;';
             note.innerHTML = '<i class="fa-solid fa-circle-info"></i> Este proyecto no tiene clave primaria. El ID se generará automáticamente.';
             body.appendChild(note);
         }
@@ -4166,15 +4222,12 @@
             return wrap;
         }
 
-        // N° ORDEN — correlativo
+        // N° ORDEN — oculto en Combustible (auto)
         const inpOrdenComb = document.createElement('input');
-        inpOrdenComb.type = 'text';
+        inpOrdenComb.type = 'hidden';
         inpOrdenComb.value = _sugerirOrden();
-        inpOrdenComb.readOnly = true;
-        inpOrdenComb.style.background = 'var(--ios-fill)';
-        inpOrdenComb.style.fontWeight = '700';
-        inpOrdenComb.style.textAlign = 'center';
-        mkField('N° ORDEN', inpOrdenComb, 'N° ORDEN', {readonly: true});
+        const wrapOrdenComb = mkField('N° ORDEN', inpOrdenComb, 'N° ORDEN', {readonly: true});
+        wrapOrdenComb.style.display = 'none';
 
         // MOVIMIENTO
         const selMov = document.createElement('select');
@@ -4215,17 +4268,27 @@
         });
         mkField('TIPO', selTipo, 'TIPO');
 
-        // TECNICO ASIGNADO (se llena con el técnico del QR, pero permite elegir otro)
-        const selTec = document.createElement('select');
-        const tecPh = document.createElement('option');
-        tecPh.value = ''; tecPh.textContent = '— Seleccionar —';
-        selTec.appendChild(tecPh);
-        (mcc['TECNICO ASIGNADO'] && mcc['TECNICO ASIGNADO'].opciones || []).forEach(o => {
+        // TECNICO ASIGNADO (combo editable: autocompleta del QR pero permite escribir otro + lista)
+        const selTec = document.createElement('input');
+        selTec.type = 'text';
+        selTec.setAttribute('list', 'tecnico-list-datalist');
+        selTec.placeholder = 'Técnico del generador...';
+        selTec.title = 'Técnico del generador; puedes cambiarlo o escribir otro';
+        if (!document.getElementById('tecnico-list-datalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'tecnico-list-datalist';
+            document.body.appendChild(dl);
+        }
+        const dlTec = document.getElementById('tecnico-list-datalist');
+        dlTec.innerHTML = '';
+        // Opciones manuales + técnicos de Generadores/Dataper
+        const tecOpts = new Set((mcc['TECNICO ASIGNADO'] && mcc['TECNICO ASIGNADO'].opciones) || []);
+        try { (genTecnicoMap ? Object.values(genTecnicoMap) : []).forEach(v=>{ if(v) tecOpts.add(v); }); } catch(e){}
+        tecOpts.forEach(o => {
             const opt = document.createElement('option');
-            opt.value = o; opt.textContent = o;
-            selTec.appendChild(opt);
+            opt.value = o;
+            dlTec.appendChild(opt);
         });
-        selTec.title = 'Técnico del generador; puedes cambiarlo';
         mkField('TECNICO ASIGNADO', selTec, 'TECNICO ASIGNADO');
 
         // ZONA (se llena solo según el QR ASIGNADO)
@@ -4306,7 +4369,7 @@
         const fotoBtn = document.createElement('button');
         fotoBtn.type = 'button';
         fotoBtn.innerHTML = '<i class="fa-solid fa-camera"></i> Subir foto';
-        fotoBtn.style.cssText = 'border:1px dashed #007AFF; background:rgba(0,122,255,0.06); color:#007AFF; border-radius:10px; padding:9px 14px; font-size:12px; font-weight:600; cursor:pointer;';
+        fotoBtn.style.cssText = 'border:1px dashed var(--ios-blue); background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.06); color:var(--ios-blue); border-radius:10px; padding:9px 14px; font-size:12px; font-weight:600; cursor:pointer;';
         const fotoInput = document.createElement('input');
         fotoInput.type = 'file';
         fotoInput.accept = 'image/*';
@@ -4452,16 +4515,13 @@
             return inp;
         }
 
-        // N° ORDEN — correlativo por FECHA, solo lectura
+        // N° ORDEN — oculto (auto, no necesario en formulario)
         const ordenVal = cotiEditMode ? '' : _sugerirOrden();
         const inpOrden = document.createElement('input');
-        inpOrden.type = 'text';
+        inpOrden.type = 'hidden';
         inpOrden.value = ordenVal;
-        inpOrden.readOnly = true;
-        inpOrden.style.background = 'var(--ios-fill)';
-        inpOrden.style.fontWeight = '700';
-        inpOrden.style.textAlign = 'center';
-        mkField('N° ORDEN', inpOrden, 'N° ORDEN');
+        const wrapOrden = mkField('N° ORDEN', inpOrden, 'N° ORDEN');
+        wrapOrden.style.display = 'none';
 
         // FECHA (Fecha y Hora)
         const inpFecha = document.createElement('input');
@@ -4469,62 +4529,18 @@
         inpFecha.value = _obtenerFechaHoraLocal();
         mkField('FECHA Y HORA', inpFecha, 'FECHA');
 
-        // N° COTIZACION — consecutivo automático, solo lectura, más estético
-        const numWrap = document.createElement('div');
-        numWrap.className = 'mar-field';
-        const numLbl = document.createElement('label');
-        numLbl.textContent = 'N° COTIZACION';
-        numLbl.style.cssText = 'font-size:11px; font-weight:600; color:var(--ios-gray); letter-spacing:0.3px; text-transform:uppercase;';
-        numWrap.appendChild(numLbl);
-        const fullNum = 'HW-' + new Date().getFullYear() + '-' + _sugerirCorrelativoCotiReg();
-        const numBadge = document.createElement('div');
-        numBadge.className = 'cot-badge-numero';
-        numBadge.id = 'cot-badge-numero-disp';
-        numBadge.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:#007AFF; color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span> ' + escapeHtml(fullNum) + ' <span class="cot-badge-pill">AUTO</span>';
-        // Hidden input para que guardarModalRegistro lo recoja como llave
-        const numHidden = document.createElement('input');
-        numHidden.type = 'hidden';
-        numHidden.value = fullNum.slice(-7);
-        numHidden.dataset.field = '_COT_NUM_DIGITS';
-        numHidden.dataset.pk = '1';
-        numWrap.appendChild(numBadge);
-        numWrap.appendChild(numHidden);
-        body.appendChild(numWrap);
+        // N° COTIZACION — editable, solo se fija al generar
+        const inpCoti = document.createElement('input');
+        inpCoti.type = 'text';
+        const _fullSug = 'HW-' + new Date().getFullYear() + '-' + _sugerirCorrelativoCotiReg();
+        let _curCoti = _fullSug;
+        try{ if(typeof cotiEditMode!=='undefined' && cotiEditMode && typeof cotiEditData!=='undefined' && cotiEditData['N° COTIZACION']) _curCoti = cotiEditData['N° COTIZACION']; }catch(e){}
+        inpCoti.value = _curCoti;
+        inpCoti.placeholder = 'HW-2026-0000000';
+        inpCoti.title = 'Editable. Se asigna definitivo al generar.';
+        mkField('N° COTIZACION', inpCoti, 'N° COTIZACION');
 
-        // Admin: Configurar próximo correlativo (solo admin, solo creación)
-        if (USER_IS_ADMIN && !cotiEditMode) {
-            const cfgWrap = document.createElement('div');
-            cfgWrap.style.cssText = 'grid-column:1/-1; display:flex; align-items:center; gap:8px; padding:8px 10px; background: rgba(0,122,255,0.06); border:1px solid rgba(0,122,255,0.12); border-radius:10px; margin-bottom:4px;';
-            cfgWrap.innerHTML = '<i class="fa-solid fa-gear" style="color:#007AFF;"></i><span style="font-size:11px; font-weight:600; color:#007AFF;">Admin: Próximo correlativo</span>' +
-                '<span style="font-size:11px; color:var(--ios-gray-1);">HW-' + new Date().getFullYear() + '-</span>' +
-                '<input type="number" id="cfg-next-seq" value="' + String(cotiNextSeqConfig).padStart(7,'0') + '" min="1" max="9999999" style="width:110px; height:30px; border:1px solid var(--excel-border); border-radius:8px; padding:0 8px; font-size:12px; font-weight:600; text-align:center;">' +
-                '<button type="button" id="btn-cfg-next" style="height:30px; padding:0 12px; background:#007AFF; color:#fff; border:none; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">Guardar</button>' +
-                '<span id="cfg-next-msg" style="font-size:11px; color:var(--ios-gray-1);"></span>';
-            body.appendChild(cfgWrap);
-            setTimeout(()=>{
-                const inp = document.getElementById('cfg-next-seq');
-                const btn = document.getElementById('btn-cfg-next');
-                const msg = document.getElementById('cfg-next-msg');
-                if(btn) btn.onclick = async () => {
-                    const v = parseInt(inp.value,10);
-                    if(!v || v<1){ nucleusAlert('Correlativo inválido'); return; }
-                    btn.disabled=true; btn.textContent='Guardando...';
-                    try{
-                        const r = await fetch('/api/cotizacion/next_seq', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({next:v})});
-                        const j = await r.json();
-                        if(!r.ok) throw new Error(j.error||'Error');
-                        cotiNextSeqConfig = v;
-                        msg.textContent='✓ Guardado. Próximo: HW-'+new Date().getFullYear()+'-'+String(v).padStart(7,'0');
-                        msg.style.color='#34C759';
-                        // Actualizar badge
-                        const newFull = 'HW-' + new Date().getFullYear() + '-' + String(v).padStart(7,'0');
-                        numBadge.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:#007AFF; color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span> ' + escapeHtml(newFull) + ' <span class="cot-badge-pill">AUTO</span>';
-                        numHidden.value = String(v).padStart(7,'0');
-                    }catch(e){ msg.textContent='✗ '+(e.message||'Error'); msg.style.color='#FF3B30'; }
-                    finally{ btn.disabled=false; btn.textContent='Guardar'; }
-                };
-            }, 0);
-        }
+        // Admin top bar ya maneja el correlativo; modal solo muestra N° sugerido
 
         // SUPERVISOR: Lista desplegable con supervisores autorizados
         const selSupervisor = document.createElement('select');
@@ -4629,9 +4645,11 @@
 
         const btnItem = document.createElement('button');
         btnItem.type = 'button';
-        btnItem.className = 'mar-btn-ghost';
-        btnItem.innerHTML = '<i class="fa-solid fa-plus"></i> Agregar item';
-        btnItem.onclick = () => cotRegAgregarFila();
+        btnItem.className = 'mar-btn-primary';
+btnItem.innerHTML = '<i class="fa-solid fa-plus"></i> Agregar item';
+btnItem.className = 'mar-btn-primary';
+btnItem.style.marginTop = '12px';
+btnItem.onclick = () => cotRegAgregarFila();
         body.appendChild(btnItem);
 
         cotRegAgregarFila();
@@ -4669,9 +4687,19 @@
         txtInp.placeholder = 'Texto explicativo...';
         txtInp.value = datos.texto || '';
         txtInp.rows = 1;
-        txtInp.title = datos.texto || '';
-        txtInp.addEventListener('input', function(){ this.style.height='auto'; this.style.height=(this.scrollHeight)+'px'; this.title=this.value; });
-        setTimeout(()=>{ try{ txtInp.style.height='auto'; txtInp.style.height=(txtInp.scrollHeight)+'px'; }catch(e){} }, 0);
+        txtInp.readOnly = true;
+        txtInp.style.setProperty('height','32px','important');
+        txtInp.style.setProperty('min-height','32px','important');
+        txtInp.style.setProperty('max-height','32px','important');
+        txtInp.style.setProperty('resize','none','important');
+        txtInp.style.cursor = 'pointer';
+        txtInp.style.whiteSpace = 'nowrap';
+        txtInp.style.overflow = 'hidden';
+        txtInp.style.textOverflow = 'ellipsis';
+        txtInp.style.padding = '6px 8px';
+        txtInp.style.fontSize = '12px';
+        txtInp.title = 'Click para editar';
+        txtInp.addEventListener('click', function(){ abrirTextoAmplio(this, 'Texto explicativo'); });
         row.appendChild(txtInp);
 
         const selUnd = document.createElement('select');
@@ -4720,9 +4748,19 @@
         comInp.placeholder = 'Comentarios...';
         comInp.value = datos.comentarios || '';
         comInp.rows = 1;
-        comInp.title = datos.comentarios || '';
-        comInp.addEventListener('input', function(){ this.style.height='auto'; this.style.height=(this.scrollHeight)+'px'; this.title=this.value; });
-        setTimeout(()=>{ try{ comInp.style.height='auto'; comInp.style.height=(comInp.scrollHeight)+'px'; }catch(e){} }, 0);
+        comInp.readOnly = true;
+        comInp.style.setProperty('height','32px','important');
+        comInp.style.setProperty('min-height','32px','important');
+        comInp.style.setProperty('max-height','32px','important');
+        comInp.style.setProperty('resize','none','important');
+        comInp.style.cursor = 'pointer';
+        comInp.style.whiteSpace = 'nowrap';
+        comInp.style.overflow = 'hidden';
+        comInp.style.textOverflow = 'ellipsis';
+        comInp.style.padding = '6px 8px';
+        comInp.style.fontSize = '12px';
+        comInp.title = 'Click para editar';
+        comInp.addEventListener('click', function(){ abrirTextoAmplio(this, 'Comentarios'); });
         row.appendChild(comInp);
 
         const recalc = () => {
@@ -4860,7 +4898,7 @@
         // Sobrescribir N° mostrado con el existente (no el siguiente sugerido)
         const badge = document.getElementById('cot-badge-numero-disp') || body.querySelector('.cot-badge-numero');
         if (badge) {
-            badge.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:#007AFF; color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span> ' + escapeHtml(key) + ' <span class="cot-badge-pill">' + (generada ? 'GENERADA' : 'EDITANDO') + '</span>';
+            badge.innerHTML = '<span style="display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:var(--ios-blue); color:#fff; font-size:11px;"><i class="fa-solid fa-hashtag"></i></span> ' + escapeHtml(key) + ' <span class="cot-badge-pill">' + (generada ? 'GENERADA' : 'EDITANDO') + '</span>';
         }
         const hidden = body.querySelector('input[data-field="_COT_NUM_DIGITS"]');
         if (hidden) {
@@ -5786,7 +5824,6 @@
 
         const grid = document.getElementById('comb-detalle-grid');
         const campos = [
-            { field: 'N° ORDEN', tipo: 'texto' },
             { field: 'FECHA', tipo: 'fecha' },
             { field: 'QR ASIGNADO', tipo: 'lista' },
             { field: 'TIPO', tipo: 'lista' },
@@ -6223,7 +6260,7 @@
                 const rows = movs.map(m => {
                     const mov = String(m['MOVIMIENTO'] || '').trim().toUpperCase();
                     const badge = mov === 'INGRESO'
-                        ? `<span style="display:inline-block; font-weight:700; color:#007AFF; background:rgba(0,122,255,0.10); border:1px solid rgba(0,122,255,0.35); border-radius:999px; padding:2px 8px; font-size:10px;">INGRESO</span>`
+                        ? `<span style="display:inline-block; font-weight:700; color:var(--ios-blue); background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.10); border:1px solid rgba(var(--ios-blue-rgb, 0, 122, 255),0.35); border-radius:999px; padding:2px 8px; font-size:10px;">INGRESO</span>`
                         : `<span style="display:inline-block; font-weight:700; color:#FF3B30; background:rgba(255,59,48,0.10); border:1px solid rgba(255,59,48,0.35); border-radius:999px; padding:2px 8px; font-size:10px;">GASTO</span>`;
                     const foto = m['FOTO'] ? `<a href="#" onclick="event.preventDefault(); abrirEvidenciaFoto('${escapeHtml(String(m['FOTO']).replace(/'/g, "\\'"))}');">Ver</a>` : '—';
                     return `<tr>
@@ -6240,9 +6277,9 @@
                 const neto = totalIngreso - totalGasto;
                 cont.innerHTML = `
                     <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
-                        <div style="background:rgba(0,122,255,0.08); border:1px solid rgba(0,122,255,0.25); border-radius:12px; padding:8px 14px;">
+                        <div style="background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.08); border:1px solid rgba(var(--ios-blue-rgb, 0, 122, 255),0.25); border-radius:12px; padding:8px 14px;">
                             <span style="font-size:11px; color:var(--ios-gray-2); display:block;">Total Ingresos</span>
-                            <b style="color:#007AFF; font-size:16px;">${totalIngreso.toFixed(2)}</b>
+                            <b style="color:var(--ios-blue); font-size:16px;">${totalIngreso.toFixed(2)}</b>
                         </div>
                         <div style="background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.25); border-radius:12px; padding:8px 14px;">
                             <span style="font-size:11px; color:var(--ios-gray-2); display:block;">Total Gastos</span>
@@ -6593,12 +6630,16 @@
         selTipo.value = datos.tipo || '';
         row.appendChild(selTipo);
 
-        // TEXTO EXPLICATIVO
+        // TEXTO EXPLICATIVO — click abre editor amplio
         const txtInp = document.createElement('input');
         txtInp.type = 'text';
         txtInp.className = 'wo-cobra-texto';
         txtInp.placeholder = 'Texto explicativo...';
         txtInp.value = datos.texto || '';
+        txtInp.readOnly = true;
+        txtInp.style.cursor = 'pointer';
+        txtInp.title = 'Click para editar';
+        txtInp.addEventListener('click', function(){ abrirTextoAmplio(this, 'Texto explicativo'); });
         row.appendChild(txtInp);
 
         // UND (lista)
@@ -6647,12 +6688,16 @@
         if (datos.valor_total != null) vtInp.value = datos.valor_total;
         row.appendChild(vtInp);
 
-        // COMENTARIOS
+        // COMENTARIOS — click abre editor amplio
         const comInp = document.createElement('input');
         comInp.type = 'text';
         comInp.className = 'wo-cobra-coment';
         comInp.placeholder = 'Comentarios...';
         comInp.value = datos.comentarios || '';
+        comInp.readOnly = true;
+        comInp.style.cursor = 'pointer';
+        comInp.title = 'Click para editar';
+        comInp.addEventListener('click', function(){ abrirTextoAmplio(this, 'Comentarios'); });
         row.appendChild(comInp);
 
         const recalc = () => {
@@ -7582,7 +7627,7 @@
                         : '<span style="display:inline-block; font-weight:700; color:#8E8E93; background:rgba(142,142,147,0.10); border:1px solid rgba(142,142,147,0.25); border-radius:999px; padding:2px 8px; font-size:10px;">PENDIENTE</span>';
                     const dl = generada
                         ? `<button type="button" title="Descargar PDF" style="border:none;background:rgba(52,199,89,0.12);color:#34C759;border-radius:6px;width:28px;height:28px;cursor:pointer;" onclick="event.stopPropagation(); _descargarCotiAsociada('${c.id}')"><i class="fa-solid fa-download"></i></button>`
-                        : `<button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(0,122,255,0.12);color:#007AFF;border-radius:6px;width:28px;height:28px;cursor:pointer;" onclick="event.stopPropagation(); generarCotiAsociada('${c.id}')"><i class="fa-solid fa-file-circle-plus"></i></button>`;
+                        : `<button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.12);color:var(--ios-blue);border-radius:6px;width:28px;height:28px;cursor:pointer;" onclick="event.stopPropagation(); generarCotiAsociada('${c.id}')"><i class="fa-solid fa-file-circle-plus"></i></button>`;
                     return `<tr style="cursor:pointer;" onclick="_cargarCotizacionRegistro(${parseInt(String(c.id).slice(1), 10)})">
                         <td style="font-weight:600; white-space:nowrap;">${escapeHtml(c.numero || '')}</td>
                         <td>${escapeHtml(c.fecha || '')}</td>
@@ -7595,7 +7640,7 @@
                     </tr>`;
                 }).join('');
                 cont.innerHTML = `<div style="overflow-x:auto;"><table class="wo-table" style="width:100%; border-collapse:collapse; font-size:12px;">
-                    <thead><tr style="background:rgba(0,122,255,0.06);">
+                    <thead><tr style="background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.06);">
                         <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">N° COTIZACION</th>
                         <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">FECHA</th>
                         <th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--excel-border);">GESTOR</th>
@@ -7929,5 +7974,68 @@
             });
         }
     }, 1000);
+</script>
+<!-- Modal N Detalle (Cotizaciones) -->
+<div id="modal-n-detalle" class="mar-overlay" style="display:none;">
+  <div class="mar-modal" style="max-width:480px;">
+    <div class="mar-header">
+      <div>
+        <h3><i class="fa-solid fa-hashtag"></i> Detalle N</h3>
+        <p id="n-detalle-sub">Registro</p>
+      </div>
+      <button type="button" onclick="cerrarNDetalle()" class="mar-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mar-body" style="display:block;">
+      <textarea id="n-detalle-text" style="width:100%; min-height:160px; padding:12px; border:1px solid var(--excel-border); border-radius:8px; font-family:inherit; font-size:13px; background:var(--excel-bg); color:var(--ios-label); resize:vertical;" readonly></textarea>
+    </div>
+    <div class="mar-footer">
+      <button type="button" onclick="cerrarNDetalle()" class="mar-btn-ghost">Cerrar</button>
+    </div>
+  </div>
+</div>
+<!-- Modal Texto Amplio (Cotizaciones ITEMS) -->
+<div id="modal-texto-amplio" class="mar-overlay" style="display:none;">
+  <div class="mar-modal" style="max-width:600px;">
+    <div class="mar-header">
+      <div>
+        <h3 id="texto-amplio-title">Editar texto</h3>
+        <p>Escribe de forma cómoda</p>
+      </div>
+      <button type="button" onclick="cerrarTextoAmplio()" class="mar-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mar-body" style="display:block;">
+      <textarea id="texto-amplio-text" style="width:100%; min-height:200px; padding:12px; border:1px solid var(--excel-border); border-radius:8px; font-family:inherit; font-size:13px; background:var(--excel-bg); color:var(--ios-label); resize:vertical;"></textarea>
+    </div>
+    <div class="mar-footer">
+      <button type="button" onclick="cerrarTextoAmplio()" class="mar-btn-ghost">Cancelar</button>
+      <button type="button" onclick="guardarTextoAmplio()" class="mar-btn-primary">Guardar</button>
+    </div>
+  </div>
+</div>
+<script>
+function abrirNDetalle(data){
+  document.getElementById('n-detalle-sub').textContent = data['_key']||data['N° COTIZACION']||'';
+  document.getElementById('n-detalle-text').value = `N: ${data['N° ORDEN']||''}\nN° COTIZACION: ${data['_key']||data['N° COTIZACION']||''}\nFECHA: ${data['FECHA']||''}\nSUPERVISOR: ${data['SUPERVISOR']||''}\nOBJETIVO: ${data['OBJETIVO']||''}\nNOMBRE SITE: ${data['NOMBRE SITE']||''}\nNUMERO WO: ${data['NUMERO WO']||''}`;
+  document.getElementById('modal-n-detalle').style.display='flex';
+}
+function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.display='none'; }
+let _textoAmplioTarget=null;
+function abrirTextoAmplio(input,title){
+  _textoAmplioTarget=input;
+  document.getElementById('texto-amplio-title').textContent=title||'Editar texto';
+  document.getElementById('texto-amplio-text').value=input.value||'';
+  document.getElementById('modal-texto-amplio').style.display='flex';
+  setTimeout(()=>document.getElementById('texto-amplio-text').focus(),50);
+}
+function cerrarTextoAmplio(){ document.getElementById('modal-texto-amplio').style.display='none'; _textoAmplioTarget=null; }
+function guardarTextoAmplio(){
+  if(_textoAmplioTarget){
+    _textoAmplioTarget.value=document.getElementById('texto-amplio-text').value;
+    _textoAmplioTarget.title=_textoAmplioTarget.value;
+    _textoAmplioTarget.dispatchEvent(new Event('input',{bubbles:true}));
+    _textoAmplioTarget.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  cerrarTextoAmplio();
+}
 </script>
 {% endblock %}

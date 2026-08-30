@@ -292,6 +292,9 @@
                                     <button onclick="editarUsuarioUI({{ u.id }}, '{{ u.nombre }}', '{{ u.username }}', '{{ u.rol }}', {{ accesos.get(u.id, []) | tojson }})" class="btn-icon" title="Editar Usuario">
                                         <i class="fa-solid fa-pen-to-square"></i>
                                     </button>
+                                    <button onclick="resetearPassword({{ u.id }}, '{{ u.username }}')" class="btn-icon" title="Resetear contraseña (admin)">
+                                        <i class="fa-solid fa-key"></i>
+                                    </button>
                                     {% endif %}
 
                                     {% if u.username != session.get('username') and session.get('rol') != 'demo' %}
@@ -380,6 +383,15 @@ async function crearUsuario() {
     });
 }
 
+async function resetearPassword(id, username){
+    const nueva = await nucleusPrompt(`Nueva contraseña para "${username}" (mín 4 caracteres)`, '', 'Resetear contraseña', 'password');
+    if(nueva===null) return;
+    if(nueva.length<4){ nucleusAlert('Mínimo 4 caracteres'); return; }
+    const r = await fetch('/api/admin/usuario', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id, password: nueva})});
+    const j = await r.json();
+    if(j.success) nucleusAlert('Contraseña reseteada');
+    else nucleusAlert(j.error||'Error');
+}
 async function eliminarUsuario(id, username) {
     if(!await nucleusConfirm(`¿Eliminar al usuario "${username}"?`)) return;
 

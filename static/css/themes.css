@@ -1,10 +1,40 @@
 /* ============================================================
-   NUCLEUS — Temas (iOS + Neumorphism + Vercel)
-   Neumorphism está en neumorphism.css
+   NUCLEUS — Temas (Vercel style: minimal black/white)
+   Solo Vercel theme: light (white) / dark (black)
    ============================================================ */
 
-/* ---------- VERCEL — inspirado 100% en Vercel (negro puro, bordes finos) ---------- */
+/* ---------- VERCEL LIGHT (default) ---------- */
 body.theme-vercel {
+  --ios-bg: #FFFFFF;
+  --ios-card-bg: #FFFFFF;
+  --ios-fill: #F5F5F5;
+  --ios-label: #0A0A0A;
+  --ios-secondary: #666666;
+  --ios-gray-1: #888888;
+  --ios-gray-2: #999999;
+  --ios-hairline: #EAEAEA;
+  --ios-blue: var(--ios-accent);
+  --ios-blue-dark: var(--ios-accent-dark);
+  --ios-blue-light: #E9F2FF;
+  --ios-accent: var(--ios-accent);
+  --ios-accent-rgb: 0, 122, 255;
+  --excel-bg: #FFFFFF;
+  --excel-border: #EAEAEA;
+  --excel-cell-border: #EFEFEF;
+  --excel-text: #0A0A0A;
+  --excel-selection: #E9F2FF;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-soft: 0 4px 24px rgba(0,0,0,0.06);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 6px;
+  font-family: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  background: #FFFFFF !important;
+  color: #0A0A0A !important;
+}
+
+/* ---------- VERCEL DARK ---------- */
+body.theme-vercel.dark-mode {
   --ios-bg: #000000;
   --ios-card-bg: #0A0A0A;
   --ios-fill: #0A0A0A;
@@ -13,9 +43,11 @@ body.theme-vercel {
   --ios-gray-1: #666666;
   --ios-gray-2: #555555;
   --ios-hairline: #1F1F1F;
-  --ios-blue: #FFFFFF;
-  --ios-blue-dark: #EDEDED;
-  --ios-blue-light: #1A1A1A;
+  --ios-blue: #0A84FF;
+  --ios-blue-dark: var(--ios-accent-dark);
+  --ios-blue-light: #1A2A4A;
+  --ios-accent: #0A84FF;
+  --ios-accent-rgb: 10, 132, 255;
   --excel-bg: #000000;
   --excel-border: #1F1F1F;
   --excel-cell-border: #1A1A1A;
@@ -23,39 +55,38 @@ body.theme-vercel {
   --excel-selection: #1A1A1A;
   --shadow-card: none;
   --shadow-soft: none;
-  --radius: 8px;
-  --radius-lg: 12px;
-  --radius-pill: 6px;
-  font-family: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   background: #000000 !important;
+  color: #EDEDED !important;
 }
-body.theme-vercel .app-shell { background: #000000 !important; }
+body.theme-vercel .app-shell { background: var(--ios-bg) !important; }
 body.theme-vercel .app-sidebar {
-  background: #000000 !important;
-  border-right: 1px solid #1A1A1A !important;
+  background: var(--ios-card-bg) !important;
+  border-right: 1px solid var(--ios-hairline) !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
 }
-body.theme-vercel .sidebar-logo { border-bottom: 1px solid #1A1A1A !important; }
-body.theme-vercel .sidebar-logo span { color: #FFFFFF !important; letter-spacing: 0.3px !important; font-weight: 600 !important; font-size: 13px !important; }
-body.theme-vercel .sidebar-link { color: #888888 !important; border-radius: 6px !important; font-size: 13px !important; font-weight: 400 !important; }
-body.theme-vercel .sidebar-link i { color: #666666 !important; }
-body.theme-vercel .sidebar-link:hover { background: #0A0A0A !important; color: #FFFFFF !important; }
-body.theme-vercel .sidebar-link:hover i { color: #FFFFFF !important; }
-body.theme-vercel .sidebar-link.active { background: #FFFFFF !important; color: #000000 !important; box-shadow: none !important; font-weight: 600 !important; }
-body.theme-vercel .sidebar-link.active i { color: #000000 !important; }
-body.theme-vercel .sidebar-section-label { color: #333333 !important; font-size: 10px !important; letter-spacing: 0.08em !important; }
-body.theme-vercel .sidebar-section-label::before { background: #333333 !important; }
+body.theme-vercel .sidebar-logo { border-bottom: 1px solid var(--ios-hairline) !important; }
+body.theme-vercel .sidebar-logo span { color: var(--ios-label) !important; letter-spacing: 0.3px !important; font-weight: 600 !important; font-size: 13px !important; }
+body.theme-vercel .sidebar-link { color: var(--ios-secondary) !important; border-radius: 6px !important; font-size: 13px !important; font-weight: 400 !important; }
+body.theme-vercel .sidebar-link i { color: var(--ios-gray-1) !important; }
+body.theme-vercel .sidebar-link:hover { background: var(--ios-fill) !important; color: var(--ios-label) !important; }
+body.theme-vercel .sidebar-link:hover i { color: var(--ios-label) !important; }
+body.theme-vercel .sidebar-link.active { background: var(--ios-label) !important; color: var(--ios-bg) !important; box-shadow: none !important; font-weight: 600 !important; }
+body.theme-vercel .sidebar-link.active i { color: var(--ios-bg) !important; }
+body.theme-vercel .sidebar-section-label { color: var(--ios-gray-1) !important; font-size: 10px !important; letter-spacing: 0.08em !important; }
+body.theme-vercel .sidebar-logout{width:34px !important;height:34px !important;border-radius:50% !important;border:1px solid var(--ios-hairline) !important;background:var(--ios-card-bg) !important;color:#ff453a !important;display:flex !important;align-items:center !important;justify-content:center !important;font-size:14px !important;padding:0 !important}
+body.theme-vercel .sidebar-logout:hover{background:rgba(255,69,58,0.08) !important;border-color:#ff453a !important;color:#ff453a !important}
+body.theme-vercel .sidebar-section-label::before { background: var(--ios-gray-1) !important; }
 body.theme-vercel .excel-topbar, body.theme-vercel .excel-bottombar {
-  background: #000000 !important;
-  border-bottom: 1px solid #1A1A1A !important;
+  background: var(--ios-card-bg) !important;
+  border-bottom: 1px solid var(--ios-hairline) !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
 }
 body.theme-vercel .topbar-badge {
-  background: #0A0A0A !important;
-  border: 1px solid #1F1F1F !important;
-  color: #888888 !important;
+  background: var(--ios-fill) !important;
+  border: 1px solid var(--ios-hairline) !important;
+  color: var(--ios-secondary) !important;
   box-shadow: none !important;
   border-radius: 6px !important;
   font-size: 12px !important;
@@ -63,40 +94,92 @@ body.theme-vercel .topbar-badge {
 body.theme-vercel .action-pill {
   border-radius: 6px !important;
   box-shadow: none !important;
-  border: 1px solid #1F1F1F !important;
+  border: 1px solid var(--ios-hairline) !important;
   font-weight: 500 !important;
   font-size: 13px !important;
 }
 body.theme-vercel .action-pill:hover { transform: none !important; filter: none !important; }
-body.theme-vercel .pill-neutral { background: #0A0A0A !important; color: #EDEDED !important; border-color: #1F1F1F !important; }
-body.theme-vercel .pill-blue, body.theme-vercel .pill-teal, body.theme-vercel .pill-green { background: #FFFFFF !important; color: #000000 !important; border-color: #FFFFFF !important; }
-body.theme-vercel .pill-red { background: #0A0A0A !important; color: #FF3B30 !important; border-color: #1F1F1F !important; }
+body.theme-vercel .pill-neutral, body.theme-vercel .pill-blue, body.theme-vercel .pill-teal, body.theme-vercel .pill-green { background: var(--ios-bg) !important; color: var(--ios-label) !important; border-color: var(--ios-hairline) !important; }
+body.theme-vercel .pill-red { background: var(--ios-fill) !important; color: #FF3B30 !important; border-color: var(--ios-hairline) !important; }
 body.theme-vercel .wizard-card, body.theme-vercel .kpi-card, body.theme-vercel .glass, body.theme-vercel .tabulator, body.theme-vercel .mar-modal {
-  background: #0A0A0A !important;
-  border: 1px solid #1F1F1F !important;
+  background: var(--ios-card-bg) !important;
+  border: 1px solid var(--ios-hairline) !important;
   box-shadow: none !important;
   border-radius: 8px !important;
 }
-body.theme-vercel .tabulator-header, body.theme-vercel .tabulator-col { background: #0A0A0A !important; border-color: #1A1A1A !important; }
-body.theme-vercel .tabulator-col-title { color: #888888 !important; font-size: 11px !important; font-weight: 500 !important; letter-spacing: 0.04em !important; text-transform: uppercase !important; }
-body.theme-vercel .tabulator-row, body.theme-vercel .tabulator-cell { background: #000000 !important; color: #EDEDED !important; border-color: #1A1A1A !important; }
-body.theme-vercel .tabulator-row:hover { background: #0A0A0A !important; }
+body.theme-vercel .tabulator-header { background: var(--ios-fill) !important; border-color: var(--ios-hairline) !important; min-height:90px !important; }
+body.theme-vercel .tabulator-col { background: var(--ios-fill) !important; border-color: var(--ios-hairline) !important; }
+body.theme-vercel .tabulator-col-title { color: var(--ios-secondary) !important; font-size: 11px !important; font-weight: 500 !important; letter-spacing: 0.04em !important; text-transform: uppercase !important; }
+body.theme-vercel .tabulator-header-filter{ padding:8px 6px !important; display:block !important; }
+body.theme-vercel .tabulator-header-filter input{ display:block !important; visibility:visible !important; opacity:1 !important; height:32px !important; width:100% !important; box-sizing:border-box !important; background:var(--excel-bg) !important; border:1px solid var(--ios-hairline) !important; color:var(--excel-text) !important; border-radius:8px !important; padding:0 10px !important; font-size:13px !important; box-shadow:0 1px 2px rgba(0,0,0,0.04) !important; }
+body.theme-vercel.dark-mode .tabulator-header-filter input{ background:var(--excel-bg) !important; border-color:var(--ios-hairline) !important; color:var(--excel-text) !important; box-shadow:none !important; }
+body.theme-vercel.dark-mode .tabulator-header-filter input::placeholder{ color:var(--ios-gray-1) !important; }
+body.theme-vercel .tabulator-col[data-field="N° ORDEN"]{ min-width:52px !important; max-width:60px !important; }
+body.theme-vercel .tabulator-row, body.theme-vercel .tabulator-cell { background: var(--excel-bg) !important; color: var(--excel-text) !important; border-color: var(--excel-cell-border) !important; }
+body.theme-vercel .tabulator-row:hover { background: var(--ios-fill) !important; }
 body.theme-vercel input[type="text"], body.theme-vercel input[type="password"], body.theme-vercel input[type="number"], body.theme-vercel input[type="date"], body.theme-vercel input[type="datetime-local"], body.theme-vercel select, body.theme-vercel textarea, body.theme-vercel .nucleus-control {
-  background: #000000 !important;
-  border: 1px solid #1F1F1F !important;
-  color: #EDEDED !important;
+  background: var(--excel-bg) !important;
+  border: 1px solid var(--ios-hairline) !important;
+  color: var(--excel-text) !important;
   box-shadow: none !important;
   border-radius: 6px !important;
 }
-body.theme-vercel input:focus, body.theme-vercel select:focus, body.theme-vercel textarea:focus { border-color: #333333 !important; box-shadow: none !important; }
-body.theme-vercel .login-wrap { background: #000000 !important; }
-body.theme-vercel .login-card { background: #0A0A0A !important; border: 1px solid #1F1F1F !important; box-shadow: none !important; }
-body.theme-vercel .evidencia-slot { background: #0A0A0A !important; border: 1px solid #1F1F1F !important; box-shadow: none !important; }
-body.theme-vercel .nucleus-dialog-overlay { background: rgba(0,0,0,0.7) !important; }
-body.theme-vercel .nucleus-dialog-card { background: #0A0A0A !important; border: 1px solid #1F1F1F !important; box-shadow: none !important; }
+body.theme-vercel input:focus, body.theme-vercel select:focus, body.theme-vercel textarea:focus { border-color: var(--ios-gray-1) !important; box-shadow: none !important; }
+body.theme-vercel .login-wrap { background: var(--ios-bg) !important; }
+body.theme-vercel .login-card { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
+body.theme-vercel .evidencia-slot { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
+body.theme-vercel .nucleus-dialog-overlay { background: rgba(0,0,0,0.5) !important; }
+body.theme-vercel.dark-mode .nucleus-dialog-overlay { background: rgba(0,0,0,0.7) !important; }
+body.theme-vercel .nucleus-dialog-card { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
 
-/* Vercel claro (cuando dark-mode está OFF pero vercel activo, queda oscuro igual — Vercel es dark-first) */
-body.theme-vercel:not(.dark-mode) { background: #000000 !important; }
+/* ---------- VERCEL POLISH — detalles finos inspirados en Vercel (imagen 1) ---------- */
+body.theme-vercel .excel-topbar{height:46px !important; min-height:46px !important; padding:0 14px !important}
+body.theme-vercel .topbar-badge{height:28px !important; padding:0 10px !important; font-size:11px !important; font-weight:500 !important; gap:6px !important}
+body.theme-vercel .action-pill{height:32px !important; padding:0 12px !important; font-size:13px !important; font-weight:500 !important; gap:6px !important; letter-spacing:0 !important}
+body.theme-vercel .action-pill i{font-size:12px !important}
+body.theme-vercel .wizard-card{padding:16px !important; gap:12px !important}
+body.theme-vercel .wizard-title{font-size:14px !important; font-weight:600 !important; letter-spacing:-0.2px !important; margin-bottom:10px !important}
+body.theme-vercel input[type="text"], body.theme-vercel input[type="password"], body.theme-vercel input[type="number"], body.theme-vercel input[type="date"], body.theme-vercel input[type="datetime-local"], body.theme-vercel select, body.theme-vercel textarea, body.theme-vercel .nucleus-control{height:32px !important; padding:6px 10px !important; font-size:13px !important; border-radius:6px !important; line-height:1 !important}
+body.theme-vercel textarea{height:auto !important; min-height:64px !important; padding:8px 10px !important}
+body.theme-vercel .nucleus-control{height:32px !important}
+body.theme-vercel .mar-field label{font-size:10px !important; letter-spacing:0.06em !important; margin-bottom:4px !important}
+body.theme-vercel .mar-field input, body.theme-vercel .mar-field select{height:32px !important}
+body.theme-vercel .mar-modal{border-radius:8px !important; max-width:720px !important}
+body.theme-vercel .mar-header{padding:14px 16px !important; gap:12px !important}
+body.theme-vercel .mar-header h3{font-size:14px !important; font-weight:600 !important; letter-spacing:-0.2px !important}
+body.theme-vercel .mar-header p{font-size:12px !important; line-height:1.4 !important}
+body.theme-vercel .mar-body{padding:16px !important; gap:14px !important}
+body.theme-vercel .wo-body{padding:16px !important; gap:16px !important}
+body.theme-vercel .wo-section{margin-bottom:2px !important}
+body.theme-vercel .wo-section-title{font-size:10px !important; letter-spacing:0.06em !important; margin-bottom:8px !important}
+body.theme-vercel .wo-field label{font-size:10px !important; margin-bottom:4px !important}
+body.theme-vercel .wo-form{gap:12px !important}
+body.theme-vercel .mar-head-actions .mar-btn-copy, body.theme-vercel .wo-head-actions .mar-btn-copy{background:var(--ios-card-bg) !important; color:var(--ios-secondary) !important; border:1px solid var(--ios-hairline) !important; width:32px !important; height:32px !important; padding:0 !important; border-radius:6px !important; box-shadow:none !important}
+body.theme-vercel .mar-head-actions .mar-btn-primary, body.theme-vercel .wo-head-actions .mar-btn-primary, body.theme-vercel .mar-btn-generar, body.theme-vercel .mar-btn-guardar{background:var(--ios-label) !important; color:var(--ios-bg) !important; border:1px solid var(--ios-label) !important; height:32px !important; padding:0 14px !important; font-size:13px !important; font-weight:500 !important; border-radius:6px !important; box-shadow:none !important}
+body.theme-vercel .mar-head-actions .mar-close, body.theme-vercel .wo-head-actions .mar-close{background:var(--ios-card-bg) !important; color:var(--ios-secondary) !important; border:1px solid var(--ios-hairline) !important; width:32px !important; height:32px !important; border-radius:6px !important; box-shadow:none !important}
+body.theme-vercel .mar-head-actions .mar-close:hover, body.theme-vercel .wo-head-actions .mar-close:hover{background:rgba(255,69,58,0.08) !important; border-color:#ff453a !important; color:#ff453a !important}
+body.theme-vercel .mar-btn-ghost{height:32px !important; font-size:13px !important}
+body.theme-vercel .tabulator{font-size:13px !important}
+body.theme-vercel .tabulator-col-title{font-size:11px !important; font-weight:500 !important}
+body.theme-vercel .tabulator-cell{padding:6px 8px !important; font-size:12.5px !important; line-height:1.3 !important}
+body.theme-vercel .tabulator-row{height:32px !important}
+body.theme-vercel .data-stat, body.theme-vercel .kpi-card{padding:12px !important; border-radius:8px !important}
+body.theme-vercel .data-stat b, body.theme-vercel .kpi-card b{font-size:15px !important}
+body.theme-vercel .data-stat span, body.theme-vercel .kpi-card span{font-size:10px !important}
+body.theme-vercel .dropdown-content, body.theme-vercel .col-visibility-menu, body.theme-vercel .custom-autocomplete{border-radius:8px !important; box-shadow:0 8px 24px rgba(0,0,0,0.12) !important; border:1px solid var(--ios-hairline) !important; padding:6px !important}
+body.theme-vercel .col-visibility-link, body.theme-vercel .dropdown-item{font-size:12px !important; padding:6px 8px !important; border-radius:6px !important}
+body.theme-vercel input[type="checkbox"]{width:14px !important; height:14px !important; border-radius:3px !important; accent-color: var(--ios-label) !important}
+body.theme-vercel .proj-chk{padding:4px 8px !important; font-size:12px !important; border-radius:6px !important}
+body.theme-vercel .sidebar-link{height:32px !important; padding:0 10px !important; gap:8px !important}
+body.theme-vercel .sidebar-section-label{padding:14px 10px 6px !important}
+body.theme-vercel .wo-summary{padding:12px !important; gap:8px !important; border-radius:8px !important}
+body.theme-vercel .wo-field label{font-size:10px !important}
+body.theme-vercel .evidencia-slot{border-radius:8px !important}
+body.theme-vercel .btn-action, body.theme-vercel .login-btn, body.theme-vercel .up-btn-create, body.theme-vercel .wo-btn-primary{ background: var(--ios-label) !important; color: var(--ios-bg) !important; border:1px solid var(--ios-label) !important; box-shadow:none !important; height:32px !important; font-size:13px !important; font-weight:500 !important; border-radius:6px !important}
+body.theme-vercel ::-webkit-scrollbar{width:6px !important; height:6px !important}
+body.theme-vercel ::-webkit-scrollbar-thumb{background: var(--ios-hairline) !important; border-radius:999px !important}
+
+/* Vercel usa dark-mode para alternar claro/oscuro correctamente */
 
 /* ---------- FIX GLOBAL OSCURO — filtros y header siempre oscuros ---------- */
 body.dark-mode .tabulator-header,
@@ -136,7 +219,7 @@ body.dark-mode .tabulator-cell { color: var(--excel-text, #F2F2F7) !important; }
   border:1px solid transparent;
 }
 .theme-option:hover { background: var(--ios-fill); }
-.theme-option.active { background: var(--ios-blue-light); border-color: rgba(0,122,255,0.18); }
+.theme-option.active { background: var(--ios-blue-light); border-color: rgba(var(--ios-accent-rgb),0.18); }
 .theme-option-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
 .theme-option.active .theme-option-icon { background: var(--ios-blue); color:#fff; }
 .theme-option:not(.active) .theme-option-icon { background: var(--ios-fill); color: var(--ios-secondary); }

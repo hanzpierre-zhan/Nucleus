@@ -362,7 +362,7 @@ body.dark-mode.neumorphism .login-field input {
   background: rgba(10,14,22,0.42);
   -webkit-backdrop-filter: blur(10px) saturate(130%);
   backdrop-filter: blur(10px) saturate(130%);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   padding: 20px;
@@ -370,7 +370,7 @@ body.dark-mode.neumorphism .login-field input {
   pointer-events: none;
   transition: opacity .18s ease;
 }
-.nucleus-dialog-overlay.show { opacity: 1; pointer-events: auto; }
+.nucleus-dialog-overlay.show { display:flex; opacity: 1; pointer-events: auto; }
 .nucleus-dialog-card {
   width: 100%;
   max-width: 440px;
