@@ -5180,25 +5180,27 @@ btnItem.onclick = () => cotRegAgregarFila();
         // Recolectar datos del formulario sin guardar
         const body = document.getElementById('mar-fields');
         if (!body) return;
-        // Obtener N° cotización del badge
-        const badge = document.getElementById('cot-badge-numero-disp');
-        let numero = '';
-        if (badge) {
-            const m = badge.textContent.match(/HW-\d{4}-\d{7}/);
-            if (m) numero = m[0];
+
+        const getVal = (field) => {
+            const el = body.querySelector(`[data-field="${field}"]`);
+            return el ? (el.value || '').trim() : '';
+        };
+
+        // Obtener N° cotización del input
+        let numero = getVal('N° COTIZACION');
+        
+        // Formatear si solo ingresaron los dígitos
+        if (numero && !numero.startsWith('HW-')) {
+            const digits = numero.replace(/\D/g, '');
+            if (digits) {
+                numero = 'HW-' + new Date().getFullYear() + '-' + digits.padStart(7, '0');
+            }
         }
-        if (!numero) {
-            const h = document.querySelector('#cot-badge-numero-disp');
-            if (h) numero = h.textContent.trim();
-        }
+
         // Si está en edición, usar el existente
         if (cotiEditMode && cotiEditKey) numero = cotiEditKey;
         if (!numero) { nucleusAlert('No se pudo determinar el N° de cotización'); return; }
-        // Recoger campos
-        const getVal = (field) => {
-            const el = body.querySelector(`[data-field=\"${field}\"]`);
-            return el ? (el.value || '').trim() : '';
-        };
+
         const site = getVal('NOMBRE SITE') || getVal('SITE');
         const supervisor = getVal('SUPERVISOR');
         const objetivo = getVal('OBJETIVO');
