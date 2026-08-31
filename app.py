@@ -1450,7 +1450,7 @@ def index():
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
     
     # Load and Filter data
-    rows = NucleusData.query.filter_by(proyecto_id=pid).limit(2000).all()
+    rows = NucleusData.query.filter_by(proyecto_id=pid).all()
     raw_data = []
     for r in rows:
         d = json.loads(r.data_json)

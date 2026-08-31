@@ -241,6 +241,7 @@
                 okBtn.textContent = okText;
                 cancelBtn.textContent = cancelText;
                 cancelBtn.style.display = (type==='alert') ? 'none' : 'inline-flex';
+                overlay.style.display = '';
                 overlay.classList.add('show');
                 overlay.setAttribute('aria-hidden','false');
                 setTimeout(()=>{ (type==='prompt'?inputEl:okBtn).focus(); }, 30);

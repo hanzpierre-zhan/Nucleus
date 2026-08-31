@@ -3,7 +3,7 @@
 {% block title %}Nucleus{% endblock %}
 
 {% block content %}
-<div style="display: flex; align-items: center; gap: 8px; padding: 4px 14px 6px; flex-wrap: wrap;">
+<div style="display: flex; align-items: center; gap: 8px; padding: 4px 14px; flex-wrap: wrap; min-height: 40px;">
     <span id="status-record-count" class="topbar-badge" title="Total de registros en la vista actual"
         style="margin-left:0;">
         <i class="fa-solid fa-list-ol"></i> Cargando...
@@ -42,13 +42,16 @@
     {% else %}
     <div style="flex: 1;"></div>
     {% endif %}
+    
+    <!-- Contenedor para controles de paginación -->
+    <div id="pagination-container" style="display: flex; align-items: center; gap: 4px; margin: 0 auto;"></div>
 
     {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
     {% if session.get('rol') == 'admin' and proy_nombre == 'cotizaciones' %}
-    <div id="admin-coti-next-top" style="display:flex; align-items:center; gap:6px; padding:0 12px; background:var(--ios-card-bg); border:1px solid var(--ios-hairline); border-radius:6px; height:64px; box-sizing:border-box;">
-        <span style="font-size:13px; font-weight:600; color:var(--ios-secondary);">Próximo: HW-<span id="top-next-year"></span>-</span>
-        <input type="number" id="top-next-seq" min="1" max="9999999" style="width:90px; height:36px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; font-weight:600; text-align:center; box-sizing:border-box;">
-        <button type="button" id="btn-top-next" style="height:36px; padding:0 14px; background:var(--ios-label); color:var(--ios-bg); border:1px solid var(--ios-label); border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Guardar</button>
+    <div id="admin-coti-next-top" style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">Próximo: HW-<span id="top-next-year"></span>-</span>
+        <input type="number" id="top-next-seq" min="1" max="9999999" style="width:90px; height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; font-weight:600; text-align:center; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
+        <button type="button" id="btn-top-next" class="action-pill">Guardar</button>
     </div>
     {% endif %}
     <!-- Botón Excel (Verde) -->
@@ -88,6 +91,58 @@
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 
 <style>
+    /* ============================================================
+       PAGINACIÓN — controles de Tabulator en la barra superior
+       ============================================================ */
+    #pagination-container .tabulator-paginator {
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        flex-wrap: nowrap !important;
+    }
+    #pagination-container label {
+        display: none !important; /* Ocultar "Page Size:" */
+    }
+    #pagination-container .tabulator-page-size {
+        height: 28px !important;
+        padding: 0 6px !important;
+        border: 1px solid var(--ios-hairline) !important;
+        border-radius: 6px !important;
+        background: var(--ios-card-bg) !important;
+        color: var(--ios-label) !important;
+        font-size: 12px !important;
+        cursor: pointer !important;
+        outline: none !important;
+    }
+    #pagination-container .tabulator-page {
+        height: 28px !important;
+        min-width: 28px !important;
+        padding: 0 8px !important;
+        border: 1px solid var(--ios-hairline) !important;
+        border-radius: 6px !important;
+        background: var(--ios-card-bg) !important;
+        color: var(--ios-label) !important;
+        font-size: 12px !important;
+        font-weight: 500 !important;
+        cursor: pointer !important;
+        transition: background 0.15s, color 0.15s !important;
+    }
+    #pagination-container .tabulator-page:hover:not([disabled]) {
+        background: var(--ios-fill) !important;
+    }
+    #pagination-container .tabulator-page.active {
+        background: var(--ios-label) !important;
+        color: var(--ios-bg) !important;
+        border-color: var(--ios-label) !important;
+    }
+    #pagination-container .tabulator-page[disabled] {
+        opacity: 0.35 !important;
+        cursor: not-allowed !important;
+    }
+    /* Ocultar si solo hay una página */
+    #pagination-container:empty { display: none !important; }
+
+
     .mar-overlay {
         position: fixed;
         inset: 0;
@@ -3745,47 +3800,64 @@
 
     const table = new Tabulator("#data-grid", {
         data: rawData,
-        layout: "fitData", // Enable true horizontal scrolling for wide columns
+        layout: "fitData",
         columns: tableColumns,
-        height: "100%", // take up all space
-        headerHeight: 90, // Título + buscador
-        rowHeight: 25, // Compact Excel feel
-        selectable: isAdmin, // Solo admin puede seleccionar (desde el checkbox)
-        selectableRangeMode: false, // Sin seleccion por clic en la fila
+        height: "100%",
+        headerHeight: 90,
+        rowHeight: 25,
+        selectable: isAdmin,
+        selectableRangeMode: false,
+        pagination: "local",
+        paginationSize: 200,
+        paginationSizeSelector: [100, 200, 500, 1000],
+        paginationElement: document.getElementById('pagination-container'),
         rowFormatter: function (row) {
             const d = row.getData();
             const el = row.getElement();
-            // PEXT: atenuar filas marcadas como no atendido / Cancelado O&M.
             if (IS_PEXT) {
                 const cancelado = String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
                     String(d['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
                 if (el) el.classList.toggle('row-no-atendido', cancelado);
             }
-            // Combustible: sin WO → CM PENDIENTE (destacar en rojo para completar luego)
             if (currentProjectNombre.trim().toLowerCase() === 'combustible') {
                 const wo = String(d['WO NUMBER'] || '').trim();
                 if (el) el.classList.toggle('row-cm-pendiente', !wo);
             }
         },
-        clipboard: true, // Allow copy-paste
-        clipboardPasteAction: "replace", // Replace cell contents on paste
+        clipboard: true,
+        clipboardPasteAction: "replace",
         history: true,
-        movableColumns: isAdmin, // Only admin can drag/reorder column headers
-        persistence: { columns: ["width"] }, // Orden y visibilidad: definiciones o layout del admin (servidor); aquí solo ancho
-        persistenceID: "nucleus-layout-{{ proyecto_id }}" // Unique per project
+        movableColumns: isAdmin,
+        persistence: { columns: ["width"] },
+        persistenceID: "nucleus-layout-{{ proyecto_id }}"
     });
-    // handlers deshabilitados
-    table.on("dataFiltered", function (filters, rows) {
+    function _actualizarBadgeRegistros() {
         const status = document.getElementById('status-record-count');
         if (!status) return;
         const total = rawData.length;
-        const filteredCount = rows.length; // Use the direct rows value from the event
-        if (filteredCount === total) {
-            status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+        const filteredRows = table.getDataCount('active'); // filas visibles tras filtros
+        const page = table.getPage();
+        const pageSize = table.getPageSize();
+        const from = page > 0 ? (page - 1) * pageSize + 1 : 1;
+        const to = page > 0 ? Math.min(page * pageSize, filteredRows) : filteredRows;
+        if (filteredRows === total) {
+            if (page > 0 && table.getPageMax() > 1) {
+                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> ${from}–${to} de ${total}`;
+            } else {
+                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+            }
         } else {
-            status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${filteredCount} | ${total}`;
+            if (page > 0 && table.getPageMax() > 1) {
+                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> ${from}–${to} de ${filteredRows} (${total} total)`;
+            } else {
+                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${filteredRows} | ${total}`;
+            }
         }
-    });
+    }
+
+    table.on("dataFiltered", function () { setTimeout(_actualizarBadgeRegistros, 50); });
+    table.on("pageLoaded", function () { _actualizarBadgeRegistros(); });
+    table.on("tableBuilt", function () { _actualizarBadgeRegistros(); });
 
     // Auto-guardar el orden de columnas al arrastrar (solo admin).
     if (isAdmin) {
@@ -3793,7 +3865,7 @@
         table.on("columnVisibilityChanged", function () { saveColumnLayout(); });
     }
 
-    // Force initial count text on page load
+    // Initial count on page load (fallback)
     const statusEl = document.getElementById('status-record-count');
     if (statusEl) {
         statusEl.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${rawData.length}`;
@@ -5277,8 +5349,10 @@ btnItem.onclick = () => cotRegAgregarFila();
                 key = cotiEditKey;
                 data['N° COTIZACION'] = cotiEditKey;
             } else {
-                const digits = (data['_COT_NUM_DIGITS'] || key || '').replace(/\D/g, '');
+                let cotiVal = data['N° COTIZACION'] || data['_COT_NUM_DIGITS'] || key || '';
                 delete data['_COT_NUM_DIGITS'];
+                const match = cotiVal.match(/(\d+)$/);
+                const digits = match ? match[1] : cotiVal.replace(/\D/g, '');
                 if (!digits) { alert('Ingrese el correlativo del N° de cotización.'); return; }
                 data['N° COTIZACION'] = 'HW-' + new Date().getFullYear() + '-' + digits.padStart(7, '0');
                 key = data['N° COTIZACION'];
@@ -7934,10 +8008,14 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function actualizarConteo() {
-        const status = document.getElementById('status-record-count');
-        if (!status) return;
-        const total = table.getDataCount();
-        status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+        if (typeof _actualizarBadgeRegistros === 'function') {
+            _actualizarBadgeRegistros();
+        } else {
+            const status = document.getElementById('status-record-count');
+            if (!status) return;
+            const total = table.getDataCount();
+            status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+        }
     }
 
     // Monitor selection to show/hide delete button + sync select-all checkbox

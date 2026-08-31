@@ -13,10 +13,11 @@ body.theme-vercel {
   --ios-gray-1: #888888;
   --ios-gray-2: #999999;
   --ios-hairline: #EAEAEA;
-  --ios-blue: var(--ios-accent);
-  --ios-blue-dark: var(--ios-accent-dark);
+  --ios-blue: #007AFF;
+  --ios-blue-dark: #0062CC;
   --ios-blue-light: #E9F2FF;
-  --ios-accent: var(--ios-accent);
+  --ios-accent: #007AFF;
+  --ios-accent-dark: #0062CC;
   --ios-accent-rgb: 0, 122, 255;
   --excel-bg: #FFFFFF;
   --excel-border: #EAEAEA;
@@ -110,6 +111,7 @@ body.theme-vercel .wizard-card, body.theme-vercel .kpi-card, body.theme-vercel .
 body.theme-vercel .tabulator-header { background: var(--ios-fill) !important; border-color: var(--ios-hairline) !important; min-height:90px !important; }
 body.theme-vercel .tabulator-col { background: var(--ios-fill) !important; border-color: var(--ios-hairline) !important; }
 body.theme-vercel .tabulator-col-title { color: var(--ios-secondary) !important; font-size: 11px !important; font-weight: 500 !important; letter-spacing: 0.04em !important; text-transform: uppercase !important; }
+body.theme-vercel .tabulator-col-title i[style*="color"] { color: var(--ios-blue) !important; }
 body.theme-vercel .tabulator-header-filter{ padding:8px 6px !important; display:block !important; }
 body.theme-vercel .tabulator-header-filter input{ display:block !important; visibility:visible !important; opacity:1 !important; height:32px !important; width:100% !important; box-sizing:border-box !important; background:var(--excel-bg) !important; border:1px solid var(--ios-hairline) !important; color:var(--excel-text) !important; border-radius:8px !important; padding:0 10px !important; font-size:13px !important; box-shadow:0 1px 2px rgba(0,0,0,0.04) !important; }
 body.theme-vercel.dark-mode .tabulator-header-filter input{ background:var(--excel-bg) !important; border-color:var(--ios-hairline) !important; color:var(--excel-text) !important; box-shadow:none !important; }
@@ -128,13 +130,15 @@ body.theme-vercel input:focus, body.theme-vercel select:focus, body.theme-vercel
 body.theme-vercel .login-wrap { background: var(--ios-bg) !important; }
 body.theme-vercel .login-card { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
 body.theme-vercel .evidencia-slot { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
-body.theme-vercel .nucleus-dialog-overlay { background: rgba(0,0,0,0.5) !important; }
+body.theme-vercel .nucleus-dialog-overlay { position: fixed !important; inset: 0 !important; z-index: 40000 !important; align-items: center !important; justify-content: center !important; background: rgba(0,0,0,0.5) !important; transition: opacity 0.2s ease; }
 body.theme-vercel.dark-mode .nucleus-dialog-overlay { background: rgba(0,0,0,0.7) !important; }
-body.theme-vercel .nucleus-dialog-card { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
+body.theme-vercel .nucleus-dialog-overlay:not(.show) { display: none !important; }
+body.theme-vercel .nucleus-dialog-overlay.show { display: flex !important; }
+body.theme-vercel .nucleus-dialog-card { width: 100% !important; max-width: 440px !important; margin: 20px !important; border-radius: 16px !important; padding: 24px !important; background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: 0 10px 30px rgba(0,0,0,0.2) !important; }
 
 /* ---------- VERCEL POLISH — detalles finos inspirados en Vercel (imagen 1) ---------- */
 body.theme-vercel .excel-topbar{height:46px !important; min-height:46px !important; padding:0 14px !important}
-body.theme-vercel .topbar-badge{height:28px !important; padding:0 10px !important; font-size:11px !important; font-weight:500 !important; gap:6px !important}
+body.theme-vercel .topbar-badge{height:32px !important; padding:0 12px !important; font-size:12px !important; font-weight:500 !important; gap:6px !important}
 body.theme-vercel .action-pill{height:32px !important; padding:0 12px !important; font-size:13px !important; font-weight:500 !important; gap:6px !important; letter-spacing:0 !important}
 body.theme-vercel .action-pill i{font-size:12px !important}
 body.theme-vercel .wizard-card{padding:16px !important; gap:12px !important}
