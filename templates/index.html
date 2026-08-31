@@ -5906,15 +5906,15 @@ btnItem.onclick = () => cotRegAgregarFila();
             const elMotivo = document.getElementById('wof-motivo');
             if (elMotivo) elMotivo.style.display = '';
 
-            // Solución, Motivo y Técnico: desplegable -> texto libre en FLM
-            ['wo-solucion', 'wo-motivo', 'wo-tecnico'].forEach(fid => {
+            // Solución y Motivo: desplegable -> texto libre en FLM (Técnico queda desplegable)
+            ['wo-solucion', 'wo-motivo'].forEach(fid => {
                 const sel = document.getElementById(fid);
                 if (sel && sel.tagName === 'SELECT') {
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.id = fid;
                     input.autocomplete = 'off';
-                    input.placeholder = fid === 'wo-tecnico' ? 'Técnico asignado' : (fid === 'wo-motivo' ? 'Motivo de avería' : 'Solución');
+                    input.placeholder = fid === 'wo-motivo' ? 'Motivo de avería' : 'Solución';
                     input.value = sel.value;
                     sel.replaceWith(input);
                 }
