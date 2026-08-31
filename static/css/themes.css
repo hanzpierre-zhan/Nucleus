@@ -72,8 +72,12 @@ body.theme-vercel .sidebar-link { color: var(--ios-secondary) !important; border
 body.theme-vercel .sidebar-link i { color: var(--ios-gray-1) !important; }
 body.theme-vercel .sidebar-link:hover { background: var(--ios-fill) !important; color: var(--ios-label) !important; }
 body.theme-vercel .sidebar-link:hover i { color: var(--ios-label) !important; }
-body.theme-vercel .sidebar-link.active { background: var(--ios-label) !important; color: var(--ios-bg) !important; box-shadow: none !important; font-weight: 600 !important; }
-body.theme-vercel .sidebar-link.active i { color: var(--ios-bg) !important; }
+body.theme-vercel:not(.dark-mode) .sidebar-link.active { background: var(--ios-blue, #007AFF) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25) !important; font-weight: 600 !important; }
+body.theme-vercel:not(.dark-mode) .sidebar-link.active i { color: #FFFFFF !important; }
+body.theme-vercel.dark-mode .sidebar-link.active { background: var(--ios-blue, #0A84FF) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(10, 132, 255, 0.25) !important; font-weight: 600 !important; }
+body.theme-vercel.dark-mode .sidebar-link.active i { color: #FFFFFF !important; }
+body.theme-vercel .sidebar-link.active:hover { background: var(--ios-blue-dark, #0062CC) !important; color: #FFFFFF !important; }
+body.theme-vercel .sidebar-link.active:hover i { color: #FFFFFF !important; }
 body.theme-vercel .sidebar-section-label { color: var(--ios-gray-1) !important; font-size: 10px !important; letter-spacing: 0.08em !important; }
 body.theme-vercel .sidebar-logout{width:34px !important;height:34px !important;border-radius:50% !important;border:1px solid var(--ios-hairline) !important;background:var(--ios-card-bg) !important;color:#ff453a !important;display:flex !important;align-items:center !important;justify-content:center !important;font-size:14px !important;padding:0 !important}
 body.theme-vercel .sidebar-logout:hover{background:rgba(255,69,58,0.08) !important;border-color:#ff453a !important;color:#ff453a !important}
