@@ -1844,7 +1844,12 @@
                         </div>
                         <div class="wo-field" id="wof-sistemas">
                             <label><i class="fa-solid fa-server"></i> Sistemas</label>
-                            <input type="text" id="wo-sistemas" autocomplete="off" placeholder="Sistema...">
+                            <select id="wo-sistemas">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Energía">Energía</option>
+                                <option value="Transmisión">Transmisión</option>
+                                <option value="Aire Acondicionado">Aire Acondicionado</option>
+                            </select>
                         </div>
                         <div class="wo-field">
                             <label><i class="fa-solid fa-circle-check"></i> ¿Requiere correctivo final?</label>
@@ -5531,13 +5536,32 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function fillSelect(id, options, current) {
         const sel = document.getElementById(id);
+        if (!sel) return;
         sel.innerHTML = '<option value="">— Seleccionar —</option>';
         options.forEach(o => {
             const opt = document.createElement('option');
             opt.value = o; opt.textContent = o;
             sel.appendChild(opt);
         });
-        if (current) sel.value = current;
+        if (current) {
+            let matched = false;
+            const normCurrent = String(current).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+            for (let i = 0; i < sel.options.length; i++) {
+                const optNorm = sel.options[i].value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                if (optNorm === normCurrent) {
+                    sel.value = sel.options[i].value;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched && String(current).trim()) {
+                const customOpt = document.createElement('option');
+                customOpt.value = current;
+                customOpt.textContent = current;
+                sel.appendChild(customOpt);
+                sel.value = current;
+            }
+        }
     }
 
     function isWoColumn(field) {
@@ -5870,22 +5894,27 @@ btnItem.onclick = () => cotRegAgregarFila();
             document.querySelectorAll('.wof-mufas-label').forEach(l => { l.textContent = '¿Se usó grupo electrógeno?'; });
 
             // Ocultar campos no aplicables en FLM
-            ['wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-motivo', 'wof-lat-mufa', 'wof-lon-mufa']
+            ['wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa']
                 .forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';
                 });
+            const elMotivo = document.getElementById('wof-motivo');
+            if (elMotivo) elMotivo.style.display = '';
 
-            // Solución: desplegable -> texto libre en FLM
-            const solSel = document.getElementById('wo-solucion');
-            if (solSel && solSel.tagName === 'SELECT') {
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.id = 'wo-solucion';
-                input.autocomplete = 'off';
-                input.value = solSel.value;
-                solSel.replaceWith(input);
-            }
+            // Solución, Motivo y Técnico: desplegable -> texto libre en FLM
+            ['wo-solucion', 'wo-motivo', 'wo-tecnico'].forEach(fid => {
+                const sel = document.getElementById(fid);
+                if (sel && sel.tagName === 'SELECT') {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = fid;
+                    input.autocomplete = 'off';
+                    input.placeholder = fid === 'wo-tecnico' ? 'Técnico asignado' : (fid === 'wo-motivo' ? 'Motivo de avería' : 'Solución');
+                    input.value = sel.value;
+                    sel.replaceWith(input);
+                }
+            });
         }
 
         // PEXT: sin pestaña Cotización ni Gastos (Combustible es solo de FLM).
@@ -6163,9 +6192,15 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         document.getElementById('wo-servicio').value = data['SERVICIO'] || '';
         document.getElementById('wo-ciudad').value = data['CIUDAD'] || '';
-        document.getElementById('wo-tecnico').value = '';
+        const woTecEl = document.getElementById('wo-tecnico');
+        if (woTecEl) woTecEl.value = data['TECNICO ASIGNADO'] || data['TÉCNICO ASIGNADO'] || data['Tecnico'] || '';
         document.getElementById('wo-contrata').value = data['CONTRATA'] || '';
-        fillSelect('wo-motivo', MOTIVO_AVERIA_OPCIONES, data['MOTIVO DE AVERÍA'] || data['MOTIVO DE AVERIA'] || '');
+        const woMotEl = document.getElementById('wo-motivo');
+        if (woMotEl && woMotEl.tagName === 'SELECT') {
+            fillSelect('wo-motivo', MOTIVO_AVERIA_OPCIONES, data['MOTIVO DE AVERÍA'] || data['MOTIVO DE AVERIA'] || '');
+        } else if (woMotEl) {
+            woMotEl.value = data['MOTIVO DE AVERÍA'] || data['MOTIVO DE AVERIA'] || '';
+        }
         const woSolEl = document.getElementById('wo-solucion');
         if (woSolEl && woSolEl.tagName === 'SELECT') {
             fillSelect('wo-solucion', SOLUCION_OPCIONES, data['SOLUCIÓN'] || data['SOLUCION'] || '');
@@ -6183,7 +6218,20 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-longitud').value = woLon;
         document.getElementById('wo-se-instalo-mufas').value = data['SE INSTALÓ MUFAS'] || data['SE INSTALO MUFAS'] || '';
         const woSisEl = document.getElementById('wo-sistemas');
-        if (woSisEl) woSisEl.value = data['SISTEMAS'] || data['SISTEMA'] || '';
+        if (woSisEl) {
+            let sisVal = data['SISTEMAS'] || data['SISTEMA'] || '';
+            woSisEl.value = sisVal;
+            if (sisVal && (!woSisEl.value || woSisEl.selectedIndex === -1)) {
+                const normalized = sisVal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                for (let i = 0; i < woSisEl.options.length; i++) {
+                    const optNorm = woSisEl.options[i].value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                    if (optNorm === normalized) {
+                        woSisEl.value = woSisEl.options[i].value;
+                        break;
+                    }
+                }
+            }
+        }
         let woLatMufa = data['LATITUD MUFAS'] || data['Latitud Mufas'] || '';
         let woLonMufa = data['LONGITUD MUFAS'] || data['Longitud Mufas'] || '';
         if (!woLatMufa && !woLonMufa && data['UBICACIÓN DE MUFAS']) {

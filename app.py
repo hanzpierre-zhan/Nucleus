@@ -993,7 +993,7 @@ with app.app_context():
             {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['GEP', 'GEE', 'NA']},
-            {'nombre': 'SISTEMAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SISTEMAS', 'tipo': 'lista', 'opciones': ['Energía', 'Transmisión', 'Aire Acondicionado']},
             {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
