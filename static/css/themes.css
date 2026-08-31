@@ -130,11 +130,127 @@ body.theme-vercel input:focus, body.theme-vercel select:focus, body.theme-vercel
 body.theme-vercel .login-wrap { background: var(--ios-bg) !important; }
 body.theme-vercel .login-card { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
 body.theme-vercel .evidencia-slot { background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: none !important; }
-body.theme-vercel .nucleus-dialog-overlay { position: fixed !important; inset: 0 !important; z-index: 40000 !important; align-items: center !important; justify-content: center !important; background: rgba(0,0,0,0.5) !important; transition: opacity 0.2s ease; }
-body.theme-vercel.dark-mode .nucleus-dialog-overlay { background: rgba(0,0,0,0.7) !important; }
-body.theme-vercel .nucleus-dialog-overlay:not(.show) { display: none !important; }
-body.theme-vercel .nucleus-dialog-overlay.show { display: flex !important; }
-body.theme-vercel .nucleus-dialog-card { width: 100% !important; max-width: 440px !important; margin: 20px !important; border-radius: 16px !important; padding: 24px !important; background: var(--ios-card-bg) !important; border: 1px solid var(--ios-hairline) !important; box-shadow: 0 10px 30px rgba(0,0,0,0.2) !important; }
+/* ---------- NUCLEUS DIALOG (Modal de Alertas y Confirmaciones) ---------- */
+body.theme-vercel .nucleus-dialog-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 50000 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(0, 0, 0, 0.65) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    backdrop-filter: blur(12px) !important;
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+body.theme-vercel.dark-mode .nucleus-dialog-overlay {
+    background: rgba(0, 0, 0, 0.8) !important;
+}
+body.theme-vercel .nucleus-dialog-overlay:not(.show) {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+body.theme-vercel .nucleus-dialog-overlay.show {
+    display: flex !important;
+    opacity: 1 !important;
+}
+body.theme-vercel .nucleus-dialog-card {
+    width: 100% !important;
+    max-width: 420px !important;
+    margin: 20px !important;
+    border-radius: 20px !important;
+    padding: 26px 24px 22px !important;
+    background: var(--ios-card-bg) !important;
+    border: 1px solid var(--ios-hairline) !important;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    transform: scale(0.96) translateY(8px);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+body.theme-vercel .nucleus-dialog-overlay.show .nucleus-dialog-card {
+    transform: scale(1) translateY(0) !important;
+}
+body.theme-vercel .nucleus-dialog-icon {
+    width: 44px !important;
+    height: 44px !important;
+    border-radius: 12px !important;
+    background: rgba(0, 122, 255, 0.12) !important;
+    color: var(--ios-blue) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 20px !important;
+    margin-bottom: 16px !important;
+    flex-shrink: 0 !important;
+}
+body.theme-vercel .nucleus-dialog-card.dialog-danger .nucleus-dialog-icon {
+    background: rgba(255, 59, 48, 0.14) !important;
+    color: #FF3B30 !important;
+}
+body.theme-vercel .nucleus-dialog-title {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    color: var(--ios-label) !important;
+    margin: 0 0 8px 0 !important;
+    letter-spacing: -0.3px !important;
+    line-height: 1.3 !important;
+}
+body.theme-vercel .nucleus-dialog-message {
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+    color: var(--ios-secondary) !important;
+    white-space: pre-line !important;
+    word-break: break-word !important;
+    margin-bottom: 20px !important;
+}
+body.theme-vercel .nucleus-dialog-actions {
+    display: flex !important;
+    gap: 10px !important;
+    justify-content: flex-end !important;
+    margin-top: auto !important;
+}
+body.theme-vercel .nucleus-dialog-btn {
+    height: 38px !important;
+    padding: 0 18px !important;
+    border-radius: 9px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.15s ease !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+body.theme-vercel .nucleus-dialog-btn-secondary {
+    background: var(--ios-fill) !important;
+    color: var(--ios-label) !important;
+    border: 1px solid var(--ios-hairline) !important;
+}
+body.theme-vercel .nucleus-dialog-btn-secondary:hover {
+    background: var(--ios-hairline) !important;
+}
+body.theme-vercel .nucleus-dialog-btn-primary {
+    background: var(--ios-label) !important;
+    color: var(--ios-bg) !important;
+    border: 1px solid var(--ios-label) !important;
+}
+body.theme-vercel .nucleus-dialog-btn-primary:hover {
+    opacity: 0.92 !important;
+    transform: translateY(-1px) !important;
+}
+body.theme-vercel .nucleus-dialog-card.dialog-danger .nucleus-dialog-btn-primary {
+    background: #FF3B30 !important;
+    color: #FFFFFF !important;
+    border-color: #FF3B30 !important;
+    box-shadow: 0 4px 14px rgba(255, 59, 48, 0.3) !important;
+}
+body.theme-vercel .nucleus-dialog-card.dialog-danger .nucleus-dialog-btn-primary:hover {
+    background: #E03126 !important;
+    border-color: #E03126 !important;
+}
 
 /* ---------- VERCEL POLISH — detalles finos inspirados en Vercel (imagen 1) ---------- */
 body.theme-vercel .excel-topbar{height:46px !important; min-height:46px !important; padding:0 14px !important}
@@ -147,8 +263,9 @@ body.theme-vercel input[type="text"], body.theme-vercel input[type="password"], 
 body.theme-vercel textarea{height:auto !important; min-height:64px !important; padding:8px 10px !important}
 body.theme-vercel .nucleus-control{height:32px !important}
 body.theme-vercel .mar-field label{font-size:10px !important; letter-spacing:0.06em !important; margin-bottom:4px !important}
-body.theme-vercel .mar-field input, body.theme-vercel .mar-field select{height:32px !important}
-body.theme-vercel .mar-modal{border-radius:8px !important; max-width:720px !important}
+body.theme-vercel .mar-modal{border-radius:12px !important; max-width:720px !important}
+body.theme-vercel .mar-modal.modal-cotizaciones,
+body.theme-vercel .mar-modal.wo-modal { max-width:1100px !important; width:95vw !important; border-radius:16px !important }
 body.theme-vercel .mar-header{padding:14px 16px !important; gap:12px !important}
 body.theme-vercel .mar-header h3{font-size:14px !important; font-weight:600 !important; letter-spacing:-0.2px !important}
 body.theme-vercel .mar-header p{font-size:12px !important; line-height:1.4 !important}

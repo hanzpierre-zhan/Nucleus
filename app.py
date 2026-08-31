@@ -992,7 +992,8 @@ with app.app_context():
             {'nombre': 'SOLUCIÓN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['GEP', 'GEE', 'NA']},
+            {'nombre': 'SISTEMAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
@@ -2400,6 +2401,7 @@ def api_import_process():
             'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'SE INSTALO MUFAS',
             'LATITUD MUFAS', 'LATITUD Mufas', 'LONGITUD MUFAS', 'LONGITUD Mufas',
             'UBICACIÓN DE MUFAS', 'UBICACION DE MUFAS',
+            'SISTEMAS', 'SISTEMA',
             'MATERIALES'
         ])
         

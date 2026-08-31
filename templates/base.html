@@ -228,7 +228,19 @@
                 _type = type;
                 titleEl.textContent = title;
                 msgEl.textContent = message;
-                iconEl.innerHTML = '<i class="fa-solid '+icon+'"></i>';
+
+                const isDanger = /eliminar|borrar|remover|bloquear|quitar/i.test(message + ' ' + title);
+                const card = overlay.querySelector('.nucleus-dialog-card');
+                if (card) {
+                    card.classList.toggle('dialog-danger', isDanger);
+                }
+
+                let finalIcon = icon;
+                if (icon === 'fa-circle-info' || icon === 'fa-circle-question') {
+                    finalIcon = isDanger ? 'fa-triangle-exclamation' : (type === 'confirm' ? 'fa-circle-question' : 'fa-circle-info');
+                }
+                iconEl.innerHTML = '<i class="fa-solid ' + finalIcon + '"></i>';
+
                 if(type==='prompt'){
                     inputEl.style.display='block';
                     inputEl.type = inputType||'text';
