@@ -5292,13 +5292,8 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (esGenerar && !itemsReg.length) { alert('Agrega al menos un item antes de generar la cotización.'); return; }
         }
 
-        // Combustible: sin WO, confirmar que quedará como CM PENDIENTE
+        // Combustible: sin WO queda como CM PENDIENTE (aviso rojo ya visible)
         if (currentProjectNombre.trim().toLowerCase() === 'combustible') {
-            const mov = data['MOVIMIENTO'] || '';
-            const wo = (data['WO NUMBER'] || '').trim();
-            if (!wo) {
-                if (!await nucleusConfirm('El movimiento quedará registrado como CM PENDIENTE (sin WO). ¿Deseas continuar?')) return;
-            }
             if (!data['QR ASIGNADO']) { alert('Seleccione el QR ASIGNADO.'); return; }
             if (!data['GALONES']) { alert('Ingrese la cantidad de GALONES.'); return; }
         }
@@ -7921,7 +7916,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         const selectedRows = table.getSelectedRows();
         if (selectedRows.length === 0) return;
 
-        const keys = selectedRows.map(r => r.getData()._key);
+        const keys = selectedRows.map(r => String(r.getData()._key || '').trim()).filter(Boolean);
         if (!await nucleusConfirm(`¿Eliminar definitivamente los ${keys.length} registros seleccionados?`)) return;
 
         fetch('/api/rows/delete', {

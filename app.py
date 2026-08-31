@@ -1549,15 +1549,17 @@ def index():
     if '_key' in cols: cols.remove('_key')
     cols.insert(0, '_key')
     # N° ORDEN siempre entre el check y N° COTIZACION (primero visible)
-    if 'N° ORDEN' in cols:
-        cols.remove('N° ORDEN')
-        # Para que quede: checkbox | N° ORDEN | N° COTIZACION (_key) | resto
-        if '_key' in cols:
-            cols.remove('_key')
-            cols.insert(0, '_key')
-            cols.insert(0, 'N° ORDEN')
-        else:
-            cols.insert(0, 'N° ORDEN')
+    try:
+        if 'N° ORDEN' in cols:
+            cols.remove('N° ORDEN')
+            if '_key' in cols:
+                cols.remove('_key')
+                cols.insert(0, '_key')
+                cols.insert(0, 'N° ORDEN')
+            else:
+                cols.insert(0, 'N° ORDEN')
+    except Exception:
+        pass
     # Si es Cotizaciones o Combustible y no hay layout guardado, forzar orden N° ORDEN primero
     _proj_nombre_for_layout = (db.session.get(Proyecto, pid).nombre.strip().lower() if db.session.get(Proyecto, pid) and db.session.get(Proyecto, pid).nombre else '')
     if _proj_nombre_for_layout in ('cotizaciones', 'combustible') and 'N° ORDEN' in cols:
