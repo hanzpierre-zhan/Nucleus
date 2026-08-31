@@ -988,17 +988,18 @@ with app.app_context():
             {'nombre': 'CIUDAD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'SOLUCIÓN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['GEP', 'GEE', 'NA']},
-            {'nombre': 'SISTEMAS', 'tipo': 'lista', 'opciones': ['Energía', 'Transmisión', 'Aire Acondicionado']},
             {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SOLUCIÓN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SISTEMAS', 'tipo': 'lista', 'opciones': ['Energía', 'Transmisión', 'Aire Acondicionado']},
+            {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí', 'No']}
+            {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
         ]
         for col in flm_detalle_cols:
             if col['nombre'] not in flm_names:
@@ -1021,14 +1022,27 @@ with app.app_context():
         except Exception:
             existing_cols = []
         existing_names = {str(c.get('nombre', '')).strip() for c in existing_cols if isinstance(c, dict)}
+        # Plantilla PEXT/FLM: solo 16 campos de Gestión (ver lista del usuario). Eliminar obsoletos si existen.
+        obsoletas = {'MONTO APROBADO','MONTO GASTANDO','MATERIAL USADO','MOTIVO PARADA RELOJ','ROBO HURTO','SUPERVISOR ATENCIÓN','CORREO CIERRE','MOTIVO NO ATENDIDO','FECHA NO ATENDIDO','USUARIO NO ATENDIDO'}
+        existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in obsoletas]
+        existing_names = {str(c.get('nombre', '')).strip() for c in existing_cols if isinstance(c, dict)}
         pext_new_cols = [
-            {'nombre': 'MOTIVO PARADA RELOJ', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'ROBO HURTO', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
-            {'nombre': 'SUPERVISOR ATENCIÓN', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'CORREO CIERRE', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
-            {'nombre': 'MOTIVO NO ATENDIDO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'FECHA NO ATENDIDO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'USUARIO NO ATENDIDO', 'tipo': 'texto', 'opciones': []}
+            {'nombre': 'SERVICIO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CIUDAD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'lista', 'opciones': ['Accidente vehicular','Acoplador sucio','Buffer mal acondicionado','Cámara inundada','Cámara sin tapa','Corte de fibra en sifón','Empalme dañado','Ferretería con corrosión','Fibra drop cliente cortado','Fibra quemada','FO cortado','Habilitación de hilos por Implementación','Habilitación de hilos por ORC','Hilo roto en medio vano','Hilo roto en mufa','Hilos invertidos en ODF','Jumper averiado','Mal derivado-no es PEXT','Mordida de roedor','Mufa con acondicionamiento deficiente','NAP con acondicionamineto deficiente','NAP sin bornera','NAP sin rotulación','Obras civiles de interferencia','Pernos con corrosión','Pigtail roto','Poste deteriorado','Robo de mufa','RTN averiado','Splitter averiado','Transceiver averiado']},
+            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['GEP','GEE','NA']},
+            {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SOLUCIÓN', 'tipo': 'lista', 'opciones': ['Cambio de caja NAP','Cambio de hilos','Cambio de jumper en PINT','Cambio de splitter','Desaguado de camara','Fusion del hilo roto segun el ID','Instalacion de bornera en NAP','Instalacion de FO definitiva con mufa(s) existente(s)','Instalacion de FO definitiva con nueva mufa(s)','Instalacion de FO provisional con mufa(s) existente(s)','Instalacion de FO provisional con nueva mufa(s)','Instalacion de nueva mufa(s)','Instalacion de nueva tapa en camara','Instalacion de nuevos pernos en camara','Limpieza de conector en NAP','Limpieza de conector en ODF','Obras civiles con mufa(s) existente(s)','Obras civiles con nueva mufa(s)','Pruebas de verificiación PEXT','Reposicion de poste Entel','Reposicion de tapa  de camara  Entel','se cambio el acoplador','Se reparo el spliteer roto']},
+            {'nombre': 'SISTEMAS', 'tipo': 'lista', 'opciones': ['Energía','Transmisión','Aire Acondicionado']},
+            {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
         ]
         for col in pext_new_cols:
             if col['nombre'] not in existing_names:
@@ -2111,50 +2125,55 @@ def api_import_manual_template():
     proy = db.session.get(Proyecto, pid)
     proy_nombre = proy.nombre if proy else ''
 
-    # Plantilla del checklist de PEXT: PK + columnas que cubren el checklist.
-    # Las columnas importadas (que ya tienen dato) van con su valor actual;
-    # las manuales van vacías para que el gestor las llene.
-    PEXT_CHECKLIST = [
-        'Causa raíz',
-        'Nombre de Site',
-        'Estado del TT',
-        'Fecha de creación (WO Creation date)',
-        'Fecha y hora de WO a estado close',
-        'Fault Level',
-    ]
-    PEXT_CHECKLIST_MANUAL = {
-        'MATERIAL USADO', 'INICIO DE PARADA', 'FIN DE PARADA',
-        'REQUIERE CORRECTIVO FINAL', 'SOLUCIÓN',
-        'MOTIVO PARADA RELOJ', 'ROBO HURTO', 'SUPERVISOR ATENCIÓN',
-        'CORREO CIERRE', 'MOTIVO NO ATENDIDO'
-    }
-    if proy_nombre == 'PEXT':
-        checklist_cols = PEXT_CHECKLIST + [c for c in manual_cols if c in PEXT_CHECKLIST_MANUAL]
+    # Plantilla FLM/PEXT: Detalle (9 campos) + Gestión (16 manuales), con contenidos actuales pre-llenados
+    if proy_nombre in ('PEXT', 'FLM'):
+        detalle_cols = [
+            'Fecha de creación (WO Creation date)',
+            'Nombre de Site',
+            'Autin TT',
+            'Departamento',
+            'Fault Level',
+            'Estado de la tarea (WO State)',
+            'Prioridad del Site',
+            'Provincia',
+            'Distrito',
+        ]
+        # Sin _key duplicado; el PK (Número de WO) va como primera columna para el import
+        all_cols = detalle_cols + manual_cols
         data = {}
-        for r in rows:
-            d = json.loads(r.data_json)
-            line = {pk_name: r.key_value}
-            for col in PEXT_CHECKLIST:
-                line[col] = str(d.get(col, '') or '')
-            for col in checklist_cols:
-                if col not in PEXT_CHECKLIST:
-                    line[col] = ''
-            data[r.key_value] = line
-        if data:
-            df = pd.DataFrame(list(data.values()))
-        else:
-            df = pd.DataFrame(columns=[pk_name] + checklist_cols)
-        # Auto-adjust column widths
+        # PK primero para poder hacer match en el import
+        data[pk_name] = [r.key_value for r in rows]
+        for col in detalle_cols:
+            data[col] = [str((json.loads(r.data_json).get(col) or '')) for r in rows]
+        for col in manual_cols:
+            data[col] = [str((json.loads(r.data_json).get(col) or '')) for r in rows]
+        df = pd.DataFrame(data)
+        if df.empty and not rows:
+            df = pd.DataFrame(columns=[pk_name] + all_cols)
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Plantilla')
             ws = writer.sheets['Plantilla']
+            # congelar encabezado y autofiltro
+            ws.freeze_panes = 'A2'
+            ws.auto_filter.ref = ws.dimensions
             for col_cells in ws.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col_cells)
-                ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 45)
+                ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 38)
+            # resaltar cabeceras de Gestión vs Detalle
+            from openpyxl.styles import PatternFill, Font
+            fill_det = PatternFill(start_color="E8F0FE", end_color="E8F0FE", fill_type="solid")
+            fill_ges = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+            for idx, col_name in enumerate(df.columns, 1):
+                cell = ws.cell(row=1, column=idx)
+                cell.font = Font(bold=True, size=9)
+                if col_name in detalle_cols:
+                    cell.fill = fill_det
+                elif col_name in manual_cols:
+                    cell.fill = fill_ges
         output.seek(0)
         response = make_response(output.read())
-        response.headers['Content-Disposition'] = 'attachment; filename=plantilla_checklist_PEXT.xlsx'
+        response.headers['Content-Disposition'] = f'attachment; filename=plantilla_{proy_nombre}.xlsx'
         response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         return response
 

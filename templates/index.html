@@ -675,13 +675,15 @@
 
     .wo-summary {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 8px 14px;
         background: var(--ios-fill);
         border: 1px solid var(--ios-hairline);
         border-radius: 14px;
         padding: 14px 16px;
     }
+    @media (max-width: 1200px) { .wo-summary { grid-template-columns: repeat(4, 1fr); } }
+    @media (max-width: 900px) { .wo-summary { grid-template-columns: repeat(3, 1fr); } }
 
     .wo-summary-item {
         min-width: 0;
@@ -706,9 +708,11 @@
 
     .wo-form {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(3, 1fr);
         gap: 14px;
     }
+    .wo-field.full { grid-column: 1 / -1; }
+    @media (max-width: 900px) { .wo-form { grid-template-columns: 1fr 1fr; } }
 
     .wo-group {
         margin-top: 18px;
@@ -6316,7 +6320,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (typeof table !== 'undefined') {
             table.getColumns().forEach(c => {
                 const f = c.getDefinition().field;
-                if (f && c.isVisible()) visible.push(f);
+                if (!f || f === '_key' || String(f).trim() === '_key') return;
+                if (c.isVisible()) visible.push(f);
             });
         }
         const norm = k => String(k).trim().toLowerCase();
@@ -8013,69 +8018,40 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function copiarPlantillaWO() {
-        const data = woRow ? woRow.getData() : {};
-        const val = id => {
-            const el = document.getElementById(id);
-            return el ? el.value : '';
-        };
-        const fmtFh = v => {
-            if (v === null || v === undefined) return '';
-            return String(v).replace('T', ' ').replace(/:\d{2}$/, '');
-        };
-        const line = (lbl, v) => `${lbl}: ${v == null ? '' : v}`;
-        const lines = [
-            line('Incidente', data['Autin TT'] || ''),
-            line('Enlace', data['Nombre de Site'] || ''),
-            line('Fecha hora inicio', fmtFh(data['Fecha de creación (WO Creation date)'])),
-            line('Fecha hora fin', fmtFh(data['Fecha y hora de WO a estado close'])),
-            line('Tarea', woKey || ''),
-            line('Inicio de parada', fmtFh(val('wo-inicio-parada'))),
-            line('Fin de parada', fmtFh(val('wo-fin-parada'))),
-            line('Motivo de avería', val('wo-motivo')),
-            line('Solución', val('wo-solucion')),
-            line('Coordenadas del corte (Lat)', val('wo-latitud')),
-            line('Coordenadas del corte (Long)', val('wo-longitud')),
-            line('Se instalaron mufas?', val('wo-se-instalo-mufas')),
-            line('Ubicación de mufas (Lat)', val('wo-lat-mufa')),
-            line('Ubicación de mufas (Long)', val('wo-lon-mufa')),
-            line('Requiere correctivo Final?', val('wo-requiere-correctivo'))
+        // Ahora copia todo lo que está dentro de DETALLE (wo-summary)
+        const items = document.querySelectorAll('#wo-summary .wo-summary-item');
+        const title = document.getElementById('wo-title');
+        const head = title ? title.textContent.trim() : (woKey || '');
+        const lines = [];
+        if (head) lines.push('DETALLE DE ' + head);
+        if (!items.length) {
+            // fallback al data si aún no renderizó
+            const data = woRow ? woRow.getData() : {};
+            Object.keys(data).forEach(k => {
+                if (String(k).trim() === '_key') return;
+                const v = data[k];
+                if (v !== '' && v !== null && v !== undefined) lines.push(k + ': ' + String(v));
+            });
+        } else {
+            items.forEach(el => {
+                const k = el.querySelector('.k') ? el.querySelector('.k').textContent.trim() : '';
+                const v = el.querySelector('.v') ? el.querySelector('.v').textContent.trim() : '';
+                if (k || v) lines.push((k ? k + ': ' : '') + v);
+            });
+        }
+        // Siempre añadir Gestión (16 campos) aunque estén vacíos
+        const gestionMap = [
+            ['Servicio', 'wo-servicio'], ['Ciudad', 'wo-ciudad'], ['Técnico asignado', 'wo-tecnico'],
+            ['Contrata', 'wo-contrata'], ['Coordenadas del corte (Lat)', 'wo-latitud'], ['Coordenadas del corte (Long)', 'wo-longitud'],
+            ['Motivo de avería', 'wo-motivo'], ['¿Se instaló mufas?', 'wo-se-instalo-mufas'], ['Ubicación de mufas (Lat)', 'wo-lat-mufa'],
+            ['Ubicación de mufas (Long)', 'wo-lon-mufa'], ['Solución', 'wo-solucion'], ['Sistemas', 'wo-sistemas'],
+            ['¿Requiere correctivo final?', 'wo-requiere-correctivo'], ['Inicio de parada', 'wo-inicio-parada'], ['Fin de parada', 'wo-fin-parada'], ['Bitácora', 'wo-bitacora']
         ];
-        const materiales = recogerMateriales();
-        if (materiales.length) {
-            lines.push('Materiales:');
-            materiales.forEach(m => {
-                lines.push(`- ${m.descripcion}${m.cantidad ? ' x' + m.cantidad : ''}`);
-            });
-        }
-        if (ES_FLM) {
-            const items = recogerItemsCobra();
-            if (items.length) {
-                lines.push('Items:');
-                items.forEach(it => {
-                    lines.push(`- ${it.tipo || '-'} | ${it.texto} | ${it.und || '-'} | x${it.cantidad || '0'} | V.U S/ ${it.valor_unitario || '0'} | Total S/ ${it.valor_total || '0'}`);
-                });
-                lines.push(`sub total + FEE: S/ ${calcularTotalCobra().toFixed(2)}`);
-            }
-        }
-        const gastos = recogerGastos();
-        if (gastos.length) {
-            lines.push('Materiales, Herramientas y/o Homologaciones:');
-            gastos.forEach(g => {
-                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | ${g.unid || '1'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
-            });
-            lines.push(`Subtotal A: S/ ${calcularMontoGastado().toFixed(2)}`);
-        }
-        const manoObra = recogerManoObra();
-        if (manoObra.length) {
-            lines.push('Mano de Obra:');
-            manoObra.forEach(g => {
-                lines.push(`- [${g.item}] ${g.cod || 'SC'} | ${g.descripcion || 'Item'} | ${g.unid || '1'} | x${g.cant || '0'} | P.Unid S/ ${g.precio_unid || '0'} | Total S/ ${g.total_p || '0'}`);
-            });
-            lines.push(`Subtotal B: S/ ${calcularSubtotalCoti('wo-mo-list', 'wo-subtotal-b').toFixed(2)}`);
-        }
-        if (gastos.length || manoObra.length) {
-            lines.push(`Total Cotización (A+B): S/ ${actualizarTotalCotizacion().toFixed(2)}`);
-        }
+        gestionMap.forEach(([label, id]) => {
+            const el = document.getElementById(id);
+            const v = el ? String(el.value || '').trim() : '';
+            lines.push(label + ': ' + v);
+        });
         const texto = lines.join('\n');
         if (!texto) { alert('No hay datos para copiar'); return; }
         const btn = document.getElementById('btn-wo-copiar');
