@@ -67,6 +67,13 @@
     </button>
     {% endif %}
 
+    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') != 'demo' %}
+    <!-- Botón Nuevo WO (Azul): alta manual de WO por el gestor -->
+    <button onclick="aniadirRegistroWO()" class="action-pill pill-blue" title="Crear un WO manualmente">
+        <i class="fa-solid fa-plus"></i> Nuevo WO
+    </button>
+    {% endif %}
+
     {% if session.get('rol') == 'admin' %}
     <!-- Botón Importar Masivo (Teal) -->
     <button onclick="abrirModalImportar()" class="action-pill pill-teal"
@@ -710,6 +717,18 @@
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 14px;
+    }
+    /* Efecto gris solo para títulos de grupo PEXT (Detalle / Gestión / Post / Bitácora) */
+    .wo-head-box {
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        padding: 10px 14px;
+    }
+    /* Resumen de Detalle en blanco (PEXT): sin fondo ni borde gris */
+    .wo-summary-plain {
+        background: transparent;
+        border-color: transparent;
     }
     .wo-field.full { grid-column: 1 / -1; }
     @media (max-width: 900px) { .wo-form { grid-template-columns: 1fr 1fr; } }
@@ -1755,10 +1774,12 @@
                             class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i
                             class="fa-solid fa-camera"></i> Evidencia</button>
+                    {% if session.get('rol') == 'admin' %}
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i
                             class="fa-solid fa-arrows-spin"></i> Estado</button>
                     <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i
                             class="fa-solid fa-clock-rotate-left"></i> Historial</button>
+                    {% endif %}
                 </div>
             </div>
             <div class="wo-head-actions">
@@ -1797,13 +1818,13 @@
                             <label><i class="fa-solid fa-city"></i> Ciudad</label>
                             <input type="text" id="wo-ciudad" autocomplete="off">
                         </div>
-                        <div class="wo-field">
+                        <div class="wo-field" id="wof-tecnico">
                             <label><i class="fa-solid fa-user-gear"></i> Técnico asignado</label>
                             <select id="wo-tecnico">
                                 <option value="">— Seleccionar —</option>
                             </select>
                         </div>
-                        <div class="wo-field">
+                        <div class="wo-field" id="wof-contrata">
                             <label><i class="fa-solid fa-building"></i> Contrata</label>
                             <input type="text" id="wo-contrata" autocomplete="off">
                         </div>
@@ -1855,7 +1876,7 @@
                                 <option value="Aire Acondicionado">Aire Acondicionado</option>
                             </select>
                         </div>
-                        <div class="wo-field">
+                        <div class="wo-field" id="wof-requiere">
                             <label><i class="fa-solid fa-circle-check"></i> ¿Requiere correctivo final?</label>
                             <select id="wo-requiere-correctivo">
                                 <option value="">— Seleccionar —</option>
@@ -1863,15 +1884,15 @@
                                 <option value="No">No</option>
                             </select>
                         </div>
-                        <div class="wo-field">
+                        <div class="wo-field" id="wof-inicio">
                             <label><i class="fa-solid fa-play"></i> Inicio de parada</label>
                             <input type="datetime-local" id="wo-inicio-parada">
                         </div>
-                        <div class="wo-field">
+                        <div class="wo-field" id="wof-fin">
                             <label><i class="fa-solid fa-stop"></i> Fin de parada</label>
                             <input type="datetime-local" id="wo-fin-parada">
                         </div>
-                        <div class="wo-field full">
+                        <div class="wo-field full" id="wof-bitacora">
                             <label><i class="fa-solid fa-book"></i> Bitácora</label>
                             <textarea id="wo-bitacora" placeholder="Registrar novedades del trabajo..."></textarea>
                         </div>
@@ -4297,6 +4318,114 @@
         if (first) setTimeout(() => first.focus(), 60);
     }
 
+    // FLM/PEXT: alta manual de WO por el gestor (Número CM + todos los campos).
+    // Reutiliza el modal genérico y su guardado (POST /api/rows/add + reload que consolida).
+    async function aniadirRegistroWO() {
+        const pkName = "{{ pk }}";
+        const keyCol = (pkName && pkName !== 'NO_DEF') ? pkName : 'Número de WO';
+        const body = document.getElementById('mar-fields');
+        body.innerHTML = '<div class="mar-empty">Cargando formulario...</div>';
+        document.getElementById('modal-add-registro').style.display = 'flex';
+        let meta = { servicios: [], tecnicos: [] };
+        try {
+            const r = await fetch('/api/wo/meta');
+            const j = await r.json();
+            if (j && j.success) meta = j;
+        } catch (e) { /* sigue con listas vacías */ }
+        body.innerHTML = '';
+
+        const mkField = (labelText, control, full) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'mar-field' + (full ? ' full' : '');
+            const label = document.createElement('label');
+            label.textContent = labelText;
+            wrap.appendChild(label);
+            wrap.appendChild(control);
+            body.appendChild(wrap);
+            return wrap;
+        };
+        const mkInput = (field, ph, isPk, type) => {
+            const inp = document.createElement('input');
+            inp.type = type || 'text';
+            inp.dataset.field = field;
+            inp.dataset.pk = isPk ? '1' : '0';
+            if (ph) inp.placeholder = ph;
+            inp.autocomplete = 'off';
+            if (isPk) inp.required = true;
+            return inp;
+        };
+        const mkSelect = (field, options) => {
+            const sel = document.createElement('select');
+            sel.dataset.field = field;
+            sel.dataset.pk = '0';
+            const p0 = document.createElement('option');
+            p0.value = ''; p0.textContent = '— Seleccionar —';
+            sel.appendChild(p0);
+            (options || []).forEach(o => {
+                const opt = document.createElement('option');
+                opt.value = o; opt.textContent = o;
+                sel.appendChild(opt);
+            });
+            return sel;
+        };
+
+        // 1) Clave: Número de WO (obligatorio).
+        const keyInp = mkInput('_key', 'Ej: CM-20260719-00000014', true);
+        const keyWrap = mkField(keyCol + ' *', keyInp, true);
+        keyWrap.querySelector('label').innerHTML = '<i class="fa-solid fa-key"></i> ' + escapeHtml(keyCol) + ' <em>*</em>';
+
+        // 2) Datos de origen (columnas del esquema, sin llaves ni internos ni gestión).
+        const manualNames = new Set((manualColsConfig || []).map(mc => mc.nombre));
+        const skipCols = new Set(['_key', keyCol, 'Hrs Respuesta', 'FECHA CAMBIO ESTADO', 'MATERIALES']);
+        (rawCols || []).forEach(col => {
+            if (!col || skipCols.has(col)) return;
+            if (String(col).startsWith('_') || String(col).startsWith('KPI_')) return;
+            if (String(col).startsWith('COTIZACION_')) return;
+            if (manualNames.has(col)) return; // van en Gestión
+            mkField(col, mkInput(col));
+        });
+
+        // 3) Gestión (columnas manuales del proyecto).
+        const sep = document.createElement('div');
+        sep.className = 'mar-empty';
+        sep.style.cssText = 'grid-column:1/-1;text-align:left;font-weight:700;color:var(--ios-gray-1);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 0 0;';
+        sep.textContent = 'Gestión';
+        body.appendChild(sep);
+        (manualColsConfig || []).forEach(mc => {
+            const name = mc.nombre;
+            if (name === 'MATERIALES') return; // se gestiona en el modal del WO
+            let ctrl;
+            if (name === 'SERVICIO') {
+                ctrl = mkSelect(name, (meta.servicios && meta.servicios.length) ? meta.servicios : (mc.opciones || []));
+            } else if (name === 'TECNICO ASIGNADO') {
+                ctrl = document.createElement('select');
+                ctrl.dataset.field = name;
+                ctrl.dataset.pk = '0';
+                ctrl.innerHTML = '<option value="">— Seleccionar —</option>' +
+                    (meta.tecnicos || []).map(t => {
+                        const tn = String(t.nombre || '');
+                        const tc = String(t.contrata || '');
+                        return `<option value="${escapeHtml(tn)}" data-contrata="${escapeHtml(tc)}">${escapeHtml(tc ? tn + ' — ' + tc : tn)}</option>`;
+                    }).join('');
+                ctrl.addEventListener('change', function () {
+                    const opt = this.options[this.selectedIndex];
+                    const cc = body.querySelector('[data-field="CONTRATA"]');
+                    if (cc && !cc.value && opt && opt.dataset.contrata) cc.value = opt.dataset.contrata;
+                });
+            } else if (mc.tipo === 'lista' && mc.opciones && mc.opciones.length) {
+                ctrl = mkSelect(name, mc.opciones);
+            } else if (name === 'INICIO DE PARADA' || name === 'FIN DE PARADA') {
+                ctrl = mkInput(name, '', false, 'datetime-local');
+            } else {
+                ctrl = mkInput(name);
+            }
+            mkField(name, ctrl);
+        });
+
+        const first = body.querySelector('input, select');
+        if (first) setTimeout(() => first.focus(), 60);
+    }
+
     function _obtenerFechaHoraLocal() {
         const now = new Date();
         const pad = n => String(n).padStart(2, '0');
@@ -5888,6 +6017,27 @@ btnItem.onclick = () => cotRegAgregarFila();
         return out;
     }
 
+    // --- PEXT: helpers de coordenadas (un solo campo "lat, long" <-> par) ---
+    function parseCoordPair(s) {
+        const nums = String(s || '').match(/-?\d+(?:\.\d+)?/g) || [];
+        return [nums[0] || '', nums[1] || ''];
+    }
+    function joinCoords(a, b) {
+        a = String(a || '').trim(); b = String(b || '').trim();
+        if (a && b) return a + ', ' + b;
+        return a || b;
+    }
+    // FLM + PEXT: muestra Ubicación de mufas solo si Mufas=Sí (PEXT), y Detalle de correctivo solo si Requiere=Sí.
+    function aplicarCondicionalesWO() {
+        if (typeof IS_WO_PROJECT === 'undefined' || !IS_WO_PROJECT) return;
+        const mSel = document.getElementById('wo-se-instalo-mufas');
+        const wUbic = document.getElementById('wof-ubic');
+        if (mSel && wUbic) wUbic.style.display = (mSel.value === 'Sí') ? '' : 'none';
+        const rSel = document.getElementById('wo-requiere-correctivo');
+        const wDet = document.getElementById('wof-detcorr');
+        if (rSel && wDet) wDet.style.display = (rSel.value === 'Sí') ? '' : 'none';
+    }
+
     function aplicarConfigWoPorProyecto() {
         // Personaliza el formulario WO según el proyecto.
         // FLM: renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
@@ -5897,8 +6047,8 @@ btnItem.onclick = () => cotRegAgregarFila();
             // ¿Se instaló mufas? -> ¿Se usó grupo electrógeno?
             document.querySelectorAll('.wof-mufas-label').forEach(l => { l.textContent = '¿Se usó grupo electrógeno?'; });
 
-            // Ocultar campos no aplicables en FLM
-            ['wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa']
+            // Ocultar campos no aplicables en FLM (Restricción no se usa: se oculta, el dato se conserva)
+            ['wof-servicio', 'wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa']
                 .forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';
@@ -5919,6 +6069,53 @@ btnItem.onclick = () => cotRegAgregarFila();
                     sel.replaceWith(input);
                 }
             });
+            // FLM: grupos Gestión / Post / Bitácora (mismo patrón que PEXT).
+            // Gestión: Sistemas, Técnico, Contrata, Motivo, Solución.
+            // Post: Grupo electrógeno, Requiere -> Detalle correctivo, Inicio/Fin. Bitácora: grupo aparte.
+            (function organizarDetalleFLM() {
+                const form = document.querySelector('#wo-panel-detalle .wo-form');
+                if (!form) return;
+                const byId = id => document.getElementById(id);
+                const mkHead = (id, icon, text) => {
+                    let h = byId(id);
+                    if (!h) {
+                        h = document.createElement('div');
+                        h.id = id;
+                        h.className = 'wo-section-title wo-head-box';
+                        h.style.cssText = 'grid-column:1/-1;margin:8px 0 2px;';
+                        h.innerHTML = '<i class="fa-solid fa-' + icon + '"></i> ' + text;
+                    }
+                    return h;
+                };
+                const hG = mkHead('wo-h-gestion', 'sliders', 'Gestión');
+                const hP = mkHead('wo-h-post', 'list-check', 'Post');
+                let fDet = byId('wof-detcorr');
+                if (!fDet) {
+                    fDet = document.createElement('div');
+                    fDet.className = 'wo-field full';
+                    fDet.id = 'wof-detcorr';
+                    fDet.innerHTML = '<label><i class="fa-solid fa-file-lines"></i> Detalle de correctivo</label>' +
+                        '<textarea id="wo-detalle-correctivo" style="min-height:60px;" placeholder="Detalle del correctivo final..."></textarea>';
+                }
+                const prevTitle = form.previousElementSibling;
+                if (prevTitle && prevTitle.classList && prevTitle.classList.contains('wo-section-title')) {
+                    prevTitle.style.display = 'none';
+                }
+                [hG, byId('wof-sistemas'), byId('wof-tecnico'), byId('wof-contrata'), byId('wof-motivo'), byId('wof-solucion'),
+                 hP, byId('wof-se-instalo-mufas'), byId('wof-requiere'), fDet, byId('wof-inicio'), byId('wof-fin'),
+                 byId('wof-bitacora')
+                ].forEach(function (el) { if (el) form.appendChild(el); });
+                const secDet = document.querySelector('#wo-panel-detalle .wo-section');
+                const detTitle = secDet ? secDet.querySelector('.wo-section-title') : null;
+                if (detTitle) detTitle.classList.add('wo-head-box');
+                const bitWrap = byId('wof-bitacora');
+                const bitLabel = bitWrap ? bitWrap.querySelector('label') : null;
+                if (bitLabel) bitLabel.classList.add('wo-head-box');
+                const sumGrid = byId('wo-summary');
+                if (sumGrid) sumGrid.classList.add('wo-summary-plain');
+                const rS = byId('wo-requiere-correctivo');
+                if (rS && !rS.dataset.condInit) { rS.dataset.condInit = '1'; rS.addEventListener('change', aplicarCondicionalesWO); }
+            })();
         }
 
         // PEXT: sin pestaña Cotización ni Gastos (Combustible es solo de FLM).
@@ -5931,6 +6128,86 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (tabGastos) tabGastos.style.display = 'none';
             const panelGastos = document.getElementById('wo-panel-gastos');
             if (panelGastos) panelGastos.style.display = 'none';
+            // PEXT: CIUDAD y SISTEMAS no se requieren -> ocultar solo en PEXT (FLM los conserva).
+            ['wof-ciudad', 'wof-sistemas'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+            // PEXT: ¿SE INSTALÓ MUFAS? con opciones Sí/No (FLM conserva GEP/GEE/NA).
+            const mufasSel = document.getElementById('wo-se-instalo-mufas');
+            if (mufasSel && mufasSel.tagName === 'SELECT') {
+                const prev = mufasSel.value;
+                mufasSel.innerHTML = '<option value="">— Seleccionar —</option>' +
+                    '<option value="Sí">Sí</option><option value="No">No</option>';
+                if (prev === 'Sí' || prev === 'No') mufasSel.value = prev;
+            }
+            // PEXT: layout por grupos dentro de la pestaña Detalle.
+            // - Grupo Gestión: Servicio, Técnico, Contrata, Motivo, Solución, Coordenadas (un solo campo).
+            // - Grupo Post: Mufas -> Ubicación, Requiere -> Detalle correctivo, Inicio/Fin, Bitácora.
+            (function organizarDetallePEXT() {
+                const form = document.querySelector('#wo-panel-detalle .wo-form');
+                if (!form) return;
+                const byId = id => document.getElementById(id);
+                // Ocultar el título "Gestión" original (lo reemplazan los grupos Gestión/Post).
+                const prevTitle = form.previousElementSibling;
+                if (prevTitle && prevTitle.classList && prevTitle.classList.contains('wo-section-title')) {
+                    prevTitle.style.display = 'none';
+                }
+                const mkHeader = (id, icon, text) => {
+                    let h = byId(id);
+                    if (!h) {
+                        h = document.createElement('div');
+                        h.id = id;
+                        h.className = 'wo-section-title wo-head-box';
+                        h.style.cssText = 'grid-column:1/-1;margin:8px 0 2px;';
+                        h.innerHTML = '<i class="fa-solid fa-' + icon + '"></i> ' + text;
+                    }
+                    return h;
+                };
+                const hG = mkHeader('wo-h-gestion', 'sliders', 'Gestión');
+                const hP = mkHeader('wo-h-post', 'list-check', 'Post');
+                const mkField = (wrapId, labelIcon, labelText, controlHtml, full) => {
+                    let w = byId(wrapId);
+                    if (!w) {
+                        w = document.createElement('div');
+                        w.className = 'wo-field' + (full ? ' full' : '');
+                        w.id = wrapId;
+                        w.innerHTML = '<label><i class="fa-solid fa-' + labelIcon + '"></i> ' + labelText + '</label>' + controlHtml;
+                    }
+                    return w;
+                };
+                const fCoords = mkField('wof-coords', 'location-dot', 'Coordenadas del corte',
+                    '<input type="text" id="wo-coords-corte" autocomplete="off" placeholder="Ej: -8.405357, -74.587859">');
+                const fUbic = mkField('wof-ubic', 'location-dot', 'Ubicación de mufas',
+                    '<input type="text" id="wo-ubic-mufas" autocomplete="off" placeholder="Ej: -8.405357, -74.587859">');
+                const fDet = mkField('wof-detcorr', 'file-lines', 'Detalle de correctivo',
+                    '<textarea id="wo-detalle-correctivo" style="min-height:60px;" placeholder="Detalle del correctivo final..."></textarea>', true);
+                // Orden dentro del formulario (appendChild mueve los existentes, sin duplicar).
+                [hG, byId('wof-servicio'), byId('wof-tecnico'), byId('wof-contrata'), byId('wof-motivo'), byId('wof-solucion'), fCoords,
+                 hP, byId('wof-se-instalo-mufas'), fUbic, byId('wof-requiere'), fDet,
+                 byId('wof-inicio'), byId('wof-fin'), byId('wof-bitacora')
+                ].forEach(el => { if (el) form.appendChild(el); });
+                // Efecto gris solo en los títulos: Detalle, Gestión, Post y Bitácora. Resto blanco.
+                const secDet = document.querySelector('#wo-panel-detalle .wo-section');
+                const detTitle = secDet ? secDet.querySelector('.wo-section-title') : null;
+                if (detTitle) detTitle.classList.add('wo-head-box');
+                const bitWrap = byId('wof-bitacora');
+                const bitLabel = bitWrap ? bitWrap.querySelector('label') : null;
+                if (bitLabel) bitLabel.classList.add('wo-head-box');
+                // Resumen de Detalle en blanco (FLM + PEXT).
+                const sumGrid = byId('wo-summary');
+                if (sumGrid) sumGrid.classList.add('wo-summary-plain');
+                // Ocultar campos separados que reemplazan los combinados.
+                ['wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa'].forEach(id => {
+                    const el = byId(id);
+                    if (el) el.style.display = 'none';
+                });
+                // Condicionales (listeners una sola vez).
+                const mS = byId('wo-se-instalo-mufas');
+                if (mS && !mS.dataset.condInit) { mS.dataset.condInit = '1'; mS.addEventListener('change', aplicarCondicionalesWO); }
+                const rS = byId('wo-requiere-correctivo');
+                if (rS && !rS.dataset.condInit) { rS.dataset.condInit = '1'; rS.addEventListener('change', aplicarCondicionalesWO); }
+            })();
         }
     }
 
@@ -6183,6 +6460,70 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (modal) modal.style.display = 'none';
     }
 
+    // --- Detalle del ticket editable (solo admin): convierte las celdas del resumen en inputs.
+    // Al guardar, el backend registra historial, actualiza FECHA CAMBIO ESTADO y recalcula Hrs Respuesta.
+    const DETALLE_EDITABLES = [
+        'FECHA DE CREACIÓN (WO CREATION DATE)',
+        'FECHA DE CREACIÓN',
+        'NOMBRE DE SITE',
+        'AUTIN TT',
+        'DEPARTAMENTO',
+        'FAULT LEVEL',
+        'ESTADO DE LA TAREA (WO STATE)',
+        'PRIORIDAD DEL SITE',
+        'PROVINCIA',
+        'DISTRITO'
+    ];
+    const WO_STATE_OPTS = ['unscheduled', 'accepted', 'dispatched', 'inprocess', 'rejected', 'closed', 'canceled'];
+    const FAULT_OPTS = ['Critical', 'Alta', 'Media', 'Baja'];
+    function hacerDetalleEditable(data) {
+        if (!IS_WO_PROJECT) return;
+        if (typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
+        const norm = s => String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const editSet = new Set(DETALLE_EDITABLES.map(norm));
+        const mkAnterior = (sel, cur) => {
+            const o = document.createElement('option');
+            o.value = cur; o.textContent = cur + ' (anterior)';
+            sel.appendChild(o); sel.value = cur;
+        };
+        document.querySelectorAll('#wo-summary .wo-summary-item').forEach(item => {
+            const kEl = item.querySelector('.k'), vEl = item.querySelector('.v');
+            if (!kEl || !vEl || vEl.querySelector('input,select')) return;
+            // Clave real (data-key); la etiqueta visible puede ser un alias.
+            const realKey = (item.dataset && item.dataset.key && Object.prototype.hasOwnProperty.call(data, item.dataset.key))
+                ? item.dataset.key
+                : Object.keys(data).find(k => norm(k) === norm(kEl.textContent));
+            if (!realKey) return;
+            const nk = norm(realKey);
+            if (!editSet.has(nk)) return;
+            const cur = data[realKey] == null ? '' : String(data[realKey]);
+            let ctrl;
+            if (nk === norm('ESTADO DE LA TAREA (WO STATE)')) {
+                ctrl = document.createElement('select');
+                ctrl.innerHTML = '<option value="">—</option>' + WO_STATE_OPTS.map(o => `<option value="${o}">${o}</option>`).join('');
+                ctrl.value = cur;
+                if (cur && !WO_STATE_OPTS.includes(cur)) mkAnterior(ctrl, cur);
+            } else if (nk === 'FAULT LEVEL') {
+                ctrl = document.createElement('select');
+                ctrl.innerHTML = '<option value="">—</option>' + FAULT_OPTS.map(o => `<option value="${o}">${o}</option>`).join('');
+                ctrl.value = cur;
+                if (cur && !FAULT_OPTS.includes(cur)) mkAnterior(ctrl, cur);
+            } else {
+                ctrl = document.createElement('input');
+                ctrl.type = 'text';
+                ctrl.value = cur;
+                ctrl.autocomplete = 'off';
+            }
+            ctrl.className = 'wo-detalle-inp';
+            ctrl.dataset.key = realKey;
+            ctrl.style.cssText = 'width:100%;box-sizing:border-box;font:inherit;color:inherit;' +
+                'background:rgba(var(--ios-blue-rgb,0,122,255),0.06);border:1px solid rgba(var(--ios-blue-rgb,0,122,255),0.35);' +
+                'border-radius:6px;padding:3px 7px;outline:none;';
+            vEl.innerHTML = '';
+            vEl.appendChild(ctrl);
+        });
+    }
+
     function abrirWoModal(row) {
         const data = row.getData();
         woRow = row;
@@ -6192,7 +6533,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         aplicarConfigWoPorProyecto();
 
         renderWoSummary(data);
-        cargarWoHistorial();
+        hacerDetalleEditable(data);
+        if (typeof USER_IS_ADMIN !== 'undefined' && USER_IS_ADMIN) cargarWoHistorial();
 
         document.getElementById('wo-servicio').value = data['SERVICIO'] || '';
         document.getElementById('wo-ciudad').value = data['CIUDAD'] || '';
@@ -6220,7 +6562,23 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
         document.getElementById('wo-latitud').value = woLat;
         document.getElementById('wo-longitud').value = woLon;
-        document.getElementById('wo-se-instalo-mufas').value = data['SE INSTALÓ MUFAS'] || data['SE INSTALO MUFAS'] || '';
+        document.getElementById('wo-se-instalo-mufas').value = '';
+        {
+            const mufasSel = document.getElementById('wo-se-instalo-mufas');
+            let mufasVal = data['SE INSTALÓ MUFAS'] || data['SE INSTALO MUFAS'] || '';
+            // Normalizar "SI"/"SÍ" con o sin tilde
+            if (String(mufasVal).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === 'si') mufasVal = 'Sí';
+            if (String(mufasVal).trim().toLowerCase() === 'no') mufasVal = 'No';
+            mufasSel.value = mufasVal;
+            // Dato histórico con valor antiguo (ej. GEP/GEE/NA): mostrarlo igual para no perder info
+            if (mufasVal && (!mufasSel.value || mufasSel.selectedIndex === -1)) {
+                const customOpt = document.createElement('option');
+                customOpt.value = mufasVal;
+                customOpt.textContent = mufasVal + ' (anterior)';
+                mufasSel.appendChild(customOpt);
+                mufasSel.value = mufasVal;
+            }
+        }
         const woSisEl = document.getElementById('wo-sistemas');
         if (woSisEl) {
             let sisVal = data['SISTEMAS'] || data['SISTEMA'] || '';
@@ -6249,6 +6607,22 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-fin-parada').value = toDatetimeLocal(data['FIN DE PARADA']);
         document.getElementById('wo-requiere-correctivo').value = data['REQUIERE CORRECTIVO FINAL'] || '';
         document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
+        // PEXT: campos combinados (un solo campo) + detalle de correctivo + condicionales.
+        if (IS_PEXT) {
+            const ccEl = document.getElementById('wo-coords-corte');
+            if (ccEl) ccEl.value = joinCoords(woLat, woLon);
+            const umEl = document.getElementById('wo-ubic-mufas');
+            if (umEl) umEl.value = joinCoords(woLatMufa, woLonMufa);
+            const dcEl = document.getElementById('wo-detalle-correctivo');
+            if (dcEl) dcEl.value = data['DETALLE CORRECTIVO'] || '';
+            aplicarCondicionalesWO();
+        }
+        // FLM: detalle de correctivo + condicionales.
+        if (IS_FLM) {
+            const dcElF = document.getElementById('wo-detalle-correctivo');
+            if (dcElF) dcElF.value = data['DETALLE CORRECTIVO'] || '';
+            aplicarCondicionalesWO();
+        }
 
         const isDemo = "{{ session.get('rol') }}" === "demo";
         const editable = !isDemo;
@@ -6256,13 +6630,13 @@ btnItem.onclick = () => cotRegAgregarFila();
         renderWoGastosList(data);
         renderWoManoObraList(data);
         renderWoMaterialList(data);
-        document.querySelectorAll('.wo-form input, .wo-form select, .wo-form textarea').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-panel-detalle input, #wo-panel-detalle select, #wo-panel-detalle textarea').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-coti-nota').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => { el.disabled = !editable; });
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
-        const canEditServicios = ["admin", "supervisor"].includes("{{ session.get('rol') }}");
-        document.getElementById('btn-servicios').style.display = (editable && canEditServicios) ? '' : 'none';
+        // Botón tuerca de SERVICIO oculto por decisión del dueño (cambios solo vía código).
+        document.getElementById('btn-servicios').style.display = 'none';
         const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
         if (btnAgGasto) btnAgGasto.style.display = editable ? '' : 'none';
         const btnAgMo = document.getElementById('btn-wo-agregar-mo');
@@ -6325,6 +6699,11 @@ btnItem.onclick = () => cotRegAgregarFila();
             });
         }
         const norm = k => String(k).trim().toLowerCase();
+        // Alias solo visuales (la clave real se guarda en data-key y no cambia).
+        const SUMMARY_ALIASES = {
+            'FECHA DE CREACION (WO CREATION DATE)': 'Fecha de creación'
+        };
+        const normUp = k => String(k).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         const items = [];
         visible.forEach(f => {
             const key = Object.keys(data).find(k => norm(k) === norm(f));
@@ -6337,11 +6716,12 @@ btnItem.onclick = () => cotRegAgregarFila();
                 }
             }
             if (v === '' || v === null || v === undefined) return;
-            items.push({ k: key, v: v });
+            const disp = SUMMARY_ALIASES[normUp(key)] || key;
+            items.push({ key: key, disp: disp, v: v });
         });
         if (!items.length) { el.innerHTML = '<div class="wo-empty">No hay datos resumibles.</div>'; return; }
         el.innerHTML = items.map(i =>
-            `<div class="wo-summary-item"><div class="k">${escapeHtml(i.k)}</div><div class="v">${escapeHtml(i.v)}</div></div>`
+            `<div class="wo-summary-item" data-key="${escapeHtml(i.key)}"><div class="k">${escapeHtml(i.disp)}</div><div class="v">${escapeHtml(i.v)}</div></div>`
         ).join('');
     }
 
@@ -6360,6 +6740,11 @@ btnItem.onclick = () => cotRegAgregarFila();
                 sSel.appendChild(o);
             });
             const currentServ = data['SERVICIO'] || '';
+            if (currentServ && !Array.from(sSel.options).some(o => o.value === currentServ)) {
+                const o = document.createElement('option');
+                o.value = currentServ; o.textContent = currentServ + ' (anterior)';
+                sSel.appendChild(o);
+            }
             if (currentServ) sSel.value = currentServ;
 
             const tSel = document.getElementById('wo-tecnico');
@@ -7265,6 +7650,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function guardarWoModal() {
         if (!woKey) return;
+        // PEXT: las coordenadas se editan en un solo campo y se reparten en LAT/LONG al guardar.
+        const _parCorte = IS_PEXT ? parseCoordPair((document.getElementById('wo-coords-corte') || {}).value || '') : null;
+        const _parMufa = IS_PEXT ? parseCoordPair((document.getElementById('wo-ubic-mufas') || {}).value || '') : null;
         const payload = {
             key: woKey,
             data: {
@@ -7274,13 +7662,13 @@ btnItem.onclick = () => cotRegAgregarFila();
                 'CONTRATA': document.getElementById('wo-contrata').value.trim(),
                 'MOTIVO DE AVERÍA': document.getElementById('wo-motivo').value,
                 'SOLUCIÓN': document.getElementById('wo-solucion').value,
-                'LATITUD': document.getElementById('wo-latitud').value.trim(),
-                'LONGITUD': document.getElementById('wo-longitud').value.trim(),
+                'LATITUD': IS_PEXT ? _parCorte[0] : document.getElementById('wo-latitud').value.trim(),
+                'LONGITUD': IS_PEXT ? _parCorte[1] : document.getElementById('wo-longitud').value.trim(),
                 'SE INSTALÓ MUFAS': document.getElementById('wo-se-instalo-mufas').value,
                 'SISTEMAS': (document.getElementById('wo-sistemas') || {}).value ? document.getElementById('wo-sistemas').value.trim() : '',
                 'MATERIALES': JSON.stringify(recogerMateriales()),
-                'LATITUD MUFAS': document.getElementById('wo-lat-mufa').value.trim(),
-                'LONGITUD MUFAS': document.getElementById('wo-lon-mufa').value.trim(),
+                'LATITUD MUFAS': IS_PEXT ? _parMufa[0] : document.getElementById('wo-lat-mufa').value.trim(),
+                'LONGITUD MUFAS': IS_PEXT ? _parMufa[1] : document.getElementById('wo-lon-mufa').value.trim(),
                 ...(ES_FLM ? {
                     'COTIZACION_ITEMS': JSON.stringify(recogerItemsCobra()),
                     'COTIZACION_NOTA': (document.getElementById('wo-coti-objetivo') || {}).value || ''
@@ -7296,6 +7684,14 @@ btnItem.onclick = () => cotRegAgregarFila();
                 'BITACORA': document.getElementById('wo-bitacora').value
             }
         };
+        // FLM + PEXT: detalle del correctivo (visible solo si Requiere=Sí, el valor se conserva igual).
+        if (IS_WO_PROJECT) {
+            payload.data['DETALLE CORRECTIVO'] = (document.getElementById('wo-detalle-correctivo') || {}).value || '';
+        }
+        // Detalle del ticket editable (inputs inyectados en el resumen; solo admin los ve).
+        document.querySelectorAll('#wo-summary .wo-detalle-inp').forEach(el => {
+            if (el.dataset && el.dataset.key) payload.data[el.dataset.key] = (el.value || '').trim();
+        });
         Object.assign(payload.data, recolectarEvidencia());
         cond_lines = 'Moneda Nacional soles (S/)<br/>Pagos Según contrato<br/>No incluye IGV';
         const orig = woRow ? woRow.getData() : {};
@@ -7322,14 +7718,15 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function cambiarWoTab(tab) {
+        // Estado e Historial: solo admin
+        if ((tab === 'estado' || tab === 'historial') && typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         const tabMat = document.getElementById('wo-tab-materiales');
         if (tabMat) tabMat.classList.toggle('active', tab === 'materiales');
-        document.getElementById('wo-tab-gastos').classList.toggle('active', tab === 'gastos');
-        document.getElementById('wo-tab-cotizacion').classList.toggle('active', tab === 'cotizacion');
-        document.getElementById('wo-tab-historial').classList.toggle('active', tab === 'historial');
-        document.getElementById('wo-tab-evidencia').classList.toggle('active', tab === 'evidencia');
-        document.getElementById('wo-tab-estado').classList.toggle('active', tab === 'estado');
+        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-historial', 'wo-tab-evidencia', 'wo-tab-estado'].forEach(tid => {
+            const _t = document.getElementById(tid);
+            if (_t) _t.classList.toggle('active', tab === tid.replace('wo-tab-', ''));
+        });
         document.getElementById('wo-panel-detalle').style.display = tab === 'detalle' ? '' : 'none';
         const panMat = document.getElementById('wo-panel-materiales');
         if (panMat) panMat.style.display = tab === 'materiales' ? '' : 'none';
@@ -7377,6 +7774,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         ['MATERIALES', 'Materiales'],
         ['SOLUCIÓN', 'Solución'],
         ['REQUIERE CORRECTIVO FINAL', '¿Correctivo final?'],
+        ['DETALLE CORRECTIVO', 'Detalle correctivo'],
         ['INICIO DE PARADA', 'Inicio parada'],
         ['FIN DE PARADA', 'Fin parada'],
         ['COTIZACION_GASTOS', 'Cotización'],
@@ -7389,6 +7787,7 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function cargarWoHistorial() {
+        if (typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
         if (!woKey) return;
         const cont = document.getElementById('wo-historial');
         if (!cont) return;
@@ -7484,6 +7883,7 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function cargarWoEstado() {
+        if (typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
         if (!woKey) return;
         const cont = document.getElementById('wo-estado');
         if (!cont) return;
@@ -8035,21 +8435,34 @@ btnItem.onclick = () => cotRegAgregarFila();
         } else {
             items.forEach(el => {
                 const k = el.querySelector('.k') ? el.querySelector('.k').textContent.trim() : '';
-                const v = el.querySelector('.v') ? el.querySelector('.v').textContent.trim() : '';
+                const vEl = el.querySelector('.v');
+                const inp = vEl ? vEl.querySelector('input,select') : null;
+                const v = inp ? String(inp.value || '').trim() : (vEl ? vEl.textContent.trim() : '');
                 if (k || v) lines.push((k ? k + ': ' : '') + v);
             });
         }
         // Siempre añadir Gestión (16 campos) aunque estén vacíos
-        const gestionMap = [
+        const gestionMap = IS_PEXT ? [
+            ['Servicio', 'wo-servicio'], ['Técnico asignado', 'wo-tecnico'],
+            ['Contrata', 'wo-contrata'], ['Motivo de avería', 'wo-motivo'], ['Solución', 'wo-solucion'],
+            ['Coordenadas del corte', 'wo-coords-corte'],
+            ['¿Se instaló mufas?', 'wo-se-instalo-mufas'], ['Ubicación de mufas', 'wo-ubic-mufas'],
+            ['¿Requiere correctivo final?', 'wo-requiere-correctivo'], ['Detalle de correctivo', 'wo-detalle-correctivo'],
+            ['Inicio de parada', 'wo-inicio-parada'], ['Fin de parada', 'wo-fin-parada'], ['Bitácora', 'wo-bitacora']
+        ] : [
             ['Servicio', 'wo-servicio'], ['Ciudad', 'wo-ciudad'], ['Técnico asignado', 'wo-tecnico'],
             ['Contrata', 'wo-contrata'], ['Coordenadas del corte (Lat)', 'wo-latitud'], ['Coordenadas del corte (Long)', 'wo-longitud'],
             ['Motivo de avería', 'wo-motivo'], ['¿Se instaló mufas?', 'wo-se-instalo-mufas'], ['Ubicación de mufas (Lat)', 'wo-lat-mufa'],
-            ['Ubicación de mufas (Long)', 'wo-lon-mufa'], ['Solución', 'wo-solucion'], ['Sistemas', 'wo-sistemas'],
-            ['¿Requiere correctivo final?', 'wo-requiere-correctivo'], ['Inicio de parada', 'wo-inicio-parada'], ['Fin de parada', 'wo-fin-parada'], ['Bitácora', 'wo-bitacora']
+            ['Ubicación de mufas (Long)', 'wo-lon-mufa'],             ['Solución', 'wo-solucion'], ['Sistemas', 'wo-sistemas'],
+            ['¿Requiere correctivo final?', 'wo-requiere-correctivo'], ['Detalle de correctivo', 'wo-detalle-correctivo'], ['Inicio de parada', 'wo-inicio-parada'], ['Fin de parada', 'wo-fin-parada'], ['Bitácora', 'wo-bitacora']
         ];
         gestionMap.forEach(([label, id]) => {
             const el = document.getElementById(id);
-            const v = el ? String(el.value || '').trim() : '';
+            if (!el) return;
+            // Omitir campos ocultos por proyecto (ej. CIUDAD/SISTEMAS en PEXT)
+            const wrap = el.closest ? el.closest('.wo-field') : null;
+            if (wrap && wrap.style && wrap.style.display === 'none') return;
+            const v = String(el.value || '').trim();
             lines.push(label + ': ' + v);
         });
         const texto = lines.join('\n');

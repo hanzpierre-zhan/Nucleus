@@ -971,6 +971,18 @@ with app.app_context():
                                          valor=json.dumps(default_servicios, ensure_ascii=False)))
     db.session.commit()
 
+    # PEXT: SERVICIO solo permite PREVENTIVO/CORRECTIVO/PREDICTIVO (se fuerza en cada arranque).
+    pext_serv = ['PREVENTIVO', 'CORRECTIVO', 'PREDICTIVO']
+    sp_pext = Proyecto.query.filter_by(nombre='PEXT').first()
+    if sp_pext:
+        scfg_pext = AppConfig.query.filter_by(proyecto_id=sp_pext.id, clave='servicio_opciones').first()
+        if scfg_pext:
+            scfg_pext.valor = json.dumps(pext_serv, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=sp_pext.id, clave='servicio_opciones',
+                                     valor=json.dumps(pext_serv, ensure_ascii=False)))
+        db.session.commit()
+
     # Migration: Asegurar columnas de detalle para FLM (campos que llena el gestor en el modal WO).
     # Si falta alguna, se agrega a manual_columns para que aparezcan en la tabla y en el botón Columnas.
     flm_proy = Proyecto.query.filter_by(nombre='FLM').first()
@@ -997,6 +1009,7 @@ with app.app_context():
             {'nombre': 'SOLUCIÓN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SISTEMAS', 'tipo': 'lista', 'opciones': ['Energía', 'Transmisión', 'Aire Acondicionado']},
             {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'DETALLE CORRECTIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
@@ -1025,25 +1038,33 @@ with app.app_context():
         # Plantilla PEXT/FLM: solo 16 campos de Gestión (ver lista del usuario). Eliminar obsoletos si existen.
         obsoletas = {'MONTO APROBADO','MONTO GASTANDO','MATERIAL USADO','MOTIVO PARADA RELOJ','ROBO HURTO','SUPERVISOR ATENCIÓN','CORREO CIERRE','MOTIVO NO ATENDIDO','FECHA NO ATENDIDO','USUARIO NO ATENDIDO'}
         existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in obsoletas]
+        # PEXT: CIUDAD y SISTEMAS no se requieren en el modal -> se ocultan (se conserva el dato en filas).
+        no_requeridas_pext = {'CIUDAD', 'SISTEMAS'}
+        existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in no_requeridas_pext]
+        # PEXT: ¿SE INSTALÓ MUFAS? pasa de GEP/GEE/NA a Sí/No.
+        for c in existing_cols:
+            if isinstance(c, dict) and str(c.get('nombre','')).strip() == 'SE INSTALÓ MUFAS':
+                c['tipo'] = 'lista'
+                c['opciones'] = ['Sí', 'No']
         existing_names = {str(c.get('nombre', '')).strip() for c in existing_cols if isinstance(c, dict)}
         pext_new_cols = [
             {'nombre': 'SERVICIO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'CIUDAD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'lista', 'opciones': ['Accidente vehicular','Acoplador sucio','Buffer mal acondicionado','Cámara inundada','Cámara sin tapa','Corte de fibra en sifón','Empalme dañado','Ferretería con corrosión','Fibra drop cliente cortado','Fibra quemada','FO cortado','Habilitación de hilos por Implementación','Habilitación de hilos por ORC','Hilo roto en medio vano','Hilo roto en mufa','Hilos invertidos en ODF','Jumper averiado','Mal derivado-no es PEXT','Mordida de roedor','Mufa con acondicionamiento deficiente','NAP con acondicionamineto deficiente','NAP sin bornera','NAP sin rotulación','Obras civiles de interferencia','Pernos con corrosión','Pigtail roto','Poste deteriorado','Robo de mufa','RTN averiado','Splitter averiado','Transceiver averiado']},
-            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['GEP','GEE','NA']},
+            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['Sí','No']},
             {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SOLUCIÓN', 'tipo': 'lista', 'opciones': ['Cambio de caja NAP','Cambio de hilos','Cambio de jumper en PINT','Cambio de splitter','Desaguado de camara','Fusion del hilo roto segun el ID','Instalacion de bornera en NAP','Instalacion de FO definitiva con mufa(s) existente(s)','Instalacion de FO definitiva con nueva mufa(s)','Instalacion de FO provisional con mufa(s) existente(s)','Instalacion de FO provisional con nueva mufa(s)','Instalacion de nueva mufa(s)','Instalacion de nueva tapa en camara','Instalacion de nuevos pernos en camara','Limpieza de conector en NAP','Limpieza de conector en ODF','Obras civiles con mufa(s) existente(s)','Obras civiles con nueva mufa(s)','Pruebas de verificiación PEXT','Reposicion de poste Entel','Reposicion de tapa  de camara  Entel','se cambio el acoplador','Se reparo el spliteer roto']},
-            {'nombre': 'SISTEMAS', 'tipo': 'lista', 'opciones': ['Energía','Transmisión','Aire Acondicionado']},
             {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': 'DETALLE CORRECTIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
         ]
+        # PEXT: no re-agregar CIUDAD ni SISTEMAS aunque falten (no requeridos).
         for col in pext_new_cols:
             if col['nombre'] not in existing_names:
                 existing_cols.append(col)
@@ -2421,7 +2442,17 @@ def api_import_process():
             'LATITUD MUFAS', 'LATITUD Mufas', 'LONGITUD MUFAS', 'LONGITUD Mufas',
             'UBICACIÓN DE MUFAS', 'UBICACION DE MUFAS',
             'SISTEMAS', 'SISTEMA',
-            'MATERIALES'
+            'MATERIALES',
+            # Campos del Detalle editables en el modal: el import no pisa lo corregido a mano.
+            'Fecha de creación (WO Creation date)', 'FECHA DE CREACIÓN (WO CREATION DATE)',
+            'Nombre de Site', 'NOMBRE DE SITE',
+            'Autin TT', 'AUTIN TT',
+            'Departamento', 'DEPARTAMENTO',
+            'Fault Level', 'FAULT LEVEL',
+            'Estado de la tarea (WO State)', 'ESTADO DE LA TAREA (WO STATE)',
+            'Prioridad del Site', 'PRIORIDAD DEL SITE',
+            'Provincia', 'PROVINCIA',
+            'Distrito', 'DISTRITO'
         ])
         
         for idx, row in df.iterrows():
@@ -3379,10 +3410,51 @@ def api_rows_add():
                     continue
             row_data['N° ORDEN'] = str(max_ord + 1)
 
+        # Alta manual de WO (FLM/PEXT) por el gestor: exige el CM, fija CATEGORY,
+        # aplica TablaMaestra (ej: Hrs Respuesta según Fault Level) y deja rastro
+        # en historial + esquema para que el WO se consolide en tabla/KPIs.
+        if proy_nombre in ('FLM', 'PEXT'):
+            if not key_val:
+                return jsonify({'error': 'Ingrese el Número de WO (ej: CM-20260719-00000014).'}), 400
+            if not str(row_data.get('CATEGORY', '') or '').strip():
+                row_data['CATEGORY'] = 'O&M CRM' if proy_nombre == 'FLM' else 'O&M PEXT'
+            pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+            pk_col = str(pk_cfg.valor or '').strip() if pk_cfg else ''
+            if pk_col:
+                row_data[pk_col] = key_val
+            row_data['_ultimo_usuario_manual'] = session.get('username', '')
+            row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
+                t_cols = [c.strip() for c in t.columna_criterio.split(',')]
+                t_vals = [v.strip() for v in t.valor_criterio.split(',')]
+                if all(str(row_data.get(c, '')) == v for c, v in zip(t_cols, t_vals)):
+                    row_data[t.nueva_columna] = t.nuevo_valor
+
         new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=json.dumps(row_data))
         db.session.add(new_record)
         db.session.commit()
-        
+
+        if proy_nombre in ('FLM', 'PEXT'):
+            db.session.add(HistorialCambios(
+                proyecto_id=pid, usuario_id=session.get('user_id'), username=session.get('username'),
+                key_value=key_val, campo_modificado='CREACIÓN',
+                valor_anterior='', valor_nuevo=key_val, fecha=datetime.utcnow()))
+            schema_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+            try:
+                schema_cols = set(json.loads(schema_cfg.valor) if schema_cfg and schema_cfg.valor else [])
+            except Exception:
+                schema_cols = set()
+            nuevas = {k for k in row_data.keys()
+                      if k and not str(k).startswith('_') and not str(k).startswith('KPI_')
+                      and not str(k).startswith('COTIZACION_') and k != 'MATERIALES'}
+            if not nuevas.issubset(schema_cols):
+                merged = schema_cols.union(nuevas)
+                if schema_cfg:
+                    schema_cfg.valor = safe_json_dumps(list(merged))
+                else:
+                    db.session.add(AppConfig(proyecto_id=pid, clave='app_schema', valor=safe_json_dumps(list(merged))))
+            db.session.commit()
+
         return jsonify({'success': True, 'key': key_val})
     except Exception as e:
         db.session.rollback()
@@ -3546,6 +3618,9 @@ def api_wo_servicios():
 @app.route('/api/wo/historial', methods=['GET'])
 @login_required
 def api_wo_historial():
+    # Estado e Historial del WO: solo visible para admin.
+    if str(session.get('rol') or '').strip().lower() != 'admin':
+        return jsonify({'error': 'Solo el administrador puede ver el historial.'}), 403
     pid = session.get('current_proyecto_id')
     key_val = (request.args.get('key') or '').strip()
     if not key_val:
