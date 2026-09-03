@@ -5128,6 +5128,22 @@ def api_wos_flm():
     wos = [r.key_value for r in db.session.query(NucleusData.key_value).filter_by(proyecto_id=proy_flm.id).all()]
     return jsonify(wos)
 
+@app.route('/api/wo/resolver')
+@login_required
+def api_wo_resolver():
+    """Resuelve a qué proyecto (FLM/PEXT) pertenece un WO por su Número de WO."""
+    wo = (request.args.get('wo') or request.args.get('key') or '').strip()
+    if not wo:
+        return jsonify({'found': False, 'error': 'Falta WO'}), 400
+    for nombre in ['FLM', 'PEXT']:
+        proy = Proyecto.query.filter_by(nombre=nombre).first()
+        if not proy:
+            continue
+        rec = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=wo).first()
+        if rec:
+            return jsonify({'found': True, 'proyecto_id': proy.id, 'proyecto_nombre': proy.nombre, 'key': wo})
+    return jsonify({'found': False}), 404
+
 # -----------------------------------------------------------------------
 
 if __name__ == '__main__':

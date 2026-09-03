@@ -3360,6 +3360,12 @@
                         if (!v) {
                             return `<span style="display:inline-block; font-weight:700; color:#FF3B30; background:rgba(255,59,48,0.12); border:1px solid rgba(255,59,48,0.35); border-radius:999px; padding:2px 8px; font-size:10px;">CM-PENDIENTE</span>`;
                         }
+                        const rowData = cell.getRow().getData() || {};
+                        const generada = String(rowData['GENERADA'] || '') === '1';
+                        if (generada && v.startsWith('CM-')) {
+                            const esc = escapeHtml(v).replace(/'/g, "&#39;");
+                            return `<a href="#" onclick="irADetalleWO('${esc}'); return false;" style="color:var(--ios-blue); text-decoration:underline; font-weight:600;">${escapeHtml(v)}</a>`;
+                        }
                         return escapeHtml(v);
                     };
                 }
@@ -3919,6 +3925,31 @@
     if (statusEl) {
         statusEl.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${rawData.length}`;
     }
+    // Ocultar HORA DE CR (no sirve) en FLM/PEXT
+    try { if (table.getColumn('HORA DE CR')) table.hideColumn('HORA DE CR'); } catch(e){}
+    try { table.getColumns().forEach(c=>{ const f=String(c.getField()||''); if(f.toUpperCase().includes('HORA DE CR')) try{c.hide();}catch(e){}}); }catch(e){}
+    // Hipervínculo NUMERO WO → detalle FLM/PEXT
+    window.irADetalleWO = async function(wo){
+        wo = String(wo||'').trim();
+        if(!wo) return;
+        try{
+            const r = await fetch('/api/wo/resolver?wo=' + encodeURIComponent(wo));
+            const j = await r.json().catch(()=>({}));
+            if(!r.ok || !j.found) throw new Error('WO no encontrado en FLM/PEXT');
+            window.location.href = '/switch_project/' + j.proyecto_id + '?next=' + encodeURIComponent('/?wo=' + wo);
+        }catch(e){ try{ nucleusAlert(e.message||'No se pudo abrir el WO'); }catch(_e){ alert(e.message||'Error'); } }
+    };
+    table.on("tableBuilt", function(){
+        try{
+            const wo = new URLSearchParams(window.location.search).get('wo');
+            if(wo){
+                setTimeout(()=>{
+                    const row = table.getRows().find(r=> String(r.getData()._key||'').trim() === wo);
+                    if(row) abrirWoModal(row);
+                }, 400);
+            }
+        }catch(e){}
+    });
 
     // Column Management Methods
     function toggleVisibilityMenu() {
@@ -4374,14 +4405,17 @@
         const keyWrap = mkField(keyCol + ' *', keyInp, true);
         keyWrap.querySelector('label').innerHTML = '<i class="fa-solid fa-key"></i> ' + escapeHtml(keyCol) + ' <em>*</em>';
 
-        // 2) Datos de origen (columnas del esquema, sin llaves ni internos ni gestión).
+        // 2) Datos de origen — solo los 11 que se ven en DETALLE (imagen), no todo el esquema.
         const manualNames = new Set((manualColsConfig || []).map(mc => mc.nombre));
-        const skipCols = new Set(['_key', keyCol, 'Hrs Respuesta', 'FECHA CAMBIO ESTADO', 'MATERIALES']);
+        const skipCols = new Set(['_key', keyCol, 'Hrs Respuesta', 'FECHA CAMBIO ESTADO', 'MATERIALES', 'HORA DE CR', 'HORA DE CR ']);
+        const detalleAllow = new Set(['autin tt','código site','codigo site','dirección','direccion','nombre de site','prioridad del site','departamento','provincia','distrito','fecha de creación','fecha de creación (wo creation date)','estado de la tarea (wo state)','estado de la tarea','fault level'].map(s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()));
         (rawCols || []).forEach(col => {
-            if (!col || skipCols.has(col)) return;
+            if (!col || skipCols.has(col) || String(col).toUpperCase().includes('HORA DE CR')) return;
             if (String(col).startsWith('_') || String(col).startsWith('KPI_')) return;
             if (String(col).startsWith('COTIZACION_')) return;
             if (manualNames.has(col)) return; // van en Gestión
+            const norm = String(col).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+            if (!detalleAllow.has(norm)) return;
             mkField(col, mkInput(col));
         });
 
@@ -5108,7 +5142,7 @@ btnItem.onclick = () => cotRegAgregarFila();
     let cotiEditMode = false;
     let cotiEditKey = null;
 
-    function abrirCotiDetalle(row) {
+    async function abrirCotiDetalle(row) {
         const data = row.getData() || {};
         const key = String(data['_key'] || '').trim();
         if (!key) return;
@@ -5116,7 +5150,14 @@ btnItem.onclick = () => cotRegAgregarFila();
         const isAdmin = "{{ session.get('rol') }}" === "admin";
         const woPendiente = !String(data['NUMERO WO'] || '').trim();
         if (generada && !isAdmin && !woPendiente) {
-            alert('Esta cotización ya fue GENERADA y está bloqueada. Solo el administrador puede editarla.');
+            try {
+                const r = await fetch('/api/cotizacion/registro_pdf', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
+                if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.error||'No se pudo abrir la cotización'); }
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                setTimeout(()=> URL.revokeObjectURL(url), 60000);
+            } catch(e) { try{ nucleusAlert(e.message||'Error al previsualizar'); }catch(_e){ alert(e.message||'Error'); } }
             return;
         }
         cotiEditMode = true;
