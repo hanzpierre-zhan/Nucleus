@@ -4075,6 +4075,15 @@ def onedrive_subir(b2_key, ruta_local):
         resp.read()
     return True
 
+@app.route('/api/admin/od_reset', methods=['POST'])
+@login_required
+def api_admin_od_reset():
+    if session.get('rol') != 'admin':
+        return jsonify({'error': 'Solo admin'}), 403
+    TokenStore.query.filter_by(clave='od_refresh_token').delete()
+    db.session.commit()
+    return jsonify({'success': True, 'msg': 'Token OneDrive reseteado. Pon el nuevo OD_REFRESH_TOKEN en Render.'})
+
 def onedrive_eliminar(key, tipo, indice):
     """Elimina la foto del slot en OneDrive (por prefijo tipo_indice.*)."""
     if not app.config.get('OD_ENABLED'):
