@@ -1038,9 +1038,16 @@ with app.app_context():
         # Plantilla PEXT/FLM: solo 16 campos de Gestión (ver lista del usuario). Eliminar obsoletos si existen.
         obsoletas = {'MONTO APROBADO','MONTO GASTANDO','MATERIAL USADO','MOTIVO PARADA RELOJ','ROBO HURTO','SUPERVISOR ATENCIÓN','CORREO CIERRE','MOTIVO NO ATENDIDO','FECHA NO ATENDIDO','USUARIO NO ATENDIDO'}
         existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in obsoletas]
-        # PEXT: CIUDAD y SISTEMAS no se requieren en el modal -> se ocultan (se conserva el dato en filas).
+        # PEXT: CIUDAD, SISTEMAS, SOLUCIÓN y coordenadas no se requieren en el modal
+        # -> se ocultan/eliminan del formulario (SOLUCIÓN y coordenadas se quitan del modal PEXT).
         no_requeridas_pext = {'CIUDAD', 'SISTEMAS'}
         existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in no_requeridas_pext]
+        # Campos que ya no se usan en el formulario/modal PEXT (SOLUCIÓN, coordenadas,
+        # mufas, requiere correctivo final y su detalle, Bitácora) -> se quitan de la config PEXT.
+        no_modal_pext = {'SOLUCIÓN', 'SOLUCION', 'LATITUD', 'LONGITUD', 'LATITUD MUFAS',
+                         'LONGITUD MUFAS', 'SE INSTALÓ MUFAS', 'SE INSTALO MUFAS',
+                         'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'BITACORA'}
+        existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in no_modal_pext]
         # PEXT: ¿SE INSTALÓ MUFAS? pasa de GEP/GEE/NA a Sí/No.
         for c in existing_cols:
             if isinstance(c, dict) and str(c.get('nombre','')).strip() == 'SE INSTALÓ MUFAS':
@@ -1051,18 +1058,22 @@ with app.app_context():
             {'nombre': 'SERVICIO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'lista', 'opciones': ['Accidente vehicular','Acoplador sucio','Buffer mal acondicionado','Cámara inundada','Cámara sin tapa','Corte de fibra en sifón','Empalme dañado','Ferretería con corrosión','Fibra drop cliente cortado','Fibra quemada','FO cortado','Habilitación de hilos por Implementación','Habilitación de hilos por ORC','Hilo roto en medio vano','Hilo roto en mufa','Hilos invertidos en ODF','Jumper averiado','Mal derivado-no es PEXT','Mordida de roedor','Mufa con acondicionamiento deficiente','NAP con acondicionamineto deficiente','NAP sin bornera','NAP sin rotulación','Obras civiles de interferencia','Pernos con corrosión','Pigtail roto','Poste deteriorado','Robo de mufa','RTN averiado','Splitter averiado','Transceiver averiado']},
-            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['Sí','No']},
-            {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'SOLUCIÓN', 'tipo': 'lista', 'opciones': ['Cambio de caja NAP','Cambio de hilos','Cambio de jumper en PINT','Cambio de splitter','Desaguado de camara','Fusion del hilo roto segun el ID','Instalacion de bornera en NAP','Instalacion de FO definitiva con mufa(s) existente(s)','Instalacion de FO definitiva con nueva mufa(s)','Instalacion de FO provisional con mufa(s) existente(s)','Instalacion de FO provisional con nueva mufa(s)','Instalacion de nueva mufa(s)','Instalacion de nueva tapa en camara','Instalacion de nuevos pernos en camara','Limpieza de conector en NAP','Limpieza de conector en ODF','Obras civiles con mufa(s) existente(s)','Obras civiles con nueva mufa(s)','Pruebas de verificiación PEXT','Reposicion de poste Entel','Reposicion de tapa  de camara  Entel','se cambio el acoplador','Se reparo el spliteer roto']},
-            {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí','No']},
-            {'nombre': 'DETALLE CORRECTIVO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FECHA DE ASIGNACIÓN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '¿REQUIERE MATERIAL?', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': '¿REQUIERE ACCESO AL SITE?', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': '¿FUE TORRERA?', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': '¿FUE SITE PROPIO?', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': '¿CUADRILLA DE 3 O 2?', 'tipo': 'lista', 'opciones': ['2','3','más de 3']},
+            {'nombre': 'TEAM LEADER ASIGNADO EN APLICATIVO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'COORDINADOR ENTEL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'STATUS DE ATENCION', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'QUIEBRE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': 'DETALLE CORRECTIVO ADICIONAL', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
         ]
         # PEXT: no re-agregar CIUDAD ni SISTEMAS aunque falten (no requeridos).
         for col in pext_new_cols:
@@ -1075,6 +1086,31 @@ with app.app_context():
             db.session.add(AppConfig(proyecto_id=pext_checklist.id, clave='manual_columns',
                                      valor=json.dumps(existing_cols, ensure_ascii=False)))
         db.session.commit()
+
+    # Migration: FLM/PEXT - columna visible EDITADO POR (auditoría)
+    for proy_nombre in ('FLM', 'PEXT'):
+        proy = Proyecto.query.filter_by(nombre=proy_nombre).first()
+        if proy:
+            schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+            try:
+                schema_cols = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
+            except Exception:
+                schema_cols = set()
+            if 'EDITADO POR' not in schema_cols:
+                schema_cols.add('EDITADO POR')
+                if schema_cfg:
+                    schema_cfg.valor = json.dumps(list(schema_cols), ensure_ascii=False)
+                else:
+                    db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema', valor=json.dumps(list(schema_cols), ensure_ascii=False)))
+            for r in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                if not d.get('EDITADO POR') and d.get('_ultimo_usuario_manual'):
+                    d['EDITADO POR'] = d['_ultimo_usuario_manual']
+                    r.data_json = json.dumps(d, ensure_ascii=False)
+            db.session.commit()
 
     # --- Backfill: historial de estado inicial para registros históricos ---
     # Los registros importados antes de existir el seguimiento de cambios de estado
@@ -1484,6 +1520,9 @@ def index():
     
     # Ocultar columnas internas (prefijo _) y redundantes de la vista
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
+    # PEXT/FLM: columna visible para auditoría — quién editó por última vez
+    if proy_actual_nombre in ('FLM', 'PEXT'):
+        columns_set.add('EDITADO POR')
     
     # Load and Filter data
     rows = NucleusData.query.filter_by(proyecto_id=pid).all()
@@ -1491,6 +1530,9 @@ def index():
     for r in rows:
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
+        # Visible EDITADO POR desde el campo interno _ultimo_usuario_manual
+        if proy_actual_nombre in ('FLM', 'PEXT') and not d.get('EDITADO POR') and d.get('_ultimo_usuario_manual'):
+            d['EDITADO POR'] = d['_ultimo_usuario_manual']
         raw_data.append(d)
 
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
@@ -1738,6 +1780,8 @@ def dashboard():
     
     # Ocultar columnas internas (prefijo _) y redundantes de la vista
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
+    # Para FLM/PEXT: nombre provisional para luego añadir EDITADO POR (se necesita proy_actual_nombre)
+    # Se añade después de conocer proy_actual_nombre, ver abajo
     
     rows = NucleusData.query.filter_by(proyecto_id=pid).limit(5000).all()
     raw_data = []
@@ -1750,6 +1794,11 @@ def dashboard():
     # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
     proy_actual = db.session.get(Proyecto, pid)
     proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    if proy_actual_nombre in ('FLM', 'PEXT'):
+        columns_set.add('EDITADO POR')
+        for d in raw_data:
+            if not d.get('EDITADO POR') and d.get('_ultimo_usuario_manual'):
+                d['EDITADO POR'] = d['_ultimo_usuario_manual']
     if proy_actual_nombre in ('Dataper', 'Material'):
         if is_privileged:
             allowed_proy = {'FLM', 'PEXT'}
@@ -3240,6 +3289,7 @@ def api_rows_update():
         row_dict[field] = value
         row_dict['_ultimo_usuario_manual'] = session.get('username')
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        row_dict['EDITADO POR'] = session.get('username')
         
         # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
         tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
@@ -3280,7 +3330,7 @@ def api_rows_update():
         config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
         if config_schema:
             schema_cols = set(json.loads(config_schema.valor))
-            nuevas_cols = {'_ultimo_usuario_manual', '_fecha_ultima_act_manual'}
+            nuevas_cols = {'_ultimo_usuario_manual', '_fecha_ultima_act_manual', 'EDITADO POR'}
             if not nuevas_cols.issubset(schema_cols):
                 updated_schema = list(schema_cols.union(nuevas_cols))
                 config_schema.valor = safe_json_dumps(updated_schema)
@@ -3424,6 +3474,7 @@ def api_rows_add():
                 row_data[pk_col] = key_val
             row_data['_ultimo_usuario_manual'] = session.get('username', '')
             row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            row_data['EDITADO POR'] = session.get('username', '')
             for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
                 t_cols = [c.strip() for c in t.columna_criterio.split(',')]
                 t_vals = [v.strip() for v in t.valor_criterio.split(',')]
@@ -3592,6 +3643,93 @@ def api_wo_meta():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/detalle/opciones', methods=['GET'])
+@login_required
+def api_detalle_opciones():
+    try:
+        # Agrega valores válidos para los 5 campos del Detalle (solo admin los edita):
+        # NOMBRE DE SITE, DEPARTAMENTO, PRIORIDAD DEL SITE, PROVINCIA, DISTRITO.
+        # Se recolectan desde SITE (maestro) + Site Name + WOs (FLM/PEXT) para cubrir casos históricos.
+        nombres_set = set()
+        dept_set = set()
+        prov_set = set()
+        dist_set = set()
+        prio_set = set()
+        dept_prov_map = {}
+        prov_dist_map = {}
+        site_geo_map = {}
+        def add_norm(s): return str(s or '').strip()
+        # SITE maestro (id 9) y Site Name (id 5) + FLM/PEXT como respaldo
+        for nombre_proy in ('SITE', 'Site Name', 'FLM', 'PEXT'):
+            proy = Proyecto.query.filter_by(nombre=nombre_proy).first()
+            if not proy:
+                continue
+            for r in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                # Normalizar claves para búsqueda insensible
+                low_map = {str(k).strip().lower(): v for k, v in d.items()}
+                # Nombre de Site
+                for k in ('nombre de site', 'nombre', 'codigo site'):
+                    v = add_norm(low_map.get(k))
+                    if v and k in ('nombre de site', 'nombre'):
+                        nombres_set.add(v)
+                        # Para SITE, guardar geo del site
+                        if nombre_proy == 'SITE':
+                            dept = add_norm(low_map.get('departamento'))
+                            prov = add_norm(low_map.get('provincia'))
+                            dist = add_norm(low_map.get('distrito'))
+                            prio = add_norm(low_map.get('prioridad'))
+                            if dept: dept_set.add(dept)
+                            if prov: prov_set.add(prov)
+                            if dist: dist_set.add(dist)
+                            if prio: prio_set.add(prio)
+                            if dept and prov:
+                                dept_prov_map.setdefault(dept, set()).add(prov)
+                            if prov and dist:
+                                prov_dist_map.setdefault(prov, set()).add(dist)
+                            site_geo_map[v] = {'departamento': dept, 'provincia': prov, 'distrito': dist, 'prioridad': prio}
+                        # Site Name no tiene geo detallado, pero igual agrega nombre
+                    elif v and k == 'codigo site' and nombre_proy in ('FLM', 'PEXT'):
+                        # No usar código como nombre, solo como fallback si falta nombre
+                        pass
+                if nombre_proy in ('FLM', 'PEXT'):
+                    for k in ('departamento', 'provincia', 'distrito', 'prioridad del site'):
+                        v = add_norm(low_map.get(k))
+                        if not v:
+                            continue
+                        if k == 'departamento': dept_set.add(v)
+                        elif k == 'provincia': prov_set.add(v)
+                        elif k == 'distrito': dist_set.add(v)
+                        elif k == 'prioridad del site': prio_set.add(v)
+                    # También mapa geo desde WOs para jerarquía adicional
+                    dept = add_norm(low_map.get('departamento'))
+                    prov = add_norm(low_map.get('provincia'))
+                    dist = add_norm(low_map.get('distrito'))
+                    if dept and prov:
+                        dept_prov_map.setdefault(dept, set()).add(prov)
+                    if prov and dist:
+                        prov_dist_map.setdefault(prov, set()).add(dist)
+        # Si aún hay pocos departamentos, completar con lista peruana conocida para no bloquear válidos nuevos
+        # Prioridad siempre restringida a P0,P0+,P1-P4
+        if not prio_set:
+            prio_set = {'P0', 'P0+', 'P1', 'P2', 'P3', 'P4'}
+        # Convertir sets a listas ordenadas
+        def s2l(s): return sorted(s, key=lambda x: x.lower())
+        return jsonify({'success': True,
+                        'nombres': s2l(nombres_set),
+                        'departamentos': s2l(dept_set),
+                        'provincias': s2l(prov_set),
+                        'distritos': s2l(dist_set),
+                        'prioridades': s2l(prio_set),
+                        'dept_prov_map': {k: s2l(v) for k, v in dept_prov_map.items()},
+                        'prov_dist_map': {k: s2l(v) for k, v in prov_dist_map.items()},
+                        'site_geo_map': site_geo_map})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/wo/servicios', methods=['POST'])
 @login_required
 def api_wo_servicios():
@@ -3677,6 +3815,7 @@ def api_rows_bulk_update():
             row_dict[field] = value
         row_dict['_ultimo_usuario_manual'] = session.get('username')
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        row_dict['EDITADO POR'] = session.get('username')
 
         new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
         if new_state and new_state != old_state:
@@ -3718,7 +3857,7 @@ def api_rows_bulk_update():
         config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
         if config_schema:
             schema_cols = set(json.loads(config_schema.valor))
-            nuevas_cols = {'_ultimo_usuario_manual', '_fecha_ultima_act_manual', 'FECHA CAMBIO ESTADO'}
+            nuevas_cols = {'_ultimo_usuario_manual', '_fecha_ultima_act_manual', 'FECHA CAMBIO ESTADO', 'EDITADO POR'}
             if not nuevas_cols.issubset(schema_cols):
                 updated_schema = list(schema_cols.union(nuevas_cols))
                 config_schema.valor = safe_json_dumps(updated_schema)

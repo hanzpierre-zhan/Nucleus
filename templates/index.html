@@ -1828,6 +1828,55 @@
                             <label><i class="fa-solid fa-building"></i> Contrata</label>
                             <input type="text" id="wo-contrata" autocomplete="off">
                         </div>
+                        <div class="wo-field" id="wof-fecha-asignacion">
+                            <label><i class="fa-solid fa-calendar-day"></i> Fecha de asignación</label>
+                            <input type="datetime-local" id="wo-fecha-asignacion">
+                        </div>
+                        <div class="wo-field" id="wof-motivo">
+                            <label><i class="fa-solid fa-triangle-exclamation"></i> ¿Cuál fue el motivo de la incidencia?</label>
+                            <input type="text" id="wo-motivo" autocomplete="off">
+                        </div>
+                        <div class="wo-field" id="wof-requiere-material">
+                            <label><i class="fa-solid fa-box-open"></i> ¿Requiere material?</label>
+                            <select id="wo-requiere-material">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field" id="wof-requiere-acceso">
+                            <label><i class="fa-solid fa-door-open"></i> ¿Requiere acceso al site?</label>
+                            <select id="wo-requiere-acceso">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field" id="wof-fue-torrera">
+                            <label><i class="fa-solid fa-tower-broadcast"></i> ¿Fue torrera?</label>
+                            <select id="wo-fue-torrera">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field" id="wof-fue-site-propio">
+                            <label><i class="fa-solid fa-building-shield"></i> ¿Fue site propio?</label>
+                            <select id="wo-fue-site-propio">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field" id="wof-cuadrilla">
+                            <label><i class="fa-solid fa-people-group"></i> ¿Cuadrilla de 3 o 2?</label>
+                            <select id="wo-cuadrilla">
+                                <option value="">— Seleccionar —</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="más de 3">más de 3</option>
+                            </select>
+                        </div>
                         <div class="wo-field" id="wof-latitud">
                             <label><i class="fa-solid fa-arrow-up-wide-short"></i> Coordenadas del corte (Lat)</label>
                             <input type="text" id="wo-latitud" autocomplete="off" placeholder="Ej: -8.405357°">
@@ -1836,12 +1885,6 @@
                             <label><i class="fa-solid fa-arrow-right-to-bracket"></i> Coordenadas del corte
                                 (Long)</label>
                             <input type="text" id="wo-longitud" autocomplete="off" placeholder="Ej: -74.587859°">
-                        </div>
-                        <div class="wo-field" id="wof-motivo">
-                            <label><i class="fa-solid fa-triangle-exclamation"></i> Motivo de avería</label>
-                            <select id="wo-motivo">
-                                <option value="">— Seleccionar —</option>
-                            </select>
                         </div>
                         <div class="wo-field" id="wof-se-instalo-mufas">
                             <label><i class="fa-solid fa-boxes-stacked"></i> <span class="wof-mufas-label">¿Se instaló
@@ -1883,6 +1926,38 @@
                                 <option value="Sí">Sí</option>
                                 <option value="No">No</option>
                             </select>
+                        </div>
+                        <div class="wo-field" id="wof-team-leader">
+                            <label><i class="fa-solid fa-user-tie"></i> Team Leader asignado en aplicativo</label>
+                            <input type="text" id="wo-team-leader" autocomplete="off">
+                        </div>
+                        <div class="wo-field" id="wof-supervisor">
+                            <label><i class="fa-solid fa-user-shield"></i> ¿Quién fue el supervisor a cargo en ese turno?</label>
+                            <input type="text" id="wo-supervisor" autocomplete="off">
+                        </div>
+                        <div class="wo-field" id="wof-coordinador-entel">
+                            <label><i class="fa-solid fa-headset"></i> Coordinador ENTEL</label>
+                            <input type="text" id="wo-coordinador-entel" autocomplete="off">
+                        </div>
+                        <div class="wo-field" id="wof-status-atencion">
+                            <label><i class="fa-solid fa-list-check"></i> Status de atención</label>
+                            <input type="text" id="wo-status-atencion" autocomplete="off">
+                        </div>
+                        <div class="wo-field" id="wof-quiebre">
+                            <label><i class="fa-solid fa-bolt"></i> Quiebre</label>
+                            <input type="text" id="wo-quiebre" autocomplete="off">
+                        </div>
+                        <div class="wo-field" id="wof-quedo-pendiente">
+                            <label><i class="fa-solid fa-circle-exclamation"></i> ¿Quedó pendiente algún correctivo adicional?</label>
+                            <select id="wo-quedo-pendiente">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field full" id="wof-detalle-correctivo-extra">
+                            <label><i class="fa-solid fa-file-lines"></i> Detalle del correctivo adicional</label>
+                            <textarea id="wo-detalle-correctivo-extra" style="min-height:60px;" placeholder="Detalle del correctivo adicional pendiente..."></textarea>
                         </div>
                         <div class="wo-field" id="wof-inicio">
                             <label><i class="fa-solid fa-play"></i> Inicio de parada</label>
@@ -4202,20 +4277,131 @@
             return;
         }
 
-        // TODAS las filas (sin aplicar filtros de la tabla) y TODAS las columnas reales
-        // (importadas + manuales). Se excluyen solo columnas calculadas (KPI_*).
-        const exportCols = rawCols.filter(c => {
-            if (!c) return false;
-            const up = String(c).trim().toUpperCase();
-            if (up.startsWith('KPI_')) return false;
-            return true;
-        });
+        const isWoExport = (typeof IS_WO_PROJECT !== 'undefined' && IS_WO_PROJECT);
+        let exportCols = [];
+        let dataToExport = rawData;
 
+        if (isWoExport) {
+            // FLM/PEXT: solo columnas visibles de la tabla + todo lo del Detalle + filas filtradas
+            const visibleSet = new Set();
+            try {
+                if (typeof table !== 'undefined' && table && typeof table.getColumns === 'function') {
+                    table.getColumns().forEach(col => {
+                        try {
+                            if (!col.isVisible()) return;
+                            const f = col.getField();
+                            if (!f) return;
+                            const s = String(f).trim();
+                            if (!s) return;
+                            if (s === '_key') { visibleSet.add(s); return; }
+                            if (s.startsWith('_') || s.toUpperCase().startsWith('KPI_')) return;
+                            visibleSet.add(s);
+                        } catch (e) {}
+                    });
+                }
+            } catch (e) {}
+            // Fallback si tabla aún no lista: usar rawCols visibles según layout
+            if (visibleSet.size === 0) {
+                rawCols.forEach(c => {
+                    if (!c || c === '_key') { if (c) visibleSet.add(c); return; }
+                    if (String(c).startsWith('_') || String(c).toUpperCase().startsWith('KPI_')) return;
+                    visibleSet.add(c);
+                });
+            }
+            // Añadir todo lo del Detalle (DETALLE_EDITABLES) aunque esté oculto en tabla
+            const norm = s => String(s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+            const detalleSet = new Set((typeof DETALLE_EDITABLES !== 'undefined' ? DETALLE_EDITABLES : []).map(norm));
+            // Mapear nombre detalle -> nombre real de columna en rawCols/rawData
+            const rawNormMap = new Map();
+            rawCols.forEach(c => rawNormMap.set(norm(c), c));
+            // También considerar claves que solo existen en datos pero no en rawCols (por si acaso)
+            if (rawData.length) {
+                Object.keys(rawData[0]||{}).forEach(k => { if (!rawNormMap.has(norm(k))) rawNormMap.set(norm(k), k); });
+            }
+            detalleSet.forEach(nk => {
+                const real = rawNormMap.get(nk);
+                if (real) visibleSet.add(real);
+                else {
+                    // Buscar coincidencia parcial para alias FECHA DE CREACIÓN
+                    for (let [k,v] of rawNormMap.entries()) {
+                        if (k === nk || k.includes(nk) || nk.includes(k)) { visibleSet.add(v); break; }
+                    }
+                }
+            });
+            // PEXT/FLM: añadir Gestión/Post (columnas manuales) aunque estén ocultas — es lo que el usuario espera en el export
+            try {
+                if (typeof manualColsConfig !== 'undefined' && Array.isArray(manualColsConfig)) {
+                    manualColsConfig.forEach(mc => {
+                        const n = String(mc.nombre || '').trim();
+                        if (!n || n === 'MATERIALES' || n.toUpperCase().startsWith('KPI_') || n.startsWith('_')) return;
+                        const real = rawNormMap.get(norm(n)) || n;
+                        visibleSet.add(real);
+                        if (!rawNormMap.has(norm(n))) rawNormMap.set(norm(n), real);
+                    });
+                }
+            } catch (e) {}
+            // Ordenar según orden de rawCols + detalle/manual al final si no estaba
+            exportCols = rawCols.filter(c => visibleSet.has(c));
+            // Añadir detalle/manual que no estaba en rawCols (columna nueva aún sin datos)
+            const extraSet = new Set([...detalleSet]);
+            try {
+                if (typeof manualColsConfig !== 'undefined' && Array.isArray(manualColsConfig)) {
+                    manualColsConfig.forEach(mc => extraSet.add(norm(String(mc.nombre||''))));
+                }
+            } catch (e) {}
+            extraSet.forEach(nk => {
+                const real = rawNormMap.get(nk);
+                if (real && !exportCols.includes(real)) exportCols.push(real);
+            });
+            // Filtrado: si la tabla tiene filtros activos, exportar solo lo filtrado
+            try {
+                if (typeof table !== 'undefined' && table && typeof table.getData === 'function') {
+                    const active = table.getData('active');
+                    if (Array.isArray(active) && active.length >= 0) {
+                        // Si hay filtros, active.length < rawData.length; si no hay filtros, coincide
+                        // Solo usar active si parece filtrado o si table tiene filtros
+                        const hasFilters = typeof table.getHeaderFilters === 'function' ? table.getHeaderFilters().length > 0 : true;
+                        // Usar active siempre que exista, respeta orden/filtro actual
+                        dataToExport = active;
+                    }
+                }
+            } catch (e) {}
+            // Si active está vacío por paginación u otro, fallback a searchData
+            if (!Array.isArray(dataToExport) || dataToExport.length === 0 && rawData.length > 0) {
+                try {
+                    if (typeof table !== 'undefined' && typeof table.searchData === 'function') {
+                        const sd = table.searchData();
+                        if (Array.isArray(sd) && sd.length > 0) dataToExport = sd;
+                    }
+                } catch (e) {}
+            }
+            if (!Array.isArray(dataToExport)) dataToExport = rawData;
+        } else {
+            // Otros proyectos: comportamiento original (todas las columnas reales, todas las filas)
+            exportCols = rawCols.filter(c => {
+                if (!c) return false;
+                const up = String(c).trim().toUpperCase();
+                if (up.startsWith('KPI_')) return false;
+                return true;
+            });
+            dataToExport = rawData;
+        }
+
+        // _key al inicio y con nombre Numero WO para FLM/PEXT
+        if (isWoExport) {
+            const hasKey = exportCols.includes('_key');
+            exportCols = exportCols.filter(c => c !== '_key');
+            exportCols.unshift('_key');
+            if (!hasKey && !rawCols.includes('_key')) exportCols.unshift('_key');
+        }
         const rows = [];
-        const headers = exportCols.map(c => String(c).trim());
+        const headers = exportCols.map(c => {
+            if (c === '_key') return isWoExport ? 'Numero WO' : String(c).trim();
+            return String(c).trim();
+        });
         rows.push(headers);
 
-        rawData.forEach(r => {
+        dataToExport.forEach(r => {
             const line = [];
             exportCols.forEach(c => {
                 const up = String(c).trim().toUpperCase();
@@ -4420,14 +4606,24 @@
         });
 
         // 3) Gestión (columnas manuales del proyecto).
-        const sep = document.createElement('div');
-        sep.className = 'mar-empty';
-        sep.style.cssText = 'grid-column:1/-1;text-align:left;font-weight:700;color:var(--ios-gray-1);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 0 0;';
-        sep.textContent = 'Gestión';
-        body.appendChild(sep);
+        const pextPostSet = new Set([
+            'TEAM LEADER ASIGNADO EN APLICATIVO','¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?',
+            'COORDINADOR ENTEL','STATUS DE ATENCION','QUIEBRE',
+            '¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?','DETALLE CORRECTIVO ADICIONAL',
+            'INICIO DE PARADA','FIN DE PARADA'
+        ]);
+        const addSep = (text) => {
+            const s = document.createElement('div');
+            s.className = 'mar-empty';
+            s.style.cssText = 'grid-column:1/-1;text-align:left;font-weight:700;color:var(--ios-gray-1);font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:6px 0 0;';
+            s.textContent = text;
+            body.appendChild(s);
+        };
+        addSep('Gestión');
         (manualColsConfig || []).forEach(mc => {
             const name = mc.nombre;
-            if (name === 'MATERIALES') return; // se gestiona en el modal del WO
+            if (name === 'MATERIALES') return;
+            if (IS_PEXT && pextPostSet.has(name)) return;
             let ctrl;
             if (name === 'SERVICIO') {
                 ctrl = mkSelect(name, (meta.servicios && meta.servicios.length) ? meta.servicios : (mc.opciones || []));
@@ -4448,13 +4644,29 @@
                 });
             } else if (mc.tipo === 'lista' && mc.opciones && mc.opciones.length) {
                 ctrl = mkSelect(name, mc.opciones);
-            } else if (name === 'INICIO DE PARADA' || name === 'FIN DE PARADA') {
+            } else if (name === 'FECHA DE ASIGNACIÓN' || name === 'INICIO DE PARADA' || name === 'FIN DE PARADA') {
                 ctrl = mkInput(name, '', false, 'datetime-local');
             } else {
                 ctrl = mkInput(name);
             }
             mkField(name, ctrl);
         });
+        if (IS_PEXT) {
+            addSep('Post');
+            (manualColsConfig || []).forEach(mc => {
+                const name = mc.nombre;
+                if (!pextPostSet.has(name)) return;
+                let ctrl;
+                if (mc.tipo === 'lista' && mc.opciones && mc.opciones.length) {
+                    ctrl = mkSelect(name, mc.opciones);
+                } else if (name === 'INICIO DE PARADA' || name === 'FIN DE PARADA') {
+                    ctrl = mkInput(name, '', false, 'datetime-local');
+                } else {
+                    ctrl = mkInput(name);
+                }
+                mkField(name, ctrl);
+            });
+        }
 
         const first = body.querySelector('input, select');
         if (first) setTimeout(() => first.focus(), 60);
@@ -6077,6 +6289,10 @@ btnItem.onclick = () => cotRegAgregarFila();
         const rSel = document.getElementById('wo-requiere-correctivo');
         const wDet = document.getElementById('wof-detcorr');
         if (rSel && wDet) wDet.style.display = (rSel.value === 'Sí') ? '' : 'none';
+        // PEXT: ¿Quedó pendiente algún correctivo adicional? Sí -> muestra caja de texto.
+        const pSel = document.getElementById('wo-quedo-pendiente');
+        const wDetExtra = document.getElementById('wof-detalle-correctivo-extra');
+        if (pSel && wDetExtra) wDetExtra.style.display = (pSel.value === 'Sí') ? '' : 'none';
     }
 
     function aplicarConfigWoPorProyecto() {
@@ -6169,22 +6385,16 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (tabGastos) tabGastos.style.display = 'none';
             const panelGastos = document.getElementById('wo-panel-gastos');
             if (panelGastos) panelGastos.style.display = 'none';
-            // PEXT: CIUDAD y SISTEMAS no se requieren -> ocultar solo en PEXT (FLM los conserva).
+            // PEXT: campos que no se usan en el modal -> ocultar solo en PEXT.
             ['wof-ciudad', 'wof-sistemas'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = 'none';
             });
-            // PEXT: ¿SE INSTALÓ MUFAS? con opciones Sí/No (FLM conserva GEP/GEE/NA).
-            const mufasSel = document.getElementById('wo-se-instalo-mufas');
-            if (mufasSel && mufasSel.tagName === 'SELECT') {
-                const prev = mufasSel.value;
-                mufasSel.innerHTML = '<option value="">— Seleccionar —</option>' +
-                    '<option value="Sí">Sí</option><option value="No">No</option>';
-                if (prev === 'Sí' || prev === 'No') mufasSel.value = prev;
-            }
             // PEXT: layout por grupos dentro de la pestaña Detalle.
-            // - Grupo Gestión: Servicio, Técnico, Contrata, Motivo, Solución, Coordenadas (un solo campo).
-            // - Grupo Post: Mufas -> Ubicación, Requiere -> Detalle correctivo, Inicio/Fin, Bitácora.
+            // - Grupo Gestión: Servicio, Técnico, Contrata, Fecha de asignación, Motivo,
+            //   ¿Requiere material?, ¿Requiere acceso?, ¿Fue torrera?, ¿Fue site propio?, ¿Cuadrilla?
+            // - Grupo Post: Team Leader, Supervisor, Coordinador ENTEL, Status atención,
+            //   Quiebre, ¿Quedó pendiente correctivo adicional? -> Detalle, Inicio/Fin.
             (function organizarDetallePEXT() {
                 const form = document.querySelector('#wo-panel-detalle .wo-form');
                 if (!form) return;
@@ -6207,26 +6417,28 @@ btnItem.onclick = () => cotRegAgregarFila();
                 };
                 const hG = mkHeader('wo-h-gestion', 'sliders', 'Gestión');
                 const hP = mkHeader('wo-h-post', 'list-check', 'Post');
-                const mkField = (wrapId, labelIcon, labelText, controlHtml, full) => {
-                    let w = byId(wrapId);
-                    if (!w) {
-                        w = document.createElement('div');
-                        w.className = 'wo-field' + (full ? ' full' : '');
-                        w.id = wrapId;
-                        w.innerHTML = '<label><i class="fa-solid fa-' + labelIcon + '"></i> ' + labelText + '</label>' + controlHtml;
-                    }
-                    return w;
-                };
-                const fCoords = mkField('wof-coords', 'location-dot', 'Coordenadas del corte',
-                    '<input type="text" id="wo-coords-corte" autocomplete="off" placeholder="Ej: -8.405357, -74.587859">');
-                const fUbic = mkField('wof-ubic', 'location-dot', 'Ubicación de mufas',
-                    '<input type="text" id="wo-ubic-mufas" autocomplete="off" placeholder="Ej: -8.405357, -74.587859">');
-                const fDet = mkField('wof-detcorr', 'file-lines', 'Detalle de correctivo',
-                    '<textarea id="wo-detalle-correctivo" style="min-height:60px;" placeholder="Detalle del correctivo final..."></textarea>', true);
+                const fDetExtra = byId('wof-detalle-correctivo-extra');
+                const fDetSel = byId('wof-quedo-pendiente');
+                // MOTIVO: desplegable -> texto libre en PEXT (¿Cuál fue el motivo de la incidencia?).
+                const motSel = byId('wo-motivo');
+                if (motSel && motSel.tagName === 'SELECT') {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = 'wo-motivo';
+                    input.autocomplete = 'off';
+                    input.value = motSel.value;
+                    motSel.replaceWith(input);
+                    const wrapMot = byId('wof-motivo');
+                    if (wrapMot) { wrapMot.className = 'wo-field'; }
+                }
                 // Orden dentro del formulario (appendChild mueve los existentes, sin duplicar).
-                [hG, byId('wof-servicio'), byId('wof-tecnico'), byId('wof-contrata'), byId('wof-motivo'), byId('wof-solucion'), fCoords,
-                 hP, byId('wof-se-instalo-mufas'), fUbic, byId('wof-requiere'), fDet,
-                 byId('wof-inicio'), byId('wof-fin'), byId('wof-bitacora')
+                // PEXT: Fecha de asignación y Motivo en la misma fila (sin 'full').
+                [hG, byId('wof-servicio'), byId('wof-tecnico'), byId('wof-contrata'), byId('wof-fecha-asignacion'),
+                 byId('wof-motivo'), byId('wof-requiere-material'), byId('wof-requiere-acceso'),
+                 byId('wof-fue-torrera'), byId('wof-fue-site-propio'), byId('wof-cuadrilla'),
+                 hP, byId('wof-team-leader'), byId('wof-supervisor'), byId('wof-coordinador-entel'),
+                 byId('wof-status-atencion'), byId('wof-quiebre'), fDetSel, fDetExtra,
+                 byId('wof-inicio'), byId('wof-fin')
                 ].forEach(el => { if (el) form.appendChild(el); });
                 // Efecto gris solo en los títulos: Detalle, Gestión, Post y Bitácora. Resto blanco.
                 const secDet = document.querySelector('#wo-panel-detalle .wo-section');
@@ -6238,16 +6450,17 @@ btnItem.onclick = () => cotRegAgregarFila();
                 // Resumen de Detalle en blanco (FLM + PEXT).
                 const sumGrid = byId('wo-summary');
                 if (sumGrid) sumGrid.classList.add('wo-summary-plain');
-                // Ocultar campos separados que reemplazan los combinados.
-                ['wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa'].forEach(id => {
-                    const el = byId(id);
-                    if (el) el.style.display = 'none';
-                });
+                // Ocultar campos que ya no se usan en el modal PEXT (Solucion, mufas,
+                // sistemas, requiere correctivo, detalle correctivo, coordenadas, Bitácora).
+                ['wof-solucion', 'wof-se-instalo-mufas', 'wof-ubic', 'wof-lat-mufa', 'wof-lon-mufa',
+                 'wof-latitud', 'wof-longitud', 'wof-sistemas', 'wof-requiere', 'wof-detcorr', 'wof-coords', 'wof-bitacora']
+                    .forEach(id => {
+                        const el = byId(id);
+                        if (el) el.style.display = 'none';
+                    });
                 // Condicionales (listeners una sola vez).
-                const mS = byId('wo-se-instalo-mufas');
-                if (mS && !mS.dataset.condInit) { mS.dataset.condInit = '1'; mS.addEventListener('change', aplicarCondicionalesWO); }
-                const rS = byId('wo-requiere-correctivo');
-                if (rS && !rS.dataset.condInit) { rS.dataset.condInit = '1'; rS.addEventListener('change', aplicarCondicionalesWO); }
+                const pS = byId('wo-quedo-pendiente');
+                if (pS && !pS.dataset.condInit) { pS.dataset.condInit = '1'; pS.addEventListener('change', aplicarCondicionalesWO); }
             })();
         }
     }
@@ -6517,6 +6730,90 @@ btnItem.onclick = () => cotRegAgregarFila();
     ];
     const WO_STATE_OPTS = ['unscheduled', 'accepted', 'dispatched', 'inprocess', 'rejected', 'closed', 'canceled'];
     const FAULT_OPTS = ['Critical', 'Alta', 'Media', 'Baja'];
+    // --- Opciones válidas para los 5 campos del Detalle (desplegable con búsqueda, no cualquier valor).
+    let detalleOpciones = { nombres: [], departamentos: [], prioridades: [], provincias: [], distritos: [], dept_prov_map: {}, prov_dist_map: {}, site_geo_map: {} };
+    let detalleOpcionesLoaded = false;
+    let detalleOpcionesFetch = null;
+    function ensureDetalleDatalist(id, opts) {
+        let dl = document.getElementById(id);
+        if (!dl) { dl = document.createElement('datalist'); dl.id = id; document.body.appendChild(dl); }
+        dl.innerHTML = (opts || []).map(o => `<option value="${escapeHtml(o)}">`).join('');
+        return dl;
+    }
+    function ensureDetalleOpciones() {
+        if (detalleOpcionesLoaded) return Promise.resolve(detalleOpciones);
+        if (detalleOpcionesFetch) return detalleOpcionesFetch;
+        if (typeof IS_WO_PROJECT === 'undefined' || !IS_WO_PROJECT) return Promise.resolve(detalleOpciones);
+        detalleOpcionesFetch = fetch('/api/detalle/opciones').then(r => r.json()).then(j => {
+            if (j && j.success) {
+                detalleOpciones.nombres = j.nombres || [];
+                detalleOpciones.departamentos = j.departamentos || [];
+                detalleOpciones.provincias = j.provincias || [];
+                detalleOpciones.distritos = j.distritos || [];
+                detalleOpciones.prioridades = j.prioridades || [];
+                detalleOpciones.dept_prov_map = j.dept_prov_map || {};
+                detalleOpciones.prov_dist_map = j.prov_dist_map || {};
+                detalleOpciones.site_geo_map = j.site_geo_map || {};
+                detalleOpcionesLoaded = true;
+                ensureDetalleDatalist('dl-detalle-nombre-site', detalleOpciones.nombres);
+                ensureDetalleDatalist('dl-detalle-departamento', detalleOpciones.departamentos);
+                ensureDetalleDatalist('dl-detalle-prioridad', detalleOpciones.prioridades);
+                ensureDetalleDatalist('dl-detalle-provincia', detalleOpciones.provincias);
+                ensureDetalleDatalist('dl-detalle-distrito', detalleOpciones.distritos);
+            }
+            return detalleOpciones;
+        }).catch(() => detalleOpciones);
+        return detalleOpcionesFetch;
+    }
+    function normDetalle(s) { return String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
+    function validarDetalleInp(inp) {
+        const key = inp.dataset.key || '';
+        const nk = normDetalle(key);
+        const val = String(inp.value || '').trim();
+        if (!val) { inp.style.borderColor = 'rgba(var(--ios-blue-rgb,0,122,255),0.35)'; return true; }
+        let allowed = null;
+        if (nk === normDetalle('NOMBRE DE SITE')) allowed = detalleOpciones.nombres;
+        else if (nk === normDetalle('DEPARTAMENTO')) allowed = detalleOpciones.departamentos;
+        else if (nk === normDetalle('PRIORIDAD DEL SITE')) allowed = detalleOpciones.prioridades;
+        else if (nk === normDetalle('PROVINCIA')) {
+            const deptInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => normDetalle(e.dataset.key) === normDetalle('DEPARTAMENTO'));
+            const deptVal = deptInp ? normDetalle(deptInp.value) : '';
+            const deptKey = Object.keys(detalleOpciones.dept_prov_map).find(k => normDetalle(k) === deptVal);
+            allowed = deptKey ? detalleOpciones.dept_prov_map[deptKey] : detalleOpciones.provincias;
+        } else if (nk === normDetalle('DISTRITO')) {
+            const provInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => normDetalle(e.dataset.key) === normDetalle('PROVINCIA'));
+            const provVal = provInp ? normDetalle(provInp.value) : '';
+            const provKey = Object.keys(detalleOpciones.prov_dist_map).find(k => normDetalle(k) === provVal);
+            allowed = provKey ? detalleOpciones.prov_dist_map[provKey] : detalleOpciones.distritos;
+        } else return true;
+        if (!allowed || !allowed.length) return true;
+        const set = new Set(allowed.map(normDetalle));
+        const ok = set.has(normDetalle(val));
+        inp.style.borderColor = ok ? 'rgba(var(--ios-blue-rgb,0,122,255),0.35)' : '#ff3b30';
+        inp.title = ok ? '' : 'Valor no encontrado en la lista. Selecciona una opción válida.';
+        return ok;
+    }
+    function filtrarProvinciaPorDepartamento() {
+        const deptInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => normDetalle(e.dataset.key) === normDetalle('DEPARTAMENTO'));
+        const provInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => normDetalle(e.dataset.key) === normDetalle('PROVINCIA'));
+        if (!provInp) return;
+        const deptVal = deptInp ? normDetalle(deptInp.value) : '';
+        const deptKey = Object.keys(detalleOpciones.dept_prov_map).find(k => normDetalle(k) === deptVal);
+        const opts = deptKey ? detalleOpciones.dept_prov_map[deptKey] : detalleOpciones.provincias;
+        ensureDetalleDatalist('dl-detalle-provincia', opts);
+        validarDetalleInp(provInp);
+        filtrarDistritoPorProvincia();
+    }
+    function filtrarDistritoPorProvincia() {
+        const provInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => normDetalle(e.dataset.key) === normDetalle('PROVINCIA'));
+        const distInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => normDetalle(e.dataset.key) === normDetalle('DISTRITO'));
+        if (!distInp) return;
+        const provVal = provInp ? normDetalle(provInp.value) : '';
+        const provKey = Object.keys(detalleOpciones.prov_dist_map).find(k => normDetalle(k) === provVal);
+        const opts = provKey ? detalleOpciones.prov_dist_map[provKey] : detalleOpciones.distritos;
+        ensureDetalleDatalist('dl-detalle-distrito', opts);
+        validarDetalleInp(distInp);
+    }
     function hacerDetalleEditable(data) {
         if (!IS_WO_PROJECT) return;
         if (typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
@@ -6527,10 +6824,16 @@ btnItem.onclick = () => cotRegAgregarFila();
             o.value = cur; o.textContent = cur + ' (anterior)';
             sel.appendChild(o); sel.value = cur;
         };
+        // Precargar opciones y datalists para los 5 campos desplegables
+        ensureDetalleOpciones();
+        ensureDetalleDatalist('dl-detalle-nombre-site', detalleOpciones.nombres);
+        ensureDetalleDatalist('dl-detalle-departamento', detalleOpciones.departamentos);
+        ensureDetalleDatalist('dl-detalle-prioridad', detalleOpciones.prioridades);
+        ensureDetalleDatalist('dl-detalle-provincia', detalleOpciones.provincias);
+        ensureDetalleDatalist('dl-detalle-distrito', detalleOpciones.distritos);
         document.querySelectorAll('#wo-summary .wo-summary-item').forEach(item => {
             const kEl = item.querySelector('.k'), vEl = item.querySelector('.v');
             if (!kEl || !vEl || vEl.querySelector('input,select')) return;
-            // Clave real (data-key); la etiqueta visible puede ser un alias.
             const realKey = (item.dataset && item.dataset.key && Object.prototype.hasOwnProperty.call(data, item.dataset.key))
                 ? item.dataset.key
                 : Object.keys(data).find(k => norm(k) === norm(kEl.textContent));
@@ -6549,6 +6852,41 @@ btnItem.onclick = () => cotRegAgregarFila();
                 ctrl.innerHTML = '<option value="">—</option>' + FAULT_OPTS.map(o => `<option value="${o}">${o}</option>`).join('');
                 ctrl.value = cur;
                 if (cur && !FAULT_OPTS.includes(cur)) mkAnterior(ctrl, cur);
+            } else if (nk === norm('NOMBRE DE SITE')) {
+                ctrl = document.createElement('input');
+                ctrl.type = 'text';
+                ctrl.setAttribute('list', 'dl-detalle-nombre-site');
+                ctrl.value = cur;
+                ctrl.autocomplete = 'off';
+                ctrl.placeholder = 'Buscar site...';
+            } else if (nk === norm('DEPARTAMENTO')) {
+                ctrl = document.createElement('input');
+                ctrl.type = 'text';
+                ctrl.setAttribute('list', 'dl-detalle-departamento');
+                ctrl.value = cur;
+                ctrl.autocomplete = 'off';
+                ctrl.placeholder = 'Departamento';
+            } else if (nk === norm('PRIORIDAD DEL SITE')) {
+                ctrl = document.createElement('input');
+                ctrl.type = 'text';
+                ctrl.setAttribute('list', 'dl-detalle-prioridad');
+                ctrl.value = cur;
+                ctrl.autocomplete = 'off';
+                ctrl.placeholder = 'P0, P1...';
+            } else if (nk === norm('PROVINCIA')) {
+                ctrl = document.createElement('input');
+                ctrl.type = 'text';
+                ctrl.setAttribute('list', 'dl-detalle-provincia');
+                ctrl.value = cur;
+                ctrl.autocomplete = 'off';
+                ctrl.placeholder = 'Provincia';
+            } else if (nk === norm('DISTRITO')) {
+                ctrl = document.createElement('input');
+                ctrl.type = 'text';
+                ctrl.setAttribute('list', 'dl-detalle-distrito');
+                ctrl.value = cur;
+                ctrl.autocomplete = 'off';
+                ctrl.placeholder = 'Distrito';
             } else {
                 ctrl = document.createElement('input');
                 ctrl.type = 'text';
@@ -6563,7 +6901,53 @@ btnItem.onclick = () => cotRegAgregarFila();
             vEl.innerHTML = '';
             vEl.appendChild(ctrl);
         });
+        // Listeners: validación + jerarquía + autocompletado por site
+        const nombreInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('NOMBRE DE SITE'));
+        if (nombreInp) {
+            nombreInp.addEventListener('change', () => {
+                validarDetalleInp(nombreInp);
+                const key = Object.keys(detalleOpciones.site_geo_map).find(k => norm(k) === norm(nombreInp.value));
+                if (key) {
+                    const geo = detalleOpciones.site_geo_map[key];
+                    const deptInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('DEPARTAMENTO'));
+                    const provInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('PROVINCIA'));
+                    const distInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('DISTRITO'));
+                    const prioInp = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('PRIORIDAD DEL SITE'));
+                    if (deptInp && geo.departamento) deptInp.value = geo.departamento;
+                    if (provInp && geo.provincia) provInp.value = geo.provincia;
+                    if (distInp && geo.distrito) distInp.value = geo.distrito;
+                    if (prioInp && geo.prioridad) prioInp.value = geo.prioridad;
+                    [deptInp, provInp, distInp, prioInp].forEach(el => { if (el) validarDetalleInp(el); });
+                    filtrarProvinciaPorDepartamento();
+                }
+            });
+            nombreInp.addEventListener('input', () => validarDetalleInp(nombreInp));
+        }
+        const deptInp2 = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('DEPARTAMENTO'));
+        if (deptInp2) {
+            deptInp2.addEventListener('change', filtrarProvinciaPorDepartamento);
+            deptInp2.addEventListener('input', () => { validarDetalleInp(deptInp2); filtrarProvinciaPorDepartamento(); });
+        }
+        const provInp2 = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('PROVINCIA'));
+        if (provInp2) {
+            provInp2.addEventListener('change', filtrarDistritoPorProvincia);
+            provInp2.addEventListener('input', () => { validarDetalleInp(provInp2); filtrarDistritoPorProvincia(); });
+        }
+        const prioInp2 = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('PRIORIDAD DEL SITE'));
+        if (prioInp2) prioInp2.addEventListener('input', () => validarDetalleInp(prioInp2));
+        const distInp2 = [...document.querySelectorAll('#wo-summary .wo-detalle-inp')].find(e => norm(e.dataset.key) === norm('DISTRITO'));
+        if (distInp2) distInp2.addEventListener('input', () => validarDetalleInp(distInp2));
+        // Aplicar filtros iniciales según valor actual
+        filtrarProvinciaPorDepartamento();
+        // Validar todos inicialmente
+        document.querySelectorAll('#wo-summary .wo-detalle-inp').forEach(validarDetalleInp);
+        // Cuando lleguen las opciones async, revalidar y repoblar
+        ensureDetalleOpciones().then(() => {
+            document.querySelectorAll('#wo-summary .wo-detalle-inp').forEach(validarDetalleInp);
+            filtrarProvinciaPorDepartamento();
+        });
     }
+    if (typeof IS_WO_PROJECT !== 'undefined' && IS_WO_PROJECT) ensureDetalleOpciones();
 
     function abrirWoModal(row) {
         const data = row.getData();
@@ -6648,14 +7032,23 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-fin-parada').value = toDatetimeLocal(data['FIN DE PARADA']);
         document.getElementById('wo-requiere-correctivo').value = data['REQUIERE CORRECTIVO FINAL'] || '';
         document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
-        // PEXT: campos combinados (un solo campo) + detalle de correctivo + condicionales.
+        // PEXT: cargar nuevos campos del formulario PEXT.
         if (IS_PEXT) {
-            const ccEl = document.getElementById('wo-coords-corte');
-            if (ccEl) ccEl.value = joinCoords(woLat, woLon);
-            const umEl = document.getElementById('wo-ubic-mufas');
-            if (umEl) umEl.value = joinCoords(woLatMufa, woLonMufa);
-            const dcEl = document.getElementById('wo-detalle-correctivo');
-            if (dcEl) dcEl.value = data['DETALLE CORRECTIVO'] || '';
+            const fAsign = document.getElementById('wo-fecha-asignacion');
+            if (fAsign) fAsign.value = toDatetimeLocal(data['FECHA DE ASIGNACIÓN'] || '');
+            // MOTIVO DE AVERÍA: ya se cargó más arriba; valor sirve para el input (o select si FLM).
+            document.getElementById('wo-requiere-material').value = data['¿REQUIERE MATERIAL?'] || '';
+            document.getElementById('wo-requiere-acceso').value = data['¿REQUIERE ACCESO AL SITE?'] || '';
+            document.getElementById('wo-fue-torrera').value = data['¿FUE TORRERA?'] || '';
+            document.getElementById('wo-fue-site-propio').value = data['¿FUE SITE PROPIO?'] || '';
+            document.getElementById('wo-cuadrilla').value = data['¿CUADRILLA DE 3 O 2?'] || '';
+            document.getElementById('wo-team-leader').value = data['TEAM LEADER ASIGNADO EN APLICATIVO'] || '';
+            document.getElementById('wo-supervisor').value = data['¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?'] || '';
+            document.getElementById('wo-coordinador-entel').value = data['COORDINADOR ENTEL'] || '';
+            document.getElementById('wo-status-atencion').value = data['STATUS DE ATENCION'] || '';
+            document.getElementById('wo-quiebre').value = data['QUIEBRE'] || '';
+            document.getElementById('wo-quedo-pendiente').value = data['¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?'] || '';
+            document.getElementById('wo-detalle-correctivo-extra').value = data['DETALLE CORRECTIVO ADICIONAL'] || '';
             aplicarCondicionalesWO();
         }
         // FLM: detalle de correctivo + condicionales.
@@ -7691,9 +8084,6 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function guardarWoModal() {
         if (!woKey) return;
-        // PEXT: las coordenadas se editan en un solo campo y se reparten en LAT/LONG al guardar.
-        const _parCorte = IS_PEXT ? parseCoordPair((document.getElementById('wo-coords-corte') || {}).value || '') : null;
-        const _parMufa = IS_PEXT ? parseCoordPair((document.getElementById('wo-ubic-mufas') || {}).value || '') : null;
         const payload = {
             key: woKey,
             data: {
@@ -7702,32 +8092,57 @@ btnItem.onclick = () => cotRegAgregarFila();
                 'TECNICO ASIGNADO': document.getElementById('wo-tecnico').value,
                 'CONTRATA': document.getElementById('wo-contrata').value.trim(),
                 'MOTIVO DE AVERÍA': document.getElementById('wo-motivo').value,
-                'SOLUCIÓN': document.getElementById('wo-solucion').value,
-                'LATITUD': IS_PEXT ? _parCorte[0] : document.getElementById('wo-latitud').value.trim(),
-                'LONGITUD': IS_PEXT ? _parCorte[1] : document.getElementById('wo-longitud').value.trim(),
-                'SE INSTALÓ MUFAS': document.getElementById('wo-se-instalo-mufas').value,
                 'SISTEMAS': (document.getElementById('wo-sistemas') || {}).value ? document.getElementById('wo-sistemas').value.trim() : '',
                 'MATERIALES': JSON.stringify(recogerMateriales()),
-                'LATITUD MUFAS': IS_PEXT ? _parMufa[0] : document.getElementById('wo-lat-mufa').value.trim(),
-                'LONGITUD MUFAS': IS_PEXT ? _parMufa[1] : document.getElementById('wo-lon-mufa').value.trim(),
-                ...(ES_FLM ? {
-                    'COTIZACION_ITEMS': JSON.stringify(recogerItemsCobra()),
-                    'COTIZACION_NOTA': (document.getElementById('wo-coti-objetivo') || {}).value || ''
-                } : {
-                    'COTIZACION_GASTOS': JSON.stringify(recogerGastos()),
-                    'COTIZACION_MANO_OBRA': JSON.stringify(recogerManoObra()),
-                    'COTIZACION_NOTA': (document.getElementById('wo-coti-nota') || {}).value || ''
-                }),
-                'COTIZACION_NUMERO': obtenerNumeroCotizacion(),
                 'INICIO DE PARADA': fromDatetimeLocal(document.getElementById('wo-inicio-parada').value),
-                'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value),
-                'REQUIERE CORRECTIVO FINAL': document.getElementById('wo-requiere-correctivo').value,
-                'BITACORA': document.getElementById('wo-bitacora').value
+                'FIN DE PARADA': fromDatetimeLocal(document.getElementById('wo-fin-parada').value)
             }
         };
-        // FLM + PEXT: detalle del correctivo (visible solo si Requiere=Sí, el valor se conserva igual).
-        if (IS_WO_PROJECT) {
+        if (IS_FLM) {
+            payload.data['BITACORA'] = document.getElementById('wo-bitacora').value;
+            payload.data['SOLUCIÓN'] = document.getElementById('wo-solucion').value;
+            payload.data['LATITUD'] = document.getElementById('wo-latitud').value.trim();
+            payload.data['LONGITUD'] = document.getElementById('wo-longitud').value.trim();
+            payload.data['SE INSTALÓ MUFAS'] = document.getElementById('wo-se-instalo-mufas').value;
+            payload.data['LATITUD MUFAS'] = document.getElementById('wo-lat-mufa').value.trim();
+            payload.data['LONGITUD MUFAS'] = document.getElementById('wo-lon-mufa').value.trim();
+            payload.data['COTIZACION_ITEMS'] = JSON.stringify(recogerItemsCobra());
+            payload.data['COTIZACION_NOTA'] = (document.getElementById('wo-coti-objetivo') || {}).value || '';
+            payload.data['REQUIERE CORRECTIVO FINAL'] = document.getElementById('wo-requiere-correctivo').value;
             payload.data['DETALLE CORRECTIVO'] = (document.getElementById('wo-detalle-correctivo') || {}).value || '';
+        }
+        if (IS_PEXT) {
+            payload.data['FECHA DE ASIGNACIÓN'] = fromDatetimeLocal((document.getElementById('wo-fecha-asignacion') || {}).value || '');
+            payload.data['¿REQUIERE MATERIAL?'] = (document.getElementById('wo-requiere-material') || {}).value || '';
+            payload.data['¿REQUIERE ACCESO AL SITE?'] = (document.getElementById('wo-requiere-acceso') || {}).value || '';
+            payload.data['¿FUE TORRERA?'] = (document.getElementById('wo-fue-torrera') || {}).value || '';
+            payload.data['¿FUE SITE PROPIO?'] = (document.getElementById('wo-fue-site-propio') || {}).value || '';
+            payload.data['¿CUADRILLA DE 3 O 2?'] = (document.getElementById('wo-cuadrilla') || {}).value || '';
+            payload.data['TEAM LEADER ASIGNADO EN APLICATIVO'] = (document.getElementById('wo-team-leader') || {}).value || '';
+            payload.data['¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?'] = (document.getElementById('wo-supervisor') || {}).value || '';
+            payload.data['COORDINADOR ENTEL'] = (document.getElementById('wo-coordinador-entel') || {}).value || '';
+            payload.data['STATUS DE ATENCION'] = (document.getElementById('wo-status-atencion') || {}).value || '';
+            payload.data['QUIEBRE'] = (document.getElementById('wo-quiebre') || {}).value || '';
+            payload.data['¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?'] = (document.getElementById('wo-quedo-pendiente') || {}).value || '';
+            payload.data['DETALLE CORRECTIVO ADICIONAL'] = (document.getElementById('wo-detalle-correctivo-extra') || {}).value || '';
+        }
+        if (IS_WO_PROJECT && !IS_FLM && !IS_PEXT) {
+            payload.data['COTIZACION_GASTOS'] = JSON.stringify(recogerGastos());
+            payload.data['COTIZACION_MANO_OBRA'] = JSON.stringify(recogerManoObra());
+            payload.data['COTIZACION_NOTA'] = (document.getElementById('wo-coti-nota') || {}).value || '';
+        }
+        payload.data['COTIZACION_NUMERO'] = obtenerNumeroCotizacion();
+        // Validación desplegable del Detalle: no permitir valores fuera de lista
+        let detalleInvalido = null;
+        document.querySelectorAll('#wo-summary .wo-detalle-inp').forEach(el => {
+            if (typeof validarDetalleInp === 'function' && !validarDetalleInp(el)) {
+                if (!detalleInvalido) detalleInvalido = el;
+            }
+        });
+        if (detalleInvalido) {
+            alert('Valor no válido en "' + (detalleInvalido.dataset.key || 'Detalle') + '". Selecciona una opción de la lista.');
+            detalleInvalido.focus();
+            return;
         }
         // Detalle del ticket editable (inputs inyectados en el resumen; solo admin los ve).
         document.querySelectorAll('#wo-summary .wo-detalle-inp').forEach(el => {
@@ -8485,11 +8900,15 @@ btnItem.onclick = () => cotRegAgregarFila();
         // Siempre añadir Gestión (16 campos) aunque estén vacíos
         const gestionMap = IS_PEXT ? [
             ['Servicio', 'wo-servicio'], ['Técnico asignado', 'wo-tecnico'],
-            ['Contrata', 'wo-contrata'], ['Motivo de avería', 'wo-motivo'], ['Solución', 'wo-solucion'],
-            ['Coordenadas del corte', 'wo-coords-corte'],
-            ['¿Se instaló mufas?', 'wo-se-instalo-mufas'], ['Ubicación de mufas', 'wo-ubic-mufas'],
-            ['¿Requiere correctivo final?', 'wo-requiere-correctivo'], ['Detalle de correctivo', 'wo-detalle-correctivo'],
-            ['Inicio de parada', 'wo-inicio-parada'], ['Fin de parada', 'wo-fin-parada'], ['Bitácora', 'wo-bitacora']
+            ['Contrata', 'wo-contrata'], ['Fecha de asignación', 'wo-fecha-asignacion'],
+            ['Motivo de la incidencia', 'wo-motivo'], ['¿Requiere material?', 'wo-requiere-material'],
+            ['¿Requiere acceso al site?', 'wo-requiere-acceso'], ['¿Fue torrera?', 'wo-fue-torrera'],
+            ['¿Fue site propio?', 'wo-fue-site-propio'], ['¿Cuadrilla de 3 o 2?', 'wo-cuadrilla'],
+            ['Team Leader asignado', 'wo-team-leader'], ['Supervisor a cargo', 'wo-supervisor'],
+            ['Coordinador ENTEL', 'wo-coordinador-entel'], ['Status de atención', 'wo-status-atencion'],
+            ['Quiebre', 'wo-quiebre'], ['¿Quedó pendiente correctivo adicional?', 'wo-quedo-pendiente'],
+            ['Detalle correctivo adicional', 'wo-detalle-correctivo-extra'],
+            ['Inicio de parada', 'wo-inicio-parada'], ['Fin de parada', 'wo-fin-parada']
         ] : [
             ['Servicio', 'wo-servicio'], ['Ciudad', 'wo-ciudad'], ['Técnico asignado', 'wo-tecnico'],
             ['Contrata', 'wo-contrata'], ['Coordenadas del corte (Lat)', 'wo-latitud'], ['Coordenadas del corte (Long)', 'wo-longitud'],
