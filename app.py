@@ -5,6 +5,9 @@ import time
 import logging
 import tempfile
 import mimetypes
+import urllib.request
+import urllib.parse
+import urllib.error
 import pandas as pd
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, Response
 from flask_sqlalchemy import SQLAlchemy
@@ -41,6 +44,12 @@ app.config['B2_KEY_ID'] = os.environ.get('B2_KEY_ID', '')
 app.config['B2_APP_KEY'] = os.environ.get('B2_APP_KEY', '')
 app.config['B2_BUCKET'] = os.environ.get('B2_BUCKET', '')
 app.config['B2_REGION'] = os.environ.get('B2_REGION', 'us-west-004')
+# OneDrive personal (opcional, 2do backup vía Microsoft Graph).
+# OD_CLIENT_ID es obligatorio; OD_CLIENT_SECRET es opcional (client público no lo usa).
+app.config['OD_CLIENT_ID'] = os.environ.get('OD_CLIENT_ID', '')
+app.config['OD_CLIENT_SECRET'] = os.environ.get('OD_CLIENT_SECRET', '')
+app.config['OD_REFRESH_TOKEN'] = os.environ.get('OD_REFRESH_TOKEN', '')
+app.config['OD_ENABLED'] = bool(app.config['OD_CLIENT_ID'] and app.config['OD_REFRESH_TOKEN'])
 
 from werkzeug.exceptions import HTTPException
 
@@ -78,6 +87,13 @@ class AppConfig(db.Model):
     clave = db.Column(db.String(50), nullable=False)
     valor = db.Column(db.Text, nullable=False)
     __table_args__ = (db.UniqueConstraint('proyecto_id', 'clave', name='_proj_clave_uc'),)
+
+class TokenStore(db.Model):
+    """Almacén global clave/valor (p. ej. refresh token de OneDrive)."""
+    __tablename__ = 'token_store'
+    id = db.Column(db.Integer, primary_key=True)
+    clave = db.Column(db.String(50), unique=True, nullable=False)
+    valor = db.Column(db.Text, nullable=False)
 
 class NucleusData(db.Model):
     __tablename__ = 'nucleus_data'
@@ -2472,6 +2488,7 @@ def api_import_process():
         
         updated, added, ignored, consolidated = 0, 0, 0, 0
         dynamic_cols = set()
+        counter_guardados = 0
 
         WO_STATE_COL = 'Estado de la tarea (WO State)'
         STATE_TS_COL = 'FECHA CAMBIO ESTADO'
@@ -2628,6 +2645,12 @@ def api_import_process():
                 record = existing_records[key_val]
                 record.data_json = safe_json_dumps(current_data)
                 updated += 1
+
+            # Commit por lotes: cada 500 registros guarda y libera la transaccion,
+            # evitando que una importacion grande exceda el timeout del servidor.
+            counter_guardados += 1
+            if counter_guardados % 500 == 0:
+                db.session.commit()
         
         # Absence-based Consolidation (Optimized to avoid SQLite parameter limits)
         absent_consolidated = 0
@@ -3981,6 +4004,105 @@ def evidencia_eliminar_b2(key, tipo, indice):
     except Exception:
         pass
 
+# --- OneDrive personal (2do backup, Microsoft Graph) ---
+OD_GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
+OD_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
+
+def _od_refresh_token_guardar(valor):
+    try:
+        fila = TokenStore.query.filter_by(clave='od_refresh_token').first()
+        if fila:
+            fila.valor = valor
+        else:
+            db.session.add(TokenStore(clave='od_refresh_token', valor=valor))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.warning('OD: no se pudo persistir el refresh token')
+
+def _od_refresh_token_actual():
+    try:
+        fila = TokenStore.query.filter_by(clave='od_refresh_token').first()
+        if fila and fila.valor:
+            return fila.valor
+    except Exception:
+        pass
+    return app.config.get('OD_REFRESH_TOKEN', '')
+
+def onedrive_access_token():
+    """Renueva/obtiene el access token de OneDrive. Persiste el refresh rotado."""
+    refresh = _od_refresh_token_actual()
+    if not refresh:
+        return None
+    datos = {
+        'client_id': app.config['OD_CLIENT_ID'],
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh,
+        'scope': 'Files.ReadWrite offline_access',
+    }
+    if app.config.get('OD_CLIENT_SECRET'):
+        datos['client_secret'] = app.config['OD_CLIENT_SECRET']
+    body = urllib.parse.urlencode(datos).encode('utf-8')
+    req = urllib.request.Request(OD_TOKEN_URL, data=body, method='POST')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        info = json.loads(resp.read().decode('utf-8'))
+    if info.get('refresh_token'):
+        _od_refresh_token_guardar(info['refresh_token'])
+    return info.get('access_token')
+
+def _od_url(ruta_remota):
+    return OD_GRAPH_BASE + '/me/drive/root:' + ruta_remota
+
+def onedrive_subir(b2_key, ruta_local):
+    """Sube una foto a OneDrive personal en /Nucleus/<key>/<nombre>."""
+    if not app.config.get('OD_ENABLED'):
+        return False
+    token = onedrive_access_token()
+    if not token:
+        app.logger.warning('OD: sin access token, se omite el backup')
+        return False
+    nombre = os.path.basename(ruta_local)
+    ruta_remota = '/Nucleus/' + '/'.join(
+        urllib.parse.quote(seg, safe='') for seg in b2_key.split('/'))
+    url = _od_url(ruta_remota) + ':/content'
+    with open(ruta_local, 'rb') as f:
+        data = f.read()
+    req = urllib.request.Request(url, data=data, method='PUT')
+    req.add_header('Authorization', 'Bearer ' + token)
+    req.add_header('Content-Type', 'image/jpeg')
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        resp.read()
+    return True
+
+def onedrive_eliminar(key, tipo, indice):
+    """Elimina la foto del slot en OneDrive (por prefijo tipo_indice.*)."""
+    if not app.config.get('OD_ENABLED'):
+        return False
+    token = onedrive_access_token()
+    if not token:
+        return False
+    key_san = urllib.parse.quote(secure_filename(str(key)), safe='')
+    url_list = _od_url('/Nucleus/' + key_san) + ':/children'
+    prefijo = f'{tipo}_{int(indice)}.'
+    req = urllib.request.Request(url_list)
+    req.add_header('Authorization', 'Bearer ' + token)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            info = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False
+        raise
+    for item in info.get('value', []):
+        if not str(item.get('name', '')).startswith(prefijo):
+            continue
+        dreq = urllib.request.Request(
+            OD_GRAPH_BASE + '/me/drive/items/' + item['id'], method='DELETE')
+        dreq.add_header('Authorization', 'Bearer ' + token)
+        urllib.request.urlopen(dreq, timeout=60).read()
+    return True
+
 @app.route('/api/evidencia/subir', methods=['POST'])
 @login_required
 def api_evidencia_subir():
@@ -4026,6 +4148,12 @@ def api_evidencia_subir():
             evidencia_limpiar_slot(pid, key, tipo, indice)
             os.replace(ruta_tmp, os.path.join(folder, nombre))
 
+        # 2do backup: OneDrive personal. Si falla, no interrumpe la subida principal.
+        try:
+            onedrive_subir(f'{key}/{nombre}', ruta_tmp)
+        except Exception as e:
+            app.logger.warning('OD backup fallo: %s', e)
+
         url = f'/api/evidencia/foto/{pid}/{secure_filename(str(key))}/{nombre}?v={int(time.time())}'
         return jsonify({'success': True, 'url': url})
     finally:
@@ -4057,6 +4185,10 @@ def api_evidencia_eliminar():
         evidencia_eliminar_b2(key, tipo, indice)
     else:
         evidencia_limpiar_slot(pid, key, tipo, indice)
+    try:
+        onedrive_eliminar(key, tipo, indice)
+    except Exception as e:
+        app.logger.warning('OD delete fallo: %s', e)
     return jsonify({'success': True})
 
 @app.route('/api/evidencia/foto/<int:pid>/<path:key>/<path:nombre>')
