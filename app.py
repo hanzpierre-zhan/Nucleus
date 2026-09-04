@@ -50,6 +50,11 @@ app.config['OD_CLIENT_ID'] = os.environ.get('OD_CLIENT_ID', '')
 app.config['OD_CLIENT_SECRET'] = os.environ.get('OD_CLIENT_SECRET', '')
 app.config['OD_REFRESH_TOKEN'] = os.environ.get('OD_REFRESH_TOKEN', '')
 app.config['OD_ENABLED'] = bool(app.config['OD_CLIENT_ID'] and app.config['OD_REFRESH_TOKEN'])
+# Cuenta adicional (2do backup): usar sufijo _2 (OD_CLIENT_ID_2, OD_CLIENT_SECRET_2, OD_REFRESH_TOKEN_2)
+app.config['OD_CLIENT_ID_2'] = os.environ.get('OD_CLIENT_ID_2', '')
+app.config['OD_CLIENT_SECRET_2'] = os.environ.get('OD_CLIENT_SECRET_2', '')
+app.config['OD_REFRESH_TOKEN_2'] = os.environ.get('OD_REFRESH_TOKEN_2', '')
+app.config['OD_ENABLED_2'] = bool(app.config['OD_CLIENT_ID_2'] and app.config['OD_REFRESH_TOKEN_2'])
 
 from werkzeug.exceptions import HTTPException
 
@@ -4008,59 +4013,79 @@ def evidencia_eliminar_b2(key, tipo, indice):
 OD_GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
 OD_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
 
-def _od_refresh_token_guardar(valor):
+def _od_cuenta(num):
+    """Config de la cuenta OneDrive num (1 = principal, 2 = adicional)."""
+    if num == 1:
+        return {
+            'client_id': app.config.get('OD_CLIENT_ID', ''),
+            'client_secret': app.config.get('OD_CLIENT_SECRET', ''),
+            'refresh': app.config.get('OD_REFRESH_TOKEN', ''),
+            'enabled': app.config.get('OD_ENABLED', False),
+            'token_key': 'od_refresh_token',
+        }
+    return {
+        'client_id': app.config.get('OD_CLIENT_ID_2', ''),
+        'client_secret': app.config.get('OD_CLIENT_SECRET_2', ''),
+        'refresh': app.config.get('OD_REFRESH_TOKEN_2', ''),
+        'enabled': app.config.get('OD_ENABLED_2', False),
+        'token_key': 'od_refresh_token_2',
+    }
+
+def _od_refresh_token_guardar(valor, num=1):
+    clave = _od_cuenta(num)['token_key']
     try:
-        fila = TokenStore.query.filter_by(clave='od_refresh_token').first()
+        fila = TokenStore.query.filter_by(clave=clave).first()
         if fila:
             fila.valor = valor
         else:
-            db.session.add(TokenStore(clave='od_refresh_token', valor=valor))
+            db.session.add(TokenStore(clave=clave, valor=valor))
         db.session.commit()
     except Exception:
         db.session.rollback()
         app.logger.warning('OD: no se pudo persistir el refresh token')
 
-def _od_refresh_token_actual():
+def _od_refresh_token_actual(num=1):
+    clave = _od_cuenta(num)['token_key']
     try:
-        fila = TokenStore.query.filter_by(clave='od_refresh_token').first()
+        fila = TokenStore.query.filter_by(clave=clave).first()
         if fila and fila.valor:
             return fila.valor
     except Exception:
         pass
-    return app.config.get('OD_REFRESH_TOKEN', '')
+    return _od_cuenta(num).get('refresh', '')
 
-def onedrive_access_token():
+def onedrive_access_token(num=1):
     """Renueva/obtiene el access token de OneDrive. Persiste el refresh rotado."""
-    refresh = _od_refresh_token_actual()
+    cuenta = _od_cuenta(num)
+    refresh = _od_refresh_token_actual(num)
     if not refresh:
         return None
     datos = {
-        'client_id': app.config['OD_CLIENT_ID'],
+        'client_id': cuenta['client_id'],
         'grant_type': 'refresh_token',
         'refresh_token': refresh,
         'scope': 'Files.ReadWrite offline_access',
     }
-    if app.config.get('OD_CLIENT_SECRET'):
-        datos['client_secret'] = app.config['OD_CLIENT_SECRET']
+    if cuenta.get('client_secret'):
+        datos['client_secret'] = cuenta['client_secret']
     body = urllib.parse.urlencode(datos).encode('utf-8')
     req = urllib.request.Request(OD_TOKEN_URL, data=body, method='POST')
     req.add_header('Content-Type', 'application/x-www-form-urlencoded')
     with urllib.request.urlopen(req, timeout=60) as resp:
         info = json.loads(resp.read().decode('utf-8'))
     if info.get('refresh_token'):
-        _od_refresh_token_guardar(info['refresh_token'])
+        _od_refresh_token_guardar(info['refresh_token'], num)
     return info.get('access_token')
 
 def _od_url(ruta_remota):
     return OD_GRAPH_BASE + '/me/drive/root:' + ruta_remota
 
-def onedrive_subir(b2_key, ruta_local):
-    """Sube una foto a OneDrive personal en /Nucleus/<key>/<nombre>."""
-    if not app.config.get('OD_ENABLED'):
+def _onedrive_subir_a(num, b2_key, ruta_local):
+    if not _od_cuenta(num).get('enabled'):
         return False
-    token = onedrive_access_token()
+    token = onedrive_access_token(num)
     if not token:
-        app.logger.warning('OD: sin access token, se omite el backup')
+        app.logger.warning('OD%d: sin access token, se omite el backup', num)
         return False
     nombre = os.path.basename(ruta_local)
     ruta_remota = '/Nucleus/' + '/'.join(
@@ -4075,20 +4100,31 @@ def onedrive_subir(b2_key, ruta_local):
         resp.read()
     return True
 
+def onedrive_subir(b2_key, ruta_local):
+    """Sube una foto a todos los OneDrive configurados en /Nucleus/<key>/<nombre>."""
+    ok = False
+    for num in (1, 2):
+        try:
+            if _onedrive_subir_a(num, b2_key, ruta_local):
+                ok = True
+        except Exception as e:
+            app.logger.warning('OD%d subir fallo: %s', num, e)
+    return ok
+
 @app.route('/api/admin/od_reset', methods=['POST'])
 @login_required
 def api_admin_od_reset():
     if session.get('rol') != 'admin':
         return jsonify({'error': 'Solo admin'}), 403
-    TokenStore.query.filter_by(clave='od_refresh_token').delete()
+    for num in (1, 2):
+        TokenStore.query.filter_by(clave=_od_cuenta(num)['token_key']).delete()
     db.session.commit()
-    return jsonify({'success': True, 'msg': 'Token OneDrive reseteado. Pon el nuevo OD_REFRESH_TOKEN en Render.'})
+    return jsonify({'success': True, 'msg': 'Tokens OneDrive reseteados. Pon los nuevos OD_REFRESH_TOKEN en Render.'})
 
-def onedrive_eliminar(key, tipo, indice):
-    """Elimina la foto del slot en OneDrive (por prefijo tipo_indice.*)."""
-    if not app.config.get('OD_ENABLED'):
+def _onedrive_eliminar_a(num, key, tipo, indice):
+    if not _od_cuenta(num).get('enabled'):
         return False
-    token = onedrive_access_token()
+    token = onedrive_access_token(num)
     if not token:
         return False
     key_san = urllib.parse.quote(secure_filename(str(key)), safe='')
@@ -4111,6 +4147,17 @@ def onedrive_eliminar(key, tipo, indice):
         dreq.add_header('Authorization', 'Bearer ' + token)
         urllib.request.urlopen(dreq, timeout=60).read()
     return True
+
+def onedrive_eliminar(key, tipo, indice):
+    """Elimina la foto del slot en todos los OneDrive configurados."""
+    ok = False
+    for num in (1, 2):
+        try:
+            if _onedrive_eliminar_a(num, key, tipo, indice):
+                ok = True
+        except Exception as e:
+            app.logger.warning('OD%d eliminar fallo: %s', num, e)
+    return ok
 
 @app.route('/api/evidencia/subir', methods=['POST'])
 @login_required
