@@ -443,6 +443,67 @@ def _combustible_saldo(pid, generador):
     except Exception:
         return 0.0
 
+def _combustible_fecha_norm(v):
+    """Normaliza FECHA a 'YYYY-MM-DD HH:MM' para que el orden cronológico
+    (usado por SALDO DISPONIBLE) sea correcto sin importar el formato origen
+    (ISO del formulario o DD/MM/YYYY del Excel)."""
+    s = str(v or '').strip().replace('T', ' ')
+    if not s:
+        return ''
+    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$', s)
+    if m:
+        return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)} {(m.group(4) or '00').zfill(2)}:{(m.group(5) or '00').zfill(2)}"
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:[ ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$', s)
+    if m:
+        return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)} {(m.group(4) or '00').zfill(2)}:{(m.group(5) or '00').zfill(2)}"
+    return s
+
+def _combustible_filas_gen(pid, generador):
+    """Movimientos de un generador ordenados cronológicamente (igual que SALDO DISPONIBLE)."""
+    filas = []
+    try:
+        for r in NucleusData.query.filter_by(proyecto_id=pid).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if str(d.get('QR ASIGNADO', '')).strip() != generador:
+                continue
+            filas.append({
+                'key': r.key_value,
+                'fecha': _combustible_fecha_norm(d.get('FECHA', '')),
+                'mov': str(d.get('MOVIMIENTO', '')).strip().upper(),
+                'gal': _parse_galones(d.get('GALONES')),
+            })
+    except Exception:
+        pass
+    filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+    return filas
+
+def _combustible_chequear(filas):
+    """Verifica que el balance cronológico nunca sea negativo.
+    Retorna (ok, quiebre): quiebre describe el primer punto en rojo."""
+    bal = 0.0
+    for f in filas:
+        bal = bal + f['gal'] if f['mov'] != 'GASTO' else bal - f['gal']
+        if bal < -1e-9:
+            return False, {'key': f.get('key'), 'fecha': f.get('fecha'), 'saldo': round(bal, 2)}
+    return True, {'saldo_final': round(bal, 2)}
+
+def _combustible_validar_gasto(pid, generador, fecha, galones, excluir_key=None):
+    """Simula un GASTO en (generador, fecha) y verifica que ningún punto
+    del historial quede en negativo. Retorna (ok, mensaje_o_saldo)."""
+    filas = _combustible_filas_gen(pid, generador)
+    if excluir_key is not None:
+        filas = [f for f in filas if str(f.get('key')) != str(excluir_key)]
+    filas.append({'key': '(nuevo)', 'fecha': _combustible_fecha_norm(fecha),
+                  'mov': 'GASTO', 'gal': float(galones)})
+    filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+    ok, info = _combustible_chequear(filas)
+    if ok:
+        return True, info.get('saldo_final', 0.0)
+    return False, info
+
 
 # --- DB INIT & MIGRATION ---
 with app.app_context():
@@ -2492,6 +2553,7 @@ def api_import_process():
         consolidate_on_fail = cons_cfg.get('consolidate_on_filter_fail', False)
         
         updated, added, ignored, consolidated = 0, 0, 0, 0
+        rejected_saldo = []
         dynamic_cols = set()
         counter_guardados = 0
 
@@ -2640,6 +2702,28 @@ def api_import_process():
                     ignored += 1
                 continue
                 
+            # --- 4b. COMBUSTIBLE: normalizar FECHA y validar saldo cronológico ---
+            # Un GASTO importado tampoco puede dejar en negativo el historial
+            # del generador; si lo hace, la fila se omite y se reporta.
+            if proy_act_nombre == 'COMBUSTIBLE':
+                if 'FECHA' in current_data:
+                    current_data['FECHA'] = _combustible_fecha_norm(current_data.get('FECHA', ''))
+                _gen_imp = str(current_data.get('QR ASIGNADO', '')).strip()
+                _mov_imp = str(current_data.get('MOVIMIENTO', '')).strip().upper()
+                _gal_imp = _parse_galones(current_data.get('GALONES'))
+                if _gen_imp and _mov_imp == 'GASTO' and _gal_imp > 0:
+                    _filas_imp = [f for f in _combustible_filas_gen(pid, _gen_imp)
+                                  if str(f.get('key')) != str(key_val)]
+                    _filas_imp.append({'key': str(key_val),
+                                       'fecha': _combustible_fecha_norm(current_data.get('FECHA', '')),
+                                       'mov': 'GASTO', 'gal': _gal_imp})
+                    _filas_imp.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+                    _ok_imp, _info_imp = _combustible_chequear(_filas_imp)
+                    if not _ok_imp:
+                        rejected_saldo.append(str(key_val))
+                        ignored += 1
+                        continue
+
             # --- 5. GUARDAR REGISTRO ACTIVO ---
             if is_new:
                 new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=safe_json_dumps(current_data))
@@ -2687,11 +2771,12 @@ def api_import_process():
                 db.session.add(AppConfig(proyecto_id=pid, clave='app_schema', valor=safe_json_dumps(list(new_schema))))
             db.session.commit()
         return jsonify({
-            'success': True, 
-            'added': added, 
-            'updated': updated, 
-            'ignored': ignored, 
+            'success': True,
+            'added': added,
+            'updated': updated,
+            'ignored': ignored,
             'consolidated': consolidated,
+            'rejected_saldo': rejected_saldo,
             'pk': system_pk
         })
     except Exception as e:
@@ -3255,26 +3340,33 @@ def api_rows_update():
             if field == 'GESTOR':
                 return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró el movimiento.'}), 400
             # WO NUMBER libre: acepta cualquier código (vacío = CM PENDIENTE).
-            if field in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO'):
+            if field in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO', 'FECHA'):
+                if field == 'FECHA':
+                    # Normalizar formato para que el orden cronológico no se rompa
+                    value = _combustible_fecha_norm(value)
+                old_gen = str(row_dict.get('QR ASIGNADO', '')).strip()
                 new_gen = str(value if field == 'QR ASIGNADO' else row_dict.get('QR ASIGNADO', '')).strip()
                 new_mov = str(value if field == 'MOVIMIENTO' else row_dict.get('MOVIMIENTO', '')).strip().upper()
                 new_gal = _parse_galones(value if field == 'GALONES' else row_dict.get('GALONES'))
-                # Calcular saldo excluyendo ESTE registro (para simular el cambio)
-                temp_bal = 0.0
-                for r in NucleusData.query.filter_by(proyecto_id=pid).all():
-                    if r.id == record.id:
-                        continue
-                    try:
-                        rd = json.loads(r.data_json)
-                    except Exception:
-                        continue
-                    if str(rd.get('QR ASIGNADO', '')).strip() != new_gen:
-                        continue
-                    rm = str(rd.get('MOVIMIENTO', '')).strip().upper()
-                    g = _parse_galones(rd.get('GALONES'))
-                    temp_bal = temp_bal + g if rm != 'GASTO' else temp_bal - g
-                if new_mov == 'GASTO' and new_gal > temp_bal + 1e-9:
-                    return jsonify({'error': f'Saldo insuficiente. Disponible: {temp_bal:g} galones. Se intentó gastar: {new_gal:g}.'}), 400
+                new_fec = _combustible_fecha_norm(value if field == 'FECHA' else row_dict.get('FECHA', ''))
+                nuevo = {'key': str(key_val), 'fecha': new_fec, 'mov': new_mov, 'gal': new_gal}
+                # Simulación cronológica: el cambio no puede dejar en negativo
+                # ni el generador origen (si el QR cambia o el INGRESO se reduce)
+                # ni el generador destino.
+                gens_chequear = {old_gen, new_gen} - {''}
+                for _g in gens_chequear:
+                    _filas = [f for f in _combustible_filas_gen(pid, _g)
+                              if str(f.get('key')) != str(key_val)]
+                    if _g == new_gen and new_gen:
+                        _filas.append(dict(nuevo))
+                        _filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+                    _ok, _info = _combustible_chequear(_filas)
+                    if not _ok:
+                        return jsonify({'error': (
+                            'No hay saldo disponible para este cambio. '
+                            f"QR {_g}: al {_info.get('fecha', '')} el saldo quedaría en "
+                            f"{_info.get('saldo', 0):g} galones. "
+                            'Revise el INGRESO correspondiente antes de editar.')}), 400
 
         # Cotizaciones: GESTOR y la llave (N° COTIZACION) no se editan; una vez
         # GENERADA, solo el admin puede corregir, salvo NUMERO WO cuando está en CM-PENDIENTE.
@@ -3417,10 +3509,18 @@ def api_rows_add():
                     return jsonify({'error': 'Ingrese la cantidad de GALONES.'}), 400
                 if not gen:
                     return jsonify({'error': 'Seleccione el QR ASIGNADO.'}), 400
-                # saldo actual del generador (sin incluir este nuevo gasto)
-                saldo = _combustible_saldo(pid, gen)
-                if gal_n > saldo + 1e-9:
-                    return jsonify({'error': f'Saldo insuficiente. Disponible: {saldo:g} galones. Se intentó gastar: {gal_n:g}.'}), 400
+                # Validación cronológica: el gasto no puede dejar en negativo
+                # ningún punto del historial del generador (ni siquiera con
+                # fecha anterior a otros movimientos ya registrados).
+                row_data['FECHA'] = _combustible_fecha_norm(row_data.get('FECHA', ''))
+                ok_g, info_g = _combustible_validar_gasto(
+                    pid, gen, row_data.get('FECHA', ''), gal_n)
+                if not ok_g:
+                    return jsonify({'error': (
+                        'No hay saldo disponible para este gasto. '
+                        f"QR {gen}: al {info_g.get('fecha', '')} el saldo quedaría en "
+                        f"{info_g.get('saldo', 0):g} galones. Se intentó gastar: {gal_n:g}. "
+                        'Registre primero el INGRESO correspondiente.')}), 400
 
         # Cotizaciones: GESTOR automático y N° COTIZACION maleable (solo se fija al generar)
         if proy_nombre == 'Cotizaciones':
@@ -3561,6 +3661,31 @@ def api_rows_delete():
         keys = data.get('keys', [])
         if not keys: return jsonify({'error': 'No se especificaron registros para eliminar'}), 400
         
+        # Combustible: eliminar un INGRESO (o cualquier movimiento) no puede
+        # dejar en negativo el historial del generador.
+        if proy_nombre == 'Combustible':
+            _a_borrar = NucleusData.query.filter(
+                NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).all()
+            _por_gen = {}
+            for _r in _a_borrar:
+                try:
+                    _d = json.loads(_r.data_json)
+                except Exception:
+                    continue
+                _g = str(_d.get('QR ASIGNADO', '')).strip()
+                if _g:
+                    _por_gen.setdefault(_g, set()).add(str(_r.key_value))
+            for _g, _keys_g in _por_gen.items():
+                _filas = [f for f in _combustible_filas_gen(pid, _g)
+                          if str(f.get('key')) not in _keys_g]
+                _ok, _info = _combustible_chequear(_filas)
+                if not _ok:
+                    return jsonify({'error': (
+                        'No se puede eliminar: ese movimiento sostiene el saldo del '
+                        f"QR {_g}. Al {_info.get('fecha', '')} el saldo quedaría en "
+                        f"{_info.get('saldo', 0):g} galones. "
+                        'Elimine primero los GASTOS posteriores que dependen de él.')}), 400
+
         # Delete records
         NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).delete(synchronize_session=False)
         db.session.commit()
@@ -3826,6 +3951,32 @@ def api_rows_bulk_update():
         if not record: return jsonify({'error': 'Registro no encontrado'}), 404
         row_dict = json.loads(record.data_json)
         old_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
+
+        # Combustible: la edición masiva tampoco puede dejar saldos negativos.
+        _proy_bulk = db.session.get(Proyecto, pid) if pid else None
+        _proy_bulk_nombre = _proy_bulk.nombre.strip() if _proy_bulk and _proy_bulk.nombre else ''
+        if _proy_bulk_nombre == 'Combustible' and any(
+                k in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO', 'FECHA') for k in updates.keys()):
+            _old_gen = str(row_dict.get('QR ASIGNADO', '')).strip()
+            _new_gen = str(updates.get('QR ASIGNADO', row_dict.get('QR ASIGNADO', ''))).strip()
+            _new_mov = str(updates.get('MOVIMIENTO', row_dict.get('MOVIMIENTO', ''))).strip().upper()
+            _new_gal = _parse_galones(updates.get('GALONES', row_dict.get('GALONES')))
+            _new_fec = _combustible_fecha_norm(updates.get('FECHA', row_dict.get('FECHA', '')))
+            if 'FECHA' in updates:
+                updates['FECHA'] = _new_fec
+            _nuevo = {'key': str(key_val), 'fecha': _new_fec, 'mov': _new_mov, 'gal': _new_gal}
+            for _g in ({_old_gen, _new_gen} - {''}):
+                _filas = [f for f in _combustible_filas_gen(pid, _g)
+                          if str(f.get('key')) != str(key_val)]
+                if _g == _new_gen and _new_gen:
+                    _filas.append(dict(_nuevo))
+                    _filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+                _ok, _info = _combustible_chequear(_filas)
+                if not _ok:
+                    return jsonify({'error': (
+                        'No hay saldo disponible para este cambio. '
+                        f"QR {_g}: al {_info.get('fecha', '')} el saldo quedaría en "
+                        f"{_info.get('saldo', 0):g} galones.")}), 400
 
         for field, value in updates.items():
             valor_anterior = row_dict.get(field, '')
