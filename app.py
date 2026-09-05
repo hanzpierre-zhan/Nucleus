@@ -4262,6 +4262,80 @@ def onedrive_subir(b2_key, ruta_local):
             app.logger.warning('OD%d subir fallo: %s', num, e)
     return ok
 
+@app.route('/api/admin/export_zip', methods=['GET'])
+@login_required
+def api_admin_export_zip():
+    """Respaldo completo de la DB (solo datos, las fotos son archivos y no se incluyen).
+    Solo admin. Descarga un ZIP con un JSON por tabla + manifest con conteos.
+    Se excluye token_store (secretos) a propósito."""
+    if session.get('rol') != 'admin':
+        return jsonify({'error': 'Solo admin'}), 403
+    import zipfile
+    modelos = {
+        'usuarios': Usuario, 'proyectos': Proyecto, 'app_config': AppConfig,
+        'nucleus_data': NucleusData, 'nucleus_history': NucleusHistory,
+        'filtros_maestros': FiltroMaestro, 'tablas_maestras': TablaMaestra,
+        'reglas_estado_manual': ReglaEstadoManual,
+        'accesos_proyecto': AccesoProyecto, 'kpi_configs': KpiConfig,
+        'historial_cambios': HistorialCambios, 'tecnicos': Tecnico,
+        'cotizaciones': Cotizacion,
+    }
+    fd, ruta = tempfile.mkstemp(suffix='.zip')
+    os.close(fd)
+    manifest = {'tablas': {}, 'proyecto_por_id': {}}
+    try:
+        for p in Proyecto.query.all():
+            manifest['proyecto_por_id'][str(p.id)] = p.nombre
+        with zipfile.ZipFile(ruta, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for nombre, modelo in modelos.items():
+                tiene_pid = hasattr(modelo, 'proyecto_id')
+                if tiene_pid:
+                    pids = [r[0] for r in db.session.query(modelo.proyecto_id).distinct().all()]
+                    total = 0
+                    for _pid in pids:
+                        fil = []
+                        q = modelo.query.filter_by(proyecto_id=_pid).order_by(modelo.id)
+                        offset = 0
+                        while True:
+                            lote = q.offset(offset).limit(2000).all()
+                            if not lote:
+                                break
+                            for obj in lote:
+                                d = {}
+                                for col in modelo.__table__.columns:
+                                    v = getattr(obj, col.name)
+                                    if isinstance(v, datetime):
+                                        v = v.strftime('%Y-%m-%d %H:%M:%S')
+                                    d[col.name] = v
+                                fil.append(d)
+                            offset += len(lote)
+                        zf.writestr(f'{nombre}_p{_pid}.json', json.dumps(fil, ensure_ascii=False))
+                        total += len(fil)
+                    manifest['tablas'][nombre] = total
+                else:
+                    fil = []
+                    for obj in modelo.query.order_by(modelo.id).all():
+                        d = {}
+                        for col in modelo.__table__.columns:
+                            v = getattr(obj, col.name)
+                            if isinstance(v, datetime):
+                                v = v.strftime('%Y-%m-%d %H:%M:%S')
+                            d[col.name] = v
+                        fil.append(d)
+                    zf.writestr(f'{nombre}.json', json.dumps(fil, ensure_ascii=False))
+                    manifest['tablas'][nombre] = len(fil)
+            manifest['exportado_en'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=1))
+    except Exception as e:
+        try:
+            os.remove(ruta)
+        except Exception:
+            pass
+        return jsonify({'error': str(e)}), 500
+    nombre_zip = 'respaldo_nucleus_' + datetime.utcnow().strftime('%Y%m%d_%H%M%S') + '.zip'
+    return send_from_directory(os.path.dirname(ruta), os.path.basename(ruta),
+                               as_attachment=True, download_name=nombre_zip)
+
 @app.route('/api/admin/od_reset', methods=['POST'])
 @login_required
 def api_admin_od_reset():
