@@ -102,28 +102,28 @@
        SCROLL HORIZONTAL VISIBLE — barra más gruesa para que los
        gestores noten que la tabla se puede deslizar lateralmente
        ============================================================ */
-    .tabulator-tableHolder { scrollbar-width: auto; }
-    .tabulator-tableHolder::-webkit-scrollbar {
+    .tabulator-tableholder { scrollbar-width: auto; }
+    .tabulator-tableholder::-webkit-scrollbar {
         height: 64px;
     }
-    .tabulator-tableHolder::-webkit-scrollbar-track {
+    .tabulator-tableholder::-webkit-scrollbar-track {
         background: var(--ios-card-bg, #f2f2f7);
         border-radius: 16px;
     }
-    .tabulator-tableHolder::-webkit-scrollbar-thumb {
+    .tabulator-tableholder::-webkit-scrollbar-thumb {
         background: var(--ios-blue, #007aff);
         border-radius: 16px;
         border: 8px solid var(--ios-card-bg, #f2f2f7);
     }
-    .tabulator-tableHolder::-webkit-scrollbar-thumb:hover {
+    .tabulator-tableholder::-webkit-scrollbar-thumb:hover {
         background: var(--ios-blue, #007aff);
         opacity: 0.9;
     }
-    .tabulator-tableHolder::-webkit-scrollbar-corner {
+    .tabulator-tableholder::-webkit-scrollbar-corner {
         background: transparent;
     }
     /* Mozilla Firefox */
-    .tabulator-tableHolder {
+    .tabulator-tableholder {
         scrollbar-color: var(--ios-blue, #007aff) var(--ios-card-bg, #f2f2f7);
         scrollbar-width: auto;
     }
