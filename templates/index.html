@@ -3985,6 +3985,16 @@
     }
 
     tableColumns.forEach(c=>{ if(c.field==='N° ORDEN'){ c.title='N'; c.width=52; c.minWidth=44; c.maxWidth=60; }});
+    // Cotizaciones: mismo orden que Combustible -> check | N | resto (N° COTIZACION, FECHA, etc.)
+    if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
+        const idxN = tableColumns.findIndex(c => c.field === 'N° ORDEN');
+        if (idxN > 1) {
+            const colN = tableColumns.splice(idxN, 1)[0];
+            const idxCheck = tableColumns.findIndex(c => c.formatter === 'rowSelection' || c.cssClass === 'col-select-check');
+            const insertAt = idxCheck >= 0 ? idxCheck + 1 : 0;
+            tableColumns.splice(insertAt, 0, colN);
+        }
+    }
     if (tableColumns.length === 0) {
         tableColumns.push({ title: 'No Data', field: 'nodata' });
     }
