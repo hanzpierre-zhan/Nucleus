@@ -2464,6 +2464,17 @@
         const norm = v => String(v == null ? '' : v).trim().toUpperCase();
         const parseGal = v => { const n = parseFloat(String(v == null ? '' : v).replace(',', '.').trim()); return isNaN(n) ? 0 : n; };
 
+        // Alerta de saldos negativos: filas en rojo y sus QR (para que quede claro que no cuadra).
+        const rojos = [];
+        (rawData || []).forEach(r => {
+            const s = parseFloat(r['SALDO DISPONIBLE']);
+            if (isNaN(s) || s >= 0) return;
+            const qr = String(r['QR ASIGNADO'] || '').trim();
+            const N = r['N° ORDEN'] || r['N\u00b0 ORDEN'] || r['_key'] || '';
+            rojos.push(qr + (N !== '' ? ' (#' + N + ')' : ''));
+        });
+        const qrRojos = [...new Set(rojos)];
+
         // Disponibles por zona: suma el saldo actual de cada generador (QR ASIGNADO) agrupado por su ZONA.
         const dispByZona = {};
         Object.keys(genSaldoMap || {}).forEach(qr => {
@@ -2505,7 +2516,17 @@
         const totalesSet = new Set(['TOTAL', 'GASTADO', 'DISPONIBLE']);
         container.style.display = 'grid';
         container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
-        container.innerHTML = cards.map(c =>
+        let html = '';
+        if (qrRojos.length) {
+            html += `<div style="grid-column:1/-1; width:100%; display:flex; align-items:center; gap:10px; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.30); border-radius:12px; padding:10px 14px; color:#FF3B30; font-size:12px; margin-bottom:4px;">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size:15px;"></i>
+                <div>
+                    <b>Hay ${qrRojos.length} generador(es) con saldo en NEGATIVO</b> (${rojos.length} movimientos): <b>${qrRojos.join(', ')}</b>.
+                    Sucede cuando un GASTO se registra con fecha anterior al INGRESO que lo cubre. El sistema ya no permite nuevos; corrige estos en rojo editando su FECHA.
+                </div>
+            </div>`;
+        }
+        container.innerHTML = html + cards.map(c =>
             (totalesSet.has(c[2])
                 ? `<div class="data-stat">`
                 : `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" data-tipo="zona" data-zona="${escapeHtml(c[2])}">`) +
@@ -3481,11 +3502,26 @@
                 colDef.editor = false;
                 colDef.hozAlign = "center";
                 colDef.formatter = function (cell) {
+                    const row = cell.getRow().getData();
                     const v = cell.getValue();
                     const n = parseFloat(v);
                     if (isNaN(n)) return '';
-                    const color = n < 0 ? '#FF3B30' : (n === 0 ? '#8E8E93' : '#34C759');
-                    return `<div style="font-weight:700; color:${color}; text-align:center;">${n}</div>`;
+                    const mov = String(row['MOVIMIENTO'] || '').trim().toUpperCase();
+                    let tip, icono = '';
+                    if (n < 0) {
+                        tip = mov === 'GASTO'
+                            ? `Gasto de ${row['GALONES']} que dejó saldo en ${n}. Origina de un GASTO registrado con fecha anterior al INGRESO que lo cubre. El sistema ahora lo bloquea.`
+                            : `Este movimiento dejó el saldo en ${n} (sobre-giro).`;
+                        icono = ' <i class="fa-solid fa-triangle-exclamation" style="font-size:10px;"></i>';
+                        return `<div style="font-weight:700; color:#FF3B30; text-align:center; cursor:help;" title="${escapeHtml(tip)}">${n}${icono}</div>`;
+                    }
+                    if (n === 0) {
+                        tip = 'Saldo agotado.';
+                        return `<div style="font-weight:700; color:#8E8E93; text-align:center; cursor:help;" title="${escapeHtml(tip)}">${n}</div>`;
+                    }
+                    const antes = row['SALDO ANTES'];
+                    tip = `Tenía ${antes} galones antes de este movimiento.`;
+                    return `<div style="font-weight:700; color:#34C759; text-align:center; cursor:help;" title="${escapeHtml(tip)}">${n}</div>`;
                 };
             }
             if (fieldName === 'MOVIMIENTO') {
@@ -4945,6 +4981,7 @@
             } else if (!isGasto) {
                 inpGal.placeholder = 'Ej: 10 o 7.5';
             }
+            checkSaldoGasto();
             // Alerta CM PENDIENTE si se guarda sin WO
             const aviso = document.getElementById('comb-aviso-pendiente');
             if (!inpWo.value.trim()) {
@@ -4960,6 +4997,28 @@
                 aviso.remove();
             }
         }
+
+        // Aviso en vivo cuando un GASTO supera el saldo disponible del generador
+        let _saldoAviso = null;
+        function checkSaldoGasto() {
+            if (_saldoAviso) { _saldoAviso.remove(); _saldoAviso = null; }
+            if (selMov.value !== 'GASTO' || !selGen.value) return;
+            const disp = parseFloat((genSaldoMap && genSaldoMap[selGen.value]) || 0);
+            const gal = parseFloat(String(inpGal.value || '').replace(',', '.'));
+            if (isNaN(gal) || gal <= 0) return;
+            if (gal > disp + 1e-9) {
+                const a = document.createElement('div');
+                _saldoAviso = a;
+                a.id = 'comb-zona-aviso-gasto';
+                a.className = 'mar-empty';
+                a.style.cssText = 'grid-column:1/-1; text-align:left; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.35); border-radius:12px; padding:10px 14px; color:#FF3B30; font-size:12px; display:flex; align-items:center; gap:8px;';
+                a.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> El generador <b>${escapeHtml(selGen.value)}</b> solo tiene <b>${disp} galones</b> disponibles. Si registras este gasto, el saldo queda en NEGATIVO (${(disp - gal).toFixed(2)}). Registra primero el INGRESO o reduce los GALONES.`;
+                const sup = inpGal.closest('.mar-field');
+                if (sup && sup.parentNode) sup.parentNode.appendChild(a);
+            }
+        }
+        inpGal.addEventListener('input', checkSaldoGasto);
+        selGen.addEventListener('change', checkSaldoGasto);
         selMov.addEventListener('change', syncMov);
         inpWo.addEventListener('input', syncMov);
         syncMov();
@@ -6547,6 +6606,22 @@ btnItem.onclick = () => cotRegAgregarFila();
             </div>`);
         });
         grid.innerHTML = items.join('');
+
+        // Aviso si esta fila tiene saldo negativo (explica por qué "no cuadra")
+        const saldoFila = parseFloat(data['SALDO DISPONIBLE']);
+        const avisoNeg = document.getElementById('comb-detalle-aviso-neg');
+        if (!isNaN(saldoFila) && saldoFila < 0) {
+            if (!avisoNeg) {
+                const a = document.createElement('div');
+                a.id = 'comb-detalle-aviso-neg';
+                a.className = 'mar-empty';
+                a.style.cssText = 'grid-column:1/-1; text-align:left; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.35); border-radius:12px; padding:10px 14px; color:#FF3B30; font-size:12px; display:flex; align-items:center; gap:8px; margin-top:6px;';
+                a.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Este movimiento dejó el saldo en <b>NEGATIVO</b> porque se registró con una fecha anterior al INGRESO que lo cubre. Para corregirlo, cambia su FECHA a un momento posterior a ese INGRESO.';
+                grid.appendChild(a);
+            }
+        } else if (avisoNeg) {
+            avisoNeg.remove();
+        }
 
         // Autocompletar TIPO/TECNICO/ZONA al elegir QR ASIGNADO
         const qrSel = grid.querySelector('[data-field="QR ASIGNADO"]');

@@ -1671,18 +1671,19 @@ def index():
                     return float(str(n or '').replace(',', '.').strip())
                 except (ValueError, TypeError):
                     return 0.0
-            ordered = sorted(data, key=lambda d: (str(d.get('FECHA', '') or ''), str(d.get('_key', '') or '')))
+            ordered = sorted(data, key=lambda d: (_combustible_fecha_norm(d.get('FECHA', '')), str(d.get('_key', '') or '')))
             balance = {}
             for d in ordered:
                 gen = str(d.get('QR ASIGNADO', '')).strip()
                 mov = str(d.get('MOVIMIENTO', '')).strip().upper()
                 g = _parse_gal(d.get('GALONES'))
-                bal = balance.get(gen, 0.0)
-                bal = bal + g if mov != 'GASTO' else bal - g
+                prev = balance.get(gen, 0.0)
+                bal = prev + g if mov != 'GASTO' else prev - g
                 balance[gen] = bal
+                d['SALDO ANTES'] = round(prev, 2)
                 d['SALDO DISPONIBLE'] = round(bal, 2)
-            gen_saldo_map = balance
             columns_set.add('SALDO DISPONIBLE')
+            gen_saldo_map = balance
         except Exception:
             pass
 
