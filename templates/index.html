@@ -3988,11 +3988,15 @@
     // Cotizaciones: mismo orden que Combustible -> check | N | resto (N° COTIZACION, FECHA, etc.)
     if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
         const idxN = tableColumns.findIndex(c => c.field === 'N° ORDEN');
-        if (idxN > 1) {
+        if (idxN !== -1) {
             const colN = tableColumns.splice(idxN, 1)[0];
-            const idxCheck = tableColumns.findIndex(c => c.formatter === 'rowSelection' || c.cssClass === 'col-select-check');
+            // check es la col de selección (rowSelection / col-select-check); si no hay, va al inicio
+            let idxCheck = tableColumns.findIndex(c => c.formatter === 'rowSelection' || c.cssClass === 'col-select-check');
+            // fallback: primera col sin field (la de check)
+            if (idxCheck === -1) idxCheck = tableColumns.findIndex(c => !c.field);
             const insertAt = idxCheck >= 0 ? idxCheck + 1 : 0;
-            tableColumns.splice(insertAt, 0, colN);
+            // evitar mover si ya está en su sitio
+            if (insertAt !== idxN) tableColumns.splice(insertAt, 0, colN);
         }
     }
     if (tableColumns.length === 0) {
@@ -4033,7 +4037,7 @@
         history: true,
         movableColumns: isAdmin,
         persistence: { columns: ["width"] },
-        persistenceID: "nucleus-layout-{{ proyecto_id }}"
+        persistenceID: "nucleus-layout-{{ proyecto_id }}-v4"
     });
     function _actualizarBadgeRegistros() {
         const status = document.getElementById('status-record-count');
