@@ -1205,6 +1205,33 @@ with app.app_context():
                     r.data_json = json.dumps(d, ensure_ascii=False)
             db.session.commit()
 
+    # Migration: Corregir 2 gastos de Combustible que dejaban saldo negativo por FECHA anterior al INGRESO
+    # GL17COB N146 key 152 2026-09-02 11:56 -> 15:00, GL04COB N151 key 157 2026-09-03 12:49 -> 2026-09-04 15:00
+    try:
+        comb = Proyecto.query.filter_by(nombre='Combustible').first()
+        if comb:
+            _fixes = {'152': '2026-09-02 15:00', '157': '2026-09-04 15:00'}
+            for _k, _nueva in _fixes.items():
+                _r = NucleusData.query.filter_by(proyecto_id=comb.id, key_value=_k).first()
+                if _r:
+                    try:
+                        _d = json.loads(_r.data_json)
+                    except Exception:
+                        continue
+                    if str(_d.get('FECHA') or '').strip() != _nueva:
+                        _old = _d.get('FECHA')
+                        _d['FECHA'] = _nueva
+                        _d['COMENTARIOS'] = (str(_d.get('COMENTARIOS') or '').strip() + f' | FECHA corregida {_old} -> {_nueva} (migracion orden cronologico)').strip(' |')
+                        _r.data_json = json.dumps(_d, ensure_ascii=False)
+                        print(f"Combustible fix FECHA key {_k}: {_old} -> {_nueva}")
+            db.session.commit()
+    except Exception as _e:
+        print("Warning: combustible fecha fix:", _e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
     # --- Backfill: historial de estado inicial para registros históricos ---
     # Los registros importados antes de existir el seguimiento de cambios de estado
     # no tienen fila en historial_cambios. Se crea una entrada 'IMPORT' con el estado
