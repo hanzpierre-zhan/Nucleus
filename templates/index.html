@@ -99,6 +99,35 @@
 
 <style>
     /* ============================================================
+       SCROLL HORIZONTAL VISIBLE — barra más gruesa para que los
+       gestores noten que la tabla se puede deslizar lateralmente
+       ============================================================ */
+    .tabulator-tableHolder { scrollbar-width: auto; }
+    .tabulator-tableHolder::-webkit-scrollbar {
+        height: 14px;
+    }
+    .tabulator-tableHolder::-webkit-scrollbar-track {
+        background: var(--ios-card-bg, #f2f2f7);
+        border-radius: 8px;
+    }
+    .tabulator-tableHolder::-webkit-scrollbar-thumb {
+        background: var(--ios-blue, #007aff);
+        border-radius: 8px;
+        border: 3px solid var(--ios-card-bg, #f2f2f7);
+    }
+    .tabulator-tableHolder::-webkit-scrollbar-thumb:hover {
+        background: var(--ios-blue, #007aff);
+        opacity: 0.9;
+    }
+    .tabulator-tableHolder::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+    /* Mozilla Firefox */
+    .tabulator-tableHolder {
+        scrollbar-color: var(--ios-blue, #007aff) var(--ios-card-bg, #f2f2f7);
+        scrollbar-width: auto;
+    }
+    /* ============================================================
        PAGINACIÓN — controles de Tabulator en la barra superior
        ============================================================ */
     #pagination-container .tabulator-paginator {
