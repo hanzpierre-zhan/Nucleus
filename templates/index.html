@@ -3524,6 +3524,31 @@
                     return `<div style="font-weight:700; color:#34C759; text-align:center; cursor:help;" title="${escapeHtml(tip)}">${n}</div>`;
                 };
             }
+            if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'FECHA') {
+                // Orden cronológico con la misma regla del backend: los movimientos con
+                // solo fecha (00:00) se tratan como fin de ese día (23:59) para que la
+                // traza se lea igual que el SALDO DISPONIBLE.
+                colDef.sorter = function (a, b, aRow, bRow, column, dir, sorterParams) {
+                    function fecOrd(v) {
+                        let s = String(v || '').trim().replace('T', ' ');
+                        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?: (\d{1,2}):(\d{1,2}))?$/);
+                        if (m) {
+                            let hh = (m[4] || '00').padStart(2, '0'), mm = (m[5] || '00').padStart(2, '0');
+                            if (hh === '00' && mm === '00') { hh = '23'; mm = '59'; }
+                            return m[1] + m[2].padStart(2, '0') + m[3].padStart(2, '0') + hh + mm;
+                        }
+                        m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?: (\d{1,2}):(\d{1,2}))?$/);
+                        if (m) {
+                            let hh = (m[4] || '00').padStart(2, '0'), mm = (m[5] || '00').padStart(2, '0');
+                            if (hh === '00' && mm === '00') { hh = '23'; mm = '59'; }
+                            return m[3] + m[2].padStart(2, '0') + m[1].padStart(2, '0') + hh + mm;
+                        }
+                        return String(s);
+                    }
+                    const ka = fecOrd(a), kb = fecOrd(b);
+                    return ka < kb ? -1 : ka > kb ? 1 : 0;
+                };
+            }
             if (fieldName === 'MOVIMIENTO') {
                 colDef.formatter = function (cell) {
                     const v = String(cell.getValue() || '').trim().toUpperCase();
@@ -3968,6 +3993,9 @@
         data: rawData,
         layout: "fitData",
         columns: tableColumns,
+        initialSort: currentProjectNombre.trim().toLowerCase() === 'combustible'
+            ? [{ column: "QR ASIGNADO", dir: "asc" }, { column: "FECHA", dir: "asc" }]
+            : [],
         height: "100%",
         headerHeight: 90,
         rowHeight: 25,

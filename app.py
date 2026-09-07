@@ -458,6 +458,17 @@ def _combustible_fecha_norm(v):
         return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)} {(m.group(4) or '00').zfill(2)}:{(m.group(5) or '00').zfill(2)}"
     return s
 
+def _combustible_fecha_ord(v):
+    """Clave de ORDEN cronológico para Combustible.
+    Los movimientos con solo fecha (00:00) se tratan como fin de ese día
+    (23:59): así un GASTO sin hora nunca queda antes que un INGRESO con hora
+    real de ese mismo día y la trazabilidad se lee coherente.
+    El dato visible de FECHA no cambia; esto solo define la secuencia."""
+    s = _combustible_fecha_norm(v)
+    if s.endswith(' 00:00'):
+        s = s[:-len(' 00:00')] + ' 23:59'
+    return s
+
 def _combustible_filas_gen(pid, generador):
     """Movimientos de un generador ordenados cronológicamente (igual que SALDO DISPONIBLE)."""
     filas = []
@@ -477,7 +488,7 @@ def _combustible_filas_gen(pid, generador):
             })
     except Exception:
         pass
-    filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+    filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
     return filas
 
 def _combustible_chequear(filas):
@@ -498,7 +509,7 @@ def _combustible_validar_gasto(pid, generador, fecha, galones, excluir_key=None)
         filas = [f for f in filas if str(f.get('key')) != str(excluir_key)]
     filas.append({'key': '(nuevo)', 'fecha': _combustible_fecha_norm(fecha),
                   'mov': 'GASTO', 'gal': float(galones)})
-    filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+    filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
     ok, info = _combustible_chequear(filas)
     if ok:
         return True, info.get('saldo_final', 0.0)
@@ -1671,7 +1682,7 @@ def index():
                     return float(str(n or '').replace(',', '.').strip())
                 except (ValueError, TypeError):
                     return 0.0
-            ordered = sorted(data, key=lambda d: (_combustible_fecha_norm(d.get('FECHA', '')), str(d.get('_key', '') or '')))
+            ordered = sorted(data, key=lambda d: (_combustible_fecha_ord(d.get('FECHA', '')), str(d.get('_key', '') or '')))
             balance = {}
             for d in ordered:
                 gen = str(d.get('QR ASIGNADO', '')).strip()
@@ -2718,7 +2729,7 @@ def api_import_process():
                     _filas_imp.append({'key': str(key_val),
                                        'fecha': _combustible_fecha_norm(current_data.get('FECHA', '')),
                                        'mov': 'GASTO', 'gal': _gal_imp})
-                    _filas_imp.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+                    _filas_imp.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
                     _ok_imp, _info_imp = _combustible_chequear(_filas_imp)
                     if not _ok_imp:
                         rejected_saldo.append(str(key_val))
@@ -3360,7 +3371,7 @@ def api_rows_update():
                               if str(f.get('key')) != str(key_val)]
                     if _g == new_gen and new_gen:
                         _filas.append(dict(nuevo))
-                        _filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+                        _filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
                     _ok, _info = _combustible_chequear(_filas)
                     if not _ok:
                         return jsonify({'error': (
@@ -3971,7 +3982,7 @@ def api_rows_bulk_update():
                           if str(f.get('key')) != str(key_val)]
                 if _g == _new_gen and _new_gen:
                     _filas.append(dict(_nuevo))
-                    _filas.sort(key=lambda f: (f['fecha'], str(f.get('key') or '')))
+                    _filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
                 _ok, _info = _combustible_chequear(_filas)
                 if not _ok:
                     return jsonify({'error': (
