@@ -418,7 +418,27 @@
         min-width: 140px;
         position: relative;
         box-shadow: var(--shadow-card);
+        transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.18s ease, border-color 0.18s ease;
     }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 10px; right: 10px;
+        height: 2px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--ios-accent), rgba(var(--ios-accent-rgb), 0.1));
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(var(--ios-accent-rgb), 0.4);
+        box-shadow: var(--shadow-soft);
+    }
+
+    .kpi-card:hover::before { opacity: 1; }
 
     .kpi-card-title {
         font-size: 9px;
@@ -466,8 +486,22 @@
     }
 
     .chart-card:hover {
-        transform: translateY(-1px);
+        transform: translateY(-2px);
         box-shadow: var(--shadow-soft);
+    }
+
+    /* Entrada dinámica de tarjetas y gráficas (fade + subida con rebote suave) */
+    .dash-in {
+        animation: dashIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.15) backwards;
+    }
+
+    @keyframes dashIn {
+        from { opacity: 0; transform: translateY(10px) scale(0.97); }
+        to { opacity: 1; transform: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .dash-in { animation: none; }
     }
 
     .chart-card-header {
@@ -496,7 +530,7 @@
         z-index: 10;
     }
     .filter-card {
-        background: linear-gradient(135deg, #FFFFFF 0%, #F2F7FF 100%);
+        background: linear-gradient(135deg, var(--ios-card-bg) 0%, rgba(var(--ios-accent-rgb), 0.08) 100%);
         border: 1px solid rgba(var(--ios-accent-rgb),0.25);
         border-radius: 20px;
         padding: 4px 10px 4px 6px;
@@ -812,6 +846,44 @@
 
     const PALETTE = ['var(--ios-accent)', '#34C759', '#FF9500', '#FF3B30', '#AF52DE', '#5856D6', '#30B0C7', '#FF2D55'];
     const BLUE = 'var(--ios-accent)';
+
+    // Convierte una referencia CSS (var(--x)) a su color concreto del tema actual.
+    // El canvas NO interpreta var() por sí solo, así que los gráficos se dibujan
+    // con colores reales (claro/oscuro) y al cambiar el tema se redibujan.
+    function cssVarValue(name) {
+        try { return getComputedStyle(document.body).getPropertyValue(name).trim(); }
+        catch (e) { return ''; }
+    }
+    function resolveHex(color) {
+        color = String(color || '').trim();
+        if (color.indexOf('var(') === 0) {
+            const m = color.match(/var\((--[\w-]+)/);
+            if (m) color = cssVarValue(m[1]);
+        }
+        return color || '#007AFF';
+    }
+    function paletteResolved() { return PALETTE.map(resolveHex); }
+
+    // Contador animado para los valores de las tarjetas KPI.
+    function animateNumber(el, value, opts) {
+        opts = opts || {};
+        const pre = opts.prefix || '';
+        const minF = opts.min != null ? opts.min : 0;
+        const maxF = opts.max != null ? opts.max : 0;
+        const end = parseFloat(value) || 0;
+        const fmt = v => v.toLocaleString(undefined, { minimumFractionDigits: minF, maximumFractionDigits: maxF });
+        let reduced = false;
+        try { reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+        if (reduced) { el.textContent = pre + fmt(end); return; }
+        const dur = 650, t0 = performance.now();
+        function step(t) {
+            const p = Math.min(1, (t - t0) / dur);
+            const e = 1 - Math.pow(1 - p, 3);
+            el.textContent = pre + fmt(end * e);
+            if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+    }
 
     function hexToRgba(hex, alpha) {
         hex = hex.replace('#', '');
@@ -1326,12 +1398,12 @@
         if (t === 'pie') t = 'doughnut'; // Gráfico circular con hueco en el centro
 
         // Premium Line Gradient Fill (theme-aware)
-        let premiumLineFill = 'rgba(var(--ios-accent-rgb), 0.1)'; // Default fallback
+        const PALETTE_R = paletteResolved();
+        const BLUE_R = resolveHex(BLUE);
+        let premiumLineFill = hexToRgba(BLUE_R, 0.10);
         if (t === 'line' && ctxEl) {
-            const isDark = document.body.classList.contains('dark-mode');
-            const accent = isDark ? '#0A84FF' : 'var(--ios-accent)';
             let gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, hexToRgba(accent, 0.3));
+            gradient.addColorStop(0, hexToRgba(BLUE_R, 0.3));
             gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
             premiumLineFill = gradient;
         }
@@ -1348,11 +1420,11 @@
     }
     const sliceColor = (i) => {
         if (isDoughnut) {
-            if (i === maxIdx) return PALETTE[0]; // Mayor: primer color paleta
-            if (i === minIdx) return PALETTE[PALETTE.length - 1]; // Menor: último color paleta
-            return PALETTE[i % PALETTE.length];
+            if (i === maxIdx) return PALETTE_R[0]; // Mayor: primer color paleta
+            if (i === minIdx) return PALETTE_R[PALETTE_R.length - 1]; // Menor: último color paleta
+            return PALETTE_R[i % PALETTE_R.length];
         }
-        return PALETTE[0]; // Barra/linea: primer color
+        return PALETTE_R[0]; // Barra/linea: primer color
     };
         const backgroundColors = labels.map((l, i) => {
             const baseColor = sliceColor(i);
@@ -1381,7 +1453,7 @@
                     label: config.op.toUpperCase(),
                     data: values,
                     backgroundColor: t === 'line' ? premiumLineFill : backgroundColors,
-                    borderColor: t === 'line' ? BLUE : borderColors,
+                    borderColor: t === 'line' ? BLUE_R : borderColors,
                     borderWidth: t === 'line' ? 3 : 1, 
                     borderRadius: t === 'line' ? 0 : 4,
                     tension: t === 'line' ? 0.4 : 0, // Curvas muy suaves (Premium Feel)
@@ -1390,7 +1462,7 @@
                     pointBorderWidth: 2,
                     pointRadius: t === 'line' ? 4 : 0,
                     pointHoverRadius: t === 'line' ? 6 : 0,
-                    pointBorderColor: BLUE
+                    pointBorderColor: BLUE_R
                 }]
             },
             options: {
@@ -1575,14 +1647,18 @@
             }
 
             const card = document.createElement('div');
-            card.className = 'kpi-card';
+            card.className = 'kpi-card dash-in';
+            card.style.animationDelay = (list.indexOf(cfg) * 45) + 'ms';
             card.innerHTML = `
                 <div class="kpi-card-title">${esc(cfg.title)}</div>
-                <div class="kpi-card-val">${valStr}</div>
+                <div class="kpi-card-val"></div>
                 ${subStr}
                 ${(!IS_GESTOR && !cfg._default) ? `<button onclick="delKPI('${cfg.id}')" class="kpi-card-del"><i class="fa-solid fa-xmark"></i></button>` : ''}
             `;
             bar.appendChild(card);
+            const vEl = card.querySelector('.kpi-card-val');
+            const isSoles = cfg.op === 'sum_soles';
+            animateNumber(vEl, total, isSoles ? { prefix: 'S/. ', min: 1, max: 1 } : { min: 0, max: 1 });
         });
     }
 
@@ -1670,10 +1746,11 @@
         list.forEach(cfg => {
             const res = aggregate(cfg);
             const card = document.createElement('div');
-            card.className = 'chart-card';
+            card.className = 'chart-card dash-in';
+            card.style.animationDelay = (list.indexOf(cfg) * 70) + 'ms';
             card.innerHTML = `
                 <div class="chart-card-header">
-                    <h4 class="chart-card-title" ${cfg._default ? '' : `contenteditable="true" onblur="updateChartTitle('${cfg.id}', this.innerText)"`} title="Haz clic para editar el título" style="cursor: text; border-bottom: 1px dashed #ccc; padding-bottom: 2px;">${esc(cfg.title)}</h4>
+                    <h4 class="chart-card-title" ${cfg._default ? '' : `contenteditable="true" onblur="updateChartTitle('${cfg.id}', this.innerText)"`} title="Haz clic para editar el título" style="cursor: text; border-bottom: 1px dashed var(--ios-hairline); padding-bottom: 2px;">${esc(cfg.title)}</h4>
                     <div style="display:flex; align-items:center; gap:8px;">
                         <span style="font-size: 11px; font-weight: bold; color: var(--excel-green);">${esc(res.totalStr)}</span>
                         ${(!IS_GESTOR && !cfg._default) ? `<button onclick="delChart('${cfg.id}')" style="background:none;border:none;color: var(--ios-gray-2);cursor:pointer;"><i class="fa-solid fa-trash"></i></button>` : ''}
@@ -1703,5 +1780,24 @@
         try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
         catch (e) { console.error(e); }
     }
+
+    // Redibujo automático al cambiar el tema (claro/oscuro): las gráficas usan
+    // colores concretos de canvas, así que se refrescan con la paleta del tema nuevo.
+    (function initThemeObserver() {
+        if (typeof MutationObserver === 'undefined') return;
+        let debounce = null;
+        new MutationObserver(function () {
+            clearTimeout(debounce);
+            debounce = setTimeout(function () {
+                for (const id in galleryInstances) {
+                    if (galleryInstances[id] && galleryInstances[id].destroy) galleryInstances[id].destroy();
+                }
+                galleryInstances = {};
+                if (typeof renderGallery === 'function') renderGallery();
+                if (typeof renderKPIs === 'function') renderKPIs();
+                if (typeof renderCombustibleCards === 'function') renderCombustibleCards();
+            }, 150);
+        }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    })();
 </script>
 {% endblock %}

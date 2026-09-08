@@ -4743,6 +4743,54 @@
         ws['!cols'] = exportCols.map(() => ({ wch: 20 }));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Data");
+
+        // Hoja "Materiales": un material por fila con su número de WO correspondiente.
+        function normalizarMateriales(v) {
+            if (v == null || v === '') return [];
+            let arr = v;
+            if (typeof v === 'string') {
+                try { arr = JSON.parse(v); } catch (e) { return []; }
+            }
+            if (!Array.isArray(arr)) return [];
+            return arr.map(m => {
+                let codigo = (m && m.codigo && String(m.codigo).trim()) || '';
+                let descripcion = (m && m.descripcion && String(m.descripcion).trim()) || '';
+                // Formato combinado "CODIGO | DESCRIPCION" en una sola cadena.
+                if (!codigo && descripcion) {
+                    for (const s of [' | ', '|']) {
+                        const sep = descripcion.indexOf(s);
+                        if (sep > 0) {
+                            codigo = descripcion.slice(0, sep).trim();
+                            descripcion = descripcion.slice(sep + s.length).trim();
+                            break;
+                        }
+                    }
+                }
+                return {
+                    codigo: codigo,
+                    descripcion: descripcion || codigo || '',
+                    unidad: (m && (m.unidad || m.um || m.und)) || 'UN',
+                    cantidad: (m && m.cantidad != null) ? m.cantidad : 1
+                };
+            }).filter(m => String(m.codigo || m.descripcion).trim() !== '');
+        }
+
+        let matRows = [['N° WO', 'Código', 'Material (descripción)', 'Unidad', 'Cantidad']];
+        if (isWoExport) {
+            (Array.isArray(dataToExport) ? dataToExport : []).forEach(r => {
+                const woNum = (r['_key'] != null && r['_key'] !== '') ? r['_key']
+                    : (r['Número de WO'] || r['N° WO'] || '');
+                normalizarMateriales(r['MATERIALES']).forEach(m =>
+                    matRows.push([String(woNum), m.codigo, m.descripcion, m.unidad, m.cantidad])
+                );
+            });
+        }
+        if (matRows.length > 1) {
+            const wsMat = XLSX.utils.aoa_to_sheet(matRows);
+            wsMat['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 40 }, { wch: 10 }, { wch: 10 }];
+            XLSX.utils.book_append_sheet(wb, wsMat, "Materiales");
+        }
+
         const proy = (currentProjectNombre || 'Nucleus').trim().replace(/[\\/:*?"<>|]/g, '_');
         XLSX.writeFile(wb, `Nucleus_${proy}.xlsx`);
     }
