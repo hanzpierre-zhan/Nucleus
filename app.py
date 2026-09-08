@@ -516,6 +516,44 @@ def _combustible_validar_gasto(pid, generador, fecha, galones, excluir_key=None)
     return False, info
 
 
+_EVIDENCIA_OLD26_A_NUEVO = {
+    # Formato anterior PEXT (26 slots): 13 izq (01..27) + 13 der (02..26, y un
+    # "25 - cierre" final sin cuadro propio) -> formato actual (28 slots).
+    0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12,
+    13: 14, 14: 15, 15: 16, 16: 17, 17: 18, 18: 19, 19: 20, 20: 21, 21: 22, 22: 23, 23: 24, 24: 25,
+}
+
+
+def _evidencia_migrar_legacy(d):
+    """Reubica la evidencia PEXT del formato anterior (array de 26) al actual (28).
+    Solo aplica si `_EVIDENCIA_FOTOS` mide 26; idempotente. Devuelve True si cambió d."""
+    if not isinstance(d, dict) or d.get('_EVIDENCIA_LEGACY') == '26':
+        return False
+    raw = d.get('_EVIDENCIA_FOTOS')
+    try:
+        fotos = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return False
+    if not isinstance(fotos, list) or len(fotos) != 26:
+        return False
+    for campo in ('_EVIDENCIA_FOTOS', '_EVIDENCIA_OBS', '_EVIDENCIA_APLICA'):
+        rawf = d.get(campo)
+        try:
+            arr = json.loads(rawf) if isinstance(rawf, str) else rawf
+        except Exception:
+            arr = None
+        if not isinstance(arr, list) or len(arr) != 26:
+            continue
+        nuevo = [''] * 28
+        for i, v in enumerate(arr[:26]):
+            j = _EVIDENCIA_OLD26_A_NUEVO.get(i)
+            if j is not None and v not in (None, ''):
+                nuevo[j] = v
+        d[campo] = json.dumps(nuevo, ensure_ascii=False)
+    d['_EVIDENCIA_LEGACY'] = '26'
+    return True
+
+
 # --- DB INIT & MIGRATION ---
 with app.app_context():
     is_sqlite = db.engine.dialect.name == 'sqlite'
@@ -652,6 +690,30 @@ with app.app_context():
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
     db.session.commit()
+
+    # Migration: Evidencia PEXT formato anterior (26 slots) -> actual (28 slots).
+    # Reubica fotos/observaciones ya guardadas sin tocar proyectos que no sean PEXT.
+    try:
+        _pext_proy = Proyecto.query.filter_by(nombre='PEXT').first()
+        if _pext_proy:
+            _recs_ev = NucleusData.query.filter(
+                NucleusData.proyecto_id == _pext_proy.id,
+                NucleusData.data_json.like('%_EVIDENCIA_FOTOS%')
+            ).all()
+            _n_ev = 0
+            for _r_ev in _recs_ev:
+                try:
+                    _d_ev = json.loads(_r_ev.data_json)
+                except Exception:
+                    continue
+                if _evidencia_migrar_legacy(_d_ev):
+                    _r_ev.data_json = json.dumps(_d_ev, ensure_ascii=False)
+                    _n_ev += 1
+            if _n_ev:
+                db.session.commit()
+                print(f"Evidencia PEXT: {_n_ev} registro(s) migrado(s) al formato de 28 fotos.")
+    except Exception as e:
+        print("Warning: migracion evidencia PEXT:", e)
 
     # Migration: Configure Dataper columns (TECNICO, DOCUMENTO, CONTRATA, CELULAR, SUPERVISOR, DEPARTAMENTO, PROYECTO + ACTIVO/CESADO)
     dataper = Proyecto.query.filter_by(nombre='Dataper').first()
@@ -1281,9 +1343,13 @@ def safe_json_dumps(obj):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form.get('username')
+        username = (request.form.get('username') or '').strip()
         password = request.form.get('password')
-        user = Usuario.query.filter_by(username=username).first()
+        from sqlalchemy import func
+        user = Usuario.query.filter(func.lower(Usuario.username) == username.lower()).first()
+        if not user:
+            # Tolerancia: también permitir entrar con el nombre visible (campo "nombre").
+            user = Usuario.query.filter(func.lower(Usuario.nombre) == username.lower()).first()
         if user and check_password_hash(user.password_hash, password):
             session['user_id'] = user.id
             session['username'] = user.username
@@ -1316,7 +1382,12 @@ def get_session_info():
 def get_menu_proyectos(user_id, user_rol):
     """Proyectos que se muestran en el menú lateral.
     - admin/demo: todos.
+    - gestor: SOLO los proyectos asignados (PEXT o FLM, según acceso).
     - resto: sus accesos + Dataper/Material si tiene FLM o PEXT asignado."""
+    if user_rol == 'gestor':
+        accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+        pids = [a.proyecto_id for a in accesos]
+        return Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
     is_privileged = user_rol in ('admin', 'demo')
     if is_privileged:
         return Proyecto.query.order_by(Proyecto.id).all()
@@ -1392,6 +1463,9 @@ def switch_project(pid):
     if session.get('rol') not in ['admin', 'demo']:
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
         if not acceso:
+            # El rol Gestor solo puede operar en los proyectos que tiene asignados.
+            if session.get('rol') == 'gestor':
+                return redirect(url_for('index'))
             # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado.
             # Site Name: permitir solo si el usuario tiene FLM asignado.
             proy = db.session.get(Proyecto, pid)
@@ -1856,6 +1930,10 @@ def dashboard():
     user_id, user_rol, pid = get_session_info()
     is_admin = user_rol == 'admin'
 
+    # El rol Gestor no ve dashboards: solo opera en la grilla de su proyecto.
+    if user_rol == 'gestor':
+        return redirect(url_for('index'))
+
     if not pid:
         return redirect(url_for('index'))
 
@@ -2121,6 +2199,8 @@ def api_admin_usuario():
         rol = data.get('rol', 'supervisor').strip()
         proyectos = data.get('proyectos', [])
         if not all([user, pw]): return jsonify({'error': 'Datos incompletos'}), 400
+        if rol.strip().lower() == 'gestor' and not proyectos:
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).'}), 400
         try:
             nuevo = Usuario(username=user, password_hash=generate_password_hash(pw), rol=rol, nombre=nombre)
             db.session.add(nuevo)
@@ -2143,6 +2223,8 @@ def api_admin_usuario():
         proyectos = data.get('proyectos')
         
         if not uid or not user: return jsonify({'error': 'ID y usuario requeridos'}), 400
+        if rol.strip().lower() == 'gestor' and proyectos == []:
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).'}), 400
         try:
             u = db.session.get(Usuario, uid)
             if not u: return jsonify({'error': 'Usuario no encontrado'}), 404
@@ -3536,6 +3618,8 @@ def api_rows_add():
         # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
         proy_obj = db.session.get(Proyecto, pid)
         proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
+        if session.get('rol') == 'gestor' and proy_nombre in ('FLM', 'PEXT'):
+            return jsonify({'error': 'El rol Gestor no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
         if proy_nombre == 'Combustible':
             row_data['GESTOR'] = session.get('username', '')
             mov = str(row_data.get('MOVIMIENTO', '')).strip().upper()
@@ -3994,6 +4078,38 @@ def api_rows_bulk_update():
         # Combustible: la edición masiva tampoco puede dejar saldos negativos.
         _proy_bulk = db.session.get(Proyecto, pid) if pid else None
         _proy_bulk_nombre = _proy_bulk.nombre.strip() if _proy_bulk and _proy_bulk.nombre else ''
+
+        # WO enviado a aprobación: el rol Gestor ya no puede modificarlo.
+        if (session.get('rol') == 'gestor' and _proy_bulk_nombre in ('FLM', 'PEXT')
+                and str(row_dict.get('_ENVIADO_APROBACION', '')).strip() == '1'):
+            return jsonify({'error': 'Este WO ya fue enviado a aprobación y no puede editarse. Contacta al personal administrativo.'}), 403
+
+        # Bitácora es solo para el personal (admin/supervisor), no para Contrata:
+        # el rol Gestor jamás envía ni modifica BITACORA / entradas de bitácora.
+        if session.get('rol') == 'gestor':
+            updates.pop('BITACORA', None)
+            updates.pop('_BITACORA_ENTRY', None)
+
+        # PEXT: cada guardado con texto en Bitácora agrega una entrada {texto, usuario,
+        # fecha} a la pestaña Bitácora. La clave se consume siempre (sin persistirse).
+        if '_BITACORA_ENTRY' in updates:
+            _bit_txt = str(updates.pop('_BITACORA_ENTRY') or '').strip()
+            if _proy_bulk_nombre == 'PEXT' and _bit_txt:
+                _entradas = row_dict.get('_BITACORA_ENTRIES')
+                if isinstance(_entradas, str):
+                    try:
+                        _entradas = json.loads(_entradas)
+                    except Exception:
+                        _entradas = []
+                if not isinstance(_entradas, list):
+                    _entradas = []
+                _entradas.append({
+                    'texto': _bit_txt,
+                    'usuario': session.get('username') or '',
+                    'fecha': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                })
+                row_dict['_BITACORA_ENTRIES'] = _entradas
+
         if _proy_bulk_nombre == 'Combustible' and any(
                 k in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO', 'FECHA') for k in updates.keys()):
             _old_gen = str(row_dict.get('QR ASIGNADO', '')).strip()
@@ -4468,6 +4584,22 @@ def onedrive_eliminar(key, tipo, indice):
             app.logger.warning('OD%d eliminar fallo: %s', num, e)
     return ok
 
+def _evidencia_aprobacion_bloquea(pid, key):
+    """El rol Gestor no puede subir/quitar evidencia en WOs (PEXT/FLM) ya enviados a aprobación."""
+    if str(session.get('rol') or '').strip().lower() != 'gestor':
+        return False
+    proy = db.session.get(Proyecto, pid) if pid else None
+    if not proy or (proy.nombre or '').strip() not in ('FLM', 'PEXT'):
+        return False
+    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key or '')).first()
+    if not rec:
+        return False
+    try:
+        d = json.loads(rec.data_json or '{}')
+    except Exception:
+        d = {}
+    return str(d.get('_ENVIADO_APROBACION', '')).strip() == '1'
+
 @app.route('/api/evidencia/subir', methods=['POST'])
 @login_required
 def api_evidencia_subir():
@@ -4476,6 +4608,8 @@ def api_evidencia_subir():
     pid = session.get('current_proyecto_id')
     key = (request.form.get('key') or '').strip()
     tipo = (request.form.get('tipo') or '').strip().lower()
+    if _evidencia_aprobacion_bloquea(pid, key):
+        return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
     try:
         indice = int(request.form.get('indice'))
     except (TypeError, ValueError):
@@ -4538,6 +4672,8 @@ def api_evidencia_eliminar():
     data = request.json or {}
     key = (data.get('key') or '').strip()
     tipo = (data.get('tipo') or '').strip().lower()
+    if _evidencia_aprobacion_bloquea(pid, key):
+        return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
     try:
         indice = int(data.get('indice'))
     except (TypeError, ValueError):
@@ -4559,6 +4695,58 @@ def api_evidencia_eliminar():
     except Exception as e:
         app.logger.warning('OD delete fallo: %s', e)
     return jsonify({'success': True})
+
+@app.route('/api/wo/enviar_aprobacion', methods=['POST'])
+@login_required
+def api_wo_enviar_aprobacion():
+    """Enviar/un-deshacer la aprobación de un WO PEXT/FLM.
+
+    - Gestor envía ('enviar'): marca `_ENVIADO_APROBACION` y bloquea su edición.
+    - Admin desbloquea ('desbloquear'): vuelve a permitir la edición tras revisión."""
+    rol = str(session.get('rol') or '').strip().lower()
+    if rol not in ('gestor', 'supervisor', 'admin'):
+        return jsonify({'error': 'No tienes permisos para esta acción.'}), 403
+    data = request.json or {}
+    pid = session.get('current_proyecto_id')
+    key = str(data.get('key') or '').strip()
+    accion = str(data.get('accion') or 'enviar').strip().lower()
+    if not pid or not key:
+        return jsonify({'error': 'Faltan datos.'}), 400
+    proy = db.session.get(Proyecto, pid)
+    proy_nombre = proy.nombre.strip() if proy and proy.nombre else ''
+    if proy_nombre not in ('PEXT', 'FLM'):
+        return jsonify({'error': 'Acción solo válida para WOs PEXT/FLM.'}), 400
+    if rol == 'gestor':
+        acc = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
+        if not acc:
+            return jsonify({'error': 'No tienes acceso a este proyecto.'}), 403
+    record = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if not record:
+        return jsonify({'error': 'WO no encontrado.'}), 404
+    try:
+        d = json.loads(record.data_json or '{}')
+    except Exception:
+        d = {}
+    if accion == 'enviar':
+        if str(d.get('_ENVIADO_APROBACION', '')).strip() == '1':
+            return jsonify({'error': 'Este WO ya fue enviado a aprobación.'}), 400
+        d['_ENVIADO_APROBACION'] = '1'
+        d['_APROBACION_FECHA'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        d['_APROBACION_USUARIO'] = session.get('username') or ''
+    elif accion == 'desbloquear':
+        if rol != 'admin':
+            return jsonify({'error': 'Solo el administrador puede desbloquear la aprobación.'}), 403
+        if str(d.get('_ENVIADO_APROBACION', '')).strip() != '1':
+            return jsonify({'error': 'Este WO no está enviado a aprobación.'}), 400
+        d['_ENVIADO_APROBACION'] = '0'
+        d.pop('_APROBACION_FECHA', None)
+        d.pop('_APROBACION_USUARIO', None)
+    else:
+        return jsonify({'error': 'Acción no válida.'}), 400
+    record.data_json = json.dumps(d, ensure_ascii=False)
+    db.session.commit()
+    rows_injected, _ = inject_kpis(pid, [d])
+    return jsonify({'success': True, 'newData': rows_injected[0]})
 
 @app.route('/api/evidencia/foto/<int:pid>/<path:key>/<path:nombre>')
 @login_required
@@ -4864,6 +5052,12 @@ def api_evidencia_reporte_xlsx(pid, key):
         d = json.loads(record.data_json)
     except Exception:
         d = {}
+
+    # Heal: si el registro aún viene del formato anterior (26), se reubica al formato
+    # actual (28) y se persiste para que la interfaz también lo muestre ordenado.
+    if _evidencia_migrar_legacy(d):
+        record.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
 
     def _arr(campo):
         try:

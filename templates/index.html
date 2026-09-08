@@ -67,8 +67,8 @@
     </button>
     {% endif %}
 
-    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') != 'demo' %}
-    <!-- Botón Nuevo WO (Azul): alta manual de WO por el gestor -->
+    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') not in ['demo', 'gestor'] %}
+    <!-- Botón Nuevo WO (Azul): alta de WO (no disponible para el rol Gestor, que solo completa la información) -->
     <button onclick="aniadirRegistroWO()" class="action-pill pill-blue" title="Crear un WO manualmente">
         <i class="fa-solid fa-plus"></i> Nuevo WO
     </button>
@@ -93,7 +93,34 @@
         <i class="fa-solid fa-trash-can"></i> Eliminar
     </button>
     {% endif %}
+    {% if session.get('rol') == 'gestor' %}
+    <button type="button" id="topbar-theme-toggle" class="action-pill pill-neutral" title="Cambiar tema claro/oscuro">
+        <i class="fa-solid fa-moon"></i>
+    </button>
+    <button onclick="window.location.href='/logout'" class="action-pill pill-neutral"
+        title="Cerrar Sesión">
+        <i class="fa-solid fa-right-from-bracket"></i> Salir
+    </button>
+    {% endif %}
 </div>
+<script>
+    // Toggle de tema claro/oscuro para el rol Gestor (misma preferencia que el sidebar global)
+    (function () {
+        const btn = document.getElementById('topbar-theme-toggle');
+        if (!btn) return;
+        const icon = btn.querySelector('i');
+        const applyIcon = () => {
+            const dark = document.body.classList.contains('dark-mode');
+            icon.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        };
+        applyIcon();
+        btn.addEventListener('click', () => {
+            const dark = document.body.classList.toggle('dark-mode');
+            try { localStorage.setItem('nucleus-theme', dark ? 'dark' : 'light'); } catch (e) {}
+            applyIcon();
+        });
+    })();
+</script>
 <div id="data-stats" class="data-stats"></div>
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 
@@ -1364,6 +1391,56 @@
         }
     }
 
+    .wo-bitacora-entry {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: #fff;
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+        padding: 10px 12px;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .wo-bitacora-meta {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--ios-accent);
+    }
+
+    .wo-bitacora-texto {
+        font-size: 13px;
+        color: #1c2541;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .wo-aprobacion-barra {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        background: rgba(52, 199, 89, 0.10);
+        border: 1px solid rgba(52, 199, 89, 0.35);
+        border-radius: 12px;
+        padding: 10px 14px;
+        margin: 10px 0 2px;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 13px;
+        color: #1c2541;
+    }
+
+    .wo-aprobacion-barra.locked {
+        background: rgba(255, 149, 0, 0.10);
+        border-color: rgba(255, 149, 0, 0.45);
+    }
+
+    .wo-aprobacion-msg {
+        flex: 1 1 auto;
+        line-height: 1.45;
+    }
+
     .wo-timeline {
         position: relative;
         display: flex;
@@ -1926,17 +2003,20 @@
                             class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i
                             class="fa-solid fa-camera"></i> Evidencia</button>
+                    <button type="button" class="wo-tab" id="wo-tab-bitacora" style="display:none;"
+                        onclick="cambiarWoTab('bitacora')"><i class="fa-solid fa-book"></i> Bitácora</button>
                     {% if session.get('rol') == 'admin' %}
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i
                             class="fa-solid fa-arrows-spin"></i> Estado</button>
-                    <button type="button" class="wo-tab" id="wo-tab-historial" onclick="cambiarWoTab('historial')"><i
-                            class="fa-solid fa-clock-rotate-left"></i> Historial</button>
                     {% endif %}
                 </div>
             </div>
             <div class="wo-head-actions">
                 <button onclick="copiarPlantillaWO()" id="btn-wo-copiar" class="mar-btn-copy"
                     title="Copiar plantilla"><i class="fa-solid fa-copy"></i></button>
+                <button type="button" id="btn-wo-enviar-aprobacion" class="mar-btn-ghost"
+                    style="display:none;" title="Enviar aprobación" onclick="enviarAprobacionWO()"><i
+                        class="fa-solid fa-paper-plane"></i></button>
                 <button id="btn-wo-save" onclick="guardarWoModal()" class="mar-btn-primary" title="Guardar"><i
                         class="fa-solid fa-floppy-disk"></i></button>
                 <button onclick="cerrarWoModal()" class="mar-close" title="Cerrar"><i
@@ -2124,6 +2204,12 @@
                             <textarea id="wo-bitacora" placeholder="Registrar novedades del trabajo..."></textarea>
                         </div>
                     </div>
+                </div>
+                <div id="wo-aprobacion-barra" class="wo-aprobacion-barra" style="display:none;">
+                    <div id="wo-aprobacion-msg" class="wo-aprobacion-msg"></div>
+                    <button type="button" id="btn-wo-desbloquear-aprobacion" class="mar-btn-ghost"
+                        style="display:none;" onclick="desbloquearAprobacionWO()"><i class="fa-solid fa-unlock"></i>
+                        Desbloquear aprobación</button>
                 </div>
             </div>
             <div id="wo-panel-materiales" style="display:none;">
@@ -2358,17 +2444,6 @@
                             class="fa-solid fa-file-pdf"></i> Descargar PDF</button>
                 </div>
             </div>
-            <div id="wo-panel-historial" style="display:none;">
-                <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-clock-rotate-left"></i> Historial de cambios
-                        <button type="button" class="wo-history-btn" title="Actualizar historial"
-                            onclick="cargarWoHistorial()"><i class="fa-solid fa-rotate"></i></button>
-                    </div>
-                    <div id="wo-historial" class="wo-timeline">
-                        <div class="wo-empty">Cargando historial...</div>
-                    </div>
-                </div>
-            </div>
             <div id="wo-panel-evidencia" style="display:none;">
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Evidencia fotográfica
@@ -2404,6 +2479,14 @@
                             <textarea id="evidencia-bitacora-cierre"
                                 placeholder="Registra el historial del cierre del trabajo..."></textarea>
                         </div>
+                    </div>
+                </div>
+            </div>
+            <div id="wo-panel-bitacora" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-book"></i> Bitácora</div>
+                    <div id="wo-bitacora-list">
+                        <div class="wo-empty">Sin entradas de bitácora.</div>
                     </div>
                 </div>
             </div>
@@ -6660,6 +6743,110 @@ btnItem.onclick = () => cotRegAgregarFila();
         return tipo === 'pex' ? evidenciaState.reporte : evidenciaState[tipo];
     }
 
+    function renderWoBitacora() {
+        const listEl = document.getElementById('wo-bitacora-list');
+        if (!listEl) return;
+        let entries = [];
+        if (woRow && woRow.getData) {
+            const raw = woRow.getData()['_BITACORA_ENTRIES'];
+            if (Array.isArray(raw)) entries = raw;
+            else try { entries = JSON.parse(raw || '[]'); } catch (e) { entries = []; }
+            if (!Array.isArray(entries)) entries = [];
+        }
+        if (!entries.length) {
+            listEl.innerHTML = '<div class="wo-empty">Sin entradas de bitácora.</div>';
+            return;
+        }
+        listEl.innerHTML = entries.slice().reverse().map((e, i) => {
+            const u = escapeHtml(String(e['usuario'] || '').trim());
+            const f = escapeHtml(String(e['fecha'] || '').trim());
+            const t = escapeHtml(String(e['texto'] || '').trim());
+            return '<div class="wo-bitacora-entry"><div class="wo-bitacora-meta">' + u + ' · ' +
+                f + '</div><div class="wo-bitacora-texto">' + t + '</div></div>';
+        }).join('');
+    }
+
+    // --- Aprobación de WO (rol Gestor llena -> envía aprobación -> queda bloqueado) ---
+    function renderWoAprobacion(data, opts) {
+        const barra = document.getElementById('wo-aprobacion-barra');
+        const msg = document.getElementById('wo-aprobacion-msg');
+        const btnEnviar = document.getElementById('btn-wo-enviar-aprobacion');
+        const btnDesb = document.getElementById('btn-wo-desbloquear-aprobacion');
+        if (!barra || !msg || !btnEnviar || !btnDesb) return;
+        barra.style.display = 'none';
+        btnEnviar.style.display = 'none';
+        btnDesb.style.display = 'none';
+        barra.classList.remove('locked');
+        if (typeof IS_WO_PROJECT === 'undefined' || !IS_WO_PROJECT) return;
+        const aprobado = !!(opts && opts.apro);
+        const gestor = !!(opts && opts.ges);
+        const admin = typeof USER_IS_ADMIN !== 'undefined' && USER_IS_ADMIN;
+        const sup = String(USER_ROLE || '').toLowerCase() === 'supervisor';
+        if (gestor) {
+            barra.style.display = '';
+            if (aprobado) {
+                barra.classList.add('locked');
+                msg.innerHTML = '<i class="fa-solid fa-circle-check"></i> <b>Enviado a aprobación</b> — este WO ya no puede editarse y está pendiente de la revisión del personal administrativo.';
+                btnEnviar.style.display = '';
+                btnEnviar.disabled = true;
+                btnEnviar.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+                btnEnviar.title = 'Enviado a aprobación';
+            } else {
+                msg.innerHTML = '<i class="fa-solid fa-circle-info"></i> Al enviar a aprobación este WO quedará bloqueado (tu información se conserva) y el personal administrativo podrá revisar el detalle.';
+                btnEnviar.style.display = '';
+                btnEnviar.disabled = false;
+                btnEnviar.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+                btnEnviar.title = 'Enviar aprobación';
+            }
+        } else if (aprobado && (admin || sup)) {
+            barra.classList.add('locked');
+            const u = escapeHtml(String(data['_APROBACION_USUARIO'] || '').trim());
+            const f = escapeHtml(String(data['_APROBACION_FECHA'] || '').trim());
+            barra.style.display = '';
+            msg.innerHTML = '<i class="fa-solid fa-circle-check"></i> <b>Enviado a aprobación</b> — pendiente de revisión' +
+                (u ? ' por ' + u : '') + (f ? ' (' + f + ')' : '') + '.';
+            btnDesb.style.display = admin ? '' : 'none';
+        }
+    }
+
+    async function enviarAprobacionWO() {
+        if (!woRow || !woKey) return;
+        if (!(await nucleusConfirm('Al enviar a aprobación, este WO quedará bloqueado y ya no podrás editarlo. El personal administrativo revisará el detalle de la contrata. ¿Deseas continuar?', 'Enviar aprobación'))) return;
+        try {
+            const res = await fetch('/api/wo/enviar_aprobacion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: woKey, accion: 'enviar' })
+            });
+            const j = await res.json();
+            if (!res.ok) return nucleusAlert(j.error || 'No se pudo enviar a aprobación.', 'Enviar aprobación');
+            if (woRow.update) woRow.update(j.newData);
+            nucleusAlert('WO enviado a aprobación. Ya no podrás editarlo.', 'Listo');
+            abrirWoModal(woRow);
+        } catch (e) {
+            nucleusAlert('Error de conexión al enviar la aprobación.', 'Enviar aprobación');
+        }
+    }
+
+    async function desbloquearAprobacionWO() {
+        if (!woRow || !woKey) return;
+        if (!(await nucleusConfirm('¿Desbloquear este WO para edición? Se eliminará el envío de aprobación y el rol Gestor volverá a poder editarlo.', 'Desbloquear aprobación'))) return;
+        try {
+            const res = await fetch('/api/wo/enviar_aprobacion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: woKey, accion: 'desbloquear' })
+            });
+            const j = await res.json();
+            if (!res.ok) return nucleusAlert(j.error || 'No se pudo desbloquear.', 'Desbloquear aprobación');
+            if (woRow.update) woRow.update(j.newData);
+            nucleusAlert('WO desbloqueado. Ya puede editarse nuevamente.', 'Listo');
+            abrirWoModal(woRow);
+        } catch (e) {
+            nucleusAlert('Error de conexión al desbloquear.', 'Desbloquear aprobación');
+        }
+    }
+
     function evidenciaSubirMultiples(tipo, indiceBase, fileList) {
         const st = evidenciaSt(tipo);
         if (!evidenciaState || !st) return;
@@ -7035,7 +7222,7 @@ btnItem.onclick = () => cotRegAgregarFila();
                  byId('wof-fue-torrera'), byId('wof-fue-site-propio'), byId('wof-cuadrilla'),
                  hP, byId('wof-team-leader'), byId('wof-supervisor'), byId('wof-coordinador-entel'),
                  byId('wof-status-atencion'), byId('wof-quiebre'), fDetSel, fDetExtra,
-                 byId('wof-inicio'), byId('wof-fin')
+                 byId('wof-inicio'), byId('wof-fin'), byId('wof-bitacora')
                 ].forEach(el => { if (el) form.appendChild(el); });
                 // Efecto gris solo en los títulos: Detalle, Gestión, Post y Bitácora. Resto blanco.
                 const secDet = document.querySelector('#wo-panel-detalle .wo-section');
@@ -7048,17 +7235,22 @@ btnItem.onclick = () => cotRegAgregarFila();
                 const sumGrid = byId('wo-summary');
                 if (sumGrid) sumGrid.classList.add('wo-summary-plain');
                 // Ocultar campos que ya no se usan en el modal PEXT (Solucion, mufas,
-                // sistemas, requiere correctivo, detalle correctivo, coordenadas, Bitácora).
+                // sistemas, requiere correctivo, detalle correctivo, coordenadas).
                 ['wof-solucion', 'wof-se-instalo-mufas', 'wof-ubic', 'wof-lat-mufa', 'wof-lon-mufa',
-                 'wof-latitud', 'wof-longitud', 'wof-sistemas', 'wof-requiere', 'wof-detcorr', 'wof-coords', 'wof-bitacora']
+                 'wof-latitud', 'wof-longitud', 'wof-sistemas', 'wof-requiere', 'wof-detcorr', 'wof-coords']
                     .forEach(id => {
                         const el = byId(id);
                         if (el) el.style.display = 'none';
                     });
+                // PEXT: mostrar la pestaña Bitácora (se consolida lo escrito en el campo Bitácora).
+                const tabBit = byId('wo-tab-bitacora');
+                if (tabBit) tabBit.style.display = '';
                 // Condicionales (listeners una sola vez).
                 const pS = byId('wo-quedo-pendiente');
                 if (pS && !pS.dataset.condInit) { pS.dataset.condInit = '1'; pS.addEventListener('change', aplicarCondicionalesWO); }
             })();
+            const tabBitPEXT = document.getElementById('wo-tab-bitacora');
+            if (tabBitPEXT) tabBitPEXT.style.display = '';
         }
     }
 
@@ -7572,7 +7764,6 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         renderWoSummary(data);
         hacerDetalleEditable(data);
-        if (typeof USER_IS_ADMIN !== 'undefined' && USER_IS_ADMIN) cargarWoHistorial();
 
         document.getElementById('wo-servicio').value = data['SERVICIO'] || '';
         document.getElementById('wo-ciudad').value = data['CIUDAD'] || '';
@@ -7644,7 +7835,9 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-inicio-parada').value = toDatetimeLocal(data['INICIO DE PARADA']);
         document.getElementById('wo-fin-parada').value = toDatetimeLocal(data['FIN DE PARADA']);
         document.getElementById('wo-requiere-correctivo').value = data['REQUIERE CORRECTIVO FINAL'] || '';
-        document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
+        // PEXT: la pestaña Bitácora consolida las entradas (usuario + fecha), así que el
+        // campo arranca vacío cada vez para ingresar una nueva novedad. FLM lo precarga abajo.
+        document.getElementById('wo-bitacora').value = '';
         // PEXT: cargar nuevos campos del formulario PEXT.
         if (IS_PEXT) {
             const fAsign = document.getElementById('wo-fecha-asignacion');
@@ -7664,15 +7857,23 @@ btnItem.onclick = () => cotRegAgregarFila();
             document.getElementById('wo-detalle-correctivo-extra').value = data['DETALLE CORRECTIVO ADICIONAL'] || '';
             aplicarCondicionalesWO();
         }
-        // FLM: detalle de correctivo + condicionales.
+        // FLM: detalle de correctivo + condicionales. El campo Bitácora precarga el historial
+        // (FLM no tiene pestaña Bitácora consolidada; el texto acumulado vive en el campo).
         if (IS_FLM) {
             const dcElF = document.getElementById('wo-detalle-correctivo');
             if (dcElF) dcElF.value = data['DETALLE CORRECTIVO'] || '';
+            document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
             aplicarCondicionalesWO();
         }
 
         const isDemo = "{{ session.get('rol') }}" === "demo";
-        const editable = !isDemo;
+        const woEsGestor = "{{ session.get('rol') }}" === "gestor";
+        const woAprobado = String(data['_ENVIADO_APROBACION'] || '').trim() === '1';
+        renderWoAprobacion(data, { ges: woEsGestor, apro: woAprobado });
+        const editable = !isDemo && !(woEsGestor && woAprobado);
+        // Bitácora: campo visible solo para el personal (no para Contrata).
+        const fBitG = document.getElementById('wof-bitacora');
+        if (fBitG) fBitG.style.display = woEsGestor ? 'none' : '';
         woEditable = editable;
         renderWoGastosList(data);
         renderWoManoObraList(data);
@@ -8738,6 +8939,20 @@ btnItem.onclick = () => cotRegAgregarFila();
             payload.data['QUIEBRE'] = (document.getElementById('wo-quiebre') || {}).value || '';
             payload.data['¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?'] = (document.getElementById('wo-quedo-pendiente') || {}).value || '';
             payload.data['DETALLE CORRECTIVO ADICIONAL'] = (document.getElementById('wo-detalle-correctivo-extra') || {}).value || '';
+            // Bitácora (PEXT): la escribe solo el personal (admin/supervisor). El campo arranca
+            // vacío, así que cada texto escrito se agrega como entrada a la pestaña Bitácora
+            // (usuario + fecha/hora) y se conserva en BITACORA sin borrar lo anterior.
+            // Contrata no envía este campo.
+            const woBitEl = document.getElementById('wo-bitacora');
+            if (woBitEl && woBitEl.style.display !== 'none'
+                    && getComputedStyle(woBitEl).display !== 'none') {
+                const woBitTxt = (woBitEl.value || '').trim();
+                if (woBitTxt) {
+                    const woBitPrev = (woRow && woRow.getData && String(woRow.getData()['BITACORA'] || '').trim()) || '';
+                    payload.data['BITACORA'] = woBitPrev ? woBitPrev + '\n' + woBitTxt : woBitTxt;
+                    payload.data['_BITACORA_ENTRY'] = woBitTxt;
+                }
+            }
         }
         if (IS_WO_PROJECT && !IS_FLM && !IS_PEXT) {
             payload.data['COTIZACION_GASTOS'] = JSON.stringify(recogerGastos());
@@ -8787,12 +9002,12 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function cambiarWoTab(tab) {
-        // Estado e Historial: solo admin
-        if ((tab === 'estado' || tab === 'historial') && typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
+        // Estado: solo admin
+        if (tab === 'estado' && typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         const tabMat = document.getElementById('wo-tab-materiales');
         if (tabMat) tabMat.classList.toggle('active', tab === 'materiales');
-        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-historial', 'wo-tab-evidencia', 'wo-tab-estado'].forEach(tid => {
+        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-evidencia', 'wo-tab-estado', 'wo-tab-bitacora'].forEach(tid => {
             const _t = document.getElementById(tid);
             if (_t) _t.classList.toggle('active', tab === tid.replace('wo-tab-', ''));
         });
@@ -8801,17 +9016,17 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (panMat) panMat.style.display = tab === 'materiales' ? '' : 'none';
         document.getElementById('wo-panel-gastos').style.display = tab === 'gastos' ? '' : 'none';
         document.getElementById('wo-panel-cotizacion').style.display = tab === 'cotizacion' ? '' : 'none';
-        document.getElementById('wo-panel-historial').style.display = tab === 'historial' ? '' : 'none';
         document.getElementById('wo-panel-evidencia').style.display = tab === 'evidencia' ? '' : 'none';
+        document.getElementById('wo-panel-bitacora').style.display = tab === 'bitacora' ? '' : 'none';
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
         if (tab === 'gastos') {
             cargarGastosCombustible();
-        } else if (tab === 'historial') {
-            cargarWoHistorial();
         } else if (tab === 'estado') {
             cargarWoEstado();
         } else if (tab === 'evidencia') {
             renderEvidenciaSlots();
+        } else if (tab === 'bitacora') {
+            renderWoBitacora();
         } else if (tab === 'cotizacion') {
             calcularMontoGastado();
             calcularSubtotalCoti('wo-mo-list', 'wo-subtotal-b');
@@ -8853,102 +9068,6 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function normKey(s) {
         return String(s || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    }
-
-    function cargarWoHistorial() {
-        if (typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
-        if (!woKey) return;
-        const cont = document.getElementById('wo-historial');
-        if (!cont) return;
-        cont.innerHTML = '<div class="wo-empty">Cargando historial...</div>';
-        fetch('/api/wo/historial?key=' + encodeURIComponent(woKey))
-            .then(r => r.json())
-            .then(res => {
-                if (!res.success) {
-                    cont.innerHTML = '<div class="wo-empty">Error al cargar el historial.</div>';
-                    return;
-                }
-                renderWoHistorial(cont, res.historial);
-            })
-            .catch(() => {
-                cont.innerHTML = '<div class="wo-empty">Error de red al cargar el historial.</div>';
-            });
-    }
-
-    function renderWoHistorial(cont, items) {
-        if (!items || items.length === 0) {
-            cont.innerHTML = '<div class="wo-empty">Sin cambios registrados todavía.</div>';
-            return;
-        }
-        const data = woRow ? woRow.getData() : {};
-        cont.innerHTML = '';
-        items.forEach(it => {
-            const oldV = it.valor_anterior || '';
-            const newV = it.valor_nuevo || '';
-            let fechaStr = '';
-            if (it.fecha) {
-                const f = new Date(it.fecha);
-                if (!isNaN(f)) {
-                    fechaStr = f.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                }
-            }
-            const normField = normKey(it.campo);
-            const gridCells = WO_SNAPSHOT_FIELDS.map(pair => {
-                const key = pair[0];
-                const label = pair[1];
-                const changed = normField && normField === normKey(key) ? ' changed' : '';
-                const full = key === 'BITACORA' ? ' full' : '';
-                let v = data[key];
-                if (key === 'FECHA CAMBIO ESTADO') v = utcToPeru(v);
-                if (key === 'MATERIALES') {
-                    try {
-                        const arr = JSON.parse(v || '[]') || [];
-                        v = arr.map(m => {
-                            const extra = [m.tipo, m.um].filter(Boolean).join(' / ');
-                            const q = m.cantidad ? ' x' + m.cantidad : '';
-                            return (m.descripcion || m.codigo || '') + q + (extra ? ' [' + extra + ']' : '');
-                        }).filter(Boolean).join('<br>');
-                    } catch (e) { v = v || ''; }
-                }
-                if (key === 'COTIZACION_GASTOS' || key === 'COTIZACION_MANO_OBRA') {
-                    try {
-                        const arr = JSON.parse(v || '[]') || [];
-                        v = arr.map(g => {
-                            const parts = [(g.item || ''), (g.cod || 'SC'), (g.descripcion || 'Item')];
-                            if (g.unid) parts.push(g.unid);
-                            if (g.cant) parts.push('x' + g.cant);
-                            if (g.total_p) parts.push('= S/ ' + g.total_p);
-                            return parts.filter(Boolean).join(' ');
-                        }).filter(Boolean).join('<br>');
-                    } catch (e) { v = v || ''; }
-                }
-                if (key === 'MONTO APROBADO' || key === 'MONTO GASTANDO') {
-                    if (v !== '' && v !== null && v !== undefined && !isNaN(parseFloat(v))) {
-                        v = 'S/ ' + (parseFloat(v) % 1 === 0 ? parseFloat(v) : parseFloat(v).toFixed(2));
-                    }
-                }
-                if (v === null || v === undefined || String(v).trim() === '') v = '—';
-                else v = String(v);
-                return '<div class="wt-cell' + changed + full + '"><span class="wt-lbl">' + escapeHtml(label) + '</span><span class="wt-val">' + escapeHtml(v) + '</span></div>';
-            }).join('');
-
-            const item = document.createElement('div');
-            item.className = 'wt-item';
-            item.innerHTML =
-                '<div class="wt-card">' +
-                '<div class="wt-head">' +
-                '<span class="wt-agent"><i class="fa-solid fa-user"></i>' + escapeHtml(it.username || '—') + '</span>' +
-                '<span class="wt-time">' + fechaStr + '</span>' +
-                '</div>' +
-                '<div class="wt-change"><b>' + escapeHtml(it.campo) + '</b>: ' +
-                '<span class="wt-old">' + (oldV ? escapeHtml(oldV) : '(vacío)') + '</span>' +
-                '<span class="wt-arrow">→</span>' +
-                '<span class="wt-new">' + (newV ? escapeHtml(newV) : '(vacío)') + '</span>' +
-                '</div>' +
-                '<div class="wt-grid">' + gridCells + '</div>' +
-                '</div>';
-            cont.appendChild(item);
-        });
     }
 
     function cargarWoEstado() {

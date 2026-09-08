@@ -67,9 +67,16 @@
     }
     .up-input-wrap input, .up-input-wrap select {
         width: 100%; height: 36px; border: 1px solid var(--excel-border); border-radius: 10px;
-        padding: 0 14px 0 38px; font-size: 13px; background: var(--excel-bg); color: var(--ios-label);
+        font-size: 13px; background: var(--excel-bg); color: var(--ios-label);
         outline: none; box-sizing: border-box; transition: all .15s ease;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    }
+    /* El tema global (body.theme-vercel) impone padding:6px 10px !important en inputs/selects;
+       esto lo gana para dejar hueco al icono (izq) y a la flecha del select (der). */
+    body.theme-vercel .up-input-wrap input[type="text"],
+    body.theme-vercel .up-input-wrap input[type="password"],
+    body.theme-vercel .up-input-wrap select[id] {
+        padding: 0 42px 0 40px !important;
     }
     .up-input-wrap select {
         appearance: none; -webkit-appearance: none; cursor: pointer;
@@ -186,7 +193,7 @@
             </div>
             <div class="up-stat">
                 <div class="up-stat-ic" style="background: rgba(174,174,178,0.2); color: #5A5A5E;"><i class="fa-solid fa-user-tie"></i></div>
-                <div class="up-stat-meta"><b>{{ gestores }}</b><span>Gestores</span></div>
+                <div class="up-stat-meta"><b>{{ gestores }}</b><span>Contratas</span></div>
             </div>
         </div>
 
@@ -227,6 +234,7 @@
                             <i class="fa-solid fa-user-gear"></i>
                             <select id="user-rol">
                                 <option value="gestor">Gestor (Solo datos)</option>
+                                <option value="gestor">Contrata (Solo datos del proyecto asignado)</option>
                                 <option value="supervisor">Supervisor (Importación y Datos)</option>
                                 <option value="demo">Demo (Vista Total de Solo Lectura)</option>
                                 <option value="admin">Admin (Control Total)</option>
@@ -286,7 +294,7 @@
                                         </span>
                                     </div>
                                 </td>
-                                <td><span class="role-badge {{ u.rol }}">{{ u.rol }}</span></td>
+                                <td><span class="role-badge {{ u.rol }}">{{ 'Contrata' if u.rol == 'gestor' else u.rol }}</span></td>
                                 <td class="up-actions-cell">
                                     {% if session.get('rol') != 'demo' %}
                                     <button onclick="editarUsuarioUI({{ u.id }}, '{{ u.nombre }}', '{{ u.username }}', '{{ u.rol }}', {{ accesos.get(u.id, []) | tojson }})" class="btn-icon" title="Editar Usuario">
@@ -364,6 +372,7 @@ async function crearUsuario() {
 
     if(!u) return alert("Nombre de usuario requerido");
     if(!editUserId && !p) return alert("Contraseña requerida para nuevo usuario");
+    if(r === 'gestor' && getSelectedProyectos().length === 0) return alert("El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).");
 
     const payload = {nombre: n, username: u, password: p, rol: r, proyectos: getSelectedProyectos()};
     let method = 'POST';
