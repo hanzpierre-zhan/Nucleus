@@ -4135,7 +4135,52 @@ def api_clean():
 # --- Evidencia fotográfica (Tiempo Inicio / Proceso / Cierre) ---
 EVIDENCIA_TIPOS = ('inicio', 'proceso', 'cierre')
 EVIDENCIA_MAX_POR_TIPO = 5
+# PEXT: reporte fotográfico estilo Excel de 26 fotografías (solo PEXT usa 'pex').
+EVIDENCIA_MAX_PEX = 26
 EVIDENCIA_EXT_ALLOWED = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic'}
+
+# Plantilla del reporte fotográfico de PEXT (formato del Excel del cliente).
+PEX_REPORTE_XLSX = os.path.join(BASE_DIR, 'REPORTE FOTOGRAFICO _ CORRECTIVOS.xlsx')
+
+# Slots del reporte: (titulo, observacion por defecto). 13 pares (izq/der) = 26.
+PEX_SLOTS = [
+    ("FOTOGRAFIA 01 - ACTIVACION DE CUADRILLA", "Foto de cuadrilla y vehiculo"),
+    ("FOTOGRAFIA 03 - INICIO DE MOVILIZACION", "Foto de recorrido hacia el punto de averia"),
+    ("FOTOGRAFIA 05 - REPORTE DE INCIDENCIA", "Foto de la infraestructura antes de intervenir"),
+    ("FOTOGRAFIA 07 - DIAGNOSTICO", "Falla encontrada, elemento afectado y/o causa preliminar"),
+    ("FOTOGRAFIA 09 - PRUEBAS INICIALES", "Potencia, OTDR/VFL"),
+    ("FOTOGRAFIA 11 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 13 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 17 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 19 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 21 - PRUEBAS FINALES", "Valores de Potencia y OTDR posterior al correctivo."),
+    ("FOTOGRAFIA 23 - SERVICIO EN UP", ""),
+    ("FOTOGRAFIA 25 - CIERRE DEL SITE", "Puertas, camaras, mufas, NAP, etc correctamente cerradas"),
+    ("FOTOGRAFIA 27 - DEVOLUCION DE LLAVE", ""),
+    ("FOTOGRAFIA 02 - RECOJO DE LLAVES", "Foto de llave + registro de entrega"),
+    ("FOTOGRAFIA 04 - ARRIVO AL PUNTO", "Foto de llegada al Site"),
+    ("FOTOGRAFIA 06 - REPORTE DE INCIDENCIA", "Foto de la infraestructura antes de intervenir"),
+    ("FOTOGRAFIA 08 - DIAGNOSTICO", "Detallar falla encontrada, elemento afectado y/o causa preliminar"),
+    ("FOTOGRAFIA 10 - PRUEBAS INICIALES", "Potencia, OTDR/VFL"),
+    ("FOTOGRAFIA 12 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 14 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 18 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 20 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 22 - PRUEBAS FINALES", "Valores de Potencia y OTDR posterior al correctivo."),
+    ("FOTOGRAFIA 24 - ORDEN Y LIMPIEZA", ""),
+    ("FOTOGRAFIA 26 - CIERRE DEL SITE", "Puertas, camaras, mufas, NAP, etc correctamente cerradas"),
+    ("FOTOGRAFIA 25 - CIERRE DE ATENCION", ""),
+]
+# Celda donde anclar la foto en cada slot (misma posición que el Excel).
+PEX_ANCHORS = (
+    'A9', 'A18', 'A27', 'A36', 'A45', 'A54', 'A63', 'A72', 'A81', 'A90', 'A99', 'A108', 'A117',
+    'H9', 'H18', 'H27', 'H36', 'H45', 'H54', 'H63', 'H72', 'H81', 'H90', 'H99', 'H108', 'H117',
+)
+# Celda de observaciones de cada slot.
+PEX_OBS_CELLS = (
+    'A14', 'A23', 'A32', 'A41', 'A50', 'A59', 'A68', 'A77', 'A86', 'A95', 'A104', 'A113', 'A122',
+    'H14', 'H23', 'H32', 'H41', 'H50', 'H59', 'H68', 'H77', 'H86', 'H95', 'H104', 'H113', 'H122',
+)
 
 def evidencia_folder(pid, key):
     return os.path.join(app.config['EVIDENCIA_DIR'], str(pid), secure_filename(str(key)))
@@ -4436,9 +4481,10 @@ def api_evidencia_subir():
     except (TypeError, ValueError):
         return jsonify({'error': 'Índice inválido'}), 400
     file = request.files.get('foto')
-    if not key or tipo not in EVIDENCIA_TIPOS + ('comb',):
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex'):
         return jsonify({'error': 'Datos incompletos'}), 400
-    if indice < 0 or indice >= EVIDENCIA_MAX_POR_TIPO:
+    max_i = _pext_max() if tipo == 'pex' else EVIDENCIA_MAX_POR_TIPO
+    if indice < 0 or indice >= max_i:
         return jsonify({'error': 'Índice fuera de rango'}), 400
     if file is None or not file.filename:
         return jsonify({'error': 'No se recibió ningún archivo'}), 400
@@ -4496,8 +4542,11 @@ def api_evidencia_eliminar():
         indice = int(data.get('indice'))
     except (TypeError, ValueError):
         return jsonify({'error': 'Índice inválido'}), 400
-    if not key or tipo not in EVIDENCIA_TIPOS + ('comb',) or indice < 0 or indice >= EVIDENCIA_MAX_POR_TIPO:
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex'):
         return jsonify({'error': 'Datos incompletos'}), 400
+    max_i = _pext_max() if tipo == 'pex' else EVIDENCIA_MAX_POR_TIPO
+    if indice < 0 or indice >= max_i:
+        return jsonify({'error': 'Índice inválido'}), 400
     # Solo admin puede borrar foto de Combustible
     if tipo == 'comb' and session.get('rol') != 'admin':
         return jsonify({'error': 'Solo el administrador puede eliminar la foto.'}), 403
@@ -4590,6 +4639,327 @@ def api_evidencia_zip(pid, key):
         zip_buf.getvalue(),
         mimetype='application/zip',
         headers={'Content-Disposition': f'attachment; filename="evidencia_{secure_filename(key)}.zip"'}
+    )
+
+def _evidencia_leer(pid, key, nombre):
+    """Devuelve los bytes de un archivo de evidencia (local o B2), o None."""
+    if evidencia_usa_b2():
+        try:
+            obj = b2_cliente().get_object(Bucket=app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
+            return obj['Body'].read()
+        except Exception:
+            return None
+    ruta = os.path.join(evidencia_folder(pid, key), nombre)
+    try:
+        with open(ruta, 'rb') as f:
+            return f.read()
+    except Exception:
+        return None
+
+def _box_px(ws, min_row, max_row, min_col, max_col):
+    """Tamaño aproximado en px del área de celdas del cuadro para encajar la foto."""
+    from openpyxl.utils import get_column_letter
+    w = 0.0
+    for ci in range(min_col, max_col + 1):
+        letter = get_column_letter(ci)
+        wd = ws.column_dimensions[letter].width if letter in ws.column_dimensions else None
+        w += (wd if wd else 8.43) * 7 + 5
+    h = 0.0
+    for ri in range(min_row, max_row + 1):
+        ht = ws.row_dimensions[ri].height if ri in ws.row_dimensions else None
+        h += (ht if ht else 15.0) * 4.0 / 3.0
+    return w, h
+
+
+def _n_a_en_box(ws, top, bottom, col0, col1):
+    """Escribe 'N/A' centrado en el interior del cuadro cuando la foto no aplica."""
+    from openpyxl.styles import Alignment, Font
+    row = (top + bottom) // 2
+    if col1 - col0 >= 2:
+        ws.merge_cells(start_row=row, start_column=col0 + 1,
+                       end_row=row, end_column=col1 - 1)
+    cell = ws.cell(row=row, column=col0 + 1)
+    cell.value = 'N/A'
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.font = Font(size=16, bold=True, color='FF8C8C8C')
+
+def _encajar_foto(bytes_img, box_w, box_h, margen=14):
+    try:
+        im = Image.open(io.BytesIO(bytes_img))
+        iw, ih = im.size
+    except Exception:
+        iw, ih = 800, 600
+    max_w = max(box_w - margen, 40)
+    max_h = max(box_h - margen, 40)
+    ratio = min(max_w / iw, max_h / ih, 1.0)
+    return max(1, int(iw * ratio)), max(1, int(ih * ratio))
+
+def _pext_config():
+    """Lee la plantilla y devuelve los slots del reporte en orden de exportación
+    (columna izquierda de arriba a abajo, luego columna derecha). Robustez: se
+    adapta a cajas/títulos/observaciones que edite el usuario en el Excel."""
+    import re
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+    wb = load_workbook(PEX_REPORTE_XLSX)
+    ws = wb.worksheets[0]
+    bands = [('L', 1, 6), ('R', 8, 13)]
+    titles = {'L': [], 'R': []}
+    obs_rows = {'L': [], 'R': []}
+    boxes = {'L': [], 'R': []}
+    for rng in ws.merged_cells.ranges:
+        band = None
+        for k, c0, c1 in bands:
+            if (rng.min_row == rng.max_row
+                    and rng.min_col <= c0 and rng.max_col >= c1):
+                band = k
+                break
+        if band:
+            v = ws.cell(row=rng.min_row, column=rng.min_col).value
+            v = (v or '').strip() if v is not None else ''
+            if re.match(r'^FOTOGRAFIA\b', v, re.I):
+                titles[band].append(rng.min_row)
+            elif re.match(r'^OBSERVACION', v, re.I):
+                obs_rows[band].append(rng.min_row)
+        else:
+            for k, c0, c1 in bands:
+                if (rng.max_row - rng.min_row) >= 3 and rng.min_col <= c0 and rng.max_col >= c1:
+                    boxes[k].append(rng)
+                    break
+    slots = []
+    for k, c0, c1 in bands:
+        titles[k].sort()
+        obs_rows[k].sort()
+        for trow in titles[k]:
+            titulo = (ws.cell(row=trow, column=c0).value or '').strip()
+            top = trow + 1
+            bottom = None
+            for o in obs_rows[k]:
+                if o > trow:
+                    bottom = o - 1
+                    break
+            for rng in boxes[k]:
+                if rng.min_row == trow + 1:
+                    bottom = rng.max_row
+                    break
+            if bottom is None:
+                bottom = top + 4
+            obs_def = ''
+            for o in obs_rows[k]:
+                if o == bottom + 1:
+                    ov = (ws.cell(row=o, column=c0).value or '').strip()
+                    ov = re.sub(r'^OBSERVACIONES?\s*:?\s*', '', ov, flags=re.I)
+                    obs_def = ov
+                    break
+            slots.append({
+                'anchor': get_column_letter(c0) + str(top),
+                'titulo': titulo,
+                'obs': obs_def,
+                'top': top,
+                'bottom': bottom,
+                'col0': c0,
+                'col1': c1,
+            })
+    if not slots:
+        return _pext_config_cajas(wb)
+    maxnum = 0
+    for s in slots:
+        m = re.search(r'FOTOGRAFIA\s+(\d+)', s['titulo'])
+        if m:
+            maxnum = max(maxnum, int(m.group(1)))
+    for s in slots:
+        if not s['titulo']:
+            maxnum += 1
+            s['titulo'] = f'FOTOGRAFIA {maxnum}'
+    return slots
+
+
+def _pext_config_cajas(wb):
+    """Fallback: slots detectados por cajas fusionadas (sin títulos/obs)."""
+    import re
+    from openpyxl.utils import get_column_letter
+    ws = wb.worksheets[0]
+    left, right = [], []
+    for rng in ws.merged_cells.ranges:
+        if (rng.max_row - rng.min_row) == 3:
+            if rng.min_col <= 1 and rng.max_col >= 6:
+                left.append(rng)
+            elif rng.min_col <= 8 and rng.max_col >= 13:
+                right.append(rng)
+    left.sort(key=lambda r: r.min_row)
+    right.sort(key=lambda r: r.min_row)
+    slots = []
+    for rng in list(left) + list(right):
+        band = 1 if rng.min_col <= 6 else 8
+        titulo = (ws.cell(row=rng.min_row - 2, column=band).value or '').strip()
+        obs_def = ''
+        for mr in ws.merged_cells.ranges:
+            if (mr.min_row == rng.max_row + 2
+                    and mr.min_col <= rng.max_col and mr.max_col >= rng.min_col):
+                v = (ws.cell(row=mr.min_row, column=mr.min_col).value or '').strip()
+                if v.startswith('OBSERVACIONES:'):
+                    v = v[len('OBSERVACIONES:'):].strip()
+                obs_def = v
+                break
+        slots.append({
+            'anchor': rng.coord.split(':')[0],
+            'titulo': titulo,
+            'obs': obs_def,
+            'top': rng.min_row,
+            'bottom': rng.max_row,
+            'col0': rng.min_col,
+            'col1': rng.max_col,
+        })
+    return slots
+
+def _pext_max():
+    try:
+        return len(_pext_config())
+    except Exception:
+        return EVIDENCIA_MAX_PEX
+
+def _encajar_foto_cover(bytes_img, box_w, box_h, margen=4):
+    """Escala para que la foto ocupe el cuadro respetando el borde rojo.
+    Mantiene la proporción (vertical/horizontal) y ajusta al interior del cuadro."""
+    try:
+        im = Image.open(io.BytesIO(bytes_img))
+        iw, ih = im.size
+    except Exception:
+        iw, ih = 800, 600
+    eff_w = max(box_w - margen * 2, 40)
+    eff_h = max(box_h - margen * 2, 40)
+    ratio = min(eff_w / iw, eff_h / ih, 1.0)
+    # si la imagen es más chica que el cuadro, escala hasta llenarlo proporcionalmente
+    if iw < eff_w and ih < eff_h:
+        ratio = min(eff_w / iw, eff_h / ih)
+    return max(1, int(iw * ratio)), max(1, int(ih * ratio))
+
+@app.route('/api/evidencia/reporte_config')
+@login_required
+def api_evidencia_reporte_config():
+    """Devuelve la configuración del reporte fotográfico leída de la plantilla."""
+    try:
+        slots = _pext_config()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return jsonify({'slots': slots, 'max': len(slots)})
+
+@app.route('/api/evidencia/reporte_xlsx/<int:pid>/<path:key>')
+@login_required
+def api_evidencia_reporte_xlsx(pid, key):
+    """Genera el reporte fotográfico de PEXT (plantilla del cliente) con las
+    fotos incrustadas en su cuadro, CM, contratista y observaciones."""
+    if pid != session.get('current_proyecto_id'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    key = (key or '').strip()
+    if not key or '/' in key or '\\' in key or '..' in key:
+        return jsonify({'error': 'Clave inválida'}), 400
+    if not os.path.isfile(PEX_REPORTE_XLSX):
+        return jsonify({'error': 'Plantilla del reporte no disponible en el servidor.'}), 500
+
+    record = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if not record:
+        return jsonify({'error': 'Registro no encontrado'}), 404
+    try:
+        d = json.loads(record.data_json)
+    except Exception:
+        d = {}
+
+    def _arr(campo):
+        try:
+            v = json.loads(d.get(campo) or '[]')
+            return v if isinstance(v, list) else []
+        except Exception:
+            return []
+
+    fotos = _arr('_EVIDENCIA_FOTOS')
+    obs = _arr('_EVIDENCIA_OBS')
+    aplica = _arr('_EVIDENCIA_APLICA')
+
+    try:
+        from openpyxl import load_workbook
+        from openpyxl.drawing.image import Image as XLImage
+        wb = load_workbook(PEX_REPORTE_XLSX)
+    except Exception as e:
+        return jsonify({'error': f'No se pudo cargar la plantilla: {e}'}), 500
+    ws = wb.worksheets[0]
+
+    # Cabecera del reporte: CM = número de WO (B5) y CONTRATISTA siempre "COBRA".
+    ws['B5'] = key
+    ws['J4'] = 'COBRA'
+    ws['K5'] = 'COBRA'
+
+    n_fotos = 0
+    try:
+        conf_slots = _pext_config() or []
+    except Exception:
+        conf_slots = []
+    for i, slot in enumerate(conf_slots):
+        top = slot.get('top')
+        bottom = slot.get('bottom')
+        col0 = slot.get('col0')
+        col1 = slot.get('col1')
+        anchor = slot.get('anchor')
+        if not (top and bottom and col0 and col1):
+            continue
+        url = fotos[i] if i < len(fotos) else ''
+        no_aplica = (i < len(aplica)) and not aplica[i]
+        if url and not no_aplica:
+            fname = os.path.basename(str(url).split('?')[0])
+            data = _evidencia_leer(pid, key, fname)
+            if data:
+                box_w, box_h = _box_px(ws, top, bottom, col0, col1)
+                img_w, img_h = _encajar_foto_cover(data, box_w, box_h)
+                xl = XLImage(io.BytesIO(data))
+                xl.width = img_w
+                xl.height = img_h
+                off_x = max(0, (box_w - img_w) // 2)
+                off_y = max(0, (box_h - img_h) // 2)
+                from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+                from openpyxl.drawing.xdr import XDRPositiveSize2D
+                from openpyxl.utils.units import pixels_to_EMU
+                mk = AnchorMarker(col=col0 - 1, colOff=pixels_to_EMU(off_x),
+                                  row=top - 1, rowOff=pixels_to_EMU(off_y))
+                xl.anchor = OneCellAnchor(_from=mk,
+                                          ext=XDRPositiveSize2D(cx=pixels_to_EMU(img_w),
+                                                                cy=pixels_to_EMU(img_h)))
+                ws.add_image(xl)
+                ws[anchor] = None  # quitar "N/A" del interior
+                n_fotos += 1
+        elif no_aplica:
+            _n_a_en_box(ws, top, bottom, col0, col1)
+
+        # Observaciones: la fila justo debajo del cuadro de la foto.
+        # Si el gestor no escribió nada se conserva el texto por defecto que
+        # viene en la plantilla; si escribió, se pisa con su observación.
+        orng = None
+        for mr in ws.merged_cells.ranges:
+            if (mr.min_row == bottom + 1
+                    and mr.min_col <= col1 and mr.max_col >= col0):
+                orng = mr
+                break
+        o = obs[i] if i < len(obs) else ''
+        o = ('' if o is None else str(o)).strip()
+        if o:
+            if orng:
+                # Forzar que la observación quede en una sola fila.
+                if orng.min_row != orng.max_row:
+                    ws.unmerge_cells(str(orng))
+                    ws.merge_cells(
+                        start_row=orng.min_row, start_column=orng.min_col,
+                        end_row=orng.min_row, end_column=orng.max_col,
+                    )
+                ws.cell(row=orng.min_row, column=orng.min_col).value = 'OBSERVACIONES: ' + o
+            else:
+                ws.cell(row=bottom + 1, column=col0).value = 'OBSERVACIONES: ' + o
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="reporte_fotografico_{secure_filename(key)}.xlsx"'}
     )
 
 @app.route('/healthz')

@@ -1709,9 +1709,132 @@
         background: rgba(255, 255, 255, 0.3);
     }
 
+    /* --- Reporte fotográfico PEXT (estilo Excel del cliente) --- */
+    .evidencia-reporte-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 8px;
+    }
+    .reporte-block {
+        border: 1px solid var(--ios-hairline);
+        border-radius: 10px;
+        background: var(--ios-card-bg);
+        overflow: hidden;
+    }
+    .reporte-block-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .reporte-block-title {
+        flex: 1;
+        min-width: 0;
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .2px;
+        padding: 6px 10px;
+        background: rgba(0, 0, 0, 0.04);
+        border-bottom: 1px solid var(--ios-hairline);
+        color: var(--ios-label);
+    }
+    .reporte-aplica {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        cursor: pointer;
+        user-select: none;
+        background: #e5e5ea;
+        color: #6d6d72;
+        margin-right: 8px;
+    }
+    .reporte-aplica.on {
+        background: #30c24b;
+        color: #fff;
+    }
+    .reporte-aplica input {
+        display: none;
+    }
+    .evidencia-slot-na {
+        font-size: 42px;
+        font-weight: 800;
+        color: rgba(0, 0, 0, 0.18);
+        letter-spacing: 2px;
+    }
+    .reporte-block-photo.na {
+        background: repeating-linear-gradient(45deg,
+            rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.02) 8px,
+            rgba(0, 0, 0, 0.05) 8px, rgba(0, 0, 0, 0.05) 16px);
+    }
+    .reporte-block-photo {
+        position: relative;
+        min-height: 150px;
+        background: rgba(0, 0, 0, 0.03);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .reporte-block-photo img {
+        width: 100%;
+        height: auto;
+        max-height: 260px;
+        object-fit: contain;
+        cursor: zoom-in;
+    }
+    .reporte-block-photo .evidencia-slot-empty {
+        width: 64px;
+        height: 64px;
+        border: 2px dashed rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        font-size: 26px;
+        color: rgba(0, 0, 0, 0.25);
+    }
+    .reporte-block-obs {
+        padding: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border-top: 1px solid var(--ios-hairline);
+    }
+    .reporte-block-obs label {
+        flex-shrink: 0;
+        padding-left: 10px;
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .2px;
+        color: var(--ios-gray-1, #8e8e93);
+    }
+    .reporte-block-obs input {
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        border: none;
+        background: transparent;
+        padding: 8px 10px 8px 0;
+        font-size: 12px;
+        font-family: inherit;
+        color: var(--ios-label);
+        box-sizing: border-box;
+    }
+    .reporte-block-obs input:disabled {
+        opacity: .6;
+    }
+
     @media (max-width: 640px) {
         .evidencia-fotos {
             grid-template-columns: repeat(3, 1fr);
+        }
+        .evidencia-reporte-grid {
+            grid-template-columns: 1fr;
         }
 
         .wo-summary {
@@ -2250,30 +2373,37 @@
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Evidencia fotográfica
                         <button type="button" id="btn-evidencia-zip" class="wo-zip-btn" onclick="descargarEvidenciaZip()" title="Descargar todas las fotos en ZIP"><i class="fa-solid fa-file-zipper"></i> Descargar ZIP</button>
+                        <button type="button" id="btn-evidencia-xlsx" class="wo-zip-btn" onclick="descargarReporteFotografico()" title="Descargar el reporte fotográfico en Excel con las fotos en su sitio" style="display:none;"><i class="fa-solid fa-file-excel"></i> Descargar Excel</button>
                     </div>
 
-                    <div class="evidencia-titulo"><i class="fa-solid fa-play"></i> Tiempo Inicio</div>
-                    <div class="evidencia-fotos" id="evidencia-fotos-inicio"></div>
-                    <div class="wo-field full">
-                        <label><i class="fa-solid fa-book"></i> Bitácora de inicio</label>
-                        <textarea id="evidencia-bitacora-inicio"
-                            placeholder="Registra el historial del inicio del trabajo..."></textarea>
+                    <div id="evidencia-reporte-pex" style="display:none;">
+                        <div class="evidencia-reporte-grid" id="evidencia-reporte-grid"></div>
                     </div>
 
-                    <div class="evidencia-titulo"><i class="fa-solid fa-gears"></i> Tiempo Proceso</div>
-                    <div class="evidencia-fotos" id="evidencia-fotos-proceso"></div>
-                    <div class="wo-field full">
-                        <label><i class="fa-solid fa-book"></i> Bitácora de proceso</label>
-                        <textarea id="evidencia-bitacora-proceso"
-                            placeholder="Registra el historial del proceso del trabajo..."></textarea>
-                    </div>
+                    <div id="evidencia-inicio-proceso-cierre">
+                        <div class="evidencia-titulo"><i class="fa-solid fa-play"></i> Tiempo Inicio</div>
+                        <div class="evidencia-fotos" id="evidencia-fotos-inicio"></div>
+                        <div class="wo-field full">
+                            <label><i class="fa-solid fa-book"></i> Bitácora de inicio</label>
+                            <textarea id="evidencia-bitacora-inicio"
+                                placeholder="Registra el historial del inicio del trabajo..."></textarea>
+                        </div>
 
-                    <div class="evidencia-titulo"><i class="fa-solid fa-flag-checkered"></i> Tiempo Cierre</div>
-                    <div class="evidencia-fotos" id="evidencia-fotos-cierre"></div>
-                    <div class="wo-field full">
-                        <label><i class="fa-solid fa-book"></i> Bitácora de cierre</label>
-                        <textarea id="evidencia-bitacora-cierre"
-                            placeholder="Registra el historial del cierre del trabajo..."></textarea>
+                        <div class="evidencia-titulo"><i class="fa-solid fa-gears"></i> Tiempo Proceso</div>
+                        <div class="evidencia-fotos" id="evidencia-fotos-proceso"></div>
+                        <div class="wo-field full">
+                            <label><i class="fa-solid fa-book"></i> Bitácora de proceso</label>
+                            <textarea id="evidencia-bitacora-proceso"
+                                placeholder="Registra el historial del proceso del trabajo..."></textarea>
+                        </div>
+
+                        <div class="evidencia-titulo"><i class="fa-solid fa-flag-checkered"></i> Tiempo Cierre</div>
+                        <div class="evidencia-fotos" id="evidencia-fotos-cierre"></div>
+                        <div class="wo-field full">
+                            <label><i class="fa-solid fa-book"></i> Bitácora de cierre</label>
+                            <textarea id="evidencia-bitacora-cierre"
+                                placeholder="Registra el historial del cierre del trabajo..."></textarea>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -6027,6 +6157,99 @@ btnItem.onclick = () => cotRegAgregarFila();
     let evidenciaState = null;
     const EVIDENCIA_TIPOS = ['inicio', 'proceso', 'cierre'];
 
+    // --- Reporte fotográfico PEXT (estilo Excel del cliente, solo PEXT) ---
+    const EVIDENCIA_REPORTE_N = 26;
+    const REPORTE_FOTOGRAFIAS = [
+        "FOTOGRAFIA 01 - ACTIVACION DE CUADRILLA",
+        "FOTOGRAFIA 03 - INICIO DE MOVILIZACION",
+        "FOTOGRAFIA 05 - REPORTE DE INCIDENCIA",
+        "FOTOGRAFIA 07 - DIAGNOSTICO",
+        "FOTOGRAFIA 09 - PRUEBAS INICIALES",
+        "FOTOGRAFIA 11 - EJECUCION DEL CORRECTIVO",
+        "FOTOGRAFIA 13 - EJECUCION DEL CORRECTIVO",
+        "FOTOGRAFIA 17 - MATERIAL UTILIZADO",
+        "FOTOGRAFIA 19 - MATERIAL UTILIZADO",
+        "FOTOGRAFIA 21 - PRUEBAS FINALES",
+        "FOTOGRAFIA 23 - SERVICIO EN UP",
+        "FOTOGRAFIA 25 - CIERRE DEL SITE",
+        "FOTOGRAFIA 27 - DEVOLUCION DE LLAVE",
+        "FOTOGRAFIA 02 - RECOJO DE LLAVES",
+        "FOTOGRAFIA 04 - ARRIVO AL PUNTO",
+        "FOTOGRAFIA 06 - REPORTE DE INCIDENCIA",
+        "FOTOGRAFIA 08 - DIAGNOSTICO",
+        "FOTOGRAFIA 10 - PRUEBAS INICIALES",
+        "FOTOGRAFIA 12 - EJECUCION DEL CORRECTIVO",
+        "FOTOGRAFIA 14 - EJECUCION DEL CORRECTIVO",
+        "FOTOGRAFIA 18 - MATERIAL UTILIZADO",
+        "FOTOGRAFIA 20 - MATERIAL UTILIZADO",
+        "FOTOGRAFIA 22 - PRUEBAS FINALES",
+        "FOTOGRAFIA 24 - ORDEN Y LIMPIEZA",
+        "FOTOGRAFIA 26 - CIERRE DEL SITE",
+        "FOTOGRAFIA 25 - CIERRE DE ATENCION"
+    ];
+    const REPORTE_OBS_DEF = [
+        "Foto de cuadrilla y vehiculo",
+        "Foto de recorrido hacia el punto de averia",
+        "Foto de la infraestructura antes de intervenir",
+        "Falla encontrada, elemento afectado y/o causa preliminar",
+        "Potencia, OTDR/VFL",
+        "Detallar actividades realizadas",
+        "Detallar actividades realizadas",
+        "Describir el material utilizado",
+        "Describir el material utilizado",
+        "Valores de Potencia y OTDR posterior al correctivo.",
+        "",
+        "Puertas, camaras, mufas, NAP, etc correctamente cerradas",
+        "",
+        "Foto de llave + registro de entrega",
+        "Foto de llegada al Site",
+        "Foto de la infraestructura antes de intervenir",
+        "Detallar falla encontrada, elemento afectado y/o causa preliminar",
+        "Potencia, OTDR/VFL",
+        "Detallar actividades realizadas",
+        "Detallar actividades realizadas",
+        "Describir el material utilizado",
+        "Describir el material utilizado",
+        "Valores de Potencia y OTDR posterior al correctivo.",
+        "",
+        "Puertas, camaras, mufas, NAP, etc correctamente cerradas",
+        ""
+    ];
+
+    // Configución del reporte leída desde la plantilla (títulos, obs y slots).
+    let REPORTE_CFG = null;
+    function numReporteSlots() { return (REPORTE_CFG && REPORTE_CFG.n) || EVIDENCIA_REPORTE_N; }
+    function tituloReporte(i) {
+        const base = (REPORTE_FOTOGRAFIAS[i] || 'FOTOGRAFIA ' + (i + 1));
+        return (REPORTE_CFG && REPORTE_CFG.titulos && REPORTE_CFG.titulos[i]) ? REPORTE_CFG.titulos[i] : base;
+    }
+    function obsDefReporte(i) {
+        if (REPORTE_CFG && REPORTE_CFG.obs && i < REPORTE_CFG.obs.length) return REPORTE_CFG.obs[i] || '';
+        return REPORTE_OBS_DEF[i] || '';
+    }
+    function cargarConfigReporte(aplicar) {
+        if (REPORTE_CFG) { aplicar(REPORTE_CFG); return; }
+        fetch('/api/evidencia/reporte_config')
+            .then(r => r.json())
+            .then(j => {
+                if (j && Array.isArray(j.slots) && j.slots.length) {
+                    REPORTE_CFG = {
+                        n: j.slots.length,
+                        titulos: j.slots.map(s => s.titulo),
+                        obs: j.slots.map(s => s.obs)
+                    };
+                }
+                aplicar(REPORTE_CFG);
+            })
+            .catch(() => aplicar(REPORTE_CFG));
+    }
+    function extenderReporte(n) {
+        if (!evidenciaState || !evidenciaState.reporte) return;
+        while (evidenciaState.reporte.fotos.length < n) evidenciaState.reporte.fotos.push('');
+        while (evidenciaState.reporte.obs.length < n) evidenciaState.reporte.obs.push(obsDefReporte(evidenciaState.reporte.obs.length));
+        while (evidenciaState.reporte.aplica.length < n) evidenciaState.reporte.aplica.push(true);
+    }
+
     const MOTIVO_AVERIA_OPCIONES = [
         'Accidente vehicular', 'Acoplador sucio', 'Buffer mal acondicionado', 'Cámara inundada',
         'Cámara sin tapa', 'Corte de fibra en sifón', 'Empalme dañado', 'Ferretería con corrosión',
@@ -6135,6 +6358,34 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
     }
 
+    function parseEvidenciaArrN(val, n) {
+        try {
+            const arr = JSON.parse(val || '[]');
+            if (!Array.isArray(arr)) return new Array(n).fill('');
+            const out = new Array(Math.max(n, arr.length)).fill('');
+            arr.forEach((v, i) => { out[i] = v; });
+            return out;
+        } catch (e) {
+            return new Array(n).fill('');
+        }
+    }
+
+    function parseAplicaArrN(val, n) {
+        try {
+            const arr = JSON.parse(val || '[]');
+            if (!Array.isArray(arr)) return new Array(n).fill(true);
+            const out = new Array(Math.max(n, arr.length)).fill(true);
+            arr.forEach((v, i) => { out[i] = v !== false; });
+            return out;
+        } catch (e) {
+            return new Array(n).fill(true);
+        }
+    }
+
+    function esReportePext() {
+        return typeof IS_PEXT !== 'undefined' && IS_PEXT;
+    }
+
     function initEvidencia(data) {
         evidenciaState = {};
         EVIDENCIA_TIPOS.forEach(t => {
@@ -6143,6 +6394,17 @@ btnItem.onclick = () => cotRegAgregarFila();
                 bitacora: data['_BITACORA_' + t.toUpperCase()] || ''
             };
         });
+        if (esReportePext()) {
+            evidenciaState.reporte = {
+                fotos: parseEvidenciaArrN(data['_EVIDENCIA_FOTOS'], EVIDENCIA_REPORTE_N),
+                obs: parseEvidenciaArrN(data['_EVIDENCIA_OBS'], EVIDENCIA_REPORTE_N),
+                aplica: parseAplicaArrN(data['_EVIDENCIA_APLICA'], EVIDENCIA_REPORTE_N)
+            };
+            cargarConfigReporte(cfg => {
+                if (cfg) extenderReporte(cfg.n);
+                renderEvidenciaReporte();
+            });
+        }
         EVIDENCIA_TIPOS.forEach(t => {
             const bit = document.getElementById('evidencia-bitacora-' + t);
             if (bit) bit.value = evidenciaState[t].bitacora;
@@ -6151,7 +6413,156 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function renderEvidenciaSlots() {
+        if (esReportePext()) {
+            const cont = document.getElementById('evidencia-inicio-proceso-cierre');
+            if (cont) cont.style.display = 'none';
+            const rep = document.getElementById('evidencia-reporte-pex');
+            if (rep) rep.style.display = '';
+            const btnX = document.getElementById('btn-evidencia-xlsx');
+            if (btnX) btnX.style.display = '';
+            const btnZip = document.getElementById('btn-evidencia-zip');
+            if (btnZip) btnZip.style.display = 'none';
+            renderEvidenciaReporte();
+            return;
+        }
+        const rep = document.getElementById('evidencia-reporte-pex');
+        if (rep) rep.style.display = 'none';
+        const btnX = document.getElementById('btn-evidencia-xlsx');
+        if (btnX) btnX.style.display = 'none';
         EVIDENCIA_TIPOS.forEach(t => renderEvidenciaGrupo(t));
+    }
+
+    function renderEvidenciaReporte() {
+        const grid = document.getElementById('evidencia-reporte-grid');
+        if (!grid || !evidenciaState || !evidenciaState.reporte) return;
+        const editable = woEditable;
+        const st = evidenciaState.reporte;
+        grid.innerHTML = '';
+        // Arrastrar fotos sobre el grid (WhatsApp / carpeta)
+        if (editable && !grid.dataset.dragInit) {
+            grid.dataset.dragInit = '1';
+            grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('drag-over'); });
+            grid.addEventListener('dragleave', e => { if (!grid.contains(e.relatedTarget)) grid.classList.remove('drag-over'); });
+            grid.addEventListener('drop', e => {
+                e.preventDefault();
+                grid.classList.remove('drag-over');
+                if (!editable || !evidenciaState || !evidenciaState.reporte) return;
+                const files = e.dataTransfer && e.dataTransfer.files;
+                if (!files || !files.length || !files[0].type || !files[0].type.startsWith('image/')) return;
+                let firstEmpty = 0;
+                while (firstEmpty < numReporteSlots() && evidenciaState.reporte.fotos[firstEmpty]) firstEmpty++;
+                if (firstEmpty >= numReporteSlots()) { alert('No hay espacios libres en el reporte (máximo ' + numReporteSlots() + '). Elimina alguna foto primero.'); return; }
+                evidenciaSubirMultiples('pex', firstEmpty, files);
+            });
+        }
+        extenderReporte(numReporteSlots());
+        const nSlots = numReporteSlots();
+        const numFoto = (tit) => {
+            const m = String(tit || '').match(/FOTOGRAFIA\s+(\d+)/i);
+            return m ? parseInt(m[1], 10) : 1000;
+        };
+        const orden = Array.from({ length: nSlots }, (_, k) => k)
+            .sort((a, b) => (numFoto(tituloReporte(a)) - numFoto(tituloReporte(b))) || (a - b));
+        for (const i of orden) {
+            const url = st.fotos[i];
+            const noAplica = st.aplica[i] === false;
+            const block = document.createElement('div');
+            block.className = 'reporte-block' + (noAplica ? ' no-aplica' : '');
+
+            const head = document.createElement('div');
+            head.className = 'reporte-block-head';
+            const title = document.createElement('div');
+            title.className = 'reporte-block-title';
+            title.textContent = tituloReporte(i);
+            head.appendChild(title);
+            if (editable) {
+                const sw = document.createElement('label');
+                sw.className = 'reporte-aplica' + (noAplica ? '' : ' on');
+                const chk = document.createElement('input');
+                chk.type = 'checkbox';
+                chk.checked = !noAplica;
+                const swSpan = document.createElement('span');
+                swSpan.textContent = noAplica ? 'No aplica' : 'Aplica';
+                chk.addEventListener('change', () => {
+                    if (evidenciaState && evidenciaState.reporte) {
+                        evidenciaState.reporte.aplica[i] = chk.checked;
+                        renderEvidenciaReporte();
+                    }
+                });
+                sw.appendChild(chk);
+                sw.appendChild(swSpan);
+                head.appendChild(sw);
+            }
+            block.appendChild(head);
+
+            const photo = document.createElement('div');
+            photo.className = 'reporte-block-photo' + (noAplica ? ' na' : '');
+            photo.dataset.index = i;
+            if (url && !noAplica) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = 'Reporte ' + (i + 1);
+                img.loading = 'lazy';
+                img.onerror = () => {
+                    evidenciaState.reporte.fotos[i] = '';
+                    renderEvidenciaReporte();
+                };
+                img.addEventListener('click', ev => { ev.stopPropagation(); abrirEvidenciaFoto(url); });
+                photo.appendChild(img);
+                if (editable) {
+                    const del = document.createElement('button');
+                    del.className = 'evidencia-slot-del';
+                    del.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    del.title = 'Eliminar foto';
+                    del.addEventListener('click', ev => { ev.stopPropagation(); evidenciaEliminar('pex', i); });
+                    photo.appendChild(del);
+                }
+            } else if (!noAplica) {
+                const empty = document.createElement('div');
+                empty.className = 'evidencia-slot-empty';
+                empty.textContent = '+';
+                photo.appendChild(empty);
+                if (editable) {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.multiple = true;
+                    input.style.display = 'none';
+                    photo.appendChild(input);
+                    photo.addEventListener('click', () => {
+                        if (!editable || photo.dataset.uploading === '1') return;
+                        input.click();
+                    });
+                    input.addEventListener('change', () => {
+                        if (input.files && input.files.length) evidenciaSubirMultiples('pex', i, input.files);
+                        input.value = '';
+                    });
+                }
+            } else {
+                const na = document.createElement('div');
+                na.className = 'evidencia-slot-na';
+                na.textContent = 'N/A';
+                photo.appendChild(na);
+            }
+            block.appendChild(photo);
+
+            // Observaciones (texto por defecto del formato, editable y de una sola fila)
+            const obsWrap = document.createElement('div');
+            obsWrap.className = 'reporte-block-obs';
+            const lbl = document.createElement('label');
+            lbl.textContent = 'OBSERVACIONES:';
+            obsWrap.appendChild(lbl);
+            const ta = document.createElement('input');
+            ta.type = 'text';
+            ta.value = st.obs[i] || obsDefReporte(i) || '';
+            ta.placeholder = 'Describir...';
+            ta.disabled = !editable || noAplica;
+            ta.addEventListener('input', () => { if (evidenciaState) evidenciaState.reporte.obs[i] = ta.value; });
+            obsWrap.appendChild(ta);
+            block.appendChild(obsWrap);
+
+            grid.appendChild(block);
+        }
     }
 
     function renderEvidenciaGrupo(tipo) {
@@ -6235,25 +6646,41 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
     }
 
+    function evidenciaSlotAt(tipo, indice) {
+        if (tipo === 'pex') {
+            const grid = document.getElementById('evidencia-reporte-grid');
+            if (!grid) return null;
+            return grid.querySelector('.reporte-block-photo[data-index="' + indice + '"]') || null;
+        }
+        const cont = document.getElementById('evidencia-fotos-' + tipo);
+        return cont ? (cont.children[indice] || null) : null;
+    }
+
+    function evidenciaSt(tipo) {
+        return tipo === 'pex' ? evidenciaState.reporte : evidenciaState[tipo];
+    }
+
     function evidenciaSubirMultiples(tipo, indiceBase, fileList) {
-        if (!evidenciaState || !evidenciaState[tipo]) return;
+        const st = evidenciaSt(tipo);
+        if (!evidenciaState || !st) return;
         const files = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
         if (!files.length) { alert('Selecciona archivos de imagen.'); return; }
-        const st = evidenciaState[tipo];
+        const maxN = tipo === 'pex' ? numReporteSlots() : 5;
         // huecos libres
         let empty = [];
-        for (let k = 0; k < 5; k++) if (!st.fotos[k]) empty.push(k);
+        for (let k = 0; k < maxN; k++) if (!st.fotos[k]) empty.push(k);
         // priorizar indiceBase si está libre
         if (empty.includes(indiceBase)) empty = [indiceBase, ...empty.filter(x => x !== indiceBase)];
-        else if (empty.length === 0) { alert('No hay espacios libres en ' + tipo + ' (máximo 5). Elimina alguna foto primero.'); return; }
+        else if (empty.length === 0) { alert('No hay espacios libres en ' + tipo + ' (máximo ' + maxN + '). Elimina alguna foto primero.'); return; }
         const aSubir = files.slice(0, empty.length);
-        if (files.length > empty.length) alert('Solo se subirán ' + empty.length + ' de ' + files.length + ' fotos (máximo 5 por bloque).');
+        if (files.length > empty.length) alert('Solo se subirán ' + empty.length + ' de ' + files.length + ' fotos (máximo ' + maxN + ' por bloque).');
         aSubir.forEach((f, idx) => evidenciaSubir(tipo, empty[idx], f));
     }
 
     function evidenciaSubir(tipo, indice, file) {
-        const cont = document.getElementById('evidencia-fotos-' + tipo);
-        const slot = cont ? cont.children[indice] : null;
+        const st = evidenciaSt(tipo);
+        if (!evidenciaState || !st) return;
+        const slot = evidenciaSlotAt(tipo, indice);
         if (!slot) return;
         slot.dataset.uploading = '1';
         const empty = slot.querySelector('.evidencia-slot-empty');
@@ -6273,16 +6700,18 @@ btnItem.onclick = () => cotRegAgregarFila();
             .then(r => r.json())
             .then(res => {
                 if (res.success && res.url) {
-                    evidenciaState[tipo].fotos[indice] = res.url;
+                    st.fotos[indice] = res.url;
                 } else {
                     alert('Error al subir la foto: ' + (res.error || 'desconocido'));
                 }
             })
             .catch(() => alert('Error de red al subir la foto.'))
-            .finally(() => renderEvidenciaGrupo(tipo));
+            .finally(() => tipo === 'pex' ? renderEvidenciaReporte() : renderEvidenciaGrupo(tipo));
     }
 
     function evidenciaEliminar(tipo, indice) {
+        const st = evidenciaSt(tipo);
+        if (!evidenciaState || !st) return;
         fetch('/api/evidencia/eliminar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6291,13 +6720,44 @@ btnItem.onclick = () => cotRegAgregarFila();
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    evidenciaState[tipo].fotos[indice] = null;
+                    st.fotos[indice] = null;
                 } else {
                     alert('Error al eliminar la foto: ' + (res.error || 'desconocido'));
                 }
             })
             .catch(() => alert('Error de red al eliminar la foto.'))
-            .finally(() => renderEvidenciaGrupo(tipo));
+            .finally(() => tipo === 'pex' ? renderEvidenciaReporte() : renderEvidenciaGrupo(tipo));
+    }
+
+    function descargarReporteFotografico() {
+        if (!woKey) { nucleusAlert('No hay ticket seleccionado.'); return; }
+        const tiene = evidenciaState && evidenciaState.reporte && evidenciaState.reporte.fotos.some(Boolean);
+        if (!tiene) { nucleusAlert('No hay fotos cargadas para generar el reporte.'); return; }
+        const btn = document.getElementById('btn-evidencia-xlsx');
+        const old = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...'; }
+        const pid = (typeof currentProjectId !== 'undefined' && currentProjectId) ? currentProjectId : 0;
+        fetch('/api/evidencia/reporte_xlsx/' + pid + '/' + encodeURIComponent(woKey))
+            .then(async r => {
+                if (!r.ok) {
+                    let msg = 'Error al generar el reporte';
+                    try { const j = await r.json(); msg = j.error || msg; } catch(e) {}
+                    throw new Error(msg);
+                }
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'reporte_fotografico_' + String(woKey).replace(/[^a-zA-Z0-9_-]/g,'_') + '.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => nucleusAlert(err.message || 'Error al generar el reporte'))
+            .finally(() => { if (btn) { btn.disabled = false; btn.innerHTML = old; } });
     }
 
     function descargarEvidenciaZip() {
@@ -6397,6 +6857,13 @@ btnItem.onclick = () => cotRegAgregarFila();
             out['_EVIDENCIA_' + t.toUpperCase()] = has ? JSON.stringify(fotos) : '';
             out['_BITACORA_' + t.toUpperCase()] = bit ? bit.value : '';
         });
+        if (esReportePext() && evidenciaState && evidenciaState.reporte) {
+            const orig = (woRow && woRow.getData) ? (woRow.getData()['_EVIDENCIA_FOTOS'] || '') : '';
+            const haveFotos = evidenciaState.reporte.fotos.some(f => f);
+            out['_EVIDENCIA_FOTOS'] = haveFotos ? JSON.stringify(evidenciaState.reporte.fotos) : orig;
+            out['_EVIDENCIA_OBS'] = JSON.stringify(evidenciaState.reporte.obs);
+            out['_EVIDENCIA_APLICA'] = JSON.stringify(evidenciaState.reporte.aplica);
+        }
         return out;
     }
 
