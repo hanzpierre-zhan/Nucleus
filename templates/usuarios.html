@@ -135,7 +135,8 @@
     }
     .up-avatar.role-admin { background: linear-gradient(135deg, #007AFF, #0047B3); }
     .up-avatar.role-supervisor { background: linear-gradient(135deg, #5856D6, #3E3A9E); }
-    .up-avatar.role-gestor { background: linear-gradient(135deg, #8E8E93, #5A5A5E); }
+    .up-avatar.role-gestor { background: linear-gradient(135deg, #34C759, #1A7A30); }
+    .up-avatar.role-contrata { background: linear-gradient(135deg, #8E8E93, #5A5A5E); }
     .up-avatar.role-demo { background: linear-gradient(135deg, #FF9500, #C96F00); }
     .up-username { font-weight: 600; color: var(--ios-label); font-size: 13px; }
     .up-actions-cell { text-align: right; white-space: nowrap; }
@@ -178,22 +179,27 @@
         {% set admins = usuarios | selectattr('rol','equalto','admin') | list | length %}
         {% set supers = usuarios | selectattr('rol','equalto','supervisor') | list | length %}
         {% set gestores = usuarios | selectattr('rol','equalto','gestor') | list | length %}
+        {% set contratas = usuarios | selectattr('rol','equalto','contrata') | list | length %}
         <div class="up-stats">
             <div class="up-stat">
                 <div class="up-stat-ic" style="background: rgba(0,122,255,0.12); color: #007AFF;"><i class="fa-solid fa-users"></i></div>
                 <div class="up-stat-meta"><b>{{ usuarios|length }}</b><span>Usuarios</span></div>
             </div>
             <div class="up-stat">
-                <div class="up-stat-ic" style="background: rgba(88,86,214,0.12); color: #5856D6;"><i class="fa-solid fa-user-shield"></i></div>
+                <div class="up-stat-ic" style="background: rgba(0,122,255,0.12); color: #007AFF;"><i class="fa-solid fa-user-shield"></i></div>
                 <div class="up-stat-meta"><b>{{ admins }}</b><span>Admins</span></div>
             </div>
             <div class="up-stat">
-                <div class="up-stat-ic" style="background: rgba(0,122,255,0.12); color: #007AFF;"><i class="fa-solid fa-user-check"></i></div>
+                <div class="up-stat-ic" style="background: rgba(88,86,214,0.12); color: #5856D6;"><i class="fa-solid fa-user-check"></i></div>
                 <div class="up-stat-meta"><b>{{ supers }}</b><span>Supervisores</span></div>
             </div>
             <div class="up-stat">
+                <div class="up-stat-ic" style="background: rgba(52,199,89,0.12); color: #1A7A30;"><i class="fa-solid fa-user-gear"></i></div>
+                <div class="up-stat-meta"><b>{{ gestores }}</b><span>Gestores</span></div>
+            </div>
+            <div class="up-stat">
                 <div class="up-stat-ic" style="background: rgba(174,174,178,0.2); color: #5A5A5E;"><i class="fa-solid fa-user-tie"></i></div>
-                <div class="up-stat-meta"><b>{{ gestores }}</b><span>Contratas</span></div>
+                <div class="up-stat-meta"><b>{{ contratas }}</b><span>Contratas</span></div>
             </div>
         </div>
 
@@ -233,8 +239,8 @@
                         <div class="up-input-wrap">
                             <i class="fa-solid fa-user-gear"></i>
                             <select id="user-rol">
-                                <option value="gestor">Gestor (Solo datos)</option>
-                                <option value="gestor">Contrata (Solo datos del proyecto asignado)</option>
+                                <option value="contrata">Contrata (Solo datos del proyecto asignado)</option>
+                                <option value="gestor">Gestor (Supervisión de proyectos asignados)</option>
                                 <option value="supervisor">Supervisor (Importación y Datos)</option>
                                 <option value="demo">Demo (Vista Total de Solo Lectura)</option>
                                 <option value="admin">Admin (Control Total)</option>
@@ -294,7 +300,7 @@
                                         </span>
                                     </div>
                                 </td>
-                                <td><span class="role-badge {{ u.rol }}">{{ 'Contrata' if u.rol == 'gestor' else u.rol }}</span></td>
+                                <td><span class="role-badge {{ u.rol }}">{{ 'Contrata' if u.rol == 'contrata' else ('Gestor' if u.rol == 'gestor' else u.rol) }}</span></td>
                                 <td class="up-actions-cell">
                                     {% if session.get('rol') != 'demo' %}
                                     <button onclick="editarUsuarioUI({{ u.id }}, '{{ u.nombre }}', '{{ u.username }}', '{{ u.rol }}', {{ accesos.get(u.id, []) | tojson }})" class="btn-icon" title="Editar Usuario">
@@ -341,7 +347,7 @@ async function cancelarEdicion() {
     document.getElementById('user-name').value = '';
     document.getElementById('user-pw').value = '';
     document.getElementById('user-pw').placeholder = 'Dejar vacío para no cambiar';
-    document.getElementById('user-rol').value = 'gestor';
+    document.getElementById('user-rol').value = 'contrata';
     setProjCheckboxes([]);
     const btn = document.getElementById('btn-crear-usuario');
     if (btn) btn.innerHTML = '<i class="fa-solid fa-plus"></i> CREAR USUARIO';
@@ -372,7 +378,7 @@ async function crearUsuario() {
 
     if(!u) return alert("Nombre de usuario requerido");
     if(!editUserId && !p) return alert("Contraseña requerida para nuevo usuario");
-    if(r === 'gestor' && getSelectedProyectos().length === 0) return alert("El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).");
+    if((r === 'gestor' || r === 'contrata') && getSelectedProyectos().length === 0) return alert("El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).");
 
     const payload = {nombre: n, username: u, password: p, rol: r, proyectos: getSelectedProyectos()};
     let method = 'POST';

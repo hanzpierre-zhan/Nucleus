@@ -76,7 +76,7 @@ class Usuario(db.Model):
     nombre = db.Column(db.String(100), default='')
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    rol = db.Column(db.String(20), default='supervisor') # 'admin', 'supervisor', 'gestor'
+    rol = db.Column(db.String(20), default='supervisor') # 'admin', 'supervisor', 'gestor', 'contrata', 'demo'
 
 class Proyecto(db.Model):
     __tablename__ = 'proyectos'
@@ -681,6 +681,13 @@ with app.app_context():
     except Exception:
         db.session.rollback()
 
+    # Migration: Rename gestor -> contrata (el antiguo gestor era la contrata de campo)
+    try:
+        db.session.execute(db.text("UPDATE usuarios SET rol = 'contrata' WHERE rol = 'gestor'"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
              ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
@@ -1213,23 +1220,36 @@ with app.app_context():
             {'nombre': 'SERVICIO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'FECHA DE ASIGNACIÓN', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'texto', 'opciones': []},
-            {'nombre': '¿REQUIERE MATERIAL?', 'tipo': 'lista', 'opciones': ['Sí','No']},
-            {'nombre': '¿REQUIERE ACCESO AL SITE?', 'tipo': 'lista', 'opciones': ['Sí','No']},
-            {'nombre': '¿FUE TORRERA?', 'tipo': 'lista', 'opciones': ['Sí','No']},
-            {'nombre': '¿FUE SITE PROPIO?', 'tipo': 'lista', 'opciones': ['Sí','No']},
-            {'nombre': '¿CUADRILLA DE 3 O 2?', 'tipo': 'lista', 'opciones': ['2','3','más de 3']},
+            {'nombre': 'FECHA DE ASIGNACI\u00d3N', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE AVER\u00cdA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '\u00bfREQUIERE MATERIAL?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfREQUIERE ACCESO AL SITE?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfFUE TORRERA?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfFUE SITE PROPIO?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfCUADRILLA DE 3 O 2?', 'tipo': 'lista', 'opciones': ['2','3','m\u00e1s de 3']},
             {'nombre': 'TEAM LEADER ASIGNADO EN APLICATIVO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': '¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '\u00bfQUI\u00c9N FUE EL SUPERVISOR A CARGO EN ESE TURNO?', 'tipo': 'lista',
+             'opciones': ['CHAMBERGO ORIHUELA PERCY', 'DIAZ BERECHE JORGE ELVIS']},
             {'nombre': 'COORDINADOR ENTEL', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'STATUS DE ATENCION', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'STATUS DE ATENCION', 'tipo': 'lista',
+             'opciones': ['PROCESO', 'SUSPENDIDO', 'TERMINADO']},
             {'nombre': 'QUIEBRE', 'tipo': 'texto', 'opciones': []},
-            {'nombre': '¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?', 'tipo': 'lista', 'opciones': ['Sí','No']},
+            {'nombre': '\u00bfQUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
             {'nombre': 'DETALLE CORRECTIVO ADICIONAL', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
         ]
+        # Actualizar tipo y opciones de columnas existentes que cambiaron definición
+        _pext_patch = {
+            'STATUS DE ATENCION': {'tipo': 'lista', 'opciones': ['PROCESO', 'SUSPENDIDO', 'TERMINADO']},
+            '\u00bfQUI\u00c9N FUE EL SUPERVISOR A CARGO EN ESE TURNO?': {
+                'tipo': 'lista',
+                'opciones': ['CHAMBERGO ORIHUELA PERCY', 'DIAZ BERECHE JORGE ELVIS']
+            },
+        }
+        for c in existing_cols:
+            if isinstance(c, dict) and c.get('nombre') in _pext_patch:
+                c.update(_pext_patch[c['nombre']])
         # PEXT: no re-agregar CIUDAD ni SISTEMAS aunque falten (no requeridos).
         for col in pext_new_cols:
             if col['nombre'] not in existing_names:
@@ -1382,9 +1402,9 @@ def get_session_info():
 def get_menu_proyectos(user_id, user_rol):
     """Proyectos que se muestran en el menú lateral.
     - admin/demo: todos.
-    - gestor: SOLO los proyectos asignados (PEXT o FLM, según acceso).
+    - gestor/contrata: SOLO los proyectos asignados (PEXT o FLM, según acceso).
     - resto: sus accesos + Dataper/Material si tiene FLM o PEXT asignado."""
-    if user_rol == 'gestor':
+    if user_rol in ('gestor', 'contrata'):
         accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
         pids = [a.proyecto_id for a in accesos]
         return Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
@@ -1463,8 +1483,8 @@ def switch_project(pid):
     if session.get('rol') not in ['admin', 'demo']:
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
         if not acceso:
-            # El rol Gestor solo puede operar en los proyectos que tiene asignados.
-            if session.get('rol') == 'gestor':
+            # Gestor y Contrata solo pueden operar en los proyectos que tienen asignados.
+            if session.get('rol') in ('gestor', 'contrata'):
                 return redirect(url_for('index'))
             # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado.
             # Site Name: permitir solo si el usuario tiene FLM asignado.
@@ -1930,8 +1950,8 @@ def dashboard():
     user_id, user_rol, pid = get_session_info()
     is_admin = user_rol == 'admin'
 
-    # El rol Gestor no ve dashboards: solo opera en la grilla de su proyecto.
-    if user_rol == 'gestor':
+    # El rol Contrata no ve dashboards: solo opera en la grilla de su proyecto.
+    if user_rol == 'contrata':
         return redirect(url_for('index'))
 
     if not pid:
@@ -2046,7 +2066,7 @@ def dashboard():
 @login_required
 def configuraciones():
     user_rol = str(session.get('rol') or 'supervisor').strip().lower()
-    if user_rol == 'gestor':
+    if user_rol in ('gestor', 'contrata'):
         return redirect(url_for('index'))
     user_id = session.get('user_id')
     if user_rol == 'admin':
@@ -2199,7 +2219,7 @@ def api_admin_usuario():
         rol = data.get('rol', 'supervisor').strip()
         proyectos = data.get('proyectos', [])
         if not all([user, pw]): return jsonify({'error': 'Datos incompletos'}), 400
-        if rol.strip().lower() == 'gestor' and not proyectos:
+        if rol.strip().lower() in ('gestor', 'contrata') and not proyectos:
             return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).'}), 400
         try:
             nuevo = Usuario(username=user, password_hash=generate_password_hash(pw), rol=rol, nombre=nombre)
@@ -2223,7 +2243,7 @@ def api_admin_usuario():
         proyectos = data.get('proyectos')
         
         if not uid or not user: return jsonify({'error': 'ID y usuario requeridos'}), 400
-        if rol.strip().lower() == 'gestor' and proyectos == []:
+        if rol.strip().lower() in ('gestor', 'contrata') and proyectos == []:
             return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).'}), 400
         try:
             u = db.session.get(Usuario, uid)
@@ -3228,7 +3248,7 @@ def api_dashboard_charts():
         return jsonify(charts)
         
     if request.method == 'POST':
-        if session.get('rol') in ['demo', 'gestor']:
+        if session.get('rol') in ['demo', 'contrata', 'gestor']:
             return jsonify({'error': 'Rol sin permisos para modificar el dashboard.'}), 403
         charts = request.json # Expecting an array of chart objects
         if config:
@@ -3249,7 +3269,7 @@ def api_dashboard_kpis():
         return jsonify(kpis)
         
     if request.method == 'POST':
-        if session.get('rol') in ['demo', 'gestor']:
+        if session.get('rol') in ['demo', 'contrata', 'gestor']:
             return jsonify({'error': 'Rol sin permisos para modificar el dashboard.'}), 403
         kpis = request.json
         if config:
@@ -3290,7 +3310,7 @@ def api_dashboard_filters():
         return jsonify(filters)
         
     if request.method == 'POST':
-        if session.get('rol') in ['demo', 'gestor']:
+        if session.get('rol') in ['demo', 'contrata', 'gestor']:
             return jsonify({'error': 'Rol sin permisos para modificar filtros del dashboard.'}), 403
         filters = request.json
         if config:
@@ -3376,8 +3396,8 @@ def api_master_template(tipo):
 @login_required
 def api_master_bulk_import(tipo):
     pid = session.get('current_proyecto_id')
-    if session.get('rol') == 'demo':
-        return jsonify({'error': 'Rol DEMO no tiene permisos para realizar importaciones masivas.'}), 403
+    if session.get('rol') in ('demo', 'gestor', 'contrata'):
+        return jsonify({'error': 'Sin permisos para realizar importaciones masivas.'}), 403
     if 'file' not in request.files:
         return jsonify({'error': 'No se subió ningún archivo'}), 400
     
@@ -3618,8 +3638,8 @@ def api_rows_add():
         # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
         proy_obj = db.session.get(Proyecto, pid)
         proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
-        if session.get('rol') == 'gestor' and proy_nombre in ('FLM', 'PEXT'):
-            return jsonify({'error': 'El rol Gestor no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
+        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'PEXT'):
+            return jsonify({'error': 'El rol Contrata no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
         if proy_nombre == 'Combustible':
             row_data['GESTOR'] = session.get('username', '')
             mov = str(row_data.get('MOVIMIENTO', '')).strip().upper()
@@ -3773,12 +3793,14 @@ def api_rows_delete():
     manual = proy_nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE')
     if session.get('rol') == 'demo':
         return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
-    if session.get('rol') == 'gestor' and not manual:
+    if session.get('rol') == 'contrata' and not manual:
         return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
     if proy_nombre == 'Combustible' and session.get('rol') != 'admin':
         return jsonify({'error': 'No tienes permisos para eliminar movimientos de Combustible. Solo el administrador puede eliminar lo registrado.'}), 403
     if proy_nombre == 'SITE' and session.get('rol') not in ('admin', 'supervisor'):
         return jsonify({'error': 'Solo supervisor o admin puede eliminar sites.'}), 403
+    if session.get('rol') == 'gestor' and not manual:
+        return jsonify({'error': 'No tienes permisos para eliminar registros en este proyecto.'}), 403
     try:
         data = request.json
         keys = data.get('keys', [])
@@ -4079,14 +4101,14 @@ def api_rows_bulk_update():
         _proy_bulk = db.session.get(Proyecto, pid) if pid else None
         _proy_bulk_nombre = _proy_bulk.nombre.strip() if _proy_bulk and _proy_bulk.nombre else ''
 
-        # WO enviado a aprobación: el rol Gestor ya no puede modificarlo.
-        if (session.get('rol') == 'gestor' and _proy_bulk_nombre in ('FLM', 'PEXT')
+        # WO enviado a aprobación: el rol Contrata ya no puede modificarlo.
+        if (session.get('rol') == 'contrata' and _proy_bulk_nombre in ('FLM', 'PEXT')
                 and str(row_dict.get('_ENVIADO_APROBACION', '')).strip() == '1'):
             return jsonify({'error': 'Este WO ya fue enviado a aprobación y no puede editarse. Contacta al personal administrativo.'}), 403
 
-        # Bitácora es solo para el personal (admin/supervisor), no para Contrata:
-        # el rol Gestor jamás envía ni modifica BITACORA / entradas de bitácora.
-        if session.get('rol') == 'gestor':
+        # Bitácora es solo para el personal (admin/supervisor/gestor), no para Contrata:
+        # el rol Contrata jamás envía ni modifica BITACORA / entradas de bitácora.
+        if session.get('rol') == 'contrata':
             updates.pop('BITACORA', None)
             updates.pop('_BITACORA_ENTRY', None)
 
@@ -4233,7 +4255,7 @@ def api_config_init_manual():
 @app.route('/api/clean', methods=['POST'])
 @login_required
 def api_clean():
-    if session.get('rol') in ['gestor', 'demo']:
+    if session.get('rol') in ['contrata', 'gestor', 'demo']:
         return jsonify({'error': 'No tienes permisos para esta acción.'}), 403
         
     pid = session.get('current_proyecto_id')
@@ -4585,8 +4607,8 @@ def onedrive_eliminar(key, tipo, indice):
     return ok
 
 def _evidencia_aprobacion_bloquea(pid, key):
-    """El rol Gestor no puede subir/quitar evidencia en WOs (PEXT/FLM) ya enviados a aprobación."""
-    if str(session.get('rol') or '').strip().lower() != 'gestor':
+    """El rol Contrata no puede subir/quitar evidencia en WOs (PEXT/FLM) ya enviados a aprobación."""
+    if str(session.get('rol') or '').strip().lower() != 'contrata':
         return False
     proy = db.session.get(Proyecto, pid) if pid else None
     if not proy or (proy.nombre or '').strip() not in ('FLM', 'PEXT'):
@@ -4704,7 +4726,7 @@ def api_wo_enviar_aprobacion():
     - Gestor envía ('enviar'): marca `_ENVIADO_APROBACION` y bloquea su edición.
     - Admin desbloquea ('desbloquear'): vuelve a permitir la edición tras revisión."""
     rol = str(session.get('rol') or '').strip().lower()
-    if rol not in ('gestor', 'supervisor', 'admin'):
+    if rol not in ('contrata', 'gestor', 'supervisor', 'admin'):
         return jsonify({'error': 'No tienes permisos para esta acción.'}), 403
     data = request.json or {}
     pid = session.get('current_proyecto_id')
@@ -4716,7 +4738,7 @@ def api_wo_enviar_aprobacion():
     proy_nombre = proy.nombre.strip() if proy and proy.nombre else ''
     if proy_nombre not in ('PEXT', 'FLM'):
         return jsonify({'error': 'Acción solo válida para WOs PEXT/FLM.'}), 400
-    if rol == 'gestor':
+    if rol in ('contrata', 'gestor'):
         acc = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
         if not acc:
             return jsonify({'error': 'No tienes acceso a este proyecto.'}), 403

@@ -67,8 +67,8 @@
     </button>
     {% endif %}
 
-    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') not in ['demo', 'gestor'] %}
-    <!-- Botón Nuevo WO (Azul): alta de WO (no disponible para el rol Gestor, que solo completa la información) -->
+    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') not in ['demo', 'contrata'] %}
+    <!-- Botón Nuevo WO (Azul): alta de WO (no disponible para Contrata, que solo completa la información) -->
     <button onclick="aniadirRegistroWO()" class="action-pill pill-blue" title="Crear un WO manualmente">
         <i class="fa-solid fa-plus"></i> Nuevo WO
     </button>
@@ -1661,6 +1661,24 @@
         background: rgba(var(--ios-accent-rgb), 0.06);
     }
 
+    .evidencia-paste-hint {
+        grid-column: 1 / -1;
+        font-size: 11px;
+        color: var(--ios-gray-2);
+        text-align: center;
+        margin-top: 4px;
+        opacity: 0.7;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+
+    .evidencia-fotos.paste-active {
+        border-color: #34C759;
+        background: rgba(52, 199, 89, 0.06);
+    }
+
     .evidencia-slot {
         position: relative;
         aspect-ratio: 1 / 1;
@@ -1874,6 +1892,46 @@
         font-size: 26px;
         color: rgba(0, 0, 0, 0.25);
     }
+    /* Botón de pegar imagen desde portapapeles en slots PEXT vacíos */
+    .reporte-btn-pegar {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        background: var(--ios-blue, #007aff);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 5px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        box-shadow: 0 2px 8px rgba(0,122,255,0.3);
+        transition: transform .12s, box-shadow .12s, background .12s;
+        z-index: 2;
+        white-space: nowrap;
+    }
+    .reporte-btn-pegar::after {
+        content: ' Pegar';
+        font-size: 11px;
+    }
+    .reporte-btn-pegar:hover {
+        background: #005ecb;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(0,122,255,0.4);
+    }
+    .reporte-btn-pegar:active {
+        transform: translateY(0);
+        box-shadow: 0 1px 4px rgba(0,122,255,0.25);
+    }
+    .reporte-block-photo.paste-active {
+        outline: 2.5px solid #34C759;
+        background: rgba(52, 199, 89, 0.08);
+        transition: outline .1s, background .1s;
+    }
+
     .reporte-block-obs {
         padding: 0;
         display: flex;
@@ -2161,11 +2219,17 @@
                         </div>
                         <div class="wo-field" id="wof-team-leader">
                             <label><i class="fa-solid fa-user-tie"></i> Team Leader asignado en aplicativo</label>
-                            <input type="text" id="wo-team-leader" autocomplete="off">
+                            <select id="wo-team-leader">
+                                <option value="">— Seleccionar —</option>
+                            </select>
                         </div>
                         <div class="wo-field" id="wof-supervisor">
                             <label><i class="fa-solid fa-user-shield"></i> ¿Quién fue el supervisor a cargo en ese turno?</label>
-                            <input type="text" id="wo-supervisor" autocomplete="off">
+                            <select id="wo-supervisor">
+                                <option value="">— Seleccionar —</option>
+                                <option value="CHAMBERGO ORIHUELA PERCY">CHAMBERGO ORIHUELA PERCY</option>
+                                <option value="DIAZ BERECHE JORGE ELVIS">DIAZ BERECHE JORGE ELVIS</option>
+                            </select>
                         </div>
                         <div class="wo-field" id="wof-coordinador-entel">
                             <label><i class="fa-solid fa-headset"></i> Coordinador ENTEL</label>
@@ -2173,7 +2237,12 @@
                         </div>
                         <div class="wo-field" id="wof-status-atencion">
                             <label><i class="fa-solid fa-list-check"></i> Status de atención</label>
-                            <input type="text" id="wo-status-atencion" autocomplete="off">
+                            <select id="wo-status-atencion">
+                                <option value="">— Seleccionar —</option>
+                                <option value="PROCESO">PROCESO</option>
+                                <option value="SUSPENDIDO">SUSPENDIDO</option>
+                                <option value="TERMINADO">TERMINADO</option>
+                            </select>
                         </div>
                         <div class="wo-field" id="wof-quiebre">
                             <label><i class="fa-solid fa-bolt"></i> Quiebre</label>
@@ -2574,6 +2643,7 @@
     const currentProjectId = {{ session.get('current_proyecto_id', 0) }};
     const USER_ROLE = "{{ session.get('rol') }}";
     const USER_IS_ADMIN = USER_ROLE === "admin";
+    const USER_IS_CONTRATA = USER_ROLE === "contrata";
     let cotiNextSeqConfig = 61;
     if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
         fetch('/api/cotizacion/next_seq').then(r=>r.json()).then(j=>{ if(j && j.next){ cotiNextSeqConfig = parseInt(j.next,10); const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'); if(y) y.textContent=new Date().getFullYear(); if(inp) inp.value=String(cotiNextSeqConfig).padStart(7,'0'); } }).catch(()=>{});
@@ -3479,7 +3549,9 @@
                 const v = cell.getValue();
                 if (v === null || v === undefined || String(v).trim() === '') return '';
                 const _isCot = currentProjectNombre.trim().toLowerCase() === 'cotizaciones';
-                if (!IS_WO_PROJECT && !_isCot) return escapeHtml(v);
+                const proj = currentProjectNombre.trim().toLowerCase();
+                const isManualClickable = ['dataper', 'material', 'site name', 'site'].includes(proj);
+                if (!IS_WO_PROJECT && !_isCot && !isManualClickable) return escapeHtml(v);
                 return `<span class="wo-link">${escapeHtml(v)}</span>`;
             };
             keyColumn = colDef;
@@ -3585,11 +3657,12 @@
             colDef.title = "<i class='fa-solid fa-pen-to-square' style='color:var(--ios-blue); font-size:10px; opacity:0.8;'></i> " + fieldName;
             const isDemo = "{{ session.get('rol') }}" === "demo";
             const isAdminUser = "{{ session.get('rol') }}" === "admin";
+            const isContrata = "{{ session.get('rol') }}" === "contrata";
             const isCombustible = currentProjectNombre.trim().toLowerCase() === 'combustible';
 
             // Combustible: solo el admin puede editar lo ya registrado; los gestores solo crean.
             const canEditCombustible = !isCombustible || isAdminUser;
-            if (!isDemo && canEditCombustible) {
+            if (!isDemo && !isContrata && canEditCombustible) {
                 if (manualDef.tipo === 'texto') {
                     if (isCombustible && fieldName === 'WO NUMBER') {
                         // Buscador de WOs (más de 1000): autocomplete filtra al escribir.
@@ -3717,7 +3790,7 @@
                     return true;
                 };
             }
-            // SITE: solo supervisor/admin puede editar; gestores solo lectura
+            // SITE: solo supervisor/admin puede editar; contrata y gestor solo lectura
             const isSiteProy = currentProjectNombre.trim().toLowerCase() === 'site';
             if (isSiteProy) {
                 const canEditSite = isAdminUser || "{{ session.get('rol') }}" === "supervisor";
@@ -4274,8 +4347,7 @@
                 if (el) el.classList.toggle('row-cm-pendiente', !wo);
             }
         },
-        clipboard: true,
-        clipboardPasteAction: "replace",
+        clipboard: false,
         history: true,
         movableColumns: isAdmin,
         persistence: { columns: ["width"] },
@@ -5951,6 +6023,58 @@ btnItem.onclick = () => cotRegAgregarFila();
             .catch(err => alert(err.message || 'Error de red'));
     }
 
+    let manualEditMode = false;
+    let manualEditKey = null;
+
+    function editarRegistroManual(row) {
+        const data = row.getData();
+        const pkName = "{{ pk }}";
+        const isGen = currentProjectNombre.trim().toLowerCase() === 'generadores';
+        
+        manualEditKey = isGen ? data['QR ASIGNADO'] : data['_key'];
+        manualEditMode = true;
+
+        // Build the form
+        aniadirRegistro();
+
+        // Delay slightly to let input rendering finish
+        setTimeout(() => {
+            const titleEl = document.querySelector('#modal-add-registro h3');
+            if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-pen"></i> Editar Registro';
+            const btnGuardar = document.getElementById('btn-mar-label-guardar');
+            if (btnGuardar) {
+                btnGuardar.title = 'Actualizar';
+                btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+            }
+
+            const inputs = document.querySelectorAll('#mar-fields .mar-field input, #mar-fields .mar-field select');
+            inputs.forEach(inp => {
+                const field = inp.dataset.field;
+                if (!field) return;
+                
+                let val = data[field];
+                if (val !== undefined && val !== null) {
+                    if (inp.type === 'datetime-local') {
+                        inp.value = toDatetimeLocal(val);
+                    } else {
+                        inp.value = val;
+                    }
+                }
+                
+                if (inp.dataset.pk === '1' || (isGen && field.toLowerCase() === 'qr asignado')) {
+                    inp.readOnly = true;
+                    if (inp.tagName === 'SELECT') {
+                        inp.disabled = true;
+                    }
+                    inp.style.backgroundColor = 'var(--ios-bg)';
+                }
+                if (inp.tagName === 'SELECT') {
+                    inp.dispatchEvent(new Event('change'));
+                }
+            });
+        }, 50);
+    }
+
     function cerrarModalRegistro() {
         const modal = document.getElementById('modal-add-registro');
         if (modal) modal.style.display = 'none';
@@ -5961,6 +6085,10 @@ btnItem.onclick = () => cotRegAgregarFila();
         // Reset modo edición Cotizaciones
         cotiEditMode = false;
         cotiEditKey = null;
+        manualEditMode = false;
+        manualEditKey = null;
+        const titleEl = document.querySelector('#modal-add-registro h3');
+        if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-plus-circle"></i> Nuevo Registro';
         const btnGuardar = document.getElementById('btn-mar-label-guardar');
         if (btnGuardar) {
             btnGuardar.disabled = false;
@@ -6227,6 +6355,34 @@ btnItem.onclick = () => cotRegAgregarFila();
             return;
         }
 
+        if (manualEditMode && manualEditKey) {
+            const btn = document.getElementById('btn-mar-label-guardar');
+            const originalText = btn ? btn.innerHTML : '<i class="fa-solid fa-floppy-disk"></i>';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+
+            const fieldsToUpdate = Object.keys(data).filter(f => !f.startsWith('_'));
+            let chain = Promise.resolve();
+            fieldsToUpdate.forEach(field => {
+                chain = chain.then(() => fetch('/api/rows/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: manualEditKey, field: field, value: data[field] })
+                }).then(r => r.json()).then(res => {
+                    if (res.error) throw new Error(res.error);
+                    if (!res.success && res.error) throw new Error(res.error);
+                }));
+            });
+            chain.then(() => {
+                cerrarModalRegistro();
+                location.reload();
+            }).catch(e => {
+                alert(e.message || 'Error al actualizar el registro');
+            }).finally(() => {
+                if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+            });
+            return;
+        }
+
         fetch('/api/rows/add', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6435,8 +6591,16 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function isWoColumn(field) {
-        if (!IS_WO_PROJECT) return false;
-        return String(field || '').trim().toLowerCase() === '_key';
+        if (!field) return false;
+        const normField = String(field).trim().toLowerCase();
+        if (IS_WO_PROJECT && normField === '_key') return true;
+        
+        // Manual projects also open modal when clicking _key (or QR ASIGNADO for generadores)
+        const proj = currentProjectNombre.trim().toLowerCase();
+        if (['dataper', 'material', 'site name', 'site'].includes(proj) && normField === '_key') return true;
+        if (proj === 'generadores' && normField === 'qr asignado') return true;
+        
+        return false;
     }
 
     table.on("cellClick", function (e, cell) {
@@ -6447,7 +6611,12 @@ btnItem.onclick = () => cotRegAgregarFila();
             cell.getRow().deselect();
         }
         if (isWoColumn(field)) {
-            abrirWoModal(cell.getRow());
+            const proj = currentProjectNombre.trim().toLowerCase();
+            if (['dataper', 'material', 'site name', 'site', 'generadores'].includes(proj)) {
+                editarRegistroManual(cell.getRow());
+            } else {
+                abrirWoModal(cell.getRow());
+            }
         }
         // Combustible: clic en QR ASIGNADO abre el detalle del registro.
         const proyCombGenClick = ['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase());
@@ -6660,7 +6829,9 @@ btnItem.onclick = () => cotRegAgregarFila();
                     input.multiple = true;
                     input.style.display = 'none';
                     photo.appendChild(input);
-                    photo.addEventListener('click', () => {
+                    photo.addEventListener('click', (ev) => {
+                        // Si el click viene del botón de pegar, no abrir el file picker
+                        if (ev.target.closest('.reporte-btn-pegar')) return;
                         if (!editable || photo.dataset.uploading === '1') return;
                         input.click();
                     });
@@ -6668,6 +6839,44 @@ btnItem.onclick = () => cotRegAgregarFila();
                         if (input.files && input.files.length) evidenciaSubirMultiples('pex', i, input.files);
                         input.value = '';
                     });
+                    // Botón de pegar desde portapapeles
+                    const btnPegar = document.createElement('button');
+                    btnPegar.className = 'reporte-btn-pegar';
+                    btnPegar.title = 'Pegar imagen del portapapeles';
+                    btnPegar.innerHTML = '<i class="fa-solid fa-paste"></i>';
+                    btnPegar.addEventListener('click', async (ev) => {
+                        ev.stopPropagation();
+                        try {
+                            if (!navigator.clipboard || !navigator.clipboard.read) {
+                                nucleusAlert('Tu navegador no soporta leer el portapapeles. Usa Ctrl+V en el campo o arrastra la imagen.');
+                                return;
+                            }
+                            const clipItems = await navigator.clipboard.read();
+                            let imageFile = null;
+                            for (const clipItem of clipItems) {
+                                const imgType = clipItem.types.find(t => t.startsWith('image/'));
+                                if (imgType) {
+                                    const blob = await clipItem.getType(imgType);
+                                    imageFile = new File([blob], 'pasted-image.png', { type: imgType });
+                                    break;
+                                }
+                            }
+                            if (!imageFile) {
+                                nucleusAlert('No hay imagen en el portapapeles. Copia una imagen primero.');
+                                return;
+                            }
+                            photo.classList.add('paste-active');
+                            setTimeout(() => photo.classList.remove('paste-active'), 600);
+                            evidenciaSubirMultiples('pex', i, [imageFile]);
+                        } catch (err) {
+                            if (err && err.name === 'NotAllowedError') {
+                                nucleusAlert('Permiso denegado para leer el portapapeles. Acepta el permiso en el navegador e intenta de nuevo.');
+                            } else {
+                                nucleusAlert('No se pudo leer el portapapeles: ' + (err && err.message ? err.message : 'error desconocido'));
+                            }
+                        }
+                    });
+                    photo.appendChild(btnPegar);
                 }
             } else {
                 const na = document.createElement('div');
@@ -6774,6 +6983,67 @@ btnItem.onclick = () => cotRegAgregarFila();
             });
         } else if (!editable) {
             cont.classList.remove('drag-over');
+        }
+
+        // Pegar imagen desde portapapeles (Ctrl+V) cuando el panel de evidencias está activo
+        if (editable && !cont.dataset.pasteInit) {
+            cont.dataset.pasteInit = '1';
+
+            // Mostrar hint de pegar si hay espacio disponible
+            const existingHint = cont.querySelector('.evidencia-paste-hint');
+            if (!existingHint) {
+                const hint = document.createElement('div');
+                hint.className = 'evidencia-paste-hint';
+                hint.innerHTML = '<i class="fa-solid fa-clipboard"></i> Puedes pegar imágenes aquí (Ctrl+V)';
+                cont.appendChild(hint);
+            }
+
+            // Escuchar paste a nivel de documento solo cuando el panel es visible
+            document.addEventListener('paste', function evidenciaPasteHandler(e) {
+                // Solo actuar si el panel de evidencias está visible
+                const panelEvidencia = document.getElementById('wo-panel-evidencia');
+                if (!panelEvidencia || panelEvidencia.style.display === 'none') return;
+                if (!evidenciaState || !woEditable) return;
+
+                const items = e.clipboardData && e.clipboardData.items;
+                if (!items) return;
+
+                const imageFiles = [];
+                for (let item of items) {
+                    if (item.type && item.type.startsWith('image/')) {
+                        const file = item.getAsFile();
+                        if (file) imageFiles.push(file);
+                    }
+                }
+
+                if (!imageFiles.length) return;
+
+                // Determinar el tipo activo (inicio / proceso / cierre)
+                const tiposPanel = ['inicio', 'proceso', 'cierre'];
+                let tipoActivo = tipo;
+                for (let t of tiposPanel) {
+                    const c2 = document.getElementById('evidencia-fotos-' + t);
+                    if (c2 && document.activeElement && c2.contains(document.activeElement)) {
+                        tipoActivo = t; break;
+                    }
+                }
+
+                // Buscar primer hueco libre en el tipo activo
+                let firstEmpty = -1;
+                for (let k = 0; k < 5; k++) {
+                    if (!evidenciaState[tipoActivo] || !evidenciaState[tipoActivo].fotos[k]) { firstEmpty = k; break; }
+                }
+                if (firstEmpty === -1) { nucleusAlert('No hay espacio libre en este grupo. Elimina alguna foto primero.'); return; }
+
+                // Flash visual de confirmación
+                const targetCont = document.getElementById('evidencia-fotos-' + tipoActivo);
+                if (targetCont) {
+                    targetCont.classList.add('paste-active');
+                    setTimeout(() => targetCont.classList.remove('paste-active'), 600);
+                }
+
+                evidenciaSubirMultiples(tipoActivo, firstEmpty, imageFiles);
+            });
         }
     }
 
@@ -7915,13 +8185,13 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
 
         const isDemo = "{{ session.get('rol') }}" === "demo";
-        const woEsGestor = "{{ session.get('rol') }}" === "gestor";
+        const woEsContrata = "{{ session.get('rol') }}" === "contrata";
         const woAprobado = String(data['_ENVIADO_APROBACION'] || '').trim() === '1';
-        renderWoAprobacion(data, { ges: woEsGestor, apro: woAprobado });
-        const editable = !isDemo && !(woEsGestor && woAprobado);
+        renderWoAprobacion(data, { ges: woEsContrata, apro: woAprobado });
+        const editable = !isDemo && !(woEsContrata && woAprobado);
         // Bitácora: campo visible solo para el personal (no para Contrata).
         const fBitG = document.getElementById('wof-bitacora');
-        if (fBitG) fBitG.style.display = woEsGestor ? 'none' : '';
+        if (fBitG) fBitG.style.display = woEsContrata ? 'none' : '';
         woEditable = editable;
         renderWoGastosList(data);
         renderWoManoObraList(data);
@@ -8054,6 +8324,20 @@ btnItem.onclick = () => cotRegAgregarFila();
             });
             const currentTech = data['TECNICO ASIGNADO'] || '';
             if (currentTech) tSel.value = currentTech;
+
+            const tlSel = document.getElementById('wo-team-leader');
+            if (tlSel) {
+                tlSel.innerHTML = '<option value="">— Seleccionar —</option>';
+                woTecnicos.forEach(t => {
+                    const o = document.createElement('option');
+                    o.value = t.nombre;
+                    o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
+                    tlSel.appendChild(o);
+                });
+                const currentTl = data['TEAM LEADER ASIGNADO EN APLICATIVO'] || '';
+                if (currentTl) tlSel.value = currentTl;
+            }
+
             if (!document.getElementById('wo-contrata').value) onTecnicoChange();
             cargarGastosCombustible();
         }).catch(() => { });
