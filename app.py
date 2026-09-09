@@ -4275,6 +4275,9 @@ EVIDENCIA_TIPOS = ('inicio', 'proceso', 'cierre')
 EVIDENCIA_MAX_POR_TIPO = 5
 # PEXT: reporte fotográfico estilo Excel de 26 fotografías (solo PEXT usa 'pex').
 EVIDENCIA_MAX_PEX = 26
+# Resguardo: 2 fotos (inicio / fin) en pestaña propia antes de Evidencia
+EVIDENCIA_TIPO_RESGUARDO = 'resguardo'
+EVIDENCIA_MAX_RESGUARDO = 2
 EVIDENCIA_EXT_ALLOWED = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic'}
 
 # Plantilla del reporte fotográfico de PEXT (formato del Excel del cliente).
@@ -4637,9 +4640,14 @@ def api_evidencia_subir():
     except (TypeError, ValueError):
         return jsonify({'error': 'Índice inválido'}), 400
     file = request.files.get('foto')
-    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex'):
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex', EVIDENCIA_TIPO_RESGUARDO):
         return jsonify({'error': 'Datos incompletos'}), 400
-    max_i = _pext_max() if tipo == 'pex' else EVIDENCIA_MAX_POR_TIPO
+    if tipo == 'pex':
+        max_i = _pext_max()
+    elif tipo == EVIDENCIA_TIPO_RESGUARDO:
+        max_i = EVIDENCIA_MAX_RESGUARDO
+    else:
+        max_i = EVIDENCIA_MAX_POR_TIPO
     if indice < 0 or indice >= max_i:
         return jsonify({'error': 'Índice fuera de rango'}), 400
     if file is None or not file.filename:
@@ -4700,9 +4708,14 @@ def api_evidencia_eliminar():
         indice = int(data.get('indice'))
     except (TypeError, ValueError):
         return jsonify({'error': 'Índice inválido'}), 400
-    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex'):
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex', EVIDENCIA_TIPO_RESGUARDO):
         return jsonify({'error': 'Datos incompletos'}), 400
-    max_i = _pext_max() if tipo == 'pex' else EVIDENCIA_MAX_POR_TIPO
+    if tipo == 'pex':
+        max_i = _pext_max()
+    elif tipo == EVIDENCIA_TIPO_RESGUARDO:
+        max_i = EVIDENCIA_MAX_RESGUARDO
+    else:
+        max_i = EVIDENCIA_MAX_POR_TIPO
     if indice < 0 or indice >= max_i:
         return jsonify({'error': 'Índice inválido'}), 400
     # Solo admin puede borrar foto de Combustible

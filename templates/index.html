@@ -2059,6 +2059,8 @@
                             class="fa-solid fa-gas-pump"></i> Gastos</button>
                     <button type="button" class="wo-tab" id="wo-tab-cotizacion" onclick="cambiarWoTab('cotizacion')"><i
                             class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
+                    <button type="button" class="wo-tab" id="wo-tab-resguardo" onclick="cambiarWoTab('resguardo')"><i
+                            class="fa-solid fa-shield-halved"></i> Resguardo</button>
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i
                             class="fa-solid fa-camera"></i> Evidencia</button>
                     <button type="button" class="wo-tab" id="wo-tab-bitacora" style="display:none;"
@@ -2511,6 +2513,19 @@
                     <button type="button" id="btn-wo-redownload-coti" class="mar-btn-ghost"
                         style="margin-top: 12px; margin-left: 8px; display:none;" onclick="reDescargarCotizacion()"><i
                             class="fa-solid fa-file-pdf"></i> Descargar PDF</button>
+                </div>
+            </div>
+            <div id="wo-panel-resguardo" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-section-title"><i class="fa-solid fa-shield-halved"></i> Resguardo</div>
+                    <div class="wo-field full" style="margin-bottom:10px;">
+                        <label><i class="fa-solid fa-camera"></i> Foto de resguardo inicio</label>
+                        <div class="evidencia-fotos" id="evidencia-fotos-resguardo-inicio" style="margin-top:6px;"></div>
+                    </div>
+                    <div class="wo-field full">
+                        <label><i class="fa-solid fa-camera"></i> Foto de resguardo fin</label>
+                        <div class="evidencia-fotos" id="evidencia-fotos-resguardo-fin" style="margin-top:6px;"></div>
+                    </div>
                 </div>
             </div>
             <div id="wo-panel-evidencia" style="display:none;">
@@ -6443,6 +6458,9 @@ btnItem.onclick = () => cotRegAgregarFila();
     let serviciosEditorOpen = false;
     let evidenciaState = null;
     const EVIDENCIA_TIPOS = ['inicio', 'proceso', 'cierre'];
+    // Resguardo: 2 fotos (inicio / fin) en pestaña propia
+    const RESGUARDO_TIPO = 'resguardo';
+    const RESGUARDO_LABELS = ['Foto de resguardo inicio', 'Foto de resguardo fin'];
 
     // --- Reporte fotográfico PEXT (estilo Excel del cliente, solo PEXT) ---
     const EVIDENCIA_REPORTE_N = 26;
@@ -6694,6 +6712,10 @@ btnItem.onclick = () => cotRegAgregarFila();
                 bitacora: data['_BITACORA_' + t.toUpperCase()] || ''
             };
         });
+        // Resguardo: 2 fotos (indice 0 = inicio, 1 = fin)
+        evidenciaState[RESGUARDO_TIPO] = {
+            fotos: parseEvidenciaArrN(data['_EVIDENCIA_RESGUARDO'], 2)
+        };
         if (esReportePext()) {
             evidenciaState.reporte = {
                 fotos: parseEvidenciaArrN(data['_EVIDENCIA_FOTOS'], EVIDENCIA_REPORTE_N),
@@ -6710,6 +6732,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (bit) bit.value = evidenciaState[t].bitacora;
         });
         renderEvidenciaSlots();
+        renderResguardo();
     }
 
     function renderEvidenciaSlots() {
@@ -7053,12 +7076,87 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (!grid) return null;
             return grid.querySelector('.reporte-block-photo[data-index="' + indice + '"]') || null;
         }
+        if (tipo === RESGUARDO_TIPO) {
+            const suf = indice === 0 ? 'inicio' : 'fin';
+            const cont = document.getElementById('evidencia-fotos-resguardo-' + suf);
+            return cont ? (cont.children[0] || null) : null;
+        }
         const cont = document.getElementById('evidencia-fotos-' + tipo);
         return cont ? (cont.children[indice] || null) : null;
     }
 
     function evidenciaSt(tipo) {
-        return tipo === 'pex' ? evidenciaState.reporte : evidenciaState[tipo];
+        if (tipo === 'pex') return evidenciaState.reporte;
+        if (tipo === RESGUARDO_TIPO) return evidenciaState[RESGUARDO_TIPO];
+        return evidenciaState[tipo];
+    }
+
+    // Resguardo: render de 2 fotos (inicio / fin) cada una en su contenedor
+    function renderResguardo() {
+        if (!evidenciaState || !evidenciaState[RESGUARDO_TIPO]) return;
+        const st = evidenciaState[RESGUARDO_TIPO];
+        const editable = woEditable;
+        for (let i = 0; i < 2; i++) {
+            const suf = i === 0 ? 'inicio' : 'fin';
+            const cont = document.getElementById('evidencia-fotos-resguardo-' + suf);
+            if (!cont) continue;
+            cont.innerHTML = '';
+            const url = st.fotos[i];
+            const slot = document.createElement('div');
+            slot.className = 'evidencia-slot' + (url ? ' has-img' : '') + (editable ? '' : ' disable');
+            if (url) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = RESGUARDO_LABELS[i];
+                img.loading = 'lazy';
+                img.onerror = () => { evidenciaState[RESGUARDO_TIPO].fotos[i] = ''; renderResguardo(); };
+                img.addEventListener('click', ev => { ev.stopPropagation(); abrirEvidenciaFoto(url); });
+                slot.appendChild(img);
+                if (editable) {
+                    const del = document.createElement('button');
+                    del.className = 'evidencia-slot-del';
+                    del.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                    del.title = 'Eliminar foto';
+                    del.addEventListener('click', ev => { ev.stopPropagation(); evidenciaEliminar(RESGUARDO_TIPO, i); });
+                    slot.appendChild(del);
+                }
+            } else {
+                const empty = document.createElement('div');
+                empty.className = 'evidencia-slot-empty';
+                empty.textContent = '+';
+                slot.appendChild(empty);
+                if (editable) {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.style.display = 'none';
+                    slot.appendChild(input);
+                    slot.addEventListener('click', () => {
+                        if (!editable || slot.dataset.uploading === '1') return;
+                        input.click();
+                    });
+                    input.addEventListener('change', () => {
+                        if (input.files && input.files.length) evidenciaSubir(RESGUARDO_TIPO, i, input.files[0]);
+                        input.value = '';
+                    });
+                }
+            }
+            cont.appendChild(slot);
+            // Drag & drop simple por slot
+            if (editable && !cont.dataset.dragInit) {
+                cont.dataset.dragInit = '1';
+                cont.addEventListener('dragover', e => { e.preventDefault(); cont.classList.add('drag-over'); });
+                cont.addEventListener('dragleave', e => { if (!cont.contains(e.relatedTarget)) cont.classList.remove('drag-over'); });
+                cont.addEventListener('drop', e => {
+                    e.preventDefault(); cont.classList.remove('drag-over');
+                    if (!editable || !evidenciaState[RESGUARDO_TIPO]) return;
+                    const files = e.dataTransfer && e.dataTransfer.files;
+                    if (files && files.length && files[0].type && files[0].type.startsWith('image/')) {
+                        evidenciaSubir(RESGUARDO_TIPO, i, files[0]);
+                    }
+                });
+            }
+        }
     }
 
     function renderWoBitacora() {
@@ -7170,7 +7268,9 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (!evidenciaState || !st) return;
         const files = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
         if (!files.length) { alert('Selecciona archivos de imagen.'); return; }
-        const maxN = tipo === 'pex' ? numReporteSlots() : 5;
+        let maxN = 5;
+        if (tipo === 'pex') maxN = numReporteSlots();
+        else if (tipo === RESGUARDO_TIPO) maxN = 2;
         // huecos libres
         let empty = [];
         for (let k = 0; k < maxN; k++) if (!st.fotos[k]) empty.push(k);
@@ -7211,7 +7311,11 @@ btnItem.onclick = () => cotRegAgregarFila();
                 }
             })
             .catch(() => alert('Error de red al subir la foto.'))
-            .finally(() => tipo === 'pex' ? renderEvidenciaReporte() : renderEvidenciaGrupo(tipo));
+            .finally(() => {
+                if (tipo === 'pex') renderEvidenciaReporte();
+                else if (tipo === RESGUARDO_TIPO) renderResguardo();
+                else renderEvidenciaGrupo(tipo);
+            });
     }
 
     function evidenciaEliminar(tipo, indice) {
@@ -7225,13 +7329,17 @@ btnItem.onclick = () => cotRegAgregarFila();
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    st.fotos[indice] = null;
+                    st.fotos[indice] = '';
                 } else {
                     alert('Error al eliminar la foto: ' + (res.error || 'desconocido'));
                 }
             })
             .catch(() => alert('Error de red al eliminar la foto.'))
-            .finally(() => tipo === 'pex' ? renderEvidenciaReporte() : renderEvidenciaGrupo(tipo));
+            .finally(() => {
+                if (tipo === 'pex') renderEvidenciaReporte();
+                else if (tipo === RESGUARDO_TIPO) renderResguardo();
+                else renderEvidenciaGrupo(tipo);
+            });
     }
 
     function descargarReporteFotografico() {
@@ -7267,7 +7375,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function descargarEvidenciaZip() {
         if (!woKey) { nucleusAlert('No hay ticket seleccionado.'); return; }
-        const hasAny = EVIDENCIA_TIPOS.some(t => evidenciaState && evidenciaState[t] && evidenciaState[t].fotos.some(Boolean));
+        let hasAny = EVIDENCIA_TIPOS.some(t => evidenciaState && evidenciaState[t] && evidenciaState[t].fotos.some(Boolean));
+        if (!hasAny && evidenciaState && evidenciaState[RESGUARDO_TIPO] && evidenciaState[RESGUARDO_TIPO].fotos.some(Boolean)) hasAny = true;
+        if (!hasAny && evidenciaState && evidenciaState.reporte && evidenciaState.reporte.fotos.some(Boolean)) hasAny = true;
         if (!hasAny) { nucleusAlert('No hay fotos cargadas para descargar.'); return; }
         const btn = document.getElementById('btn-evidencia-zip');
         const old = btn ? btn.innerHTML : '';
@@ -7362,6 +7472,13 @@ btnItem.onclick = () => cotRegAgregarFila();
             out['_EVIDENCIA_' + t.toUpperCase()] = has ? JSON.stringify(fotos) : '';
             out['_BITACORA_' + t.toUpperCase()] = bit ? bit.value : '';
         });
+        // Resguardo
+        if (evidenciaState && evidenciaState[RESGUARDO_TIPO]) {
+            const fotosR = evidenciaState[RESGUARDO_TIPO].fotos || [];
+            const hasR = fotosR.some(f => f);
+            const origR = (woRow && woRow.getData) ? (woRow.getData()['_EVIDENCIA_RESGUARDO'] || '') : '';
+            out['_EVIDENCIA_RESGUARDO'] = hasR ? JSON.stringify(fotosR) : origR;
+        }
         if (esReportePext() && evidenciaState && evidenciaState.reporte) {
             const orig = (woRow && woRow.getData) ? (woRow.getData()['_EVIDENCIA_FOTOS'] || '') : '';
             const haveFotos = evidenciaState.reporte.fotos.some(f => f);
@@ -8196,6 +8313,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         renderWoGastosList(data);
         renderWoManoObraList(data);
         renderWoMaterialList(data);
+        if (typeof renderResguardo === 'function') renderResguardo();
         document.querySelectorAll('#wo-panel-detalle input, #wo-panel-detalle select, #wo-panel-detalle textarea').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-coti-nota').forEach(el => { el.disabled = !editable; });
         document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !editable; });
@@ -9339,7 +9457,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         const tabMat = document.getElementById('wo-tab-materiales');
         if (tabMat) tabMat.classList.toggle('active', tab === 'materiales');
-        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-evidencia', 'wo-tab-estado', 'wo-tab-bitacora'].forEach(tid => {
+        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-resguardo', 'wo-tab-evidencia', 'wo-tab-estado', 'wo-tab-bitacora'].forEach(tid => {
             const _t = document.getElementById(tid);
             if (_t) _t.classList.toggle('active', tab === tid.replace('wo-tab-', ''));
         });
@@ -9348,6 +9466,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (panMat) panMat.style.display = tab === 'materiales' ? '' : 'none';
         document.getElementById('wo-panel-gastos').style.display = tab === 'gastos' ? '' : 'none';
         document.getElementById('wo-panel-cotizacion').style.display = tab === 'cotizacion' ? '' : 'none';
+        document.getElementById('wo-panel-resguardo').style.display = tab === 'resguardo' ? '' : 'none';
         document.getElementById('wo-panel-evidencia').style.display = tab === 'evidencia' ? '' : 'none';
         document.getElementById('wo-panel-bitacora').style.display = tab === 'bitacora' ? '' : 'none';
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
@@ -9357,6 +9476,8 @@ btnItem.onclick = () => cotRegAgregarFila();
             cargarWoEstado();
         } else if (tab === 'evidencia') {
             renderEvidenciaSlots();
+        } else if (tab === 'resguardo') {
+            renderResguardo();
         } else if (tab === 'bitacora') {
             renderWoBitacora();
         } else if (tab === 'cotizacion') {
