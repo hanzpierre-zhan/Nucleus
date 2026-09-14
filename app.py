@@ -3604,6 +3604,15 @@ def api_rows_update():
         record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
         if not record: return jsonify({'error': 'Record not found'}), 404
         row_dict = json.loads(record.data_json)
+
+        # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
+        _proy_upd = db.session.get(Proyecto, pid)
+        _proy_upd_nombre = _proy_upd.nombre.strip() if _proy_upd and _proy_upd.nombre else ''
+        if (_proy_upd_nombre == 'PEXT'
+                and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
+                and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
+            return jsonify({'error': 'Este WO est\u00e1 finalizado y no puede editarse. Contacta al supervisor o administrador.'}), 403
+
         
         # N° ORDEN correlativo: no editable una vez asignado
         if field == 'N° ORDEN':
@@ -4302,7 +4311,13 @@ def api_rows_bulk_update():
         # WO enviado a aprobación: el rol Contrata ya no puede modificarlo.
         if (session.get('rol') == 'contrata' and _proy_bulk_nombre in ('FLM', 'PEXT')
                 and str(row_dict.get('_ENVIADO_APROBACION', '')).strip() == '1'):
-            return jsonify({'error': 'Este WO ya fue enviado a aprobación y no puede editarse. Contacta al personal administrativo.'}), 403
+            return jsonify({'error': 'Este WO ya fue enviado a aprobaci\u00f3n y no puede editarse. Contacta al personal administrativo.'}), 403
+
+        # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
+        if (_proy_bulk_nombre == 'PEXT'
+                and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
+                and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
+            return jsonify({'error': 'Este WO est\u00e1 finalizado y no puede editarse. Contacta al supervisor o administrador.'}), 403
 
         # Bitácora es solo para el personal (admin/supervisor/gestor), no para Contrata:
         # el rol Contrata jamás envía ni modifica BITACORA / entradas de bitácora.
@@ -4421,6 +4436,65 @@ def api_rows_bulk_update():
                 db.session.commit()
 
         return jsonify({'success': True, 'newData': final_row})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rows/finalizar', methods=['POST'])
+@login_required
+def api_rows_finalizar():
+    """Finaliza (o revierte) un WO de PEXT. Guarda _FINALIZADO='1'/'0' en data_json.
+    Revertir solo lo puede hacer zeno/suport/supervisor."""
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos.'}), 403
+    try:
+        data = request.json
+        key_val = data.get('key')
+        finalizado = data.get('finalizado', True)  # True = finalizar, False = revertir
+        if not key_val:
+            return jsonify({'error': 'Falta la clave del registro.'}), 400
+
+        # Solo proyecto PEXT
+        proy = db.session.get(Proyecto, pid)
+        if not proy or proy.nombre.strip() != 'PEXT':
+            return jsonify({'error': 'Esta acci\u00f3n solo est\u00e1 disponible en el proyecto PEXT.'}), 403
+
+        # Revertir: solo roles privilegiados
+        if not finalizado and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+            return jsonify({'error': 'Solo el supervisor o administrador puede desbloquear un WO finalizado.'}), 403
+
+        record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
+        if not record:
+            return jsonify({'error': 'Registro no encontrado.'}), 404
+
+        row_dict = json.loads(record.data_json)
+        nuevo_estado = '1' if finalizado else '0'
+        estado_anterior = str(row_dict.get('_FINALIZADO', '0')).strip()
+
+        if estado_anterior == nuevo_estado:
+            return jsonify({'success': True, 'newData': row_dict, 'message': 'Sin cambios.'})  # idempotente
+
+        # Historial
+        historial = HistorialCambios(
+            proyecto_id=pid,
+            usuario_id=session.get('user_id'),
+            username=session.get('username'),
+            key_value=str(key_val),
+            campo_modificado='_FINALIZADO',
+            valor_anterior=estado_anterior,
+            valor_nuevo=nuevo_estado
+        )
+        db.session.add(historial)
+
+        row_dict['_FINALIZADO'] = nuevo_estado
+        row_dict['_FINALIZADO_POR'] = session.get('username') if finalizado else ''
+        row_dict['_FINALIZADO_FECHA'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') if finalizado else ''
+        record.data_json = safe_json_dumps(row_dict)
+        db.session.commit()
+
+        rows_injected, _ = inject_kpis(pid, [row_dict])
+        return jsonify({'success': True, 'newData': rows_injected[0]})
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

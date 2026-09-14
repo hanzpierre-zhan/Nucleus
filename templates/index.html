@@ -506,6 +506,49 @@
         box-shadow: 0 8px 20px rgba(34, 197, 94, 0.45);
     }
 
+    /* --- Botón Finalizar WO (PEXT) --- */
+    .mar-btn-finalizar {
+        background: linear-gradient(135deg, #F59E0B, #D97706);
+        color: #fff;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        display: none; /* visible solo en PEXT via JS */
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 6px 16px rgba(245, 158, 11, 0.35);
+        transition: all .15s ease;
+    }
+    .mar-btn-finalizar:hover {
+        filter: brightness(1.07);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.45);
+    }
+    .mar-btn-finalizar.wo-finalizado {
+        background: linear-gradient(135deg, #EF4444, #B91C1C);
+        box-shadow: 0 6px 16px rgba(239, 68, 68, 0.35);
+    }
+    .mar-btn-finalizar.wo-finalizado:hover {
+        box-shadow: 0 8px 20px rgba(239, 68, 68, 0.45);
+    }
+    /* Badge "FINALIZADO" en el header del modal WO */
+    .wo-badge-finalizado {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #EF4444;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+
     .mar-btn-copy {
         background: linear-gradient(135deg, var(--ios-accent), var(--ios-accent));
         color: #fff;
@@ -2072,11 +2115,17 @@
                 </div>
             </div>
             <div class="wo-head-actions">
+                <span id="wo-badge-finalizado" class="wo-badge-finalizado">
+                    <i class="fa-solid fa-lock"></i> FINALIZADO
+                </span>
                 <button onclick="copiarPlantillaWO()" id="btn-wo-copiar" class="mar-btn-copy"
                     title="Copiar plantilla"><i class="fa-solid fa-copy"></i></button>
                 <button type="button" id="btn-wo-enviar-aprobacion" class="mar-btn-ghost"
-                    style="display:none;" title="Enviar aprobación" onclick="enviarAprobacionWO()"><i
+                    style="display:none;" title="Enviar aprobaci&#243;n" onclick="enviarAprobacionWO()"><i
                         class="fa-solid fa-paper-plane"></i></button>
+                <button type="button" id="btn-wo-finalizar" class="mar-btn-finalizar"
+                    onclick="finalizarWO()" title="Finalizar WO &#8211; bloquea edici&#243;n"><i
+                        class="fa-solid fa-lock"></i></button>
                 <button id="btn-wo-save" onclick="guardarWoModal()" class="mar-btn-primary" title="Guardar"><i
                         class="fa-solid fa-floppy-disk"></i></button>
                 <button onclick="cerrarWoModal()" class="mar-close" title="Cerrar"><i
@@ -3687,14 +3736,14 @@
         // 4. MANUAL COLUMNS (Editors and Specific Formatters)
         if (isManual) {
             colDef.title = "<i class='fa-solid fa-pen-to-square' style='color:var(--ios-blue); font-size:10px; opacity:0.8;'></i> " + fieldName;
-            const isDemo = "{{ session.get('rol') }}" === "supervisor";
+            const isDemo = false; // supervisor ya NO es read-only en columnas manuales
             const isAdminUser = ["zeno", "suport"].includes("{{ session.get('rol') }}");
             const isContrata = "{{ session.get('rol') }}" === "contrata";
             const isCombustible = currentProjectNombre.trim().toLowerCase() === 'combustible';
 
             // Combustible: solo el admin puede editar lo ya registrado; los gestores solo crean.
             const canEditCombustible = !isCombustible || isAdminUser;
-            if (!isDemo && !isContrata && canEditCombustible) {
+            if (!isContrata && canEditCombustible) {
                 if (manualDef.tipo === 'texto') {
                     if (isCombustible && fieldName === 'WO NUMBER') {
                         // Buscador de WOs (más de 1000): autocomplete filtra al escribir.
@@ -3833,6 +3882,18 @@
                 if (!canEditSite) {
                     colDef.editor = false;
                     colDef.editable = false;
+                }
+            }
+            // PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar inline
+            if (IS_PEXT) {
+                const canEditFinalizado = isAdminUser || USER_ROLE === 'supervisor';
+                if (!canEditFinalizado) {
+                    const prevEditable = colDef.editable;
+                    colDef.editable = function (cell) {
+                        const d = cell.getRow().getData() || {};
+                        if (String(d['_FINALIZADO'] || '').trim() === '1') return false;
+                        return typeof prevEditable === 'function' ? prevEditable(cell) : (prevEditable !== false);
+                    };
                 }
             }
         }
@@ -4624,8 +4685,7 @@
     });
 
     table.on("cellEdited", function (cell) {
-        const isDemo = "{{ session.get('rol') }}" === "supervisor";
-        if (isDemo) return;
+        // Solo el rol demo no puede guardar cambios inline
 
         const field = cell.getField();
         const manualDef = manualColsConfig.find(mc => mc.nombre === field);
@@ -8350,11 +8410,13 @@ btnItem.onclick = () => cotRegAgregarFila();
             aplicarCondicionalesWO();
         }
 
-        const isDemo = "{{ session.get('rol') }}" === "supervisor";
+        // isDemo (supervisor) era read-only solo en detalle del form; la evidencia
+        // y los demás roles (gestor, contrata sin aprobación) deben poder subir fotos.
+        const isDemo = false; // El supervisor ya NO es solo lectura
         const woEsContrata = "{{ session.get('rol') }}" === "contrata";
         const woAprobado = String(data['_ENVIADO_APROBACION'] || '').trim() === '1';
         renderWoAprobacion(data, { ges: woEsContrata, apro: woAprobado });
-        const editable = !isDemo && !(woEsContrata && woAprobado);
+        const editable = !(woEsContrata && woAprobado);
         // Bitácora: campo visible solo para el personal (no para Contrata).
         const fBitG = document.getElementById('wof-bitacora');
         if (fBitG) fBitG.style.display = woEsContrata ? 'none' : '';
@@ -8418,6 +8480,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         // Verificar estado de cotización con el servidor (bloqueada o no)
         _aplicarEstadoCotizacion(false); // reset primero
         cargarListaCotizaciones();
+        // PEXT: aplicar estado de finalización (bloqueos visuales)
+        if (IS_PEXT) aplicarEstadoFinalizadoWO(data);
     }
 
     function renderWoSummary(data) {
@@ -9499,6 +9563,98 @@ btnItem.onclick = () => cotRegAgregarFila();
                 alert('Error al guardar: ' + res.error);
             }
         }).catch(err => { btn.disabled = false; alert('Error de red'); });
+    }
+
+    // --- Finalizar / Desbloquear WO (PEXT) ---
+    async function finalizarWO() {
+        if (!woKey) return;
+        const data = woRow ? woRow.getData() : {};
+        const yaFinalizado = String(data['_FINALIZADO'] || '').trim() === '1';
+        const canUnlock = ['zeno', 'suport', 'supervisor'].includes(USER_ROLE);
+
+        if (yaFinalizado) {
+            if (!canUnlock) {
+                alert('Este WO est\u00e1 finalizado. Solo el supervisor o administrador puede desbloquearlo.');
+                return;
+            }
+            if (!confirm('&#191;Desbloquear el WO ' + woKey + '?\nPodr\u00e1 volver a editarse.')) return;
+        } else {
+            if (!confirm('&#191;Finalizar el WO ' + woKey + '?\n\nUna vez finalizado, solo el supervisor o administrador podr\u00e1 editarlo o desbloquearlo.')) return;
+        }
+
+        const btnFin = document.getElementById('btn-wo-finalizar');
+        if (btnFin) { btnFin.disabled = true; }
+        try {
+            const res = await fetch('/api/rows/finalizar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: woKey, finalizado: !yaFinalizado })
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                alert(json.error || 'Error al cambiar estado.');
+                return;
+            }
+            if (woRow && json.newData) woRow.update(json.newData);
+            aplicarEstadoFinalizadoWO(json.newData || data);
+        } catch (e) {
+            alert('Error de red al finalizar WO.');
+        } finally {
+            if (btnFin) btnFin.disabled = false;
+        }
+    }
+
+    /** Aplica el estado visual y de edici\u00f3n del WO seg\u00fan _FINALIZADO en el modal abierto. */
+    function aplicarEstadoFinalizadoWO(data) {
+        if (!IS_PEXT) return;
+        const finalizado = String(data['_FINALIZADO'] || '').trim() === '1';
+        const canUnlock = ['zeno', 'suport', 'supervisor'].includes(USER_ROLE);
+
+        const btnFin  = document.getElementById('btn-wo-finalizar');
+        const btnSave = document.getElementById('btn-wo-save');
+        const badge   = document.getElementById('wo-badge-finalizado');
+
+        // Mostrar siempre el bot\u00f3n Finalizar en PEXT
+        if (btnFin) {
+            btnFin.style.display = 'inline-flex';
+            btnFin.classList.toggle('wo-finalizado', finalizado);
+            if (finalizado) {
+                // Solo privilegiados ven la opci\u00f3n de desbloquear
+                btnFin.style.display = canUnlock ? 'inline-flex' : 'none';
+                btnFin.title = canUnlock ? 'Desbloquear WO' : 'WO Finalizado';
+                btnFin.innerHTML = canUnlock
+                    ? '<i class="fa-solid fa-lock-open"></i>'
+                    : '<i class="fa-solid fa-lock"></i>';
+            } else {
+                btnFin.title = 'Finalizar WO \u2013 bloquea edici\u00f3n';
+                btnFin.innerHTML = '<i class="fa-solid fa-lock"></i>';
+            }
+        }
+
+        // Badge FINALIZADO
+        if (badge) {
+            badge.style.display = finalizado ? 'inline-flex' : 'none';
+        }
+
+        // Bloquear / desbloquear controles del modal
+        const bloqueado = finalizado && !canUnlock;
+        document.querySelectorAll('#wo-panel-detalle input, #wo-panel-detalle select, #wo-panel-detalle textarea').forEach(el => {
+            el.disabled = bloqueado || !woEditable;
+        });
+        document.querySelectorAll('#wo-coti-nota, #wo-coti-margen').forEach(el => {
+            el.disabled = bloqueado || !woEditable;
+        });
+        document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => {
+            el.disabled = bloqueado || !woEditable;
+        });
+
+        if (btnSave) btnSave.style.display = (bloqueado || !woEditable) ? 'none' : '';
+
+        // Botones de a\u00f1adir en pesta\u00f1as
+        ['btn-wo-agregar-gasto', 'btn-wo-agregar-mo', 'btn-wo-agregar-material'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = (bloqueado || !woEditable) ? 'none' : '';
+        });
     }
 
     function cambiarWoTab(tab) {
