@@ -56,7 +56,7 @@
     {% endif %}
     <!-- Botón Excel (Verde) -->
     <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
-        <i class="fa-solid fa-file-excel"></i> Excel
+        <i class="fa-solid fa-file-excel"></i> Exportar
     </button>
 
     {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
@@ -2269,6 +2269,10 @@
                         <div class="wo-field" id="wof-fin">
                             <label><i class="fa-solid fa-stop"></i> Fin de parada</label>
                             <input type="datetime-local" id="wo-fin-parada">
+                        </div>
+                        <div class="wo-field" id="wof-motivo-parada">
+                            <label><i class="fa-solid fa-triangle-exclamation"></i> Motivo de parada</label>
+                            <input type="text" id="wo-motivo-parada" autocomplete="off" placeholder="Motivo de la parada...">
                         </div>
                         <div class="wo-field full" id="wof-bitacora">
                             <label><i class="fa-solid fa-book"></i> Bitácora</label>
@@ -4862,19 +4866,27 @@
             }).filter(m => String(m.codigo || m.descripcion).trim() !== '');
         }
 
-        let matRows = [['N° WO', 'Código', 'Material (descripción)', 'Unidad', 'Cantidad']];
+        let matRows = [['N° WO', 'Código', 'Material (descripción)', 'Unidad', 'Cantidad', 'Fecha Creación', 'Técnico Asignado', 'Usuario', 'Departamento', 'Provincia', 'Nombre de Site']];
         if (isWoExport) {
             (Array.isArray(dataToExport) ? dataToExport : []).forEach(r => {
                 const woNum = (r['_key'] != null && r['_key'] !== '') ? r['_key']
                     : (r['Número de WO'] || r['N° WO'] || '');
                 normalizarMateriales(r['MATERIALES']).forEach(m =>
-                    matRows.push([String(woNum), m.codigo, m.descripcion, m.unidad, m.cantidad])
+                    matRows.push([
+                        String(woNum), m.codigo, m.descripcion, m.unidad, m.cantidad,
+                        r['Fecha de creación (WO Creation date)'] || '',
+                        r['Nombre de personal FLM asignado'] || r['TECNICO ASIGNADO'] || '',
+                        r['EDITADO POR'] || r['_ultimo_usuario_manual'] || '',
+                        r['Departamento'] || '',
+                        r['Provincia'] || '',
+                        r['Nombre de Site'] || ''
+                    ])
                 );
             });
         }
         if (matRows.length > 1) {
             const wsMat = XLSX.utils.aoa_to_sheet(matRows);
-            wsMat['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 40 }, { wch: 10 }, { wch: 10 }];
+            wsMat['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 40 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 25 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 25 }];
             XLSX.utils.book_append_sheet(wb, wsMat, "Materiales");
         }
 
@@ -5065,7 +5077,7 @@
             'TEAM LEADER ASIGNADO EN APLICATIVO','¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?',
             'COORDINADOR ENTEL','STATUS DE ATENCION','QUIEBRE',
             '¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?','DETALLE CORRECTIVO ADICIONAL',
-            'INICIO DE PARADA','FIN DE PARADA'
+            'INICIO DE PARADA','FIN DE PARADA','MOTIVO DE PARADA'
         ]);
         const addSep = (text) => {
             const s = document.createElement('div');
@@ -5493,6 +5505,17 @@
         inpCoti.title = 'Editable. Se asigna definitivo al generar.';
         mkField('N° COTIZACION', inpCoti, 'N° COTIZACION');
 
+        // ESTADO COTIZACION — por defecto Pendiente de Aprobacion
+        const selEstadoCoti = document.createElement('select');
+        ['Pendiente de Aprobacion', 'Cotizacion Aprobada', 'Cotizacion Cancelada', 'Cotizacion Rechazada'].forEach(est => {
+            const opt = document.createElement('option');
+            opt.value = est;
+            opt.textContent = est;
+            selEstadoCoti.appendChild(opt);
+        });
+        selEstadoCoti.value = 'Pendiente de Aprobacion';
+        mkField('ESTADO COTIZACION', selEstadoCoti, 'ESTADO COTIZACION');
+
         // Admin top bar ya maneja el correlativo; modal solo muestra N° sugerido
 
         // SUPERVISOR: Lista desplegable con supervisores autorizados
@@ -5891,6 +5914,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         setVal('N° ORDEN', data['N° ORDEN'] || '');
 
         setVal('SUPERVISOR', data['SUPERVISOR'] || '');
+        setVal('ESTADO COTIZACION', data['ESTADO COTIZACION'] || 'Pendiente de Aprobacion');
         setVal('OBJETIVO', data['OBJETIVO'] || '');
         setVal('NUMERO WO', data['NUMERO WO'] || '');
         setVal('NOMBRE SITE', data['NOMBRE SITE'] || '');
@@ -7524,7 +7548,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             document.querySelectorAll('.wof-mufas-label').forEach(l => { l.textContent = '¿Se usó grupo electrógeno?'; });
 
             // Ocultar campos no aplicables en FLM (Restricción no se usa: se oculta, el dato se conserva)
-            ['wof-servicio', 'wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa']
+            ['wof-servicio', 'wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa', 'wof-motivo-parada']
                 .forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';
@@ -7657,7 +7681,7 @@ btnItem.onclick = () => cotRegAgregarFila();
                  byId('wof-fue-torrera'), byId('wof-fue-site-propio'), byId('wof-cuadrilla'),
                  hP, byId('wof-team-leader'), byId('wof-supervisor'), byId('wof-coordinador-entel'),
                  byId('wof-status-atencion'), byId('wof-quiebre'), fDetSel, fDetExtra,
-                 byId('wof-inicio'), byId('wof-fin'), byId('wof-bitacora')
+                 byId('wof-inicio'), byId('wof-fin'), byId('wof-motivo-parada'), byId('wof-bitacora')
                 ].forEach(el => { if (el) form.appendChild(el); });
                 // Efecto gris solo en los títulos: Detalle, Gestión, Post y Bitácora. Resto blanco.
                 const secDet = document.querySelector('#wo-panel-detalle .wo-section');
@@ -8269,6 +8293,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-lon-mufa').value = woLonMufa;
         document.getElementById('wo-inicio-parada').value = toDatetimeLocal(data['INICIO DE PARADA']);
         document.getElementById('wo-fin-parada').value = toDatetimeLocal(data['FIN DE PARADA']);
+        document.getElementById('wo-motivo-parada').value = data['MOTIVO DE PARADA'] || '';
         document.getElementById('wo-requiere-correctivo').value = data['REQUIERE CORRECTIVO FINAL'] || '';
         // PEXT: la pestaña Bitácora consolida las entradas (usuario + fecha), así que el
         // campo arranca vacío cada vez para ingresar una nueva novedad. FLM lo precarga abajo.
@@ -9376,6 +9401,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             payload.data['DETALLE CORRECTIVO'] = (document.getElementById('wo-detalle-correctivo') || {}).value || '';
         }
         if (IS_PEXT) {
+            payload.data['MOTIVO DE PARADA'] = (document.getElementById('wo-motivo-parada') || {}).value ? document.getElementById('wo-motivo-parada').value.trim() : '';
             payload.data['FECHA DE ASIGNACIÓN'] = fromDatetimeLocal((document.getElementById('wo-fecha-asignacion') || {}).value || '');
             payload.data['¿REQUIERE MATERIAL?'] = (document.getElementById('wo-requiere-material') || {}).value || '';
             payload.data['¿REQUIERE ACCESO AL SITE?'] = (document.getElementById('wo-requiere-acceso') || {}).value || '';
@@ -9514,6 +9540,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         ['DETALLE CORRECTIVO', 'Detalle correctivo'],
         ['INICIO DE PARADA', 'Inicio parada'],
         ['FIN DE PARADA', 'Fin parada'],
+        ['MOTIVO DE PARADA', 'Motivo parada'],
         ['COTIZACION_GASTOS', 'Cotización'],
         ['COTIZACION_MANO_OBRA', 'Mano de Obra'],
         ['BITACORA', 'Bitácora']

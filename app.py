@@ -758,8 +758,8 @@ with app.app_context():
             {'nombre': 'COD_MATERIAL', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'DESCRIPCION_MATERIAL', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT']},
-            {'nombre': 'UM', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'TIPO', 'tipo': 'texto', 'opciones': []}
+            {'nombre': 'UM', 'tipo': 'lista', 'opciones': ['UN', 'MT']},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['SAP', 'BUCLE']}
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='manual_columns').first()
         if mc_cfg:
@@ -953,6 +953,7 @@ with app.app_context():
             {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'OBJETIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SUB TOTAL + FEE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'ESTADO COTIZACION', 'tipo': 'lista', 'opciones': ['Pendiente de Aprobacion', 'Cotizacion Aprobada', 'Cotizacion Cancelada', 'Cotizacion Rechazada']},
             {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []}
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='manual_columns').first()
@@ -991,6 +992,9 @@ with app.app_context():
             f_val = str(d.get('FECHA', '') or '').strip()
             if len(f_val) == 10 and re.match(r'^\d{4}-\d{2}-\d{2}$', f_val):
                 d['FECHA'] = f"{f_val} 00:00"
+                cambio = True
+            if not str(d.get('ESTADO COTIZACION', '') or '').strip():
+                d['ESTADO COTIZACION'] = 'Pendiente de Aprobacion'
                 cambio = True
             if cambio:
                 r.data_json = json.dumps(d, ensure_ascii=False)
@@ -1238,6 +1242,7 @@ with app.app_context():
             {'nombre': 'DETALLE CORRECTIVO ADICIONAL', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE PARADA', 'tipo': 'texto', 'opciones': []},
         ]
         # Actualizar tipo y opciones de columnas existentes que cambiaron definición
         _pext_patch = {
