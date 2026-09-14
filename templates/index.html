@@ -2667,7 +2667,7 @@
     const currentProjectNombre = "{{ session.get('current_proyecto_nombre', '') }}";
     const currentProjectId = {{ session.get('current_proyecto_id', 0) }};
     const USER_ROLE = "{{ session.get('rol') }}";
-    const USER_IS_ADMIN = USER_ROLE === "admin";
+    const USER_IS_ADMIN = USER_ROLE === "zeno";
     const USER_IS_CONTRATA = USER_ROLE === "contrata";
     let cotiNextSeqConfig = 61;
     if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
@@ -3687,8 +3687,8 @@
         // 4. MANUAL COLUMNS (Editors and Specific Formatters)
         if (isManual) {
             colDef.title = "<i class='fa-solid fa-pen-to-square' style='color:var(--ios-blue); font-size:10px; opacity:0.8;'></i> " + fieldName;
-            const isDemo = "{{ session.get('rol') }}" === "demo";
-            const isAdminUser = "{{ session.get('rol') }}" === "admin";
+            const isDemo = "{{ session.get('rol') }}" === "supervisor";
+            const isAdminUser = ["zeno", "suport"].includes("{{ session.get('rol') }}");
             const isContrata = "{{ session.get('rol') }}" === "contrata";
             const isCombustible = currentProjectNombre.trim().toLowerCase() === 'combustible';
 
@@ -4107,7 +4107,7 @@
         restColumns.push(colDef);
     });
 
-    const isAdmin = "{{ session.get('rol') }}" === "admin";
+    const isAdmin = ["zeno", "suport"].includes("{{ session.get('rol') }}");
 
     const selectCol = {
         formatter: "rowSelection",
@@ -4125,7 +4125,7 @@
         cssClass: "col-select-check"
     };
     const tableColumns = [
-        ...(isAdmin ? [selectCol] : []),
+        ...((["zeno", "suport"].includes("{{ session.get('rol') }}")) ? [selectCol] : []),
     ];
 
     // PEXT: columna de acción para marcar un WO como "No atendido / Cancelado O&M".
@@ -4539,7 +4539,7 @@
     }
 
     async function applyManualColumnsState() {
-        if (!isAdmin) return; // Los no-admin siempre ven lo que define el admin (servidor o por defecto)
+        if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return; // Los no-admin siempre ven lo que define el admin (servidor o por defecto)
         if (hasServerLayout) return; // La visibilidad la define el layout del admin (servidor)
         const saved = localStorage.getItem('nucleus-manual-cols-visible');
         const cb = document.getElementById('manual-cols-toggle');
@@ -4566,7 +4566,7 @@
     applyImportCambiosState();
 
     async function saveColumnLayout(showToast) {
-        if (!isAdmin) return;
+        if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return;
         const cols = table.getColumns().map(c => {
             const def = c.getDefinition();
             if (!def.field || def.field === '_key' || def.field === '_accion' || def.field.startsWith('KPI_')) return null;
@@ -4624,7 +4624,7 @@
     });
 
     table.on("cellEdited", function (cell) {
-        const isDemo = "{{ session.get('rol') }}" === "demo";
+        const isDemo = "{{ session.get('rol') }}" === "supervisor";
         if (isDemo) return;
 
         const field = cell.getField();
@@ -5881,7 +5881,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         const key = String(data['_key'] || '').trim();
         if (!key) return;
         const generada = String(data['GENERADA'] || '') === '1';
-        const isAdmin = "{{ session.get('rol') }}" === "admin";
+        const isAdmin = ["zeno", "suport"].includes("{{ session.get('rol') }}");
         const woPendiente = !String(data['NUMERO WO'] || '').trim();
         if (generada && !isAdmin && !woPendiente) {
             try {
@@ -8350,7 +8350,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             aplicarCondicionalesWO();
         }
 
-        const isDemo = "{{ session.get('rol') }}" === "demo";
+        const isDemo = "{{ session.get('rol') }}" === "supervisor";
         const woEsContrata = "{{ session.get('rol') }}" === "contrata";
         const woAprobado = String(data['_ENVIADO_APROBACION'] || '').trim() === '1';
         renderWoAprobacion(data, { ges: woEsContrata, apro: woAprobado });
