@@ -1772,6 +1772,10 @@ def index():
     if proy_actual_nombre in ('FLM', 'PEXT'):
         columns_set.discard('EDITADO POR')
         columns_set.add('GESTOR')
+    # Columna obsoleta que no aporta información (FLM/PEXT).
+    for _hc in list(columns_set):
+        if 'HORA DE CR' in _hc.upper():
+            columns_set.discard(_hc)
     
     # Load and Filter data
     rows = NucleusData.query.filter_by(proyecto_id=pid).all()
@@ -2034,8 +2038,14 @@ def dashboard():
     
     # Ocultar columnas internas (prefijo _) y redundantes de la vista
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
-    # Para FLM/PEXT: nombre provisional para luego añadir EDITADO POR (se necesita proy_actual_nombre)
-    # Se añade después de conocer proy_actual_nombre, ver abajo
+    # FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta).
+    if proy_actual_nombre in ('FLM', 'PEXT'):
+        columns_set.discard('EDITADO POR')
+        columns_set.add('GESTOR')
+    # Columna obsoleta que no aporta información (FLM/PEXT).
+    for _hc in list(columns_set):
+        if 'HORA DE CR' in _hc.upper():
+            columns_set.discard(_hc)
     
     rows = NucleusData.query.filter_by(proyecto_id=pid).limit(5000).all()
     raw_data = []
