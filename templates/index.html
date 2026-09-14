@@ -3584,8 +3584,9 @@
             return;
         }
 
-        // Cotizaciones: GESTOR ya indica quién creó la cotización; EDITADO POR es redundante.
+        // Cotizaciones y Combustible: GESTOR ya indica quién creó el registro; EDITADO POR es redundante.
         if (_isCot && fieldName === 'EDITADO POR') { return; }
+        if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'EDITADO POR') { return; }
 
         // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas.
         // Excepción: TECNICO ASIGNADO siempre se muestra (FLM).
