@@ -9,7 +9,7 @@
         <i class="fa-solid fa-list-ol"></i> Cargando...
     </span>
 
-    {% set rol_es_admin = session.get('rol') == 'admin' %}
+    {% set rol_es_admin = session.get('rol') in ['zeno', 'suport', 'admin'] %}
     {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM', 'PEXT'] %}
     {% if rol_es_admin and proy_flm_pext %}
     <label class="topbar-switch" title="Mostrar u ocultar de golpe las columnas manuales de la tabla">
@@ -17,9 +17,11 @@
         <span class="topbar-switch-track"></span>
         <span class="topbar-switch-label">Manuales</span>
     </label>
+    {% endif %}
 
     <div style="flex: 1;"></div>
 
+    {% if rol_es_admin %}
     <div class="col-visibility-wrap">
         <!-- Botón Columnas (Neutro) -->
         <button onclick="toggleVisibilityMenu()" class="action-pill pill-neutral" title="Mostrar/Ocultar Columnas">
@@ -39,15 +41,13 @@
             </div>
         </div>
     </div>
-    {% else %}
-    <div style="flex: 1;"></div>
     {% endif %}
     
     <!-- Contenedor para controles de paginación -->
     <div id="pagination-container" style="display: flex; align-items: center; gap: 4px; margin: 0 auto;"></div>
 
     {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
-    {% if session.get('rol') == 'admin' and proy_nombre == 'cotizaciones' %}
+    {% if session.get('rol') in ['zeno', 'suport', 'admin'] and proy_nombre == 'cotizaciones' %}
     <div id="admin-coti-next-top" style="display:flex; align-items:center; gap:6px;">
         <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">Próximo: HW-<span id="top-next-year"></span>-</span>
         <input type="number" id="top-next-seq" min="1" max="9999999" style="width:90px; height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; font-weight:600; text-align:center; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
