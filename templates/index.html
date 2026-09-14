@@ -3526,6 +3526,7 @@
 
     rawCols.forEach(col => {
         const fieldName = col;
+        const _isCot = currentProjectNombre.trim().toLowerCase() === 'cotizaciones';
         let isManual = false;
         let manualDef = null;
         for (let mc of manualColsConfig) {
@@ -3582,6 +3583,9 @@
         if (MANUAL_PROJECT && fieldName === pkName) {
             return;
         }
+
+        // Cotizaciones: GESTOR ya indica quién creó la cotización; EDITADO POR es redundante.
+        if (_isCot && fieldName === 'EDITADO POR') { return; }
 
         // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas.
         // Excepción: TECNICO ASIGNADO siempre se muestra (FLM).
