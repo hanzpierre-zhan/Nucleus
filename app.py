@@ -949,7 +949,6 @@ with app.app_context():
             {'nombre': 'N° COTIZACION', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NUMERO WO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NOMBRE SITE', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'SITE', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'OBJETIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SUB TOTAL + FEE', 'tipo': 'texto', 'opciones': []},
