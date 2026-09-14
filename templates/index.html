@@ -3587,6 +3587,8 @@
         // Cotizaciones y Combustible: GESTOR ya indica quién creó el registro; EDITADO POR es redundante.
         if (_isCot && fieldName === 'EDITADO POR') { return; }
         if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'EDITADO POR') { return; }
+        // FLM/PEXT: EDITADO POR se reemplaza por GESTOR (quien presiona Guardar).
+        if (['flm', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'EDITADO POR') { return; }
 
         // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas.
         // Excepción: TECNICO ASIGNADO siempre se muestra (FLM).
@@ -3780,6 +3782,10 @@
             // N° ORDEN nunca editable (correlativo automático)
             if (fieldName === 'N° ORDEN') {
                 colDef.editable = false;
+                colDef.editor = false;
+            }
+            // FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta): no editable
+            if (['flm', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'GESTOR') {
                 colDef.editor = false;
             }
             // Cotizaciones: GESTOR y SUB TOTAL no editables; una vez GENERADA,
@@ -5062,6 +5068,13 @@
         const keyInp = mkInput('_key', 'Ej: CM-20260719-00000014', true);
         const keyWrap = mkField(keyCol + ' *', keyInp, true);
         keyWrap.querySelector('label').innerHTML = '<i class="fa-solid fa-key"></i> ' + escapeHtml(keyCol) + ' <em>*</em>';
+
+        // FLM/PEXT: al agregar Nuevo WO solo se ingresa el Número de WO.
+        if (IS_FLM || IS_PEXT) {
+            const firstF = body.querySelector('input, select');
+            if (firstF) setTimeout(() => firstF.focus(), 60);
+            return;
+        }
 
         // 2) Datos de origen — solo los 11 que se ven en DETALLE (imagen), no todo el esquema.
         const manualNames = new Set((manualColsConfig || []).map(mc => mc.nombre));
@@ -7553,7 +7566,10 @@ btnItem.onclick = () => cotRegAgregarFila();
             document.querySelectorAll('.wof-mufas-label').forEach(l => { l.textContent = '¿Se usó grupo electrógeno?'; });
 
             // Ocultar campos no aplicables en FLM (Restricción no se usa: se oculta, el dato se conserva)
-            ['wof-servicio', 'wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa', 'wof-motivo-parada']
+            ['wof-servicio', 'wof-ciudad', 'wof-latitud', 'wof-longitud', 'wof-lat-mufa', 'wof-lon-mufa', 'wof-motivo-parada',
+             'wof-fecha-asignacion', 'wof-requiere-material', 'wof-requiere-acceso', 'wof-fue-torrera',
+             'wof-fue-site-propio', 'wof-cuadrilla', 'wof-team-leader', 'wof-supervisor',
+             'wof-coordinador-entel', 'wof-status-atencion', 'wof-quiebre', 'wof-quedo-pendiente', 'wof-detalle-correctivo-extra']
                 .forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';

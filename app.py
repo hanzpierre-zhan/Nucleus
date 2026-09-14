@@ -1291,6 +1291,36 @@ with app.app_context():
                     r.data_json = json.dumps(d, ensure_ascii=False)
             db.session.commit()
 
+    # Migration: FLM/PEXT - columna GESTOR (quien presiona Guardar; el admin no cuenta).
+    # Reemplaza EDITADO POR para auditoría de gestores.
+    try:
+        for proy_g in ('FLM', 'PEXT'):
+            proy_g_obj = Proyecto.query.filter_by(nombre=proy_g).first()
+            if not proy_g_obj:
+                continue
+            _schema_p = AppConfig.query.filter_by(proyecto_id=proy_g_obj.id, clave='app_schema').first()
+            try:
+                _schema_set = set(json.loads(_schema_p.valor)) if _schema_p and _schema_p.valor else set()
+            except Exception:
+                _schema_set = set()
+            if 'GESTOR' not in _schema_set:
+                _schema_set.add('GESTOR')
+                if _schema_p:
+                    _schema_p.valor = json.dumps(list(_schema_set), ensure_ascii=False)
+                else:
+                    db.session.add(AppConfig(proyecto_id=proy_g_obj.id, clave='app_schema', valor=json.dumps(list(_schema_set), ensure_ascii=False)))
+            for r in NucleusData.query.filter_by(proyecto_id=proy_g_obj.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                if not d.get('GESTOR'):
+                    d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
+                    r.data_json = json.dumps(d, ensure_ascii=False)
+            db.session.commit()
+    except Exception as _e:
+        db.session.rollback()
+
     # Migration: Corregir 2 gastos de Combustible que dejaban saldo negativo por FECHA anterior al INGRESO
     # GL17COB N146 key 152 2026-09-02 11:56 -> 15:00, GL04COB N151 key 157 2026-09-03 12:49 -> 2026-09-04 15:00
     try:
@@ -1738,9 +1768,10 @@ def index():
     
     # Ocultar columnas internas (prefijo _) y redundantes de la vista
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
-    # PEXT/FLM: columna visible para auditoría — quién editó por última vez
+    # FLM/PEXT: EDITADO POR se reemplaza por GESTOR (quien presiona Guardar, el admin no cuenta).
     if proy_actual_nombre in ('FLM', 'PEXT'):
-        columns_set.add('EDITADO POR')
+        columns_set.discard('EDITADO POR')
+        columns_set.add('GESTOR')
     
     # Load and Filter data
     rows = NucleusData.query.filter_by(proyecto_id=pid).all()
@@ -1748,9 +1779,9 @@ def index():
     for r in rows:
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
-        # Visible EDITADO POR desde el campo interno _ultimo_usuario_manual
-        if proy_actual_nombre in ('FLM', 'PEXT') and not d.get('EDITADO POR') and d.get('_ultimo_usuario_manual'):
-            d['EDITADO POR'] = d['_ultimo_usuario_manual']
+        # Visible GESTOR desde EDITADO POR/_ultimo_usuario_manual (FLM/PEXT)
+        if proy_actual_nombre in ('FLM', 'PEXT') and not d.get('GESTOR'):
+            d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
         raw_data.append(d)
 
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
@@ -2017,11 +2048,13 @@ def dashboard():
     # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
     proy_actual = db.session.get(Proyecto, pid)
     proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    # FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta).
     if proy_actual_nombre in ('FLM', 'PEXT'):
-        columns_set.add('EDITADO POR')
+        columns_set.discard('EDITADO POR')
+        columns_set.add('GESTOR')
         for d in raw_data:
-            if not d.get('EDITADO POR') and d.get('_ultimo_usuario_manual'):
-                d['EDITADO POR'] = d['_ultimo_usuario_manual']
+            if not d.get('GESTOR'):
+                d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
     if proy_actual_nombre in ('Dataper', 'Material'):
         if is_privileged:
             allowed_proy = {'FLM', 'PEXT'}
@@ -3555,6 +3588,9 @@ def api_rows_update():
         row_dict['_ultimo_usuario_manual'] = session.get('username')
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = session.get('username')
+        # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
+        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') != 'admin':
+            row_dict['GESTOR'] = session.get('username')
         
         # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
         tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
@@ -3750,6 +3786,9 @@ def api_rows_add():
             row_data['_ultimo_usuario_manual'] = session.get('username', '')
             row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             row_data['EDITADO POR'] = session.get('username', '')
+            # FLM/PEXT: GESTOR = quien registra/edita; el admin no cuenta.
+            if proy_nombre in ('FLM', 'PEXT') and session.get('rol') != 'admin':
+                row_data['GESTOR'] = session.get('username', '')
             for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
                 t_cols = [c.strip() for c in t.columna_criterio.split(',')]
                 t_vals = [v.strip() for v in t.valor_criterio.split(',')]
@@ -4176,6 +4215,9 @@ def api_rows_bulk_update():
         row_dict['_ultimo_usuario_manual'] = session.get('username')
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = session.get('username')
+        # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
+        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') != 'admin':
+            row_dict['GESTOR'] = session.get('username')
 
         new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
         if new_state and new_state != old_state:
