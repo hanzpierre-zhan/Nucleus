@@ -599,6 +599,13 @@ with app.app_context():
         admin = Usuario(username='zeno', password_hash=generate_password_hash('zeno123'), rol='zeno')
         db.session.add(admin)
         db.session.commit()
+        
+    # Migración de roles: admin -> zeno
+    try:
+        db.session.execute(db.text("UPDATE usuarios SET rol='zeno' WHERE rol='admin'"))
+        db.session.commit()
+    except Exception as e:
+        print("Warning: could not migrate admin to zeno:", e)
 
     # Migration: allow multiple cotizaciones per key_value (drop unique constraint)
     try:
