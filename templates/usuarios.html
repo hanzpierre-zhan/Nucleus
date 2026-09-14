@@ -18,7 +18,7 @@
     .up-subtitle { margin: 0; font-size: 12px; color: var(--ios-gray-1); }
 
     /* Stats */
-    .up-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+    .up-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
     .up-stat {
         background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
         border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 12px;
@@ -132,12 +132,11 @@
         display: inline-flex; align-items: center; justify-content: center;
         font-size: 12px; font-weight: 800; letter-spacing: 0.5px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.12);
-    }
-    .up-avatar.role-admin { background: linear-gradient(135deg, #007AFF, #0047B3); }
+    .up-avatar.role-zeno { background: linear-gradient(135deg, #007AFF, #0047B3); }
+    .up-avatar.role-suport { background: linear-gradient(135deg, #FF9500, #C96F00); }
     .up-avatar.role-supervisor { background: linear-gradient(135deg, #5856D6, #3E3A9E); }
     .up-avatar.role-gestor { background: linear-gradient(135deg, #34C759, #1A7A30); }
     .up-avatar.role-contrata { background: linear-gradient(135deg, #8E8E93, #5A5A5E); }
-    .up-avatar.role-demo { background: linear-gradient(135deg, #FF9500, #C96F00); }
     .up-username { font-weight: 600; color: var(--ios-label); font-size: 13px; }
     .up-actions-cell { text-align: right; white-space: nowrap; }
     .up-actions-cell .btn-icon {
@@ -158,6 +157,32 @@
     .regla-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: flex-start; }
     .regla-row .nucleus-control { flex: 1; }
 
+    /* Role cards */
+    .role-cards-grid {
+        display: flex; flex-wrap: wrap; gap: 7px;
+    }
+    .role-card {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 12px; border-radius: 10px; cursor: pointer;
+        border: 2px solid var(--ios-hairline); background: var(--ios-card-bg);
+        transition: all .15s ease; user-select: none; min-width: 130px;
+    }
+    .role-card:hover { border-color: var(--ios-blue); background: var(--ios-blue-light); }
+    .role-card.selected { border-color: var(--rc-color, #007AFF); background: var(--rc-bg, rgba(0,122,255,0.10)); }
+    .role-card-ic {
+        width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center; font-size: 13px;
+        background: var(--rc-bg, rgba(0,122,255,0.12)); color: var(--rc-color, #007AFF);
+    }
+    .role-card-info { min-width: 0; }
+    .role-card-name { font-size: 12px; font-weight: 700; color: var(--ios-label); line-height: 1.2; }
+    .role-card-desc { font-size: 10px; color: var(--ios-gray-1); line-height: 1.3; margin-top: 1px; }
+    /* Módulos badge en tabla */
+    .mod-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+    .mod-badge {
+        font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
+        background: rgba(0,122,255,0.10); color: var(--ios-blue); letter-spacing: 0.3px;
+    }
     @media (max-width: 1100px) {
         .up-form-h { grid-template-columns: 1fr; }
         .up-stats { grid-template-columns: repeat(2, 1fr); }
@@ -176,7 +201,8 @@
         </div>
 
         <!-- Stats -->
-        {% set admins = usuarios | selectattr('rol','equalto','admin') | list | length %}
+        {% set zenos = usuarios | selectattr('rol','equalto','zeno') | list | length %}
+        {% set suports = usuarios | selectattr('rol','equalto','suport') | list | length %}
         {% set supers = usuarios | selectattr('rol','equalto','supervisor') | list | length %}
         {% set gestores = usuarios | selectattr('rol','equalto','gestor') | list | length %}
         {% set contratas = usuarios | selectattr('rol','equalto','contrata') | list | length %}
@@ -186,8 +212,12 @@
                 <div class="up-stat-meta"><b>{{ usuarios|length }}</b><span>Usuarios</span></div>
             </div>
             <div class="up-stat">
-                <div class="up-stat-ic" style="background: rgba(0,122,255,0.12); color: #007AFF;"><i class="fa-solid fa-user-shield"></i></div>
-                <div class="up-stat-meta"><b>{{ admins }}</b><span>Admins</span></div>
+                <div class="up-stat-ic" style="background: rgba(0,122,255,0.12); color: #007AFF;"><i class="fa-solid fa-crown"></i></div>
+                <div class="up-stat-meta"><b>{{ zenos }}</b><span>Zenos</span></div>
+            </div>
+            <div class="up-stat">
+                <div class="up-stat-ic" style="background: rgba(255,149,0,0.12); color: #FF9500;"><i class="fa-solid fa-user-shield"></i></div>
+                <div class="up-stat-meta"><b>{{ suports }}</b><span>Suports</span></div>
             </div>
             <div class="up-stat">
                 <div class="up-stat-ic" style="background: rgba(88,86,214,0.12); color: #5856D6;"><i class="fa-solid fa-user-check"></i></div>
@@ -234,20 +264,53 @@
                             <input type="password" id="user-pw" placeholder="Dejar vacío para no cambiar" autocomplete="new-password">
                         </div>
                     </div>
-                    <div class="up-field">
+                    <div class="up-field up-field-proj">
                         <label>Rol de acceso</label>
-                        <div class="up-input-wrap">
-                            <i class="fa-solid fa-user-gear"></i>
-                            <select id="user-rol">
-                                <option value="contrata">Contrata (Solo datos del proyecto asignado)</option>
-                                <option value="gestor">Gestor (Supervisión de proyectos asignados)</option>
-                                <option value="supervisor">Supervisor (Importación y Datos)</option>
-                                <option value="demo">Demo (Vista Total de Solo Lectura)</option>
-                                <option value="admin">Admin (Control Total)</option>
-                            </select>
+                        <input type="hidden" id="user-rol" value="contrata">
+                        <div class="role-cards-grid" id="role-cards-grid">
+                            <label class="role-card selected" data-rol="contrata"
+                                style="--rc-color:#8E8E93; --rc-bg:rgba(142,142,147,0.12);" onclick="selectRol('contrata')">
+                                <div class="role-card-ic"><i class="fa-solid fa-user-tie"></i></div>
+                                <div class="role-card-info">
+                                    <div class="role-card-name">Contrata</div>
+                                    <div class="role-card-desc">Solo datos del módulo asignado</div>
+                                </div>
+                            </label>
+                            <label class="role-card" data-rol="gestor"
+                                style="--rc-color:#34C759; --rc-bg:rgba(52,199,89,0.12);" onclick="selectRol('gestor')">
+                                <div class="role-card-ic"><i class="fa-solid fa-user-gear"></i></div>
+                                <div class="role-card-info">
+                                    <div class="role-card-name">Gestor</div>
+                                    <div class="role-card-desc">Supervisión de módulos asignados</div>
+                                </div>
+                            </label>
+                            <label class="role-card" data-rol="supervisor"
+                                style="--rc-color:#5856D6; --rc-bg:rgba(88,86,214,0.12);" onclick="selectRol('supervisor')">
+                                <div class="role-card-ic"><i class="fa-solid fa-user-check"></i></div>
+                                <div class="role-card-info">
+                                    <div class="role-card-name">Supervisor</div>
+                                    <div class="role-card-desc">Importación y gestión de datos</div>
+                                </div>
+                            </label>
+                            <label class="role-card" data-rol="suport"
+                                style="--rc-color:#FF9500; --rc-bg:rgba(255,149,0,0.12);" onclick="selectRol('suport')">
+                                <div class="role-card-ic"><i class="fa-solid fa-user-shield"></i></div>
+                                <div class="role-card-info">
+                                    <div class="role-card-name">Suport</div>
+                                    <div class="role-card-desc">Soporte y gestión del sistema</div>
+                                </div>
+                            </label>
+                            <label class="role-card" data-rol="zeno"
+                                style="--rc-color:#007AFF; --rc-bg:rgba(0,122,255,0.12);" onclick="selectRol('zeno')">
+                                <div class="role-card-ic"><i class="fa-solid fa-crown"></i></div>
+                                <div class="role-card-info">
+                                    <div class="role-card-name">Zeno</div>
+                                    <div class="role-card-desc">Control total del sistema</div>
+                                </div>
+                            </label>
                         </div>
                     </div>
-                    {% if session.get('rol') != 'demo' %}
+                    {% if True %}
                     <div class="up-actions">
                         <button id="btn-crear-usuario" onclick="crearUsuario()" class="up-btn-create"><i class="fa-solid fa-plus"></i> CREAR USUARIO</button>
                         <button onclick="cancelarEdicion()" id="btn-cancel-edit" class="up-btn-ghost" style="display:none;"><i class="fa-solid fa-xmark"></i> CANCELAR</button>
@@ -255,13 +318,25 @@
                     {% endif %}
 
                     <div class="up-field up-field-proj">
-                        <label>Proyectos a los que accede</label>
+                        <label>Módulos a los que accede</label>
                         <div class="proj-selector" id="proj-selector">
+                            {% set _orden = ['FLM', 'PEXT', 'Claro', 'Integratel', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
+                            {% for _nom in _orden %}
                             {% for p in proyectos %}
-                            {% if p.nombre in ['FLM', 'PEXT'] %}
+                            {% if p.nombre == _nom %}
                             <label class="proj-chk">
                                 <input type="checkbox" class="proj-check" value="{{ p.id }}">
-                                <i class="fa-solid fa-folder"></i> {{ p.nombre }}
+                                <i class="fa-solid {{ p.icono or 'fa-folder' }}"></i> {{ p.nombre }}
+                            </label>
+                            {% endif %}
+                            {% endfor %}
+                            {% endfor %}
+                            {# Módulos no incluidos en el orden predefinido #}
+                            {% for p in proyectos %}
+                            {% if p.nombre not in ['FLM', 'PEXT', 'Claro', 'Integratel', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
+                            <label class="proj-chk">
+                                <input type="checkbox" class="proj-check" value="{{ p.id }}">
+                                <i class="fa-solid {{ p.icono or 'fa-folder' }}"></i> {{ p.nombre }}
                             </label>
                             {% endif %}
                             {% endfor %}
@@ -285,6 +360,7 @@
                             <tr>
                                 <th>Persona</th>
                                 <th>Rol</th>
+                                <th>Módulos</th>
                                 <th style="text-align: right; min-width: 96px;">Acciones</th>
                             </tr>
                         </thead>
@@ -300,18 +376,36 @@
                                         </span>
                                     </div>
                                 </td>
-                                <td><span class="role-badge {{ u.rol }}">{{ 'Contrata' if u.rol == 'contrata' else ('Gestor' if u.rol == 'gestor' else u.rol) }}</span></td>
+                                <td><span class="role-badge {{ u.rol }}">{{ 'Contrata' if u.rol == 'contrata' else ('Gestor' if u.rol == 'gestor' else u.rol|capitalize) }}</span></td>
+                                <td>
+                                    {% if u.rol in ['zeno', 'suport'] %}
+                                        <span style="font-size:10px; color:var(--ios-gray-1); font-style:italic;">Todos los módulos</span>
+                                    {% else %}
+                                        <div class="mod-badges">
+                                        {% for pid in accesos.get(u.id, []) %}
+                                            {% for p in proyectos %}
+                                            {% if p.id == pid %}
+                                            <span class="mod-badge">{{ p.nombre }}</span>
+                                            {% endif %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                        {% if not accesos.get(u.id) %}
+                                            <span style="font-size:10px; color:var(--ios-gray-2); font-style:italic;">Sin módulos</span>
+                                        {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </td>
                                 <td class="up-actions-cell">
-                                    {% if session.get('rol') != 'demo' %}
+                                    {% if not (session.get('rol') == 'suport' and u.rol == 'zeno') %}
                                     <button onclick="editarUsuarioUI({{ u.id }}, '{{ u.nombre }}', '{{ u.username }}', '{{ u.rol }}', {{ accesos.get(u.id, []) | tojson }})" class="btn-icon" title="Editar Usuario">
                                         <i class="fa-solid fa-pen-to-square"></i>
                                     </button>
-                                    <button onclick="resetearPassword({{ u.id }}, '{{ u.username }}')" class="btn-icon" title="Resetear contraseña (admin)">
+                                    <button onclick="resetearPassword({{ u.id }}, '{{ u.username }}')" class="btn-icon" title="Resetear contraseña">
                                         <i class="fa-solid fa-key"></i>
                                     </button>
                                     {% endif %}
 
-                                    {% if u.username != session.get('username') and session.get('rol') != 'demo' %}
+                                    {% if session.get('rol') == 'zeno' and u.username != session.get('username') %}
                                     <button onclick="eliminarUsuario({{ u.id }}, '{{ u.username }}')" class="btn-icon btn-danger" title="Eliminar Usuario">
                                         <i class="fa-solid fa-trash-can"></i>
                                     </button>
@@ -341,13 +435,20 @@ function getSelectedProyectos() {
     return Array.from(document.querySelectorAll('.proj-check:checked')).map(c => Number(c.value));
 }
 
+function selectRol(rol) {
+    document.getElementById('user-rol').value = rol;
+    document.querySelectorAll('.role-card').forEach(card => {
+        card.classList.toggle('selected', card.dataset.rol === rol);
+    });
+}
+
 async function cancelarEdicion() {
     editUserId = null;
     document.getElementById('user-nombre').value = '';
     document.getElementById('user-name').value = '';
     document.getElementById('user-pw').value = '';
     document.getElementById('user-pw').placeholder = 'Dejar vacío para no cambiar';
-    document.getElementById('user-rol').value = 'contrata';
+    selectRol('contrata');
     setProjCheckboxes([]);
     const btn = document.getElementById('btn-crear-usuario');
     if (btn) btn.innerHTML = '<i class="fa-solid fa-plus"></i> CREAR USUARIO';
@@ -358,7 +459,7 @@ async function cancelarEdicion() {
 async function editarUsuarioUI(id, nombre, username, rol, projIds) {
     document.getElementById('user-nombre').value = nombre;
     document.getElementById('user-name').value = username;
-    document.getElementById('user-rol').value = rol;
+    selectRol(rol);
     document.getElementById('user-pw').value = '';
     document.getElementById('user-pw').placeholder = 'Dejar vacío para no cambiar';
     setProjCheckboxes(projIds);
@@ -368,6 +469,8 @@ async function editarUsuarioUI(id, nombre, username, rol, projIds) {
     const cancel = document.getElementById('btn-cancel-edit');
     if (cancel) cancel.style.display = 'inline-flex';
     editUserId = id;
+    // Scroll al formulario
+    document.querySelector('.up-card').scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
 async function crearUsuario() {
@@ -378,7 +481,7 @@ async function crearUsuario() {
 
     if(!u) return alert("Nombre de usuario requerido");
     if(!editUserId && !p) return alert("Contraseña requerida para nuevo usuario");
-    if((r === 'gestor' || r === 'contrata') && getSelectedProyectos().length === 0) return alert("El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).");
+    if((r === 'gestor' || r === 'contrata') && getSelectedProyectos().length === 0) return alert("El rol Gestor/Contrata requiere al menos un módulo asignado.");
 
     const payload = {nombre: n, username: u, password: p, rol: r, proyectos: getSelectedProyectos()};
     let method = 'POST';
@@ -454,7 +557,7 @@ function cargarPermisosUsuario() {
                     <td style="padding: 8px; font-weight:600;">${p.proyecto_nombre}</td>
                     <td style="padding: 8px;"><code style="font-size:10px; background:var(--ios-fill); padding:2px 6px; border-radius:6px; word-break: break-all; color: var(--ios-secondary);">${p.restricciones}</code></td>
                     <td style="padding: 8px; text-align:right;">
-                        {% if session.get('rol') != 'demo' %}
+                        {% if True %}
                         <button onclick="eliminarPermiso(${p.id})" class="btn-icon btn-danger" title="Quitar acceso"><i class="fa-solid fa-circle-xmark"></i></button>
                         {% endif %}
                     </td>

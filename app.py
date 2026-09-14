@@ -76,7 +76,7 @@ class Usuario(db.Model):
     nombre = db.Column(db.String(100), default='')
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
-    rol = db.Column(db.String(20), default='supervisor') # 'admin', 'supervisor', 'gestor', 'contrata', 'demo'
+    rol = db.Column(db.String(20), default='supervisor') # 'zeno', 'suport', 'supervisor', 'gestor', 'contrata'
 
 class Proyecto(db.Model):
     __tablename__ = 'proyectos'
@@ -596,7 +596,7 @@ with app.app_context():
     
     # Create Default Admin if none
     if not Usuario.query.first():
-        admin = Usuario(username='admin', password_hash=generate_password_hash('admin123'), rol='admin')
+        admin = Usuario(username='zeno', password_hash=generate_password_hash('zeno123'), rol='zeno')
         db.session.add(admin)
         db.session.commit()
 
@@ -722,7 +722,8 @@ with app.app_context():
     except Exception as e:
         print("Warning: migracion evidencia PEXT:", e)
 
-    # Migration: Configure Dataper columns (TECNICO, DOCUMENTO, CONTRATA, CELULAR, SUPERVISOR, DEPARTAMENTO, PROYECTO + ACTIVO/CESADO)
+    # Migration: Configure Dataper columns (TECNICO, DOCUMENTO, CONTRATA, CELULAR, CARGO, DEPARTAMENTO, PROYECTO + ACTIVO/CESADO)
+    # SUPERVISOR eliminado por solicitud; CARGO agregado y ahora sí está en plantilla de importación.
     dataper = Proyecto.query.filter_by(nombre='Dataper').first()
     if dataper:
         dataper_cols = [
@@ -730,9 +731,9 @@ with app.app_context():
             {'nombre': 'DOCUMENTO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'CELULAR', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CARGO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'DEPARTAMENTO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT']},
+            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT', 'CLARO', 'INTEGRATEL']},
             {'nombre': 'ESTADO', 'tipo': 'lista', 'opciones': ['ACTIVO', 'CESADO']}
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='manual_columns').first()
@@ -748,6 +749,30 @@ with app.app_context():
         schema_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='app_schema').first()
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=dataper.id, clave='app_schema', valor=json.dumps([])))
+        else:
+            try:
+                _sch = json.loads(schema_cfg.valor) if schema_cfg.valor else []
+                if 'SUPERVISOR' in _sch:
+                    _sch = [c for c in _sch if c != 'SUPERVISOR']
+                    if 'CARGO' not in _sch:
+                        _sch.append('CARGO')
+                    schema_cfg.valor = json.dumps(_sch, ensure_ascii=False)
+                elif 'CARGO' not in _sch:
+                    _sch.append('CARGO')
+                    schema_cfg.valor = json.dumps(_sch, ensure_ascii=False)
+            except Exception:
+                pass
+        # Limpiar layout: quitar SUPERVISOR, asegurar CARGO
+        try:
+            _layout_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='column_layout').first()
+            if _layout_cfg and _layout_cfg.valor:
+                _layout = json.loads(_layout_cfg.valor)
+                _layout = [c for c in _layout if c.get('field') != 'SUPERVISOR']
+                if not any(c.get('field') == 'CARGO' for c in _layout):
+                    _layout.append({'field': 'CARGO', 'visible': True})
+                _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+        except Exception:
+            pass
         db.session.commit()
 
     # Migration: Configure Material columns (COD_MATERIAL, DESCRIPCION_MATERIAL, PROYECTO, UM, TIPO)
@@ -757,7 +782,7 @@ with app.app_context():
         material_cols = [
             {'nombre': 'COD_MATERIAL', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'DESCRIPCION_MATERIAL', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT']},
+            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT', 'CLARO', 'INTEGRATEL']},
             {'nombre': 'UM', 'tipo': 'lista', 'opciones': ['UN', 'MT']},
             {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['SAP', 'BUCLE']}
         ]
@@ -777,6 +802,29 @@ with app.app_context():
         if not schema_cfg:
             db.session.add(AppConfig(proyecto_id=material_proy.id, clave='app_schema', valor=json.dumps([])))
         db.session.commit()
+
+    # Migration: Normalizar PROYECTO en Dataper/Material a 'CLARO'/'INTEGRATEL' (mayúsculas como FLM/PEXT)
+    try:
+        for _pname_norm in ('Dataper', 'Material'):
+            _p_norm = Proyecto.query.filter_by(nombre=_pname_norm).first()
+            if not _p_norm:
+                continue
+            for _r_norm in NucleusData.query.filter_by(proyecto_id=_p_norm.id).all():
+                try:
+                    _d_norm = json.loads(_r_norm.data_json)
+                    _pr_norm = str(_d_norm.get('PROYECTO') or '').strip()
+                    if _pr_norm.upper() == 'CLARO' and _pr_norm != 'CLARO':
+                        _d_norm['PROYECTO'] = 'CLARO'
+                        _r_norm.data_json = json.dumps(_d_norm, ensure_ascii=False)
+                    elif _pr_norm.upper() == 'INTEGRATEL' and _pr_norm != 'INTEGRATEL':
+                        _d_norm['PROYECTO'] = 'INTEGRATEL'
+                        _r_norm.data_json = json.dumps(_d_norm, ensure_ascii=False)
+                except Exception:
+                    continue
+        db.session.commit()
+    except Exception:
+        try: db.session.rollback()
+        except Exception: pass
 
     # Migration: Configure Site Name columns (NOMBRE DE SITE, DIRECCION, LATITUD, LONGITUD, ESTADO)
     site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
@@ -1291,6 +1339,38 @@ with app.app_context():
                     r.data_json = json.dumps(d, ensure_ascii=False)
             db.session.commit()
 
+    # Migration: Crear proyectos vacíos Claro e Integratel (WO/CRM).
+    for _new_name, _new_icon, _new_desc in [('Claro', 'fa-tower-broadcast', 'Proyecto Claro (WO)'),
+                                             ('Integratel', 'fa-network-wired', 'Proyecto Integratel (WO)')]:
+        if not Proyecto.query.filter_by(nombre=_new_name).first():
+            db.session.add(Proyecto(nombre=_new_name, icono=_new_icon, descripcion=_new_desc))
+            db.session.commit()
+            _np = Proyecto.query.filter_by(nombre=_new_name).first()
+            if _np:
+                db.session.add(AppConfig(proyecto_id=_np.id, clave='app_schema', valor=json.dumps([])))
+                db.session.add(AppConfig(proyecto_id=_np.id, clave='manual_columns', valor=json.dumps([])))
+                db.session.commit()
+
+    # Migration: Backfill COD_MATERIAL en Material donde se guardó solo como key_value.
+    # Sin esto, /api/wo/meta leía d.get('COD_MATERIAL') vacío y el desplegable salía sin [código].
+    try:
+        _mat_proy = Proyecto.query.filter_by(nombre='Material').first()
+        if _mat_proy:
+            _mat_pk_cfg = AppConfig.query.filter_by(proyecto_id=_mat_proy.id, clave='primary_key').first()
+            _mat_pk = str(_mat_pk_cfg.valor or '').strip() if _mat_pk_cfg and _mat_pk_cfg.valor else 'COD_MATERIAL'
+            for _r in NucleusData.query.filter_by(proyecto_id=_mat_proy.id).all():
+                try:
+                    _d = json.loads(_r.data_json)
+                except Exception:
+                    continue
+                if not str(_d.get(_mat_pk) or '').strip() and str(_r.key_value or '').strip():
+                    _d[_mat_pk] = str(_r.key_value).strip()
+                    _r.data_json = json.dumps(_d, ensure_ascii=False)
+            db.session.commit()
+    except Exception:
+        try: db.session.rollback()
+        except Exception: pass
+
     # Migration: FLM/PEXT - columna GESTOR (quien presiona Guardar; el admin no cuenta).
     # Reemplaza EDITADO POR para auditoría de gestores.
     try:
@@ -1411,7 +1491,7 @@ def login():
             
             # Default to first project with access if none active
             if 'current_proyecto_id' not in session:
-                if user.rol in ['admin', 'demo']:
+                if user.rol in ['zeno', 'suport']:
                     proj = Proyecto.query.first()
                 else:
                     acceso = AccesoProyecto.query.filter_by(usuario_id=user.id).first()
@@ -1442,18 +1522,18 @@ def get_menu_proyectos(user_id, user_rol):
         accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
         pids = [a.proyecto_id for a in accesos]
         return Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
-    is_privileged = user_rol in ('admin', 'demo')
+    is_privileged = user_rol in ('zeno', 'suport')
     if is_privileged:
         return Proyecto.query.order_by(Proyecto.id).all()
     accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
     pids = [a.proyecto_id for a in accesos]
     proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
     nombres = {p.nombre for p in proyectos}
-    if 'FLM' in nombres or 'PEXT' in nombres:
+    if any(n in nombres for n in ('FLM', 'PEXT', 'Claro', 'Integratel')):
         extra = Proyecto.query.filter(Proyecto.nombre.in_(['Dataper', 'Material'])).all()
         extra_ids = {e.id for e in proyectos}
         proyectos = proyectos + [e for e in extra if e.id not in extra_ids]
-    if 'FLM' in nombres:
+    if 'FLM' in nombres or any(n in nombres for n in ('Claro', 'Integratel')):
         site = Proyecto.query.filter_by(nombre='Site Name').first()
         if site and site.id not in {e.id for e in proyectos}:
             proyectos = proyectos + [site]
@@ -1514,7 +1594,7 @@ def cambiar_password_public():
 @login_required
 def switch_project(pid):
     # Check permission
-    if session.get('rol') not in ['admin', 'demo']:
+    if session.get('rol') not in ['zeno', 'suport']:
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
         if not acceso:
             # Gestor y Contrata solo pueden operar en los proyectos que tienen asignados.
@@ -1528,7 +1608,7 @@ def switch_project(pid):
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'PEXT', 'Claro', 'Integratel'):
                         allowed = True
                         break
                 if not allowed:
@@ -1601,8 +1681,8 @@ def switch_project(pid):
 @login_required
 def index():
     user_id, user_rol, pid = get_session_info()
-    is_admin = user_rol == 'admin'
-    is_privileged = user_rol in ['admin', 'demo']
+    is_admin = user_rol == 'zeno'
+    is_privileged = user_rol in ['zeno', 'suport']
 
     if not pid:
         # Emergency fallback or find first allowed
@@ -1701,9 +1781,9 @@ def index():
         columns_set.add(mc['nombre'])
 
     # Generadores: el campo TECNICO ASIGNADO se llena dinámicamente con los técnicos
-    # activos de Dataper con PROYECTO=FLM (catálogo declarado por el admin).
+    # activos de Dataper con PROYECTO=FLM/PEXT/Claro/Integratel (catálogo declarado por el admin).
     # Combustible: QR ASIGNADO lista los QR declarados en Generadores, TIPO se
-    # autocompleta desde el mapa generador->TIPO, TECNICO ASIGNADO lista los técnicos FLM.
+    # autocompleta desde el mapa generador->TIPO, TECNICO ASIGNADO lista los técnicos.
     proy_actual = db.session.get(Proyecto, pid)
     proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
     if proy_actual_nombre in ('Generadores', 'Combustible'):
@@ -1719,7 +1799,7 @@ def index():
                 if est and est != 'ACTIVO':
                     continue
                 pr = str(d.get('PROYECTO', '')).strip()
-                if pr and pr != 'FLM':
+                if pr and pr.upper() not in ('FLM', 'PEXT', 'CLARO', 'INTEGRATEL'):
                     continue
                 t = str(d.get('TECNICO', '')).strip()
                 if t:
@@ -1788,19 +1868,22 @@ def index():
             d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
         raw_data.append(d)
 
-    # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
-    # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
+    # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM/PEXT/Claro/Integratel
+    # según los proyectos asignados al usuario (si tiene varios, muestra todos). Comparación case-insensitive.
     if proy_actual_nombre in ('Dataper', 'Material'):
+        _wo_proys = {'FLM', 'PEXT', 'Claro', 'Integratel'}
+        _wo_upper = {p.upper() for p in _wo_proys}
         if is_privileged:
-            allowed_proy = {'FLM', 'PEXT'}
+            allowed_proy = set(_wo_proys)
         else:
             accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
             allowed_proy = set()
             for a in accs:
                 ap = db.session.get(Proyecto, a.proyecto_id)
-                if ap and ap.nombre in ('FLM', 'PEXT'):
+                if ap and ap.nombre in _wo_proys:
                     allowed_proy.add(ap.nombre)
-        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip() in allowed_proy]
+        _allowed_upper = {p.upper() for p in allowed_proy}
+        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper]
 
     # Cruce dinámico: Site Name → FLM. Se agregan a cada fila de FLM las columnas
     # DIRECCION, LATITUD, LONGITUD tomadas del proyecto "Site Name" cruzando por
@@ -1987,10 +2070,10 @@ def index():
 @login_required
 def dashboard():
     user_id, user_rol, pid = get_session_info()
-    is_admin = user_rol == 'admin'
+    is_admin = user_rol == 'zeno'
 
-    # El rol Contrata no ve dashboards: solo opera en la grilla de su proyecto.
-    if user_rol == 'contrata':
+    # Los roles Contrata y Gestor no ven dashboards
+    if user_rol in ('contrata', 'gestor'):
         return redirect(url_for('index'))
 
     if not pid:
@@ -1998,7 +2081,7 @@ def dashboard():
 
     # Verify access to current project
     res_obj = {}
-    is_privileged = user_rol in ['admin', 'demo']
+    is_privileged = user_rol in ['zeno', 'suport']
 
     if not is_privileged:
         acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
@@ -2038,10 +2121,6 @@ def dashboard():
     
     # Ocultar columnas internas (prefijo _) y redundantes de la vista
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
-    # FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta).
-    if proy_actual_nombre in ('FLM', 'PEXT'):
-        columns_set.discard('EDITADO POR')
-        columns_set.add('GESTOR')
     # Columna obsoleta que no aporta información (FLM/PEXT).
     for _hc in list(columns_set):
         if 'HORA DE CR' in _hc.upper():
@@ -2066,16 +2145,19 @@ def dashboard():
             if not d.get('GESTOR'):
                 d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
     if proy_actual_nombre in ('Dataper', 'Material'):
+        _wo_proys2 = {'FLM', 'PEXT', 'Claro', 'Integratel'}
+        _wo_upper2 = {p.upper() for p in _wo_proys2}
         if is_privileged:
-            allowed_proy = {'FLM', 'PEXT'}
+            allowed_proy = set(_wo_proys2)
         else:
             accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
             allowed_proy = set()
             for a in accs:
                 ap = db.session.get(Proyecto, a.proyecto_id)
-                if ap and ap.nombre in ('FLM', 'PEXT'):
+                if ap and ap.nombre in _wo_proys2:
                     allowed_proy.add(ap.nombre)
-        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip() in allowed_proy]
+        _allowed_upper2 = {p.upper() for p in allowed_proy}
+        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper2]
         
     data = apply_data_restrictions(raw_data, res_obj)
         
@@ -2116,7 +2198,7 @@ def configuraciones():
     if user_rol in ('gestor', 'contrata'):
         return redirect(url_for('index'))
     user_id = session.get('user_id')
-    if user_rol == 'admin':
+    if user_rol == 'zeno':
         proyectos = Proyecto.query.all()
     else:
         accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
@@ -2127,14 +2209,14 @@ def configuraciones():
 @app.route('/admin')
 @login_required
 def admin_panel():
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return redirect(url_for('index'))
     return redirect(url_for('proyectos_page'))
 
 @app.route('/proyectos')
 @login_required
 def proyectos_page():
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return redirect(url_for('index'))
     proy = Proyecto.query.order_by(Proyecto.id).all()
     return render_template('proyectos.html', proyectos=proy, proyectos_list=proy)
@@ -2142,7 +2224,7 @@ def proyectos_page():
 @app.route('/usuarios')
 @login_required
 def usuarios_page():
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return redirect(url_for('index'))
     proy = Proyecto.query.order_by(Proyecto.id).all()
     user = Usuario.query.all()
@@ -2155,7 +2237,7 @@ def usuarios_page():
 @app.route('/api/admin/proyecto', methods=['POST', 'DELETE'])
 @login_required
 def api_admin_proyecto():
-    if session.get('rol') not in ['admin', 'demo']:
+    if session.get('rol') not in ['zeno', 'suport']:
         return jsonify({'error': 'Unauthorized'}), 403
     
     if session.get('rol') == 'demo' and request.method != 'GET':
@@ -2204,7 +2286,7 @@ def api_admin_proyecto():
 @app.route('/api/tecnicos', methods=['GET', 'POST', 'DELETE'])
 @login_required
 def api_tecnicos():
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Unauthorized'}), 403
 
     if request.method == 'GET':
@@ -2252,7 +2334,7 @@ def api_tecnicos():
 @app.route('/api/admin/usuario', methods=['POST', 'PUT', 'DELETE'])
 @login_required
 def api_admin_usuario():
-    if session.get('rol') not in ['admin', 'demo']:
+    if session.get('rol') not in ['zeno', 'suport']:
         return jsonify({'error': 'Unauthorized'}), 403
         
     if session.get('rol') == 'demo' and request.method != 'GET':
@@ -2267,7 +2349,7 @@ def api_admin_usuario():
         proyectos = data.get('proyectos', [])
         if not all([user, pw]): return jsonify({'error': 'Datos incompletos'}), 400
         if rol.strip().lower() in ('gestor', 'contrata') and not proyectos:
-            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).'}), 400
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un módulo asignado.'}), 400
         try:
             nuevo = Usuario(username=user, password_hash=generate_password_hash(pw), rol=rol, nombre=nombre)
             db.session.add(nuevo)
@@ -2291,10 +2373,12 @@ def api_admin_usuario():
         
         if not uid or not user: return jsonify({'error': 'ID y usuario requeridos'}), 400
         if rol.strip().lower() in ('gestor', 'contrata') and proyectos == []:
-            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un proyecto asignado (FLM o PEXT).'}), 400
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un módulo asignado.'}), 400
         try:
             u = db.session.get(Usuario, uid)
             if not u: return jsonify({'error': 'Usuario no encontrado'}), 404
+            if session.get('rol') == 'suport' and u.rol == 'zeno':
+                return jsonify({'error': 'El rol Suport no puede editar a un usuario Zeno.'}), 403
             
             u.nombre = nombre
             u.username = user
@@ -2315,6 +2399,8 @@ def api_admin_usuario():
             return jsonify({'error': 'Usuario duplicado o error: ' + str(e)}), 400
             
     if request.method == 'DELETE':
+        if session.get('rol') != 'zeno':
+            return jsonify({'error': 'Solo Zeno puede eliminar usuarios.'}), 403
         uid = request.json.get('id')
         if not uid: return jsonify({'error': 'ID requerido'}), 400
         if int(uid) == session.get('user_id'):
@@ -2336,8 +2422,8 @@ def api_admin_usuario():
 @app.route('/api/admin/usuario/duplicar', methods=['POST'])
 @login_required
 def api_admin_usuario_duplicar():
-    if session.get('rol') not in ['admin']:
-        return jsonify({'error': 'Solo admin puede duplicar usuarios.'}), 403
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo Zeno y Suport pueden duplicar usuarios.'}), 403
         
     data = request.json
     src_id = data.get('source_id')
@@ -2371,7 +2457,7 @@ def api_admin_usuario_duplicar():
 @app.route('/api/admin/permisos', methods=['GET', 'POST', 'DELETE'])
 @login_required
 def api_admin_permisos():
-    if session.get('rol') not in ['admin', 'demo']:
+    if session.get('rol') not in ['zeno', 'suport']:
         return jsonify({'error': 'Unauthorized'}), 403
     
     if session.get('rol') == 'demo' and request.method != 'GET':
@@ -2419,7 +2505,7 @@ def api_admin_permisos():
 @app.route('/api/admin/columnas')
 @login_required
 def api_admin_columnas():
-    if session.get('rol') not in ['admin', 'demo']:
+    if session.get('rol') not in ['zeno', 'suport']:
         return jsonify({'error': 'Unauthorized'}), 403
     
     pid = request.args.get('pid')
@@ -3261,7 +3347,7 @@ def api_columns_layout():
     config = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     if request.method == 'GET':
         return jsonify(json.loads(config.valor) if config and config.valor else [])
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo el administrador puede configurar las columnas.'}), 403
     data = request.get_json(silent=True) or {}
     columns = data.get('columns') or []
@@ -3500,7 +3586,7 @@ def api_rows_update():
         return jsonify({'error': 'Rol DEMO no tiene permisos para actualizar datos.'}), 403
     # SITE: solo supervisor/admin puede editar
     _proy_chk = db.session.get(Proyecto, pid)
-    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('admin', 'supervisor'):
+    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
         return jsonify({'error': 'Solo supervisor o admin puede editar sites.'}), 403
     try:
         data = request.json
@@ -3515,7 +3601,7 @@ def api_rows_update():
         # N° ORDEN correlativo: no editable una vez asignado
         if field == 'N° ORDEN':
             cur_ord = str(row_dict.get('N° ORDEN', '') or '').strip()
-            if cur_ord and str(value).strip() != cur_ord and session.get('rol') != 'admin':
+            if cur_ord and str(value).strip() != cur_ord and session.get('rol') not in ('zeno', 'suport'):
                 return jsonify({'error': 'El N° de orden es correlativo automático y no se puede editar.'}), 403
         # Combustible: el gestor solo puede completar información pendiente (campos
         # vacíos); los campos ya registrados solo los edita el admin.
@@ -3523,7 +3609,7 @@ def api_rows_update():
         proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
         if proy_nombre == 'Combustible':
             valor_actual = str(row_dict.get(field, '') or '').strip()
-            if session.get('rol') != 'admin' and valor_actual:
+            if session.get('rol') not in ('zeno', 'suport') and valor_actual:
                 return jsonify({'error': f'El campo {field} ya está registrado. Solo el administrador puede editarlo.'}), 403
             if field == 'GESTOR':
                 return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró el movimiento.'}), 400
@@ -3561,7 +3647,7 @@ def api_rows_update():
         if proy_nombre == 'Cotizaciones':
             if field == 'GESTOR':
                 valor_gestor = str(row_dict.get('GESTOR', '') or '').strip()
-                if valor_gestor and str(value).strip() != valor_gestor and session.get('rol') != 'admin':
+                if valor_gestor and str(value).strip() != valor_gestor and session.get('rol') not in ('zeno', 'suport'):
                     return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró la cotización.'}), 400
                 elif not valor_gestor:
                     pass
@@ -3572,7 +3658,7 @@ def api_rows_update():
                     return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
                 else:
                     return jsonify({'success': True})
-            if session.get('rol') != 'admin' and str(row_dict.get('GENERADA', '') or '') == '1':
+            if session.get('rol') not in ('zeno', 'suport') and str(row_dict.get('GENERADA', '') or '') == '1':
                 if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
                     pass
                 else:
@@ -3599,7 +3685,7 @@ def api_rows_update():
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = session.get('username')
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
-        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') != 'admin':
+        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
             row_dict['GESTOR'] = session.get('username')
         
         # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
@@ -3652,14 +3738,56 @@ def api_rows_update():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/rows/edit_key', methods=['POST'])
+@login_required
+def api_rows_edit_key():
+    if session.get('rol') != 'zeno':
+        return jsonify({'error': 'Solo Zeno puede editar la clave principal (código/WO) de un registro.'}), 403
+    
+    pid = session.get('current_proyecto_id')
+    data = request.json
+    old_key = str(data.get('old_key', '')).strip()
+    new_key = str(data.get('new_key', '')).strip()
+    
+    if not old_key or not new_key:
+        return jsonify({'error': 'Faltan datos.'}), 400
+        
+    if NucleusData.query.filter_by(proyecto_id=pid, key_value=new_key).first():
+        return jsonify({'error': 'El nuevo código/WO ya existe.'}), 400
+        
+    try:
+        rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=old_key).first()
+        if not rec:
+            return jsonify({'error': 'Registro no encontrado.'}), 404
+            
+        rec.key_value = new_key
+        
+        import json
+        d = json.loads(rec.data_json)
+        # Actualizar dentro del JSON si la clave vieja coincide
+        for k, v in d.items():
+            if str(v).strip() == old_key:
+                d[k] = new_key
+        rec.data_json = json.dumps(d, ensure_ascii=False)
+        
+        NucleusHistory.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
+        HistorialCambios.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
+        Cotizacion.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
+        
+        db.session.commit()
+        return jsonify({'success': True, 'new_key': new_key})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/rows/add', methods=['POST'])
 @login_required
 def api_rows_add():
     pid = session.get('current_proyecto_id')
-    if session.get('rol') == 'demo':
-        return jsonify({'error': 'Rol DEMO no tiene permisos para añadir registros.'}), 403
+    if session.get('rol') == 'contrata':
+        return jsonify({'error': 'El rol Contrata no puede añadir nuevos registros.'}), 403
     _proy_chk = db.session.get(Proyecto, pid)
-    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('admin', 'supervisor'):
+    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
         return jsonify({'error': 'Solo supervisor o admin puede añadir sites.'}), 403
     try:
         data = request.json
@@ -3797,13 +3925,25 @@ def api_rows_add():
             row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             row_data['EDITADO POR'] = session.get('username', '')
             # FLM/PEXT: GESTOR = quien registra/edita; el admin no cuenta.
-            if proy_nombre in ('FLM', 'PEXT') and session.get('rol') != 'admin':
+            if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
                 row_data['GESTOR'] = session.get('username', '')
             for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
                 t_cols = [c.strip() for c in t.columna_criterio.split(',')]
                 t_vals = [v.strip() for v in t.valor_criterio.split(',')]
                 if all(str(row_data.get(c, '')) == v for c, v in zip(t_cols, t_vals)):
                     row_data[t.nueva_columna] = t.nuevo_valor
+
+        # Proyectos manuales (Material, Dataper, SITE, Generadores, etc.): la PK debe quedar
+        # también dentro del JSON, no solo como key_value. /api/wo/meta y otros lectores
+        # hacen d.get('COD_MATERIAL') — si no está, el desplegable sale sin [código].
+        if proy_nombre not in ('FLM', 'PEXT'):
+            try:
+                _pk_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+                _pk_col2 = str(_pk_cfg2.valor or '').strip() if _pk_cfg2 else ''
+                if _pk_col2 and _pk_col2 not in row_data:
+                    row_data[_pk_col2] = key_val
+            except Exception:
+                pass
 
         new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=json.dumps(row_data))
         db.session.add(new_record)
@@ -3838,25 +3978,16 @@ def api_rows_add():
 @app.route('/api/rows/delete', methods=['POST'])
 @login_required
 def api_rows_delete():
-    pid = session.get('current_proyecto_id')
-    # Los gestores pueden eliminar solo en proyectos manuales (Dataper, Material,
-    # Site Name, Generadores), nunca en WOs (FLM/PEXT).
-    proy_obj = db.session.get(Proyecto, pid) if pid else None
-    proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
-    manual = proy_nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE')
-    if session.get('rol') == 'demo':
-        return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
-    if session.get('rol') == 'contrata' and not manual:
-        return jsonify({'error': 'No tienes permisos para eliminar registros.'}), 403
-    if proy_nombre == 'Combustible' and session.get('rol') != 'admin':
-        return jsonify({'error': 'No tienes permisos para eliminar movimientos de Combustible. Solo el administrador puede eliminar lo registrado.'}), 403
-    if proy_nombre == 'SITE' and session.get('rol') not in ('admin', 'supervisor'):
-        return jsonify({'error': 'Solo supervisor o admin puede eliminar sites.'}), 403
-    if session.get('rol') == 'gestor' and not manual:
-        return jsonify({'error': 'No tienes permisos para eliminar registros en este proyecto.'}), 403
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'No tienes permisos para eliminar registros. Solo Zeno y Suport pueden hacerlo.'}), 403
     try:
         data = request.json
         keys = data.get('keys', [])
+        if not isinstance(keys, list):
+            return jsonify({'error': 'Formato inválido: keys debe ser una lista.'}), 400
+        # Normalizar: strings no vacíos, sin duplicados
+        keys = [str(k).strip() for k in keys if str(k or '').strip()]
+        keys = list(dict.fromkeys(keys))  # dedup preservando orden
         if not keys: return jsonify({'error': 'No se especificaron registros para eliminar'}), 400
         
         # Combustible: eliminar un INGRESO (o cualquier movimiento) no puede
@@ -3954,7 +4085,7 @@ def api_wo_meta():
                 if est and est != 'ACTIVO':
                     continue
                 pr = str(d.get('PROYECTO') or '').strip()
-                if proy_nombre and pr and pr != proy_nombre:
+                if proy_nombre and pr and pr.upper() != proy_nombre.upper():
                     continue
                 t = str(d.get('TECNICO') or '').strip()
                 if not t or t in seen:
@@ -3974,14 +4105,14 @@ def api_wo_meta():
                 except Exception:
                     continue
                 pr = str(d.get('PROYECTO') or '').strip()
-                if proy_nombre and pr and pr != proy_nombre:
+                if proy_nombre and pr and pr.upper() != proy_nombre.upper():
                     continue
                 desc = str(d.get('DESCRIPCION_MATERIAL') or '').strip()
                 if not desc or desc in seen:
                     continue
                 seen.add(desc)
                 materiales.append({
-                    'codigo': str(d.get('COD_MATERIAL') or '').strip(),
+                    'codigo': str(d.get('COD_MATERIAL') or r.key_value or '').strip(),
                     'descripcion': desc,
                     'tipo': str(d.get('TIPO') or '').strip(),
                     'um': str(d.get('UM') or '').strip()
@@ -4085,7 +4216,7 @@ def api_detalle_opciones():
 @login_required
 def api_wo_servicios():
     pid = session.get('current_proyecto_id')
-    if session.get('rol') not in ['admin', 'supervisor']:
+    if session.get('rol') not in ['zeno', 'suport', 'supervisor']:
         return jsonify({'error': 'No tienes permisos para editar servicios.'}), 403
     try:
         data = request.json or {}
@@ -4226,7 +4357,7 @@ def api_rows_bulk_update():
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = session.get('username')
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
-        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') != 'admin':
+        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
             row_dict['GESTOR'] = session.get('username')
 
         new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
@@ -4284,7 +4415,7 @@ def api_rows_bulk_update():
 @login_required
 def api_config_init_manual():
     pid = session.get('current_proyecto_id')
-    if session.get('rol') not in ['admin', 'supervisor']:
+    if session.get('rol') not in ['zeno', 'suport', 'supervisor']:
         return jsonify({'error': 'No tienes permisos para inicializar proyectos.'}), 403
     try:
         data = request.json
@@ -4549,7 +4680,7 @@ def api_admin_export_zip():
     """Respaldo completo de la DB (solo datos, las fotos son archivos y no se incluyen).
     Solo admin. Descarga un ZIP con un JSON por tabla + manifest con conteos.
     Se excluye token_store (secretos) a propósito."""
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo admin'}), 403
     import zipfile
     modelos = {
@@ -4620,7 +4751,7 @@ def api_admin_export_zip():
 @app.route('/api/admin/od_reset', methods=['POST'])
 @login_required
 def api_admin_od_reset():
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo admin'}), 403
     for num in (1, 2):
         TokenStore.query.filter_by(clave=_od_cuenta(num)['token_key']).delete()
@@ -4775,7 +4906,7 @@ def api_evidencia_eliminar():
     if indice < 0 or indice >= max_i:
         return jsonify({'error': 'Índice inválido'}), 400
     # Solo admin puede borrar foto de Combustible
-    if tipo == 'comb' and session.get('rol') != 'admin':
+    if tipo == 'comb' and session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo el administrador puede eliminar la foto.'}), 403
     if evidencia_usa_b2():
         evidencia_eliminar_b2(key, tipo, indice)
@@ -4795,7 +4926,7 @@ def api_wo_enviar_aprobacion():
     - Gestor envía ('enviar'): marca `_ENVIADO_APROBACION` y bloquea su edición.
     - Admin desbloquea ('desbloquear'): vuelve a permitir la edición tras revisión."""
     rol = str(session.get('rol') or '').strip().lower()
-    if rol not in ('contrata', 'gestor', 'supervisor', 'admin'):
+    if rol not in ('contrata', 'gestor', 'supervisor', 'zeno', 'suport'):
         return jsonify({'error': 'No tienes permisos para esta acción.'}), 403
     data = request.json or {}
     pid = session.get('current_proyecto_id')
@@ -4825,7 +4956,7 @@ def api_wo_enviar_aprobacion():
         d['_APROBACION_FECHA'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         d['_APROBACION_USUARIO'] = session.get('username') or ''
     elif accion == 'desbloquear':
-        if rol != 'admin':
+        if rol not in ('zeno', 'suport'):
             return jsonify({'error': 'Solo el administrador puede desbloquear la aprobación.'}), 403
         if str(d.get('_ENVIADO_APROBACION', '')).strip() != '1':
             return jsonify({'error': 'Este WO no está enviado a aprobación.'}), 400
@@ -5441,7 +5572,7 @@ def api_cotizacion_next_seq():
         except Exception:
             val = 30
         return jsonify({'next': val})
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo el admin puede configurar el correlativo'}), 403
     data = request.json or {}
     try:
@@ -5546,7 +5677,7 @@ def api_cotizacion_registro_generar():
 @login_required
 def api_cotizacion_desbloquear():
     """Solo admin puede desbloquear una cotización para permitir edición."""
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo admin puede desbloquear cotizaciones.'}), 403
     pid = session.get('current_proyecto_id')
     data = request.json or {}
@@ -5568,7 +5699,7 @@ def api_cotizacion_desbloquear():
 @login_required
 def api_cotizacion_eliminar():
     """Solo admin puede eliminar una cotización."""
-    if session.get('rol') != 'admin':
+    if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo admin puede eliminar cotizaciones.'}), 403
     pid = session.get('current_proyecto_id')
     data = request.json or {}
@@ -5603,7 +5734,7 @@ def api_cotizacion_generar():
     cot_existente = None
     if cid:
         cot_existente = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
-        if cot_existente and cot_existente.bloqueada and user_rol != 'admin':
+        if cot_existente and cot_existente.bloqueada and user_rol not in ('zeno', 'suport'):
             return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
 
     numero = data.get('numero', '').strip()
@@ -6291,7 +6422,7 @@ def mapa_site():
     if not proy_site:
         from flask import abort
         abort(404)
-    if user_rol not in ('admin', 'demo'):
+    if user_rol not in ('zeno', 'suport'):
         # Debe tener FLM para ver el mapa de sites
         flm = Proyecto.query.filter_by(nombre='FLM').first()
         has_flm = False

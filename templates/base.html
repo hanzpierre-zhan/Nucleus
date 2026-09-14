@@ -53,43 +53,16 @@
                 </a>
                 {% endif %}
 
-                <div class="sidebar-section-label">Proyectos</div>
+                <div class="sidebar-section-label">Módulos</div>
+                {% set _orden_modulos = ['FLM', 'PEXT', 'Claro', 'Integratel', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
+                {% for _nombre_mod in _orden_modulos %}
                 {% for p in proyectos_list %}
-                {% if p.nombre in ['FLM', 'PEXT', 'Combustible', 'Cotizaciones'] %}
+                {% if p.nombre == _nombre_mod %}
                 <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
                     <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
                 </a>
                 {% endif %}
                 {% endfor %}
-
-                <div class="sidebar-section-label">Gestión</div>
-                {% for p in proyectos_list %}
-                {% if p.nombre == 'Dataper' %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
-                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
-                </a>
-                {% endif %}
-                {% endfor %}
-                {% for p in proyectos_list %}
-                {% if p.nombre == 'Material' %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
-                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
-                </a>
-                {% endif %}
-                {% endfor %}
-                {% for p in proyectos_list %}
-                {% if p.nombre == 'Generadores' %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
-                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
-                </a>
-                {% endif %}
-                {% endfor %}
-                {% for p in proyectos_list %}
-                {% if p.nombre == 'SITE' %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
-                    <i class="fa-solid {{ p.icono or 'fa-location-dot' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
-                </a>
-                {% endif %}
                 {% endfor %}
                 {% if (session.get('rol') or '').lower() != 'gestor' %}
                 <a href="/mapa-site" class="sidebar-link {% if request.path == '/mapa-site' or request.path == '/mapa' %}active{% endif %}" data-nav="/mapa-site">
@@ -97,7 +70,7 @@
                 </a>
                 {% endif %}
 
-                {% if (session.get('rol') or '').lower() in ['admin', 'demo'] %}
+                {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
                     <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
                 </a>

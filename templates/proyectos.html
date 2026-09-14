@@ -32,7 +32,7 @@
                                 {% endif %}
                             </td>
                             <td style="text-align: right;">
-                                {% if p.nombre not in ['FLM', 'PEXT', 'Dataper', 'Material'] and session.get('rol') != 'demo' %}
+                                {% if p.nombre not in ['FLM', 'PEXT', 'Dataper', 'Material']  %}
                                 <button onclick="eliminarProyecto({{ p.id }}, '{{ p.nombre }}')" class="btn-icon btn-danger" title="Eliminar Proyecto">
                                     <i class="fa-solid fa-trash-can"></i>
                                 </button>
@@ -76,7 +76,7 @@
                     <div class="nucleus-form-row">
                         <input type="text" id="tec-telefono" placeholder="Teléfono" class="nucleus-control" style="width: 100%;">
                     </div>
-                    {% if session.get('rol') != 'demo' %}
+                    {% if True %}
                     <button onclick="agregarTecnico()" class="btn-action" style="width: 100%;">AGREGAR TÉCNICO</button>
                     {% endif %}
                 </div>
@@ -147,7 +147,7 @@ async function cargarTecnicos() {
                     <td style="padding: 8px;">${t.especialidad || ''}</td>
                     <td style="padding: 8px;">${t.telefono || ''}</td>
                     <td style="padding: 8px; text-align:right;">
-                        {% if session.get('rol') != 'demo' %}
+                        {% if True %}
                         <button onclick="eliminarTecnico(${t.id})" class="btn-icon btn-danger" title="Eliminar técnico"><i class="fa-solid fa-trash-can"></i></button>
                         {% endif %}
                     </td>

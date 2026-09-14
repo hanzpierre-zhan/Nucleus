@@ -2086,8 +2086,14 @@
         <div class="wo-body">
             <div id="wo-panel-detalle">
                 <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-briefcase"></i> Detalle de <span
-                            id="wo-title">WO</span></div>
+                    <div class="wo-section-title">
+                        <i class="fa-solid fa-briefcase"></i> Detalle de <span id="wo-title">WO</span>
+                        {% if session.get('rol') == 'zeno' %}
+                        <button type="button" onclick="editarCodigoWO()" style="background:none; border:none; cursor:pointer; color:var(--ios-blue); font-size:12px; margin-left:8px;" title="Editar código principal (Solo Zeno)">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        {% endif %}
+                    </div>
                     <div id="wo-summary" class="wo-summary">
                         <div class="wo-empty">Cargando...</div>
                     </div>
@@ -2635,7 +2641,7 @@
         </div>
         <div class="mar-footer">
             <button onclick="cerrarModalImportar()" class="mar-btn-ghost">Cancelar</button>
-            {% if session.get('rol') != 'demo' %}
+            {% if True %}
             <button id="btn-import-now" onclick="ejecutarImportarModal()" class="mar-btn-primary" disabled><i
                     class="fa-solid fa-play"></i> Importar ahora</button>
             {% endif %}
@@ -2685,7 +2691,7 @@
             };
         }, 400);
     }
-    const IS_WO_PROJECT = ['pext', 'flm'].includes(currentProjectNombre.trim().toLowerCase());
+    const IS_WO_PROJECT = ['pext', 'flm', 'claro', 'integratel'].includes(currentProjectNombre.trim().toLowerCase());
     const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
@@ -10174,7 +10180,15 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (selectedRows.length === 0) return;
 
         const keys = selectedRows.map(r => String(r.getData()._key || '').trim()).filter(Boolean);
-        if (!await nucleusConfirm(`¿Eliminar definitivamente los ${keys.length} registros seleccionados?`)) return;
+        if (keys.length === 0) {
+            alert('No se pudo determinar la clave de los registros seleccionados. Recarga la página e intenta de nuevo.');
+            return;
+        }
+        if (keys.length !== selectedRows.length) {
+            if (!await nucleusConfirm(`Atención: seleccionaste ${selectedRows.length} filas pero solo ${keys.length} tienen clave válida. ¿Eliminar solo las ${keys.length} con clave?`)) return;
+        } else {
+            if (!await nucleusConfirm(`¿Eliminar definitivamente los ${keys.length} registros seleccionados?`)) return;
+        }
 
         fetch('/api/rows/delete', {
             method: 'POST',
@@ -10182,7 +10196,11 @@ btnItem.onclick = () => cotRegAgregarFila();
             body: JSON.stringify({ keys: keys })
         }).then(r => r.json()).then(res => {
             if (res.success) {
-                selectedRows.forEach(row => row.delete());
+                const keySet = new Set(keys);
+                selectedRows.forEach(row => {
+                    const k = String(row.getData()._key || '').trim();
+                    if (keySet.has(k)) row.delete();
+                });
                 actualizarConteo();
             } else {
                 alert("Error: " + res.error);
@@ -10292,6 +10310,31 @@ function guardarTextoAmplio(){
     _textoAmplioTarget.dispatchEvent(new Event('change',{bubbles:true}));
   }
   cerrarTextoAmplio();
+}
+
+async function editarCodigoWO() {
+    if (!woKey) return;
+    const newKey = prompt("Editar código principal de este registro.\nActual: " + woKey + "\nNuevo código:", woKey);
+    if (!newKey || newKey.trim() === '' || newKey.trim() === woKey) return;
+    
+    if (!confirm("¿Estás seguro de cambiar el código de \"" + woKey + "\" a \"" + newKey.trim() + "\"?\n\nEsto actualizará el historial, cotizaciones y todos los registros asociados. Solo el usuario Zeno puede hacer esto.")) return;
+    
+    try {
+        const res = await fetch('/api/rows/edit_key', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ old_key: woKey, new_key: newKey.trim() })
+        });
+        const j = await res.json();
+        if (res.ok && j.success) {
+            alert('Código actualizado con éxito. La tabla se recargará.');
+            location.reload();
+        } else {
+            alert('Error: ' + (j.error || 'No se pudo actualizar el código.'));
+        }
+    } catch(e) {
+        alert('Error de conexión.');
+    }
 }
 </script>
 {% endblock %}
