@@ -67,14 +67,14 @@
     </button>
     {% endif %}
 
-    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') not in ['demo', 'contrata'] %}
+    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') not in ['contrata'] %}
     <!-- Botón Nuevo WO (Azul): alta de WO (no disponible para Contrata, que solo completa la información) -->
     <button onclick="aniadirRegistroWO()" class="action-pill pill-blue" title="Crear un WO manualmente">
         <i class="fa-solid fa-plus"></i> Nuevo WO
     </button>
     {% endif %}
 
-    {% if session.get('rol') == 'admin' %}
+    {% if session.get('rol') in ['zeno', 'suport'] %}
     <!-- Botón Importar Masivo (Teal) -->
     <button onclick="abrirModalImportar()" class="action-pill pill-teal"
         title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">

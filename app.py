@@ -3987,6 +3987,13 @@ def api_rows_add():
 def api_rows_delete():
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'No tienes permisos para eliminar registros. Solo Zeno y Suport pueden hacerlo.'}), 403
+    
+    pid = session.get('current_proyecto_id')
+    if not pid: return jsonify({'error': 'No hay proyecto seleccionado'}), 400
+    
+    proy = Proyecto.query.get(pid)
+    proy_nombre = proy.nombre if proy else ''
+    
     try:
         data = request.json
         keys = data.get('keys', [])

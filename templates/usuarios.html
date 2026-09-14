@@ -109,9 +109,9 @@
     .proj-chk:has(input:checked) { border-color: var(--ios-blue); background: var(--ios-blue-light); }
     .up-btn-create {
         flex: 1; background: linear-gradient(135deg, #007AFF, #0062CC); color: #fff; border: none;
-        border-radius: 12px; padding: 12px 18px; font-size: 13px; font-weight: 700; cursor: pointer;
+        border-radius: 8px; padding: 10px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
         display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        box-shadow: 0 8px 18px rgba(0,122,255,0.3); transition: all .15s ease;
+        transition: all .15s ease; white-space: nowrap;
     }
     .up-btn-create:hover { background: linear-gradient(135deg, #0062CC, #0050A6); transform: translateY(-1px); }
     .up-btn-ghost {
@@ -265,51 +265,15 @@
                             <input type="password" id="user-pw" placeholder="Dejar vacío para no cambiar" autocomplete="new-password">
                         </div>
                     </div>
-                    <div class="up-field up-field-proj">
+                    <div class="up-field">
                         <label>Rol de acceso</label>
-                        <input type="hidden" id="user-rol" value="contrata">
-                        <div class="role-cards-grid" id="role-cards-grid">
-                            <label class="role-card selected" data-rol="contrata"
-                                style="--rc-color:#8E8E93; --rc-bg:rgba(142,142,147,0.12);" onclick="selectRol('contrata')">
-                                <div class="role-card-ic"><i class="fa-solid fa-user-tie"></i></div>
-                                <div class="role-card-info">
-                                    <div class="role-card-name">Contrata</div>
-                                    <div class="role-card-desc">Solo datos del módulo asignado</div>
-                                </div>
-                            </label>
-                            <label class="role-card" data-rol="gestor"
-                                style="--rc-color:#34C759; --rc-bg:rgba(52,199,89,0.12);" onclick="selectRol('gestor')">
-                                <div class="role-card-ic"><i class="fa-solid fa-user-gear"></i></div>
-                                <div class="role-card-info">
-                                    <div class="role-card-name">Gestor</div>
-                                    <div class="role-card-desc">Supervisión de módulos asignados</div>
-                                </div>
-                            </label>
-                            <label class="role-card" data-rol="supervisor"
-                                style="--rc-color:#5856D6; --rc-bg:rgba(88,86,214,0.12);" onclick="selectRol('supervisor')">
-                                <div class="role-card-ic"><i class="fa-solid fa-user-check"></i></div>
-                                <div class="role-card-info">
-                                    <div class="role-card-name">Supervisor</div>
-                                    <div class="role-card-desc">Importación y gestión de datos</div>
-                                </div>
-                            </label>
-                            <label class="role-card" data-rol="suport"
-                                style="--rc-color:#FF9500; --rc-bg:rgba(255,149,0,0.12);" onclick="selectRol('suport')">
-                                <div class="role-card-ic"><i class="fa-solid fa-user-shield"></i></div>
-                                <div class="role-card-info">
-                                    <div class="role-card-name">Suport</div>
-                                    <div class="role-card-desc">Soporte y gestión del sistema</div>
-                                </div>
-                            </label>
-                            <label class="role-card" data-rol="zeno"
-                                style="--rc-color:#007AFF; --rc-bg:rgba(0,122,255,0.12);" onclick="selectRol('zeno')">
-                                <div class="role-card-ic"><i class="fa-solid fa-crown"></i></div>
-                                <div class="role-card-info">
-                                    <div class="role-card-name">Zeno</div>
-                                    <div class="role-card-desc">Control total del sistema</div>
-                                </div>
-                            </label>
-                        </div>
+                        <select id="user-rol" class="nucleus-control" style="width: 100%; max-width: 400px; padding: 10px; font-weight: 500;">
+                            <option value="contrata">Contrata (Solo datos del módulo asignado)</option>
+                            <option value="gestor">Gestor (Supervisión de módulos asignados)</option>
+                            <option value="supervisor">Supervisor (Importación y gestión de datos)</option>
+                            <option value="suport">Suport (Soporte y gestión del sistema)</option>
+                            <option value="zeno">Zeno (Control total del sistema)</option>
+                        </select>
                     </div>
                     {% if True %}
                     <div class="up-actions">
@@ -437,10 +401,8 @@ function getSelectedProyectos() {
 }
 
 function selectRol(rol) {
-    document.getElementById('user-rol').value = rol;
-    document.querySelectorAll('.role-card').forEach(card => {
-        card.classList.toggle('selected', card.dataset.rol === rol);
-    });
+    const selectEl = document.getElementById('user-rol');
+    if(selectEl) selectEl.value = rol;
 }
 
 async function cancelarEdicion() {
