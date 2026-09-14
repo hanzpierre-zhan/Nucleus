@@ -2346,7 +2346,7 @@
                 <div class="wo-section">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
                         <div class="wo-section-title" style="margin-bottom:0;"><i class="fa-solid fa-boxes-packing"></i> Materiales utilizados</div>
-                        <button type="button" id="btn-wo-agregar-material" class="action-pill pill-neutral" style="height:28px; font-size:12px; padding:0 12px;" onclick="agregarFilaMaterial('', 'UN', 1)">
+                        <button type="button" id="btn-wo-agregar-material" class="action-pill pill-neutral" style="height:28px; font-size:12px; padding:0 12px;" onclick="agregarFilaMaterial('', 'UN', '', '')">
                             <i class="fa-solid fa-plus"></i> Agregar material
                         </button>
                     </div>
@@ -8668,13 +8668,13 @@ btnItem.onclick = () => cotRegAgregarFila();
             saved = JSON.parse(data['MATERIALES'] || '[]') || [];
         } catch (e) { saved = []; }
         if (!Array.isArray(saved)) saved = [];
-        saved.forEach(m => agregarFilaMaterial(m.descripcion || m.codigo || '', m.unidad || m.und || 'UN', m.cantidad));
+        saved.forEach(m => agregarFilaMaterial(m.descripcion || m.codigo || '', m.unidad || m.und || 'UN', m.guia !== undefined && m.guia !== '' ? m.guia : (m.cantidad || ''), m.gastado || ''));
         if (!saved.length) {
             cont.innerHTML = '<div class="wo-empty">Sin materiales registrados. Usa "Agregar material" para registrar lo usado en la obra.</div>';
         }
     }
 
-    function agregarFilaMaterial(descripcion, unidad, cantidad) {
+    function agregarFilaMaterial(descripcion, unidad, guia, gastado) {
         const cont = document.getElementById('wo-material-list');
         if (!cont) return;
         const emptyMsg = cont.querySelector('.wo-empty');
@@ -8742,16 +8742,49 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (unidad) undSel.value = unidad;
         row.appendChild(undSel);
 
-        // 3. Campo de Cantidad
-        const qty = document.createElement('input');
-        qty.type = 'number';
-        qty.className = 'wo-mat-qty';
-        qty.min = '0';
-        qty.step = '0.01';
-        qty.placeholder = 'Cant.';
-        qty.style.cssText = 'width: 85px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none;';
-        qty.value = (cantidad !== undefined && cantidad !== null && cantidad !== '') ? cantidad : 1;
-        row.appendChild(qty);
+        // 3. Campo de Guía
+        const guiaInp = document.createElement('input');
+        guiaInp.type = 'number';
+        guiaInp.className = 'wo-mat-guia';
+        guiaInp.min = '0';
+        guiaInp.step = '0.01';
+        guiaInp.placeholder = 'Guía';
+        guiaInp.title = 'Total en la guía';
+        guiaInp.style.cssText = 'width: 70px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none;';
+        guiaInp.value = (guia !== undefined && guia !== null && guia !== '') ? guia : '';
+        row.appendChild(guiaInp);
+
+        // 4. Campo de Gastado
+        const gastadoInp = document.createElement('input');
+        gastadoInp.type = 'number';
+        gastadoInp.className = 'wo-mat-gastado';
+        gastadoInp.min = '0';
+        gastadoInp.step = '0.01';
+        gastadoInp.placeholder = 'Gastado';
+        gastadoInp.title = 'Material gastado/utilizado';
+        gastadoInp.style.cssText = 'width: 75px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none;';
+        gastadoInp.value = (gastado !== undefined && gastado !== null && gastado !== '') ? gastado : '';
+        row.appendChild(gastadoInp);
+
+        // 5. Campo de Devolución
+        const devInp = document.createElement('input');
+        devInp.type = 'number';
+        devInp.className = 'wo-mat-devolucion';
+        devInp.placeholder = 'Dev.';
+        devInp.title = 'Material a devolver (Guía - Gastado)';
+        devInp.readOnly = true;
+        devInp.style.cssText = 'width: 70px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: rgba(0,0,0,0.05); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none; pointer-events: none;';
+        
+        function updateDevolucion() {
+            const g = parseFloat(guiaInp.value) || 0;
+            const s = parseFloat(gastadoInp.value) || 0;
+            const diff = g - s;
+            devInp.value = diff !== 0 ? diff : '';
+        }
+        guiaInp.addEventListener('input', updateDevolucion);
+        gastadoInp.addEventListener('input', updateDevolucion);
+        updateDevolucion();
+        row.appendChild(devInp);
 
         // 4. Botón de Eliminar
         const del = document.createElement('button');
@@ -8771,7 +8804,9 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (typeof woEditable !== 'undefined' && !woEditable) {
             descEl.disabled = true;
             undSel.disabled = true;
-            qty.disabled = true;
+            guiaInp.disabled = true;
+            gastadoInp.disabled = true;
+            devInp.disabled = true;
             del.disabled = true;
             del.style.display = 'none';
         }
@@ -8864,13 +8899,18 @@ btnItem.onclick = () => cotRegAgregarFila();
         cont.querySelectorAll('.wo-material-row').forEach(row => {
             const descEl = row.querySelector('.wo-mat-desc');
             const undSel = row.querySelector('.wo-mat-und');
-            const qtyInp = row.querySelector('.wo-mat-qty');
+            const guiaInp = row.querySelector('.wo-mat-guia');
+            const gastadoInp = row.querySelector('.wo-mat-gastado');
+            const devInp = row.querySelector('.wo-mat-devolucion');
             const desc = descEl ? descEl.value.trim() : '';
             if (!desc) return;
             items.push({
                 descripcion: desc,
                 unidad: undSel ? undSel.value : 'UN',
-                cantidad: qtyInp ? (parseFloat(qtyInp.value) || 1) : 1
+                guia: (guiaInp && guiaInp.value !== '') ? parseFloat(guiaInp.value) : '',
+                gastado: (gastadoInp && gastadoInp.value !== '') ? parseFloat(gastadoInp.value) : '',
+                devolucion: (devInp && devInp.value !== '') ? parseFloat(devInp.value) : '',
+                cantidad: (gastadoInp && gastadoInp.value !== '') ? parseFloat(gastadoInp.value) : ''
             });
         });
         return items;
