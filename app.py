@@ -865,7 +865,7 @@ with app.app_context():
         gen_cols = [
             {'nombre': 'QR ASIGNADO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SERIE DE EQUIPO', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL']},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL', 'CLARO', 'INTEGRATEL']},
             {'nombre': 'TIPO DE COMBUSTIBLE', 'tipo': 'lista', 'opciones': ['GASOLINA', 'PETROLEO', 'DIESEL']},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
             {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []}
@@ -939,7 +939,7 @@ with app.app_context():
             {'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
             {'nombre': 'QR ASIGNADO', 'tipo': 'lista', 'opciones': []},
-            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL']},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL', 'CLARO', 'INTEGRATEL']},
             {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
             {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NOMBRE DE SITE', 'tipo': 'texto', 'opciones': []},

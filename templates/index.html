@@ -5011,6 +5011,7 @@
             const f = c.getDefinition().field;
             if (!f) return false;
             if (f.startsWith('KPI_')) return false;
+            if (f === 'EDITADO POR') return false;
             return c.isVisible();
         });
 
@@ -5284,7 +5285,7 @@
         const selTipo = document.createElement('select');
         selTipo.disabled = true;
         selTipo.title = 'Se llena automáticamente según el generador declarado';
-        ['PROPIO', 'ALQUILADO', 'ENTEL'].forEach(o => {
+        ['PROPIO', 'ALQUILADO', 'ENTEL', 'CLARO', 'INTEGRATEL'].forEach(o => {
             const opt = document.createElement('option');
             opt.value = o; opt.textContent = o;
             selTipo.appendChild(opt);
@@ -7860,7 +7861,7 @@ btnItem.onclick = () => cotRegAgregarFila();
                 } else if (c.field === 'TIPO') {
                     control = `<select data-field="TIPO">
                         <option value="">— Seleccionar —</option>
-                        ${['PROPIO', 'ALQUILADO', 'ENTEL'].map(o => `<option value="${o}"${val === o ? ' selected' : ''}>${o}</option>`).join('')}
+                        ${['PROPIO', 'ALQUILADO', 'ENTEL', 'CLARO', 'INTEGRATEL'].map(o => `<option value="${o}"${val === o ? ' selected' : ''}>${o}</option>`).join('')}
                     </select>`;
                 } else if (c.field === 'WO NUMBER') {
                     control = `<input type="text" data-field="WO NUMBER" list="wo-datalist" value="${escapeHtml(val)}" placeholder="Buscar WO...">`;
@@ -8699,7 +8700,23 @@ btnItem.onclick = () => cotRegAgregarFila();
                 o.textContent = (m.codigo ? '[' + m.codigo + '] ' : '') + m.descripcion;
                 descEl.appendChild(o);
             });
-            if (descripcion) descEl.value = descripcion;
+            if (descripcion) {
+                let found = Array.from(descEl.options).some(o => o.value === descripcion);
+                if (found) {
+                    descEl.value = descripcion;
+                } else {
+                    let partial = Array.from(descEl.options).find(o => o.value !== '' && (o.value.includes(descripcion) || descripcion.includes(o.value)));
+                    if (partial) {
+                        descEl.value = partial.value;
+                    } else {
+                        const unknownOpt = document.createElement('option');
+                        unknownOpt.value = descripcion;
+                        unknownOpt.textContent = descripcion + ' (No en catálogo)';
+                        descEl.appendChild(unknownOpt);
+                        descEl.value = descripcion;
+                    }
+                }
+            }
         } else {
             descEl = document.createElement('input');
             descEl.type = 'text';
