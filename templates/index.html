@@ -5576,6 +5576,20 @@
         inpFecha.value = _obtenerFechaHoraLocal();
         mkField('FECHA Y HORA', inpFecha, 'FECHA');
 
+        // CLIENTE — operador al que va la cotización (ENTEL / CLARO / INTEGRATEL)
+        const selClienteCoti = document.createElement('select');
+        const optClienteDefault = document.createElement('option');
+        optClienteDefault.value = '';
+        optClienteDefault.textContent = '— Seleccione Cliente —';
+        selClienteCoti.appendChild(optClienteDefault);
+        ['ENTEL', 'CLARO', 'INTEGRATEL'].forEach(cli => {
+            const opt = document.createElement('option');
+            opt.value = cli;
+            opt.textContent = cli;
+            selClienteCoti.appendChild(opt);
+        });
+        mkField('CLIENTE', selClienteCoti, 'CLIENTE');
+
         // N° COTIZACION — editable, solo se fija al generar
         const inpCoti = document.createElement('input');
         inpCoti.type = 'text';
@@ -5994,6 +6008,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         };
         setVal('FECHA', data['FECHA'] || '');
         setVal('N° ORDEN', data['N° ORDEN'] || '');
+        setVal('CLIENTE', data['CLIENTE'] || 'ENTEL');
 
         setVal('SUPERVISOR', data['SUPERVISOR'] || '');
         setVal('ESTADO COTIZACION', data['ESTADO COTIZACION'] || 'Pendiente de Aprobacion');
@@ -6396,6 +6411,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         // Se adjuntan los items y el sub total + FEE; el GESTOR lo asigna el servidor.
         let esGenerar = false;
         if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
+            if (!data['CLIENTE']) { alert('Seleccione el CLIENTE de la cotización (ENTEL, CLARO o INTEGRATEL).'); return; }
             if (cotiEditMode && cotiEditKey) {
                 delete data['_COT_NUM_DIGITS'];
                 key = cotiEditKey;

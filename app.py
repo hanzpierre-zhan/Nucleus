@@ -1006,6 +1006,7 @@ with app.app_context():
         cot_cols = [
             {'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
+            {'nombre': 'CLIENTE', 'tipo': 'lista', 'opciones': ['ENTEL', 'CLARO', 'INTEGRATEL']},
             {'nombre': 'N° COTIZACION', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NUMERO WO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'NOMBRE SITE', 'tipo': 'texto', 'opciones': []},
@@ -1054,6 +1055,9 @@ with app.app_context():
                 cambio = True
             if not str(d.get('ESTADO COTIZACION', '') or '').strip():
                 d['ESTADO COTIZACION'] = 'Pendiente de Aprobacion'
+                cambio = True
+            if not str(d.get('CLIENTE', '') or '').strip():
+                d['CLIENTE'] = 'ENTEL'
                 cambio = True
             if cambio:
                 r.data_json = json.dumps(d, ensure_ascii=False)
@@ -3869,6 +3873,8 @@ def api_rows_add():
             import re
             from datetime import datetime as _dt
             row_data['GESTOR'] = session.get('username', '')
+            if not str(row_data.get('CLIENTE', '') or '').strip():
+                row_data['CLIENTE'] = 'ENTEL'
             yr = str(_dt.now().year)
             user_coti = str(row_data.get('N° COTIZACION', '') or '').strip()
             # Si el usuario proveyó un N° válido y no duplicado, respétalo (maleable)
