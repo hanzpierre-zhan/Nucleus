@@ -20,6 +20,11 @@ import zipfile
 from datetime import datetime, timedelta
 from collections import Counter
 from PIL import Image, ImageOps
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
 
 # Setup Flask application
 app = Flask(__name__)
@@ -5075,6 +5080,13 @@ def api_evidencia_foto(pid, key, nombre):
         except Exception:
             return jsonify({'error': 'No encontrado'}), 404
     folder = evidencia_folder(pid, key)
+    ruta = os.path.join(folder, nombre)
+    if not os.path.exists(ruta):
+        if '/' not in nombre and '\\' not in nombre and not nombre.startswith('.') and os.path.isdir(folder):
+            pre, _ = os.path.splitext(nombre)
+            candidatos = [f for f in os.listdir(folder) if f == nombre or f.startswith(pre + '.')]
+            if candidatos:
+                nombre = sorted(candidatos)[0]
     return send_from_directory(folder, nombre, max_age=604800)
 
 @app.route('/api/evidencia/zip/<int:pid>/<path:key>')
