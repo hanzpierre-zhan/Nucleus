@@ -1,5 +1,6 @@
 import os
 import glob
+import gzip
 import json
 import time
 import logging
@@ -71,6 +72,40 @@ def handle_exception(e):
         return jsonify(error=e.description), e.code
     # Non-HTTP exceptions
     return jsonify(error=str(e)), 500
+
+# Compresión gzip de las respuestas (HTML/JSON/CSS/JS). Reduce drásticamente el
+# peso de la página principal (varios MB) sin cambiar el contenido ni requerir
+# dependencias externas. Si algo falla, se devuelve la respuesta sin comprimir.
+@app.after_request
+def _compress_response(response):
+    try:
+        if response.direct_passthrough:
+            return response
+        if response.status_code < 200 or response.status_code >= 300:
+            return response
+        if response.headers.get('Content-Encoding'):
+            return response
+        if 'gzip' not in request.accept_encodings:
+            return response
+        ctype = (response.content_type or '').lower()
+        if not any(t in ctype for t in (
+                'text/', 'application/json', 'application/javascript',
+                'application/xml', 'image/svg')):
+            return response
+        data = response.get_data()
+        if len(data) < 1024:
+            return response
+        compressed = gzip.compress(data, 6)
+        if len(compressed) >= len(data):
+            return response
+        response.set_data(compressed)
+        response.headers['Content-Encoding'] = 'gzip'
+        response.headers['Content-Length'] = str(len(compressed))
+        vary = response.headers.get('Vary')
+        response.headers['Vary'] = (vary + ', Accept-Encoding') if vary else 'Accept-Encoding'
+    except Exception:
+        pass
+    return response
 
 db = SQLAlchemy(app)
 
@@ -561,6 +596,28 @@ def _evidencia_migrar_legacy(d):
 
 # --- DB INIT & MIGRATION ---
 with app.app_context():
+    # Lock de migración (solo PostgreSQL): evita que varios workers de gunicorn
+    # ejecuten las migraciones en paralelo al arrancar. Si no se obtiene en 30 s
+    # se continúa igualmente (las migraciones son idempotentes), para no bloquear
+    # nunca el arranque de la app.
+    # Se omite en endpoints con connection pooler (Neon "-pooler"/PgBouncer en
+    # modo transacción), donde los advisory locks de sesión no son fiables.
+    _using_pooler = '-pooler' in (DATABASE_URL or '')
+    _mig_lock_conn = None
+    try:
+        if db.engine.dialect.name == 'postgresql' and not _using_pooler:
+            _cand = db.engine.connect()
+            for _ in range(30):
+                if _cand.execute(db.text("SELECT pg_try_advisory_lock(917348261)")).scalar():
+                    _mig_lock_conn = _cand
+                    break
+                time.sleep(1)
+            if _mig_lock_conn is None:
+                _cand.close()
+    except Exception as e:
+        print("Warning: lock de migración no disponible:", e)
+        _mig_lock_conn = None
+
     is_sqlite = db.engine.dialect.name == 'sqlite'
     # Detect if we need to migrate or just create
     from sqlalchemy import inspect
@@ -588,6 +645,30 @@ with app.app_context():
         has_old = True # Now we have them
 
     db.create_all()
+
+    # Índices de rendimiento (idempotentes). proyecto_id es la columna más
+    # filtrada del sistema y hasta ahora no estaba indexada.
+    _perf_indexes = [
+        "CREATE INDEX IF NOT EXISTS ix_nucleus_data_proyecto_id ON nucleus_data (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_nucleus_data_proy_key ON nucleus_data (proyecto_id, key_value)",
+        "CREATE INDEX IF NOT EXISTS ix_app_config_proy_clave ON app_config (proyecto_id, clave)",
+        "CREATE INDEX IF NOT EXISTS ix_hist_cambios_proy_campo_key ON historial_cambios (proyecto_id, campo_modificado, key_value)",
+        "CREATE INDEX IF NOT EXISTS ix_accesos_proyecto_usuario ON accesos_proyecto (usuario_id)",
+        "CREATE INDEX IF NOT EXISTS ix_accesos_proyecto_user_proy ON accesos_proyecto (usuario_id, proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_cotizaciones_proy_key ON cotizaciones (proyecto_id, key_value)",
+        "CREATE INDEX IF NOT EXISTS ix_filtros_maestros_proy ON filtros_maestros (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_tablas_maestras_proy ON tablas_maestras (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_reglas_estado_manual_proy ON reglas_estado_manual (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_kpi_configs_proy ON kpi_configs (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_tecnicos_proy ON tecnicos (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_nucleus_history_proy_key ON nucleus_history (proyecto_id, key_value)",
+    ]
+    for _idx_sql in _perf_indexes:
+        try:
+            db.session.execute(db.text(_idx_sql))
+        except Exception as e:
+            print("Warning: no se pudo crear índice:", e)
+    db.session.commit()
 
     # Migration: Add 'nombre' column to usuarios if missing (must run before any Usuario query)
     try:
@@ -693,12 +774,9 @@ with app.app_context():
     except Exception:
         db.session.rollback()
 
-    # Migration: Rename gestor -> contrata (el antiguo gestor era la contrata de campo)
-    try:
-        db.session.execute(db.text("UPDATE usuarios SET rol = 'contrata' WHERE rol = 'gestor'"))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+    # NOTA: se eliminó la antigua migración que convertía 'gestor' -> 'contrata'.
+    # 'gestor' es hoy un rol válido y esa conversión corría en cada arranque,
+    # revirtiendo a contrata a los usuarios que el admin asignaba como gestor.
 
     # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
@@ -1486,6 +1564,14 @@ with app.app_context():
         db.session.add(AppConfig(proyecto_id=proy.id, clave='historial_backfill_done', valor='1'))
         db.session.commit()
 
+    try:
+        if _mig_lock_conn is not None:
+            _mig_lock_conn.execute(db.text("SELECT pg_advisory_unlock(917348261)"))
+            _mig_lock_conn.commit()
+            _mig_lock_conn.close()
+    except Exception:
+        pass
+
 def safe_json_dumps(obj):
     return json.dumps(obj, ensure_ascii=False)
 
@@ -1992,7 +2078,7 @@ def index():
     except Exception:
         pass
     # Si es Cotizaciones o Combustible y no hay layout guardado, forzar orden N° ORDEN primero
-    _proj_nombre_for_layout = (db.session.get(Proyecto, pid).nombre.strip().lower() if db.session.get(Proyecto, pid) and db.session.get(Proyecto, pid).nombre else '')
+    _proj_nombre_for_layout = proy_actual_nombre.lower()
     if _proj_nombre_for_layout in ('cotizaciones', 'combustible') and 'N° ORDEN' in cols:
         # Asegurar que el layout guardado refleje este orden para futuras cargas
         try:
@@ -2046,7 +2132,7 @@ def index():
 
     # FIX: N antes de N° COTIZACION/QR para Cotizaciones/Combustible (corrige layout guardado al revés)
     try:
-        _pn_fix = (db.session.get(Proyecto, pid).nombre.strip().lower() if db.session.get(Proyecto, pid) else '')
+        _pn_fix = proy_actual_nombre.lower()
         if _pn_fix in ('cotizaciones','combustible'):
             _cfg_fix = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
             if _cfg_fix and _cfg_fix.valor:
