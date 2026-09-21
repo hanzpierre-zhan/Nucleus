@@ -791,6 +791,19 @@ with app.app_context():
         print("Warning: rename PEXT:", e)
         db.session.rollback()
 
+    # Migration: Renombrar FLM -> "FLM (old)" (el FLM nuevo se crea abajo en fixed).
+    # Solo corre una vez: si FLM (old) ya existe, se salta.
+    try:
+        _old_f = Proyecto.query.filter_by(nombre='FLM').first()
+        _already_f = Proyecto.query.filter_by(nombre='FLM (old)').first()
+        if _old_f and not _already_f:
+            _old_f.nombre = 'FLM (old)'
+            db.session.commit()
+            print("Renombrado FLM -> FLM (old)")
+    except Exception as e:
+        print("Warning: rename FLM:", e)
+        db.session.rollback()
+
     # Migration: Eliminar proyectos CLARO e INTEGRATEL (y toda su data).
     for _del_name in ('Claro', 'Integratel', 'CLARO', 'INTEGRATEL'):
         try:
