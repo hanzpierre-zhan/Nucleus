@@ -778,6 +778,36 @@ with app.app_context():
     # 'gestor' es hoy un rol válido y esa conversión corría en cada arranque,
     # revirtiendo a contrata a los usuarios que el admin asignaba como gestor.
 
+    # Migration: Renombrar PEXT -> "PEXT (old)" (el PEXT nuevo se crea abajo en fixed).
+    # Solo corre una vez: si PEXT (old) ya existe, se salta.
+    try:
+        _old = Proyecto.query.filter_by(nombre='PEXT').first()
+        _already = Proyecto.query.filter_by(nombre='PEXT (old)').first()
+        if _old and not _already:
+            _old.nombre = 'PEXT (old)'
+            db.session.commit()
+            print("Renombrado PEXT -> PEXT (old)")
+    except Exception as e:
+        print("Warning: rename PEXT:", e)
+        db.session.rollback()
+
+    # Migration: Eliminar proyectos CLARO e INTEGRATEL (y toda su data).
+    for _del_name in ('Claro', 'Integratel', 'CLARO', 'INTEGRATEL'):
+        try:
+            _dp = Proyecto.query.filter_by(nombre=_del_name).first()
+            if _dp:
+                _dpid = _dp.id
+                for _dtbl in (NucleusData, AppConfig, AccesoProyecto, KpiConfig,
+                              HistorialCambios, FiltroMaestro, TablaMaestra,
+                              ReglaEstadoManual, Cotizacion, Tecnico, NucleusHistory):
+                    _dtbl.query.filter_by(proyecto_id=_dpid).delete()
+                db.session.delete(_dp)
+                db.session.commit()
+                print(f"Eliminado proyecto '{_del_name}' (id={_dpid}) y toda su data.")
+        except Exception as e:
+            print(f"Warning: no se pudo eliminar '{_del_name}':", e)
+            db.session.rollback()
+
     # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
     fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
              ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
@@ -1432,18 +1462,6 @@ with app.app_context():
                     d['EDITADO POR'] = d['_ultimo_usuario_manual']
                     r.data_json = json.dumps(d, ensure_ascii=False)
             db.session.commit()
-
-    # Migration: Crear proyectos vacíos Claro e Integratel (WO/CRM).
-    for _new_name, _new_icon, _new_desc in [('Claro', 'fa-tower-broadcast', 'Proyecto Claro (WO)'),
-                                             ('Integratel', 'fa-network-wired', 'Proyecto Integratel (WO)')]:
-        if not Proyecto.query.filter_by(nombre=_new_name).first():
-            db.session.add(Proyecto(nombre=_new_name, icono=_new_icon, descripcion=_new_desc))
-            db.session.commit()
-            _np = Proyecto.query.filter_by(nombre=_new_name).first()
-            if _np:
-                db.session.add(AppConfig(proyecto_id=_np.id, clave='app_schema', valor=json.dumps([])))
-                db.session.add(AppConfig(proyecto_id=_np.id, clave='manual_columns', valor=json.dumps([])))
-                db.session.commit()
 
     # Migration: Backfill COD_MATERIAL en Material donde se guardó solo como key_value.
     # Sin esto, /api/wo/meta leía d.get('COD_MATERIAL') vacío y el desplegable salía sin [código].
