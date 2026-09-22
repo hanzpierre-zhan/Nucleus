@@ -4435,28 +4435,14 @@ def api_wo_meta():
             servicios = ['PREVENTIVO', 'CORRECTIVO', 'PREDICTIVO', 'ABASTECIMIENTO DE COMBUSTIBLE',
                          'ADICIONALES', 'CORTE PROGRAMADO', 'TRABAJO PROGRAMADO']
 
-        # Técnicos activos desde DATAPER, filtrados por el PROYECTO actual
+        # Técnicos desde la tabla Tecnico, filtrados por el PROYECTO actual
         tecnicos = []
-        dataper = Proyecto.query.filter_by(nombre='Dataper').first()
-        if dataper:
-            seen = set()
-            for r in NucleusData.query.filter_by(proyecto_id=dataper.id).all():
-                try:
-                    d = json.loads(r.data_json)
-                except Exception:
-                    continue
-                est = str(d.get('ESTADO') or '').strip().upper()
-                if est and est != 'ACTIVO':
-                    continue
-                pr = str(d.get('PROYECTO') or '').strip()
-                if proy_nombre and pr and pr.upper() != proy_nombre.upper():
-                    continue
-                t = str(d.get('TECNICO') or '').strip()
-                if not t or t in seen:
-                    continue
-                seen.add(t)
-                tecnicos.append({'nombre': t, 'contrata': str(d.get('CONTRATA') or '').strip()})
-        tecnicos.sort(key=lambda x: x['nombre'])
+        if pid:
+            for t in Tecnico.query.filter_by(proyecto_id=pid).order_by(Tecnico.nombre).all():
+                tecnicos.append({'nombre': t.nombre, 'contrata': t.contrata})
+        else:
+            for t in Tecnico.query.order_by(Tecnico.nombre).all():
+                tecnicos.append({'nombre': t.nombre, 'contrata': t.contrata})
 
         # Materiales desde MATERIAL, filtrados por el PROYECTO actual
         materiales = []
