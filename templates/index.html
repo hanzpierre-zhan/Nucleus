@@ -52,10 +52,22 @@
         </button>
 
         <!-- Order Menu (Absolute positioned near topbar) -->
-        <div id="order-menu" class="col-visibility-menu" style="min-width:320px; max-width:380px;">
+        <div id="order-menu" class="col-visibility-menu" style="min-width:360px; max-width:420px;">
             <div class="col-visibility-header" style="display:block;">
                 <strong style="display:block;">Orden de columnas</strong>
-                <p class="col-visibility-hint" style="margin:4px 0 6px;">Arrastra las filas o usa las flechas. Al guardar, el orden se aplica a todos los usuarios.</p>
+                <p class="col-visibility-hint" style="margin:4px 0 6px;">Marca varias (o "Todas"), muévelas en bloque con las flechas o arrastra. Al guardar se aplica a todos.</p>
+                <input type="search" id="order-search" class="order-search" placeholder="Buscar columna…"
+                    oninput="renderOrderList()" />
+            </div>
+            <div class="order-toolbar">
+                <button type="button" class="order-mini" onclick="seleccionarTodas(true)">Todas</button>
+                <button type="button" class="order-mini" onclick="seleccionarTodas(false)">Ninguna</button>
+                <span class="order-sep"></span>
+                <button type="button" class="order-mini" title="Mover al inicio" onclick="moverBloque('top')"><i class="fa-solid fa-angles-up"></i></button>
+                <button type="button" class="order-mini" title="Subir" onclick="moverBloque('up')"><i class="fa-solid fa-chevron-up"></i></button>
+                <button type="button" class="order-mini" title="Bajar" onclick="moverBloque('down')"><i class="fa-solid fa-chevron-down"></i></button>
+                <button type="button" class="order-mini" title="Mover al final" onclick="moverBloque('bottom')"><i class="fa-solid fa-angles-down"></i></button>
+                <span class="order-count" id="order-count">0 sel.</span>
             </div>
             <div id="order-list" class="col-visibility-list"></div>
             <div class="col-visibility-footer">
@@ -4522,6 +4534,8 @@
     {% if session.get('rol') == 'zeno' %}
     let orderMenuCols = [];
     let orderMenuDragFrom = null;
+    let orderSel = new Set();        // campos seleccionados (multi-selección)
+    let orderLastSelIdx = null;      // para selección por rango con Shift
 
     function orderItemText(def) {
         const html = def.title != null ? String(def.title) : String(def.field || '');
@@ -4546,6 +4560,10 @@
             const other = document.getElementById('col-menu');
             if (other) other.classList.remove('show');
             orderMenuCols = columnasReordenables();
+            orderSel = new Set();
+            orderLastSelIdx = null;
+            const srch = document.getElementById('order-search');
+            if (srch) srch.value = '';
             renderOrderList();
             menu.classList.add('show');
         } else {
@@ -4553,39 +4571,99 @@
         }
     }
 
-    function cerrarOrderMenu() {
-        const menu = document.getElementById('order-menu');
-        if (menu) menu.classList.remove('show');
+    function seleccionarTodas(on) {
+        orderSel = new Set();
+        if (on) orderMenuCols.forEach(c => orderSel.add(c.field));
+        renderOrderList();
     }
 
-    function renderOrderList(focusIdx, focusAct) {
+    function actualizarContadorSel() {
+        const el = document.getElementById('order-count');
+        if (el) el.textContent = orderSel.size + ' sel.';
+    }
+
+    function toggleSel(idx, evt) {
+        const field = orderMenuCols[idx] && orderMenuCols[idx].field;
+        if (!field) return;
+        if (evt && evt.shiftKey && orderLastSelIdx != null) {
+            const a = Math.min(orderLastSelIdx, idx);
+            const b = Math.max(orderLastSelIdx, idx);
+            for (let i = a; i <= b; i++) orderSel.add(orderMenuCols[i].field);
+        } else {
+            if (orderSel.has(field)) orderSel.delete(field);
+            else orderSel.add(field);
+            orderLastSelIdx = idx;
+        }
+        renderOrderList();
+    }
+
+    // Mueve en bloque todos los campos seleccionados. dir: 'top' | 'up' | 'down' | 'bottom'
+    function moverBloque(dir) {
+        if (orderSel.size === 0) {
+            woToast('Marca primero las columnas que quieres mover.');
+            return;
+        }
+        const n = orderMenuCols.length;
+        if (dir === 'top') {
+            const sel = orderMenuCols.filter(c => orderSel.has(c.field));
+            const rest = orderMenuCols.filter(c => !orderSel.has(c.field));
+            orderMenuCols = sel.concat(rest);
+        } else if (dir === 'bottom') {
+            const sel = orderMenuCols.filter(c => orderSel.has(c.field));
+            const rest = orderMenuCols.filter(c => !orderSel.has(c.field));
+            orderMenuCols = rest.concat(sel);
+        } else if (dir === 'up') {
+            // burbuja cada seleccionado una posición arriba sin cruzar otros seleccionados
+            for (let i = 1; i < n; i++) {
+                if (orderSel.has(orderMenuCols[i].field) && !orderSel.has(orderMenuCols[i - 1].field)) {
+                    const t = orderMenuCols[i - 1];
+                    orderMenuCols[i - 1] = orderMenuCols[i];
+                    orderMenuCols[i] = t;
+                }
+            }
+        } else if (dir === 'down') {
+            for (let i = n - 2; i >= 0; i--) {
+                if (orderSel.has(orderMenuCols[i].field) && !orderSel.has(orderMenuCols[i + 1].field)) {
+                    const t = orderMenuCols[i + 1];
+                    orderMenuCols[i + 1] = orderMenuCols[i];
+                    orderMenuCols[i] = t;
+                }
+            }
+        }
+        renderOrderList();
+    }
+
+    function renderOrderList() {
         const list = document.getElementById('order-list');
         if (!list) return;
+        const srch = document.getElementById('order-search');
+        const q = srch ? srch.value.trim().toLowerCase() : '';
         list.innerHTML = '';
         orderMenuCols.forEach((c, i) => {
             const row = document.createElement('div');
-            row.className = 'order-item';
+            row.className = 'order-item' + (orderSel.has(c.field) ? ' is-sel' : '');
             row.draggable = true;
             row.dataset.idx = String(i);
             row.innerHTML = `
+                <input type="checkbox" class="order-check" ${orderSel.has(c.field) ? 'checked' : ''}>
                 <span class="order-num">${i + 1}</span>
-                <span class="order-name" title="${escapeHtml(c.title)}">${escapeHtml(c.title)}</span>
-                <button type="button" class="order-btn" data-act="up" title="Subir" ${i === 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button>
-                <button type="button" class="order-btn" data-act="down" title="Bajar" ${i === orderMenuCols.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button>`;
+                <span class="order-name" title="${escapeHtml(c.title)}">${escapeHtml(c.title)}</span>`;
 
-            row.querySelectorAll('.order-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    moverOrden(parseInt(row.dataset.idx, 10), btn.dataset.act === 'up' ? -1 : 1, btn.dataset.act);
-                });
+            row.querySelector('.order-check').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleSel(i, e);
+            });
+            row.addEventListener('click', (e) => {
+                if (e.target.classList.contains('order-check')) return;
+                toggleSel(i, e);
             });
 
             row.addEventListener('dragstart', (e) => {
-                orderMenuDragFrom = parseInt(row.dataset.idx, 10);
+                orderMenuDragFrom = i;
                 row.classList.add('is-dragging');
                 if (e.dataTransfer) {
                     e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', String(orderMenuDragFrom));
+                    e.dataTransfer.setData('text/plain', String(i));
                 }
             });
             row.addEventListener('dragend', () => {
@@ -4607,31 +4685,26 @@
                     const raw = parseInt(e.dataTransfer.getData('text/plain'), 10);
                     if (!isNaN(raw)) from = raw;
                 }
-                const to = parseInt(row.dataset.idx, 10);
-                if (from == null || isNaN(from) || isNaN(to) || from === to) return;
+                const to = i;
+                if (from == null || isNaN(from) || from === to) return;
                 const moved = orderMenuCols.splice(from, 1)[0];
                 orderMenuCols.splice(to, 0, moved);
                 orderMenuDragFrom = null;
                 renderOrderList();
             });
 
+            // Búsqueda: oculta sin tocar el orden real (los índices siguen siendo los del array completo)
+            if (q && c.title.toLowerCase().indexOf(q) === -1 && c.field.toLowerCase().indexOf(q) === -1) {
+                row.style.display = 'none';
+            }
             list.appendChild(row);
         });
-
-        if (focusIdx != null && focusAct) {
-            const btn = list.querySelector(`.order-item[data-idx="${focusIdx}"] .order-btn[data-act="${focusAct}"]`);
-            if (btn && !btn.disabled) btn.focus();
-        }
+        actualizarContadorSel();
     }
 
-    function moverOrden(idx, delta, act) {
-        if (isNaN(idx)) return;
-        const j = idx + delta;
-        if (j < 0 || j >= orderMenuCols.length) return;
-        const tmp = orderMenuCols[idx];
-        orderMenuCols[idx] = orderMenuCols[j];
-        orderMenuCols[j] = tmp;
-        renderOrderList(j, act);
+    function cerrarOrderMenu() {
+        const menu = document.getElementById('order-menu');
+        if (menu) menu.classList.remove('show');
     }
 
     function moverColumnaAntes(fromField, beforeField) {
@@ -7863,7 +7936,7 @@ btnItem.onclick = () => cotRegAgregarFila();
                 bSel.addEventListener('change', aplicarCondicionalesWO);
             }
         }
-        if (IS_FLM) {
+        if (IS_FLM_LIKE) {
             // Servicio -> Restricción
             document.querySelectorAll('.wof-servicio-label').forEach(l => { l.textContent = 'Restricción'; });
             // ¿Se instaló mufas? -> ¿Se usó grupo electrógeno?
