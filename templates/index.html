@@ -22,7 +22,7 @@
     <div style="flex: 1;"></div>
 
     {% if rol_es_admin %}
-    <div class="col-visibility-wrap">
+    <div class="col-visibility-wrap" id="col-wrap">
         <!-- Botón Columnas (Neutro) -->
         <button onclick="toggleVisibilityMenu()" class="action-pill pill-neutral" title="Mostrar/Ocultar Columnas">
             <i class="fa-solid fa-table-columns"></i> Columnas
@@ -42,7 +42,32 @@
         </div>
     </div>
     {% endif %}
-    
+
+    {% if session.get('rol') == 'zeno' %}
+    <div class="col-visibility-wrap" id="order-wrap">
+        <!-- Botón Ordenar columnas (solo zeno) -->
+        <button onclick="toggleOrderMenu()" class="action-pill pill-neutral"
+            title="Reordenar las columnas de la tabla (el orden se aplica a todos los usuarios)">
+            <i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar
+        </button>
+
+        <!-- Order Menu (Absolute positioned near topbar) -->
+        <div id="order-menu" class="col-visibility-menu" style="min-width:320px; max-width:380px;">
+            <div class="col-visibility-header" style="display:block;">
+                <strong style="display:block;">Orden de columnas</strong>
+                <p class="col-visibility-hint" style="margin:4px 0 6px;">Arrastra las filas o usa las flechas. Al guardar, el orden se aplica a todos los usuarios.</p>
+            </div>
+            <div id="order-list" class="col-visibility-list"></div>
+            <div class="col-visibility-footer">
+                <button type="button" class="col-visibility-link" onclick="cerrarOrderMenu()"
+                    style="color:var(--ios-gray-1);"><i class="fa-solid fa-xmark"></i> Cancelar</button>
+                <button type="button" class="action-pill" style="height:28px; padding:0 14px; font-size:12px;"
+                    onclick="guardarOrdenColumnas()"><i class="fa-solid fa-check"></i> Guardar</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Contenedor para controles de paginación -->
     <div id="pagination-container" style="display: flex; align-items: center; gap: 4px; margin: 0 auto;"></div>
 
@@ -4492,10 +4517,163 @@
     table.on("pageLoaded", function () { _actualizarBadgeRegistros(); });
     table.on("tableBuilt", function () { _actualizarBadgeRegistros(); });
 
+    // ===== Ordenar columnas (panel, solo zeno) =====
+    let orderApplying = false;
+    {% if session.get('rol') == 'zeno' %}
+    let orderMenuCols = [];
+    let orderMenuDragFrom = null;
+
+    function orderItemText(def) {
+        const html = def.title != null ? String(def.title) : String(def.field || '');
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        return (tmp.textContent || '').trim() || String(def.field || '');
+    }
+
+    function columnasReordenables() {
+        return table.getColumns().map(col => {
+            const def = col.getDefinition();
+            if (!def.field || def.field === '_key' || def.field === '_accion') return null;
+            if (String(def.field).startsWith('KPI_')) return null;
+            return { field: def.field, title: orderItemText(def) };
+        }).filter(Boolean);
+    }
+
+    function toggleOrderMenu() {
+        const menu = document.getElementById('order-menu');
+        if (!menu) return;
+        if (!menu.classList.contains('show')) {
+            const other = document.getElementById('col-menu');
+            if (other) other.classList.remove('show');
+            orderMenuCols = columnasReordenables();
+            renderOrderList();
+            menu.classList.add('show');
+        } else {
+            menu.classList.remove('show');
+        }
+    }
+
+    function cerrarOrderMenu() {
+        const menu = document.getElementById('order-menu');
+        if (menu) menu.classList.remove('show');
+    }
+
+    function renderOrderList(focusIdx, focusAct) {
+        const list = document.getElementById('order-list');
+        if (!list) return;
+        list.innerHTML = '';
+        orderMenuCols.forEach((c, i) => {
+            const row = document.createElement('div');
+            row.className = 'order-item';
+            row.draggable = true;
+            row.dataset.idx = String(i);
+            row.innerHTML = `
+                <span class="order-num">${i + 1}</span>
+                <span class="order-name" title="${escapeHtml(c.title)}">${escapeHtml(c.title)}</span>
+                <button type="button" class="order-btn" data-act="up" title="Subir" ${i === 0 ? 'disabled' : ''}><i class="fa-solid fa-chevron-up"></i></button>
+                <button type="button" class="order-btn" data-act="down" title="Bajar" ${i === orderMenuCols.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-down"></i></button>`;
+
+            row.querySelectorAll('.order-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    moverOrden(parseInt(row.dataset.idx, 10), btn.dataset.act === 'up' ? -1 : 1, btn.dataset.act);
+                });
+            });
+
+            row.addEventListener('dragstart', (e) => {
+                orderMenuDragFrom = parseInt(row.dataset.idx, 10);
+                row.classList.add('is-dragging');
+                if (e.dataTransfer) {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(orderMenuDragFrom));
+                }
+            });
+            row.addEventListener('dragend', () => {
+                orderMenuDragFrom = null;
+                row.classList.remove('is-dragging');
+                list.querySelectorAll('.order-item').forEach(r => r.classList.remove('is-over'));
+            });
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                row.classList.add('is-over');
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            });
+            row.addEventListener('dragleave', () => row.classList.remove('is-over'));
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                row.classList.remove('is-over');
+                let from = orderMenuDragFrom;
+                if (from == null && e.dataTransfer) {
+                    const raw = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    if (!isNaN(raw)) from = raw;
+                }
+                const to = parseInt(row.dataset.idx, 10);
+                if (from == null || isNaN(from) || isNaN(to) || from === to) return;
+                const moved = orderMenuCols.splice(from, 1)[0];
+                orderMenuCols.splice(to, 0, moved);
+                orderMenuDragFrom = null;
+                renderOrderList();
+            });
+
+            list.appendChild(row);
+        });
+
+        if (focusIdx != null && focusAct) {
+            const btn = list.querySelector(`.order-item[data-idx="${focusIdx}"] .order-btn[data-act="${focusAct}"]`);
+            if (btn && !btn.disabled) btn.focus();
+        }
+    }
+
+    function moverOrden(idx, delta, act) {
+        if (isNaN(idx)) return;
+        const j = idx + delta;
+        if (j < 0 || j >= orderMenuCols.length) return;
+        const tmp = orderMenuCols[idx];
+        orderMenuCols[idx] = orderMenuCols[j];
+        orderMenuCols[j] = tmp;
+        renderOrderList(j, act);
+    }
+
+    function moverColumnaAntes(fromField, beforeField) {
+        if (fromField === beforeField) return;
+        const a = table.getColumn(fromField);
+        const b = table.getColumn(beforeField);
+        if (!a || !b) return;
+        if (typeof a.move === 'function') {
+            a.move(beforeField);
+        }
+    }
+
+    async function guardarOrdenColumnas() {
+        if ("{{ session.get('rol') }}" !== "zeno") return;
+        if (orderMenuCols.length < 2) {
+            cerrarOrderMenu();
+            return;
+        }
+        orderApplying = true;
+        try {
+            // De derecha a izquierda: cada columna se coloca justo antes de la siguiente.
+            for (let i = orderMenuCols.length - 2; i >= 0; i--) {
+                moverColumnaAntes(orderMenuCols[i].field, orderMenuCols[i + 1].field);
+            }
+            const actual = columnasReordenables().map(c => c.field).join('|');
+            const esperado = orderMenuCols.map(c => c.field).join('|');
+            if (actual !== esperado) {
+                woToast('No se pudo aplicar el orden de columnas.');
+                return;
+            }
+        } finally {
+            orderApplying = false;
+        }
+        await saveColumnLayout(true);
+        cerrarOrderMenu();
+    }
+    {% endif %}
+
     // Auto-guardar el orden de columnas al arrastrar (solo admin).
     if (isAdmin) {
-        table.on("columnMoved", function () { saveColumnLayout(); });
-        table.on("columnVisibilityChanged", function () { saveColumnLayout(); });
+        table.on("columnMoved", function () { if (!orderApplying) saveColumnLayout(); });
+        table.on("columnVisibilityChanged", function () { if (!orderApplying) saveColumnLayout(); });
     }
 
     // Initial count on page load (fallback)
@@ -4689,11 +4867,19 @@
     // Close menu when clicking outside
     document.addEventListener('click', function (event) {
         const menu = document.getElementById('col-menu');
-        if (menu.classList.contains('show')) {
+        if (menu && menu.classList.contains('show')) {
             const isClickInside = menu.contains(event.target) ||
-                event.target.closest('.col-visibility-wrap');
+                event.target.closest('#col-wrap');
             if (!isClickInside) {
                 menu.classList.remove('show');
+            }
+        }
+        const orderMenu = document.getElementById('order-menu');
+        if (orderMenu && orderMenu.classList.contains('show')) {
+            const isClickInsideOrder = orderMenu.contains(event.target) ||
+                event.target.closest('#order-wrap');
+            if (!isClickInsideOrder) {
+                orderMenu.classList.remove('show');
             }
         }
     });
