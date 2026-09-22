@@ -43,9 +43,9 @@
     </div>
     {% endif %}
 
-    {% if session.get('rol') == 'zeno' %}
+    {% if session.get('rol') in ['zeno', 'suport'] %}
     <div class="col-visibility-wrap" id="order-wrap">
-        <!-- Botón Ordenar columnas (solo zeno) -->
+        <!-- Botón Ordenar columnas (zeno y suport) -->
         <button onclick="toggleOrderMenu()" class="action-pill pill-neutral"
             title="Reordenar las columnas de la tabla (el orden se aplica a todos los usuarios)">
             <i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar
@@ -130,34 +130,7 @@
         <i class="fa-solid fa-trash-can"></i> Eliminar
     </button>
     {% endif %}
-    {% if session.get('rol') == 'gestor' %}
-    <button type="button" id="topbar-theme-toggle" class="action-pill pill-neutral" title="Cambiar tema claro/oscuro">
-        <i class="fa-solid fa-moon"></i>
-    </button>
-    <button onclick="window.location.href='/logout'" class="action-pill pill-neutral"
-        title="Cerrar Sesión">
-        <i class="fa-solid fa-right-from-bracket"></i> Salir
-    </button>
-    {% endif %}
 </div>
-<script>
-    // Toggle de tema claro/oscuro para el rol Gestor (misma preferencia que el sidebar global)
-    (function () {
-        const btn = document.getElementById('topbar-theme-toggle');
-        if (!btn) return;
-        const icon = btn.querySelector('i');
-        const applyIcon = () => {
-            const dark = document.body.classList.contains('dark-mode');
-            icon.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-        };
-        applyIcon();
-        btn.addEventListener('click', () => {
-            const dark = document.body.classList.toggle('dark-mode');
-            try { localStorage.setItem('nucleus-theme', dark ? 'dark' : 'light'); } catch (e) {}
-            applyIcon();
-        });
-    })();
-</script>
 <div id="data-stats" class="data-stats"></div>
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 

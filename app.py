@@ -2380,8 +2380,8 @@ def dashboard():
     user_id, user_rol, pid = get_session_info()
     is_admin = user_rol == 'zeno'
 
-    # Los roles Contrata y Gestor no ven dashboards
-    if user_rol in ('contrata', 'gestor'):
+    # El rol Contrata no accede a dashboards; el Gestor sí (solo lectura)
+    if user_rol in ('contrata',):
         return redirect(url_for('index'))
 
     if not pid:
