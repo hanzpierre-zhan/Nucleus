@@ -622,7 +622,7 @@ CAMPOS_TRABAJO_FLM = frozenset({
     'LONGITUD MUFAS', 'COTIZACION_ITEMS', 'COTIZACION_NOTA', 'COTIZACION_NUMERO',
     'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'GESTOR', 'EDITADO POR',
     'Estado de la tarea (WO State)', 'FECHA CAMBIO ESTADO', '_ENVIADO_APROBACION',
-    'REQUIERE BIÁTICOS', 'MONTO BIÁTICOS (SOLES)',
+    'REQUIERE BIÁTICOS', 'MONTO BIÁTICOS (SOLES)', 'COSTO DE MATERIAL (SOLES)',
 })
 
 
@@ -1537,6 +1537,7 @@ with app.app_context():
             {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'REQUIERE BIÁTICOS', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
             {'nombre': 'MONTO BIÁTICOS (SOLES)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'COSTO DE MATERIAL (SOLES)', 'tipo': 'texto', 'opciones': []},
         ]
         for col in flm_detalle_cols:
             if col['nombre'] not in flm_names:

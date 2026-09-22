@@ -2323,6 +2323,10 @@
                             <label><i class="fa-solid fa-coins"></i> Monto biáticos (S/)</label>
                             <input type="text" id="wo-monto-biaticos" placeholder="0.00" autocomplete="off">
                         </div>
+                        <div class="wo-field" id="wof-costo-material">
+                            <label><i class="fa-solid fa-boxes-stacked"></i> Costo de material (S/)</label>
+                            <input type="text" id="wo-costo-material" placeholder="0.00" autocomplete="off">
+                        </div>
                         <div class="wo-field" id="wof-team-leader">
                             <label><i class="fa-solid fa-user-tie"></i> Team Leader asignado en aplicativo</label>
                             <select id="wo-team-leader">
@@ -7919,14 +7923,14 @@ btnItem.onclick = () => cotRegAgregarFila();
         // Personaliza el formulario WO según el proyecto.
         // FLM / FLM (old): renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
         if (!IS_FLM_LIKE) {
-            ['wof-requiere-biaticos', 'wof-monto-biaticos'].forEach(id => {
+            ['wof-requiere-biaticos', 'wof-monto-biaticos', 'wof-costo-material'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = 'none';
             });
         }
         if (IS_FLM_LIKE) {
             // Biáticos (FLM y FLM (old)): colocar junto al resto del detalle aunque ya estén en el HTML.
-            ['wof-requiere-biaticos', 'wof-monto-biaticos'].forEach(id => {
+            ['wof-requiere-biaticos', 'wof-monto-biaticos', 'wof-costo-material'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = '';
             });
@@ -8001,7 +8005,7 @@ btnItem.onclick = () => cotRegAgregarFila();
                 }
                 [hG, byId('wof-sistemas'), byId('wof-tecnico'), byId('wof-contrata'), byId('wof-motivo'), byId('wof-solucion'),
                  hP, byId('wof-se-instalo-mufas'), byId('wof-requiere'), fDet, byId('wof-requiere-biaticos'),
-                 byId('wof-monto-biaticos'), byId('wof-inicio'), byId('wof-fin'),
+                 byId('wof-monto-biaticos'), byId('wof-costo-material'), byId('wof-inicio'), byId('wof-fin'),
                  byId('wof-bitacora')
                 ].forEach(function (el) { if (el) form.appendChild(el); });
                 const secDet = document.querySelector('#wo-panel-detalle .wo-section');
@@ -8732,6 +8736,8 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (bSel) bSel.value = data['REQUIERE BIÁTICOS'] || '';
             const bMon = document.getElementById('wo-monto-biaticos');
             if (bMon) bMon.value = data['MONTO BIÁTICOS (SOLES)'] || '';
+            const cM = document.getElementById('wo-costo-material');
+            if (cM) cM.value = data['COSTO DE MATERIAL (SOLES)'] || '';
             aplicarCondicionalesWO();
         }
 
@@ -9872,6 +9878,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (IS_FLM_LIKE) {
             payload.data['REQUIERE BIÁTICOS'] = (document.getElementById('wo-requiere-biaticos') || {}).value || '';
             payload.data['MONTO BIÁTICOS (SOLES)'] = (document.getElementById('wo-monto-biaticos') || {}).value || '';
+            payload.data['COSTO DE MATERIAL (SOLES)'] = (document.getElementById('wo-costo-material') || {}).value || '';
         }
         if (IS_PEXT) {
             payload.data['MOTIVO DE PARADA'] = (document.getElementById('wo-motivo-parada') || {}).value ? document.getElementById('wo-motivo-parada').value.trim() : '';
