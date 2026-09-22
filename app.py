@@ -594,6 +594,101 @@ def _evidencia_migrar_legacy(d):
     return True
 
 
+def _sane_data_key(k):
+    """Tabulator trata '.' en el nombre de campo como acceso anidado, dejando
+    celdas vacías aunque el filtro sí vea el dato. Por eso las claves de
+    data_json se guardan SIEMPRE con '_' en lugar de '.'."""
+    return str(k).replace('.', '_')
+
+
+def _sane_dict(d):
+    """Devuelve una copia del dict con las claves saneadas ('.' -> '_')."""
+    out = {}
+    for k, v in d.items():
+        out[_sane_data_key(k)] = v
+    return out
+
+
+# --- Sync FLM <-> FLM (old) por CM ---
+# FLM (nuevo) y FLM (old) comparten los mismos códigos de CM. Como el esquema de
+# columnas de cada proyecto es DISTINTO, la sincronización NO copia todo el
+# registro: solo propaga al proyecto hermano los campos de trabajo que el usuario
+# edita (modal WO, evidencia/fotos, estado), evitando pisar columnas propias de
+# cada esquema.
+CAMPOS_TRABAJO_FLM = frozenset({
+    'SERVICIO', 'CIUDAD', 'TECNICO ASIGNADO', 'CONTRATA', 'MOTIVO DE AVERÍA',
+    'SISTEMAS', 'MATERIALES', 'INICIO DE PARADA', 'FIN DE PARADA', 'BITACORA',
+    'SOLUCIÓN', 'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'LATITUD MUFAS',
+    'LONGITUD MUFAS', 'COTIZACION_ITEMS', 'COTIZACION_NOTA', 'COTIZACION_NUMERO',
+    'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'GESTOR', 'EDITADO POR',
+    'Estado de la tarea (WO State)', 'FECHA CAMBIO ESTADO', '_ENVIADO_APROBACION',
+})
+
+
+def _flm_pair_ids():
+    """Devuelve (id_FLM, id_FLM_old) o (None, None). Localiza por nombre para
+    no depender de ids fijos."""
+    a = Proyecto.query.filter_by(nombre='FLM').first()
+    b = Proyecto.query.filter_by(nombre='FLM (old)').first()
+    return ((a.id if a else None), (b.id if b else None))
+
+
+def _flm_hermano_id(pid):
+    """Si pid es FLM o FLM (old), devuelve el id del proyecto hermano; si no, None."""
+    a, b = _flm_pair_ids()
+    if a is None or b is None:
+        return None
+    if pid == a:
+        return b
+    if pid == b:
+        return a
+    return None
+
+
+def _flm_campo_propagable(campo, data_hermano):
+    """Un campo editado se propaga al hermano si es de trabajo (modal/evidencia)
+    o si el proyecto hermano ya tiene esa columna."""
+    return (campo.startswith('_') or campo in CAMPOS_TRABAJO_FLM
+            or campo in data_hermano)
+
+
+def _flm_registro_hermano(pid, key):
+    """Registro NucleusData del mismo CM en el proyecto hermano FLM/FLM (old),
+    o None."""
+    her = _flm_hermano_id(pid)
+    if her is None:
+        return None
+    return NucleusData.query.filter_by(proyecto_id=her, key_value=str(key)).first()
+
+
+def _flm_sync_campos(pid, key, campos, metadatos):
+    """Propaga {campo: valor} al registro hermano del mismo CM. Solo los campos
+    propagables (ver _flm_campo_propagable). `metadatos` son campos fijos que se
+    aplican siempre (usuario/edición/estado)."""
+    her = _flm_hermano_id(pid)
+    if her is None:
+        return
+    rec = _flm_registro_hermano(pid, key)
+    if rec is None:
+        return
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    cambio = False
+    for campo, valor in campos.items():
+        if not _flm_campo_propagable(campo, d):
+            continue
+        d[campo] = valor
+        cambio = True
+    for k, v in (metadatos or {}).items():
+        if v is not None and d.get(k) != v:
+            d[k] = v
+            cambio = True
+    if cambio:
+        rec.data_json = safe_json_dumps(d)
+
+
 # --- DB INIT & MIGRATION ---
 with app.app_context():
     # Lock de migración (solo PostgreSQL): evita que varios workers de gunicorn
@@ -778,18 +873,22 @@ with app.app_context():
     # 'gestor' es hoy un rol válido y esa conversión corría en cada arranque,
     # revirtiendo a contrata a los usuarios que el admin asignaba como gestor.
 
-    # Migration: Renombrar PEXT -> "PEXT (old)" (el PEXT nuevo se crea abajo en fixed).
-    # Solo corre una vez: si PEXT (old) ya existe, se salta.
-    try:
-        _old = Proyecto.query.filter_by(nombre='PEXT').first()
-        _already = Proyecto.query.filter_by(nombre='PEXT (old)').first()
-        if _old and not _already:
-            _old.nombre = 'PEXT (old)'
-            db.session.commit()
-            print("Renombrado PEXT -> PEXT (old)")
-    except Exception as e:
-        print("Warning: rename PEXT:", e)
-        db.session.rollback()
+    # PEXT fue retirado del sistema (feb 2026): se elimina el módulo y su data.
+    for _del_name in ('PEXT', 'PEXT (old)'):
+        try:
+            _dp = Proyecto.query.filter_by(nombre=_del_name).first()
+            if _dp:
+                _dpid = _dp.id
+                for _dtbl in (NucleusData, AppConfig, AccesoProyecto, KpiConfig,
+                              HistorialCambios, FiltroMaestro, TablaMaestra,
+                              ReglaEstadoManual, Cotizacion, Tecnico, NucleusHistory):
+                    _dtbl.query.filter_by(proyecto_id=_dpid).delete()
+                db.session.delete(_dp)
+                db.session.commit()
+                print(f"Eliminado proyecto '{_del_name}' (id={_dpid}) y toda su data.")
+        except Exception as e:
+            print(f"Warning: no se pudo eliminar '{_del_name}':", e)
+            db.session.rollback()
 
     # Migration: Renombrar FLM -> "FLM (old)" (el FLM nuevo se crea abajo en fixed).
     # Solo corre una vez: si FLM (old) ya existe, se salta.
@@ -821,8 +920,8 @@ with app.app_context():
             print(f"Warning: no se pudo eliminar '{_del_name}':", e)
             db.session.rollback()
 
-    # Migration: Ensure fixed projects FLM, PEXT, Dataper, Material exist
-    fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('PEXT', 'Proyecto Externo'), ('Dataper', 'DataPer S.A.C.'),
+    # Migration: Ensure fixed projects FLM, Dataper, Material exist
+    fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('Dataper', 'DataPer S.A.C.'),
              ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
              ('Combustible', 'Consumo de Combustible (solo FLM)'), ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)'),
              ('SITE', 'Maestro de Sites – COBRA SITES (10 columnas)')]
@@ -830,6 +929,59 @@ with app.app_context():
         if not Proyecto.query.filter_by(nombre=nombre).first():
             db.session.add(Proyecto(nombre=nombre, descripcion=desc))
     db.session.commit()
+
+    # Migration: Sanear claves de data_json (Tabulator rompe celdas con '.').
+    # Idempotente: recorre todas las filas una sola vez por proyecto hasta 0 cambios.
+    try:
+        for _prj in Proyecto.query.all():
+            _changed = True
+            _rounds = 0
+            while _changed and _rounds < 10:
+                _changed = False
+                _rows = NucleusData.query.filter_by(proyecto_id=_prj.id).all()
+                for _r in _rows:
+                    try:
+                        _d = json.loads(_r.data_json)
+                    except Exception:
+                        continue
+                    if any('.' in str(k) for k in _d.keys()):
+                        _r.data_json = json.dumps(_sane_dict(_d), ensure_ascii=False)
+                        _changed = True
+                db.session.commit()
+                _rounds += 1
+                if _changed:
+                    print(f"Saneado data_json de proyecto '{_prj.nombre}' (id={_prj.id}) "
+                          f"claves con '.' -> '_'.")
+    except Exception as e:
+        print("Warning: saneo de data_json:", e)
+        try: db.session.rollback()
+        except Exception: pass
+
+    # Migration: Re-sincronizar app_schema para proyectos cuyas columnas fueron
+    # saneadas (evita que el layout guardado tenga fields con '.' que luego no
+    # matcheen data_json).
+    for _prj in Proyecto.query.all():
+        try:
+            _schema_c = AppConfig.query.filter_by(proyecto_id=_prj.id, clave='app_schema').first()
+            if _schema_c and _schema_c.valor and '"."' in _schema_c.valor:
+                _lista = json.loads(_schema_c.valor)
+                _sane = sorted({_sane_data_key(c) for c in _lista})
+                _schema_c.valor = json.dumps(_sane, ensure_ascii=False)
+                db.session.commit()
+        except Exception:
+            pass
+    for _prj in Proyecto.query.all():
+        try:
+            _lay_c = AppConfig.query.filter_by(proyecto_id=_prj.id, clave='column_layout').first()
+            if _lay_c and _lay_c.valor and '"."' in _lay_c.valor:
+                _lay = json.loads(_lay_c.valor)
+                for _lc in _lay:
+                    if isinstance(_lc, dict) and '.' in str(_lc.get('field', '')):
+                        _lc['field'] = _sane_data_key(_lc.get('field'))
+                _lay_c.valor = json.dumps(_lay, ensure_ascii=False)
+                db.session.commit()
+        except Exception:
+            pass
 
     # Migration: Evidencia PEXT formato anterior (26 slots) -> actual (28 slots).
     # Reubica fotos/observaciones ya guardadas sin tocar proyectos que no sean PEXT.
@@ -2806,6 +2958,10 @@ def api_import_process():
             df = pd.read_excel(file, dtype=str)
             
         df.columns = [str(c).strip() for c in df.columns]
+        # Tabulator no soporta '.' en nombres de campo (acceso anidado). Se sanean
+        # las columnas aquí para que TODO lo que se importa quede guardado limpio.
+        df = df.rename(columns=_sane_data_key)
+        df.columns = [str(c).strip() for c in df.columns]
         if not file_key:
             pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
             candidate = (pk_cfg.valor if pk_cfg else None) or ''
@@ -3859,6 +4015,15 @@ def api_rows_update():
                 row_dict[r.columna_manual] = r.nuevo_valor
 
         record.data_json = safe_json_dumps(row_dict)
+        # FLM <-> FLM (old): propaga el campo editado al CM espejo del otro proyecto.
+        _sync_metas = {
+            '_ultimo_usuario_manual': row_dict.get('_ultimo_usuario_manual'),
+            '_fecha_ultima_act_manual': row_dict.get('_fecha_ultima_act_manual'),
+            'EDITADO POR': row_dict.get('EDITADO POR'),
+            'FECHA CAMBIO ESTADO': row_dict.get('FECHA CAMBIO ESTADO'),
+            'GESTOR': row_dict.get('GESTOR'),
+        }
+        _flm_sync_campos(pid, key_val, {field: value}, _sync_metas)
         db.session.commit()
         
         # Inject KPI calculations for instant feedback
@@ -3915,6 +4080,23 @@ def api_rows_edit_key():
         NucleusHistory.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
         HistorialCambios.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
         Cotizacion.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
+
+        # FLM <-> FLM (old): renombrar el mismo CM en el proyecto hermano para
+        # no perder el vínculo de sincronización entre ambos.
+        _rec_her = _flm_registro_hermano(pid, old_key)
+        if _rec_her is not None:
+            _rec_her.key_value = new_key
+            try:
+                _d_her = json.loads(_rec_her.data_json)
+            except Exception:
+                _d_her = {}
+            for k, v in _d_her.items():
+                if str(v).strip() == old_key:
+                    _d_her[k] = new_key
+            _rec_her.data_json = json.dumps(_d_her, ensure_ascii=False)
+            NucleusHistory.query.filter_by(proyecto_id=_rec_her.proyecto_id, key_value=old_key).update({'key_value': new_key})
+            HistorialCambios.query.filter_by(proyecto_id=_rec_her.proyecto_id, key_value=old_key).update({'key_value': new_key})
+            Cotizacion.query.filter_by(proyecto_id=_rec_her.proyecto_id, key_value=old_key).update({'key_value': new_key})
         
         db.session.commit()
         return jsonify({'success': True, 'new_key': new_key})
@@ -4437,7 +4619,7 @@ def api_rows_bulk_update():
         _proy_bulk_nombre = _proy_bulk.nombre.strip() if _proy_bulk and _proy_bulk.nombre else ''
 
         # WO enviado a aprobación: el rol Contrata ya no puede modificarlo.
-        if (session.get('rol') == 'contrata' and _proy_bulk_nombre in ('FLM', 'PEXT')
+        if (session.get('rol') == 'contrata' and _proy_bulk_nombre in ('FLM', 'FLM (old)', 'PEXT')
                 and str(row_dict.get('_ENVIADO_APROBACION', '')).strip() == '1'):
             return jsonify({'error': 'Este WO ya fue enviado a aprobaci\u00f3n y no puede editarse. Contacta al personal administrativo.'}), 403
 
@@ -4548,6 +4730,16 @@ def api_rows_bulk_update():
                 row_dict[r.columna_manual] = r.nuevo_valor
 
         record.data_json = safe_json_dumps(row_dict)
+        # FLM <-> FLM (old): propaga al CM espejo los campos editados del payload
+        # (solo los propagables), para que la información/fotos se reflejen en el
+        # otro proyecto sin pisar columnas de esquema propio.
+        _flm_sync_campos(pid, key_val, updates, {
+            '_ultimo_usuario_manual': row_dict.get('_ultimo_usuario_manual'),
+            '_fecha_ultima_act_manual': row_dict.get('_fecha_ultima_act_manual'),
+            'EDITADO POR': row_dict.get('EDITADO POR'),
+            'FECHA CAMBIO ESTADO': row_dict.get('FECHA CAMBIO ESTADO'),
+            'GESTOR': row_dict.get('GESTOR'),
+        })
         db.session.commit()
 
         rows_injected, _ = inject_kpis(pid, [row_dict])
@@ -5017,7 +5209,7 @@ def _evidencia_aprobacion_bloquea(pid, key):
     if str(session.get('rol') or '').strip().lower() != 'contrata':
         return False
     proy = db.session.get(Proyecto, pid) if pid else None
-    if not proy or (proy.nombre or '').strip() not in ('FLM', 'PEXT'):
+    if not proy or (proy.nombre or '').strip() not in ('FLM', 'FLM (old)', 'PEXT'):
         return False
     rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key or '')).first()
     if not rec:
@@ -5080,6 +5272,18 @@ def api_evidencia_subir():
             os.makedirs(folder, exist_ok=True)
             evidencia_limpiar_slot(pid, key, tipo, indice)
             os.replace(ruta_tmp, os.path.join(folder, nombre))
+            # FLM <-> FLM (old): replica la foto física en la carpeta del proyecto
+            # hermano para que la evidencia sea visible/eliminable desde ambos.
+            her = _flm_hermano_id(pid)
+            if her is not None:
+                her_folder = evidencia_folder(her, key)
+                os.makedirs(her_folder, exist_ok=True)
+                evidencia_limpiar_slot(her, key, tipo, indice)
+                try:
+                    import shutil
+                    shutil.copy2(os.path.join(folder, nombre), os.path.join(her_folder, nombre))
+                except Exception:
+                    pass
 
         # 2do backup: OneDrive personal. Si falla, no interrumpe la subida principal.
         try:
@@ -5128,6 +5332,10 @@ def api_evidencia_eliminar():
         evidencia_eliminar_b2(key, tipo, indice)
     else:
         evidencia_limpiar_slot(pid, key, tipo, indice)
+        # FLM <-> FLM (old): limpiar también en la carpeta del proyecto hermano.
+        her = _flm_hermano_id(pid)
+        if her is not None:
+            evidencia_limpiar_slot(her, key, tipo, indice)
     try:
         onedrive_eliminar(key, tipo, indice)
     except Exception as e:
@@ -5152,7 +5360,7 @@ def api_wo_enviar_aprobacion():
         return jsonify({'error': 'Faltan datos.'}), 400
     proy = db.session.get(Proyecto, pid)
     proy_nombre = proy.nombre.strip() if proy and proy.nombre else ''
-    if proy_nombre not in ('PEXT', 'FLM'):
+    if proy_nombre not in ('PEXT', 'FLM', 'FLM (old)'):
         return jsonify({'error': 'Acción solo válida para WOs PEXT/FLM.'}), 400
     if rol in ('contrata', 'gestor'):
         acc = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
@@ -5182,6 +5390,12 @@ def api_wo_enviar_aprobacion():
     else:
         return jsonify({'error': 'Acción no válida.'}), 400
     record.data_json = json.dumps(d, ensure_ascii=False)
+    # FLM <-> FLM (old): la aprobación se refleja en el CM espejo del otro proyecto.
+    _flm_sync_campos(pid, key, {
+        '_ENVIADO_APROBACION': d.get('_ENVIADO_APROBACION', '0'),
+        '_APROBACION_FECHA': d.get('_APROBACION_FECHA', ''),
+        '_APROBACION_USUARIO': d.get('_APROBACION_USUARIO', ''),
+    }, None)
     db.session.commit()
     rows_injected, _ = inject_kpis(pid, [d])
     return jsonify({'success': True, 'newData': rows_injected[0]})
@@ -5189,7 +5403,10 @@ def api_wo_enviar_aprobacion():
 @app.route('/api/evidencia/foto/<int:pid>/<path:key>/<path:nombre>')
 @login_required
 def api_evidencia_foto(pid, key, nombre):
-    if pid != session.get('current_proyecto_id'):
+    cur = session.get('current_proyecto_id')
+    # FLM <-> FLM (old): las fotos subidas desde uno son accesibles desde el otro.
+    permitido = (pid == cur) or (_flm_hermano_id(cur) == pid)
+    if not permitido:
         return jsonify({'error': 'Acceso denegado'}), 403
     nombre = os.path.basename(nombre)
     if evidencia_usa_b2():
@@ -5634,7 +5851,15 @@ def api_cotizacion_lista():
     key = request.args.get('key', '').strip()
     if not pid or not key:
         return jsonify({'lista': []})
-    cots = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key).order_by(Cotizacion.id.asc()).all()
+    # FLM <-> FLM (old): las cotizaciones del CM se muestran desde ambos proyectos,
+    # sin importar en cuál fueron creadas.
+    pids = [pid]
+    her = _flm_hermano_id(pid)
+    if her is not None:
+        pids.append(her)
+    cots = Cotizacion.query.filter(
+        Cotizacion.proyecto_id.in_(pids), Cotizacion.key_value == key
+    ).order_by(Cotizacion.id.asc()).all()
     lista = [{
         'id': c.id,
         'numero': c.numero,

@@ -54,7 +54,7 @@
                 {% endif %}
 
                 <div class="sidebar-section-label">Módulos</div>
-                {% set _orden_modulos = ['FLM', 'PEXT', 'Claro', 'Integratel', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
+                {% set _orden_modulos = ['FLM', 'FLM (old)', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
                 {% for _nombre_mod in _orden_modulos %}
                 {% for p in proyectos_list %}
                 {% if p.nombre == _nombre_mod %}

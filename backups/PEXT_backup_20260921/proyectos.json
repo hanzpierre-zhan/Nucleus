@@ -1,0 +1,14 @@
+[
+  {
+    "id": 10,
+    "nombre": "PEXT",
+    "descripcion": "Proyecto Externo",
+    "icono": "fa-folder-open"
+  },
+  {
+    "id": 2,
+    "nombre": "PEXT (old)",
+    "descripcion": "",
+    "icono": "fa-network-wired"
+  }
+]

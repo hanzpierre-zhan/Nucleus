@@ -1,0 +1,72 @@
+[
+  {
+    "proyecto_id": 2,
+    "clave": "app_schema",
+    "valor": "[\"Número de WO\", \"_fecha_ultima_act_manual\", \"Prioridad del Site\", \"Estado del TT\", \"Antigüedad (días)\", \"FECHA CAMBIO ESTADO\", \"Fecha y hora de WO a estado close\", \"Operate Phase\", \"Departamento\", \"Autin TT\", \"Hora de Creación del TT\", \"Fault Level\", \"Estado de la tarea (WO State)\", \"Antigüedad (hh:mm:ss)\", \"Fecha y hora de WO a estado complete\", \"O&M asignado\", \"Fecha de creación (WO Creation date)\", \"Fecha y hora de estado leave\", \"Tipo de Outage\", \"Nombre de personal FLM asignado\", \"Tipo tarea\", \"Number of DC Alarms\", \"Alarma\", \"Distrito\", \"Category\", \"Causa raíz\", \"_ultimo_usuario_manual\", \"Nombre de Site\", \"Comentarios Suspend\", \"Hora de Cierre del TT\", \"Comentarios adicionales\", \"Es VIP\", \"Comentarios complete\", \"EDITADO POR\", \"Provincia\", \"Fecha y hora de cancelación de WO\", \"Estado suspendido\", \"Hora de Clear de la Alarma\", \"GESTOR\", \"Código Site\"]"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "column_layout",
+    "valor": "[{\"field\": \"Alarma\", \"visible\": false}, {\"field\": \"Antigüedad (días)\", \"visible\": false}, {\"field\": \"Antigüedad (hh:mm:ss)\", \"visible\": false}, {\"field\": \"Fecha de creación (WO Creation date)\", \"visible\": true}, {\"field\": \"Nombre de Site\", \"visible\": true}, {\"field\": \"Autin TT\", \"visible\": true}, {\"field\": \"Departamento\", \"visible\": true}, {\"field\": \"Fault Level\", \"visible\": true}, {\"field\": \"Estado de la tarea (WO State)\", \"visible\": true}, {\"field\": \"Prioridad del Site\", \"visible\": true}, {\"field\": \"CONTRATA\", \"visible\": false}, {\"field\": \"Provincia\", \"visible\": true}, {\"field\": \"FIN DE PARADA\", \"visible\": false}, {\"field\": \"Comentarios Suspend\", \"visible\": false}, {\"field\": \"Causa raíz\", \"visible\": false}, {\"field\": \"Comentarios adicionales\", \"visible\": false}, {\"field\": \"Comentarios complete\", \"visible\": false}, {\"field\": \"Código Site\", \"visible\": false}, {\"field\": \"Distrito\", \"visible\": true}, {\"field\": \"INICIO DE PARADA\", \"visible\": false}, {\"field\": \"FECHA CAMBIO ESTADO\", \"visible\": false}, {\"field\": \"Es VIP\", \"visible\": false}, {\"field\": \"Estado del TT\", \"visible\": false}, {\"field\": \"Estado suspendido\", \"visible\": false}, {\"field\": \"Fecha y hora de WO a estado close\", \"visible\": false}, {\"field\": \"Fecha y hora de WO a estado complete\", \"visible\": false}, {\"field\": \"Fecha y hora de cancelación de WO\", \"visible\": false}, {\"field\": \"MOTIVO DE AVERÍA\", \"visible\": false}, {\"field\": \"Fecha y hora de estado leave\", \"visible\": false}, {\"field\": \"Hora de Cierre del TT\", \"visible\": false}, {\"field\": \"Hora de Clear de la Alarma\", \"visible\": false}, {\"field\": \"Hora de Creación del TT\", \"visible\": false}, {\"field\": \"Nombre de personal FLM asignado\", \"visible\": false}, {\"field\": \"Number of DC Alarms\", \"visible\": false}, {\"field\": \"Número de WO\", \"visible\": false}, {\"field\": \"SERVICIO\", \"visible\": false}, {\"field\": \"TECNICO ASIGNADO\", \"visible\": false}, {\"field\": \"SLA\", \"visible\": true}, {\"field\": \"O&M asignado\", \"visible\": false}, {\"field\": \"Operate Phase\", \"visible\": false}, {\"field\": \"Category\", \"visible\": false}, {\"field\": \"Tipo de Outage\", \"visible\": false}, {\"field\": \"Tipo tarea\", \"visible\": false}, {\"field\": \"SLA Cumplimiento\", \"visible\": true}, {\"field\": \"¿CUADRILLA DE 3 O 2?\", \"visible\": false}, {\"field\": \"¿FUE SITE PROPIO?\", \"visible\": false}, {\"field\": \"¿FUE TORRERA?\", \"visible\": false}, {\"field\": \"¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?\", \"visible\": false}, {\"field\": \"¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?\", \"visible\": false}, {\"field\": \"¿REQUIERE ACCESO AL SITE?\", \"visible\": false}, {\"field\": \"¿REQUIERE MATERIAL?\", \"visible\": false}, {\"field\": \"COORDINADOR ENTEL\", \"visible\": false}, {\"field\": \"DETALLE CORRECTIVO ADICIONAL\", \"visible\": false}, {\"field\": \"FECHA DE ASIGNACIÓN\", \"visible\": false}, {\"field\": \"QUIEBRE\", \"visible\": false}, {\"field\": \"STATUS DE ATENCION\", \"visible\": false}, {\"field\": \"TEAM LEADER ASIGNADO EN APLICATIVO\", \"visible\": false}, {\"field\": \"GESTOR\", \"visible\": true}, {\"field\": \"MOTIVO DE PARADA\", \"visible\": false}]"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "historial_backfill_done",
+    "valor": "1"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "manual_columns",
+    "valor": "[{\"nombre\": \"SERVICIO\", \"tipo\": \"lista\", \"opciones\": [\"PREVENTIVO\", \"CORRECTIVO\", \"PREDICTIVO\", \"ABASTECIMIENTO DE COMBUSTIBLE\", \"ADICIONALES\", \"CORTE PROGRAMADO\", \"TRABAJO PROGRAMADO\"]}, {\"nombre\": \"TECNICO ASIGNADO\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"CONTRATA\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"MOTIVO DE AVERÍA\", \"tipo\": \"lista\", \"opciones\": [\"Accidente vehicular\", \"Acoplador sucio\", \"Buffer mal acondicionado\", \"Cámara inundada\", \"Cámara sin tapa\", \"Corte de fibra en sifón\", \"Empalme dañado\", \"Ferretería con corrosión\", \"Fibra drop cliente cortado\", \"Fibra quemada\", \"FO cortado\", \"Habilitación de hilos por Implementación\", \"Habilitación de hilos por ORC\", \"Hilo roto en medio vano\", \"Hilo roto en mufa\", \"Hilos invertidos en ODF\", \"Jumper averiado\", \"Mal derivado-no es PEXT\", \"Mordida de roedor\", \"Mufa con acondicionamiento deficiente\", \"NAP con acondicionamineto deficiente\", \"NAP sin bornera\", \"NAP sin rotulación\", \"Obras civiles de interferencia\", \"Pernos con corrosión\", \"Pigtail roto\", \"Poste deteriorado\", \"Robo de mufa\", \"RTN averiado\", \"Splitter averiado\", \"Transceiver averiado\"]}, {\"nombre\": \"INICIO DE PARADA\", \"tipo\": \"fecha\", \"opciones\": []}, {\"nombre\": \"FIN DE PARADA\", \"tipo\": \"fecha\", \"opciones\": []}, {\"nombre\": \"FECHA DE ASIGNACIÓN\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"¿REQUIERE MATERIAL?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿REQUIERE ACCESO AL SITE?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿FUE TORRERA?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿FUE SITE PROPIO?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿CUADRILLA DE 3 O 2?\", \"tipo\": \"lista\", \"opciones\": [\"2\", \"3\", \"más de 3\"]}, {\"nombre\": \"TEAM LEADER ASIGNADO EN APLICATIVO\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?\", \"tipo\": \"lista\", \"opciones\": [\"CHAMBERGO ORIHUELA PERCY\", \"DIAZ BERECHE JORGE ELVIS\"]}, {\"nombre\": \"COORDINADOR ENTEL\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"STATUS DE ATENCION\", \"tipo\": \"lista\", \"opciones\": [\"PROCESO\", \"SUSPENDIDO\", \"TERMINADO\"]}, {\"nombre\": \"QUIEBRE\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"DETALLE CORRECTIVO ADICIONAL\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"MOTIVO DE PARADA\", \"tipo\": \"texto\", \"opciones\": []}]"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "primary_key",
+    "valor": "Número de WO"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "saved_dashboard_charts",
+    "valor": "[{\"id\": \"chart_1786242597825\", \"groupCol\": \"Estado de la tarea (WO State)\", \"op\": \"count\", \"valCol\": \"\", \"type\": \"bar\", \"title\": \"WO State\"}, {\"id\": \"chart_1786242625652\", \"groupCol\": \"Departamento\", \"op\": \"count\", \"valCol\": \"\", \"type\": \"pie\", \"title\": \"Departamento\"}, {\"id\": \"chart_1786242692883\", \"groupCol\": \"Fault Level\", \"op\": \"count\", \"valCol\": \"\", \"type\": \"horizontalBar\", \"title\": \"Criticidad\"}]"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "saved_dashboard_filters",
+    "valor": "[]"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "saved_dashboard_kpis",
+    "valor": "[{\"id\": \"kpi_1786243921022\", \"title\": \"Total Ticket\", \"op\": \"count\", \"valCol\": \"Número de WO\"}]"
+  },
+  {
+    "proyecto_id": 2,
+    "clave": "servicio_opciones",
+    "valor": "[\"PREVENTIVO\", \"CORRECTIVO\", \"PREDICTIVO\"]"
+  },
+  {
+    "proyecto_id": 10,
+    "clave": "app_schema",
+    "valor": "[\"Contractor\", \"SLA Status\", \"Ticket ID\", \"Ticket Status\", \"SLA Target Time\", \"Created At\", \"Closure Time\", \"accept_time\", \"Detalle\", \"arrive_time\", \"assign_to_fme\", \"Associate OrderId\", \"CorrectiveMaintenance.SkillRequired(schedule )\", \"complete_time\", \"dispatch_time\", \"Categoria Operacional 2\", \"id\", \"Operate Phase\", \"Operate Type\", \"CorrectiveMaintenance.TaskStatus(schedule )\", \"Dynamic SLA Time(create)\", \"Title\", \"Task Subcategory(create)\", \"Fault Level(create)\", \"Site ID(create)\", \"Site Name(create)\", \"CorrectiveMaintenance.ExitReason(complete)\", \"Numero OT\", \"Empleado\", \"Fecha\", \"Nombre del Sitio\", \"ID del Sitio\", \"1.2 Departamento\", \"1.3 Prioridad\", \"2.1 Sistema\", \"2.2 Alarma Reportada\", \"2.3 N° Ticket Noc\", \"2.5 Colaborador\", \"2.8 Causa (50 Caracteres)\", \"2.9 Solución (5000 Caracteres)\", \"¿Atención De La Emergencia Requiere Correctivo? (Si/No)\", \"2.10 Repuesto Requerido (Si/No)\", \"2.11 Nombre De Repuesto Requerido\", \"3.- Detalle De Atención De Alarma (250 Caracteres)\", \"4.- Recomendaciones Adicionales\", \"Causa Causa Raiz\", \"Se Validó Con Centro Despacho Aclaramiento De Alarma En Gestor? Para Sitios P0+,P0 Y P1 Seleccionar Na\", \"EDITADO POR\", \"GESTOR\"]"
+  },
+  {
+    "proyecto_id": 10,
+    "clave": "historial_backfill_done",
+    "valor": "1"
+  },
+  {
+    "proyecto_id": 10,
+    "clave": "manual_columns",
+    "valor": "[{\"nombre\": \"SERVICIO\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"TECNICO ASIGNADO\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"CONTRATA\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"FECHA DE ASIGNACIÓN\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"MOTIVO DE AVERÍA\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"¿REQUIERE MATERIAL?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿REQUIERE ACCESO AL SITE?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿FUE TORRERA?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿FUE SITE PROPIO?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"¿CUADRILLA DE 3 O 2?\", \"tipo\": \"lista\", \"opciones\": [\"2\", \"3\", \"más de 3\"]}, {\"nombre\": \"TEAM LEADER ASIGNADO EN APLICATIVO\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?\", \"tipo\": \"lista\", \"opciones\": [\"CHAMBERGO ORIHUELA PERCY\", \"DIAZ BERECHE JORGE ELVIS\"]}, {\"nombre\": \"COORDINADOR ENTEL\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"STATUS DE ATENCION\", \"tipo\": \"lista\", \"opciones\": [\"PROCESO\", \"SUSPENDIDO\", \"TERMINADO\"]}, {\"nombre\": \"QUIEBRE\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?\", \"tipo\": \"lista\", \"opciones\": [\"Sí\", \"No\"]}, {\"nombre\": \"DETALLE CORRECTIVO ADICIONAL\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"INICIO DE PARADA\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"FIN DE PARADA\", \"tipo\": \"texto\", \"opciones\": []}, {\"nombre\": \"MOTIVO DE PARADA\", \"tipo\": \"texto\", \"opciones\": []}]"
+  },
+  {
+    "proyecto_id": 10,
+    "clave": "primary_key",
+    "valor": "id"
+  },
+  {
+    "proyecto_id": 10,
+    "clave": "servicio_opciones",
+    "valor": "[\"PREVENTIVO\", \"CORRECTIVO\", \"PREDICTIVO\"]"
+  }
+]

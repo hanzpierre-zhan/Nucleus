@@ -2740,7 +2740,8 @@
             };
         }, 400);
     }
-    const IS_WO_PROJECT = ['pext', 'flm', 'claro', 'integratel'].includes(currentProjectNombre.trim().toLowerCase());
+    const _projNorm = currentProjectNombre.trim().toLowerCase();
+    const IS_WO_PROJECT = ['pext', 'flm', 'claro', 'integratel'].includes(_projNorm) || _projNorm.includes('flm') || _projNorm.includes('pext');
     const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
