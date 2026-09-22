@@ -622,6 +622,7 @@ CAMPOS_TRABAJO_FLM = frozenset({
     'LONGITUD MUFAS', 'COTIZACION_ITEMS', 'COTIZACION_NOTA', 'COTIZACION_NUMERO',
     'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'GESTOR', 'EDITADO POR',
     'Estado de la tarea (WO State)', 'FECHA CAMBIO ESTADO', '_ENVIADO_APROBACION',
+    'REQUIERE BIÁTICOS', 'MONTO BIÁTICOS (SOLES)',
 })
 
 
@@ -1485,10 +1486,29 @@ with app.app_context():
                                      valor=json.dumps(pext_serv, ensure_ascii=False)))
         db.session.commit()
 
+    # Migration: primary_key de FLM y FLM (old).
+    # Sin ella, /api/import/process toma la PRIMERA columna del archivo como llave
+    # (en Fusionado_CQ_PINT.xlsx es "Contractor", valor único "COBRA") y todas las
+    # filas colapsan en un único registro. Solo se corrige si falta o si quedó en
+    # esa llave accidental; nunca pisa una llave configurada a propósito.
+    for _flm_nombre, _flm_pk in (('FLM', 'id'), ('FLM (old)', 'Número de WO')):
+        _fp = Proyecto.query.filter_by(nombre=_flm_nombre).first()
+        if not _fp:
+            continue
+        _pk_cfg = AppConfig.query.filter_by(proyecto_id=_fp.id, clave='primary_key').first()
+        if not _pk_cfg:
+            db.session.add(AppConfig(proyecto_id=_fp.id, clave='primary_key', valor=_flm_pk))
+        elif str(_pk_cfg.valor or '').strip() in ('', 'Contractor'):
+            _pk_cfg.valor = _flm_pk
+    db.session.commit()
+
     # Migration: Asegurar columnas de detalle para FLM (campos que llena el gestor en el modal WO).
     # Si falta alguna, se agrega a manual_columns para que aparezcan en la tabla y en el botón Columnas.
-    flm_proy = Proyecto.query.filter_by(nombre='FLM').first()
-    if flm_proy:
+    # Se aplica a FLM y FLM (old) por igual (ambos comparten los campos de trabajo del modal).
+    for _flm_nombre in ('FLM', 'FLM (old)'):
+        flm_proy = Proyecto.query.filter_by(nombre=_flm_nombre).first()
+        if not flm_proy:
+            continue
         flm_cfg = AppConfig.query.filter_by(proyecto_id=flm_proy.id, clave='manual_columns').first()
         try:
             flm_cols = json.loads(flm_cfg.valor) if flm_cfg else []
@@ -1515,6 +1535,8 @@ with app.app_context():
             {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'REQUIERE BIÁTICOS', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'MONTO BIÁTICOS (SOLES)', 'tipo': 'texto', 'opciones': []},
         ]
         for col in flm_detalle_cols:
             if col['nombre'] not in flm_names:
@@ -2965,7 +2987,15 @@ def api_import_process():
         if not file_key:
             pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
             candidate = (pk_cfg.valor if pk_cfg else None) or ''
-            file_key = candidate if candidate in df.columns else str(df.columns[0])
+            if candidate in df.columns:
+                file_key = candidate
+            elif 'id' in df.columns:
+                # Sin pk configurada: preferir "id" antes que la primera columna, que
+                # puede ser un valor repetido (p.ej. "Contractor" = "COBRA") y entonces
+                # TODAS las filas colapsarían en un único registro.
+                file_key = 'id'
+            else:
+                file_key = str(df.columns[0])
         if file_key not in df.columns:
             return jsonify({'error': f'Key {file_key} not found in headers.'}), 400
 

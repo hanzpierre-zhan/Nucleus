@@ -2274,6 +2274,18 @@
                                 <option value="No">No</option>
                             </select>
                         </div>
+                        <div class="wo-field" id="wof-requiere-biaticos">
+                            <label><i class="fa-solid fa-money-bill-wave"></i> ¿Requiere biáticos?</label>
+                            <select id="wo-requiere-biaticos">
+                                <option value="">— Seleccionar —</option>
+                                <option value="Sí">Sí</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="wo-field" id="wof-monto-biaticos">
+                            <label><i class="fa-solid fa-coins"></i> Monto biáticos (S/)</label>
+                            <input type="text" id="wo-monto-biaticos" placeholder="0.00" autocomplete="off">
+                        </div>
                         <div class="wo-field" id="wof-team-leader">
                             <label><i class="fa-solid fa-user-tie"></i> Team Leader asignado en aplicativo</label>
                             <select id="wo-team-leader">
@@ -2745,6 +2757,7 @@
     const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
+    const IS_FLM_LIKE = IS_FLM || _projNorm.includes('flm'); // 'flm' y 'flm (old)' usan el mismo formulario/modal
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
 
     const FAULT_COLORS = IS_FLM ? {
@@ -7633,6 +7646,10 @@ btnItem.onclick = () => cotRegAgregarFila();
         const rSel = document.getElementById('wo-requiere-correctivo');
         const wDet = document.getElementById('wof-detcorr');
         if (rSel && wDet) wDet.style.display = (rSel.value === 'Sí') ? '' : 'none';
+        // FLM: ¿Requiere biáticos? Sí -> muestra el campo Monto.
+        const bSel = document.getElementById('wo-requiere-biaticos');
+        const wMon = document.getElementById('wof-monto-biaticos');
+        if (bSel && wMon) wMon.style.display = (bSel.value === 'Sí') ? '' : 'none';
         // PEXT: ¿Quedó pendiente algún correctivo adicional? Sí -> muestra caja de texto.
         const pSel = document.getElementById('wo-quedo-pendiente');
         const wDetExtra = document.getElementById('wof-detalle-correctivo-extra');
@@ -7641,7 +7658,25 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function aplicarConfigWoPorProyecto() {
         // Personaliza el formulario WO según el proyecto.
-        // FLM: renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
+        // FLM / FLM (old): renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
+        if (!IS_FLM_LIKE) {
+            ['wof-requiere-biaticos', 'wof-monto-biaticos'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
+        }
+        if (IS_FLM_LIKE) {
+            // Biáticos (FLM y FLM (old)): colocar junto al resto del detalle aunque ya estén en el HTML.
+            ['wof-requiere-biaticos', 'wof-monto-biaticos'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = '';
+            });
+            const bSel = document.getElementById('wo-requiere-biaticos');
+            if (bSel && !bSel.dataset.condInit) {
+                bSel.dataset.condInit = '1';
+                bSel.addEventListener('change', aplicarCondicionalesWO);
+            }
+        }
         if (IS_FLM) {
             // Servicio -> Restricción
             document.querySelectorAll('.wof-servicio-label').forEach(l => { l.textContent = 'Restricción'; });
@@ -7706,7 +7741,8 @@ btnItem.onclick = () => cotRegAgregarFila();
                     prevTitle.style.display = 'none';
                 }
                 [hG, byId('wof-sistemas'), byId('wof-tecnico'), byId('wof-contrata'), byId('wof-motivo'), byId('wof-solucion'),
-                 hP, byId('wof-se-instalo-mufas'), byId('wof-requiere'), fDet, byId('wof-inicio'), byId('wof-fin'),
+                 hP, byId('wof-se-instalo-mufas'), byId('wof-requiere'), fDet, byId('wof-requiere-biaticos'),
+                 byId('wof-monto-biaticos'), byId('wof-inicio'), byId('wof-fin'),
                  byId('wof-bitacora')
                 ].forEach(function (el) { if (el) form.appendChild(el); });
                 const secDet = document.querySelector('#wo-panel-detalle .wo-section');
@@ -7719,6 +7755,8 @@ btnItem.onclick = () => cotRegAgregarFila();
                 if (sumGrid) sumGrid.classList.add('wo-summary-plain');
                 const rS = byId('wo-requiere-correctivo');
                 if (rS && !rS.dataset.condInit) { rS.dataset.condInit = '1'; rS.addEventListener('change', aplicarCondicionalesWO); }
+                const bS = byId('wo-requiere-biaticos');
+                if (bS && !bS.dataset.condInit) { bS.dataset.condInit = '1'; bS.addEventListener('change', aplicarCondicionalesWO); }
             })();
         }
 
@@ -8427,6 +8465,14 @@ btnItem.onclick = () => cotRegAgregarFila();
             const dcElF = document.getElementById('wo-detalle-correctivo');
             if (dcElF) dcElF.value = data['DETALLE CORRECTIVO'] || '';
             document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
+            aplicarCondicionalesWO();
+        }
+        // FLM y FLM (old): cargar campos de biáticos.
+        if (IS_FLM_LIKE) {
+            const bSel = document.getElementById('wo-requiere-biaticos');
+            if (bSel) bSel.value = data['REQUIERE BIÁTICOS'] || '';
+            const bMon = document.getElementById('wo-monto-biaticos');
+            if (bMon) bMon.value = data['MONTO BIÁTICOS (SOLES)'] || '';
             aplicarCondicionalesWO();
         }
 
@@ -9563,6 +9609,10 @@ btnItem.onclick = () => cotRegAgregarFila();
             payload.data['COTIZACION_NOTA'] = (document.getElementById('wo-coti-objetivo') || {}).value || '';
             payload.data['REQUIERE CORRECTIVO FINAL'] = document.getElementById('wo-requiere-correctivo').value;
             payload.data['DETALLE CORRECTIVO'] = (document.getElementById('wo-detalle-correctivo') || {}).value || '';
+        }
+        if (IS_FLM_LIKE) {
+            payload.data['REQUIERE BIÁTICOS'] = (document.getElementById('wo-requiere-biaticos') || {}).value || '';
+            payload.data['MONTO BIÁTICOS (SOLES)'] = (document.getElementById('wo-monto-biaticos') || {}).value || '';
         }
         if (IS_PEXT) {
             payload.data['MOTIVO DE PARADA'] = (document.getElementById('wo-motivo-parada') || {}).value ? document.getElementById('wo-motivo-parada').value.trim() : '';
