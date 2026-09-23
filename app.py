@@ -4435,14 +4435,59 @@ def api_wo_meta():
             servicios = ['PREVENTIVO', 'CORRECTIVO', 'PREDICTIVO', 'ABASTECIMIENTO DE COMBUSTIBLE',
                          'ADICIONALES', 'CORTE PROGRAMADO', 'TRABAJO PROGRAMADO']
 
-        # Técnicos desde la tabla Tecnico, filtrados por el PROYECTO actual
-        tecnicos = []
-        if pid:
-            for t in Tecnico.query.filter_by(proyecto_id=pid).order_by(Tecnico.nombre).all():
-                tecnicos.append({'nombre': t.nombre, 'contrata': t.contrata})
-        else:
-            for t in Tecnico.query.order_by(Tecnico.nombre).all():
-                tecnicos.append({'nombre': t.nombre, 'contrata': t.contrata})
+        # Técnicos: se unen DOS fuentes para que el desplegable nunca quede vacío:
+        #  (1) tabla `tecnicos` declarada en el panel de administración — proyecto
+        #      actual y su hermano FLM / FLM (old) (comparten el mismo equipo);
+        #  (2) Dataper (histórico): técnicos ACTIVOS cuyo PROYECTO coincida con la
+        #      familia del proyecto actual (FLM y FLM (old) cuentan como la misma).
+        # Se deduplica por nombre; si una fuente trae la contrata y la otra no, se conserva.
+        _tec_map = {}
+
+        def _add_tec(nombre, contrata):
+            nom = str(nombre or '').strip()
+            if not nom:
+                return
+            k = nom.lower()
+            reg = _tec_map.get(k)
+            if reg is None:
+                _tec_map[k] = {'nombre': nom, 'contrata': str(contrata or '').strip()}
+            elif not reg['contrata'] and str(contrata or '').strip():
+                reg['contrata'] = str(contrata or '').strip()
+
+        # (1) Declarados en el admin (proyecto actual + hermano FLM)
+        _tec_pids = [pid] if pid else []
+        _hermano = _flm_hermano_id(pid) if pid else None
+        if _hermano:
+            _tec_pids.append(_hermano)
+        if _tec_pids:
+            for t in Tecnico.query.filter(Tecnico.proyecto_id.in_(_tec_pids)).all():
+                _add_tec(t.nombre, t.contrata)
+        elif not pid:
+            for t in Tecnico.query.all():
+                _add_tec(t.nombre, t.contrata)
+
+        # (2) Dataper activos por familia de proyecto
+        _nombres_ok = set()
+        if proy_nombre:
+            _nombres_ok.add(proy_nombre.upper())
+            if proy_nombre.upper() in ('FLM', 'FLM (OLD)'):
+                _nombres_ok.update({'FLM', 'FLM (OLD)'})
+        dataper = Proyecto.query.filter_by(nombre='Dataper').first()
+        if dataper:
+            for r in NucleusData.query.filter_by(proyecto_id=dataper.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                est = str(d.get('ESTADO') or '').strip().upper()
+                if est and est != 'ACTIVO':
+                    continue
+                pr = str(d.get('PROYECTO') or '').strip().upper()
+                if _nombres_ok and pr and pr not in _nombres_ok:
+                    continue
+                _add_tec(d.get('TECNICO'), d.get('CONTRATA'))
+
+        tecnicos = sorted(_tec_map.values(), key=lambda x: x['nombre'])
 
         # Materiales desde MATERIAL, filtrados por el PROYECTO actual
         materiales = []
