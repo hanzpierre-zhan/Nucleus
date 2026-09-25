@@ -10,7 +10,7 @@
     </span>
 
     {% set rol_es_admin = session.get('rol') in ['zeno', 'suport', 'admin'] %}
-    {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'PEXT'] %}
+    {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM', 'PEXT'] %}
     {% if rol_es_admin and proy_flm_pext %}
     <label class="topbar-switch" title="Mostrar u ocultar de golpe las columnas manuales de la tabla">
         <input type="checkbox" id="manual-cols-toggle" onchange="toggleManualColumns(this)">
@@ -104,7 +104,7 @@
     </button>
     {% endif %}
 
-    {% if proy_nombre in ['flm - entel', 'pext'] and session.get('rol') not in ['contrata'] %}
+    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') not in ['contrata'] %}
     <!-- Botón Nuevo WO (Azul): alta de WO (no disponible para Contrata, que solo completa la información) -->
     <button onclick="aniadirRegistroWO()" class="action-pill pill-blue" title="Crear un WO manualmente">
         <i class="fa-solid fa-plus"></i> Nuevo WO
@@ -2428,7 +2428,7 @@
                 <!-- Formulario completo (oculto hasta que se presione el botón) -->
                 <div id="wo-coti-form-body" style="display:none;">
                     {% set proy_coti = (session.get('current_proyecto_nombre') or '') | trim | upper %}
-                    {% if proy_coti == 'FLM - ENTEL' %}
+                    {% if proy_coti == 'FLM' %}
                     <!-- ===== FORMATO COBRA (FLM) ===== -->
                     <div class="wo-section">
                         <div class="wo-section-title">
@@ -2767,11 +2767,11 @@
         }, 400);
     }
     const _projNorm = currentProjectNombre.trim().toLowerCase();
-    const IS_WO_PROJECT = ['pext', 'flm - entel', 'claro', 'integratel'].includes(_projNorm) || _projNorm.includes('flm - entel') || _projNorm.includes('pext');
+    const IS_WO_PROJECT = ['pext', 'flm', 'claro', 'integratel'].includes(_projNorm) || _projNorm.includes('flm') || _projNorm.includes('pext');
     const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
-    const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm - entel';
-    const IS_FLM_LIKE = IS_FLM || _projNorm.includes('flm - entel'); // 'flm' y 'flm - entel' usan el mismo formulario/modal
+    const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
+    const IS_FLM_LIKE = IS_FLM || _projNorm.includes('flm'); // 'flm' y 'flm (old)' usan el mismo formulario/modal
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
 
     const FAULT_COLORS = IS_FLM ? {
@@ -2829,7 +2829,7 @@
         if (!container) return;
         const proy = currentProjectNombre.trim().toLowerCase();
 
-        if (proy === 'pext' || proy === 'flm - entel') {
+        if (proy === 'pext' || proy === 'flm') {
             renderCardsStats(container);
             return;
         }
@@ -2847,7 +2847,7 @@
             if (est === 'ACTIVO') { activos++; hasEstado = true; }
             else if (est === 'CESADO') { cesados++; hasEstado = true; }
             const proy = norm(r.PROYECTO);
-            if (proy === 'FLM - ENTEL') { flm++; hasProyecto = true; }
+            if (proy === 'FLM') { flm++; hasProyecto = true; }
             else if (proy === 'PEXT') { pext++; hasProyecto = true; }
         });
         if (!hasEstado && !hasProyecto) return;
@@ -3310,7 +3310,7 @@
     };
 
     // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
-    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site', 'flm - entel'];
+    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site'];
     if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
@@ -3671,7 +3671,7 @@
         if (_isCot && fieldName === 'EDITADO POR') { return; }
         if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'EDITADO POR') { return; }
         // FLM/PEXT: EDITADO POR se reemplaza por GESTOR (quien presiona Guardar).
-        if (['flm - entel', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'EDITADO POR') { return; }
+        if (['flm', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'EDITADO POR') { return; }
 
         // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas.
         // Excepción: TECNICO ASIGNADO siempre se muestra (FLM).
@@ -3868,7 +3868,7 @@
                 colDef.editor = false;
             }
             // FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta): no editable
-            if (['flm - entel', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'GESTOR') {
+            if (['flm', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'GESTOR') {
                 colDef.editor = false;
             }
             // Cotizaciones: GESTOR y SUB TOTAL no editables; una vez GENERADA,
@@ -7894,7 +7894,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function aplicarConfigWoPorProyecto() {
         // Personaliza el formulario WO según el proyecto.
-        // FLM / FLM - ENTEL: renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
+        // FLM / FLM (old): renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
         if (!IS_FLM_LIKE) {
             ['wof-requiere-biaticos', 'wof-monto-biaticos', 'wof-costo-material'].forEach(id => {
                 const el = document.getElementById(id);
@@ -7902,7 +7902,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             });
         }
         if (IS_FLM_LIKE) {
-            // Biáticos (FLM y FLM - ENTEL): colocar junto al resto del detalle aunque ya estén en el HTML.
+            // Biáticos (FLM y FLM (old)): colocar junto al resto del detalle aunque ya estén en el HTML.
             ['wof-requiere-biaticos', 'wof-monto-biaticos', 'wof-costo-material'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = '';
@@ -8703,7 +8703,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
             aplicarCondicionalesWO();
         }
-        // FLM y FLM - ENTEL: cargar campos de biáticos.
+        // FLM y FLM (old): cargar campos de biáticos.
         if (IS_FLM_LIKE) {
             const bSel = document.getElementById('wo-requiere-biaticos');
             if (bSel) bSel.value = data['REQUIERE BIÁTICOS'] || '';
@@ -9327,7 +9327,7 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     // ==================== FORMATO COBRA (FLM) ====================
-    const ES_FLM = ('{{ (session.get("current_proyecto_nombre") or "") | trim | upper }}' === 'FLM - ENTEL');
+    const ES_FLM = ('{{ (session.get("current_proyecto_nombre") or "") | trim | upper }}' === 'FLM');
     const UND_COBRA = ['GLN', 'LT', 'MT', 'KIT', 'UND'];
 
     function agregarFilaCobra(datos) {
