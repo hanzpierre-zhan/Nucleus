@@ -2950,7 +2950,7 @@
         ).join('');
     }
 
-    // --- PEXT: tarjetas de los estados del SLA Cumplimiento + estados de la WO ---
+    // --- FLM - ENTEL: tarjetas de los 7 estados de WO (filtrables al click) ---
     function renderCardsStats(container) {
         const norm = v => String(v == null ? '' : v).trim().toLowerCase();
         const val = (row, ...keys) => {
@@ -2960,52 +2960,51 @@
             }
             return null;
         };
-        const slaCounts = {
-            'SLA CUMPLIDO': 0,
-            'SLA VENCIDO': 0,
-            'SLA DENTRO DE PLAZO': 0,
-            'SLA DEBE ATENDERSE': 0,
-            'SLA POR VENCER': 0,
-            'NO APLICA': 0
-        };
-        const woCounts = { unscheduled: 0, dispatched: 0, accepted: 0, inprocess: 0 };
-        rawData.forEach(r => {
-            const st = slaCumplimientoEstado(computarSlaData(r), getSlaThresholdData(r), esCanceladoOM(r));
-            if (st.texto && st.texto in slaCounts) slaCounts[st.texto]++;
-            const woState = String(val(r, 'estado de la tarea (wo state)', 'estado del tt', 'estado') || '').trim().toLowerCase();
-            if (woState in woCounts) woCounts[woState]++;
-        });
-        const cards = [
-            ['#28A745', 'fa-circle-check', 'SLA CUMPLIDO', slaCounts['SLA CUMPLIDO']],
-            ['#8B0000', 'fa-circle-xmark', 'SLA VENCIDO', slaCounts['SLA VENCIDO']],
-            ['#FFC107', 'fa-exclamation-triangle', 'SLA DEBE ATENDERSE', slaCounts['SLA DEBE ATENDERSE']],
-            ['#DC3545', 'fa-hourglass-half', 'SLA POR VENCER', slaCounts['SLA POR VENCER']],
-            ['#8E8E93', 'fa-ban', 'NO APLICA', slaCounts['NO APLICA']],
-            ['#8E8E93', 'fa-calendar', 'Unscheduled', woCounts.unscheduled],
-            ['#AF52DE', 'fa-paper-plane', 'Dispatched', woCounts.dispatched],
-            ["var(--ios-accent)", "fa-check-double", "Accepted", woCounts.accepted],
-            ['#FF9500', 'fa-spinner', 'Inprocess', woCounts.inprocess]
+
+        // Los 7 estados de WO que quiere el usuario
+        const WO_STATES = [
+            { key: 'dispatch',  label: 'Dispatch',  color: '#AF52DE', icon: 'fa-paper-plane'      },
+            { key: 'accept',    label: 'Accept',    color: '#007AFF', icon: 'fa-check-double'      },
+            { key: 'depart',    label: 'Depart',    color: '#FF9500', icon: 'fa-truck-fast'        },
+            { key: 'arrive',    label: 'Arrive',    color: '#34C759', icon: 'fa-location-dot'      },
+            { key: 'complete',  label: 'Complete',  color: '#28A745', icon: 'fa-circle-check'      },
+            { key: 'leave',     label: 'Leave',     color: '#FF3B30', icon: 'fa-right-from-bracket'},
+            { key: 'close',     label: 'Close',     color: '#8E8E93', icon: 'fa-lock'              },
         ];
+
+        // Contar cada estado (comparación flexible: contiene la palabra clave)
+        const counts = {};
+        WO_STATES.forEach(s => counts[s.key] = 0);
+
+        rawData.forEach(r => {
+            const woState = norm(val(r,
+                'estado de la tarea (wo state)', 'estado del tt', 'estado', 'wo state', 'state') || '');
+            WO_STATES.forEach(s => {
+                if (woState.includes(s.key)) counts[s.key]++;
+            });
+        });
+
         container.style.display = 'grid';
-        container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
-        container.innerHTML = cards.map(c =>
+        container.style.gridTemplateColumns = 'repeat(' + WO_STATES.length + ', minmax(0, 1fr))';
+        container.innerHTML = WO_STATES.map(s =>
             `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" ` +
-            `data-tipo="${['SLA CUMPLIDO', 'SLA VENCIDO', 'SLA DENTRO DE PLAZO', 'SLA DEBE ATENDERSE', 'SLA POR VENCER', 'NO APLICA'].includes(c[2]) ? 'sla' : 'wo'}" ` +
-            `data-sla="${c[2]}" data-wo="${c[2]}">` +
-            `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
-            `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
+            `data-tipo="wo-state" data-wo-state="${s.key}" data-wo="${s.label}">` +
+            `<div class="data-stat-ic" style="background:${s.color}1F; color:${s.color};">` +
+            `<i class="fa-solid ${s.icon}"></i></div>` +
+            `<div class="data-stat-meta"><b>${counts[s.key]}</b><span>${s.label}</span></div>` +
             `</div>`
         ).join('');
     }
 
-    // Filtra la tabla al hacer click en una tarjeta de PEXT/FLM.
-    // 'sla' → filtra por el semáforo de SLA Cumplimiento de cada fila.
-    // 'wo'  → filtra por el estado de la WO.
+    // Filtra la tabla al hacer click en una tarjeta de FLM/PEXT.
+    // 'wo-state' → filtra por estado WO (dispatch, accept, depart, arrive, complete, leave, close).
+    // 'sla'      → filtra por semáforo SLA.
+    // 'zona'     → filtra por zona (Combustible).
     // Un segundo click sobre la misma tarjeta quita el filtro.
     let _tarjetaFiltroActiva = null;
     async function filtrarPorTarjeta(el) {
         const tipo = el.getAttribute('data-tipo');
-        const valor = el.getAttribute('data-sla') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
+        const valor = el.getAttribute('data-wo-state') || el.getAttribute('data-sla') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
         if (!table) return;
 
         if (_tarjetaFiltroActiva === valor) {
@@ -3024,7 +3023,14 @@
             return null;
         };
 
-        if (tipo === 'sla') {
+        if (tipo === 'wo-state') {
+            // Filtro flexible: el estado WO contiene la clave (ej. "dispatched" contiene "dispatch")
+            table.setFilter((rowData) => {
+                const woState = norm(val(rowData,
+                    'estado de la tarea (wo state)', 'estado del tt', 'estado', 'wo state', 'state') || '');
+                return woState.includes(valor);
+            });
+        } else if (tipo === 'sla') {
             table.setFilter((rowData) => {
                 const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData), esCanceladoOM(rowData));
                 return st.texto === valor;
