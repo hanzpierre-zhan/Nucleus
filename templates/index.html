@@ -2972,25 +2972,34 @@
             return null;
         };
 
-        // Los 7 estados de WO que quiere el usuario
+        // Los 10 estados (3 de Tipo WO, 7 de Operate Phase)
         const WO_STATES = [
-            { key: 'dispatch',  label: 'Dispatch',  color: '#AF52DE', icon: 'fa-paper-plane'      },
-            { key: 'accept',    label: 'Accept',    color: '#007AFF', icon: 'fa-check-double'      },
-            { key: 'depart',    label: 'Depart',    color: '#FF9500', icon: 'fa-truck-fast'        },
-            { key: 'arrive',    label: 'Arrive',    color: '#34C759', icon: 'fa-location-dot'      },
-            { key: 'complete',  label: 'Complete',  color: '#28A745', icon: 'fa-circle-check'      },
-            { key: 'leave',     label: 'Leave',     color: '#FF3B30', icon: 'fa-right-from-bracket'},
-            { key: 'close',     label: 'Close',     color: '#8E8E93', icon: 'fa-lock'              },
+            { key: 'cm',       tipo: 'tipo-wo',  label: 'CM',       color: '#FF2D55', icon: 'fa-wrench'              },
+            { key: 'pm',       tipo: 'tipo-wo',  label: 'PM',       color: '#007AFF', icon: 'fa-screwdriver-wrench'  },
+            { key: 'plm',      tipo: 'tipo-wo',  label: 'PLM',      color: '#5856D6', icon: 'fa-bolt'                },
+            { key: 'dispatch', tipo: 'wo-state', label: 'Dispatch', color: '#AF52DE', icon: 'fa-paper-plane'         },
+            { key: 'accept',   tipo: 'wo-state', label: 'Accept',   color: '#007AFF', icon: 'fa-check-double'        },
+            { key: 'depart',   tipo: 'wo-state', label: 'Depart',   color: '#FF9500', icon: 'fa-truck-fast'          },
+            { key: 'arrive',   tipo: 'wo-state', label: 'Arrive',   color: '#34C759', icon: 'fa-location-dot'        },
+            { key: 'complete', tipo: 'wo-state', label: 'Complete', color: '#28A745', icon: 'fa-circle-check'        },
+            { key: 'leave',    tipo: 'wo-state', label: 'Leave',    color: '#FF3B30', icon: 'fa-right-from-bracket'  },
+            { key: 'close',    tipo: 'wo-state', label: 'Close',    color: '#8E8E93', icon: 'fa-lock'                },
         ];
 
-        // Contar cada estado (comparación flexible: contiene la palabra clave)
+        // Contar cada estado
         const counts = {};
         WO_STATES.forEach(s => counts[s.key] = 0);
 
         rawData.forEach(r => {
             const opPhase = norm(val(r, 'operate phase') || '');
+            const tipoWo = norm(val(r, 'tipo wo') || '');
+            
             WO_STATES.forEach(s => {
-                if (opPhase === s.key) counts[s.key]++;
+                if (s.tipo === 'tipo-wo') {
+                    if (tipoWo === s.key || tipoWo.startsWith(s.key)) counts[s.key]++;
+                } else {
+                    if (opPhase === s.key) counts[s.key]++;
+                }
             });
         });
 
@@ -2998,7 +3007,7 @@
         container.style.gridTemplateColumns = 'repeat(' + WO_STATES.length + ', minmax(0, 1fr))';
         container.innerHTML = WO_STATES.map(s =>
             `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" ` +
-            `data-tipo="wo-state" data-wo-state="${s.key}" data-wo="${s.label}">` +
+            `data-tipo="${s.tipo || 'wo-state'}" data-wo-state="${s.key}" data-wo="${s.label}">` +
             `<div class="data-stat-ic" style="background:${s.color}1F; color:${s.color};">` +
             `<i class="fa-solid ${s.icon}"></i></div>` +
             `<div class="data-stat-meta"><b>${counts[s.key]}</b><span>${s.label}</span></div>` +
@@ -3038,6 +3047,12 @@
             table.setFilter((rowData) => {
                 const opPhase = norm(val(rowData, 'operate phase') || '');
                 return opPhase === valor;
+            });
+        } else if (tipo === 'tipo-wo') {
+            // Filtro por Tipo WO
+            table.setFilter((rowData) => {
+                const tipoWo = norm(val(rowData, 'tipo wo') || '');
+                return tipoWo === valor || tipoWo.startsWith(valor);
             });
         } else if (tipo === 'sla') {
             table.setFilter((rowData) => {
