@@ -9,13 +9,22 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 def _normalizar_db_url(url):
-    """Convierte postgres:// -> postgresql://, limpia channel_binding
-    y asegura sslmode=require para conexiones cloud."""
+    """Convierte postgres:// -> postgresql+psycopg2://, limpia channel_binding
+    y asegura sslmode=require para conexiones cloud.
+
+    Fuerza el driver psycopg2 (postgresql+psycopg2://) porque SQLAlchemy 2.x
+    usa por defecto psycopg v3 cuando solo se especifica 'postgresql://',
+    y el paquete instalado es psycopg2-binary, no psycopg.
+    """
     if not url:
         return url
     u = url.strip()
+    # Normalizar esquemas antiguos y forzar driver psycopg2
     if u.startswith('postgres://'):
-        u = 'postgresql://' + u[len('postgres://'):]
+        u = 'postgresql+psycopg2://' + u[len('postgres://'):]
+    elif u.startswith('postgresql://'):
+        u = 'postgresql+psycopg2://' + u[len('postgresql://'):]
+    # Eliminar parámetro channel_binding (no soportado por psycopg2)
     u = re.sub(r'[?&]channel_binding=[^&]*', '', u)
     if 'sslmode=' not in u:
         sep = '&' if '?' in u else '?'
