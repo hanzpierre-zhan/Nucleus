@@ -171,7 +171,8 @@ def run_migrations(app, database_url=''):
             db.session.commit()
 
         # ── Eliminar proyectos retirados ──────────────────────────────────
-        PROYECTOS_RETIRADOS = ('PEXT', 'PEXT (old)', 'FLM', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL')
+        # NOTA: 'FLM' NO se incluye aquí porque se renombra a 'FLM - ENTEL' más abajo.
+        PROYECTOS_RETIRADOS = ('PEXT', 'PEXT (old)', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL')
         for _del_name in PROYECTOS_RETIRADOS:
             try:
                 _dp = Proyecto.query.filter_by(nombre=_del_name).first()
@@ -202,6 +203,7 @@ def run_migrations(app, database_url=''):
 
         # ── Proyectos fijos ───────────────────────────────────────────────
         fixed = [
+            ('FLM - ENTEL', 'FLM – Proyecto Entel'),
             ('Dataper', 'DataPer S.A.C.'),
             ('Material', 'Materiales Disponibles'),
             ('Site Name', 'Sitios (solo FLM)'),
