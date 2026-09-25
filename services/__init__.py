@@ -5,7 +5,7 @@ from services.utilidades import (
     _parse_galones, _combustible_fecha_norm, _combustible_fecha_ord,
     _combustible_filas_gen, _combustible_chequear, _combustible_validar_gasto,
     _combustible_saldo, _flm_wo_list, _sane_data_key, _sane_dict,
-    _flm_hermano_id, _flm_sync_campos
+    _flm_pair_ids, _flm_hermano_id, _flm_sync_campos
 )
 
 __all__ = [
@@ -14,5 +14,6 @@ __all__ = [
     '_parse_galones', '_combustible_fecha_norm', '_combustible_fecha_ord',
     '_combustible_filas_gen', '_combustible_chequear', '_combustible_validar_gasto',
     '_combustible_saldo', '_flm_wo_list', '_sane_data_key', '_sane_dict',
-    '_flm_hermano_id', '_flm_sync_campos'
+    '_flm_pair_ids', '_flm_hermano_id', '_flm_sync_campos'
 ]
+

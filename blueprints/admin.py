@@ -28,6 +28,43 @@ bp = Blueprint('admin', __name__)
 
 
 
+@bp.route('/api/debug/dataper', methods=['GET'])
+@login_required
+def api_debug_dataper():
+    """Diagnóstico de Dataper: muestra cuántos técnicos hay y sus valores de ESTADO."""
+    if session.get('rol') not in ['zeno', 'suport']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    try:
+        dataper = Proyecto.query.filter_by(nombre='Dataper').first()
+        if not dataper:
+            return jsonify({'error': 'Proyecto Dataper no existe en la BD', 'dataper_id': None})
+        rows = NucleusData.query.filter_by(proyecto_id=dataper.id).all()
+        total = len(rows)
+        estado_counter = {}
+        tecnicos_activos = []
+        for r in rows:
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            est = str(d.get('ESTADO') or '').strip() or '(vacío)'
+            estado_counter[est] = estado_counter.get(est, 0) + 1
+            est_up = est.upper()
+            if est_up in ('ACTIVO', '(VACÍO)', ''):
+                tec = str(d.get('TECNICO') or '').strip()
+                if tec:
+                    tecnicos_activos.append({'tecnico': tec, 'contrata': str(d.get('CONTRATA') or ''), 'estado': est})
+        return jsonify({
+            'dataper_id': dataper.id,
+            'total_filas': total,
+            'estado_distribucion': estado_counter,
+            'tecnicos_activos_count': len(tecnicos_activos),
+            'muestra_tecnicos': tecnicos_activos[:20],
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/admin/proyecto', methods=['POST', 'DELETE'])
 @login_required
 def api_admin_proyecto():

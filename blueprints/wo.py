@@ -106,21 +106,27 @@ def api_wo_meta():
             for t in Tecnico.query.all():
                 _add_tec(t.nombre, t.contrata)
 
-        # (2) Dataper: cargar TODOS los técnicos activos sin filtrar por proyecto.
-        # Los nombres de proyecto en Dataper (FLM, CLARO, INTEGRATEL) no coinciden
-        # necesariamente con los nombres de proyecto del WO, por lo que el filtro
-        # previo dejaba el desplegable vacío. Se cargan todos y se deduplicen por nombre.
+        # (2) Dataper: cargar técnicos activos (o sin ESTADO definido).
+        # Se incluyen registros cuyo ESTADO sea 'ACTIVO' o esté vacío/null.
+        # Registros con ESTADO='CESADO' u otro valor se excluyen.
+        import logging as _log
         dataper = Proyecto.query.filter_by(nombre='Dataper').first()
         if dataper:
-            for r in NucleusData.query.filter_by(proyecto_id=dataper.id).all():
+            dataper_rows = NucleusData.query.filter_by(proyecto_id=dataper.id).all()
+            _log.warning(f'[WO-META] Dataper id={dataper.id} filas={len(dataper_rows)}')
+            _incluidos = 0
+            for r in dataper_rows:
                 try:
                     d = json.loads(r.data_json)
                 except Exception:
                     continue
                 est = str(d.get('ESTADO') or '').strip().upper()
+                # Excluir solo si el campo existe Y tiene un valor distinto a ACTIVO
                 if est and est != 'ACTIVO':
                     continue
                 _add_tec(d.get('TECNICO'), d.get('CONTRATA'))
+                _incluidos += 1
+            _log.warning(f'[WO-META] técnicos incluidos desde Dataper={_incluidos}, total_map={len(_tec_map)}')
 
         tecnicos = sorted(_tec_map.values(), key=lambda x: x['nombre'])
 

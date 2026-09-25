@@ -321,16 +321,24 @@ def _flm_wo_list():
     except Exception:
         return []
 
+def _flm_pair_ids():
+    """Devuelve (id_flm_entel, None) — solo existe un proyecto FLM (renombrado a FLM - ENTEL).
+    Retorna (None, None) si no se encuentra el proyecto."""
+    try:
+        flm = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
+        if flm:
+            return flm.id, None
+        return None, None
+    except Exception:
+        return None, None
+
+
 def _flm_hermano_id(pid):
-    """Si pid es FLM o FLM - ENTEL, devuelve el id del proyecto hermano; si no, None."""
-    a, b = _flm_pair_ids()
-    if a is None or b is None:
-        return None
-    if pid == a:
-        return b
-    if pid == b:
-        return a
+    """Si pid es FLM - ENTEL, devuelve None (no hay hermano); si no, None."""
+    # FLM - ENTEL es el único proyecto FLM, no tiene hermano espejo.
+    # Esta función se mantiene por compatibilidad con el resto del código.
     return None
+
 
 
 def _flm_sync_campos(pid, key, campos, metadatos):

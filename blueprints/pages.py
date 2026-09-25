@@ -147,10 +147,8 @@ def index():
                 except Exception:
                     continue
                 est = str(d.get('ESTADO', '')).strip().upper()
+                # Excluir solo si ESTADO tiene un valor distinto a ACTIVO
                 if est and est != 'ACTIVO':
-                    continue
-                pr = str(d.get('PROYECTO', '')).strip()
-                if pr and pr.upper() not in ('FLM', 'PEXT', 'CLARO', 'INTEGRATEL'):
                     continue
                 t = str(d.get('TECNICO', '')).strip()
                 if t:
