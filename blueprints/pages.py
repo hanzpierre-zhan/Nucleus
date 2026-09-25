@@ -214,9 +214,16 @@ def index():
     for r in rows:
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
-        # Visible GESTOR desde EDITADO POR/_ultimo_usuario_manual (FLM/PEXT)
         if proy_actual_nombre in ('FLM', 'PEXT') and not d.get('GESTOR'):
             d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
+            
+        wo_val = str(d.get('NUMERO DE WO') or d.get('WO NUMBER') or d.get('WO Number') or d.get('Número de WO') or '').strip()
+        if wo_val:
+            prefix = wo_val.split('-')[0]
+            if prefix and prefix[0].isalpha():
+                d['Tipo WO'] = prefix
+                columns_set.add('Tipo WO')
+
         raw_data.append(d)
 
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM/PEXT/Claro/Integratel
@@ -483,6 +490,14 @@ def dashboard():
     for r in rows:
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
+        
+        wo_val = str(d.get('NUMERO DE WO') or d.get('WO NUMBER') or d.get('WO Number') or d.get('Número de WO') or '').strip()
+        if wo_val:
+            prefix = wo_val.split('-')[0]
+            if prefix and prefix[0].isalpha():
+                d['Tipo WO'] = prefix
+                columns_set.add('Tipo WO')
+                
         raw_data.append(d)
 
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
