@@ -11,13 +11,6 @@
 
     {% set rol_es_admin = session.get('rol') in ['zeno', 'suport', 'admin'] %}
     {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'PEXT'] %}
-    {% if rol_es_admin and proy_flm_pext %}
-    <label class="topbar-switch" title="Mostrar u ocultar de golpe las columnas manuales de la tabla">
-        <input type="checkbox" id="manual-cols-toggle" onchange="toggleManualColumns(this)">
-        <span class="topbar-switch-track"></span>
-        <span class="topbar-switch-label">Manuales</span>
-    </label>
-    {% endif %}
 
     <div style="flex: 1;"></div>
 
@@ -204,9 +197,9 @@
         background: var(--ios-fill) !important;
     }
     #pagination-container .tabulator-page.active {
-        background: var(--ios-label) !important;
-        color: var(--ios-bg) !important;
-        border-color: var(--ios-label) !important;
+        background: var(--ios-accent) !important;
+        color: #FFFFFF !important;
+        border-color: var(--ios-accent) !important;
     }
     #pagination-container .tabulator-page[disabled] {
         opacity: 0.35 !important;
@@ -337,9 +330,9 @@
     }
 
     .mar-close {
-        background: var(--ios-fill);
-        border: none;
-        color: var(--ios-secondary);
+        background: rgba(255, 59, 48, 0.1);
+        border: 1px solid rgba(255, 59, 48, 0.2);
+        color: #FF3B30;
         width: 32px;
         height: 32px;
         border-radius: 10px;
@@ -349,7 +342,8 @@
     }
 
     .mar-close:hover {
-        background: var(--ios-gray-5);
+        background: rgba(255, 59, 48, 0.15);
+        border-color: #FF3B30;
     }
 
     .mar-body {
@@ -8891,12 +8885,51 @@ btnItem.onclick = () => cotRegAgregarFila();
         ).join('');
     }
 
-    function cargarWoMeta(data) {
+    function _poblarTecnicoSelect(tSel, woTecnicos, currentTech) {
+        tSel.innerHTML = '<option value="">— Seleccionar —</option>';
+        woTecnicos.forEach(t => {
+            const o = document.createElement('option');
+            o.value = t.nombre;
+            o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
+            o.dataset.contrata = t.contrata || '';
+            tSel.appendChild(o);
+        });
+        if (currentTech) {
+            if (!Array.from(tSel.options).some(o => o.value === currentTech)) {
+                const o = document.createElement('option');
+                o.value = currentTech;
+                o.textContent = currentTech + ' (anterior)';
+                tSel.appendChild(o);
+            }
+            tSel.value = currentTech;
+        }
+    }
+
+    function cargarWoMeta(data, _reintentos) {
+        const MAX_REINTENTOS = 3;
+        const intento = _reintentos || 1;
+
         fetch('/api/wo/meta').then(r => r.json()).then(res => {
-            if (!res.success) return;
+            if (!res.success) {
+                console.error('[WO-META] La respuesta del servidor no fue exitosa:', res);
+                return;
+            }
             woServicios = res.servicios || [];
             woTecnicos = res.tecnicos || [];
             woMateriales = res.materiales || [];
+
+            // --- DIAGNÓSTICO: si técnicos vienen vacíos, reintentar ---
+            if (woTecnicos.length === 0 && intento < MAX_REINTENTOS) {
+                console.warn(`[WO-META] Técnicos vacíos (intento ${intento}/${MAX_REINTENTOS}), reintentando en ${intento * 800}ms...`);
+                const tSel = document.getElementById('wo-tecnico');
+                if (tSel) tSel.title = 'Cargando técnicos...';
+                setTimeout(() => cargarWoMeta(data, intento + 1), intento * 800);
+                return;
+            }
+
+            if (woTecnicos.length === 0) {
+                console.error('[WO-META] No se pudieron cargar técnicos después de', MAX_REINTENTOS, 'intentos. Verifica Dataper.');
+            }
 
             const sSel = document.getElementById('wo-servicio');
             sSel.innerHTML = '<option value="">— Seleccionar —</option>';
@@ -8914,33 +8947,22 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (currentServ) sSel.value = currentServ;
 
             const tSel = document.getElementById('wo-tecnico');
-            tSel.innerHTML = '<option value="">— Seleccionar —</option>';
-            woTecnicos.forEach(t => {
-                const o = document.createElement('option');
-                o.value = t.nombre;
-                o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
-                o.dataset.contrata = t.contrata || '';
-                tSel.appendChild(o);
-            });
-            const currentTech = data['TECNICO ASIGNADO'] || '';
-            if (currentTech) tSel.value = currentTech;
+            tSel.title = '';
+            _poblarTecnicoSelect(tSel, woTecnicos, data['TECNICO ASIGNADO'] || '');
 
             const tlSel = document.getElementById('wo-team-leader');
             if (tlSel) {
-                tlSel.innerHTML = '<option value="">— Seleccionar —</option>';
-                woTecnicos.forEach(t => {
-                    const o = document.createElement('option');
-                    o.value = t.nombre;
-                    o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
-                    tlSel.appendChild(o);
-                });
-                const currentTl = data['TEAM LEADER ASIGNADO EN APLICATIVO'] || '';
-                if (currentTl) tlSel.value = currentTl;
+                _poblarTecnicoSelect(tlSel, woTecnicos, data['TEAM LEADER ASIGNADO EN APLICATIVO'] || '');
             }
 
             if (!document.getElementById('wo-contrata').value) onTecnicoChange();
             cargarGastosCombustible();
-        }).catch(() => { });
+        }).catch(err => {
+            console.error('[WO-META] Error de red al cargar metadata del WO:', err);
+            if (intento < MAX_REINTENTOS) {
+                setTimeout(() => cargarWoMeta(data, intento + 1), intento * 800);
+            }
+        });
     }
 
     function onTecnicoChange() {

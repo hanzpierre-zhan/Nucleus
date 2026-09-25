@@ -106,12 +106,10 @@ def api_wo_meta():
             for t in Tecnico.query.all():
                 _add_tec(t.nombre, t.contrata)
 
-        # (2) Dataper activos por familia de proyecto
-        _nombres_ok = set()
-        if proy_nombre:
-            _nombres_ok.add(proy_nombre.upper())
-            if proy_nombre.upper() in ('FLM', 'FLM - ENTEL'):
-                _nombres_ok.update({'FLM', 'FLM - ENTEL'})
+        # (2) Dataper: cargar TODOS los técnicos activos sin filtrar por proyecto.
+        # Los nombres de proyecto en Dataper (FLM, CLARO, INTEGRATEL) no coinciden
+        # necesariamente con los nombres de proyecto del WO, por lo que el filtro
+        # previo dejaba el desplegable vacío. Se cargan todos y se deduplicen por nombre.
         dataper = Proyecto.query.filter_by(nombre='Dataper').first()
         if dataper:
             for r in NucleusData.query.filter_by(proyecto_id=dataper.id).all():
@@ -121,9 +119,6 @@ def api_wo_meta():
                     continue
                 est = str(d.get('ESTADO') or '').strip().upper()
                 if est and est != 'ACTIVO':
-                    continue
-                pr = str(d.get('PROYECTO') or '').strip().upper()
-                if _nombres_ok and pr and pr not in _nombres_ok:
                     continue
                 _add_tec(d.get('TECNICO'), d.get('CONTRATA'))
 
