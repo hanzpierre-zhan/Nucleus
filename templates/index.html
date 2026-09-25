@@ -2988,10 +2988,9 @@
         WO_STATES.forEach(s => counts[s.key] = 0);
 
         rawData.forEach(r => {
-            const woState = norm(val(r,
-                'estado de la tarea (wo state)', 'estado del tt', 'estado', 'wo state', 'state') || '');
+            const opPhase = norm(val(r, 'operate phase') || '');
             WO_STATES.forEach(s => {
-                if (woState.includes(s.key)) counts[s.key]++;
+                if (opPhase === s.key) counts[s.key]++;
             });
         });
 
@@ -3035,11 +3034,10 @@
         };
 
         if (tipo === 'wo-state') {
-            // Filtro flexible: el estado WO contiene la clave (ej. "dispatched" contiene "dispatch")
+            // Filtro exacto por Operate Phase
             table.setFilter((rowData) => {
-                const woState = norm(val(rowData,
-                    'estado de la tarea (wo state)', 'estado del tt', 'estado', 'wo state', 'state') || '');
-                return woState.includes(valor);
+                const opPhase = norm(val(rowData, 'operate phase') || '');
+                return opPhase === valor;
             });
         } else if (tipo === 'sla') {
             table.setFilter((rowData) => {
