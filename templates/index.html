@@ -2788,12 +2788,23 @@
 
     const WO_STATE_COLORS = {
         'unscheduled': { bg: '#8E8E93', fg: '#8E8E93', iconText: 'U' },
-        'accepted': { bg: "var(--ios-accent)", fg: "var(--ios-accent)", iconText: 'A' },
-        'dispatched': { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
-        'inprocess': { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
-        'rejected': { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
-        'closed': { bg: '#34C759', fg: '#34C759', iconText: 'C' },
-        'canceled': { bg: '#00C4B4', fg: '#00C4B4', iconText: 'C' }
+        'accepted':    { bg: "var(--ios-accent)", fg: "var(--ios-accent)", iconText: 'A' },
+        'dispatched':  { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'inprocess':   { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
+        'rejected':    { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
+        'closed':      { bg: '#34C759', fg: '#34C759', iconText: 'C' },
+        'canceled':    { bg: '#00C4B4', fg: '#00C4B4', iconText: 'C' }
+    };
+
+    // Operate Phase: mismos colores que las tarjetas KPI (coincidencia flexible por includes)
+    const OPERATE_PHASE_COLORS = {
+        'dispatch': { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'accept':   { bg: '#007AFF', fg: '#007AFF', iconText: 'A' },
+        'depart':   { bg: '#FF9500', fg: '#FF9500', iconText: 'P' },
+        'arrive':   { bg: '#34C759', fg: '#34C759', iconText: 'R' },
+        'complete': { bg: '#28A745', fg: '#28A745', iconText: 'C' },
+        'leave':    { bg: '#FF3B30', fg: '#FF3B30', iconText: 'L' },
+        'close':    { bg: '#8E8E93', fg: '#8E8E93', iconText: 'X' },
     };
 
     const SITE_PRIORITY_COLORS = {
@@ -4070,6 +4081,41 @@
                             justify-content: center; 
                             border-radius: 4px; 
                             font-size: 11px; 
+                            font-weight: 900;
+                            line-height: 1;
+                        ">${letter}</span>
+                        <span style="color: ${color.fg}; font-weight: 600;">${valStr}</span>
+                    </div>
+                `;
+            };
+        }
+
+        // Operate Phase badge: mismo estilo visual que WO State, colores por fase
+        if (fieldName && fieldName.trim().toLowerCase() === 'operate phase') {
+            colDef.formatter = function (cell) {
+                const val = cell.getValue();
+                if (val === null || val === undefined || String(val).trim() === '') return '';
+                const valStr = String(val).trim();
+                const valNorm = valStr.toLowerCase();
+                // Busca coincidencia flexible (ej. "Dispatched" matchea 'dispatch')
+                let color = null;
+                for (const [key, c] of Object.entries(OPERATE_PHASE_COLORS)) {
+                    if (valNorm.includes(key)) { color = c; break; }
+                }
+                if (!color) return valStr;
+                const letter = color.iconText || valStr.charAt(0).toUpperCase();
+                return `
+                    <div style="display: inline-flex; align-items: center; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 500; height: 100%;">
+                        <span style="
+                            background: ${color.bg};
+                            color: #ffffff;
+                            width: 18px;
+                            height: 18px;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            border-radius: 4px;
+                            font-size: 11px;
                             font-weight: 900;
                             line-height: 1;
                         ">${letter}</span>
