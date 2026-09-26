@@ -51,7 +51,8 @@ def api_rows_update():
         # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
         _proy_upd = db.session.get(Proyecto, pid)
         _proy_upd_nombre = _proy_upd.nombre.strip() if _proy_upd and _proy_upd.nombre else ''
-        if (_proy_upd_nombre == 'PEXT'
+        if (_proy_upd_nombre in ('PEXT', 'FLM', 'FLM - ENTEL')
+                and str(row_dict.get('CATEGORY', '')).strip() == 'O&M PEXT'
                 and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
                 and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
             return jsonify({'error': 'Este WO est\u00e1 finalizado y no puede editarse. Contacta al supervisor o administrador.'}), 403
@@ -144,7 +145,7 @@ def api_rows_update():
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = session.get('username')
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
-        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
             row_dict['GESTOR'] = session.get('username')
         
         # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
@@ -303,7 +304,7 @@ def api_rows_add():
         # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
         proy_obj = db.session.get(Proyecto, pid)
         proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
-        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'PEXT'):
+        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
             return jsonify({'error': 'El rol Contrata no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
         if proy_nombre == 'Combustible':
             row_data['GESTOR'] = session.get('username', '')
@@ -401,11 +402,11 @@ def api_rows_add():
         # Alta manual de WO (FLM/PEXT) por el gestor: exige el CM, fija CATEGORY,
         # aplica TablaMaestra (ej: Hrs Respuesta según Fault Level) y deja rastro
         # en historial + esquema para que el WO se consolide en tabla/KPIs.
-        if proy_nombre in ('FLM', 'PEXT'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
             if not key_val:
                 return jsonify({'error': 'Ingrese el Número de WO (ej: CM-20260719-00000014).'}), 400
             if not str(row_data.get('CATEGORY', '') or '').strip():
-                row_data['CATEGORY'] = 'O&M CRM' if proy_nombre == 'FLM' else 'O&M PEXT'
+                row_data['CATEGORY'] = 'O&M CRM' if proy_nombre in ('FLM', 'FLM - ENTEL') else 'O&M PEXT'
             pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
             pk_col = str(pk_cfg.valor or '').strip() if pk_cfg else ''
             if pk_col:
@@ -414,7 +415,7 @@ def api_rows_add():
             row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             row_data['EDITADO POR'] = session.get('username', '')
             # FLM/PEXT: GESTOR = quien registra/edita; el admin no cuenta.
-            if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+            if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
                 row_data['GESTOR'] = session.get('username', '')
             for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
                 t_cols = [c.strip() for c in t.columna_criterio.split(',')]
@@ -425,7 +426,7 @@ def api_rows_add():
         # Proyectos manuales (Material, Dataper, SITE, Generadores, etc.): la PK debe quedar
         # también dentro del JSON, no solo como key_value. /api/wo/meta y otros lectores
         # hacen d.get('COD_MATERIAL') — si no está, el desplegable sale sin [código].
-        if proy_nombre not in ('FLM', 'PEXT'):
+        if proy_nombre not in ('FLM', 'FLM - ENTEL', 'PEXT'):
             try:
                 _pk_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
                 _pk_col2 = str(_pk_cfg2.valor or '').strip() if _pk_cfg2 else ''
@@ -438,7 +439,7 @@ def api_rows_add():
         db.session.add(new_record)
         db.session.commit()
 
-        if proy_nombre in ('FLM', 'PEXT'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
             db.session.add(HistorialCambios(
                 proyecto_id=pid, usuario_id=session.get('user_id'), username=session.get('username'),
                 key_value=key_val, campo_modificado='CREACIÓN',
@@ -549,7 +550,8 @@ def api_rows_bulk_update():
             return jsonify({'error': 'Este WO ya fue enviado a aprobaci\u00f3n y no puede editarse. Contacta al personal administrativo.'}), 403
 
         # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
-        if (_proy_bulk_nombre == 'PEXT'
+        if (_proy_bulk_nombre in ('PEXT', 'FLM', 'FLM - ENTEL')
+                and str(row_dict.get('CATEGORY', '')).strip() == 'O&M PEXT'
                 and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
                 and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
             return jsonify({'error': 'Este WO est\u00e1 finalizado y no puede editarse. Contacta al supervisor o administrador.'}), 403
@@ -564,7 +566,9 @@ def api_rows_bulk_update():
         # fecha} a la pestaña Bitácora. La clave se consume siempre (sin persistirse).
         if '_BITACORA_ENTRY' in updates:
             _bit_txt = str(updates.pop('_BITACORA_ENTRY') or '').strip()
-            if _proy_bulk_nombre == 'PEXT' and _bit_txt:
+            if (_proy_bulk_nombre in ('PEXT', 'FLM', 'FLM - ENTEL')
+                and str(row_dict.get('CATEGORY', '')).strip() == 'O&M PEXT'
+                and _bit_txt):
                 _entradas = row_dict.get('_BITACORA_ENTRIES')
                 if isinstance(_entradas, str):
                     try:
@@ -621,7 +625,7 @@ def api_rows_bulk_update():
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = session.get('username')
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
-        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+        if _proy_bulk_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
             row_dict['GESTOR'] = session.get('username')
 
         new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
@@ -701,10 +705,10 @@ def api_rows_finalizar():
         if not key_val:
             return jsonify({'error': 'Falta la clave del registro.'}), 400
 
-        # Solo proyecto PEXT
+        # Solo proyecto PEXT (o FLM - ENTEL, donde viven hoy las filas PEXT migradas)
         proy = db.session.get(Proyecto, pid)
-        if not proy or proy.nombre.strip() != 'PEXT':
-            return jsonify({'error': 'Esta acci\u00f3n solo est\u00e1 disponible en el proyecto PEXT.'}), 403
+        if not proy or proy.nombre.strip() not in ('PEXT', 'FLM', 'FLM - ENTEL'):
+            return jsonify({'error': 'Esta acci\u00f3n solo est\u00e1 disponible en los proyectos PEXT/FLM.'}), 403
 
         # Revertir: solo roles privilegiados
         if not finalizado and session.get('rol') not in ('zeno', 'suport', 'supervisor'):

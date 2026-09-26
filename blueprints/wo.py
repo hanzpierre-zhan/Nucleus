@@ -141,8 +141,15 @@ def api_wo_meta():
                 except Exception:
                     continue
                 pr = str(d.get('PROYECTO') or '').strip()
-                if proy_nombre and pr and pr.upper() != proy_nombre.upper():
-                    continue
+                # FLM/PEXT/FLM - ENTEL se tratan como el mismo mundo: si el
+                # proyecto actual es FLM - ENTEL, acepta material etiquetado
+                # 'FLM' o 'PEXT' (filas migradas) y viceversa.
+                if proy_nombre:
+                    de_mismo_mundo = set()
+                    if proy_nombre.upper() in ('FLM', 'FLM - ENTEL', 'PEXT'):
+                        de_mismo_mundo = {'FLM', 'FLM - ENTEL', 'PEXT'}
+                    if pr and pr.upper() not in de_mismo_mundo and pr.upper() != proy_nombre.upper():
+                        continue
                 desc = str(d.get('DESCRIPCION_MATERIAL') or '').strip()
                 if not desc or desc in seen:
                     continue
@@ -179,7 +186,7 @@ def api_detalle_opciones():
         site_geo_map = {}
         def add_norm(s): return str(s or '').strip()
         # SITE maestro (id 9) y Site Name (id 5) + FLM/PEXT como respaldo
-        for nombre_proy in ('SITE', 'Site Name', 'FLM', 'PEXT'):
+        for nombre_proy in ('SITE', 'Site Name', 'FLM', 'FLM - ENTEL', 'PEXT'):
             proy = Proyecto.query.filter_by(nombre=nombre_proy).first()
             if not proy:
                 continue
@@ -211,10 +218,10 @@ def api_detalle_opciones():
                                 prov_dist_map.setdefault(prov, set()).add(dist)
                             site_geo_map[v] = {'departamento': dept, 'provincia': prov, 'distrito': dist, 'prioridad': prio}
                         # Site Name no tiene geo detallado, pero igual agrega nombre
-                    elif v and k == 'codigo site' and nombre_proy in ('FLM', 'PEXT'):
+                    elif v and k == 'codigo site' and nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT'):
                         # No usar código como nombre, solo como fallback si falta nombre
                         pass
-                if nombre_proy in ('FLM', 'PEXT'):
+                if nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT'):
                     for k in ('departamento', 'provincia', 'distrito', 'prioridad del site'):
                         v = add_norm(low_map.get(k))
                         if not v:
@@ -277,9 +284,9 @@ def api_wo_servicios():
 @bp.route('/api/wo/historial', methods=['GET'])
 @login_required
 def api_wo_historial():
-    # Estado e Historial del WO: solo visible para admin.
-    if str(session.get('rol') or '').strip().lower() != 'admin':
-        return jsonify({'error': 'Solo el administrador puede ver el historial.'}), 403
+    # Estado e Historial del WO: solo visible para el personal administrativo/supervisor.
+    if str(session.get('rol') or '').strip().lower() not in ('zeno', 'suport', 'supervisor'):
+        return jsonify({'error': 'Solo el personal administrativo puede ver el historial.'}), 403
     pid = session.get('current_proyecto_id')
     key_val = (request.args.get('key') or '').strip()
     if not key_val:
@@ -409,7 +416,9 @@ def api_sites():
 @login_required
 def api_wos_flm():
     """Devuelve la lista de números de WO (CMs) del proyecto FLM para autocompletado."""
-    proy_flm = Proyecto.query.filter_by(nombre='FLM').first()
+    proy_flm = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
+    if not proy_flm:
+        proy_flm = Proyecto.query.filter_by(nombre='FLM').first()
     if not proy_flm:
         return jsonify([])
     # The key_value is the "Número de WO" in FLM
@@ -424,7 +433,7 @@ def api_wo_resolver():
     wo = (request.args.get('wo') or request.args.get('key') or '').strip()
     if not wo:
         return jsonify({'found': False, 'error': 'Falta WO'}), 400
-    for nombre in ['FLM', 'PEXT']:
+    for nombre in ['FLM - ENTEL', 'FLM', 'PEXT']:
         proy = Proyecto.query.filter_by(nombre=nombre).first()
         if not proy:
             continue

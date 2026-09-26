@@ -64,7 +64,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -75,7 +75,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:
@@ -86,7 +86,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:
@@ -97,7 +97,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:
@@ -108,7 +108,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -198,7 +198,7 @@ def index():
     # Ocultar columnas internas (prefijo _) y redundantes de la vista
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
     # FLM/PEXT: EDITADO POR se reemplaza por GESTOR (quien presiona Guardar, el admin no cuenta).
-    if proy_actual_nombre in ('FLM', 'PEXT'):
+    if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
         columns_set.discard('EDITADO POR')
         columns_set.add('GESTOR')
     # Columna obsoleta que no aporta información (FLM/PEXT).
@@ -212,7 +212,7 @@ def index():
     for r in rows:
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
-        if proy_actual_nombre in ('FLM', 'PEXT') and not d.get('GESTOR'):
+        if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and not d.get('GESTOR'):
             d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
             
         wo_val = str(d.get('NUMERO DE WO') or d.get('WO NUMBER') or d.get('WO Number') or d.get('Número de WO') or '').strip()
@@ -227,7 +227,7 @@ def index():
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM/PEXT/Claro/Integratel
     # según los proyectos asignados al usuario (si tiene varios, muestra todos). Comparación case-insensitive.
     if proy_actual_nombre in ('Dataper', 'Material'):
-        _wo_proys = {'FLM', 'PEXT', 'Claro', 'Integratel'}
+        _wo_proys = {'FLM', 'FLM - ENTEL', 'PEXT', 'Claro', 'Integratel'}
         _wo_upper = {p.upper() for p in _wo_proys}
         if is_privileged:
             allowed_proy = set(_wo_proys)
@@ -244,7 +244,7 @@ def index():
     # Cruce dinámico: Site Name → FLM. Se agregan a cada fila de FLM las columnas
     # DIRECCION, LATITUD, LONGITUD tomadas del proyecto "Site Name" cruzando por
     # la columna "Nombre de Site" ↔ "NOMBRE DE SITE", solo registros ACTIVOS.
-    if proy_actual_nombre == 'FLM':
+    if proy_actual_nombre in ('FLM', 'FLM - ENTEL'):
         site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
         if site_proy:
             site_map = {}
@@ -426,17 +426,22 @@ def index():
 @bp.route('/dashboard')
 @login_required
 def dashboard():
-    user_id, user_rol, pid = get_session_info()
-    is_admin = user_rol == 'zeno'
+    # Módulo Dashboard sustituido por Analytics (igual que en Anton).
+    return redirect(url_for('pages.analytics'))
 
-    # El rol Contrata no accede a dashboards; el Gestor sí (solo lectura)
-    if user_rol in ('contrata',):
+@bp.route('/analytics')
+@login_required
+def analytics():
+    """Módulo Analytics: KPIs y gráficos del proyecto actual (espejo de Anton)."""
+    user_id, user_rol, pid = get_session_info()
+
+    # Los roles Contrata y Gestor no ven analytics (igual que en Anton).
+    if user_rol in ('contrata', 'gestor'):
         return redirect(url_for('pages.index'))
 
     if not pid:
         return redirect(url_for('pages.index'))
 
-    # Verify access to current project
     res_obj = {}
     is_privileged = user_rol in ['zeno', 'suport']
 
@@ -449,7 +454,7 @@ def dashboard():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -463,98 +468,43 @@ def dashboard():
         except:
             res_obj = {}
 
-    schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
-    columns_set = set(json.loads(schema_config.valor)) if schema_config else set()
-    
-    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
-    manual_cols_data = json.loads(manual_cfg.valor) if manual_cfg else []
-    for mc in manual_cols_data:
-        columns_set.add(mc['nombre'])
-        
-    kpi_configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
-    for k in kpi_configs:
-        if k.tipo == 'DILACION':
-            columns_set.add(f"KPI_{k.nombre}")
-    
-    # Ocultar columnas internas (prefijo _) y redundantes de la vista
-    columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
-    # Columna obsoleta que no aporta información (FLM/PEXT).
-    for _hc in list(columns_set):
-        if 'HORA DE CR' in _hc.upper():
-            columns_set.discard(_hc)
-    
     rows = NucleusData.query.filter_by(proyecto_id=pid).limit(5000).all()
     raw_data = []
     for r in rows:
         d = json.loads(r.data_json)
         d['_key'] = r.key_value
-        
-        wo_val = str(d.get('NUMERO DE WO') or d.get('WO NUMBER') or d.get('WO Number') or d.get('Número de WO') or '').strip()
-        if wo_val:
-            prefix = wo_val.split('-')[0]
-            if prefix and prefix[0].isalpha():
-                d['Tipo WO'] = prefix
-                columns_set.add('Tipo WO')
-                
         raw_data.append(d)
 
-    # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
-    # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
     proy_actual = db.session.get(Proyecto, pid)
     proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
-    # FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta).
-    if proy_actual_nombre in ('FLM', 'PEXT'):
-        columns_set.discard('EDITADO POR')
-        columns_set.add('GESTOR')
+    # FLM/PEXT: GESTOR visible desde EDITADO POR/_ultimo_usuario_manual.
+    if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
         for d in raw_data:
             if not d.get('GESTOR'):
                 d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
     if proy_actual_nombre in ('Dataper', 'Material'):
-        _wo_proys2 = {'FLM', 'PEXT', 'Claro', 'Integratel'}
-        _wo_upper2 = {p.upper() for p in _wo_proys2}
+        _wo_proys_an = {'FLM', 'FLM - ENTEL', 'PEXT', 'Claro', 'Integratel'}
         if is_privileged:
-            allowed_proy = set(_wo_proys2)
+            allowed_proy = set(_wo_proys_an)
         else:
             accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
             allowed_proy = set()
             for a in accs:
                 ap = db.session.get(Proyecto, a.proyecto_id)
-                if ap and ap.nombre in _wo_proys2:
+                if ap and ap.nombre in _wo_proys_an:
                     allowed_proy.add(ap.nombre)
-        _allowed_upper2 = {p.upper() for p in allowed_proy}
-        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper2]
-        
-    data = apply_data_restrictions(raw_data, res_obj)
-        
-    data, kpi_meta = inject_kpis(pid, data)
+        _allowed_upper_an = {p.upper() for p in allowed_proy}
+        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper_an]
 
-    cols = sorted(list(columns_set))
-    
-    # List allowed projects for the menu
+    data = apply_data_restrictions(raw_data, res_obj)
+
     proyectos = get_menu_proyectos(user_id, user_rol)
 
-    # Load saved configurations
-    dash_config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_charts').first()
-    saved_charts = json.loads(dash_config.valor) if dash_config else []
-    
-    kpi_config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_kpis').first()
-    saved_kpis = json.loads(kpi_config.valor) if kpi_config else []
-    
-    filt_config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_filters').first()
-    saved_filters = json.loads(filt_config.valor) if filt_config else []
-    
-    # Get current project name
-    proj = Proyecto.query.get(pid)
-    proyecto_nombre = proj.nombre if proj else "Gestión"
-    
-    return render_template('dashboard.html', 
-                          data=json.dumps(data), 
-                          columns=json.dumps(cols), 
-                          proyectos_list=proyectos,
-                          saved_charts=json.dumps(saved_charts),
-                          saved_kpis=json.dumps(saved_kpis),
-                          saved_filters=json.dumps(saved_filters),
-                          proyecto_nombre=proyecto_nombre)
+    return render_template('analytics.html',
+                           data=json.dumps(data),
+                           proyectos_list=proyectos,
+                           proyecto_nombre=proy_actual_nombre,
+                           proyecto_id=pid)
 
 
 @bp.route('/configuraciones')
@@ -622,7 +572,9 @@ def mapa_site():
         abort(404)
     if user_rol not in ('zeno', 'suport'):
         # Debe tener FLM para ver el mapa de sites
-        flm = Proyecto.query.filter_by(nombre='FLM').first()
+        flm = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
+        if not flm:
+            flm = Proyecto.query.filter_by(nombre='FLM').first()
         has_flm = False
         if flm:
             has_flm = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=flm.id).first() is not None

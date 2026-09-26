@@ -1,0 +1,1200 @@
+{% extends "base.html" %}
+{% block title %}Analytics · {{ proyecto_nombre }} · Nucleus{% endblock %}
+{% block content %}
+<style>
+    /* Scroll propio: el shell global (html/body/main) tiene overflow hidden para la grilla;
+       Analytics necesita bajar, así que el wrap llena el alto y scrollea por su cuenta. */
+    .an-wrap { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px 40px; }
+    .an-wrap-inner { max-width: 1560px; margin: 0 auto; }
+    .an-wrap::-webkit-scrollbar { width: 10px; }
+    .an-wrap::-webkit-scrollbar-track { background: transparent; }
+    .an-wrap::-webkit-scrollbar-thumb { background: rgba(10,132,255,0.35); border-radius: 8px; }
+    .an-wrap::-webkit-scrollbar-thumb:hover { background: rgba(10,132,255,0.6); }
+    .an-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+    .an-head h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+    /* Selector de dashboard (Producción / Seguimiento) */
+    .an-dashbtn { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+        font-size: 12.5px; font-weight: 800; padding: 7px 15px; border-radius: 999px;
+        color: #fff; background: linear-gradient(135deg, rgba(10,132,255,0.28), rgba(48,176,199,0.24));
+        border: 1px solid rgba(10,132,255,0.6); box-shadow: 0 2px 14px rgba(10,132,255,0.28); }
+    .an-dashbtn:hover { box-shadow: 0 2px 20px rgba(10,132,255,0.5); }
+    .an-dashbtn .fa-layer-group { color: #0A84FF; }
+    .an-dashbtn .fa-chevron-down { font-size: 10px; color: #a0c8ff; }
+    .an-dashopt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+        cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--ios-label);
+        padding: 9px 10px; border: 0; border-radius: 9px; background: transparent; }
+    .an-dashopt:hover { background: rgba(10,132,255,0.12); }
+    .an-dashopt i { width: 16px; text-align: center; color: var(--ios-gray, #8E8E93); }
+    .an-dashopt.on { background: rgba(10,132,255,0.16); color: #fff; }
+    .an-dashopt.on i { color: #0A84FF; }
+    .an-head .an-fboxes { margin-bottom: 0; }
+    /* Seguimiento: 2 columnas de gráficos + tabla de sites a la der */
+    .an-grid-seg { display: grid; gap: 14px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.55fr);
+        align-items: start; margin-bottom: 14px; }
+    .an-sgtable-card { grid-column: 3; grid-row: 1 / span 3; }
+    @media (max-width: 1150px) {
+        .an-grid-seg { grid-template-columns: minmax(0, 1fr); }
+        .an-sgtable-card { grid-column: auto; grid-row: auto; }
+    }
+    .an-total { margin-left: auto; font-size: 12px; color: var(--ios-gray, #8E8E93); font-weight: 600; }
+    .an-total b { font-size: 20px; color: var(--ios-label); margin-right: 6px; }
+    /* Filtro activo por clic en gráfico */
+    .an-chartf { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+        font-size: 12px; font-weight: 800; padding: 7px 13px; border-radius: 10px;
+        background: rgba(10,132,255,0.14); color: #0A84FF;
+        border: 1px solid rgba(10,132,255,0.4); }
+    .an-chartf:hover { background: rgba(10,132,255,0.24); }
+    /* Barra de chips (Tipo WO, Mes, Departamento, Causa raíz) */
+    .an-lbl { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+        color: var(--ios-gray, #8E8E93); }
+    .an-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .an-chip { display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+        font-size: 12px; font-weight: 800; padding: 6px 15px; border-radius: 999px;
+        border: 1px solid var(--ios-hairline, rgba(255,255,255,0.12));
+        background: var(--ios-fill, rgba(120,120,128,0.14)); color: var(--ios-gray, #8E8E93);
+        transition: all .15s ease; }
+    .an-chip:hover { transform: translateY(-1px); }
+    .an-chip.on { background: #0A84FF; color: #fff; border-color: #0A84FF;
+        box-shadow: 0 2px 12px rgba(10,132,255,0.4); }
+    /* Filtros tipo lista desplegable */
+    .an-fboxes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .an-sel { position: relative; }
+    .an-sel-btn { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+        font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 10px;
+        background: var(--ios-card-bg, #1C1C1E); color: var(--ios-label);
+        border: 1px solid var(--ios-hairline, rgba(255,255,255,0.12)); }
+    .an-sel-btn:hover { border-color: rgba(10,132,255,0.5); }
+    .an-sel-btn .an-lbl { margin: 0; }
+    .an-sel-val { color: #0A84FF; font-weight: 800; max-width: 190px; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap; }
+    .an-sel-btn .fa-chevron-down { font-size: 10px; color: #0A84FF; }
+    .an-sel-panel { display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+        min-width: 215px; max-width: 300px; max-height: 290px; overflow-y: auto; padding: 8px;
+        background: var(--ios-card-bg, #1C1C1E); border: 1px solid var(--ios-hairline, rgba(255,255,255,0.12));
+        border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.45); }
+    .an-sel-panel.show { display: block; }
+    .an-sel-all { display: block; width: 100%; text-align: left; cursor: pointer;
+        font-size: 12px; font-weight: 800; color: #0A84FF; padding: 7px 9px; border-radius: 8px;
+        background: transparent; border: 0; }
+    .an-sel-all:hover { background: rgba(10,132,255,0.12); }
+    .an-sel-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px;
+        padding: 6px 8px; cursor: pointer; border-radius: 8px; }
+    .an-sel-row:hover { background: rgba(10,132,255,0.10); }
+    .an-sel-row input { accent-color: #0A84FF; width: 15px; height: 15px; cursor: pointer; flex: none; }
+    .an-sel-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .an-sel-row em { margin-left: auto; font-style: normal; font-size: 11px;
+        color: var(--ios-gray, #8E8E93); flex: none; }
+    /* Layout principal: PRODUCCIÓN + 4 gráficos a la izq, tabla de sites a la der */
+    .an-grid { display: grid; gap: 14px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.55fr);
+        align-items: start; margin-bottom: 14px; }
+    .an-prod { grid-column: 1 / span 2; }
+    .an-table-card { grid-column: 3; grid-row: 1 / span 3; }
+    @media (max-width: 1150px) {
+        .an-grid { grid-template-columns: minmax(0, 1fr); }
+        .an-prod, .an-table-card { grid-column: auto; grid-row: auto; }
+    }
+    .an-card { background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0) 30%),
+        var(--ios-card-bg, #1C1C1E);
+        border: 1px solid var(--ios-hairline, rgba(255,255,255,0.09));
+        border-radius: 16px; padding: 16px 18px 14px;
+        box-shadow: var(--shadow-soft, 0 4px 16px rgba(0,0,0,0.25));
+        transition: transform .18s ease, box-shadow .18s ease; min-width: 0; }
+    .an-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.4); }
+    .an-card h4 { margin: 0 0 4px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase;
+        color: var(--ios-gray, #8E8E93); }
+    .an-card .an-sub { font-size: 11px; color: var(--ios-gray, #8E8E93); margin-bottom: 8px; }
+    .an-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+    .an-cv { position: relative; height: 150px; }
+    .an-cv-prod { position: relative; height: 190px; }
+    .an-empty { padding: 26px; text-align: center; color: var(--ios-gray, #8E8E93); font-size: 13px; }
+    .an-search { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px 12px; border-radius: 10px;
+        border: 1px solid var(--ios-hairline, rgba(255,255,255,0.12));
+        background: var(--ios-fill, rgba(120,120,128,0.14)); color: var(--ios-label); font-size: 12.5px; outline: none; }
+    .an-sitelist { max-height: 700px; overflow-y: auto; overflow-x: auto; }
+    /* Tabla Close por site */
+    .an-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .an-tbl th { text-align: left; padding: 6px 6px; color: var(--ios-gray, #8E8E93); font-size: 11px;
+        text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--ios-hairline, rgba(255,255,255,0.1));
+        position: sticky; top: 0; background: var(--ios-card-bg, #1C1C1E); }
+    .an-tbl td { padding: 6px 6px; border-bottom: 1px solid var(--ios-hairline, rgba(255,255,255,0.05)); white-space: nowrap; }
+    .an-tbl tbody tr { transition: background .12s ease; }
+    .an-tbl tbody tr:hover td { background: rgba(10,132,255,0.06); }
+    .an-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .an-tbl .an-rank-cell { font-weight: 800; color: var(--ios-gray, #8E8E93); min-width: 30px; }
+    .an-tbl .an-site-cell { font-weight: 700; color: var(--ios-label); }
+    .an-tbl .t-total { font-weight: 800; color: #0A84FF; }
+    .an-tbl .an-tfoot td { font-weight: 800; color: var(--ios-label, #E7E0ED);
+        border-top: 1px solid rgba(255,255,255,0.1); background: rgba(10,132,255,0.07); }
+</style>
+<div class="an-wrap"><div class="an-wrap-inner">
+    <div class="an-head">
+        <h2>Analytics</h2>
+        <div class="an-sel" id="an-dashsel">
+            <button type="button" class="an-dashbtn" id="an-dashbtn">
+                <i class="fa-solid fa-layer-group"></i><b id="an-dashname">Seguimiento</b>
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="an-sel-panel" id="an-dashpanel">
+                <button type="button" class="an-dashopt on" data-d="seg"><i class="fa-solid fa-magnifying-glass-chart"></i>Seguimiento</button>
+                <button type="button" class="an-dashopt" data-d="prod"><i class="fa-solid fa-industry"></i>Producción</button>
+            </div>
+        </div>
+        <div class="an-fboxes" id="an-filters" style="display:none;">
+            <div class="an-sel" id="an-sel-tipos">
+                <button type="button" class="an-sel-btn" id="an-sel-tipos-btn">
+                    <span class="an-lbl">Tipo WO</span><b class="an-sel-val" id="an-sel-tipos-val">Todos</b>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div class="an-sel-panel" id="an-sel-tipos-panel"></div>
+            </div>
+            <div class="an-sel" id="an-sel-mes">
+                <button type="button" class="an-sel-btn" id="an-sel-mes-btn">
+                    <span class="an-lbl">Mes</span><b class="an-sel-val" id="an-sel-mes-val">Todos</b>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div class="an-sel-panel" id="an-sel-mes-panel"></div>
+            </div>
+            <div class="an-sel" id="an-sel-dep">
+                <button type="button" class="an-sel-btn" id="an-sel-dep-btn">
+                    <span class="an-lbl">Departamento</span><b class="an-sel-val" id="an-sel-dep-val">Todos</b>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div class="an-sel-panel" id="an-sel-dep-panel"></div>
+            </div>
+            <div class="an-sel" id="an-sel-causa">
+                <button type="button" class="an-sel-btn" id="an-sel-causa-btn">
+                    <span class="an-lbl">Causa raíz</span><b class="an-sel-val" id="an-sel-causa-val">Todos</b>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div class="an-sel-panel" id="an-sel-causa-panel"></div>
+            </div>
+        </div>
+        <button type="button" class="an-chartf" id="an-chartf" style="display:none;" title="Quitar filtro del gráfico"></button>
+        <span class="an-total" id="an-totalwrap"><b id="an-total">–</b><span id="an-total-txt">registros</span></span>
+    </div>
+    <div class="an-grid" id="an-view-prod">
+        <div class="an-card an-prod" id="an-card-line">
+            <h4>PRODUCCIÓN</h4>
+            <div class="an-sub" id="an-line-sub"></div>
+            <div class="an-cv-prod"><canvas id="an-line"></canvas></div>
+        </div>
+        <div class="an-card" id="an-card-dept" style="display:none;">
+            <h4>Departamento</h4>
+            <div class="an-sub" id="an-dept-sub"></div>
+            <div class="an-cv"><canvas id="an-dept"></canvas></div>
+        </div>
+        <div class="an-card" id="an-card-causa" style="display:none;">
+            <h4>Causa raíz</h4>
+            <div class="an-sub" id="an-causa-sub"></div>
+            <div class="an-cv"><canvas id="an-causa"></canvas></div>
+        </div>
+        <div class="an-card" id="an-card-prior" style="display:none;">
+            <h4>Prioridad</h4>
+            <div class="an-sub" id="an-prior-sub"></div>
+            <div class="an-cv"><canvas id="an-prior"></canvas></div>
+        </div>
+        <div class="an-card" id="an-card-bar">
+            <h4 id="an-bar-title">Detalle</h4>
+            <div class="an-sub" id="an-bar-sub"></div>
+            <div class="an-cv"><canvas id="an-bar"></canvas></div>
+        </div>
+        <div class="an-card an-table-card" id="an-card-sites" style="display:none;">
+            <div class="an-card-head">
+                <h4>Close por site</h4>
+                <button type="button" class="an-chip" id="an-sort">Ordenar <i class="fa-solid fa-arrow-down-wide-narrow"></i></button>
+            </div>
+            <div class="an-sub" id="an-sites-sub"></div>
+            <input class="an-search" id="an-site-search" type="text" placeholder="Buscar site…" autocomplete="off" />
+            <div class="an-sitelist" id="an-sitelist">
+                <table class="an-tbl">
+                    <thead>
+                        <tr>
+                            <th>#</th><th>Site</th>
+                            <th class="num">CM</th><th class="num">PM</th><th class="num">PLM</th>
+                            <th class="num">T</th>
+                            <th class="num" id="an-th-otro">Otro</th>
+                            <th class="num">TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="an-sitetbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div id="an-view-seg" style="display:none;">
+        <div class="an-grid-seg">
+            <div class="an-card" id="an-card-sgop">
+                <h4>Operate Phase</h4>
+                <div class="an-sub" id="an-sgop-sub"></div>
+                <div class="an-cv"><canvas id="an-sgop"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-sgbacklog">
+                <h4>Backlog</h4>
+                <div class="an-sub" id="an-sgbacklog-sub"></div>
+                <div id="an-sgbacklog-list"><table class="an-tbl" id="an-sgbacklog-tbl"></table></div>
+            </div>
+            <div class="an-card an-sgtable-card" id="an-card-sgsites" style="display:none;">
+                <div class="an-card-head">
+                    <h4>Sites</h4>
+                    <button type="button" class="an-chip" id="an-sg-sort">Ordenar <i class="fa-solid fa-arrow-down-wide-narrow"></i></button>
+                </div>
+                <div class="an-sub" id="an-sgsites-sub"></div>
+                <input class="an-search" id="an-sg-site-search" type="text" placeholder="Buscar site…" autocomplete="off" />
+                <div class="an-sitelist" id="an-sgsitelist">
+                    <table class="an-tbl">
+                        <thead>
+                            <tr><th>#</th><th>Site</th><th class="num">CM</th><th class="num">TOTAL</th></tr>
+                        </thead>
+                        <tbody id="an-sgsitetbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="an-card" id="an-card-sgprior" style="display:none;">
+                <h4>Prioridad</h4>
+                <div class="an-sub" id="an-sgprior-sub"></div>
+                <div class="an-cv"><canvas id="an-sgprior"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-sgfalla" style="display:none;">
+                <h4>Nivel de Falla</h4>
+                <div class="an-sub" id="an-sgfalla-sub"></div>
+                <div class="an-cv"><canvas id="an-sgfalla"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-sgdept" style="display:none;">
+                <h4>Departamento</h4>
+                <div class="an-sub" id="an-sgdept-sub"></div>
+                <div class="an-cv"><canvas id="an-sgdept"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-sgtipoav" style="display:none;">
+                <h4>Tipo de Avería</h4>
+                <div class="an-sub" id="an-sgtipoav-sub"></div>
+                <div class="an-cv"><canvas id="an-sgtipoav"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+    const rawData = {{ data | safe }};
+    const proyName = "{{ proyecto_nombre }}";
+    // El análisis completo (filtros + gráficos + sites) aplica a FLM - ENTEL / FLM / PEXT.
+    const isPext = ['flm - entel', 'flm', 'pext'].includes(proyName.trim().toLowerCase());
+    // Norm sin tildes para matchear columnas reales como 'Número de WO' / 'Causa raíz'.
+    const deTildes = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const norm = v => deTildes(v == null ? '' : v).trim().toLowerCase();
+    const cellLbl = (r, k) => { const v = k ? r[k] : null; return (v == null ? '' : String(v)).trim() || '(Vacío)'; };
+    const fmtN = n => Number(n || 0).toLocaleString('es-PE');
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const findKey = (row, ...names) => {
+        const keys = Object.keys(row || {});
+        // Match: igualdad exacta o el nombre buscado es prefijo de la clave real
+        // (ej. 'fecha de creacion' === 'Fecha de creación (WO Creation date)').
+        const matchKey = (k, n) => {
+            if (norm(k) === n) return true;
+            if (n.length > 4 && (norm(k).startsWith(n + ' ') || norm(k).startsWith(n + '(') || norm(k).startsWith(n + '.'))) return true;
+            return false;
+        };
+        for (const n of names) {
+            const k = keys.find(x => matchKey(x, n));
+            if (k !== undefined && row[k] != null && String(row[k]).trim() !== '') return k;
+        }
+        return null;
+    };
+    const PALETTE = ['#0A84FF', '#30B0C7', '#34C759', '#FF9F0A', '#FF375F', '#8E8E93', '#5856D6', '#AF52DE'];
+    const ACCENT = '#0A84FF', MUTED = '#4a4a4e';
+    // Busca el nombre real de columna aunque la primera fila lo tenga vacío.
+    const keyNamed = (...names) => {
+        const matchKey = (k, n) => {
+            if (norm(k) === n) return true;
+            if (n.length > 4 && (norm(k).startsWith(n + ' ') || norm(k).startsWith(n + '(') || norm(k).startsWith(n + '.'))) return true;
+            return false;
+        };
+        for (const r of (rawData || [])) {
+            const k = findKey(r, ...names);
+            if (k) return k;
+        }
+        const allKeys = new Set();
+        (rawData || []).forEach(r => Object.keys(r || {}).forEach(k => allKeys.add(k)));
+        for (const n of names) {
+            const k = Array.from(allKeys).find(x => matchKey(x, n));
+            if (k) return k;
+        }
+        return null;
+    };
+    const TIP = { backgroundColor: '#232326', borderColor: 'rgba(255,255,255,0.14)', borderWidth: 1,
+        padding: 12, cornerRadius: 10, titleFont: { weight: '800' },
+        callbacks: { label: ctx => ' ' + (ctx.dataset.label ? ctx.dataset.label + ': ' : '') + fmtN(ctx.parsed.y != null ? ctx.parsed.y : ctx.parsed) } };
+    function grad(hex, alpha) {
+        return (ctx) => {
+            const { chart } = ctx;
+            const area = chart.chartArea || { top: 0, bottom: 260, left: 0, right: 300 };
+            const horizontal = (chart.config.options || {}).indexAxis === 'y';
+            let g;
+            try {
+                g = horizontal
+                    ? chart.ctx.createLinearGradient(area.left, 0, area.right, 0)
+                    : chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
+            } catch (e) { return hex; }
+            g.addColorStop(0, hex);
+            g.addColorStop(1, hex + alpha);
+            return g;
+        };
+    }
+    // Plugin: dibuja el valor sobre cada barra / punto / segmento (cantidades visibles).
+    function valueLabelsPlugin() {
+        return { id: 'an-vals',
+            afterDatasetsDraw(chart) {
+                try {
+                    const ctx = chart.ctx, type = chart.config.type;
+                    if (type !== 'bar' && type !== 'line' && type !== 'doughnut' && type !== 'pie') return;
+                    ctx.save();
+                    ctx.textBaseline = 'middle';
+                    chart.data.datasets.forEach((ds, di) => {
+                        const meta = chart.getDatasetMeta(di);
+                        (meta.data || []).forEach((el, i) => {
+                            let v = ds.data[i];
+                            if (v == null || Number(v) === 0) return;
+                            const txt = fmtN(v);
+                            if (type === 'bar') {
+                                const isH = (chart.options.indexAxis || 'x') === 'y';
+                                if (isH) {
+                                    const x = Math.max(el.base, el.x) + 5;
+                                    ctx.textAlign = 'left';
+                                    ctx.fillStyle = '#cfc8d6';
+                                    ctx.font = '700 11px "IBM Plex Mono", monospace';
+                                    ctx.fillText(txt, x, el.y);
+                                } else {
+                                    ctx.textAlign = 'center';
+                                    ctx.fillStyle = '#cfc8d6';
+                                    ctx.font = '700 11px "IBM Plex Mono", monospace';
+                                    ctx.fillText(txt, el.x, el.y - 7);
+                                }
+                            } else if (type === 'line') {
+                                ctx.textAlign = 'center';
+                                ctx.fillStyle = '#cfc8d6';
+                                ctx.font = '700 10px "IBM Plex Mono", monospace';
+                                ctx.fillText(txt, el.x, el.y - 9 - di * 11);
+                            } else {
+                                const mid = (el.startAngle + el.endAngle) / 2;
+                                const r = (el.outerRadius + el.innerRadius) / 2;
+                                const x = el.x + Math.cos(mid) * r;
+                                const y = el.y + Math.sin(mid) * r;
+                                ctx.textAlign = 'center';
+                                ctx.fillStyle = '#fff';
+                                ctx.font = '700 10.5px "IBM Plex Mono", monospace';
+                                ctx.shadowColor = 'rgba(0,0,0,0.55)';
+                                ctx.shadowBlur = 4;
+                                ctx.fillText(txt, x, y);
+                                ctx.shadowBlur = 0;
+                            }
+                        });
+                    });
+                    ctx.restore();
+                } catch (e) {}
+            } };
+    }
+    if (window.Chart) {
+        Chart.defaults.color = '#a1a1aa';
+        Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+        Chart.defaults.font.family = 'Outfit, sans-serif';
+        Chart.defaults.animation = { duration: 900, easing: 'easeOutQuart' };
+        // El canvas llena el alto fijo de su contenedor (.an-cv / .an-cv-prod);
+        // sin esto Chart.js impone su propia proporción y la altura CSS no manda.
+        Chart.defaults.maintainAspectRatio = false;
+        Chart.defaults.plugins.tooltip = Object.assign({}, Chart.defaults.plugins.tooltip, TIP);
+        Chart.register(valueLabelsPlugin());
+    }
+    const PHASE_ORDER = ['dispatch', 'accept', 'depart', 'arrive', 'complete', 'close'];
+    const PHASE_STYLE = {
+        dispatch: ['#AF52DE', 'fa-paper-plane'],
+        accept: ['#0A84FF', 'fa-check-double'],
+        depart: ['#FF9500', 'fa-truck-fast'],
+        arrive: ['#30B0C7', 'fa-flag'],
+        complete: ['#34C759', 'fa-circle-check'],
+        close: ['#8E8E93', 'fa-lock']
+    };
+    const K_CRE = keyNamed('fecha de creacion', 'fecha creacion', 'creation date', 'fecha_ticket', 'fecha');
+    const K_CAMBIO = keyNamed('fecha cambio estado');
+    const K_PHASE = keyNamed('operate phase');
+    const K_SITE = keyNamed('nombre de site');
+    const K_WO = keyNamed('numero de wo', 'numero wo', 'numero');
+    const K_DEPT = keyNamed('departamento');
+    const K_CAUSA = keyNamed('causa raiz', 'causa raíz', 'causa', 'root cause');
+    const K_PRIO = keyNamed('prioridad del site');
+    const K_TIPOAV = keyNamed('tipo tarea', 'tipo de averia', 'tipo de avería', 'tipo averia');
+    const TIPOS_CNOCIDOS = ['CM', 'PM', 'PLM', 'T'];
+    // Tipo WO = prefijo alfabético del NUMERO DE WO (CM/PM/PLM); lo demás a "Otro".
+    function tipoOf(r) {
+        const s = String(K_WO ? r[K_WO] : '').trim();
+        const m = s.match(/^[A-Za-z]+/);
+        const t = m ? m[0].toUpperCase() : '';
+        return TIPOS_CNOCIDOS.includes(t) ? t : ((t || s) ? 'Otro' : '(Sin WO)');
+    }
+    function parseYm(v) {
+        const m = String(v || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? (m[1] + '-' + m[2]) : null;
+    }
+    function currentYm() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    }
+
+    // ---------- estado global de filtros ----------
+    const anState = {
+        all: false,
+        months: new Set(),
+        tipos: new Set(),
+        dep: new Set(),
+        causa: new Set(),
+        chart: null,          // {field, value, label}
+        siteSearch: '',
+        sort: 'desc',
+        sgSearch: '',
+        sgSort: 'desc'
+    };
+
+    // Meses disponibles SOLO de la fecha de creación (si se filtran por creación,
+    // seleccionar meses sin datos hacía desaparecer todo al dejar filas vacías).
+    function availableMonths() {
+        const s = new Set();
+        (rawData || []).forEach(r => {
+            const a = K_CRE ? parseYm(r[K_CRE]) : null;
+            if (a) s.add(a);
+        });
+        return Array.from(s).sort().reverse();
+    }
+    function baseFilteredRows() {
+        if (!isPext) return rawData || [];
+        let rows = rawData || [];
+        if (anState.tipos.size) rows = rows.filter(r => anState.tipos.has(tipoOf(r)));
+        if (anState.dep.size) rows = rows.filter(r => K_DEPT && anState.dep.has(norm(cellLbl(r, K_DEPT))));
+        if (anState.causa.size) rows = rows.filter(r => K_CAUSA && anState.causa.has(norm(cellLbl(r, K_CAUSA))));
+        if (anState.chart) rows = rows.filter(r => chartMatches(r, anState.chart));
+        return rows;
+    }
+    function filteredRows() {
+        const rows = baseFilteredRows();
+        if (!isPext || anState.all || anState.months.size === 0) return rows;
+        return rows.filter(r => {
+            const ym = K_CRE ? parseYm(r[K_CRE]) : null;
+            return ym && anState.months.has(ym);
+        });
+    }
+    function chartKey(field) {
+        switch (field) {
+            case 'phase': return K_PHASE;
+            case 'fault': return keyNamed('fault level', 'departamento', 'provincia', 'category');
+            case 'dept': return K_DEPT;
+            case 'causa': return K_CAUSA;
+            case 'tipoav': return K_TIPOAV;
+            case 'prior': return keyNamed('prioridad del site');
+            default: return null;
+        }
+    }
+    function chartMatches(r, f) {
+        const k = chartKey(f.field);
+        return !!k && norm(r[k]) === f.value;
+    }
+    function toggleChart(field, value, label) {
+        if (anState.chart && anState.chart.field === field && anState.chart.value === value) anState.chart = null;
+        else anState.chart = { field, value, label };
+        renderAll();
+    }
+    function renderChartChip() {
+        const el = document.getElementById('an-chartf');
+        if (!anState.chart) { el.style.display = 'none'; return; }
+        el.style.display = 'inline-flex';
+        el.innerHTML = '<i class="fa-solid fa-filter"></i>' + esc(anState.chart.label) +
+            ' <i class="fa-solid fa-xmark" style="font-size:10px;"></i>';
+        el.onclick = () => { anState.chart = null; renderAll(); };
+    }
+
+    function filterLabel() {
+        if (anState.all || anState.months.size === 0) return 'Todos los meses';
+        const ms = Array.from(anState.months).sort();
+        if (ms.length === 1) return ms[0];
+        return ms.length + ' meses';
+    }
+    /* Listas desplegables de filtro: el panel se construye UNA vez (estable al hacer
+       clic) y luego solo se sincronizan checks/etiqueta, sin destruir el DOM. */
+    function tipoCounts() {
+        const c = {};
+        (rawData || []).forEach(r => { const t = tipoOf(r); c[t] = (c[t] || 0) + 1; });
+        return c;
+    }
+    function monthCounts() {
+        const c = {};
+        (rawData || []).forEach(r => {
+            const m = K_CRE ? parseYm(r[K_CRE]) : null;
+            if (m) c[m] = (c[m] || 0) + 1;
+        });
+        return c;
+    }
+    function selLabelSingle(sel, items, allTxt) {
+        if (sel.size === 0) return allTxt;
+        if (sel.size === 1) {
+            const v = Array.from(sel)[0];
+            const it = items.find(x => x.v === v);
+            return it ? it.label : allTxt;
+        }
+        return sel.size + ' selecc.';
+    }
+    const SELS = [
+        { key: 'tipos', panel: 'an-sel-tipos-panel', val: 'an-sel-tipos-val',
+          items: () => { const tc = tipoCounts(); return tipoList().map(t => ({ v: t, label: t, n: tc[t] || 0 })); },
+          isOn: v => anState.tipos.has(v),
+          label: items => selLabelSingle(anState.tipos, items, 'Todos'),
+          reset: () => { anState.tipos.clear(); },
+          toggle: (v, on) => { if (on) anState.tipos.add(v); else anState.tipos.delete(v); } },
+        { key: 'mes', panel: 'an-sel-mes-panel', val: 'an-sel-mes-val',
+          items: () => { const mc = monthCounts(); return availableMonths().map(m => ({ v: m, label: m, n: mc[m] || 0 })); },
+          isOn: v => !anState.all && anState.months.has(v),
+          label: () => filterLabel(),
+          reset: () => { anState.all = true; anState.months.clear(); },
+          toggle: (v, on) => {
+              anState.all = false;
+              if (on) anState.months.add(v);
+              else {
+                  anState.months.delete(v);
+                  if (anState.months.size === 0) anState.all = true;
+              }
+          } },
+        { key: 'dep', panel: 'an-sel-dep-panel', val: 'an-sel-dep-val',
+          items: () => K_DEPT ? distinctVals(K_DEPT, 12).map(o => ({ v: norm(o.label), label: o.label, n: o.n })) : [],
+          isOn: v => anState.dep.has(v),
+          label: items => selLabelSingle(anState.dep, items, 'Todos'),
+          reset: () => { anState.dep.clear(); },
+          toggle: (v, on) => { if (on) anState.dep.add(v); else anState.dep.delete(v); } },
+        { key: 'causa', panel: 'an-sel-causa-panel', val: 'an-sel-causa-val',
+          items: () => K_CAUSA ? distinctVals(K_CAUSA, 12).map(o => ({ v: norm(o.label), label: o.label, n: o.n })) : [],
+          isOn: v => anState.causa.has(v),
+          label: items => selLabelSingle(anState.causa, items, 'Todos'),
+          reset: () => { anState.causa.clear(); },
+          toggle: (v, on) => { if (on) anState.causa.add(v); else anState.causa.delete(v); } }
+    ];
+    function buildSels() {
+        SELS.forEach(cfg => {
+            const panel = document.getElementById(cfg.panel);
+            if (!panel) return;
+            const items = cfg.items();
+            let html = `<button type="button" class="an-sel-all">Ver todos</button>`;
+            items.forEach(it => {
+                html += `<label class="an-sel-row"><input type="checkbox" data-v="${esc(it.v)}" />` +
+                    `<span>${esc(it.label)}</span><em>${fmtN(it.n)}</em></label>`;
+            });
+            panel.innerHTML = html;
+            panel.querySelector('.an-sel-all').addEventListener('click', () => { cfg.reset(); renderAll(); });
+            panel.querySelectorAll('input').forEach(cb => cb.addEventListener('change', () => {
+                cfg.toggle(cb.dataset.v, cb.checked);
+                renderAll();
+            }));
+        });
+        syncSels();
+    }
+    function syncSels() {
+        if (!isPext) return;
+        SELS.forEach(cfg => {
+            const panel = document.getElementById(cfg.panel);
+            const valEl = document.getElementById(cfg.val);
+            if (!panel || !valEl) return;
+            valEl.textContent = cfg.label(cfg.items());
+            panel.querySelectorAll('input').forEach(cb => { cb.checked = cfg.isOn(cb.dataset.v); });
+        });
+    }
+    function closeAllSels() {
+        document.querySelectorAll('.an-sel-panel.show').forEach(p => p.classList.remove('show'));
+    }
+    function wireSelToggles() {
+        document.querySelectorAll('.an-sel').forEach(box => {
+            const btn = box.querySelector('.an-sel-btn');
+            const panel = box.querySelector('.an-sel-panel');
+            if (!btn || !panel) return;
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                const was = panel.classList.contains('show');
+                closeAllSels();
+                if (!was) panel.classList.add('show');
+            });
+        });
+        document.addEventListener('click', e => {
+            if (!e.target.closest || !e.target.closest('.an-sel')) closeAllSels();
+        });
+    }
+    function toggleMonth(m) {
+        if (anState.all) {
+            anState.all = false;
+            anState.months.add(m);
+        } else if (anState.months.has(m)) {
+            anState.months.delete(m);
+            if (anState.months.size === 0) anState.all = true;
+        } else anState.months.add(m);
+        renderAll();
+    }
+
+    // ---------- lista Tipo WO ----------
+    function tipoList() {
+        const s = new Set();
+        (rawData || []).forEach(r => s.add(tipoOf(r)));
+        return Array.from(s).sort((a, b) => {
+            const ia = TIPOS_CNOCIDOS.indexOf(a), ib = TIPOS_CNOCIDOS.indexOf(b);
+            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+        });
+    }
+    // (los filtros Tipo WO / Mes / Departamento / Causa raíz usan el motor SELS de arriba)
+
+    // Valores distintos de una columna, agrupados sin importar mayúsculas
+    // (ej. "LIMA" y "lima" cuentan juntos; se muestra la grafía más común).
+    function distinctVals(key, max) {
+        const map = new Map();
+        (rawData || []).forEach(r => {
+            const label = cellLbl(r, key);
+            const v = norm(label);
+            if (!map.has(v)) map.set(v, { labels: {}, n: 0 });
+            const o = map.get(v);
+            o.n++;
+            o.labels[label] = (o.labels[label] || 0) + 1;
+        });
+        return Array.from(map.values()).map(o => ({
+            label: Object.entries(o.labels).sort((a, b) => b[1] - a[1])[0][0],
+            n: o.n
+        })).sort((a, b) => b.n - a.n).slice(0, max || 12);
+    }
+    // Conteo por categoría sobre filas ya filtradas (misma normalización).
+    function countableNorm(rows, key, max) {
+        const map = new Map();
+        (rows || []).forEach(r => {
+            const label = cellLbl(r, key);
+            const v = norm(label);
+            if (!map.has(v)) map.set(v, { labels: {}, n: 0 });
+            const o = map.get(v);
+            o.n++;
+            o.labels[label] = (o.labels[label] || 0) + 1;
+        });
+        return Array.from(map.values()).map(o => ([
+            Object.entries(o.labels).sort((a, b) => b[1] - a[1])[0][0], o.n
+        ])).sort((a, b) => b[1] - a[1]).slice(0, max || 8);
+    }
+    // ---------- render ----------
+    const charts = {};
+    function killChart(id) {
+        try { if (charts[id]) { charts[id].destroy(); delete charts[id]; } } catch (e) {}
+    }
+    function countableValues(rows, key, maxCats) {
+        const c = {};
+        (rows || []).forEach(r => {
+            const v = String(r[key] == null ? '' : r[key]).trim() || '(Vacío)';
+            c[v] = (c[v] || 0) + 1;
+        });
+        return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, maxCats || 8);
+    }
+    // Colores de una categoría: si hay filtro activo sobre su campo, resalta la
+    // coincidente y apaga el resto ; si el filtro es de otro campo, todo se atenúa.
+    function catColors(labels, baseColors, field) {
+        const on = anState.chart && anState.chart.field === field;
+        const other = anState.chart && anState.chart.field !== field;
+        return labels.map((l, i) => {
+            const base = baseColors[i] || PALETTE[i % PALETTE.length];
+            if (on) return norm(l) === anState.chart.value ? base : base + '2E';
+            if (other) return base + '55';
+            return base;
+        });
+    }
+    function renderTotal(rows) {
+        document.getElementById('an-total').textContent = fmtN(rows.length);
+        document.getElementById('an-total-txt').textContent =
+            (isPext && !anState.all) ? ('registros · Mes: ' + filterLabel()) : 'registros';
+    }
+    function hbar(opts) {
+        const { chartKey, cardId, canvasId, titleEl, subEl, title, sub, top, field, key, maxBar } = opts;
+        const el = document.getElementById(cardId);
+        killChart(chartKey);
+        try {
+            if (!top.length) { el.style.display = 'none'; return; }
+            el.style.display = '';
+            if (titleEl) document.getElementById(titleEl).textContent = title;
+            document.getElementById(subEl).textContent = sub;
+            const labels = top.map(x => x[0]);
+            const base = labels.map((_, i) => PALETTE[i % PALETTE.length]);
+            const bg = catColors(labels, base, field);
+            charts[chartKey] = new Chart(document.getElementById(canvasId), {
+                type: 'bar',
+                data: { labels,
+                    datasets: [{ data: top.map(x => x[1]),
+                        backgroundColor: bg, hoverBackgroundColor: bg,
+                        borderRadius: 8, borderSkipped: false, barThickness: 'flex', maxBarThickness: maxBar || 26 }] },
+                options: {
+                    indexAxis: 'y', plugins: { legend: { display: false } },
+                    scales: { x: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                              y: { grid: { display: false } } },
+                    onClick: (ev, els) => {
+                        if (!els.length) { if (anState.chart) { anState.chart = null; renderAll(); } return; }
+                        const i = els[0].index;
+                        toggleChart(field, norm(labels[i]), labels[i]);
+                    }
+                },
+            });
+        } catch (e) { try { console.warn('[analytics] hbar ' + cardId + ':', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderBarFault(rows) {
+        if (!isPext) {
+            const el = document.getElementById('an-card-bar');
+            killChart('bar');
+            try {
+                const key = keyNamed('departamento', 'provincia', 'fault level', 'category');
+                if (!key) { el.style.display = 'none'; return; }
+                const top = countableValues(rows, key, 8);
+                if (!top.length) { el.style.display = 'none'; return; }
+                hbar({ chartKey: 'bar', cardId: 'an-card-bar', canvasId: 'an-bar', titleEl: 'an-bar-title',
+                    subEl: 'an-bar-sub', field: 'bar', key,
+                    title: key, sub: 'Top valores · ' + fmtN(rows.length) + ' registros', top });
+            } catch (e) { el.style.display = 'none'; }
+            return;
+        }
+        const key = keyNamed('fault level', 'departamento', 'provincia', 'category');
+        if (!key) { document.getElementById('an-card-bar').style.display = 'none'; return; }
+        hbar({ chartKey: 'bar', cardId: 'an-card-bar', canvasId: 'an-bar', titleEl: 'an-bar-title',
+            subEl: 'an-bar-sub', field: 'fault', key,
+            title: 'Nivel de Falla', sub: 'WOs por nivel de falla · ' + filterLabel(),
+            top: countableNorm(rows, key, 6) });
+    }
+    function renderColDept(rows) {
+        const el = document.getElementById('an-card-dept');
+        killChart('dept');
+        try {
+            if (!isPext || !K_DEPT) { el.style.display = 'none'; return; }
+            const top = countableNorm(rows, K_DEPT, 8);
+            if (!top.length) { el.style.display = 'none'; return; }
+            el.style.display = '';
+            document.getElementById('an-dept-sub').textContent = 'WOs por departamento · ' + filterLabel();
+            const labels = top.map(x => x[0]);
+            const base = labels.map((_, i) => PALETTE[(i + 2) % PALETTE.length]);
+            const bg = catColors(labels, base, 'dept');
+            charts.dept = new Chart(document.getElementById('an-dept'), {
+                type: 'bar',
+                data: { labels,
+                    datasets: [{ data: top.map(x => x[1]),
+                        backgroundColor: bg, hoverBackgroundColor: bg,
+                        borderRadius: 8, borderSkipped: false, maxBarThickness: 46 }] },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                              x: { ticks: { maxRotation: 0, autoSkip: false }, grid: { display: false } } },
+                    onClick: (ev, els) => {
+                        if (!els.length) { if (anState.chart) { anState.chart = null; renderAll(); } return; }
+                        const i = els[0].index;
+                        toggleChart('dept', norm(labels[i]), labels[i]);
+                    }
+                },
+            });
+        } catch (e) { try { console.warn('[analytics] dept:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderCausa(rows) {
+        if (!isPext || !K_CAUSA) { document.getElementById('an-card-causa').style.display = 'none'; return; }
+        hbar({ chartKey: 'causa', cardId: 'an-card-causa', canvasId: 'an-causa', titleEl: null,
+            subEl: 'an-causa-sub', field: 'causa', key: K_CAUSA,
+            title: '', sub: 'WOs por causa raíz · ' + filterLabel(),
+            top: countableNorm(rows, K_CAUSA, 8) });
+    }
+    const PRIOR_ORDER = ['P0+', 'P0', 'P1', 'P2', 'P3', 'P4'];
+    function renderHbarPrior(rows) {
+        const el = document.getElementById('an-card-prior');
+        killChart('prior');
+        try {
+            if (!isPext || !K_PRIO) { el.style.display = 'none'; return; }
+            const counted = countableNorm(rows, K_PRIO, 12);
+            const byNorm = {};
+            counted.forEach(([label, n]) => { byNorm[norm(label)] = { label, n }; });
+            const known = PRIOR_ORDER.map(k => norm(k));
+            let keys = known.filter(k => k in byNorm);
+            Object.keys(byNorm).filter(k => !known.includes(k))
+                .sort((a, b) => byNorm[b].n - byNorm[a].n).forEach(k => keys.push(k));
+            if (!keys.length) { el.style.display = 'none'; return; }
+            hbar({ chartKey: 'prior', cardId: 'an-card-prior', canvasId: 'an-prior', titleEl: null,
+                subEl: 'an-prior-sub', field: 'prior', key: K_PRIO,
+                title: '', sub: 'WOs por prioridad · ' + filterLabel(),
+                top: keys.map(k => [byNorm[k].label, byNorm[k].n]) });
+        } catch (e) { el.style.display = 'none'; }
+    }
+    function renderLine() {
+        const el = document.getElementById('an-card-line');
+        killChart('line');
+        try {
+            if (!K_CRE) { el.style.display = 'none'; return; }
+            const cre = {};
+            (rawData || []).forEach(r => {
+                const a = parseYm(r[K_CRE]);
+                if (a) cre[a] = (cre[a] || 0) + 1;
+            });
+            const months = Object.keys(cre).sort();
+            if (months.length < 2) { el.style.display = 'none'; return; }
+            el.style.display = '';
+            const lit = m => (anState.all || anState.months.size === 0 || anState.months.has(m));
+            const hl = months.map(m => lit(m) ? ACCENT : MUTED);
+            const hlR = months.map(m => lit(m) ? 4.5 : 2.5);
+            document.getElementById('an-line-sub').textContent =
+                'Creados por Fecha de creacion · clic en un punto para filtrar ese mes · ' + (isPext ? filterLabel() : 'todos');
+            const ds = [{ label: 'Creados', data: months.map(m => cre[m] || 0),
+                borderColor: '#0A84FF', backgroundColor: 'rgba(10,132,255,0.18)',
+                fill: true, tension: 0.35, pointRadius: hlR, pointBackgroundColor: hl,
+                pointHoverRadius: 7, borderWidth: 2.5 }];
+            charts.line = new Chart(document.getElementById('an-line'), {
+                type: 'line',
+                data: { labels: months, datasets: ds },
+                options: {
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: false } },
+                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                              x: { grid: { display: false } } },
+                    onClick: (ev, els) => {
+                        if (els.length && isPext) toggleMonth(months[els[0].index]);
+                    }
+                },
+            });
+        } catch (e) { try { console.warn('[analytics] linea:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderSites(rows) {
+        const el = document.getElementById('an-card-sites');
+        try {
+            if (!isPext || !K_SITE) { el.style.display = 'none'; return; }
+            const agg = {};
+            rows.forEach(r => {
+                if (K_PHASE && norm(r[K_PHASE]) !== 'close') return;
+                const site = String(r[K_SITE] == null ? '' : r[K_SITE]).trim() || '(Sin site)';
+                if (!agg[site]) { agg[site] = { CM: 0, PM: 0, PLM: 0, T: 0, Otro: 0, TOTAL: 0 }; }
+                const t = tipoOf(r);
+                agg[site][t] = (agg[site][t] || 0) + 1;
+                agg[site].TOTAL++;
+            });
+            const entries = Object.entries(agg);
+            const hasOtro = entries.some(([, d]) => d.Otro > 0);
+            const thOtro = document.getElementById('an-th-otro');
+            thOtro.style.display = hasOtro ? '' : 'none';
+            el.style.display = '';
+            document.getElementById('an-sites-sub').textContent = entries.length + ' sites con CLOSE · ' + filterLabel() +
+                (anState.tipos.size ? ' · Tipo WO: ' + Array.from(anState.tipos).join(', ') : '') +
+                (anState.chart ? ' · Filtro: ' + anState.chart.label : '');
+            const tbody = document.getElementById('an-sitetbody');
+            const paint = () => {
+                const qn = norm(anState.siteSearch);
+                let list = entries.filter(([s]) => !qn || norm(s).includes(qn));
+                const dir = anState.sort === 'asc' ? 1 : -1;
+                list.sort((a, b) => (b[1].TOTAL - a[1].TOTAL) * dir);
+                const gtot = { CM: 0, PM: 0, PLM: 0, T: 0, Otro: 0, TOTAL: 0 };
+                list.forEach(([, d]) => {
+                    gtot.CM += d.CM; gtot.PM += d.PM; gtot.PLM += d.PLM;
+                    gtot.T += (d.T || 0);
+                    gtot.Otro += d.Otro; gtot.TOTAL += d.TOTAL;
+                });
+                tbody.innerHTML = (list.length ? list.map(([s, d], i) =>
+                    `<tr><td class="an-rank-cell">${i + 1}</td><td class="an-site-cell" title="${esc(s)}">${esc(s)}</td>` +
+                    `<td class="num">${fmtN(d.CM)}</td><td class="num">${fmtN(d.PM)}</td><td class="num">${fmtN(d.PLM)}</td>` +
+                    `<td class="num">${fmtN(d.T || 0)}</td>` +
+                    `<td class="num ${'an-td-otro'}" style="display:${hasOtro ? '' : 'none'};">${fmtN(d.Otro)}</td>` +
+                    `<td class="num t-total">${fmtN(d.TOTAL)}</td></tr>`
+                ).join('') : `<tr><td colspan="8" class="an-empty">Sin coincidencias con los filtros actuales.</td></tr>`) +
+                    `<tr class="an-tfoot"><td></td><td class="an-site-cell">TOTAL</td>` +
+                    `<td class="num">${fmtN(gtot.CM)}</td><td class="num">${fmtN(gtot.PM)}</td><td class="num">${fmtN(gtot.PLM)}</td>` +
+                    `<td class="num">${fmtN(gtot.T)}</td>` +
+                    `<td class="num" style="display:${hasOtro ? '' : 'none'};">${fmtN(gtot.Otro)}</td>` +
+                    `<td class="num t-total">${fmtN(gtot.TOTAL)}</td></tr>`;
+            };
+            const inp = document.getElementById('an-site-search');
+            inp.oninput = () => { anState.siteSearch = inp.value; paint(); };
+            const sortBtn = document.getElementById('an-sort');
+            const syncSortBtn = () => {
+                sortBtn.innerHTML = 'Ordenar <i class="fa-solid ' +
+                    (anState.sort === 'asc' ? 'fa-arrow-up-wide-narrow' : 'fa-arrow-down-wide-narrow') + '"></i>';
+            };
+            sortBtn.onclick = () => { anState.sort = anState.sort === 'desc' ? 'asc' : 'desc'; syncSortBtn(); paint(); };
+            syncSortBtn();
+            paint();
+        } catch (e) { try { console.warn('[analytics] sites:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    /* ================= SEGUIMIENTO (mismos filtros, vista operativa) ================= */
+    const SG_PHASES = ['dispatch', 'accept', 'depart', 'arrive', 'complete'];
+    function renderSgOp(rows) {
+        const el = document.getElementById('an-card-sgop');
+        killChart('sgop');
+        try {
+            if (!isPext || !K_PHASE) { el.style.display = 'none'; return; }
+            const c = {};
+            rows.forEach(r => {
+                const v = norm(r[K_PHASE]);
+                if (SG_PHASES.includes(v)) c[v] = (c[v] || 0) + 1;
+            });
+            const keys = SG_PHASES.filter(k => c[k] > 0);
+            if (!keys.length) { el.style.display = 'none'; return; }
+            hbar({ chartKey: 'sgop', cardId: 'an-card-sgop', canvasId: 'an-sgop', titleEl: null,
+                subEl: 'an-sgop-sub', field: 'phase', key: K_PHASE, maxBar: 20,
+                title: '', sub: 'WOs por fase operativa · ' + filterLabel(),
+                top: keys.map(k => [k.toUpperCase(), c[k]]) });
+        } catch (e) { try { console.warn('[analytics] sgop:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderSgPrior(rows) {
+        const el = document.getElementById('an-card-sgprior');
+        killChart('sgprior');
+        try {
+            if (!isPext || !K_PRIO) { el.style.display = 'none'; return; }
+            const counted = countableNorm(rows, K_PRIO, 12);
+            const byNorm = {};
+            counted.forEach(([label, n]) => { byNorm[norm(label)] = { label, n }; });
+            const known = PRIOR_ORDER.map(k => norm(k));
+            const keys = known.filter(k => k in byNorm);
+            Object.keys(byNorm).filter(k => !known.includes(k))
+                .sort((a, b) => byNorm[b].n - byNorm[a].n).forEach(k => keys.push(k));
+            if (!keys.length) { el.style.display = 'none'; return; }
+            hbar({ chartKey: 'sgprior', cardId: 'an-card-sgprior', canvasId: 'an-sgprior', titleEl: null,
+                subEl: 'an-sgprior-sub', field: 'prior', key: K_PRIO,
+                title: '', sub: 'WOs por prioridad · ' + filterLabel(),
+                top: keys.map(k => [byNorm[k].label, byNorm[k].n]) });
+        } catch (e) { try { console.warn('[analytics] sgprior:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderSgFalla(rows) {
+        if (!isPext) { document.getElementById('an-card-sgfalla').style.display = 'none'; return; }
+        const key = keyNamed('fault level', 'departamento', 'provincia', 'category');
+        if (!key) { document.getElementById('an-card-sgfalla').style.display = 'none'; return; }
+        hbar({ chartKey: 'sgfalla', cardId: 'an-card-sgfalla', canvasId: 'an-sgfalla', titleEl: null,
+            subEl: 'an-sgfalla-sub', field: 'fault', key,
+            title: '', sub: 'WOs por nivel de falla · ' + filterLabel(),
+            top: countableNorm(rows, key, 6) });
+    }
+    function renderSgDept(rows) {
+        const el = document.getElementById('an-card-sgdept');
+        killChart('sgdept');
+        try {
+            if (!isPext || !K_DEPT) { el.style.display = 'none'; return; }
+            const top = countableNorm(rows, K_DEPT, 8);
+            if (!top.length) { el.style.display = 'none'; return; }
+            el.style.display = '';
+            document.getElementById('an-sgdept-sub').textContent = 'WOs por departamento · ' + filterLabel();
+            const labels = top.map(x => x[0]);
+            const base = labels.map((_, i) => PALETTE[(i + 3) % PALETTE.length]);
+            const bg = catColors(labels, base, 'dept');
+            charts.sgdept = new Chart(document.getElementById('an-sgdept'), {
+                type: 'bar',
+                data: { labels,
+                    datasets: [{ data: top.map(x => x[1]),
+                        backgroundColor: bg, hoverBackgroundColor: bg,
+                        borderRadius: 8, borderSkipped: false, maxBarThickness: 46 }] },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                              x: { ticks: { maxRotation: 0, autoSkip: false }, grid: { display: false } } },
+                    onClick: (ev, els) => {
+                        if (!els.length) { if (anState.chart) { anState.chart = null; renderAll(); } return; }
+                        const i = els[0].index;
+                        toggleChart('dept', norm(labels[i]), labels[i]);
+                    }
+                },
+            });
+        } catch (e) { try { console.warn('[analytics] sgdept:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderSgTipoav(rows) {
+        const el = document.getElementById('an-card-sgtipoav');
+        killChart('sgtipoav');
+        try {
+            if (!isPext || !K_TIPOAV) { el.style.display = 'none'; return; }
+            const top = countableNorm(rows, K_TIPOAV, 7);
+            if (!top.length) { el.style.display = 'none'; return; }
+            el.style.display = '';
+            document.getElementById('an-sgtipoav-sub').textContent = 'WOs por tipo de avería · ' + filterLabel();
+            const labels = top.map(x => x[0]);
+            const base = labels.map((_, i) => PALETTE[(i + 5) % PALETTE.length]);
+            const bg = catColors(labels, base, 'tipoav');
+            charts.sgtipoav = new Chart(document.getElementById('an-sgtipoav'), {
+                type: 'bar',
+                data: { labels,
+                    datasets: [{ data: top.map(x => x[1]),
+                        backgroundColor: bg, hoverBackgroundColor: bg,
+                        borderRadius: 8, borderSkipped: false, maxBarThickness: 46 }] },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                              x: { ticks: { maxRotation: 45, minRotation: 45, autoSkip: false, font: { size: 10 } },
+                                   grid: { display: false } } },
+                    onClick: (ev, els) => {
+                        if (!els.length) { if (anState.chart) { anState.chart = null; renderAll(); } return; }
+                        const i = els[0].index;
+                        toggleChart('tipoav', norm(labels[i]), labels[i]);
+                    }
+                },
+            });
+        } catch (e) { try { console.warn('[analytics] sgtipoav:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    /* Backlog: casos creados ANTES del mes actual (ignora el filtro de mes,
+       respeta Tipo WO / Departamento / Causa raíz / filtro de gráfico). */
+    function renderSgBacklog() {
+        const el = document.getElementById('an-card-sgbacklog');
+        try {
+            if (!isPext || !K_PHASE || !K_CRE) { el.style.display = 'none'; return; }
+            const cur = currentYm();
+            const months = availableMonths().filter(m => m < cur).sort();
+            const rows = baseFilteredRows();
+            const counts = {};
+            rows.forEach(r => {
+                const ph = norm(r[K_PHASE]);
+                if (!SG_PHASES.includes(ph)) return;
+                const m = parseYm(r[K_CRE]);
+                if (!m || m >= cur) return;
+                counts[ph] = counts[ph] || {};
+                counts[ph][m] = (counts[ph][m] || 0) + 1;
+            });
+            const phases = SG_PHASES.filter(ph => Object.keys(counts[ph] || {}).length);
+            el.style.display = '';
+            if (!months.length || !phases.length) {
+                document.getElementById('an-sgbacklog-sub').textContent = 'Casos creados antes de ' + cur;
+                document.getElementById('an-sgbacklog-tbl').innerHTML =
+                    `<tbody><tr><td class="an-empty">Sin casos anteriores a ${cur} con los filtros actuales.</td></tr></tbody>`;
+                return;
+            }
+            const colTot = {};
+            months.forEach(m => { colTot[m] = 0; });
+            let grand = 0;
+            let html = '<thead><tr><th>Etiquetas</th>' +
+                months.map(m => `<th class="num">${m}</th>`).join('') + '<th class="num">Total</th></tr></thead><tbody>';
+            phases.forEach(ph => {
+                let rt = 0;
+                html += `<tr><td class="an-site-cell">${ph.toUpperCase()}</td>`;
+                months.forEach(m => {
+                    const v = (counts[ph] && counts[ph][m]) || 0;
+                    rt += v; colTot[m] += v;
+                    html += `<td class="num">${v ? fmtN(v) : '–'}</td>`;
+                });
+                grand += rt;
+                html += `<td class="num t-total">${fmtN(rt)}</td></tr>`;
+            });
+            html += `<tr class="an-tfoot"><td class="an-site-cell">TOTAL</td>` +
+                months.map(m => `<td class="num">${fmtN(colTot[m])}</td>`).join('') +
+                `<td class="num t-total">${fmtN(grand)}</td></tr></tbody>`;
+            document.getElementById('an-sgbacklog-sub').textContent =
+                'Casos creados antes de ' + cur + ' · Total: ' + fmtN(grand);
+            document.getElementById('an-sgbacklog-tbl').innerHTML = html;
+        } catch (e) { try { console.warn('[analytics] sgbacklog:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderSgSites(rows) {
+        const el = document.getElementById('an-card-sgsites');
+        try {
+            if (!isPext || !K_SITE) { el.style.display = 'none'; return; }
+            const agg = {};
+            rows.forEach(r => {
+                const site = String(r[K_SITE] == null ? '' : r[K_SITE]).trim() || '(Sin site)';
+                if (!agg[site]) { agg[site] = { CM: 0, TOTAL: 0 }; }
+                if (tipoOf(r) === 'CM') agg[site].CM++;
+                agg[site].TOTAL++;
+            });
+            const entries = Object.entries(agg);
+            el.style.display = '';
+            document.getElementById('an-sgsites-sub').textContent = entries.length + ' sites · ' + filterLabel() +
+                (anState.tipos.size ? ' · Tipo WO: ' + Array.from(anState.tipos).join(', ') : '') +
+                (anState.chart ? ' · Filtro: ' + anState.chart.label : '');
+            const tbody = document.getElementById('an-sgsitetbody');
+            const paint = () => {
+                const qn = norm(anState.sgSearch);
+                const list = entries.filter(([s]) => !qn || norm(s).includes(qn));
+                const dir = anState.sgSort === 'asc' ? 1 : -1;
+                list.sort((a, b) => (b[1].TOTAL - a[1].TOTAL) * dir);
+                let gCM = 0, gTot = 0;
+                list.forEach(([, d]) => { gCM += d.CM; gTot += d.TOTAL; });
+                tbody.innerHTML = (list.length ? list.map(([s, d], i) =>
+                    `<tr><td class="an-rank-cell">${i + 1}</td><td class="an-site-cell" title="${esc(s)}">${esc(s)}</td>` +
+                    `<td class="num">${fmtN(d.CM)}</td><td class="num t-total">${fmtN(d.TOTAL)}</td></tr>`
+                ).join('') : `<tr><td colspan="4" class="an-empty">Sin coincidencias con los filtros actuales.</td></tr>`) +
+                    `<tr class="an-tfoot"><td></td><td class="an-site-cell">TOTAL</td>` +
+                    `<td class="num">${fmtN(gCM)}</td><td class="num t-total">${fmtN(gTot)}</td></tr>`;
+            };
+            const inp = document.getElementById('an-sg-site-search');
+            inp.oninput = () => { anState.sgSearch = inp.value; paint(); };
+            const sortBtn = document.getElementById('an-sg-sort');
+            const syncSortBtn = () => {
+                sortBtn.innerHTML = 'Ordenar <i class="fa-solid ' +
+                    (anState.sgSort === 'asc' ? 'fa-arrow-up-wide-narrow' : 'fa-arrow-down-wide-narrow') + '"></i>';
+            };
+            sortBtn.onclick = () => { anState.sgSort = anState.sgSort === 'desc' ? 'asc' : 'desc'; syncSortBtn(); paint(); };
+            syncSortBtn();
+            paint();
+        } catch (e) { try { console.warn('[analytics] sgsites:', e); } catch (_) {} el.style.display = 'none'; }
+    }
+    function renderAllSeg(rows) {
+        safeRender(() => renderSgOp(rows), 'sgop');
+        safeRender(renderSgBacklog, 'sgbacklog');
+        safeRender(() => renderSgPrior(rows), 'sgprior');
+        safeRender(() => renderSgFalla(rows), 'sgfalla');
+        safeRender(() => renderSgDept(rows), 'sgdept');
+        safeRender(() => renderSgTipoav(rows), 'sgtipoav');
+        safeRender(() => renderSgSites(rows), 'sgsites');
+    }
+    function safeRender(fn, name) {
+        try { fn(); } catch (e) { try { console.warn('[analytics] ' + name + ' falló:', e); } catch (_) {} }
+    }
+    function renderAll() {
+        const rows = filteredRows();
+        safeRender(syncSels, 'sels');
+        safeRender(renderChartChip, 'chip');
+        safeRender(() => renderTotal(rows), 'total');
+        safeRender(() => renderBarFault(rows), 'falla');
+        safeRender(() => renderColDept(rows), 'dept');
+        safeRender(() => renderCausa(rows), 'causa');
+        safeRender(() => renderHbarPrior(rows), 'prior');
+        safeRender(renderLine, 'linea');
+        safeRender(() => renderSites(rows), 'sites');
+        renderAllSeg(rows);
+    }
+    /* Selector de dashboard: Producción / Seguimiento.
+       Abre en Seguimiento al iniciar sesión o abrir el navegador de nuevo
+       (sesiónStorage se limpia al cerrar la pestaña); dentro de la misma
+       sesión se recuerda la vista elegida. */
+    const DASH_NAMES = { seg: 'Seguimiento', prod: 'Producción' };
+    let anDash = 'seg';
+    try { anDash = sessionStorage.getItem('an-dash') || 'seg'; } catch (e) {}
+    if (!DASH_NAMES[anDash]) anDash = 'seg';
+    function applyDashUI() {
+        const isProd = anDash === 'prod';
+        document.getElementById('an-dashname').textContent = DASH_NAMES[anDash];
+        document.querySelectorAll('.an-dashopt').forEach(b =>
+            b.classList.toggle('on', b.dataset.d === anDash));
+        document.getElementById('an-view-prod').style.display = isProd ? '' : 'none';
+        document.getElementById('an-view-seg').style.display = isProd ? 'none' : '';
+        document.getElementById('an-filters').style.display = isPext ? '' : 'none';
+        document.getElementById('an-totalwrap').style.display = '';
+    }
+    function setDash(d) {
+        if (!DASH_NAMES[d] || d === anDash) { closeAllSels(); return; }
+        anDash = d;
+        applyDashUI();
+        renderAll();
+        closeAllSels();
+    }
+    function wireDash() {
+        const btn = document.getElementById('an-dashbtn');
+        const panel = document.getElementById('an-dashpanel');
+        if (!btn || !panel) return;
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const was = panel.classList.contains('show');
+            closeAllSels();
+            if (!was) panel.classList.add('show');
+        });
+        panel.querySelectorAll('.an-dashopt').forEach(b => b.addEventListener('click', () => setDash(b.dataset.d)));
+    }
+    if (!window.Chart) {
+        document.querySelector('.an-wrap-inner').innerHTML = `<div class="an-empty">Librería de gráficos no disponible (sin conexión a CDN).</div>`;
+        return;
+    }
+    if (isPext) {
+        const months = availableMonths();
+        const cur = currentYm();
+        if (months.includes(cur)) anState.months.add(cur);
+        else if (months.length) anState.months.add(months[0]);
+        document.getElementById('an-filters').style.display = '';
+        buildSels();
+        wireSelToggles();
+    }
+    wireDash();
+    applyDashUI();
+    renderAll();
+})();
+</script>
+{% endblock %}

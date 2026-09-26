@@ -55,7 +55,7 @@ def login():
                     session['current_proyecto_id'] = int(proj.id)
                     session['current_proyecto_nombre'] = proj.nombre
                     
-            return redirect(url_for('pages.index'))
+            return redirect(url_for('pages.analytics'))
         return render_template('login.html', error="Credenciales inválidas")
     return render_template('login.html')
 
@@ -84,6 +84,26 @@ def cambiar_password():
     return jsonify({'success': True})
 
 
+@bp.route('/api/auth/cambiar-password', methods=['POST'])
+def cambiar_password_public():
+    """Cambio de contraseña desde la pantalla de login (sin sesión):
+    lo usa templates/login.html con {username, actual, nueva}."""
+    data = request.json or {}
+    username = (data.get('username') or '').strip()
+    actual = (data.get('actual') or '').strip()
+    nueva = (data.get('nueva') or '').strip()
+    if not username or not actual or not nueva:
+        return jsonify({'error': 'Usuario, actual y nueva requeridas'}), 400
+    if len(nueva) < 4:
+        return jsonify({'error': 'Mínimo 4 caracteres'}), 400
+    u = Usuario.query.filter(func.lower(Usuario.username) == username.lower()).first()
+    if not u or not check_password_hash(u.password_hash, actual):
+        return jsonify({'error': 'Usuario o contraseña actual incorrecta'}), 403
+    u.password_hash = generate_password_hash(nueva)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 @bp.route('/switch_project/<int:pid>')
 @login_required
 def switch_project(pid):
@@ -102,7 +122,7 @@ def switch_project(pid):
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'PEXT', 'Claro', 'Integratel'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT', 'Claro', 'Integratel'):
                         allowed = True
                         break
                 if not allowed:
@@ -112,7 +132,7 @@ def switch_project(pid):
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:
@@ -122,7 +142,7 @@ def switch_project(pid):
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:
@@ -132,7 +152,7 @@ def switch_project(pid):
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:
@@ -142,7 +162,7 @@ def switch_project(pid):
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:
@@ -152,7 +172,7 @@ def switch_project(pid):
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre == 'FLM':
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
                         allowed = True
                         break
                 if not allowed:

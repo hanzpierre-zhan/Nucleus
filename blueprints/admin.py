@@ -90,8 +90,8 @@ def api_admin_proyecto():
         pid = request.json.get('id')
         if not pid: return jsonify({'error': 'ID requerido'}), 400
         p = db.session.get(Proyecto, pid)
-        if p and p.nombre in ('FLM', 'PEXT', 'Dataper', 'Material'):
-            return jsonify({'error': 'Los proyectos FLM, PEXT, Dataper y Material no se pueden eliminar.'}), 403
+        if p and p.nombre in ('FLM', 'FLM - ENTEL', 'PEXT', 'Dataper', 'Material'):
+            return jsonify({'error': 'Los proyectos FLM, FLM - ENTEL, PEXT, Dataper y Material no se pueden eliminar.'}), 403
         try:
             # Cascading delete manually for safety (or set up models with cascade)
             # We must not delete the project 1 (Pangeaco) if it's the only one or a protected one?

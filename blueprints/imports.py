@@ -55,7 +55,7 @@ def api_import_manual_template():
     proy_nombre = proy.nombre if proy else ''
 
     # Plantilla FLM/PEXT: Detalle (9 campos) + Gestión (16 manuales), con contenidos actuales pre-llenados
-    if proy_nombre in ('PEXT', 'FLM'):
+    if proy_nombre in ('PEXT', 'FLM', 'FLM - ENTEL'):
         detalle_cols = [
             'Fecha de creación (WO Creation date)',
             'Nombre de Site',

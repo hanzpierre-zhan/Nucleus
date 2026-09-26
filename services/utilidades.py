@@ -341,6 +341,39 @@ def _flm_hermano_id(pid):
 
 
 
+# ── Sync FLM <-> FLM - ENTEL por CM ────────────────────────────────────────
+# FLM - ENTEL comparte códigos de CM. Como el esquema de columnas de cada
+# proyecto es DISTINTO, la sincronización NO copia todo el registro: solo
+# propaga al proyecto hermano los campos de trabajo que el usuario edita
+# (modal WO, evidencia/fotos, estado), evitando pisar columnas propias de
+# cada esquema.
+CAMPOS_TRABAJO_FLM = frozenset({
+    'SERVICIO', 'CIUDAD', 'TECNICO ASIGNADO', 'CONTRATA', 'MOTIVO DE AVERÍA',
+    'SISTEMAS', 'MATERIALES', 'INICIO DE PARADA', 'FIN DE PARADA', 'BITACORA',
+    'SOLUCIÓN', 'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'LATITUD MUFAS',
+    'LONGITUD MUFAS', 'COTIZACION_ITEMS', 'COTIZACION_NOTA', 'COTIZACION_NUMERO',
+    'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'GESTOR', 'EDITADO POR',
+    'Estado de la tarea (WO State)', 'FECHA CAMBIO ESTADO', '_ENVIADO_APROBACION',
+    'REQUIERE BIÁTICOS', 'MONTO BIÁTICOS (SOLES)', 'COSTO DE MATERIAL (SOLES)',
+})
+
+
+def _flm_campo_propagable(campo, data_hermano):
+    """Un campo editado se propaga al hermano si es de trabajo (modal/evidencia)
+    o si el proyecto hermano ya tiene esa columna."""
+    return (campo.startswith('_') or campo in CAMPOS_TRABAJO_FLM
+            or campo in data_hermano)
+
+
+def _flm_registro_hermano(pid, key):
+    """Registro NucleusData del mismo CM en el proyecto hermano FLM/FLM (old),
+    o None."""
+    her = _flm_hermano_id(pid)
+    if her is None:
+        return None
+    return NucleusData.query.filter_by(proyecto_id=her, key_value=str(key)).first()
+
+
 def _flm_sync_campos(pid, key, campos, metadatos):
     """Propaga {campo: valor} al registro hermano del mismo CM. Solo los campos
     propagables (ver _flm_campo_propagable). `metadatos` son campos fijos que se

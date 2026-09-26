@@ -74,7 +74,7 @@ def api_evidencia_subir():
 
         if evidencia_usa_b2():
             evidencia_eliminar_b2(key, tipo, indice)
-            b2_cliente().upload_file(ruta_tmp, app.config['B2_BUCKET'], f'{key}/{nombre}')
+            b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'], f'{key}/{nombre}')
         else:
             folder = evidencia_folder(pid, key)
             os.makedirs(folder, exist_ok=True)
@@ -97,7 +97,7 @@ def api_evidencia_subir():
         try:
             onedrive_subir(f'{key}/{nombre}', ruta_tmp)
         except Exception as e:
-            app.logger.warning('OD backup fallo: %s', e)
+            current_app.logger.warning('OD backup fallo: %s', e)
 
         url = f'/api/evidencia/foto/{pid}/{secure_filename(str(key))}/{nombre}?v={int(time.time())}'
         return jsonify({'success': True, 'url': url})
@@ -148,7 +148,7 @@ def api_evidencia_eliminar():
     try:
         onedrive_eliminar(key, tipo, indice)
     except Exception as e:
-        app.logger.warning('OD delete fallo: %s', e)
+        current_app.logger.warning('OD delete fallo: %s', e)
     return jsonify({'success': True})
 
 
@@ -163,7 +163,7 @@ def api_evidencia_foto(pid, key, nombre):
     nombre = os.path.basename(nombre)
     if evidencia_usa_b2():
         try:
-            obj = b2_cliente().get_object(Bucket=app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
+            obj = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
             data = obj['Body'].read()
             mt = mimetypes.guess_type(nombre)[0] or 'application/octet-stream'
             resp = Response(data, mimetype=mt)
@@ -199,7 +199,7 @@ def api_evidencia_zip(pid, key):
         if evidencia_usa_b2():
             try:
                 client = b2_cliente()
-                bucket = app.config['B2_BUCKET']
+                bucket = current_app.config['B2_BUCKET']
                 resp = client.list_objects_v2(Bucket=bucket, Prefix=f'{key}/')
                 for obj in resp.get('Contents', []):
                     k = obj['Key']

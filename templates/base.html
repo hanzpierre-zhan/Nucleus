@@ -47,9 +47,11 @@
             </a>
 
             <nav class="sidebar-nav">
-                <a href="/dashboard" class="sidebar-link {% if request.path == '/dashboard' %}active{% endif %}" data-nav="/dashboard">
-                    <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Dashboard</span>
+                {% if (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
+                <a href="/analytics" class="sidebar-link {% if request.path == '/analytics' or request.path == '/dashboard' %}active{% endif %}" data-nav="/analytics">
+                    <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Analytics</span>
                 </a>
+                {% endif %}
 
                 <div class="sidebar-section-label">Módulos</div>
                 {% set _orden_modulos = ['FLM', 'FLM - ENTEL', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
