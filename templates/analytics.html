@@ -213,7 +213,6 @@
                         <tr>
                             <th>#</th><th>Site</th>
                             <th class="num">CM</th><th class="num">PM</th><th class="num">PLM</th>
-                            <th class="num">T</th>
                             <th class="num" id="an-th-otro">Otro</th>
                             <th class="num">TOTAL</th>
                         </tr>
@@ -245,7 +244,7 @@
                 <div class="an-sitelist" id="an-sgsitelist">
                     <table class="an-tbl">
                         <thead>
-                            <tr><th>#</th><th>Site</th><th class="num">CM</th><th class="num">TOTAL</th></tr>
+                            <tr><th>#</th><th>Site</th><th class="num">CM</th><th class="num">PM</th><th class="num">PLM</th><th class="num">TOTAL</th></tr>
                         </thead>
                         <tbody id="an-sgsitetbody"></tbody>
                     </table>
@@ -482,6 +481,15 @@
             const ym = K_CRE ? parseYm(r[K_CRE]) : null;
             return ym && anState.months.has(ym);
         });
+    }
+    // Producción = SOLO filas con Operate Phase = close (sin fase => se incluyen).
+    function prodRows(rows) {
+        return (rows || []).filter(r => !K_PHASE || norm(r[K_PHASE]) === 'close');
+    }
+    // Línea de Producción: CLOSE + resto de filtros, sin filtro de mes
+    // (muestra todos los meses para poder filtrar por clic).
+    function lineRows() {
+        return prodRows(baseFilteredRows());
     }
     function chartKey(field) {
         switch (field) {
@@ -727,7 +735,7 @@
                         borderRadius: 8, borderSkipped: false, barThickness: 'flex', maxBarThickness: maxBar || 26 }] },
                 options: {
                     indexAxis: 'y', plugins: { legend: { display: false } },
-                    scales: { x: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    scales: { x: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } },
                               y: { grid: { display: false } } },
                     onClick: (ev, els) => {
                         if (!els.length) { if (anState.chart) { anState.chart = null; renderAll(); } return; }
@@ -757,7 +765,7 @@
         if (!key) { document.getElementById('an-card-bar').style.display = 'none'; return; }
         hbar({ chartKey: 'bar', cardId: 'an-card-bar', canvasId: 'an-bar', titleEl: 'an-bar-title',
             subEl: 'an-bar-sub', field: 'fault', key,
-            title: 'Nivel de Falla', sub: 'WOs por nivel de falla · ' + filterLabel(),
+            title: 'Nivel de Falla', sub: 'WOs CLOSE por nivel de falla · ' + filterLabel(),
             top: countableNorm(rows, key, 6) });
     }
     function renderColDept(rows) {
@@ -768,7 +776,7 @@
             const top = countableNorm(rows, K_DEPT, 8);
             if (!top.length) { el.style.display = 'none'; return; }
             el.style.display = '';
-            document.getElementById('an-dept-sub').textContent = 'WOs por departamento · ' + filterLabel();
+            document.getElementById('an-dept-sub').textContent = 'WOs CLOSE por departamento · ' + filterLabel();
             const labels = top.map(x => x[0]);
             const base = labels.map((_, i) => PALETTE[(i + 2) % PALETTE.length]);
             const bg = catColors(labels, base, 'dept');
@@ -780,7 +788,7 @@
                         borderRadius: 8, borderSkipped: false, maxBarThickness: 46 }] },
                 options: {
                     plugins: { legend: { display: false } },
-                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    scales: { y: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } },
                               x: { ticks: { maxRotation: 0, autoSkip: false }, grid: { display: false } } },
                     onClick: (ev, els) => {
                         if (!els.length) { if (anState.chart) { anState.chart = null; renderAll(); } return; }
@@ -795,7 +803,7 @@
         if (!isPext || !K_CAUSA) { document.getElementById('an-card-causa').style.display = 'none'; return; }
         hbar({ chartKey: 'causa', cardId: 'an-card-causa', canvasId: 'an-causa', titleEl: null,
             subEl: 'an-causa-sub', field: 'causa', key: K_CAUSA,
-            title: '', sub: 'WOs por causa raíz · ' + filterLabel(),
+            title: '', sub: 'WOs CLOSE por causa raíz · ' + filterLabel(),
             top: countableNorm(rows, K_CAUSA, 8) });
     }
     const PRIOR_ORDER = ['P0+', 'P0', 'P1', 'P2', 'P3', 'P4'];
@@ -814,7 +822,7 @@
             if (!keys.length) { el.style.display = 'none'; return; }
             hbar({ chartKey: 'prior', cardId: 'an-card-prior', canvasId: 'an-prior', titleEl: null,
                 subEl: 'an-prior-sub', field: 'prior', key: K_PRIO,
-                title: '', sub: 'WOs por prioridad · ' + filterLabel(),
+                title: '', sub: 'WOs CLOSE por prioridad · ' + filterLabel(),
                 top: keys.map(k => [byNorm[k].label, byNorm[k].n]) });
         } catch (e) { el.style.display = 'none'; }
     }
@@ -824,7 +832,7 @@
         try {
             if (!K_CRE) { el.style.display = 'none'; return; }
             const cre = {};
-            (rawData || []).forEach(r => {
+            lineRows().forEach(r => {
                 const a = parseYm(r[K_CRE]);
                 if (a) cre[a] = (cre[a] || 0) + 1;
             });
@@ -835,7 +843,7 @@
             const hl = months.map(m => lit(m) ? ACCENT : MUTED);
             const hlR = months.map(m => lit(m) ? 4.5 : 2.5);
             document.getElementById('an-line-sub').textContent =
-                'Creados por Fecha de creacion · clic en un punto para filtrar ese mes · ' + (isPext ? filterLabel() : 'todos');
+                'CLOSE creados por Fecha de creacion · clic en un punto para filtrar ese mes · ' + (isPext ? filterLabel() : 'todos');
             const ds = [{ label: 'Creados', data: months.map(m => cre[m] || 0),
                 borderColor: '#0A84FF', backgroundColor: 'rgba(10,132,255,0.18)',
                 fill: true, tension: 0.35, pointRadius: hlR, pointBackgroundColor: hl,
@@ -846,7 +854,7 @@
                 options: {
                     interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { display: false } },
-                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    scales: { y: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } },
                               x: { grid: { display: false } } },
                     onClick: (ev, els) => {
                         if (els.length && isPext) toggleMonth(months[els[0].index]);
@@ -882,22 +890,19 @@
                 let list = entries.filter(([s]) => !qn || norm(s).includes(qn));
                 const dir = anState.sort === 'asc' ? 1 : -1;
                 list.sort((a, b) => (b[1].TOTAL - a[1].TOTAL) * dir);
-                const gtot = { CM: 0, PM: 0, PLM: 0, T: 0, Otro: 0, TOTAL: 0 };
+                const gtot = { CM: 0, PM: 0, PLM: 0, Otro: 0, TOTAL: 0 };
                 list.forEach(([, d]) => {
                     gtot.CM += d.CM; gtot.PM += d.PM; gtot.PLM += d.PLM;
-                    gtot.T += (d.T || 0);
                     gtot.Otro += d.Otro; gtot.TOTAL += d.TOTAL;
                 });
                 tbody.innerHTML = (list.length ? list.map(([s, d], i) =>
                     `<tr><td class="an-rank-cell">${i + 1}</td><td class="an-site-cell" title="${esc(s)}">${esc(s)}</td>` +
                     `<td class="num">${fmtN(d.CM)}</td><td class="num">${fmtN(d.PM)}</td><td class="num">${fmtN(d.PLM)}</td>` +
-                    `<td class="num">${fmtN(d.T || 0)}</td>` +
                     `<td class="num ${'an-td-otro'}" style="display:${hasOtro ? '' : 'none'};">${fmtN(d.Otro)}</td>` +
                     `<td class="num t-total">${fmtN(d.TOTAL)}</td></tr>`
-                ).join('') : `<tr><td colspan="8" class="an-empty">Sin coincidencias con los filtros actuales.</td></tr>`) +
+                ).join('') : `<tr><td colspan="7" class="an-empty">Sin coincidencias con los filtros actuales.</td></tr>`) +
                     `<tr class="an-tfoot"><td></td><td class="an-site-cell">TOTAL</td>` +
                     `<td class="num">${fmtN(gtot.CM)}</td><td class="num">${fmtN(gtot.PM)}</td><td class="num">${fmtN(gtot.PLM)}</td>` +
-                    `<td class="num">${fmtN(gtot.T)}</td>` +
                     `<td class="num" style="display:${hasOtro ? '' : 'none'};">${fmtN(gtot.Otro)}</td>` +
                     `<td class="num t-total">${fmtN(gtot.TOTAL)}</td></tr>`;
             };
@@ -981,7 +986,7 @@
                         borderRadius: 8, borderSkipped: false, maxBarThickness: 46 }] },
                 options: {
                     plugins: { legend: { display: false } },
-                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    scales: { y: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } },
                               x: { ticks: { maxRotation: 0, autoSkip: false }, grid: { display: false } } },
                     onClick: (ev, els) => {
                         if (!els.length) { if (anState.chart) { anState.chart = null; renderAll(); } return; }
@@ -1012,7 +1017,7 @@
                         borderRadius: 8, borderSkipped: false, maxBarThickness: 46 }] },
                 options: {
                     plugins: { legend: { display: false } },
-                    scales: { y: { ticks: { precision: 0 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                    scales: { y: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } },
                               x: { ticks: { maxRotation: 45, minRotation: 45, autoSkip: false, font: { size: 10 } },
                                    grid: { display: false } } },
                     onClick: (ev, els) => {
@@ -1081,8 +1086,9 @@
             const agg = {};
             rows.forEach(r => {
                 const site = String(r[K_SITE] == null ? '' : r[K_SITE]).trim() || '(Sin site)';
-                if (!agg[site]) { agg[site] = { CM: 0, TOTAL: 0 }; }
-                if (tipoOf(r) === 'CM') agg[site].CM++;
+                if (!agg[site]) { agg[site] = { CM: 0, PM: 0, PLM: 0, TOTAL: 0 }; }
+                const t = tipoOf(r);
+                if (t === 'CM' || t === 'PM' || t === 'PLM') agg[site][t]++;
                 agg[site].TOTAL++;
             });
             const entries = Object.entries(agg);
@@ -1096,14 +1102,14 @@
                 const list = entries.filter(([s]) => !qn || norm(s).includes(qn));
                 const dir = anState.sgSort === 'asc' ? 1 : -1;
                 list.sort((a, b) => (b[1].TOTAL - a[1].TOTAL) * dir);
-                let gCM = 0, gTot = 0;
-                list.forEach(([, d]) => { gCM += d.CM; gTot += d.TOTAL; });
+                let gCM = 0, gPM = 0, gPLM = 0, gTot = 0;
+                list.forEach(([, d]) => { gCM += d.CM; gPM += d.PM; gPLM += d.PLM; gTot += d.TOTAL; });
                 tbody.innerHTML = (list.length ? list.map(([s, d], i) =>
                     `<tr><td class="an-rank-cell">${i + 1}</td><td class="an-site-cell" title="${esc(s)}">${esc(s)}</td>` +
-                    `<td class="num">${fmtN(d.CM)}</td><td class="num t-total">${fmtN(d.TOTAL)}</td></tr>`
-                ).join('') : `<tr><td colspan="4" class="an-empty">Sin coincidencias con los filtros actuales.</td></tr>`) +
+                    `<td class="num">${fmtN(d.CM)}</td><td class="num">${fmtN(d.PM)}</td><td class="num">${fmtN(d.PLM)}</td><td class="num t-total">${fmtN(d.TOTAL)}</td></tr>`
+                ).join('') : `<tr><td colspan="6" class="an-empty">Sin coincidencias con los filtros actuales.</td></tr>`) +
                     `<tr class="an-tfoot"><td></td><td class="an-site-cell">TOTAL</td>` +
-                    `<td class="num">${fmtN(gCM)}</td><td class="num t-total">${fmtN(gTot)}</td></tr>`;
+                    `<td class="num">${fmtN(gCM)}</td><td class="num">${fmtN(gPM)}</td><td class="num">${fmtN(gPLM)}</td><td class="num t-total">${fmtN(gTot)}</td></tr>`;
             };
             const inp = document.getElementById('an-sg-site-search');
             inp.oninput = () => { anState.sgSearch = inp.value; paint(); };
@@ -1133,14 +1139,28 @@
         const rows = filteredRows();
         safeRender(syncSels, 'sels');
         safeRender(renderChartChip, 'chip');
-        safeRender(() => renderTotal(rows), 'total');
-        safeRender(() => renderBarFault(rows), 'falla');
-        safeRender(() => renderColDept(rows), 'dept');
-        safeRender(() => renderCausa(rows), 'causa');
-        safeRender(() => renderHbarPrior(rows), 'prior');
-        safeRender(renderLine, 'linea');
-        safeRender(() => renderSites(rows), 'sites');
-        renderAllSeg(rows);
+        if (anDash === 'prod') {
+            // Producción: SOLO filas CLOSE (los gráficos se crean únicamente en la
+            // vista visible para que Chart.js mida bien el canvas).
+            const prows = prodRows(rows);
+            safeRender(() => renderTotal(prows), 'total');
+            safeRender(() => renderBarFault(prows), 'falla');
+            safeRender(() => renderColDept(prows), 'dept');
+            safeRender(() => renderCausa(prows), 'causa');
+            safeRender(() => renderHbarPrior(prows), 'prior');
+            safeRender(renderLine, 'linea');
+            safeRender(() => renderSites(prows), 'sites');
+        } else {
+            safeRender(() => renderTotal(rows), 'total');
+            renderAllSeg(rows);
+        }
+        resizeCharts();
+    }
+    // Reajusta el tamaño por si algún canvas quedó en 0 (p. ej. creado oculto).
+    function resizeCharts() {
+        try {
+            Object.keys(charts).forEach(k => { try { if (charts[k]) charts[k].resize(); } catch (e) {} });
+        } catch (e) {}
     }
     /* Selector de dashboard: Producción / Seguimiento.
        Abre en Seguimiento al iniciar sesión o abrir el navegador de nuevo
@@ -1163,8 +1183,10 @@
     function setDash(d) {
         if (!DASH_NAMES[d] || d === anDash) { closeAllSels(); return; }
         anDash = d;
+        try { sessionStorage.setItem('an-dash', d); } catch (e) {}
         applyDashUI();
         renderAll();
+        try { requestAnimationFrame(() => { resizeCharts(); }); } catch (e) {}
         closeAllSels();
     }
     function wireDash() {
