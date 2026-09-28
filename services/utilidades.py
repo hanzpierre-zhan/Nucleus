@@ -1,0 +1,433 @@
+# -*- coding: utf-8 -*-
+"""services/utilidades.py
+Funciones utilitarias y helpers compartidos por todos los blueprints.
+No contiene rutas ni lógica de transporte HTTP.
+"""
+import json
+import re
+from datetime import datetime, timedelta
+from collections import Counter
+from functools import wraps
+
+import pandas as pd
+from flask import session, redirect, url_for
+
+from db import db
+from models import (Proyecto, AppConfig, NucleusData, KpiConfig,
+                    AccesoProyecto, HistorialCambios)
+
+# ── Proyectos que no pueden borrarse ni accederse externamente ─────────────
+PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'PEXT', 'Dataper', 'Material'})
+PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel'})
+
+
+# ── Auth decorator ─────────────────────────────────────────────────────────
+# ── Hora de Perú (UTC-5) ─────────────────────────────────────────────────
+# El servidor corre en UTC: datetime.now()/utcnow() dan +5h respecto a Perú y
+# después de las 7pm la FECHA salta al día siguiente. Todo lo visible al
+# usuario (PDFs, listas) debe usar ahora_peru(); en BD se sigue guardando UTC.
+def ahora_peru():
+    """Hora actual de Perú (UTC-5) como datetime naive."""
+    return datetime.utcnow() - timedelta(hours=5)
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('auth.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ── JSON helpers ───────────────────────────────────────────────────────────
+def safe_json_dumps(obj):
+    return json.dumps(obj, ensure_ascii=False)
+
+
+# ── Sesión ─────────────────────────────────────────────────────────────────
+def get_session_info():
+    uid = session.get('user_id')
+    rol = str(session.get('rol') or 'supervisor').strip().lower()
+    pid_raw = session.get('current_proyecto_id')
+    pid = int(pid_raw) if pid_raw else None
+    return uid, rol, pid
+
+
+def get_menu_proyectos(user_id, user_rol):
+    """Proyectos visibles en el menú lateral según rol."""
+    if user_rol in ('gestor', 'contrata'):
+        accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+        pids = [a.proyecto_id for a in accesos]
+        return Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
+
+    if user_rol in ('zeno', 'suport'):
+        return Proyecto.query.order_by(Proyecto.id).all()
+
+    accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+    pids = [a.proyecto_id for a in accesos]
+    proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
+    nombres = {p.nombre for p in proyectos}
+    ids_set = {p.id for p in proyectos}
+
+    if any(n in nombres for n in ('FLM - ENTEL', 'PEXT', 'Claro', 'Integratel')):
+        for extra_name in ('Dataper', 'Material'):
+            e = Proyecto.query.filter_by(nombre=extra_name).first()
+            if e and e.id not in ids_set:
+                proyectos.append(e)
+                ids_set.add(e.id)
+
+    if any(n in nombres for n in ('FLM - ENTEL', 'Claro', 'Integratel')):
+        for extra_name in ('Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE'):
+            e = Proyecto.query.filter_by(nombre=extra_name).first()
+            if e and e.id not in ids_set:
+                proyectos.append(e)
+                ids_set.add(e.id)
+
+    return proyectos
+
+
+# ── KPIs ───────────────────────────────────────────────────────────────────
+def inject_kpis(pid, rows):
+    configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
+    if not configs:
+        return rows, {}
+
+    hoy = datetime.now()
+    hoy_dt = pd.to_datetime(hoy)
+    dt_cache = {}
+    kpi_meta = {}
+
+    for kpi in configs:
+        if kpi.tipo == 'ACUMULADO':
+            cols = [c.strip() for c in kpi.col_inicio.split(',') if c.strip()]
+            if not cols:
+                continue
+            filters = []
+            try:
+                if kpi.col_fin and (kpi.col_fin.startswith('[') or kpi.col_fin.startswith('{')):
+                    filters = json.loads(kpi.col_fin)
+                    if not isinstance(filters, list):
+                        filters = []
+                elif kpi.restar_contra and kpi.restar_contra != 'HOY':
+                    filters = [{"col": kpi.restar_contra, "val": kpi.col_fin}]
+            except Exception:
+                filters = []
+
+            combined_vals = []
+            for r in rows:
+                matches_all = all(
+                    str(r.get(f.get('col'), '')).strip() == str(f.get('val')).strip()
+                    for f in filters if f.get('col')
+                )
+                if matches_all:
+                    vals = [str(r.get(c, '')).strip() for c in cols]
+                    if all(vals):
+                        combined_vals.append(" | ".join(vals))
+
+            if combined_vals:
+                counts = Counter(combined_vals)
+                sorted_keys = sorted(counts.keys(), key=lambda x: counts[x], reverse=True)
+                ranks = {k: i + 1 for i, k in enumerate(sorted_keys[:4])}
+                kpi_meta[kpi.id] = {
+                    'counts': dict(counts),
+                    'ranks': ranks,
+                    'max': max(counts.values()) if counts else 0,
+                    'cols_involved': cols,
+                    'filters': filters,
+                }
+
+        elif kpi.tipo == 'RESALTADO':
+            if 'resaltadores' not in kpi_meta:
+                kpi_meta['resaltadores'] = {}
+            col = kpi.col_inicio
+            val = kpi.col_fin
+            if col not in kpi_meta['resaltadores']:
+                kpi_meta['resaltadores'][col] = {}
+            kpi_meta['resaltadores'][col][val] = 'hit'
+
+    for kpi in configs:
+        if kpi.tipo != 'DILACION':
+            continue
+        # Cache de fechas parseadas por valor distinto: las fechas se repiten
+        # mucho (2500 filas -> decenas de valores únicos). pd.to_datetime es
+        # caro (~0.1ms); sin cache son miles de llamadas por carga.
+        for row in rows:
+            val_inicio = row.get(kpi.col_inicio)
+            if not val_inicio:
+                row[f"KPI_{kpi.nombre}"] = None
+                continue
+            s_inicio = str(val_inicio).strip()
+            if s_inicio in dt_cache:
+                f_inicio = dt_cache[s_inicio]
+            else:
+                try:
+                    f_inicio = pd.to_datetime(s_inicio)
+                    if pd.isna(f_inicio):
+                        f_inicio = None
+                except Exception:
+                    f_inicio = None
+                dt_cache[s_inicio] = f_inicio
+
+            if not f_inicio:
+                row[f"KPI_{kpi.nombre}"] = None
+                continue
+
+            target_date = hoy_dt
+            if kpi.restar_contra == 'COLUMNA' and kpi.col_fin:
+                val_fin = row.get(kpi.col_fin)
+                if val_fin:
+                    s_fin = str(val_fin).strip()
+                    if s_fin in dt_cache:
+                        f_fin = dt_cache[s_fin]
+                    else:
+                        try:
+                            f_fin = pd.to_datetime(s_fin)
+                            if pd.isna(f_fin):
+                                f_fin = None
+                        except Exception:
+                            f_fin = None
+                        dt_cache[s_fin] = f_fin
+                    if f_fin:
+                        target_date = f_fin
+
+            diff = target_date - f_inicio
+            row[f"KPI_{kpi.nombre}"] = max(0, diff.days)
+
+    return rows, kpi_meta
+
+
+# ── Restricciones de datos ─────────────────────────────────────────────────
+def apply_data_restrictions(data_list, res_obj):
+    if not res_obj:
+        return data_list
+    parsed_res = {}
+    for col, vals in res_obj.items():
+        if not vals:
+            continue
+        parsed_res[col] = [str(v).strip().upper() for v in (vals if isinstance(vals, list) else [vals])]
+    if not parsed_res:
+        return data_list
+    filtered = []
+    for d in data_list:
+        keep = True
+        for col_name, allowed_vals in parsed_res.items():
+            if col_name not in d:
+                continue
+            if str(d.get(col_name, '')).strip().upper() not in allowed_vals:
+                keep = False
+                break
+        if keep:
+            filtered.append(d)
+    return filtered
+
+
+# ── Helpers de datos ───────────────────────────────────────────────────────
+def _sane_data_key(k):
+    return str(k).replace('.', '_')
+
+
+def _sane_dict(d):
+    return {_sane_data_key(k): v for k, v in d.items()}
+
+
+# ── Combustible helpers ────────────────────────────────────────────────────
+def _parse_galones(n):
+    try:
+        return float(str(n or '').replace(',', '.').strip())
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _combustible_fecha_norm(v):
+    s = str(v or '').strip().replace('T', ' ')
+    if not s:
+        return ''
+    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$', s)
+    if m:
+        return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)} {(m.group(4) or '00').zfill(2)}:{(m.group(5) or '00').zfill(2)}"
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:[ ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$', s)
+    if m:
+        return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)} {(m.group(4) or '00').zfill(2)}:{(m.group(5) or '00').zfill(2)}"
+    return s
+
+
+def _combustible_fecha_ord(v):
+    s = _combustible_fecha_norm(v)
+    if s.endswith(' 00:00'):
+        s = s[:-6] + ' 23:59'
+    return s
+
+
+def _combustible_filas_gen(pid, generador):
+    filas = []
+    try:
+        for r in NucleusData.query.filter_by(proyecto_id=pid).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if str(d.get('QR ASIGNADO', '')).strip() != generador:
+                continue
+            filas.append({
+                'key': r.key_value,
+                'fecha': _combustible_fecha_norm(d.get('FECHA', '')),
+                'mov': str(d.get('MOVIMIENTO', '')).strip().upper(),
+                'gal': _parse_galones(d.get('GALONES')),
+            })
+    except Exception:
+        pass
+    filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+    return filas
+
+
+def _combustible_chequear(filas):
+    bal = 0.0
+    for f in filas:
+        bal = bal + f['gal'] if f['mov'] != 'GASTO' else bal - f['gal']
+        if bal < -1e-9:
+            return False, {'key': f.get('key'), 'fecha': f.get('fecha'), 'saldo': round(bal, 2)}
+    return True, {'saldo_final': round(bal, 2)}
+
+
+def _combustible_validar_gasto(pid, generador, fecha, galones, excluir_key=None):
+    filas = _combustible_filas_gen(pid, generador)
+    if excluir_key is not None:
+        filas = [f for f in filas if str(f.get('key')) != str(excluir_key)]
+    filas.append({'key': '(nuevo)', 'fecha': _combustible_fecha_norm(fecha),
+                  'mov': 'GASTO', 'gal': float(galones)})
+    filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+    ok, info = _combustible_chequear(filas)
+    if ok:
+        return True, info.get('saldo_final', 0.0)
+    return False, info
+
+
+def _combustible_saldo(pid, generador):
+    filas = _combustible_filas_gen(pid, generador)
+    ok, info = _combustible_chequear(filas)
+    return info.get('saldo_final', 0.0)
+
+
+def _flm_wo_list():
+    """Lista de WOs (CM) declarados en FLM - ENTEL, para el buscador de Combustible."""
+    try:
+        flm_proy = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
+        if not flm_proy:
+            return []
+        wo_set = set()
+        wo_key = None
+        # Un solo recorrido: husmear la columna WO en las primeras filas y
+        # recolectar en el mismo pass (antes eran 2 full-scans de FLM).
+        all_rows = NucleusData.query.filter_by(proyecto_id=flm_proy.id).all()
+        for r in all_rows:
+            if wo_key:
+                break
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            for k in d.keys():
+                if ('WO' in k.upper() and 'NUMBER' in k.upper()) or k in ('Número de WO', 'Numero de WO'):
+                    wo_key = k
+                    break
+        for r in all_rows:
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if wo_key:
+                wo = str(d.get(wo_key, '')).strip()
+                if wo:
+                    wo_set.add(wo)
+            else:
+                for k, v in d.items():
+                    if 'WO' in str(k).upper():
+                        w = str(v).strip()
+                        if w:
+                            wo_set.add(w)
+        return sorted(wo_set)
+    except Exception:
+        return []
+
+def _flm_pair_ids():
+    """Devuelve (id_flm_entel, None) — solo existe un proyecto FLM (renombrado a FLM - ENTEL).
+    Retorna (None, None) si no se encuentra el proyecto."""
+    try:
+        flm = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
+        if flm:
+            return flm.id, None
+        return None, None
+    except Exception:
+        return None, None
+
+
+def _flm_hermano_id(pid):
+    """Si pid es FLM - ENTEL, devuelve None (no hay hermano); si no, None."""
+    # FLM - ENTEL es el único proyecto FLM, no tiene hermano espejo.
+    # Esta función se mantiene por compatibilidad con el resto del código.
+    return None
+
+
+
+# ── Sync FLM <-> FLM - ENTEL por CM ────────────────────────────────────────
+# FLM - ENTEL comparte códigos de CM. Como el esquema de columnas de cada
+# proyecto es DISTINTO, la sincronización NO copia todo el registro: solo
+# propaga al proyecto hermano los campos de trabajo que el usuario edita
+# (modal WO, evidencia/fotos, estado), evitando pisar columnas propias de
+# cada esquema.
+CAMPOS_TRABAJO_FLM = frozenset({
+    'SERVICIO', 'CIUDAD', 'TECNICO ASIGNADO', 'CONTRATA', 'MOTIVO DE AVERÍA',
+    'SISTEMAS', 'MATERIALES', 'INICIO DE PARADA', 'FIN DE PARADA', 'BITACORA',
+    'SOLUCIÓN', 'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'LATITUD MUFAS',
+    'LONGITUD MUFAS', 'COTIZACION_ITEMS', 'COTIZACION_NOTA', 'COTIZACION_NUMERO',
+    'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'GESTOR', 'EDITADO POR',
+    'Estado de la tarea (WO State)', 'FECHA CAMBIO ESTADO', '_ENVIADO_APROBACION',
+    'REQUIERE BIÁTICOS', 'MONTO BIÁTICOS (SOLES)', 'COSTO DE MATERIAL (SOLES)',
+})
+
+
+def _flm_campo_propagable(campo, data_hermano):
+    """Un campo editado se propaga al hermano si es de trabajo (modal/evidencia)
+    o si el proyecto hermano ya tiene esa columna."""
+    return (campo.startswith('_') or campo in CAMPOS_TRABAJO_FLM
+            or campo in data_hermano)
+
+
+def _flm_registro_hermano(pid, key):
+    """Registro NucleusData del mismo CM en el proyecto hermano FLM/FLM (old),
+    o None."""
+    her = _flm_hermano_id(pid)
+    if her is None:
+        return None
+    return NucleusData.query.filter_by(proyecto_id=her, key_value=str(key)).first()
+
+
+def _flm_sync_campos(pid, key, campos, metadatos):
+    """Propaga {campo: valor} al registro hermano del mismo CM. Solo los campos
+    propagables (ver _flm_campo_propagable). `metadatos` son campos fijos que se
+    aplican siempre (usuario/edición/estado)."""
+    her = _flm_hermano_id(pid)
+    if her is None:
+        return
+    rec = _flm_registro_hermano(pid, key)
+    if rec is None:
+        return
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    cambio = False
+    for campo, valor in campos.items():
+        if not _flm_campo_propagable(campo, d):
+            continue
+        d[campo] = valor
+        cambio = True
+    for k, v in (metadatos or {}).items():
+        if v is not None and d.get(k) != v:
+            d[k] = v
+            cambio = True
+    if cambio:
+        rec.data_json = safe_json_dumps(d)
+
+

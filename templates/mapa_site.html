@@ -20,6 +20,19 @@
   .mapa-panel h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ios-label, #1C1C1E); display: flex; align-items: center; gap: 8px; }
   .mapa-panel .hint { font-size: 12px; color: var(--ios-gray-1, #8E8E93); line-height: 1.4; }
 
+  /* Cabecera en una sola fila: título + acciones */
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel-actions { display: flex; gap: 6px; }
+  .btn-ico {
+    width: 32px; height: 32px;
+    border: 1px solid var(--ios-gray-5, #E5E5EA);
+    background: var(--ios-card-bg, #fff);
+    border-radius: 10px; font-size: 13px; color: var(--ios-gray-1, #8E8E93);
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .btn-ico:hover { color: #007AFF; border-color: #007AFF; background: rgba(0,122,255,0.06); }
+
   /* Buscador */
   .search-wrap { position: relative; }
   .search-wrap input {
@@ -90,6 +103,42 @@
   .legend { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ios-gray-1, #8E8E93); }
   .legend .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--ios-hairline, rgba(0,0,0,0.1)); }
 
+  /* Filtro de contrata */
+  .contrata-filtros { display: flex; gap: 8px; }
+  .pill {
+    flex: 1; padding: 8px;
+    border: 1px solid var(--ios-gray-5, #E5E5EA);
+    background: var(--ios-card-bg, #fff);
+    border-radius: 10px; font-size: 11px; font-weight: 600;
+    text-align: center; cursor: pointer; color: var(--ios-label, #1C1C1E);
+    user-select: none; transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .pill .n { font-size: 16px; font-weight: 800; }
+  .pill.active { border-color: #007AFF; color: #007AFF; background: rgba(0,122,255,0.08); }
+  .pill.active.cobra { border-color: #007AFF; color: #007AFF; background: rgba(0,122,255,0.08); }
+  .pill.off { opacity: 0.45; }
+
+  /* Leyenda/filtro de prioridades */
+  .legend-prios { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; }
+  .legend-prios .li { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--ios-label, #1C1C1E); }
+  .legend-prios .li .dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.15); }
+
+  .prio-filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .pill-p {
+    padding: 6px 8px;
+    border: 1px solid var(--ios-gray-5, #E5E5EA);
+    background: var(--ios-card-bg, #fff);
+    border-radius: 10px; font-size: 11px; font-weight: 600;
+    text-align: center; cursor: pointer; color: var(--ios-label, #1C1C1E);
+    user-select: none; transition: all 0.15s;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .pill-p .n { font-size: 14px; font-weight: 800; }
+  .pill-p .lbl { display: flex; align-items: center; gap: 5px; font-weight: 700; }
+  .pill-p .lbl .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .pill-p.off { opacity: 0.35; }
+
   /* Leaflet popups en dark mode */
   .leaflet-popup-content-wrapper { border-radius: 12px !important; background: var(--ios-card-bg, #fff) !important; color: var(--ios-label, #1C1C1E) !important; }
   .leaflet-popup-tip { background: var(--ios-card-bg, #fff) !important; }
@@ -111,8 +160,13 @@
     <div id="map-loading"><i class="fa-solid fa-spinner fa-spin" style="color:#007AFF;"></i> Cargando {{ sites_count }} sites...</div>
   </div>
   <div class="mapa-panel">
-    <h3><i class="fa-solid fa-map-location-dot" style="color:#007AFF;"></i> Mapa de Sites</h3>
-    <p class="hint">Busca un site por <b>código</b> o <b>nombre</b>, o haz <b>clic</b> en un punto del mapa. Se resaltará entre los <span id="total-sites">{{ sites_count }}</span> sites del maestro.</p>
+    <div class="panel-head">
+      <h3><i class="fa-solid fa-map-location-dot" style="color:#007AFF;"></i> Mapa de Sites</h3>
+      <div class="panel-actions">
+        <button type="button" class="btn-ico" onclick="limpiarResaltado()" title="Limpiar resaltado"><i class="fa-solid fa-eraser"></i></button>
+        <button type="button" class="btn-ico" onclick="ajustarVista()" title="Ver todos los sites"><i class="fa-solid fa-expand"></i></button>
+      </div>
+    </div>
 
     <div class="search-wrap">
       <input type="text" id="site-search" placeholder="Seleccionar site — escribe o elige de la lista..." autocomplete="off" readonly onfocus="this.removeAttribute('readonly')">
@@ -120,17 +174,21 @@
       <div id="suggest" class="suggest-list"></div>
     </div>
 
-    <div style="display:flex; gap:8px;">
-      <button type="button" class="btn-clear" onclick="limpiarResaltado()" style="flex:1;"><i class="fa-solid fa-eraser"></i> Limpiar</button>
-      <button type="button" class="btn-clear" onclick="ajustarVista()" style="flex:1;"><i class="fa-solid fa-expand"></i> Ver todo</button>
-    </div>
-
     <div id="site-detail" class="site-detail"></div>
 
-    <div class="legend">
-      <span class="dot" style="background:#007AFF;"></span> Site
-      <span class="dot" style="background:#FF3B30; width:14px; height:14px;"></span> Resaltado
+    <div>
+      <div class="hint" style="margin-bottom:6px;"><i class="fa-solid fa-layer-group" style="font-size:10px;"></i> Contrata</div>
+      <div id="contrata-filtros" class="contrata-filtros">
+        <button type="button" class="pill active" data-contrata="COBRA"><span class="n" id="cnt-cobra">0</span> COBRA</button>
+        <button type="button" class="pill active" data-contrata="FUERA DE CONTRATA"><span class="n" id="cnt-fuera">0</span> FUERA DE CONTRATA</button>
+      </div>
     </div>
+
+    <div>
+      <div class="hint" style="margin-bottom:6px;"><i class="fa-solid fa-circle-half-stroke" style="font-size:10px;"></i> Prioridad</div>
+      <div id="prio-filtros" class="prio-filtros"></div>
+    </div>
+
     <div class="hint" style="font-size:11px;">Total: <b id="total-sites-2">{{ sites_count }}</b> sites con coordenadas válidas.</div>
   </div>
 </div>
@@ -140,6 +198,58 @@
 let SITES = [];
 let map, markers = [], highlighted = null, highlightCircle = null;
 let allBounds = null;
+
+// Colores de prioridad: P0+ rojo chillón (lo más crítico) ... P4 morado
+const PRIORITY_COLORS = {
+  'P0+': '#FF00FF',
+  'P0': '#E53935',
+  'P1': '#FF9800',
+  'P2': '#FDD835',
+  'P3': '#8D6E63',
+  'P4': '#9C27B0'
+};
+const SITE_DEFAULT_COLOR = '#607D8B';
+function colorPrioridad(p) {
+  return PRIORITY_COLORS[String(p || '').trim().toUpperCase()] || SITE_DEFAULT_COLOR;
+}
+
+// Filtros de contrata activos
+let contrataFilter = { 'COBRA': true, 'FUERA DE CONTRATA': true };
+
+// Filtros de prioridad (se llenan dinámicamente con los datos) + orden canónico
+const PRIO_ORDER = ['P0+', 'P0', 'P1', 'P2', 'P3', 'P4', 'SIN PRIORIDAD'];
+let prioFilter = {};
+
+function siteVisible(s) {
+  const ck = String(s.contrata || '').trim().toUpperCase();
+  if (contrataFilter[ck] === false) return false;
+  const pk = String(s.prioridad || '').trim().toUpperCase() || 'SIN PRIORIDAD';
+  if (prioFilter[pk] === false) return false;
+  return true;
+}
+
+// Construye los botones de filtro por prioridad (con contador) según los datos
+function buildPrioFilters() {
+  const box = document.getElementById('prio-filtros');
+  box.innerHTML = '';
+  const counts = {};
+  SITES.forEach(s => {
+    const k = String(s.prioridad || '').trim().toUpperCase() || 'SIN PRIORIDAD';
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  const keys = [...PRIO_ORDER.filter(k => k in counts),
+                ...Object.keys(counts).filter(k => !PRIO_ORDER.includes(k))];
+  keys.forEach(k => {
+    prioFilter[k] = true;
+    const color = colorPrioridad(k === 'SIN PRIORIDAD' ? '' : k);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pill-p active';
+    b.setAttribute('data-prio', k);
+    b.innerHTML = `<span class="n">${counts[k]}</span><span class="lbl"><span class="dot" style="background:${color};"></span> ${escapeHtml(k)}${k === 'P0+' ? ' · crítico' : ''}</span>`;
+    box.appendChild(b);
+  });
+}
 
 function escapeHtml(s) {
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -170,70 +280,102 @@ function initMap() {
     latlngs.push(ll);
     const m = L.circleMarker(ll, {
       radius: 5,
-      fillColor: '#007AFF',
+      fillColor: colorPrioridad(s.prioridad),
       color: '#fff',
       weight: 1.5,
       opacity: 1,
-      fillOpacity: 0.85
+      fillOpacity: 0.9
     }).addTo(map);
     m.siteData = s;
-    // Al hacer clic en el marcador -> resaltar en rojo y mostrar info
+    // Al hacer clic en el marcador -> resaltar y mostrar info
     m.on('click', function() {
       resaltarSite(s);
       document.getElementById('site-search').value = s.nombre || s.codigo;
     });
     markers.push(m);
   });
+  // Contadores de contrata
+  (function() {
+    const cnts = { 'COBRA': 0, 'FUERA DE CONTRATA': 0 };
+    SITES.forEach(s => {
+      const k = String(s.contrata || '').trim().toUpperCase();
+      if (k in cnts) cnts[k]++;
+    });
+    document.getElementById('cnt-cobra').textContent = cnts['COBRA'];
+    document.getElementById('cnt-fuera').textContent = cnts['FUERA DE CONTRATA'];
+  })();
+  buildPrioFilters();
   allBounds = L.latLngBounds(latlngs);
   map.fitBounds(allBounds.pad(0.08));
   setTimeout(() => map.invalidateSize(), 200);
   document.getElementById('map-loading').style.display = 'none';
 }
 
-function resaltarSite(site) {
+// Aplica los filtros de contrata: oculta/muestra marcadores y reajusta la vista
+// Aplica los filtros de contrata y prioridad: oculta/muestra marcadores
+// SIN reajustar el zoom (se conserva la vista actual del usuario).
+function aplicarFiltros() {
+  let visibles = 0;
+  markers.forEach(m => {
+    if (siteVisible(m.siteData)) {
+      visibles++;
+      if (!map.hasLayer(m)) m.addTo(map);
+    } else if (map.hasLayer(m)) {
+      map.removeLayer(m);
+    }
+    if (highlighted === m && !siteVisible(m.siteData)) limpiarResaltado();
+  });
+  const el2 = document.getElementById('total-sites-2');
+  if (el2) el2.textContent = visibles;
+}
+
+async function resaltarSite(site) {
   if (highlighted) {
-    highlighted.setStyle({ fillColor: '#007AFF', radius: 5 });
+    highlighted.setStyle({ fillColor: colorPrioridad(highlighted.siteData.prioridad), radius: 5 });
   }
   if (highlightCircle) { map.removeLayer(highlightCircle); highlightCircle = null; }
   const m = markers.find(x => x.siteData.codigo === site.codigo && x.siteData.nombre === site.nombre);
   if (!m) return;
+  if (!map.hasLayer(m)) { map.addLayer(m); }
   highlighted = m;
-  m.setStyle({ fillColor: '#FF3B30', radius: 10, fillOpacity: 1, weight: 2, color: '#fff' });
+  m.setStyle({ fillColor: '#00E5FF', radius: 10, fillOpacity: 1, weight: 3, color: '#fff' });
   m.bringToFront();
-  highlightCircle = L.circle([site.lat, site.lng], { radius: 400, color: '#FF3B30', weight: 2, fillColor: '#FF3B30', fillOpacity: 0.15 }).addTo(map);
+  highlightCircle = L.circle([site.lat, site.lng], { radius: 400, color: '#00E5FF', weight: 2, fillColor: '#00E5FF', fillOpacity: 0.15 }).addTo(map);
   map.setView([site.lat, site.lng], 14, { animate: true });
 
-  // Construir panel de detalle con TODOS los campos
+  // Panel de detalle: cabecera de inmediato, campos completos bajo demanda
   const det = document.getElementById('site-detail');
   det.classList.add('show');
-
-  let html = `<div class="site-detail-header">
-    <span style="width:12px; height:12px; border-radius:50%; background:#fff; display:inline-block; flex-shrink:0;"></span>
+  det.dataset.codigo = site.codigo;
+  det.innerHTML = `<div class="site-detail-header">
+    <span style="width:12px; height:12px; border-radius:50%; background:${colorPrioridad(site.prioridad)}; display:inline-block; flex-shrink:0; border:1px solid rgba(255,255,255,0.6);"></span>
     ${escapeHtml(site.nombre || site.codigo)}
   </div>`;
 
-  // Mostrar todos los campos del data_json
-  const allData = site.all || {};
-  const keys = Object.keys(allData);
-  if (keys.length) {
-    keys.forEach(k => {
-      const v = allData[k];
-      if (v !== '' && v !== null && v !== undefined) {
-        html += `<div class="row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`;
-      }
-    });
+  if (!site.all) {
+    try {
+      const r = await fetch('/api/site/detalle?codigo=' + encodeURIComponent(site.codigo));
+      if (r.ok) site.all = await r.json();
+    } catch (e) { site.all = {}; }
   }
-  // Coords siempre
+  if (det.dataset.codigo !== site.codigo) return; // el usuario ya eligió otro site
+
+  let html = det.innerHTML;
+  const allData = site.all || {};
+  Object.keys(allData).forEach(k => {
+    const v = allData[k];
+    if (v !== '' && v !== null && v !== undefined) {
+      html += `<div class="row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`;
+    }
+  });
   html += `<div class="row"><span class="k">Coordenadas</span><span class="v">${site.lat.toFixed(6)}, ${site.lng.toFixed(6)}</span></div>`;
 
   det.innerHTML = html;
-
-  // Scroll al detalle
   det.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function limpiarResaltado() {
-  if (highlighted) highlighted.setStyle({ fillColor: '#007AFF', radius: 5 });
+  if (highlighted) highlighted.setStyle({ fillColor: colorPrioridad(highlighted.siteData.prioridad), radius: 5 });
   highlighted = null;
   if (highlightCircle) { map.removeLayer(highlightCircle); highlightCircle = null; }
   document.getElementById('site-detail').classList.remove('show');
@@ -298,19 +440,47 @@ document.addEventListener('click', function(e) {
   if (!wrap) hideSuggest();
 });
 
+// Toggle de filtros de contrata
+document.getElementById('contrata-filtros').addEventListener('click', function(e) {
+  const btn = e.target.closest('.pill');
+  if (!btn) return;
+  const k = btn.getAttribute('data-contrata');
+  contrataFilter[k] = !contrataFilter[k];
+  btn.classList.toggle('active', contrataFilter[k]);
+  btn.classList.toggle('off', !contrataFilter[k]);
+  aplicarFiltros();
+});
+
+// Toggle de filtros de prioridad
+document.getElementById('prio-filtros').addEventListener('click', function(e) {
+  const btn = e.target.closest('.pill-p');
+  if (!btn) return;
+  const k = btn.getAttribute('data-prio');
+  prioFilter[k] = !prioFilter[k];
+  btn.classList.toggle('active', prioFilter[k]);
+  btn.classList.toggle('off', !prioFilter[k]);
+  btn.style.borderColor = prioFilter[k] ? colorPrioridad(k === 'SIN PRIORIDAD' ? '' : k) : '';
+  aplicarFiltros();
+});
+
 // Cargar datos vía API (evita HTML gigante)
 fetch('/api/sites')
-  .then(r => r.json())
+  .then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  })
   .then(data => {
     SITES = data;
-    document.getElementById('total-sites').textContent = data.length;
     const el2 = document.getElementById('total-sites-2');
     if (el2) el2.textContent = data.length;
     initMap();
   })
   .catch(err => {
     console.error('Error cargando sites', err);
-    document.getElementById('map-loading').innerHTML = '<span style="color:#FF3B30;">Error cargando sites</span>';
+    document.getElementById('map-loading').innerHTML =
+      '<span style="color:#FF3B30;">Error cargando sites</span>' +
+      '<button type="button" onclick="location.reload()" style="border:0; background:#FF3B30; color:#fff; border-radius:8px; padding:4px 10px; cursor:pointer; font-weight:700; font-size:12px;">Reintentar</button>' +
+      '<span style="font-size:11px; color:#8E8E93;">' + escapeHtml(err.message || '') + '</span>';
   });
 </script>
 {% endblock %}

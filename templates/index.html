@@ -10,14 +10,7 @@
     </span>
 
     {% set rol_es_admin = session.get('rol') in ['zeno', 'suport', 'admin'] %}
-    {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM', 'PEXT'] %}
-    {% if rol_es_admin and proy_flm_pext %}
-    <label class="topbar-switch" title="Mostrar u ocultar de golpe las columnas manuales de la tabla">
-        <input type="checkbox" id="manual-cols-toggle" onchange="toggleManualColumns(this)">
-        <span class="topbar-switch-track"></span>
-        <span class="topbar-switch-label">Manuales</span>
-    </label>
-    {% endif %}
+    {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'PEXT'] %}
 
     <div style="flex: 1;"></div>
 
@@ -91,6 +84,14 @@
         <button type="button" id="btn-top-next" class="action-pill">Guardar</button>
     </div>
     {% endif %}
+    {% if proy_nombre == 'cotizaciones' %}
+    <div id="coti-lote-top" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">PDFs generadas:</span>
+        <input type="date" id="coti-lote-desde" title="Desde" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
+        <input type="date" id="coti-lote-hasta" title="Hasta" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
+        <button type="button" id="btn-coti-lote" class="action-pill pill-teal" onclick="descargarCotizacionesLote()" title="Descargar ZIP con los PDFs de las cotizaciones generadas en el rango"><i class="fa-solid fa-file-arrow-down"></i> PDFs</button>
+    </div>
+    {% endif %}
     <!-- Botón Excel (Verde) -->
     <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
         <i class="fa-solid fa-file-excel"></i> Exportar
@@ -104,7 +105,7 @@
     </button>
     {% endif %}
 
-    {% if proy_nombre in ['flm', 'pext'] and session.get('rol') not in ['contrata'] %}
+    {% if proy_nombre in ['flm - entel', 'pext'] and session.get('rol') not in ['contrata'] %}
     <!-- Botón Nuevo WO (Azul): alta de WO (no disponible para Contrata, que solo completa la información) -->
     <button onclick="aniadirRegistroWO()" class="action-pill pill-blue" title="Crear un WO manualmente">
         <i class="fa-solid fa-plus"></i> Nuevo WO
@@ -204,9 +205,9 @@
         background: var(--ios-fill) !important;
     }
     #pagination-container .tabulator-page.active {
-        background: var(--ios-label) !important;
-        color: var(--ios-bg) !important;
-        border-color: var(--ios-label) !important;
+        background: var(--ios-accent) !important;
+        color: #FFFFFF !important;
+        border-color: var(--ios-accent) !important;
     }
     #pagination-container .tabulator-page[disabled] {
         opacity: 0.35 !important;
@@ -337,9 +338,9 @@
     }
 
     .mar-close {
-        background: var(--ios-fill);
-        border: none;
-        color: var(--ios-secondary);
+        background: rgba(255, 59, 48, 0.1);
+        border: 1px solid rgba(255, 59, 48, 0.2);
+        color: #FF3B30;
         width: 32px;
         height: 32px;
         border-radius: 10px;
@@ -349,7 +350,8 @@
     }
 
     .mar-close:hover {
-        background: var(--ios-gray-5);
+        background: rgba(255, 59, 48, 0.15);
+        border-color: #FF3B30;
     }
 
     .mar-body {
@@ -2428,7 +2430,7 @@
                 <!-- Formulario completo (oculto hasta que se presione el botón) -->
                 <div id="wo-coti-form-body" style="display:none;">
                     {% set proy_coti = (session.get('current_proyecto_nombre') or '') | trim | upper %}
-                    {% if proy_coti == 'FLM' %}
+                    {% if proy_coti == 'FLM - ENTEL' %}
                     <!-- ===== FORMATO COBRA (FLM) ===== -->
                     <div class="wo-section">
                         <div class="wo-section-title">
@@ -2747,6 +2749,9 @@
     let cotiNextSeqConfig = 61;
     if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
         fetch('/api/cotizacion/next_seq').then(r=>r.json()).then(j=>{ if(j && j.next){ cotiNextSeqConfig = parseInt(j.next,10); const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'); if(y) y.textContent=new Date().getFullYear(); if(inp) inp.value=String(cotiNextSeqConfig).padStart(7,'0'); } }).catch(()=>{});
+        // Rango por defecto del lote de PDFs: primer día del mes actual -> hoy
+        const _ld = document.getElementById('coti-lote-desde'), _lh = document.getElementById('coti-lote-hasta');
+        if (_ld && _lh) { const _t = new Date(), _f = (x) => String(x).padStart(2, '0'); _lh.value = _t.getFullYear() + '-' + _f(_t.getMonth() + 1) + '-' + _f(_t.getDate()); _ld.value = _t.getFullYear() + '-' + _f(_t.getMonth() + 1) + '-01'; }
         setTimeout(()=>{
             const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'), btn=document.getElementById('btn-top-next');
             if(y) y.textContent=new Date().getFullYear();
@@ -2767,11 +2772,11 @@
         }, 400);
     }
     const _projNorm = currentProjectNombre.trim().toLowerCase();
-    const IS_WO_PROJECT = ['pext', 'flm', 'claro', 'integratel'].includes(_projNorm) || _projNorm.includes('flm') || _projNorm.includes('pext');
+    const IS_WO_PROJECT = ['pext', 'flm - entel', 'claro', 'integratel'].includes(_projNorm) || _projNorm.includes('flm - entel') || _projNorm.includes('pext');
     const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
     const pkName = "{{ pk }}";
-    const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm';
-    const IS_FLM_LIKE = IS_FLM || _projNorm.includes('flm'); // 'flm' y 'flm (old)' usan el mismo formulario/modal
+    const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm - entel';
+    const IS_FLM_LIKE = IS_FLM || _projNorm.includes('flm - entel'); // 'flm' y 'flm - entel' usan el mismo formulario/modal
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
 
     const FAULT_COLORS = IS_FLM ? {
@@ -2788,26 +2793,37 @@
 
     const WO_STATE_COLORS = {
         'unscheduled': { bg: '#8E8E93', fg: '#8E8E93', iconText: 'U' },
-        'accepted': { bg: "var(--ios-accent)", fg: "var(--ios-accent)", iconText: 'A' },
-        'dispatched': { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
-        'inprocess': { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
-        'rejected': { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
-        'closed': { bg: '#34C759', fg: '#34C759', iconText: 'C' },
-        'canceled': { bg: '#00C4B4', fg: '#00C4B4', iconText: 'C' }
+        'accepted':    { bg: "var(--ios-accent)", fg: "var(--ios-accent)", iconText: 'A' },
+        'dispatched':  { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'inprocess':   { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
+        'rejected':    { bg: '#FF3B30', fg: '#FF3B30', iconText: 'R' },
+        'closed':      { bg: '#34C759', fg: '#34C759', iconText: 'C' },
+        'canceled':    { bg: '#00C4B4', fg: '#00C4B4', iconText: 'C' }
+    };
+
+    // Operate Phase: mismos colores que las tarjetas KPI (coincidencia flexible por includes)
+    const OPERATE_PHASE_COLORS = {
+        'dispatch': { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'accept':   { bg: '#007AFF', fg: '#007AFF', iconText: 'A' },
+        'depart':   { bg: '#FF9500', fg: '#FF9500', iconText: 'P' },
+        'arrive':   { bg: '#34C759', fg: '#34C759', iconText: 'R' },
+        'complete': { bg: '#28A745', fg: '#28A745', iconText: 'C' },
+        'leave':    { bg: '#FF3B30', fg: '#FF3B30', iconText: 'L' },
+        'close':    { bg: '#8E8E93', fg: '#8E8E93', iconText: 'X' },
     };
 
     const SITE_PRIORITY_COLORS = {
-        'p0+': { bg: '#8B0000', fg: '#8B0000', bgLight: '#8B00001A' }, // Dark Crimson Red
-        'p0': { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' }, // Neon Pink-Red
-        '0': { bg: '#FF2D55', fg: '#FF2D55', bgLight: '#FF2D551A' },
-        'p1': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' }, // Standard Red
-        'p2': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
-        'p3': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
-        'p4': { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
-        '1': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
-        '2': { bg: '#FF9500', fg: '#FF9500', bgLight: '#FF95001A' },
-        '3': { bg: '#FFCC00', fg: '#FFCC00', bgLight: '#FFCC001A' },
-        '4': { bg: '#34C759', fg: '#34C759', bgLight: '#34C7591A' },
+        'p0+': { bg: '#FF00FF', fg: '#FF00FF', bgLight: '#FF00FF1A' }, // Fucsia (lo más crítico)
+        'p0': { bg: '#E53935', fg: '#E53935', bgLight: '#E539351A' }, // Rojo
+        '0': { bg: '#E53935', fg: '#E53935', bgLight: '#E539351A' },
+        'p1': { bg: '#FF9800', fg: '#FF9800', bgLight: '#FF98001A' }, // Naranja
+        'p2': { bg: '#FDD835', fg: '#FDD835', bgLight: '#FDD8351A' }, // Amarillo
+        'p3': { bg: '#8D6E63', fg: '#8D6E63', bgLight: '#8D6E631A' }, // Marrón
+        'p4': { bg: '#9C27B0', fg: '#9C27B0', bgLight: '#9C27B01A' }, // Morado
+        '1': { bg: '#FF9800', fg: '#FF9800', bgLight: '#FF98001A' },
+        '2': { bg: '#FDD835', fg: '#FDD835', bgLight: '#FDD8351A' },
+        '3': { bg: '#FDD835', fg: '#FDD835', bgLight: '#FDD8351A' },
+        '4': { bg: '#9C27B0', fg: '#9C27B0', bgLight: '#9C27B01A' },
         'critical': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
         'crítica': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
         'critica': { bg: '#FF3B30', fg: '#FF3B30', bgLight: '#FF3B301A' },
@@ -2829,7 +2845,7 @@
         if (!container) return;
         const proy = currentProjectNombre.trim().toLowerCase();
 
-        if (proy === 'pext' || proy === 'flm') {
+        if (proy === 'pext' || proy === 'flm - entel') {
             renderCardsStats(container);
             return;
         }
@@ -2847,7 +2863,7 @@
             if (est === 'ACTIVO') { activos++; hasEstado = true; }
             else if (est === 'CESADO') { cesados++; hasEstado = true; }
             const proy = norm(r.PROYECTO);
-            if (proy === 'FLM') { flm++; hasProyecto = true; }
+            if (proy === 'FLM - ENTEL') { flm++; hasProyecto = true; }
             else if (proy === 'PEXT') { pext++; hasProyecto = true; }
         });
         if (!hasEstado && !hasProyecto) return;
@@ -2950,7 +2966,7 @@
         ).join('');
     }
 
-    // --- PEXT: tarjetas de los estados del SLA Cumplimiento + estados de la WO ---
+    // --- FLM - ENTEL: tarjetas de los 7 estados de WO (filtrables al click) ---
     function renderCardsStats(container) {
         const norm = v => String(v == null ? '' : v).trim().toLowerCase();
         const val = (row, ...keys) => {
@@ -2960,52 +2976,59 @@
             }
             return null;
         };
-        const slaCounts = {
-            'SLA CUMPLIDO': 0,
-            'SLA VENCIDO': 0,
-            'SLA DENTRO DE PLAZO': 0,
-            'SLA DEBE ATENDERSE': 0,
-            'SLA POR VENCER': 0,
-            'NO APLICA': 0
-        };
-        const woCounts = { unscheduled: 0, dispatched: 0, accepted: 0, inprocess: 0 };
-        rawData.forEach(r => {
-            const st = slaCumplimientoEstado(computarSlaData(r), getSlaThresholdData(r), esCanceladoOM(r));
-            if (st.texto && st.texto in slaCounts) slaCounts[st.texto]++;
-            const woState = String(val(r, 'estado de la tarea (wo state)', 'estado del tt', 'estado') || '').trim().toLowerCase();
-            if (woState in woCounts) woCounts[woState]++;
-        });
-        const cards = [
-            ['#28A745', 'fa-circle-check', 'SLA CUMPLIDO', slaCounts['SLA CUMPLIDO']],
-            ['#8B0000', 'fa-circle-xmark', 'SLA VENCIDO', slaCounts['SLA VENCIDO']],
-            ['#FFC107', 'fa-exclamation-triangle', 'SLA DEBE ATENDERSE', slaCounts['SLA DEBE ATENDERSE']],
-            ['#DC3545', 'fa-hourglass-half', 'SLA POR VENCER', slaCounts['SLA POR VENCER']],
-            ['#8E8E93', 'fa-ban', 'NO APLICA', slaCounts['NO APLICA']],
-            ['#8E8E93', 'fa-calendar', 'Unscheduled', woCounts.unscheduled],
-            ['#AF52DE', 'fa-paper-plane', 'Dispatched', woCounts.dispatched],
-            ["var(--ios-accent)", "fa-check-double", "Accepted", woCounts.accepted],
-            ['#FF9500', 'fa-spinner', 'Inprocess', woCounts.inprocess]
+
+        // Los 10 estados (3 de Tipo WO, 7 de Operate Phase)
+        const WO_STATES = [
+            { key: 'cm',       tipo: 'tipo-wo',  label: 'CM',       color: '#FF2D55', icon: 'fa-wrench'              },
+            { key: 'pm',       tipo: 'tipo-wo',  label: 'PM',       color: '#007AFF', icon: 'fa-screwdriver-wrench'  },
+            { key: 'plm',      tipo: 'tipo-wo',  label: 'PLM',      color: '#5856D6', icon: 'fa-bolt'                },
+            { key: 'dispatch', tipo: 'wo-state', label: 'Dispatch', color: '#AF52DE', icon: 'fa-paper-plane'         },
+            { key: 'accept',   tipo: 'wo-state', label: 'Accept',   color: '#007AFF', icon: 'fa-check-double'        },
+            { key: 'depart',   tipo: 'wo-state', label: 'Depart',   color: '#FF9500', icon: 'fa-truck-fast'          },
+            { key: 'arrive',   tipo: 'wo-state', label: 'Arrive',   color: '#34C759', icon: 'fa-location-dot'        },
+            { key: 'complete', tipo: 'wo-state', label: 'Complete', color: '#28A745', icon: 'fa-circle-check'        },
+            { key: 'leave',    tipo: 'wo-state', label: 'Leave',    color: '#FF3B30', icon: 'fa-right-from-bracket'  },
+            { key: 'close',    tipo: 'wo-state', label: 'Close',    color: '#8E8E93', icon: 'fa-lock'                },
         ];
+
+        // Contar cada estado
+        const counts = {};
+        WO_STATES.forEach(s => counts[s.key] = 0);
+
+        rawData.forEach(r => {
+            const opPhase = norm(val(r, 'operate phase') || '');
+            const tipoWo = norm(val(r, 'tipo wo') || '');
+            
+            WO_STATES.forEach(s => {
+                if (s.tipo === 'tipo-wo') {
+                    if (tipoWo === s.key || tipoWo.startsWith(s.key)) counts[s.key]++;
+                } else {
+                    if (opPhase === s.key) counts[s.key]++;
+                }
+            });
+        });
+
         container.style.display = 'grid';
-        container.style.gridTemplateColumns = 'repeat(' + cards.length + ', minmax(0, 1fr))';
-        container.innerHTML = cards.map(c =>
+        container.style.gridTemplateColumns = 'repeat(' + WO_STATES.length + ', minmax(0, 1fr))';
+        container.innerHTML = WO_STATES.map(s =>
             `<div class="data-stat" style="cursor:pointer;" onclick="filtrarPorTarjeta(this)" ` +
-            `data-tipo="${['SLA CUMPLIDO', 'SLA VENCIDO', 'SLA DENTRO DE PLAZO', 'SLA DEBE ATENDERSE', 'SLA POR VENCER', 'NO APLICA'].includes(c[2]) ? 'sla' : 'wo'}" ` +
-            `data-sla="${c[2]}" data-wo="${c[2]}">` +
-            `<div class="data-stat-ic" style="background:${c[0]}1F; color:${c[0]};"><i class="fa-solid ${c[1]}"></i></div>` +
-            `<div class="data-stat-meta"><b>${c[3]}</b><span>${c[2]}</span></div>` +
+            `data-tipo="${s.tipo || 'wo-state'}" data-wo-state="${s.key}" data-wo="${s.label}">` +
+            `<div class="data-stat-ic" style="background:${s.color}1F; color:${s.color};">` +
+            `<i class="fa-solid ${s.icon}"></i></div>` +
+            `<div class="data-stat-meta"><b>${counts[s.key]}</b><span>${s.label}</span></div>` +
             `</div>`
         ).join('');
     }
 
-    // Filtra la tabla al hacer click en una tarjeta de PEXT/FLM.
-    // 'sla' → filtra por el semáforo de SLA Cumplimiento de cada fila.
-    // 'wo'  → filtra por el estado de la WO.
+    // Filtra la tabla al hacer click en una tarjeta de FLM/PEXT.
+    // 'wo-state' → filtra por estado WO (dispatch, accept, depart, arrive, complete, leave, close).
+    // 'sla'      → filtra por semáforo SLA.
+    // 'zona'     → filtra por zona (Combustible).
     // Un segundo click sobre la misma tarjeta quita el filtro.
     let _tarjetaFiltroActiva = null;
     async function filtrarPorTarjeta(el) {
         const tipo = el.getAttribute('data-tipo');
-        const valor = el.getAttribute('data-sla') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
+        const valor = el.getAttribute('data-wo-state') || el.getAttribute('data-sla') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
         if (!table) return;
 
         if (_tarjetaFiltroActiva === valor) {
@@ -3024,7 +3047,19 @@
             return null;
         };
 
-        if (tipo === 'sla') {
+        if (tipo === 'wo-state') {
+            // Filtro exacto por Operate Phase
+            table.setFilter((rowData) => {
+                const opPhase = norm(val(rowData, 'operate phase') || '');
+                return opPhase === valor;
+            });
+        } else if (tipo === 'tipo-wo') {
+            // Filtro por Tipo WO
+            table.setFilter((rowData) => {
+                const tipoWo = norm(val(rowData, 'tipo wo') || '');
+                return tipoWo === valor || tipoWo.startsWith(valor);
+            });
+        } else if (tipo === 'sla') {
             table.setFilter((rowData) => {
                 const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData), esCanceladoOM(rowData));
                 return st.texto === valor;
@@ -3310,7 +3345,7 @@
     };
 
     // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
-    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site'];
+    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site', 'flm - entel'];
     if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
@@ -3671,7 +3706,7 @@
         if (_isCot && fieldName === 'EDITADO POR') { return; }
         if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'EDITADO POR') { return; }
         // FLM/PEXT: EDITADO POR se reemplaza por GESTOR (quien presiona Guardar).
-        if (['flm', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'EDITADO POR') { return; }
+        if (['flm - entel', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'EDITADO POR') { return; }
 
         // Manual columns ocultas por defecto cuando la tabla tiene muchas columnas importadas.
         // Excepción: TECNICO ASIGNADO siempre se muestra (FLM).
@@ -3868,7 +3903,7 @@
                 colDef.editor = false;
             }
             // FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta): no editable
-            if (['flm', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'GESTOR') {
+            if (['flm - entel', 'pext'].includes(currentProjectNombre.trim().toLowerCase()) && fieldName === 'GESTOR') {
                 colDef.editor = false;
             }
             // Cotizaciones: GESTOR y SUB TOTAL no editables; una vez GENERADA,
@@ -4073,6 +4108,41 @@
             };
         }
 
+        // Operate Phase badge: mismo estilo visual que WO State, colores por fase
+        if (fieldName && fieldName.trim().toLowerCase() === 'operate phase') {
+            colDef.formatter = function (cell) {
+                const val = cell.getValue();
+                if (val === null || val === undefined || String(val).trim() === '') return '';
+                const valStr = String(val).trim();
+                const valNorm = valStr.toLowerCase();
+                // Busca coincidencia flexible (ej. "Dispatched" matchea 'dispatch')
+                let color = null;
+                for (const [key, c] of Object.entries(OPERATE_PHASE_COLORS)) {
+                    if (valNorm.includes(key)) { color = c; break; }
+                }
+                if (!color) return valStr;
+                const letter = color.iconText || valStr.charAt(0).toUpperCase();
+                return `
+                    <div style="display: inline-flex; align-items: center; gap: 8px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; font-weight: 500; height: 100%;">
+                        <span style="
+                            background: ${color.bg};
+                            color: #ffffff;
+                            width: 18px;
+                            height: 18px;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            border-radius: 4px;
+                            font-size: 11px;
+                            font-weight: 900;
+                            line-height: 1;
+                        ">${letter}</span>
+                        <span style="color: ${color.fg}; font-weight: 600;">${valStr}</span>
+                    </div>
+                `;
+            };
+        }
+
         // FECHA CAMBIO ESTADO: guardada en UTC -> mostrar en hora de Perú (UTC-5)
         if (fieldName === "FECHA CAMBIO ESTADO") {
             colDef.formatter = function (cell) {
@@ -4084,7 +4154,8 @@
         }
 
         // Site Priority badge: clean badge layout with background tint
-        if (fieldName && fieldName.trim().toUpperCase() === "PRIORIDAD DEL SITE") {
+        // (PRIORIDAD DEL SITE en FLM/PEXT, Prioridad en el maestro SITE)
+        if (fieldName && (fieldName.trim().toUpperCase() === "PRIORIDAD DEL SITE" || fieldName.trim() === "Prioridad")) {
             colDef.formatter = function (cell) {
                 const val = cell.getValue();
                 if (val === null || val === undefined || String(val).trim() === "") return "";
@@ -5851,16 +5922,22 @@
         inpCoti.title = 'Editable. Se asigna definitivo al generar.';
         mkField('N° COTIZACION', inpCoti, 'N° COTIZACION');
 
-        // ESTADO COTIZACION — por defecto Pendiente de Aprobacion
+        // ESTADO COTIZACION — por defecto En proceso
         const selEstadoCoti = document.createElement('select');
-        ['Pendiente de Aprobacion', 'Cotizacion Aprobada', 'Cotizacion Cancelada', 'Cotizacion Rechazada'].forEach(est => {
+        ['En proceso', 'Observado', 'Rechazado', 'Validado', 'Cancelado'].forEach(est => {
             const opt = document.createElement('option');
             opt.value = est;
             opt.textContent = est;
             selEstadoCoti.appendChild(opt);
         });
-        selEstadoCoti.value = 'Pendiente de Aprobacion';
+        selEstadoCoti.value = 'En proceso';
         mkField('ESTADO COTIZACION', selEstadoCoti, 'ESTADO COTIZACION');
+
+        // MOTIVO — obligatorio cuando el estado pasa a Observado / Rechazado / Cancelado
+        const inpMotivo = document.createElement('input');
+        inpMotivo.type = 'text';
+        inpMotivo.placeholder = 'Motivo del cambio de estado...';
+        mkField('MOTIVO', inpMotivo, 'MOTIVO');
 
         // Admin top bar ya maneja el correlativo; modal solo muestra N° sugerido
 
@@ -6210,7 +6287,10 @@ btnItem.onclick = () => cotRegAgregarFila();
         const generada = String(data['GENERADA'] || '') === '1';
         const isAdmin = ["zeno", "suport"].includes("{{ session.get('rol') }}");
         const woPendiente = !String(data['NUMERO WO'] || '').trim();
-        if (generada && !isAdmin && !woPendiente) {
+        // Observado / Rechazado: cotización LIBERADA -> se abre el editor (no el PDF)
+        const _estCoti = String(data['ESTADO COTIZACION'] || '').trim();
+        const liberada = _estCoti === 'Observado' || _estCoti === 'Rechazado';
+        if (generada && !isAdmin && !woPendiente && !liberada) {
             try {
                 const r = await fetch('/api/cotizacion/registro_pdf', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
                 if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.error||'No se pudo abrir la cotización'); }
@@ -6223,6 +6303,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
         cotiEditMode = true;
         cotiEditKey = key;
+        cotiEditData = data;
         const body = document.getElementById('mar-fields');
         body.innerHTML = '';
         aniadirRegistroCotizaciones(body);
@@ -6263,7 +6344,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         setVal('CLIENTE', data['CLIENTE'] || 'ENTEL');
 
         setVal('SUPERVISOR', data['SUPERVISOR'] || '');
-        setVal('ESTADO COTIZACION', data['ESTADO COTIZACION'] || 'Pendiente de Aprobacion');
+        setVal('ESTADO COTIZACION', data['ESTADO COTIZACION'] || 'En proceso');
+        setVal('MOTIVO', data['MOTIVO'] || '');
         setVal('OBJETIVO', data['OBJETIVO'] || '');
         setVal('NUMERO WO', data['NUMERO WO'] || '');
         setVal('NOMBRE SITE', data['NOMBRE SITE'] || '');
@@ -6284,8 +6366,9 @@ btnItem.onclick = () => cotRegAgregarFila();
             }
             cotRegTotal();
         }
-        // Si está GENERADA y pendiente (solo NUMERO WO editable para no-admin)
-        if (generada && !isAdmin && woPendiente) {
+        // Si está GENERADA y pendiente (solo NUMERO WO editable para no-admin);
+        // las liberadas (Observado/Rechazado) se editan completas.
+        if (generada && !isAdmin && woPendiente && !liberada) {
             body.querySelectorAll('input, select, textarea, button').forEach(el => {
                 const field = el.dataset ? el.dataset.field : null;
                 const isNumWo = field === 'NUMERO WO';
@@ -6351,11 +6434,38 @@ btnItem.onclick = () => cotRegAgregarFila();
         descargarCotizacionRegistroKey(d['_key']);
     }
 
+    // Descarga en ZIP los PDFs de las cotizaciones GENERADAS en un rango de fechas
+    async function descargarCotizacionesLote() {
+        const dEl = document.getElementById('coti-lote-desde');
+        const hEl = document.getElementById('coti-lote-hasta');
+        const desde = (dEl && dEl.value || '').trim();
+        const hasta = (hEl && hEl.value || '').trim();
+        if (!desde || !hasta) { alert('Elige el rango de fechas (desde / hasta).'); return; }
+        if (desde > hasta) { alert('La fecha "desde" no puede ser mayor que "hasta".'); return; }
+        const btn = document.getElementById('btn-coti-lote');
+        const old = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+        try {
+            const r = await fetch('/api/cotizacion/descargar_lote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ desde, hasta }) });
+            if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Error al generar el lote'); }
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Cotizaciones_' + desde.replace(/-/g, '') + '_' + hasta.replace(/-/g, '') + '.zip';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+        } catch (err) { alert(err.message || 'Error de red'); }
+        finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
+    }
+
     // Generar una cotización guardada (PENDIENTE → GENERADA, bloquea edición salvo admin)
     async function generarCotizacionExistente(keyVal) {
         keyVal = String(keyVal || '').trim();
         if (!keyVal) return;
-        if (!await nucleusConfirm('¿Generar la cotización ' + keyVal + '?\n\nQuedará bloqueada y solo el admin podrá editarla.')) return;
+        if (!await nucleusConfirm('¿Generar la cotización ' + keyVal + '?\n\nQuedará bloqueada; solo el admin podrá editarla. Se liberará automáticamente si pasa a estado Observado o Rechazado.')) return;
         fetch('/api/cotizacion/registro_generar', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -6383,7 +6493,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         // rid es "R<id>" del módulo Cotizaciones
         const rec = (_cotiRegistrosLista || []).find(x => x.id === rid);
         const keyVal = rec ? rec.numero : rid;
-        if (!await nucleusConfirm('¿Generar la cotización ' + (keyVal || rid) + '?\n\nQuedará bloqueada y solo el admin podrá editarla.')) return;
+        if (!await nucleusConfirm('¿Generar la cotización ' + (keyVal || rid) + '?\n\nQuedará bloqueada; solo el admin podrá editarla. Se liberará automáticamente si pasa a estado Observado o Rechazado.')) return;
         // rid "R###" → buscar key por id, o usar numero
         const targetKey = rec ? rec.numero : rid;
         fetch('/api/cotizacion/registro_generar', {
@@ -6473,6 +6583,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         // Reset modo edición Cotizaciones
         cotiEditMode = false;
         cotiEditKey = null;
+        cotiEditData = null;
         manualEditMode = false;
         manualEditKey = null;
         const titleEl = document.querySelector('#modal-add-registro h3');
@@ -6529,7 +6640,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
         const items = (typeof cotRegRecoger === 'function' ? cotRegRecoger() : []);
         if (!items.length) { nucleusAlert('Agrega al menos un item para previsualizar'); return; }
-        const payload = { numero, site, supervisor, objetivo, ticket: numeroWo || 'CM-PENDIENTE', numero_wo: numeroWo, items };
+        const payload = { numero, site, supervisor, objetivo, ticket: numeroWo || 'CM-PENDIENTE', numero_wo: numeroWo, items, fecha: getVal('FECHA') };
         const btn = document.getElementById('btn-mar-preview-coti');
         const old = btn ? btn.innerHTML : '';
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class=\"fa-solid fa-spinner fa-spin\"></i>'; }
@@ -6684,6 +6795,20 @@ btnItem.onclick = () => cotRegAgregarFila();
             data['SUB TOTAL + FEE'] = totReg > 0 ? totReg.toFixed(2) : '';
             esGenerar = (modo === 'generar');
             if (esGenerar && !itemsReg.length) { alert('Agrega al menos un item antes de generar la cotización.'); return; }
+
+            // Cambios a Observado / Rechazado / Cancelado obligan a indicar un Motivo
+            const nuevoEstado = String(data['ESTADO COTIZACION'] || '').trim();
+            const estadosConMotivo = ['Observado', 'Rechazado', 'Cancelado'];
+            if (estadosConMotivo.includes(nuevoEstado)) {
+                const estadoPrevio = (typeof cotiEditData !== 'undefined' && cotiEditData) ? String(cotiEditData['ESTADO COTIZACION'] || '').trim() : '';
+                const loCambia = !cotiEditMode || nuevoEstado !== estadoPrevio;
+                if (loCambia) {
+                    const motivo = await nucleusPrompt('Motivo', '', 'Motivo');
+                    if (motivo === null) return; // canceló
+                    if (!String(motivo || '').trim()) { nucleusAlert('Debes indicar el motivo.'); return; }
+                    data['MOTIVO'] = String(motivo).trim();
+                }
+            }
         }
 
         // Combustible: sin WO queda como CM PENDIENTE (aviso rojo ya visible)
@@ -7894,7 +8019,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function aplicarConfigWoPorProyecto() {
         // Personaliza el formulario WO según el proyecto.
-        // FLM / FLM (old): renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
+        // FLM / FLM - ENTEL: renombra campos y oculta los que no aplican. PEXT mantiene el formulario completo.
         if (!IS_FLM_LIKE) {
             ['wof-requiere-biaticos', 'wof-monto-biaticos', 'wof-costo-material'].forEach(id => {
                 const el = document.getElementById(id);
@@ -7902,7 +8027,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             });
         }
         if (IS_FLM_LIKE) {
-            // Biáticos (FLM y FLM (old)): colocar junto al resto del detalle aunque ya estén en el HTML.
+            // Biáticos (FLM y FLM - ENTEL): colocar junto al resto del detalle aunque ya estén en el HTML.
             ['wof-requiere-biaticos', 'wof-monto-biaticos', 'wof-costo-material'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.style.display = '';
@@ -8703,7 +8828,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             document.getElementById('wo-bitacora').value = data['BITACORA'] || '';
             aplicarCondicionalesWO();
         }
-        // FLM y FLM (old): cargar campos de biáticos.
+        // FLM y FLM - ENTEL: cargar campos de biáticos.
         if (IS_FLM_LIKE) {
             const bSel = document.getElementById('wo-requiere-biaticos');
             if (bSel) bSel.value = data['REQUIERE BIÁTICOS'] || '';
@@ -8826,12 +8951,51 @@ btnItem.onclick = () => cotRegAgregarFila();
         ).join('');
     }
 
-    function cargarWoMeta(data) {
+    function _poblarTecnicoSelect(tSel, woTecnicos, currentTech) {
+        tSel.innerHTML = '<option value="">— Seleccionar —</option>';
+        woTecnicos.forEach(t => {
+            const o = document.createElement('option');
+            o.value = t.nombre;
+            o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
+            o.dataset.contrata = t.contrata || '';
+            tSel.appendChild(o);
+        });
+        if (currentTech) {
+            if (!Array.from(tSel.options).some(o => o.value === currentTech)) {
+                const o = document.createElement('option');
+                o.value = currentTech;
+                o.textContent = currentTech + ' (anterior)';
+                tSel.appendChild(o);
+            }
+            tSel.value = currentTech;
+        }
+    }
+
+    function cargarWoMeta(data, _reintentos) {
+        const MAX_REINTENTOS = 3;
+        const intento = _reintentos || 1;
+
         fetch('/api/wo/meta').then(r => r.json()).then(res => {
-            if (!res.success) return;
+            if (!res.success) {
+                console.error('[WO-META] La respuesta del servidor no fue exitosa:', res);
+                return;
+            }
             woServicios = res.servicios || [];
             woTecnicos = res.tecnicos || [];
             woMateriales = res.materiales || [];
+
+            // --- DIAGNÓSTICO: si técnicos vienen vacíos, reintentar ---
+            if (woTecnicos.length === 0 && intento < MAX_REINTENTOS) {
+                console.warn(`[WO-META] Técnicos vacíos (intento ${intento}/${MAX_REINTENTOS}), reintentando en ${intento * 800}ms...`);
+                const tSel = document.getElementById('wo-tecnico');
+                if (tSel) tSel.title = 'Cargando técnicos...';
+                setTimeout(() => cargarWoMeta(data, intento + 1), intento * 800);
+                return;
+            }
+
+            if (woTecnicos.length === 0) {
+                console.error('[WO-META] No se pudieron cargar técnicos después de', MAX_REINTENTOS, 'intentos. Verifica Dataper.');
+            }
 
             const sSel = document.getElementById('wo-servicio');
             sSel.innerHTML = '<option value="">— Seleccionar —</option>';
@@ -8849,33 +9013,22 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (currentServ) sSel.value = currentServ;
 
             const tSel = document.getElementById('wo-tecnico');
-            tSel.innerHTML = '<option value="">— Seleccionar —</option>';
-            woTecnicos.forEach(t => {
-                const o = document.createElement('option');
-                o.value = t.nombre;
-                o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
-                o.dataset.contrata = t.contrata || '';
-                tSel.appendChild(o);
-            });
-            const currentTech = data['TECNICO ASIGNADO'] || '';
-            if (currentTech) tSel.value = currentTech;
+            tSel.title = '';
+            _poblarTecnicoSelect(tSel, woTecnicos, data['TECNICO ASIGNADO'] || '');
 
             const tlSel = document.getElementById('wo-team-leader');
             if (tlSel) {
-                tlSel.innerHTML = '<option value="">— Seleccionar —</option>';
-                woTecnicos.forEach(t => {
-                    const o = document.createElement('option');
-                    o.value = t.nombre;
-                    o.textContent = t.contrata ? `${t.nombre} — ${t.contrata}` : t.nombre;
-                    tlSel.appendChild(o);
-                });
-                const currentTl = data['TEAM LEADER ASIGNADO EN APLICATIVO'] || '';
-                if (currentTl) tlSel.value = currentTl;
+                _poblarTecnicoSelect(tlSel, woTecnicos, data['TEAM LEADER ASIGNADO EN APLICATIVO'] || '');
             }
 
             if (!document.getElementById('wo-contrata').value) onTecnicoChange();
             cargarGastosCombustible();
-        }).catch(() => { });
+        }).catch(err => {
+            console.error('[WO-META] Error de red al cargar metadata del WO:', err);
+            if (intento < MAX_REINTENTOS) {
+                setTimeout(() => cargarWoMeta(data, intento + 1), intento * 800);
+            }
+        });
     }
 
     function onTecnicoChange() {
@@ -9327,7 +9480,7 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     // ==================== FORMATO COBRA (FLM) ====================
-    const ES_FLM = ('{{ (session.get("current_proyecto_nombre") or "") | trim | upper }}' === 'FLM');
+    const ES_FLM = ('{{ (session.get("current_proyecto_nombre") or "") | trim | upper }}' === 'FLM - ENTEL');
     const UND_COBRA = ['GLN', 'LT', 'MT', 'KIT', 'UND'];
 
     function agregarFilaCobra(datos) {
@@ -10472,7 +10625,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             payload = { key: woKey, numero, nota, gastos, mano_obra: manoObra, cotizacion_id: _cotiActivaId };
         }
 
-        if (!await nucleusConfirm(`¿Generar y guardar la cotización ${numero}?\n\nUna vez generada, los datos quedarán BLOQUEADOS.\nSolo el administrador podrá modificarlos.`)) return;
+        if (!await nucleusConfirm(`¿Generar y guardar la cotización ${numero}?\n\nUna vez generada, los datos quedarán BLOQUEADOS.\nSolo el administrador podrá modificarlos. Se liberará automáticamente si pasa a Observado o Rechazado.`)) return;
 
         const btn = document.getElementById('btn-wo-generar-coti');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...'; }

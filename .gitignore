@@ -35,3 +35,20 @@ ENV/
 
 # Databases (Descomentar si NO quieres subir la base de datos)
 nucleus.db
+*.db
+
+# Backups locales y salidas (nunca subir)
+backups/
+output.txt
+static/evidencia/2/CM-TEST-0001/
+
+# Scripts one-off con credenciales de BD (NUNCA subir)
+fix_flm_neon.py
+restore_schema_neon.py
+cleanup_old_flm.py
+compare_schema.py
+check_neon.py
+migrate_to_postgres.py
+extract_blueprints.py
+fix_urls.py
+clean_sla.py
