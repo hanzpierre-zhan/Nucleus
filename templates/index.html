@@ -84,7 +84,7 @@
         <button type="button" id="btn-top-next" class="action-pill">Guardar</button>
     </div>
     {% endif %}
-    {% if proy_nombre == 'cotizaciones' %}
+    {% if proy_nombre == 'cotizaciones' or puede_cotizaciones %}
     <div id="coti-lote-top" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">PDFs generadas:</span>
         <input type="date" id="coti-lote-desde" title="Desde" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
@@ -3975,6 +3975,15 @@
                 }
             }
 
+            // Columnas de lista (Ej.: ESTADO COTIZACION): filtro de cabecera como
+            // <select> nativo. Se aplica para TODOS los que tienen el módulo,
+            // también para Contrata, que no tiene bloque de edición y antes
+            // quedaba con un input de texto donde había que escribir.
+            if (manualDef && manualDef.tipo === 'lista') {
+                colDef.headerFilter = listaHeaderFilter(manualDef.opciones);
+                delete colDef.headerFilterParams;
+            }
+
             // N° ORDEN nunca editable (correlativo automático)
             if (fieldName === 'N° ORDEN') {
                 colDef.editable = false;
@@ -4440,6 +4449,37 @@
         } else {
             table.deselectRow(rows);
         }
+    }
+
+    // Filtro de cabecera para columnas de lista: <select> nativo (una opción
+    // "Todos" = sin filtro) en lugar del combo con escritura libre.
+    function listaHeaderFilter(opciones) {
+        return function (headerValue, onRendered, success) {
+            const sel = document.createElement("select");
+            sel.style.width = "100%";
+            sel.style.height = "100%";
+            sel.style.border = "none";
+            sel.style.outline = "none";
+            sel.style.background = "transparent";
+            sel.style.color = "inherit";
+            sel.style.fontSize = "12px";
+            sel.style.fontWeight = "600";
+            sel.style.cursor = "pointer";
+            const vacio = document.createElement("option");
+            vacio.value = "";
+            vacio.textContent = "Todos";
+            sel.appendChild(vacio);
+            (opciones || []).forEach(o => {
+                const op = document.createElement("option");
+                op.value = o;
+                op.textContent = o;
+                sel.appendChild(op);
+            });
+            const actual = headerValue == null ? "" : String(headerValue);
+            sel.value = Array.from(sel.options).some(o => o.value === actual) ? actual : "";
+            sel.addEventListener("change", function () { success(sel.value); });
+            return sel;
+        };
     }
 
     function customHeaderPopup(e, column) {

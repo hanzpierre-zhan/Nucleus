@@ -27,6 +27,15 @@ from services import *
 bp = Blueprint('cotizacion', __name__)
 
 
+def _puede_cotizaciones():
+    """True si el usuario puede usar el módulo Cotizaciones (ver services)."""
+    return puede_cotizaciones(
+        session.get('user_id'),
+        str(session.get('rol') or '').strip().lower(),
+        session.get('current_proyecto_nombre'),
+    )
+
+
 
 @bp.route('/api/cotizacion/estado', methods=['GET'])
 @login_required
@@ -181,6 +190,8 @@ def api_cotizacion_descargar_lote():
     """Descarga un ZIP con los PDFs de las cotizaciones GENERADAS cuyo campo
     FECHA cae dentro del rango [desde, hasta] (fechas 'YYYY-MM-DD').
     Límite: rango máximo 366 días y 200 cotizaciones por lote."""
+    if not _puede_cotizaciones():
+        return jsonify({'error': 'No tienes el módulo Cotizaciones en tu perfil.'}), 403
     data = request.json or {}
     desde_s = str(data.get('desde', '') or '').strip()
     hasta_s = str(data.get('hasta', '') or '').strip()

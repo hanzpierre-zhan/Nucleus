@@ -405,7 +405,9 @@ def index():
     
     # List allowed projects for the menu
     proyectos = get_menu_proyectos(user_id, user_rol)
-    
+    # Descarga de Cotizaciones por fecha: disponible a quien tenga el módulo.
+    puede_coti = puede_cotizaciones(user_id, user_rol, session.get('current_proyecto_nombre'))
+
     return render_template('index.html', 
                           data=json.dumps(data, ensure_ascii=False, separators=(',', ':')), 
                           columns=json.dumps(cols), 
@@ -420,7 +422,8 @@ def index():
                           gen_saldo_map=json.dumps(gen_saldo_map),
                           wo_list=json.dumps(wo_list),
                           proyecto_id=pid,
-                          proyectos_list=proyectos)
+                          proyectos_list=proyectos,
+                          puede_cotizaciones=puede_coti)
 
 
 @bp.route('/dashboard')
