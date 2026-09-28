@@ -106,6 +106,12 @@ def create_app(config_object=None):
     app = Flask(__name__)
     app.config.from_object(config)
     app.config['SQLALCHEMY_DATABASE_URI'] = config.get_sqlalchemy_uri()
+    # connect_args de Postgres (connect_timeout) no existen en sqlite3;
+    # se retiran cuando la URI es SQLite (desarrollo/tests locales).
+    if app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+        _opts = dict(app.config.get('SQLALCHEMY_ENGINE_OPTIONS') or {})
+        _opts.pop('connect_args', None)
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = _opts
 
     os.makedirs(app.config['EVIDENCIA_DIR'], exist_ok=True)
 

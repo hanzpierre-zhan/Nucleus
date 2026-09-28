@@ -44,7 +44,7 @@ def api_cotizacion_estado():
             'nota': cot.nota,
             'cotizado_por': cot.cotizado_por,
             'revisado_por': cot.revisado_por,
-            'fecha': cot.fecha_generacion.strftime('%d/%m/%Y') if cot.fecha_generacion else ''
+            'fecha': (cot.fecha_generacion - timedelta(hours=5)).strftime('%d/%m/%Y') if cot.fecha_generacion else ''
         })
     return jsonify({'bloqueada': False})
 
@@ -72,7 +72,7 @@ def api_cotizacion_lista():
         'nota': c.nota,
         'cotizado_por': c.cotizado_por,
         'revisado_por': c.revisado_por,
-        'fecha': c.fecha_generacion.strftime('%d/%m/%Y') if c.fecha_generacion else '',
+        'fecha': (c.fecha_generacion - timedelta(hours=5)).strftime('%d/%m/%Y') if c.fecha_generacion else '',
         'bloqueada': c.bloqueada,
         'gastos': json.loads(c.gastos_json or '[]'),
         'mano_obra': json.loads(c.mano_obra_json or '[]'),
@@ -427,7 +427,7 @@ def api_cotizacion_generar():
                 ticket=key,
                 cotizado_por=nombre_gestor,
                 revisado_por=nombre_gestor,
-                fecha=datetime.now().strftime('%d/%m/%Y'),
+                fecha=ahora_peru().strftime('%d/%m/%Y'),
                 gastos=gastos,
                 mano_obra=mano_obra
             )

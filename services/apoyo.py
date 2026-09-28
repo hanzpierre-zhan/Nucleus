@@ -11,7 +11,8 @@ import re
 import urllib.parse
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timedelta
+from services.utilidades import ahora_peru
 
 from flask import current_app, session, request, jsonify, make_response
 from werkzeug.utils import secure_filename
@@ -930,7 +931,7 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     logo_cell.append(Paragraph('COBRA PERU S.A.C. — RUC 20253881438', ParagraphStyle(
         'ruc', fontName='Helvetica', fontSize=7, leading=9, textColor=colors.HexColor('#333333'))))
 
-    fecha_str = _fecha_larga_es()
+    fecha_str = _fecha_larga_es(ahora_peru())
     num_para = Paragraph(f'<b>N° COTIZACIÓN :&nbsp;&nbsp;&nbsp;&nbsp;{safe_str(numero)}</b>',
                          ParagraphStyle('np', fontName='Helvetica-Bold', fontSize=12, leading=15))
     head_tbl = Table([[logo_cell, num_para]], colWidths=[W * 0.45, W * 0.55])

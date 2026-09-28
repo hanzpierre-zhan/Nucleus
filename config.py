@@ -58,7 +58,17 @@ class Config:
     OD_REFRESH_TOKEN_2 = os.environ.get('OD_REFRESH_TOKEN_2', '')
     OD_ENABLED_2 = bool(OD_CLIENT_ID_2 and OD_REFRESH_TOKEN_2)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True}
+    # Pool optimizado para Postgres remoto (Neon): cada conexión nueva cuesta
+    # ~0.5-1s (TLS), así que se reutilizan agresivamente y se reciclan antes
+    # del idle-timeout de Neon (~5 min). pre_ping evita conexiones muertas.
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_size': 10,
+        'max_overflow': 10,
+        'pool_recycle': 280,
+        'pool_timeout': 30,
+        'connect_args': {'connect_timeout': 10},
+    }
 
     @classmethod
     def get_sqlalchemy_uri(cls):

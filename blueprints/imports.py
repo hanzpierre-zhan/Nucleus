@@ -70,12 +70,19 @@ def api_import_manual_template():
         # Sin _key duplicado; el PK (Número de WO) va como primera columna para el import
         all_cols = detalle_cols + manual_cols
         data = {}
-        # PK primero para poder hacer match en el import
-        data[pk_name] = [r.key_value for r in rows]
+        # PK primero para poder hacer match en el import.
+        # Se parsea cada data_json UNA sola vez (antes: una vez por columna).
+        _parsed = []
+        for r in rows:
+            try:
+                _parsed.append((r.key_value, json.loads(r.data_json)))
+            except Exception:
+                _parsed.append((r.key_value, {}))
+        data[pk_name] = [k for k, _d in _parsed]
         for col in detalle_cols:
-            data[col] = [str((json.loads(r.data_json).get(col) or '')) for r in rows]
+            data[col] = [str((_d.get(col) or '')) for _k, _d in _parsed]
         for col in manual_cols:
-            data[col] = [str((json.loads(r.data_json).get(col) or '')) for r in rows]
+            data[col] = [str((_d.get(col) or '')) for _k, _d in _parsed]
         df = pd.DataFrame(data)
         if df.empty and not rows:
             df = pd.DataFrame(columns=[pk_name] + all_cols)
@@ -379,6 +386,30 @@ def api_import_process():
             'Distrito', 'DISTRITO'
         ])
         
+        # COMBUSTIBLE: precargar filas por generador UNA sola vez (antes se hacía
+        # un full-scan de la tabla por cada fila GASTO importada).
+        _comb_cache = {}
+        if proy_act_nombre == 'COMBUSTIBLE':
+            try:
+                for _r in NucleusData.query.filter_by(proyecto_id=pid).all():
+                    try:
+                        _d = json.loads(_r.data_json)
+                    except Exception:
+                        continue
+                    _g = str(_d.get('QR ASIGNADO', '')).strip()
+                    if not _g:
+                        continue
+                    _comb_cache.setdefault(_g, []).append({
+                        'key': _r.key_value,
+                        'fecha': _combustible_fecha_norm(_d.get('FECHA', '')),
+                        'mov': str(_d.get('MOVIMIENTO', '')).strip().upper(),
+                        'gal': _parse_galones(_d.get('GALONES')),
+                    })
+                for _lst in _comb_cache.values():
+                    _lst.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+            except Exception:
+                _comb_cache = {}
+
         for idx, row in df.iterrows():
             row_dict = row.to_dict()
             key_val = str(row_dict.get(file_key, '')).strip()
@@ -503,7 +534,7 @@ def api_import_process():
                 _mov_imp = str(current_data.get('MOVIMIENTO', '')).strip().upper()
                 _gal_imp = _parse_galones(current_data.get('GALONES'))
                 if _gen_imp and _mov_imp == 'GASTO' and _gal_imp > 0:
-                    _filas_imp = [f for f in _combustible_filas_gen(pid, _gen_imp)
+                    _filas_imp = [f for f in _comb_cache.get(_gen_imp, [])
                                   if str(f.get('key')) != str(key_val)]
                     _filas_imp.append({'key': str(key_val),
                                        'fecha': _combustible_fecha_norm(current_data.get('FECHA', '')),
@@ -531,6 +562,24 @@ def api_import_process():
             counter_guardados += 1
             if counter_guardados % 500 == 0:
                 db.session.commit()
+
+            # Mantener el caché de combustible al día con lo recién guardado.
+            if proy_act_nombre == 'COMBUSTIBLE':
+                try:
+                    _cg = str(current_data.get('QR ASIGNADO', '')).strip()
+                    if _cg:
+                        for _lst in _comb_cache.values():
+                            _rm = [f for f in _lst if str(f.get('key')) == str(key_val)]
+                            for f in _rm:
+                                _lst.remove(f)
+                        _comb_cache.setdefault(_cg, []).append({
+                            'key': str(key_val),
+                            'fecha': _combustible_fecha_norm(current_data.get('FECHA', '')),
+                            'mov': str(current_data.get('MOVIMIENTO', '')).strip().upper(),
+                            'gal': _parse_galones(current_data.get('GALONES')),
+                        })
+                except Exception:
+                    pass
         
         # Absence-based Consolidation (Optimized to avoid SQLite parameter limits)
         absent_consolidated = 0
@@ -539,11 +588,13 @@ def api_import_process():
             # para comparar las claves existentes contra las del archivo.
             all_existing_keys = [r[0] for r in db.session.query(NucleusData.key_value)
                                  .filter(NucleusData.proyecto_id == pid).all()]
-            for kv in all_existing_keys:
-                if kv not in imported_keys:
-                    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=kv).first()
-                    if rec is None:
-                        continue
+            _missing = [kv for kv in all_existing_keys if kv not in imported_keys]
+            # Un solo query para los ausentes (antes: un SELECT por cada clave).
+            for i in range(0, len(_missing), 400):
+                _chunk = _missing[i:i + 400]
+                for rec in NucleusData.query.filter(
+                        NucleusData.proyecto_id == pid,
+                        NucleusData.key_value.in_(_chunk)).all():
                     new_hist = NucleusHistory(proyecto_id=pid, key_value=rec.key_value, data_json=rec.data_json)
                     db.session.add(new_hist)
                     db.session.delete(rec)

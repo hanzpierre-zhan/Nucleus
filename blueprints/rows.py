@@ -348,26 +348,38 @@ def api_rows_add():
                 else:
                     # Duplicado -> genera siguiente
                     user_coti = ''
-            if not user_coti or not re.match(r'^HW-\d{4}-\d{7}$', user_coti):
-                # Genera siguiente solo si no hay uno válido (al guardar sin generar, puede quedar vacío y se asignará al generar)
-                # Si viene vacío, genera igual para mantener llave única
+            _need_hw = (not user_coti or not re.match(r'^HW-\d{4}-\d{7}$', user_coti))
+            _need_ord = proy_nombre in ('Cotizaciones', 'Combustible')
+            # Un solo recorrido de la tabla para ambos correlativos
+            # (antes: hasta 2 full-scans + parses JSON por cada alta).
+            if _need_hw:
                 cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_seq').first()
                 try:
                     cfg_n = int(str(cfg.valor).strip()) if cfg and cfg.valor and str(cfg.valor).strip().isdigit() else 30
                 except Exception:
                     cfg_n = 30
                 maxn = max(29, cfg_n - 1)
+            else:
+                cfg, maxn = None, 0
+            max_ord = 0
+            if _need_hw or _need_ord:
                 for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
                     try:
                         d2 = json.loads(rec.data_json)
+                    except Exception:
+                        continue
+                    if _need_hw:
                         k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
                         m = re.match(r'^HW-(\d{4})-(\d{7})$', k2)
                         if m and m.group(1) == yr:
                             n = int(m.group(2))
                             if n > maxn:
                                 maxn = n
-                    except Exception:
-                        continue
+                    if _need_ord:
+                        v = str(d2.get('N° ORDEN', '') or '').strip()
+                        if v.isdigit() and int(v) > max_ord:
+                            max_ord = int(v)
+            if _need_hw:
                 next_n = maxn + 1
                 key_val = f"HW-{yr}-{next_n:07d}"
                 row_data['N° COTIZACION'] = key_val
@@ -386,17 +398,20 @@ def api_rows_add():
             else:
                 key_val = user_coti
 
-        # N° ORDEN correlativo para Cotizaciones y Combustible (siempre recalculado)
+        # N° ORDEN correlativo para Cotizaciones y Combustible (siempre recalculado).
+        # Cotizaciones ya calculó max_ord arriba en el mismo recorrido; Combustible
+        # necesita su propio scan (el N° ORDEN vive dentro del JSON).
         if proy_nombre in ('Cotizaciones', 'Combustible'):
-            max_ord = 0
-            for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
-                try:
-                    d2 = json.loads(rec.data_json)
-                    v = str(d2.get('N° ORDEN', '') or '').strip()
-                    if v.isdigit():
-                        max_ord = max(max_ord, int(v))
-                except Exception:
-                    continue
+            if proy_nombre == 'Combustible':
+                max_ord = 0
+                for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+                    try:
+                        d2 = json.loads(rec.data_json)
+                        v = str(d2.get('N° ORDEN', '') or '').strip()
+                        if v.isdigit() and int(v) > max_ord:
+                            max_ord = int(v)
+                    except Exception:
+                        continue
             row_data['N° ORDEN'] = str(max_ord + 1)
 
         # Alta manual de WO (FLM/PEXT) por el gestor: exige el CM, fija CATEGORY,

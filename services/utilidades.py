@@ -5,7 +5,7 @@ No contiene rutas ni lógica de transporte HTTP.
 """
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import Counter
 from functools import wraps
 
@@ -22,6 +22,15 @@ PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel'})
 
 
 # ── Auth decorator ─────────────────────────────────────────────────────────
+# ── Hora de Perú (UTC-5) ─────────────────────────────────────────────────
+# El servidor corre en UTC: datetime.now()/utcnow() dan +5h respecto a Perú y
+# después de las 7pm la FECHA salta al día siguiente. Todo lo visible al
+# usuario (PDFs, listas) debe usar ahora_peru(); en BD se sigue guardando UTC.
+def ahora_peru():
+    """Hora actual de Perú (UTC-5) como datetime naive."""
+    return datetime.utcnow() - timedelta(hours=5)
+
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -85,6 +94,8 @@ def inject_kpis(pid, rows):
         return rows, {}
 
     hoy = datetime.now()
+    hoy_dt = pd.to_datetime(hoy)
+    dt_cache = {}
     kpi_meta = {}
 
     for kpi in configs:
@@ -138,32 +149,47 @@ def inject_kpis(pid, rows):
     for kpi in configs:
         if kpi.tipo != 'DILACION':
             continue
+        # Cache de fechas parseadas por valor distinto: las fechas se repiten
+        # mucho (2500 filas -> decenas de valores únicos). pd.to_datetime es
+        # caro (~0.1ms); sin cache son miles de llamadas por carga.
         for row in rows:
             val_inicio = row.get(kpi.col_inicio)
             if not val_inicio:
                 row[f"KPI_{kpi.nombre}"] = None
                 continue
-            try:
-                f_inicio = pd.to_datetime(str(val_inicio).strip())
-                if pd.isna(f_inicio):
+            s_inicio = str(val_inicio).strip()
+            if s_inicio in dt_cache:
+                f_inicio = dt_cache[s_inicio]
+            else:
+                try:
+                    f_inicio = pd.to_datetime(s_inicio)
+                    if pd.isna(f_inicio):
+                        f_inicio = None
+                except Exception:
                     f_inicio = None
-            except Exception:
-                f_inicio = None
+                dt_cache[s_inicio] = f_inicio
 
             if not f_inicio:
                 row[f"KPI_{kpi.nombre}"] = None
                 continue
 
-            target_date = pd.to_datetime(hoy)
+            target_date = hoy_dt
             if kpi.restar_contra == 'COLUMNA' and kpi.col_fin:
                 val_fin = row.get(kpi.col_fin)
                 if val_fin:
-                    try:
-                        f_fin = pd.to_datetime(str(val_fin).strip())
-                        if not pd.isna(f_fin):
-                            target_date = f_fin
-                    except Exception:
-                        pass
+                    s_fin = str(val_fin).strip()
+                    if s_fin in dt_cache:
+                        f_fin = dt_cache[s_fin]
+                    else:
+                        try:
+                            f_fin = pd.to_datetime(s_fin)
+                            if pd.isna(f_fin):
+                                f_fin = None
+                        except Exception:
+                            f_fin = None
+                        dt_cache[s_fin] = f_fin
+                    if f_fin:
+                        target_date = f_fin
 
             diff = target_date - f_inicio
             row[f"KPI_{kpi.nombre}"] = max(0, diff.days)
@@ -291,7 +317,12 @@ def _flm_wo_list():
             return []
         wo_set = set()
         wo_key = None
-        for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).limit(5).all():
+        # Un solo recorrido: husmear la columna WO en las primeras filas y
+        # recolectar en el mismo pass (antes eran 2 full-scans de FLM).
+        all_rows = NucleusData.query.filter_by(proyecto_id=flm_proy.id).all()
+        for r in all_rows:
+            if wo_key:
+                break
             try:
                 d = json.loads(r.data_json)
             except Exception:
@@ -300,9 +331,7 @@ def _flm_wo_list():
                 if ('WO' in k.upper() and 'NUMBER' in k.upper()) or k in ('Número de WO', 'Numero de WO'):
                     wo_key = k
                     break
-            if wo_key:
-                break
-        for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).all():
+        for r in all_rows:
             try:
                 d = json.loads(r.data_json)
             except Exception:

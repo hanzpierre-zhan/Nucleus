@@ -407,7 +407,7 @@ def index():
     proyectos = get_menu_proyectos(user_id, user_rol)
     
     return render_template('index.html', 
-                          data=json.dumps(data), 
+                          data=json.dumps(data, ensure_ascii=False, separators=(',', ':')), 
                           columns=json.dumps(cols), 
                           pk=pk, 
                           manual_cols=json.dumps(manual_cols_data),
@@ -501,7 +501,7 @@ def analytics():
     proyectos = get_menu_proyectos(user_id, user_rol)
 
     return render_template('analytics.html',
-                           data=json.dumps(data),
+                           data=json.dumps(data, ensure_ascii=False, separators=(',', ':')),
                            proyectos_list=proyectos,
                            proyecto_nombre=proy_actual_nombre,
                            proyecto_id=pid)
