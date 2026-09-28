@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  /* Force the main content area to fill all available space */
+  .excel-main { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden !important; }
+  .mapa-layout { display: grid; grid-template-columns: 1fr 380px; gap: 0; flex: 1; min-height: 0; }
+  @media (max-width: 1000px) { .mapa-layout { grid-template-columns: 1fr; } }
+  #map { height: 100%; min-height: 0; border: none; background: var(--ios-gray-5, #2C2C2E); width: 100%; }
+
+  /* Panel derecho con soporte dark mode */
+  .mapa-panel {
+    background: var(--ios-card-bg, #fff);
+    border-left: 1px solid var(--ios-hairline, rgba(0,0,0,0.08));
+    padding: 18px 16px;
+    display: flex; flex-direction: column; gap: 14px;
+    overflow-y: auto; height: 100%;
+    box-sizing: border-box;
+  }
+  .mapa-panel h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ios-label, #1C1C1E); display: flex; align-items: center; gap: 8px; }
+  .mapa-panel .hint { font-size: 12px; color: var(--ios-gray-1, #8E8E93); line-height: 1.4; }
+
+  /* Buscador */
+  .search-wrap { position: relative; }
+  .search-wrap input {
+    width: 100%; padding: 10px 36px 10px 12px;
+    border: 1px solid var(--ios-gray-5, #E5E5EA); border-radius: 12px;
+    font-size: 13px; outline: none;
+    background: var(--ios-fill, #F2F2F7);
+    color: var(--ios-label, #1C1C1E);
+    box-sizing: border-box;
+  }
+  .search-wrap input:focus { border-color: #007AFF; background: var(--ios-card-bg, #fff); }
+  .search-wrap input::placeholder { color: var(--ios-gray-1, #8E8E93); }
+  .search-wrap .icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ios-gray-1, #8E8E93); pointer-events: none; }
+
+  /* Lista de sugerencias */
+  .suggest-list {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+    background: var(--ios-card-bg, #fff); border: 1px solid var(--ios-gray-5, #E5E5EA);
+    border-radius: 12px; max-height: 260px; overflow-y: auto; z-index: 1000;
+    display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+  .suggest-list.show { display: block; }
+  .suggest-item {
+    padding: 9px 12px; cursor: pointer; font-size: 12px;
+    border-bottom: 1px solid var(--ios-hairline, #F2F2F7);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .suggest-item:last-child { border-bottom: none; }
+  .suggest-item:hover { background: var(--ios-fill, #F2F2F7); }
+  .suggest-item .nm { font-weight: 600; color: var(--ios-label, #1C1C1E); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggest-item .cd { font-size: 11px; color: var(--ios-gray-1, #8E8E93); }
+
+  /* Detalle del site */
+  .site-detail {
+    background: var(--ios-fill, #F2F2F7);
+    border: 1px solid var(--ios-hairline, #E5E5EA);
+    border-radius: 12px; padding: 14px; display: none;
+  }
+  .site-detail.show { display: block; }
+  .site-detail-header {
+    font-weight: 700; font-size: 14px; color: #fff;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+    background: linear-gradient(135deg, #FF3B30, #FF6259);
+    padding: 10px 12px; border-radius: 10px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .site-detail .row {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid var(--ios-hairline, #E5E5EA);
+    font-size: 12px;
+  }
+  .site-detail .row:last-child { border-bottom: none; }
+  .site-detail .k { color: var(--ios-gray-1, #8E8E93); font-weight: 500; flex-shrink: 0; min-width: 90px; }
+  .site-detail .v { color: var(--ios-label, #1C1C1E); font-weight: 600; text-align: right; word-break: break-word; }
+
+  /* Botones */
+  .btn-clear {
+    width: 100%; padding: 8px;
+    border: 1px solid var(--ios-gray-5, #E5E5EA);
+    background: var(--ios-card-bg, #fff);
+    border-radius: 10px; font-size: 12px; font-weight: 600;
+    cursor: pointer; color: var(--ios-label, #1C1C1E);
+    transition: background 0.15s;
+  }
+  .btn-clear:hover { background: var(--ios-fill, #F2F2F7); }
+
+  /* Leyenda */
+  .legend { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ios-gray-1, #8E8E93); }
+  .legend .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--ios-hairline, rgba(0,0,0,0.1)); }
+
+  /* Leaflet popups en dark mode */
+  .leaflet-popup-content-wrapper { border-radius: 12px !important; background: var(--ios-card-bg, #fff) !important; color: var(--ios-label, #1C1C1E) !important; }
+  .leaflet-popup-tip { background: var(--ios-card-bg, #fff) !important; }
+
+  /* Loading overlay */
+  #map-loading {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: var(--ios-card-bg, rgba(255,255,255,0.95));
+    padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600;
+    color: var(--ios-label, #1C1C1E); z-index: 400;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid var(--ios-hairline, rgba(0,0,0,0.08));
+  }
+</style>
+
+<div class="mapa-layout">
+  <div id="map" style="position:relative;">
+    <div id="map-loading"><i class="fa-solid fa-spinner fa-spin" style="color:#007AFF;"></i> Cargando {{ sites_count }} sites...</div>
+  </div>
+  <div class="mapa-panel">
+    <h3><i class="fa-solid fa-map-location-dot" style="color:#007AFF;"></i> Mapa de Sites</h3>
+    <p class="hint">Busca un site por <b>código</b> o <b>nombre</b>, o haz <b>clic</b> en un punto del mapa. Se resaltará entre los <span id="total-sites">{{ sites_count }}</span> sites del maestro.</p>
+
+    <div class="search-wrap">
+      <input type="text" id="site-search" placeholder="Seleccionar site — escribe o elige de la lista..." autocomplete="off" readonly onfocus="this.removeAttribute('readonly')">
+      <span class="icon" style="pointer-events:auto; cursor:pointer;" onclick="document.getElementById('site-search').focus()"><i class="fa-solid fa-chevron-down" style="font-size:11px;"></i></span>
+      <div id="suggest" class="suggest-list"></div>
+    </div>
+
+    <div style="display:flex; gap:8px;">
+      <button type="button" class="btn-clear" onclick="limpiarResaltado()" style="flex:1;"><i class="fa-solid fa-eraser"></i> Limpiar</button>
+      <button type="button" class="btn-clear" onclick="ajustarVista()" style="flex:1;"><i class="fa-solid fa-expand"></i> Ver todo</button>
+    </div>
+
+    <div id="site-detail" class="site-detail"></div>
+
+    <div class="legend">
+      <span class="dot" style="background:#007AFF;"></span> Site
+      <span class="dot" style="background:#FF3B30; width:14px; height:14px;"></span> Resaltado
+    </div>
+    <div class="hint" style="font-size:11px;">Total: <b id="total-sites-2">{{ sites_count }}</b> sites con coordenadas válidas.</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let SITES = [];
+let map, markers = [], highlighted = null, highlightCircle = null;
+let allBounds = null;
+
+function escapeHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([-9.19, -75.015], 6);
+  const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 19,
+    subdomains: 'abcd'
+  });
+  const satelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+    maxZoom: 19
+  });
+  satelite.addTo(map);
+  L.control.layers({ "Satélite": satelite, "Calles (oscuro)": carto }, null, { position: 'topright', collapsed: true }).addTo(map);
+
+  if (!SITES.length) {
+    document.getElementById('map-loading').innerHTML = 'Sin sites con coordenadas';
+    return;
+  }
+
+  const latlngs = [];
+  SITES.forEach(s => {
+    const ll = [s.lat, s.lng];
+    latlngs.push(ll);
+    const m = L.circleMarker(ll, {
+      radius: 5,
+      fillColor: '#007AFF',
+      color: '#fff',
+      weight: 1.5,
+      opacity: 1,
+      fillOpacity: 0.85
+    }).addTo(map);
+    m.siteData = s;
+    // Al hacer clic en el marcador -> resaltar en rojo y mostrar info
+    m.on('click', function() {
+      resaltarSite(s);
+      document.getElementById('site-search').value = s.nombre || s.codigo;
+    });
+    markers.push(m);
+  });
+  allBounds = L.latLngBounds(latlngs);
+  map.fitBounds(allBounds.pad(0.08));
+  setTimeout(() => map.invalidateSize(), 200);
+  document.getElementById('map-loading').style.display = 'none';
+}
+
+function resaltarSite(site) {
+  if (highlighted) {
+    highlighted.setStyle({ fillColor: '#007AFF', radius: 5 });
+  }
+  if (highlightCircle) { map.removeLayer(highlightCircle); highlightCircle = null; }
+  const m = markers.find(x => x.siteData.codigo === site.codigo && x.siteData.nombre === site.nombre);
+  if (!m) return;
+  highlighted = m;
+  m.setStyle({ fillColor: '#FF3B30', radius: 10, fillOpacity: 1, weight: 2, color: '#fff' });
+  m.bringToFront();
+  highlightCircle = L.circle([site.lat, site.lng], { radius: 400, color: '#FF3B30', weight: 2, fillColor: '#FF3B30', fillOpacity: 0.15 }).addTo(map);
+  map.setView([site.lat, site.lng], 14, { animate: true });
+
+  // Construir panel de detalle con TODOS los campos
+  const det = document.getElementById('site-detail');
+  det.classList.add('show');
+
+  let html = `<div class="site-detail-header">
+    <span style="width:12px; height:12px; border-radius:50%; background:#fff; display:inline-block; flex-shrink:0;"></span>
+    ${escapeHtml(site.nombre || site.codigo)}
+  </div>`;
+
+  // Mostrar todos los campos del data_json
+  const allData = site.all || {};
+  const keys = Object.keys(allData);
+  if (keys.length) {
+    keys.forEach(k => {
+      const v = allData[k];
+      if (v !== '' && v !== null && v !== undefined) {
+        html += `<div class="row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`;
+      }
+    });
+  }
+  // Coords siempre
+  html += `<div class="row"><span class="k">Coordenadas</span><span class="v">${site.lat.toFixed(6)}, ${site.lng.toFixed(6)}</span></div>`;
+
+  det.innerHTML = html;
+
+  // Scroll al detalle
+  det.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function limpiarResaltado() {
+  if (highlighted) highlighted.setStyle({ fillColor: '#007AFF', radius: 5 });
+  highlighted = null;
+  if (highlightCircle) { map.removeLayer(highlightCircle); highlightCircle = null; }
+  document.getElementById('site-detail').classList.remove('show');
+  document.getElementById('site-search').value = '';
+  hideSuggest();
+  if (allBounds) map.fitBounds(allBounds.pad(0.08));
+}
+function ajustarVista() { if (allBounds) map.fitBounds(allBounds.pad(0.08)); }
+
+function showSuggest(list) {
+  const box = document.getElementById('suggest');
+  if (!list.length) { box.classList.remove('show'); box.innerHTML = ''; return; }
+  box.innerHTML = list.slice(0, 15).map(s => `
+    <div class="suggest-item" data-codigo="${escapeHtml(s.codigo)}">
+      <span class="nm">${escapeHtml(s.nombre || s.codigo)}</span>
+      <span class="cd">${escapeHtml(s.codigo)} · ${escapeHtml(s.departamento || '')} - ${escapeHtml(s.distrito || '')}</span>
+    </div>
+  `).join('');
+  box.classList.add('show');
+  box.querySelectorAll('.suggest-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const cod = el.getAttribute('data-codigo');
+      const site = SITES.find(x => x.codigo === cod);
+      if (site) { document.getElementById('site-search').value = site.nombre || site.codigo; resaltarSite(site); }
+      hideSuggest();
+    });
+  });
+}
+function hideSuggest() { document.getElementById('suggest').classList.remove('show'); }
+
+document.getElementById('site-search').addEventListener('input', function() {
+  const q = this.value.trim().toLowerCase();
+  if (!q) { showSuggest(SITES.slice(0, 50)); return; }
+  const res = SITES.filter(s =>
+    String(s.codigo||'').toLowerCase().includes(q) ||
+    String(s.nombre||'').toLowerCase().includes(q)
+  );
+  showSuggest(res);
+});
+document.getElementById('site-search').addEventListener('focus', function() {
+  const q = this.value.trim().toLowerCase();
+  if (!q) {
+    showSuggest(SITES.slice(0, 50));
+  } else {
+    const res = SITES.filter(s =>
+      String(s.codigo||'').toLowerCase().includes(q) ||
+      String(s.nombre||'').toLowerCase().includes(q)
+    );
+    showSuggest(res);
+  }
+});
+document.getElementById('site-search').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    const q = this.value.trim().toLowerCase();
+    const hit = SITES.find(s => String(s.codigo||'').toLowerCase() === q || String(s.nombre||'').toLowerCase() === q)
+               || SITES.find(s => String(s.nombre||'').toLowerCase().includes(q) || String(s.codigo||'').toLowerCase().includes(q));
+    if (hit) { resaltarSite(hit); hideSuggest(); }
+  } else if (e.key === 'Escape') hideSuggest();
+});
+document.addEventListener('click', function(e) {
+  const wrap = e.target.closest('.search-wrap');
+  if (!wrap) hideSuggest();
+});
+
+// Cargar datos vía API (evita HTML gigante)
+fetch('/api/sites')
+  .then(r => r.json())
+  .then(data => {
+    SITES = data;
+    document.getElementById('total-sites').textContent = data.length;
+    const el2 = document.getElementById('total-sites-2');
+    if (el2) el2.textContent = data.length;
+    initMap();
+  })
+  .catch(err => {
+    console.error('Error cargando sites', err);
+    document.getElementById('map-loading').innerHTML = '<span style="color:#FF3B30;">Error cargando sites</span>';
+  });
+</script>
+{% endblock %}

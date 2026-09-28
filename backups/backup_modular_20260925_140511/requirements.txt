@@ -1,0 +1,11 @@
+Flask
+Flask-SQLAlchemy
+pandas
+openpyxl
+Werkzeug
+gunicorn
+psycopg2-binary
+Pillow
+boto3
+python-docx
+reportlab

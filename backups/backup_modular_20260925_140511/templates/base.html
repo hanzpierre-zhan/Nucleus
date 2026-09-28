@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Nucleus{% endblock %}</title>
+    <!-- Favicon (SVG Inincrustado para que funcione siempre) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23007AFF' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23007AFF'/%3E%3C/svg%3E">
+
+    <!-- Tabulator CSS for the Excel-like grid -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css?v=3.0">
+    <link rel="stylesheet" href="/static/css/themes.css?v=5">
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <script>
+        // Tema único: Vercel por defecto (claro/oscuro persiste)
+        (function () {
+            try {
+                if (localStorage.getItem('nucleus-theme') === 'dark') {
+                    document.body.classList.add('dark-mode');
+                }
+                document.body.classList.add('theme-vercel');
+                try{ localStorage.setItem('nucleus-theme-family', 'vercel'); localStorage.removeItem('nucleus-neumorphism'); }catch(e){}
+            } catch (e) {
+                document.body.classList.add('theme-vercel');
+            }
+        })();
+    </script>
+    <div class="app-shell">
+        {% if session.get('user_id') %}
+        <!-- Sidebar de navegacion (el Gestor ve solo sus módulos y el Dashboard en lectura) -->
+        <aside class="app-sidebar">
+            <button id="sidebar-collapse" class="sidebar-collapse-btn" title="Contraer/Expandir menú" aria-label="Contraer o expandir menú">
+                <i class="fa-solid fa-angles-left"></i>
+            </button>
+            <a href="/" class="sidebar-logo" style="display: flex; align-items: center; text-decoration: none; color: var(--ios-label, #1C1C1E);">
+                <svg width="30" height="30" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" style="color: var(--ios-accent);">
+                    <path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="12" cy="10" r="4" fill="currentColor"/>
+                </svg>
+                <span style="margin-left: 8px; font-family: 'SF Pro Display','Segoe UI',Roboto,sans-serif; font-size: 17px; font-weight: 600; color: var(--ios-label, #1C1C1E); letter-spacing: 1px;">NUCLEUS</span>
+            </a>
+
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="sidebar-link {% if request.path == '/dashboard' %}active{% endif %}" data-nav="/dashboard">
+                    <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Dashboard</span>
+                </a>
+
+                <div class="sidebar-section-label">Módulos</div>
+                {% set _orden_modulos = ['FLM', 'FLM - ENTEL', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
+                {% for _nombre_mod in _orden_modulos %}
+                {% for p in proyectos_list %}
+                {% if p.nombre == _nombre_mod %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
+                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
+                </a>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+                {% if (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
+                <a href="/mapa-site" class="sidebar-link {% if request.path == '/mapa-site' or request.path == '/mapa' %}active{% endif %}" data-nav="/mapa-site">
+                    <i class="fa-solid fa-map-location-dot"></i> <span class="sidebar-link-text">Mapa Sites</span>
+                </a>
+                {% endif %}
+
+                {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
+                <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
+                    <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
+                </a>
+                {% endif %}
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="user-avatar" style="background:#fff;"><img src="/static/img/cobra-logo.png" alt="Cobra" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;"></div>
+                    <div class="sidebar-user-info">
+                        <div style="font-size: 13px; font-weight: 700; color: var(--ios-label, #1C1C1E);">{{ session.get('username') }}</div>
+                        <div style="font-size: 10px; color: var(--ios-gray-1, #8E8E93); text-transform: uppercase; letter-spacing: 0.4px;">{{ session.get('rol') }}</div>
+                    </div>
+                </div>
+                <div class="sidebar-actions">
+                    <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <a href="/logout" title="Cerrar Sesión" class="sidebar-logout"><i class="fa-solid fa-right-from-bracket"></i></a>
+                </div>
+            </div>
+        </aside>
+        {% endif %}
+
+        <div class="app-main">
+            <!-- Main Content Grid -->
+            <main class="excel-main">
+                {% block content %}{% endblock %}
+            </main>
+
+            <!-- Bottom Bar (Status Bar) -->
+            {% block footer %}{% endblock %}
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    <script>
+        // Highlighting active nav items in the sidebar
+        const currentPath = window.location.pathname;
+        const currentHash = window.location.hash;
+        const currentFull = currentPath + currentHash;
+
+        document.querySelectorAll('.sidebar-link').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && (href === currentFull || href === currentPath)) {
+                link.classList.add('active');
+            }
+        });
+
+        window.addEventListener('hashchange', () => {
+            const newFull = window.location.pathname + window.location.hash;
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === newFull);
+            });
+        });
+
+        // Vercel es el único tema — se asegura clase fija
+
+        // Toggle de tema claro/oscuro (persistente)
+        (function () {
+            const toggleBtn = document.getElementById('theme-toggle');
+            if (!toggleBtn) return;
+            const icon = toggleBtn.querySelector('i');
+            const applyIcon = () => {
+                const dark = document.body.classList.contains('dark-mode');
+                icon.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            };
+            applyIcon();
+            toggleBtn.addEventListener('click', () => {
+                const dark = document.body.classList.toggle('dark-mode');
+                try { localStorage.setItem('nucleus-theme', dark ? 'dark' : 'light'); } catch (e) {}
+                applyIcon();
+            });
+        })();
+
+        // Toggle de contraer/expandir el menú lateral (persistente)
+        (function () {
+            const btn = document.getElementById('sidebar-collapse');
+            if (!btn) return;
+            const icon = btn.querySelector('i');
+            const applyIcon = () => {
+                const collapsed = document.body.classList.contains('sidebar-collapsed');
+                icon.className = collapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
+            };
+            try {
+                if (localStorage.getItem('nucleus-sidebar') === 'collapsed') {
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            } catch (e) {}
+            applyIcon();
+            btn.addEventListener('click', () => {
+                const collapsed = document.body.classList.toggle('sidebar-collapsed');
+                try { localStorage.setItem('nucleus-sidebar', collapsed ? 'collapsed' : 'expanded'); } catch (e) {}
+                applyIcon();
+                window.dispatchEvent(new Event('resize'));
+            });
+        })();
+
+    </script>
+    {% block scripts %}{% endblock %}
+
+    <!-- Nucleus Dialog — reemplaza alert/confirm/prompt nativos -->
+    <div id="nucleus-dialog" class="nucleus-dialog-overlay" aria-hidden="true">
+        <div class="nucleus-dialog-card" role="dialog" aria-modal="true" aria-labelledby="nucleus-dialog-title">
+            <div id="nucleus-dialog-icon" class="nucleus-dialog-icon"><i class="fa-solid fa-circle-info"></i></div>
+            <h3 id="nucleus-dialog-title" class="nucleus-dialog-title">Aviso</h3>
+            <div id="nucleus-dialog-message" class="nucleus-dialog-message"></div>
+            <input id="nucleus-dialog-input" class="nucleus-dialog-input" style="display:none" type="text" />
+            <div class="nucleus-dialog-actions">
+                <button id="nucleus-dialog-cancel" class="nucleus-dialog-btn nucleus-dialog-btn-secondary" type="button" style="display:none">Cancelar</button>
+                <button id="nucleus-dialog-ok" class="nucleus-dialog-btn nucleus-dialog-btn-primary" type="button">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Popup temático — reemplaza alert/confirm/prompt
+    (function(){
+        const overlay = document.getElementById('nucleus-dialog');
+        const titleEl = document.getElementById('nucleus-dialog-title');
+        const msgEl = document.getElementById('nucleus-dialog-message');
+        const inputEl = document.getElementById('nucleus-dialog-input');
+        const okBtn = document.getElementById('nucleus-dialog-ok');
+        const cancelBtn = document.getElementById('nucleus-dialog-cancel');
+        const iconEl = document.getElementById('nucleus-dialog-icon');
+        let _resolve = null;
+        let _type = 'alert';
+
+        function show({type='alert', title='Aviso', message='', defaultValue='', placeholder='', okText='Aceptar', cancelText='Cancelar', icon='fa-circle-info', inputType='text'}){
+            return new Promise(resolve=>{
+                _resolve = resolve;
+                _type = type;
+                titleEl.textContent = title;
+                msgEl.textContent = message;
+
+                const isDanger = /eliminar|borrar|remover|bloquear|quitar/i.test(message + ' ' + title);
+                const card = overlay.querySelector('.nucleus-dialog-card');
+                if (card) {
+                    card.classList.toggle('dialog-danger', isDanger);
+                }
+
+                let finalIcon = icon;
+                if (icon === 'fa-circle-info' || icon === 'fa-circle-question') {
+                    finalIcon = isDanger ? 'fa-triangle-exclamation' : (type === 'confirm' ? 'fa-circle-question' : 'fa-circle-info');
+                }
+                iconEl.innerHTML = '<i class="fa-solid ' + finalIcon + '"></i>';
+
+                if(type==='prompt'){
+                    inputEl.style.display='block';
+                    inputEl.type = inputType||'text';
+                    inputEl.value = defaultValue||'';
+                    inputEl.placeholder = placeholder||'';
+                } else {
+                    inputEl.style.display='none';
+                    inputEl.type='text';
+                }
+                okBtn.textContent = okText;
+                cancelBtn.textContent = cancelText;
+                cancelBtn.style.display = (type==='alert') ? 'none' : 'inline-flex';
+                overlay.style.display = '';
+                overlay.classList.add('show');
+                overlay.setAttribute('aria-hidden','false');
+                setTimeout(()=>{ (type==='prompt'?inputEl:okBtn).focus(); }, 30);
+                document.body.style.overflow='hidden';
+            });
+        }
+        function close(result){
+            overlay.classList.remove('show');
+            overlay.setAttribute('aria-hidden','true');
+            document.body.style.overflow='';
+            if(_resolve){ const r=_resolve; _resolve=null; r(result); }
+        }
+        okBtn.addEventListener('click', ()=>{
+            if(_type==='prompt') close(inputEl.value);
+            else if(_type==='confirm') close(true);
+            else close(true);
+        });
+        cancelBtn.addEventListener('click', ()=>{
+            if(_type==='prompt') close(null);
+            else close(false);
+        });
+        overlay.addEventListener('click', (e)=>{ if(e.target===overlay) { if(_type==='prompt') close(null); else if(_type==='confirm') close(false); else close(true); } });
+        document.addEventListener('keydown', (e)=>{
+            if(!overlay.classList.contains('show')) return;
+            if(e.key==='Escape'){ e.preventDefault(); if(_type==='prompt') close(null); else if(_type==='confirm') close(false); else close(true); }
+            if(e.key==='Enter' && _type==='prompt'){ e.preventDefault(); close(inputEl.value); }
+            if(e.key==='Enter' && _type!=='prompt'){ e.preventDefault(); if(_type==='confirm') close(true); else close(true); }
+        });
+
+        window.nucleusAlert = (message, title='Aviso') => show({type:'alert', title, message: String(message), okText:'Entendido', icon:'fa-circle-info'});
+        window.nucleusConfirm = (message, title='Confirmar') => show({type:'confirm', title, message: String(message), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-circle-question'});
+        window.nucleusPrompt = (message, defaultValue='', title='Ingresar', inputType='text') => show({type:'prompt', title, message: String(message), defaultValue: String(defaultValue||''), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-pen-to-square', inputType});
+        window._originalAlert = window.alert;
+        window._originalConfirm = window.confirm;
+        window._originalPrompt = window.prompt;
+        // Redirige alert nativo al popup temático — ignora vacíos para no mostrar "Aviso" vacío
+        window.alert = function(msg){ const m=String(msg||'').trim(); if(!m) return; try{ nucleusAlert(m); }catch(e){ window._originalAlert(m); } };
+    })();
+    </script>
+    <script>document.addEventListener('DOMContentLoaded',function(){var o=document.getElementById('nucleus-dialog'),m=document.getElementById('nucleus-dialog-message');if(o&&m&&!m.textContent.trim()){o.classList.remove('show');o.style.display='none'}});</script>
+</body>
+</html>

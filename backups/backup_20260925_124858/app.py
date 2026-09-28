@@ -1,0 +1,7037 @@
+import os
+import glob
+import gzip
+import json
+import time
+import logging
+import tempfile
+import mimetypes
+import urllib.request
+import urllib.parse
+import urllib.error
+import pandas as pd
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, send_from_directory, Response
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from functools import wraps
+import io
+import re
+import zipfile
+from datetime import datetime, timedelta
+from collections import Counter
+from PIL import Image, ImageOps
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
+# Setup Flask application
+app = Flask(__name__)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+else:
+    db_path = os.path.join(BASE_DIR, "nucleus.db")
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nucleus_dev_key_change_me')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50 MB
+app.config['EVIDENCIA_DIR'] = os.path.join(BASE_DIR, 'static', 'evidencia')
+os.makedirs(app.config['EVIDENCIA_DIR'], exist_ok=True)
+app.config['EVIDENCIA_MAX_LADO'] = int(os.environ.get('EVIDENCIA_MAX_LADO', 1280))
+app.config['EVIDENCIA_CALIDAD'] = int(os.environ.get('EVIDENCIA_CALIDAD', 80))
+# Backblaze B2 (opcional): si se configuran estas variables, las fotos se suben a B2.
+app.config['B2_ENDPOINT_URL'] = os.environ.get('B2_ENDPOINT_URL', '')
+app.config['B2_KEY_ID'] = os.environ.get('B2_KEY_ID', '')
+app.config['B2_APP_KEY'] = os.environ.get('B2_APP_KEY', '')
+app.config['B2_BUCKET'] = os.environ.get('B2_BUCKET', '')
+app.config['B2_REGION'] = os.environ.get('B2_REGION', 'us-west-004')
+# OneDrive personal (opcional, 2do backup vía Microsoft Graph).
+# OD_CLIENT_ID es obligatorio; OD_CLIENT_SECRET es opcional (client público no lo usa).
+app.config['OD_CLIENT_ID'] = os.environ.get('OD_CLIENT_ID', '')
+app.config['OD_CLIENT_SECRET'] = os.environ.get('OD_CLIENT_SECRET', '')
+app.config['OD_REFRESH_TOKEN'] = os.environ.get('OD_REFRESH_TOKEN', '')
+app.config['OD_ENABLED'] = bool(app.config['OD_CLIENT_ID'] and app.config['OD_REFRESH_TOKEN'])
+# Cuenta adicional (2do backup): usar sufijo _2 (OD_CLIENT_ID_2, OD_CLIENT_SECRET_2, OD_REFRESH_TOKEN_2)
+app.config['OD_CLIENT_ID_2'] = os.environ.get('OD_CLIENT_ID_2', '')
+app.config['OD_CLIENT_SECRET_2'] = os.environ.get('OD_CLIENT_SECRET_2', '')
+app.config['OD_REFRESH_TOKEN_2'] = os.environ.get('OD_REFRESH_TOKEN_2', '')
+app.config['OD_ENABLED_2'] = bool(app.config['OD_CLIENT_ID_2'] and app.config['OD_REFRESH_TOKEN_2'])
+
+from werkzeug.exceptions import HTTPException
+
+# Global error handlers to prevent HTML error pages breaking frontend JSON parsing
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Pass through HTTP errors
+    if isinstance(e, HTTPException):
+        return jsonify(error=e.description), e.code
+    # Non-HTTP exceptions
+    return jsonify(error=str(e)), 500
+
+# Compresión gzip de las respuestas (HTML/JSON/CSS/JS). Reduce drásticamente el
+# peso de la página principal (varios MB) sin cambiar el contenido ni requerir
+# dependencias externas. Si algo falla, se devuelve la respuesta sin comprimir.
+@app.after_request
+def _compress_response(response):
+    try:
+        if response.direct_passthrough:
+            return response
+        if response.status_code < 200 or response.status_code >= 300:
+            return response
+        if response.headers.get('Content-Encoding'):
+            return response
+        if 'gzip' not in request.accept_encodings:
+            return response
+        ctype = (response.content_type or '').lower()
+        if not any(t in ctype for t in (
+                'text/', 'application/json', 'application/javascript',
+                'application/xml', 'image/svg')):
+            return response
+        data = response.get_data()
+        if len(data) < 1024:
+            return response
+        compressed = gzip.compress(data, 6)
+        if len(compressed) >= len(data):
+            return response
+        response.set_data(compressed)
+        response.headers['Content-Encoding'] = 'gzip'
+        response.headers['Content-Length'] = str(len(compressed))
+        vary = response.headers.get('Vary')
+        response.headers['Vary'] = (vary + ', Accept-Encoding') if vary else 'Accept-Encoding'
+    except Exception:
+        pass
+    return response
+
+db = SQLAlchemy(app)
+
+# --- MODELS ---
+class Usuario(db.Model):
+    __tablename__ = 'usuarios'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), default='')
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    rol = db.Column(db.String(20), default='supervisor') # 'zeno', 'suport', 'supervisor', 'gestor', 'contrata'
+
+class Proyecto(db.Model):
+    __tablename__ = 'proyectos'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), unique=True, nullable=False)
+    descripcion = db.Column(db.String(200))
+    icono = db.Column(db.String(50), default='fa-folder-open', nullable=False)
+
+class AppConfig(db.Model):
+    __tablename__ = 'app_config'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    clave = db.Column(db.String(50), nullable=False)
+    valor = db.Column(db.Text, nullable=False)
+    __table_args__ = (db.UniqueConstraint('proyecto_id', 'clave', name='_proj_clave_uc'),)
+
+class TokenStore(db.Model):
+    """Almacén global clave/valor (p. ej. refresh token de OneDrive)."""
+    __tablename__ = 'token_store'
+    id = db.Column(db.Integer, primary_key=True)
+    clave = db.Column(db.String(50), unique=True, nullable=False)
+    valor = db.Column(db.Text, nullable=False)
+
+class NucleusData(db.Model):
+    __tablename__ = 'nucleus_data'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    key_value = db.Column(db.String(100), nullable=False, index=True)
+    data_json = db.Column(db.Text, nullable=False)
+    __table_args__ = (db.UniqueConstraint('proyecto_id', 'key_value', name='_proj_key_uc'),)
+
+class NucleusHistory(db.Model):
+    __tablename__ = 'nucleus_history'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    key_value = db.Column(db.String(100), nullable=False, index=True)
+    data_json = db.Column(db.Text, nullable=False)
+    fecha_consolidado = db.Column(db.DateTime, default=datetime.utcnow)
+
+class FiltroMaestro(db.Model):
+    __tablename__ = 'filtros_maestros'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    columna = db.Column(db.String(100), nullable=False)
+    valor = db.Column(db.String(100), nullable=False)
+    __table_args__ = (db.UniqueConstraint('proyecto_id', 'columna', 'valor', name='_proj_filtro_uc'),)
+
+class TablaMaestra(db.Model):
+    __tablename__ = 'tablas_maestras'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    columna_criterio = db.Column(db.String(100), nullable=False)
+    valor_criterio = db.Column(db.String(100), nullable=False)
+    nueva_columna = db.Column(db.String(100), nullable=False)
+    nuevo_valor = db.Column(db.String(100), nullable=False)
+
+class ReglaEstadoManual(db.Model):
+    __tablename__ = 'reglas_estado_manual'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    columna_criterio = db.Column(db.String(100), nullable=False)
+    valor_criterio = db.Column(db.String(100), nullable=False)
+    columna_manual = db.Column(db.String(100), nullable=False)
+    nuevo_valor = db.Column(db.String(100), nullable=False)
+
+class AccesoProyecto(db.Model):
+    __tablename__ = 'accesos_proyecto'
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    # restricciones: JSON string ej: {"JEFATURA": ["LIMA", "CALLAO"]}
+    restricciones = db.Column(db.Text, default='{}') 
+    __table_args__ = (db.UniqueConstraint('usuario_id', 'proyecto_id', name='_user_proj_uc'),)
+
+class KpiConfig(db.Model):
+    __tablename__ = 'kpi_configs'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    col_inicio = db.Column(db.String(100), nullable=False)
+    restar_contra = db.Column(db.String(20), default='HOY') # 'HOY', 'COLUMNA'
+    col_fin = db.Column(db.String(100), nullable=True)
+    tipo = db.Column(db.String(20), default='DILACION')
+
+class HistorialCambios(db.Model):
+    __tablename__ = 'historial_cambios'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=True)
+    username = db.Column(db.String(50), nullable=False)
+    key_value = db.Column(db.String(100), nullable=False, index=True)
+    campo_modificado = db.Column(db.String(100), nullable=False)
+    valor_anterior = db.Column(db.Text, nullable=True)
+    valor_nuevo = db.Column(db.Text, nullable=True)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Tecnico(db.Model):
+    __tablename__ = 'tecnicos'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    nombre = db.Column(db.String(120), nullable=False)
+    contrata = db.Column(db.String(120), default='')
+    especialidad = db.Column(db.String(120), default='')
+    telefono = db.Column(db.String(30), default='')
+
+class Cotizacion(db.Model):
+    __tablename__ = 'cotizaciones'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    key_value = db.Column(db.String(100), nullable=False, index=True)
+    numero = db.Column(db.String(50), nullable=False)
+    nota = db.Column(db.Text, default='')
+    cotizado_por = db.Column(db.String(100), default='')
+    revisado_por = db.Column(db.String(100), default='')
+    gastos_json = db.Column(db.Text, default='[]')
+    mano_obra_json = db.Column(db.Text, default='[]')
+    fecha_generacion = db.Column(db.DateTime, default=datetime.utcnow)
+    bloqueada = db.Column(db.Boolean, default=True)
+    formato = db.Column(db.String(20), default='')
+    site = db.Column(db.String(200), default='')
+    supervisor = db.Column(db.String(120), default='')
+    items_json = db.Column(db.Text, default='[]')
+
+# Auth Decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# --- HELPERS ---
+@app.route('/api/admin/column_values')
+@login_required
+def api_column_values():
+    pid_arg = request.args.get('pid')
+    pid = pid_arg if pid_arg else session.get('current_proyecto_id')
+    col = request.args.get('col')
+    if not pid or not col: return jsonify([])
+    
+    # Get unique values from NucleusData
+    rows = NucleusData.query.filter_by(proyecto_id=pid).all()
+    vals = set()
+    for r in rows:
+        d = json.loads(r.data_json)
+        v = d.get(col)
+        if v: vals.add(str(v).strip())
+    
+    return jsonify(sorted(list(vals)))
+
+def inject_kpis(pid, rows):
+    configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
+    if not configs: return rows, {}
+    
+    hoy = datetime.now()
+    kpi_meta = {}
+    
+    # Pre-calculate rules
+    for kpi in configs:
+        if kpi.tipo == 'ACUMULADO':
+            col_raw = kpi.col_inicio
+            # ignore empty strings from splitting
+            cols = [c.strip() for c in col_raw.split(',') if c.strip()]
+            
+            if not cols: continue
+
+            # Handle multiple filters stored in col_fin as JSON
+            filters = []
+            try:
+                if kpi.col_fin and (kpi.col_fin.startswith('[') or kpi.col_fin.startswith('{')):
+                    filters = json.loads(kpi.col_fin)
+                    if not isinstance(filters, list): filters = []
+                elif kpi.restar_contra and kpi.restar_contra != 'HOY':
+                    # Legacy single filter support
+                    filters = [{"col": kpi.restar_contra, "val": kpi.col_fin}]
+            except:
+                filters = []
+
+            combined_vals = []
+            for r in rows:
+                # Apply ALL filters (AND logic)
+                matches_all = True
+                for f in filters:
+                    f_col = f.get('col')
+                    f_val = f.get('val')
+                    if f_col:
+                        # rows are list of dicts, use r.get()
+                        if str(r.get(f_col, '')).strip() != str(f_val).strip():
+                            matches_all = False
+                            break
+                
+                if matches_all:
+                    vals = [str(r.get(c, '')).strip() for c in cols]
+                    if all(vals):
+                        combined_vals.append(" | ".join(vals))
+            
+            if combined_vals:
+                counts = Counter(combined_vals)
+                
+                # --- NEW TOP 4 RANKING LOGIC ---
+                sorted_keys = sorted(counts.keys(), key=lambda x: counts[x], reverse=True)
+                ranks = {}
+                for i, k in enumerate(sorted_keys[:4]):
+                    ranks[k] = i + 1  # Rank 1, 2, 3, 4
+                
+                # Use KPI ID to avoid collisions
+                kpi_meta[kpi.id] = {
+                    'counts': dict(counts),
+                    'ranks': ranks,
+                    'max': max(counts.values()) if counts else 0,
+                    'cols_involved': cols,
+                    'filters': filters
+                }
+        elif kpi.tipo == 'RESALTADO':
+            # Highlight rules: { "COLUMN": {"VALUE": "STYLE"} }
+            if 'resaltadores' not in kpi_meta: kpi_meta['resaltadores'] = {}
+            col = kpi.col_inicio
+            val = kpi.col_fin # ITEM to highlight stored here
+            if col not in kpi_meta['resaltadores']: kpi_meta['resaltadores'][col] = {}
+            kpi_meta['resaltadores'][col][val] = 'hit' # Mark for highlighting
+
+    for kpi in configs:
+        if kpi.tipo != 'DILACION': continue
+        
+        for row in rows:
+            val_inicio = row.get(kpi.col_inicio)
+            if not val_inicio:
+                row[f"KPI_{kpi.nombre}"] = None
+                continue
+                
+            # Try to parse date using pandas for robustness
+            try:
+                # Use pandas to parse almost any common date format
+                f_inicio = pd.to_datetime(str(val_inicio).strip())
+                if pd.isna(f_inicio): f_inicio = None
+            except:
+                f_inicio = None
+            
+            if not f_inicio:
+                row[f"KPI_{kpi.nombre}"] = None
+                continue
+                
+            target_date = pd.to_datetime(hoy)
+            if kpi.restar_contra == 'COLUMNA' and kpi.col_fin:
+                val_fin = row.get(kpi.col_fin)
+                if val_fin:
+                    try:
+                        f_fin = pd.to_datetime(str(val_fin).strip())
+                        if not pd.isna(f_fin):
+                            target_date = f_fin
+                    except: pass
+            
+            diff = target_date - f_inicio
+            row[f"KPI_{kpi.nombre}"] = max(0, diff.days)
+            
+    return rows, kpi_meta
+
+def apply_data_restrictions(data_list, res_obj):
+    """
+    Applies role-based data filtering based on the res_obj.
+    Does case-insensitive comparison and ignores missing columns.
+    """
+    if not res_obj:
+        return data_list
+        
+    filtered = []
+    
+    # Pre-process restrictions to be robust (uppercase lists)
+    parsed_res = {}
+    for col, vals in res_obj.items():
+        if not vals: continue
+        # Ensure it's a list and uppercase all elements
+        if isinstance(vals, list):
+            parsed_res[col] = [str(v).strip().upper() for v in vals]
+        else:
+            parsed_res[col] = [str(vals).strip().upper()]
+    
+    # If after parsing it's empty, no restrictions apply
+    if not parsed_res:
+        return data_list
+        
+    for d in data_list:
+        keep = True
+        for col_name, allowed_vals in parsed_res.items():
+            if col_name not in d: continue # Flexible filtering
+            
+            val_in_row = str(d.get(col_name, '')).strip().upper()
+            if val_in_row not in allowed_vals:
+                keep = False; break
+        if keep:
+            filtered.append(d)
+            
+    return filtered
+
+
+def _parse_galones(n):
+    """Convierte un valor de galones a float (acepta coma o punto)."""
+    try:
+        return float(str(n or '').replace(',', '.').strip())
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _flm_wo_list():
+    """Lista de WOs (CM) declarados en el proyecto FLM, para el buscador de Combustible."""
+    try:
+        flm_proy = Proyecto.query.filter_by(nombre='FLM').first()
+        if not flm_proy:
+            return []
+        wo_set = set()
+        wo_key = None
+        for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).limit(5).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            for k in d.keys():
+                if 'WO' in k.upper() and 'NUMBER' in k.upper() or 'Número de WO' in k or 'Numero de WO' in k:
+                    wo_key = k
+                    break
+            if wo_key:
+                break
+        if wo_key:
+            for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                wo = str(d.get(wo_key, '')).strip()
+                if wo:
+                    wo_set.add(wo)
+        else:
+            for r in NucleusData.query.filter_by(proyecto_id=flm_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                for k, v in d.items():
+                    if 'WO' in str(k).upper():
+                        w = str(v).strip()
+                        if w:
+                            wo_set.add(w)
+        return sorted(wo_set)
+    except Exception:
+        return []
+
+
+def _combustible_saldo(pid, generador):
+    """Saldo disponible (INGRESOS - GASTOS) actual de un generador en Combustible."""
+    try:
+        bal = 0.0
+        for r in NucleusData.query.filter_by(proyecto_id=pid).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if str(d.get('QR ASIGNADO', '')).strip() != generador:
+                continue
+            mov = str(d.get('MOVIMIENTO', '')).strip().upper()
+            g = _parse_galones(d.get('GALONES'))
+            bal = bal + g if mov != 'GASTO' else bal - g
+        return bal
+    except Exception:
+        return 0.0
+
+def _combustible_fecha_norm(v):
+    """Normaliza FECHA a 'YYYY-MM-DD HH:MM' para que el orden cronológico
+    (usado por SALDO DISPONIBLE) sea correcto sin importar el formato origen
+    (ISO del formulario o DD/MM/YYYY del Excel)."""
+    s = str(v or '').strip().replace('T', ' ')
+    if not s:
+        return ''
+    m = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$', s)
+    if m:
+        return f"{m.group(1)}-{m.group(2).zfill(2)}-{m.group(3).zfill(2)} {(m.group(4) or '00').zfill(2)}:{(m.group(5) or '00').zfill(2)}"
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:[ ](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$', s)
+    if m:
+        return f"{m.group(3)}-{m.group(2).zfill(2)}-{m.group(1).zfill(2)} {(m.group(4) or '00').zfill(2)}:{(m.group(5) or '00').zfill(2)}"
+    return s
+
+def _combustible_fecha_ord(v):
+    """Clave de ORDEN cronológico para Combustible.
+    Los movimientos con solo fecha (00:00) se tratan como fin de ese día
+    (23:59): así un GASTO sin hora nunca queda antes que un INGRESO con hora
+    real de ese mismo día y la trazabilidad se lee coherente.
+    El dato visible de FECHA no cambia; esto solo define la secuencia."""
+    s = _combustible_fecha_norm(v)
+    if s.endswith(' 00:00'):
+        s = s[:-len(' 00:00')] + ' 23:59'
+    return s
+
+def _combustible_filas_gen(pid, generador):
+    """Movimientos de un generador ordenados cronológicamente (igual que SALDO DISPONIBLE)."""
+    filas = []
+    try:
+        for r in NucleusData.query.filter_by(proyecto_id=pid).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if str(d.get('QR ASIGNADO', '')).strip() != generador:
+                continue
+            filas.append({
+                'key': r.key_value,
+                'fecha': _combustible_fecha_norm(d.get('FECHA', '')),
+                'mov': str(d.get('MOVIMIENTO', '')).strip().upper(),
+                'gal': _parse_galones(d.get('GALONES')),
+            })
+    except Exception:
+        pass
+    filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+    return filas
+
+def _combustible_chequear(filas):
+    """Verifica que el balance cronológico nunca sea negativo.
+    Retorna (ok, quiebre): quiebre describe el primer punto en rojo."""
+    bal = 0.0
+    for f in filas:
+        bal = bal + f['gal'] if f['mov'] != 'GASTO' else bal - f['gal']
+        if bal < -1e-9:
+            return False, {'key': f.get('key'), 'fecha': f.get('fecha'), 'saldo': round(bal, 2)}
+    return True, {'saldo_final': round(bal, 2)}
+
+def _combustible_validar_gasto(pid, generador, fecha, galones, excluir_key=None):
+    """Simula un GASTO en (generador, fecha) y verifica que ningún punto
+    del historial quede en negativo. Retorna (ok, mensaje_o_saldo)."""
+    filas = _combustible_filas_gen(pid, generador)
+    if excluir_key is not None:
+        filas = [f for f in filas if str(f.get('key')) != str(excluir_key)]
+    filas.append({'key': '(nuevo)', 'fecha': _combustible_fecha_norm(fecha),
+                  'mov': 'GASTO', 'gal': float(galones)})
+    filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+    ok, info = _combustible_chequear(filas)
+    if ok:
+        return True, info.get('saldo_final', 0.0)
+    return False, info
+
+
+_EVIDENCIA_OLD26_A_NUEVO = {
+    # Formato anterior PEXT (26 slots): 13 izq (01..27) + 13 der (02..26, y un
+    # "25 - cierre" final sin cuadro propio) -> formato actual (28 slots).
+    0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12,
+    13: 14, 14: 15, 15: 16, 16: 17, 17: 18, 18: 19, 19: 20, 20: 21, 21: 22, 22: 23, 23: 24, 24: 25,
+}
+
+
+def _evidencia_migrar_legacy(d):
+    """Reubica la evidencia PEXT del formato anterior (array de 26) al actual (28).
+    Solo aplica si `_EVIDENCIA_FOTOS` mide 26; idempotente. Devuelve True si cambió d."""
+    if not isinstance(d, dict) or d.get('_EVIDENCIA_LEGACY') == '26':
+        return False
+    raw = d.get('_EVIDENCIA_FOTOS')
+    try:
+        fotos = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return False
+    if not isinstance(fotos, list) or len(fotos) != 26:
+        return False
+    for campo in ('_EVIDENCIA_FOTOS', '_EVIDENCIA_OBS', '_EVIDENCIA_APLICA'):
+        rawf = d.get(campo)
+        try:
+            arr = json.loads(rawf) if isinstance(rawf, str) else rawf
+        except Exception:
+            arr = None
+        if not isinstance(arr, list) or len(arr) != 26:
+            continue
+        nuevo = [''] * 28
+        for i, v in enumerate(arr[:26]):
+            j = _EVIDENCIA_OLD26_A_NUEVO.get(i)
+            if j is not None and v not in (None, ''):
+                nuevo[j] = v
+        d[campo] = json.dumps(nuevo, ensure_ascii=False)
+    d['_EVIDENCIA_LEGACY'] = '26'
+    return True
+
+
+def _sane_data_key(k):
+    """Tabulator trata '.' en el nombre de campo como acceso anidado, dejando
+    celdas vacías aunque el filtro sí vea el dato. Por eso las claves de
+    data_json se guardan SIEMPRE con '_' en lugar de '.'."""
+    return str(k).replace('.', '_')
+
+
+def _sane_dict(d):
+    """Devuelve una copia del dict con las claves saneadas ('.' -> '_')."""
+    out = {}
+    for k, v in d.items():
+        out[_sane_data_key(k)] = v
+    return out
+
+
+# --- Sync FLM <-> FLM (old) por CM ---
+# FLM (nuevo) y FLM (old) comparten los mismos códigos de CM. Como el esquema de
+# columnas de cada proyecto es DISTINTO, la sincronización NO copia todo el
+# registro: solo propaga al proyecto hermano los campos de trabajo que el usuario
+# edita (modal WO, evidencia/fotos, estado), evitando pisar columnas propias de
+# cada esquema.
+CAMPOS_TRABAJO_FLM = frozenset({
+    'SERVICIO', 'CIUDAD', 'TECNICO ASIGNADO', 'CONTRATA', 'MOTIVO DE AVERÍA',
+    'SISTEMAS', 'MATERIALES', 'INICIO DE PARADA', 'FIN DE PARADA', 'BITACORA',
+    'SOLUCIÓN', 'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'LATITUD MUFAS',
+    'LONGITUD MUFAS', 'COTIZACION_ITEMS', 'COTIZACION_NOTA', 'COTIZACION_NUMERO',
+    'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'GESTOR', 'EDITADO POR',
+    'Estado de la tarea (WO State)', 'FECHA CAMBIO ESTADO', '_ENVIADO_APROBACION',
+    'REQUIERE BIÁTICOS', 'MONTO BIÁTICOS (SOLES)', 'COSTO DE MATERIAL (SOLES)',
+})
+
+
+def _flm_pair_ids():
+    """Devuelve (id_FLM, id_FLM_old) o (None, None). Localiza por nombre para
+    no depender de ids fijos."""
+    a = Proyecto.query.filter_by(nombre='FLM').first()
+    b = Proyecto.query.filter_by(nombre='FLM (old)').first()
+    return ((a.id if a else None), (b.id if b else None))
+
+
+def _flm_hermano_id(pid):
+    """Si pid es FLM o FLM (old), devuelve el id del proyecto hermano; si no, None."""
+    a, b = _flm_pair_ids()
+    if a is None or b is None:
+        return None
+    if pid == a:
+        return b
+    if pid == b:
+        return a
+    return None
+
+
+def _flm_campo_propagable(campo, data_hermano):
+    """Un campo editado se propaga al hermano si es de trabajo (modal/evidencia)
+    o si el proyecto hermano ya tiene esa columna."""
+    return (campo.startswith('_') or campo in CAMPOS_TRABAJO_FLM
+            or campo in data_hermano)
+
+
+def _flm_registro_hermano(pid, key):
+    """Registro NucleusData del mismo CM en el proyecto hermano FLM/FLM (old),
+    o None."""
+    her = _flm_hermano_id(pid)
+    if her is None:
+        return None
+    return NucleusData.query.filter_by(proyecto_id=her, key_value=str(key)).first()
+
+
+def _flm_sync_campos(pid, key, campos, metadatos):
+    """Propaga {campo: valor} al registro hermano del mismo CM. Solo los campos
+    propagables (ver _flm_campo_propagable). `metadatos` son campos fijos que se
+    aplican siempre (usuario/edición/estado)."""
+    her = _flm_hermano_id(pid)
+    if her is None:
+        return
+    rec = _flm_registro_hermano(pid, key)
+    if rec is None:
+        return
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    cambio = False
+    for campo, valor in campos.items():
+        if not _flm_campo_propagable(campo, d):
+            continue
+        d[campo] = valor
+        cambio = True
+    for k, v in (metadatos or {}).items():
+        if v is not None and d.get(k) != v:
+            d[k] = v
+            cambio = True
+    if cambio:
+        rec.data_json = safe_json_dumps(d)
+
+
+# --- DB INIT & MIGRATION ---
+with app.app_context():
+    # Lock de migración (solo PostgreSQL): evita que varios workers de gunicorn
+    # ejecuten las migraciones en paralelo al arrancar. Si no se obtiene en 30 s
+    # se continúa igualmente (las migraciones son idempotentes), para no bloquear
+    # nunca el arranque de la app.
+    # Se omite en endpoints con connection pooler (Neon "-pooler"/PgBouncer en
+    # modo transacción), donde los advisory locks de sesión no son fiables.
+    _using_pooler = '-pooler' in (DATABASE_URL or '')
+    _mig_lock_conn = None
+    try:
+        if db.engine.dialect.name == 'postgresql' and not _using_pooler:
+            _cand = db.engine.connect()
+            for _ in range(30):
+                if _cand.execute(db.text("SELECT pg_try_advisory_lock(917348261)")).scalar():
+                    _mig_lock_conn = _cand
+                    break
+                time.sleep(1)
+            if _mig_lock_conn is None:
+                _cand.close()
+    except Exception as e:
+        print("Warning: lock de migración no disponible:", e)
+        _mig_lock_conn = None
+
+    is_sqlite = db.engine.dialect.name == 'sqlite'
+    # Detect if we need to migrate or just create
+    from sqlalchemy import inspect
+    inspector = inspect(db.engine)
+    tables = inspector.get_table_names()
+    
+    # Check if _old tables already exist from a failed prior run
+    has_old = 'nucleus_data_old' in tables
+    
+    # If it's the old schema (no project_id in nucleus_data)
+    needs_migration = False
+    if 'nucleus_data' in tables:
+        cols = [c['name'] for c in inspector.get_columns('nucleus_data')]
+        if 'proyecto_id' not in cols:
+            needs_migration = True
+
+    if is_sqlite and needs_migration and not has_old:
+        print("Migrating database to Multi-Project schema...")
+        # Simple migration: Rename old and copy
+        db.session.execute(db.text("ALTER TABLE nucleus_data RENAME TO nucleus_data_old"))
+        db.session.execute(db.text("ALTER TABLE app_config RENAME TO app_config_old"))
+        db.session.execute(db.text("ALTER TABLE filtros_maestros RENAME TO filtros_maestros_old"))
+        db.session.execute(db.text("ALTER TABLE tablas_maestras RENAME TO tablas_maestras_old"))
+        db.session.commit()
+        has_old = True # Now we have them
+
+    db.create_all()
+
+    # Índices de rendimiento (idempotentes). proyecto_id es la columna más
+    # filtrada del sistema y hasta ahora no estaba indexada.
+    _perf_indexes = [
+        "CREATE INDEX IF NOT EXISTS ix_nucleus_data_proyecto_id ON nucleus_data (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_nucleus_data_proy_key ON nucleus_data (proyecto_id, key_value)",
+        "CREATE INDEX IF NOT EXISTS ix_app_config_proy_clave ON app_config (proyecto_id, clave)",
+        "CREATE INDEX IF NOT EXISTS ix_hist_cambios_proy_campo_key ON historial_cambios (proyecto_id, campo_modificado, key_value)",
+        "CREATE INDEX IF NOT EXISTS ix_accesos_proyecto_usuario ON accesos_proyecto (usuario_id)",
+        "CREATE INDEX IF NOT EXISTS ix_accesos_proyecto_user_proy ON accesos_proyecto (usuario_id, proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_cotizaciones_proy_key ON cotizaciones (proyecto_id, key_value)",
+        "CREATE INDEX IF NOT EXISTS ix_filtros_maestros_proy ON filtros_maestros (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_tablas_maestras_proy ON tablas_maestras (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_reglas_estado_manual_proy ON reglas_estado_manual (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_kpi_configs_proy ON kpi_configs (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_tecnicos_proy ON tecnicos (proyecto_id)",
+        "CREATE INDEX IF NOT EXISTS ix_nucleus_history_proy_key ON nucleus_history (proyecto_id, key_value)",
+    ]
+    for _idx_sql in _perf_indexes:
+        try:
+            db.session.execute(db.text(_idx_sql))
+        except Exception as e:
+            print("Warning: no se pudo crear índice:", e)
+    db.session.commit()
+
+    # Migration: Add 'nombre' column to usuarios if missing (must run before any Usuario query)
+    try:
+        ucols = [c['name'] for c in inspect(db.engine).get_columns('usuarios')]
+        if 'nombre' not in ucols:
+            db.session.execute(db.text("ALTER TABLE usuarios ADD COLUMN nombre VARCHAR(100) DEFAULT ''"))
+            db.session.commit()
+            print("Added 'nombre' column to usuarios")
+    except Exception as e:
+        print("Warning: could not add nombre column:", e)
+    
+    # Create Default Admin if none
+    if not Usuario.query.first():
+        admin = Usuario(username='zeno', password_hash=generate_password_hash('zeno123'), rol='zeno')
+        db.session.add(admin)
+        db.session.commit()
+        
+    # Migración de roles: admin -> zeno
+    try:
+        db.session.execute(db.text("UPDATE usuarios SET rol='zeno' WHERE rol='admin'"))
+        db.session.commit()
+    except Exception as e:
+        print("Warning: could not migrate admin to zeno:", e)
+
+    # Migration: allow multiple cotizaciones per key_value (drop unique constraint)
+    try:
+        cot_tables = inspect(db.engine).get_table_names()
+        if 'cotizaciones' in cot_tables:
+            if is_sqlite:
+                # SQLite: check the table DDL for the unique constraint (it's a CONSTRAINT, not an index)
+                sql = db.session.execute(db.text(
+                    "SELECT sql FROM sqlite_master WHERE type='table' AND name='cotizaciones'"
+                )).scalar() or ''
+                if '_proj_key_coti_uc' in sql:
+                    db.session.execute(db.text("ALTER TABLE cotizaciones RENAME TO cotizaciones_old"))
+                    db.session.commit()
+                    db.create_all()
+                    cols = [c['name'] for c in inspect(db.engine).get_columns('cotizaciones_old')]
+                    collist = ', '.join(cols)
+                    db.session.execute(db.text(
+                        f"INSERT INTO cotizaciones ({collist}) SELECT {collist} FROM cotizaciones_old"
+                    ))
+                    db.session.execute(db.text("DROP TABLE cotizaciones_old"))
+                    db.session.commit()
+                    print("Cotizaciones: unique constraint removed (SQLite)")
+            else:
+                # Postgres: drop named constraint directly
+                db.session.execute(db.text("ALTER TABLE cotizaciones DROP CONSTRAINT IF EXISTS _proj_key_coti_uc"))
+                db.session.commit()
+                print("Cotizaciones: unique constraint removed (Postgres)")
+    except Exception as e:
+        print("Warning: cotizaciones migration:", e)
+
+    # Migration: cotizaciones formato Cobra (FLM): formato, site, supervisor, items_json
+    try:
+        if 'cotizaciones' in inspect(db.engine).get_table_names():
+            cot_cols = [c['name'] for c in inspect(db.engine).get_columns('cotizaciones')]
+            with db.engine.begin() as conn:
+                if 'formato' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN formato VARCHAR(20) DEFAULT ''"))
+                if 'site' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN site VARCHAR(200) DEFAULT ''"))
+                if 'supervisor' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN supervisor VARCHAR(120) DEFAULT ''"))
+                if 'items_json' not in cot_cols:
+                    conn.execute(db.text("ALTER TABLE cotizaciones ADD COLUMN items_json TEXT DEFAULT '[]'"))
+            print("Cotizaciones: columnas formato Cobra listas")
+    except Exception as e:
+        print("Warning: cotizaciones cobra migration:", e)
+
+    # Create Default Project "Pangeaco" ONLY when the DB is completely empty (fresh install)
+    if not Proyecto.query.first():
+        pangeaco = Proyecto(nombre='Pangeaco', descripcion='Proyecto inicial migrado')
+        db.session.add(pangeaco)
+        db.session.commit()
+    else:
+        # Reuse an existing project as target for any legacy migration
+        pangeaco = Proyecto.query.first()
+        
+    if is_sqlite and has_old:
+        pid = pangeaco.id
+        print("Restoring data from old tables...")
+        # Move data from old tables
+        try:
+            db.session.execute(db.text(f"INSERT OR IGNORE INTO nucleus_data (proyecto_id, key_value, data_json) SELECT {pid}, key_value, data_json FROM nucleus_data_old"))
+            db.session.execute(db.text(f"INSERT OR IGNORE INTO app_config (proyecto_id, clave, valor) SELECT {pid}, clave, valor FROM app_config_old"))
+            db.session.execute(db.text(f"INSERT OR IGNORE INTO filtros_maestros (proyecto_id, columna, valor) SELECT {pid}, columna, valor FROM filtros_maestros_old"))
+            db.session.execute(db.text(f"INSERT OR IGNORE INTO tablas_maestras (proyecto_id, columna_criterio, valor_criterio, nueva_columna, nuevo_valor) SELECT {pid}, columna_criterio, valor_criterio, nueva_columna, nuevo_valor FROM tablas_maestras_old"))
+        except Exception as e:
+            print(f"Error restoring data: {e}")
+        
+        # Cleanup
+        db.session.execute(db.text("DROP TABLE IF EXISTS nucleus_data_old"))
+        db.session.execute(db.text("DROP TABLE IF EXISTS app_config_old"))
+        db.session.execute(db.text("DROP TABLE IF EXISTS filtros_maestros_old"))
+        db.session.execute(db.text("DROP TABLE IF EXISTS tablas_maestras_old"))
+        db.session.commit()
+
+    # Migration: Rename editor -> supervisor
+    try:
+        db.session.execute(db.text("UPDATE usuarios SET rol = 'supervisor' WHERE rol = 'editor'"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    # NOTA: se eliminó la antigua migración que convertía 'gestor' -> 'contrata'.
+    # 'gestor' es hoy un rol válido y esa conversión corría en cada arranque,
+    # revirtiendo a contrata a los usuarios que el admin asignaba como gestor.
+
+    # PEXT fue retirado del sistema (feb 2026): se elimina el módulo y su data.
+    for _del_name in ('PEXT', 'PEXT (old)'):
+        try:
+            _dp = Proyecto.query.filter_by(nombre=_del_name).first()
+            if _dp:
+                _dpid = _dp.id
+                for _dtbl in (NucleusData, AppConfig, AccesoProyecto, KpiConfig,
+                              HistorialCambios, FiltroMaestro, TablaMaestra,
+                              ReglaEstadoManual, Cotizacion, Tecnico, NucleusHistory):
+                    _dtbl.query.filter_by(proyecto_id=_dpid).delete()
+                db.session.delete(_dp)
+                db.session.commit()
+                print(f"Eliminado proyecto '{_del_name}' (id={_dpid}) y toda su data.")
+        except Exception as e:
+            print(f"Warning: no se pudo eliminar '{_del_name}':", e)
+            db.session.rollback()
+
+    # Migration: Renombrar FLM -> "FLM (old)" (el FLM nuevo se crea abajo en fixed).
+    # Solo corre una vez: si FLM (old) ya existe, se salta.
+    try:
+        _old_f = Proyecto.query.filter_by(nombre='FLM').first()
+        _already_f = Proyecto.query.filter_by(nombre='FLM (old)').first()
+        if _old_f and not _already_f:
+            _old_f.nombre = 'FLM (old)'
+            db.session.commit()
+            print("Renombrado FLM -> FLM (old)")
+    except Exception as e:
+        print("Warning: rename FLM:", e)
+        db.session.rollback()
+
+    # Migration: Eliminar proyectos CLARO e INTEGRATEL (y toda su data).
+    for _del_name in ('Claro', 'Integratel', 'CLARO', 'INTEGRATEL'):
+        try:
+            _dp = Proyecto.query.filter_by(nombre=_del_name).first()
+            if _dp:
+                _dpid = _dp.id
+                for _dtbl in (NucleusData, AppConfig, AccesoProyecto, KpiConfig,
+                              HistorialCambios, FiltroMaestro, TablaMaestra,
+                              ReglaEstadoManual, Cotizacion, Tecnico, NucleusHistory):
+                    _dtbl.query.filter_by(proyecto_id=_dpid).delete()
+                db.session.delete(_dp)
+                db.session.commit()
+                print(f"Eliminado proyecto '{_del_name}' (id={_dpid}) y toda su data.")
+        except Exception as e:
+            print(f"Warning: no se pudo eliminar '{_del_name}':", e)
+            db.session.rollback()
+
+    # Migration: Ensure fixed projects FLM, Dataper, Material exist
+    fixed = [('FLM', 'Fiscalización Lima Metropolitana'), ('Dataper', 'DataPer S.A.C.'),
+             ('Material', 'Materiales Disponibles'), ('Site Name', 'Sitios (solo FLM)'), ('Generadores', 'Grupos Electrógenos (solo FLM)'),
+             ('Combustible', 'Consumo de Combustible (solo FLM)'), ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)'),
+             ('SITE', 'Maestro de Sites – COBRA SITES (10 columnas)')]
+    for nombre, desc in fixed:
+        if not Proyecto.query.filter_by(nombre=nombre).first():
+            db.session.add(Proyecto(nombre=nombre, descripcion=desc))
+    db.session.commit()
+
+    # Migration: Sanear claves de data_json (Tabulator rompe celdas con '.').
+    # Idempotente: recorre todas las filas una sola vez por proyecto hasta 0 cambios.
+    try:
+        for _prj in Proyecto.query.all():
+            _changed = True
+            _rounds = 0
+            while _changed and _rounds < 10:
+                _changed = False
+                _rows = NucleusData.query.filter_by(proyecto_id=_prj.id).all()
+                for _r in _rows:
+                    try:
+                        _d = json.loads(_r.data_json)
+                    except Exception:
+                        continue
+                    if any('.' in str(k) for k in _d.keys()):
+                        _r.data_json = json.dumps(_sane_dict(_d), ensure_ascii=False)
+                        _changed = True
+                db.session.commit()
+                _rounds += 1
+                if _changed:
+                    print(f"Saneado data_json de proyecto '{_prj.nombre}' (id={_prj.id}) "
+                          f"claves con '.' -> '_'.")
+    except Exception as e:
+        print("Warning: saneo de data_json:", e)
+        try: db.session.rollback()
+        except Exception: pass
+
+    # Migration: Re-sincronizar app_schema para proyectos cuyas columnas fueron
+    # saneadas (evita que el layout guardado tenga fields con '.' que luego no
+    # matcheen data_json).
+    for _prj in Proyecto.query.all():
+        try:
+            _schema_c = AppConfig.query.filter_by(proyecto_id=_prj.id, clave='app_schema').first()
+            if _schema_c and _schema_c.valor and '"."' in _schema_c.valor:
+                _lista = json.loads(_schema_c.valor)
+                _sane = sorted({_sane_data_key(c) for c in _lista})
+                _schema_c.valor = json.dumps(_sane, ensure_ascii=False)
+                db.session.commit()
+        except Exception:
+            pass
+    for _prj in Proyecto.query.all():
+        try:
+            _lay_c = AppConfig.query.filter_by(proyecto_id=_prj.id, clave='column_layout').first()
+            if _lay_c and _lay_c.valor and '"."' in _lay_c.valor:
+                _lay = json.loads(_lay_c.valor)
+                for _lc in _lay:
+                    if isinstance(_lc, dict) and '.' in str(_lc.get('field', '')):
+                        _lc['field'] = _sane_data_key(_lc.get('field'))
+                _lay_c.valor = json.dumps(_lay, ensure_ascii=False)
+                db.session.commit()
+        except Exception:
+            pass
+
+    # Migration: Evidencia PEXT formato anterior (26 slots) -> actual (28 slots).
+    # Reubica fotos/observaciones ya guardadas sin tocar proyectos que no sean PEXT.
+    try:
+        _pext_proy = Proyecto.query.filter_by(nombre='PEXT').first()
+        if _pext_proy:
+            _recs_ev = NucleusData.query.filter(
+                NucleusData.proyecto_id == _pext_proy.id,
+                NucleusData.data_json.like('%_EVIDENCIA_FOTOS%')
+            ).all()
+            _n_ev = 0
+            for _r_ev in _recs_ev:
+                try:
+                    _d_ev = json.loads(_r_ev.data_json)
+                except Exception:
+                    continue
+                if _evidencia_migrar_legacy(_d_ev):
+                    _r_ev.data_json = json.dumps(_d_ev, ensure_ascii=False)
+                    _n_ev += 1
+            if _n_ev:
+                db.session.commit()
+                print(f"Evidencia PEXT: {_n_ev} registro(s) migrado(s) al formato de 28 fotos.")
+    except Exception as e:
+        print("Warning: migracion evidencia PEXT:", e)
+
+    # Migration: Configure Dataper columns (TECNICO, DOCUMENTO, CONTRATA, CELULAR, CARGO, DEPARTAMENTO, PROYECTO + ACTIVO/CESADO)
+    # SUPERVISOR eliminado por solicitud; CARGO agregado y ahora sí está en plantilla de importación.
+    dataper = Proyecto.query.filter_by(nombre='Dataper').first()
+    if dataper:
+        dataper_cols = [
+            {'nombre': 'TECNICO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'DOCUMENTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CELULAR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CARGO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'DEPARTAMENTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT', 'CLARO', 'INTEGRATEL']},
+            {'nombre': 'ESTADO', 'tipo': 'lista', 'opciones': ['ACTIVO', 'CESADO']}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(dataper_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=dataper.id, clave='manual_columns', valor=json.dumps(dataper_cols, ensure_ascii=False)))
+
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='primary_key').first()
+        if not pk_cfg:
+            db.session.add(AppConfig(proyecto_id=dataper.id, clave='primary_key', valor='DOCUMENTO'))
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=dataper.id, clave='app_schema', valor=json.dumps([])))
+        else:
+            try:
+                _sch = json.loads(schema_cfg.valor) if schema_cfg.valor else []
+                if 'SUPERVISOR' in _sch:
+                    _sch = [c for c in _sch if c != 'SUPERVISOR']
+                    if 'CARGO' not in _sch:
+                        _sch.append('CARGO')
+                    schema_cfg.valor = json.dumps(_sch, ensure_ascii=False)
+                elif 'CARGO' not in _sch:
+                    _sch.append('CARGO')
+                    schema_cfg.valor = json.dumps(_sch, ensure_ascii=False)
+            except Exception:
+                pass
+        # Limpiar layout: quitar SUPERVISOR, asegurar CARGO
+        try:
+            _layout_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='column_layout').first()
+            if _layout_cfg and _layout_cfg.valor:
+                _layout = json.loads(_layout_cfg.valor)
+                _layout = [c for c in _layout if c.get('field') != 'SUPERVISOR']
+                if not any(c.get('field') == 'CARGO' for c in _layout):
+                    _layout.append({'field': 'CARGO', 'visible': True})
+                _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+        except Exception:
+            pass
+        db.session.commit()
+
+    # Migration: Configure Material columns (COD_MATERIAL, DESCRIPCION_MATERIAL, PROYECTO, UM, TIPO)
+    material_proy = Proyecto.query.filter_by(nombre='Material').first()
+    if material_proy:
+        material_proy.icono = 'fa-boxes-stacked'
+        material_cols = [
+            {'nombre': 'COD_MATERIAL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'DESCRIPCION_MATERIAL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['FLM', 'PEXT', 'CLARO', 'INTEGRATEL']},
+            {'nombre': 'UM', 'tipo': 'lista', 'opciones': ['UN', 'MT']},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['SAP', 'BUCLE']}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(material_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=material_proy.id, clave='manual_columns', valor=json.dumps(material_cols, ensure_ascii=False)))
+
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            pk_cfg.valor = 'COD_MATERIAL'
+        else:
+            db.session.add(AppConfig(proyecto_id=material_proy.id, clave='primary_key', valor='COD_MATERIAL'))
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=material_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: Normalizar PROYECTO en Dataper/Material a 'CLARO'/'INTEGRATEL' (mayúsculas como FLM/PEXT)
+    try:
+        for _pname_norm in ('Dataper', 'Material'):
+            _p_norm = Proyecto.query.filter_by(nombre=_pname_norm).first()
+            if not _p_norm:
+                continue
+            for _r_norm in NucleusData.query.filter_by(proyecto_id=_p_norm.id).all():
+                try:
+                    _d_norm = json.loads(_r_norm.data_json)
+                    _pr_norm = str(_d_norm.get('PROYECTO') or '').strip()
+                    if _pr_norm.upper() == 'CLARO' and _pr_norm != 'CLARO':
+                        _d_norm['PROYECTO'] = 'CLARO'
+                        _r_norm.data_json = json.dumps(_d_norm, ensure_ascii=False)
+                    elif _pr_norm.upper() == 'INTEGRATEL' and _pr_norm != 'INTEGRATEL':
+                        _d_norm['PROYECTO'] = 'INTEGRATEL'
+                        _r_norm.data_json = json.dumps(_d_norm, ensure_ascii=False)
+                except Exception:
+                    continue
+        db.session.commit()
+    except Exception:
+        try: db.session.rollback()
+        except Exception: pass
+
+    # Migration: Configure Site Name columns (NOMBRE DE SITE, DIRECCION, LATITUD, LONGITUD, ESTADO)
+    site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
+    if site_proy:
+        site_cols = [
+            {'nombre': 'NOMBRE DE SITE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'DIRECCION', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'ESTADO', 'tipo': 'lista', 'opciones': ['ACTIVO', 'INACTIVO']}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(site_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='manual_columns', valor=json.dumps(site_cols, ensure_ascii=False)))
+
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='primary_key').first()
+        if not pk_cfg:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='NOMBRE DE SITE'))
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: Configure Generadores columns (SERIE DE EQUIPO, TIPO, TECNICO ASIGNADO, ZONA, QR ASIGNADO)
+    gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
+    if gen_proy:
+        gen_proy.icono = 'fa-bolt'
+        gen_cols = [
+            {'nombre': 'QR ASIGNADO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SERIE DE EQUIPO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL', 'CLARO', 'INTEGRATEL']},
+            {'nombre': 'TIPO DE COMBUSTIBLE', 'tipo': 'lista', 'opciones': ['GASOLINA', 'PETROLEO', 'DIESEL']},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
+            {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(gen_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=gen_proy.id, clave='manual_columns', valor=json.dumps(gen_cols, ensure_ascii=False)))
+
+        # QR ASIGNADO es la llave del negocio (el usuario la llena). La llave interna
+        # pasa a ser auto-generada para permitir QR vacíos mientras se van asignando.
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            db.session.delete(pk_cfg)
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=gen_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: Seed Generadores con los equipos declarados (SERIE DE EQUIPO).
+    # Se ejecuta UNA SOLA VEZ al inicializar el proyecto para no reinsertar registros eliminados por el usuario.
+    gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
+    if gen_proy:
+        seed_cfg = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='seed_generadores_done').first()
+        if not seed_cfg:
+            existing_count = NucleusData.query.filter_by(proyecto_id=gen_proy.id).count()
+            if existing_count == 0:
+                series = ['06-0002-3145', '06-002-3141', '06-0002-3196', '06-0002-3184',
+                          '06-0002-3140', '06-0002-3132', '06-0002-3108', '06-0002-3207',
+                          '06-0002-3139', '06-0002-3123', '06-0002-3115', '06-0002-3117',
+                          '06-0002-3226', '06-0002-3210', '06-0002-3182', '06-0002-3174',
+                          '06-0002-3154', '06-0002-3126', '06-0002-3106', '06-0002-3102',
+                          '06-0002-3118', '06-0002-3213', '06-0002-3193', '06-0002-3129',
+                          '06-0002-3179', '06-0002-3114']
+                for s in series:
+                    db.session.add(NucleusData(proyecto_id=gen_proy.id, key_value=s,
+                                               data_json=json.dumps({'SERIE DE EQUIPO': s}, ensure_ascii=False)))
+            db.session.add(AppConfig(proyecto_id=gen_proy.id, clave='seed_generadores_done', valor='1'))
+            db.session.commit()
+        # Asegurar que los registros existentes tengan los nuevos campos (QR ASIGNADO vacío
+        # para que el usuario lo llene, ZONA y TECNICO ASIGNADO inicialmente vacíos).
+        for r in NucleusData.query.filter_by(proyecto_id=gen_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            changed = False
+            if 'QR ASIGNADO' not in d:
+                d['QR ASIGNADO'] = ''
+                changed = True
+            if 'ZONA' not in d:
+                d['ZONA'] = ''
+                changed = True
+            if 'TECNICO ASIGNADO' not in d:
+                d['TECNICO ASIGNADO'] = ''
+                changed = True
+            if 'TIPO DE COMBUSTIBLE' not in d:
+                d['TIPO DE COMBUSTIBLE'] = ''
+                changed = True
+            if changed:
+                r.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
+
+    # Migration: Configure Combustible columns (QR ASIGNADO, TIPO, TECNICO ASIGNADO)
+    comb_proy = Proyecto.query.filter_by(nombre='Combustible').first()
+    if comb_proy:
+        comb_proy.icono = 'fa-gas-pump'
+        comb_cols = [
+            {'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
+            {'nombre': 'QR ASIGNADO', 'tipo': 'lista', 'opciones': []},
+            {'nombre': 'TIPO', 'tipo': 'lista', 'opciones': ['PROPIO', 'ALQUILADO', 'ENTEL', 'CLARO', 'INTEGRATEL']},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'lista', 'opciones': []},
+            {'nombre': 'ZONA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'NOMBRE DE SITE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOVIMIENTO', 'tipo': 'lista', 'opciones': ['INGRESO', 'GASTO']},
+            {'nombre': 'NUMERO FACTURA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'GALONES', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FOTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'WO NUMBER', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'ID DE REPORTE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'COMENTARIOS', 'tipo': 'texto', 'opciones': []}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            try:
+                existing = json.loads(mc_cfg.valor)
+                if not any(c.get('nombre') == 'N° ORDEN' for c in existing):
+                    # Migrar: insertar al inicio
+                    existing = [{'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []}] + existing
+                    mc_cfg.valor = json.dumps(existing, ensure_ascii=False)
+                else:
+                    mc_cfg.valor = json.dumps(comb_cols, ensure_ascii=False)
+            except Exception:
+                mc_cfg.valor = json.dumps(comb_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='manual_columns', valor=json.dumps(comb_cols, ensure_ascii=False)))
+
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            db.session.delete(pk_cfg)
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='app_schema', valor=json.dumps([])))
+
+        # Asegurar que los registros existentes tengan ID DE REPORTE y fecha con hora por defecto (00:00).
+        for r in NucleusData.query.filter_by(proyecto_id=comb_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            cambio = False
+            if 'ID DE REPORTE' not in d:
+                d['ID DE REPORTE'] = ''
+                cambio = True
+            f_val = str(d.get('FECHA', '') or '').strip()
+            if len(f_val) == 10 and re.match(r'^\d{4}-\d{2}-\d{2}$', f_val):
+                d['FECHA'] = f"{f_val} 00:00"
+                cambio = True
+            if cambio:
+                r.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
+
+    # Migration: Configure Cotizaciones columns (registro de cotizaciones FLM,
+    # mismo esquema del formato Cobra + campos de control NUMERO WO y NOMBRE SITE).
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if cot_proy:
+        cot_proy.icono = 'fa-file-invoice-dollar'
+        cot_cols = [
+            {'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FECHA', 'tipo': 'fecha', 'opciones': []},
+            {'nombre': 'CLIENTE', 'tipo': 'lista', 'opciones': ['ENTEL', 'CLARO', 'INTEGRATEL']},
+            {'nombre': 'N° COTIZACION', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'NUMERO WO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'NOMBRE SITE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SUPERVISOR', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'OBJETIVO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SUB TOTAL + FEE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'ESTADO COTIZACION', 'tipo': 'lista', 'opciones': ['Pendiente de Aprobacion', 'Cotizacion Aprobada', 'Cotizacion Cancelada', 'Cotizacion Rechazada']},
+            {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []}
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            try:
+                existing = json.loads(mc_cfg.valor)
+                if not any(c.get('nombre') == 'N° ORDEN' for c in existing):
+                    existing = [{'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []}] + existing
+                    mc_cfg.valor = json.dumps(existing, ensure_ascii=False)
+                else:
+                    mc_cfg.valor = json.dumps(cot_cols, ensure_ascii=False)
+            except Exception:
+                mc_cfg.valor = json.dumps(cot_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='manual_columns', valor=json.dumps(cot_cols, ensure_ascii=False)))
+
+        # La llave del negocio es el N° de cotización completo (HW-AAAA-XXXXXXX).
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            pk_cfg.valor = 'N° COTIZACION'
+        else:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='primary_key', valor='N° COTIZACION'))
+
+        # Re-key: registros creados antes con llave auto-numérica pasan a usar su N°, y fechas sin hora toman 00:00.
+        for r in NucleusData.query.filter_by(proyecto_id=cot_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            cambio = False
+            num = str(d.get('N° COTIZACION', '') or '').strip()
+            if num and r.key_value != num:
+                dup = NucleusData.query.filter_by(proyecto_id=cot_proy.id, key_value=num).first()
+                if not dup:
+                    r.key_value = num
+            f_val = str(d.get('FECHA', '') or '').strip()
+            if len(f_val) == 10 and re.match(r'^\d{4}-\d{2}-\d{2}$', f_val):
+                d['FECHA'] = f"{f_val} 00:00"
+                cambio = True
+            if not str(d.get('ESTADO COTIZACION', '') or '').strip():
+                d['ESTADO COTIZACION'] = 'Pendiente de Aprobacion'
+                cambio = True
+            if not str(d.get('CLIENTE', '') or '').strip():
+                d['CLIENTE'] = 'ENTEL'
+                cambio = True
+            if cambio:
+                r.data_json = json.dumps(d, ensure_ascii=False)
+
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='app_schema', valor=json.dumps([])))
+        # Correlativo Cotizaciones — salto a 61 solicitado, solo admin puede modificar
+        next_cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
+        if not next_cfg:
+            db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='cotizacion_next_seq', valor='61'))
+        db.session.commit()
+
+        # Migration: N° ORDEN correlativo para Cotizaciones y Combustible
+        for _pn in ['Cotizaciones', 'Combustible']:
+            _proj = Proyecto.query.filter_by(nombre=_pn).first()
+            if not _proj:
+                continue
+            _recs = NucleusData.query.filter_by(proyecto_id=_proj.id).all()
+            if not _recs:
+                continue
+            # Determinar máximo existente
+            _max = 0
+            _to_assign = []
+            for _r in _recs:
+                try:
+                    _d = json.loads(_r.data_json)
+                    _v = str(_d.get('N° ORDEN', '') or '').strip()
+                    if _v.isdigit():
+                        _max = max(_max, int(_v))
+                    else:
+                        _to_assign.append(_r)
+                except Exception:
+                    _to_assign.append(_r)
+            if _to_assign:
+                def _parse_fecha(_r):
+                    try:
+                        _d = json.loads(_r.data_json)
+                        _f = str(_d.get('FECHA', '') or '').strip()
+                        for _fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%d/%m/%Y %H:%M', '%d/%m/%Y', '%Y-%m-%dT%H:%M'):
+                            try:
+                                return datetime.strptime(_f[:16], _fmt)
+                            except Exception:
+                                continue
+                        return datetime.min
+                    except Exception:
+                        return datetime.min
+                _to_assign_sorted = sorted(_to_assign, key=lambda _r: (_parse_fecha(_r), _r.id))
+                _next = _max + 1
+                for _r in _to_assign_sorted:
+                    try:
+                        _d = json.loads(_r.data_json)
+                    except Exception:
+                        _d = {}
+                    _d['N° ORDEN'] = str(_next)
+                    _r.data_json = json.dumps(_d, ensure_ascii=False)
+                    _next += 1
+                db.session.commit()
+                # Si hay registros existentes sin ordenar y _max era 0, reasignar todos secuencialmente por FECHA para consistencia
+                if _max == 0 and len(_recs) == len(_to_assign):
+                    # Ya se hizo ordenado, está bien
+                    pass
+
+    # Migration: Configure SITE columns (maestro COBRA SITES – 10 columnas)
+    site_proy = Proyecto.query.filter_by(nombre='SITE').first()
+    if site_proy:
+        site_proy.icono = 'fa-location-dot'
+        site_proy.descripcion = 'Maestro de Sites – COBRA SITES (10 columnas)'
+        site_cols = [
+            {'nombre': 'Código', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Nombre', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Prioridad', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Departamento', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Provincia', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Distrito', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Dirección', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Latitud (°)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Longitud (°)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Región', 'tipo': 'texto', 'opciones': []},
+        ]
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(site_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='manual_columns', valor=json.dumps(site_cols, ensure_ascii=False)))
+        # La llave del maestro es el Código
+        pk_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='primary_key').first()
+        if pk_cfg:
+            pk_cfg.valor = 'Código'
+        else:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='Código'))
+        schema_cfg = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first()
+        if not schema_cfg:
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor=json.dumps([])))
+        db.session.commit()
+
+    # Migration: "Fault Level" es dato de origen (inmutable) -> no debe ser columna manual editable.
+    # Se elimina de la configuracion para que nadie pueda editarla (ni admin).
+    pext = Proyecto.query.filter_by(nombre='PEXT').first()
+    if pext:
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=pext.id, clave='manual_columns').first()
+        if mc_cfg:
+            try:
+                existing_cols = json.loads(mc_cfg.valor)
+                if not isinstance(existing_cols, list): existing_cols = []
+            except Exception:
+                existing_cols = []
+            # Remove the separate hours column (now shown inside Fault Level badge)
+            # and Fault Level itself (source data, must not be editable)
+            existing_cols = [c for c in existing_cols if c.get('nombre') not in ('Hrs Respuesta', 'Fault Level')]
+            mc_cfg.valor = json.dumps(existing_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=pext.id, clave='manual_columns', valor=json.dumps([], ensure_ascii=False)))
+
+        fault_rules = [
+            ('Critical', '8hrs'),
+            ('Alta', '10hrs'),
+            ('Media', '48hrs'),
+            ('Baja', '72hrs')
+        ]
+        for nivel, hrs in fault_rules:
+            exists = TablaMaestra.query.filter_by(proyecto_id=pext.id, columna_criterio='Fault Level',
+                                                  valor_criterio=nivel, nueva_columna='Hrs Respuesta').first()
+            if exists:
+                exists.nuevo_valor = hrs
+            else:
+                db.session.add(TablaMaestra(proyecto_id=pext.id, columna_criterio='Fault Level',
+                                            valor_criterio=nivel, nueva_columna='Hrs Respuesta', nuevo_valor=hrs))
+        db.session.commit()
+
+    # Migration: Seed SERVICIO options for WO detail (PEXT & FLM)
+    default_servicios = ['PREVENTIVO', 'CORRECTIVO', 'PREDICTIVO', 'ABASTECIMIENTO DE COMBUSTIBLE',
+                         'ADICIONALES', 'CORTE PROGRAMADO', 'TRABAJO PROGRAMADO']
+    for proy_nombre in ('PEXT', 'FLM'):
+        sp = Proyecto.query.filter_by(nombre=proy_nombre).first()
+        if sp:
+            scfg = AppConfig.query.filter_by(proyecto_id=sp.id, clave='servicio_opciones').first()
+            if not scfg:
+                db.session.add(AppConfig(proyecto_id=sp.id, clave='servicio_opciones',
+                                         valor=json.dumps(default_servicios, ensure_ascii=False)))
+    db.session.commit()
+
+    # PEXT: SERVICIO solo permite PREVENTIVO/CORRECTIVO/PREDICTIVO (se fuerza en cada arranque).
+    pext_serv = ['PREVENTIVO', 'CORRECTIVO', 'PREDICTIVO']
+    sp_pext = Proyecto.query.filter_by(nombre='PEXT').first()
+    if sp_pext:
+        scfg_pext = AppConfig.query.filter_by(proyecto_id=sp_pext.id, clave='servicio_opciones').first()
+        if scfg_pext:
+            scfg_pext.valor = json.dumps(pext_serv, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=sp_pext.id, clave='servicio_opciones',
+                                     valor=json.dumps(pext_serv, ensure_ascii=False)))
+        db.session.commit()
+
+    # Migration: primary_key de FLM y FLM (old).
+    # Sin ella, /api/import/process toma la PRIMERA columna del archivo como llave
+    # (en Fusionado_CQ_PINT.xlsx es "Contractor", valor único "COBRA") y todas las
+    # filas colapsan en un único registro. Solo se corrige si falta o si quedó en
+    # esa llave accidental; nunca pisa una llave configurada a propósito.
+    for _flm_nombre, _flm_pk in (('FLM', 'id'), ('FLM (old)', 'Número de WO')):
+        _fp = Proyecto.query.filter_by(nombre=_flm_nombre).first()
+        if not _fp:
+            continue
+        _pk_cfg = AppConfig.query.filter_by(proyecto_id=_fp.id, clave='primary_key').first()
+        if not _pk_cfg:
+            db.session.add(AppConfig(proyecto_id=_fp.id, clave='primary_key', valor=_flm_pk))
+        elif str(_pk_cfg.valor or '').strip() in ('', 'Contractor'):
+            _pk_cfg.valor = _flm_pk
+    db.session.commit()
+
+    # Migration: Asegurar columnas de detalle para FLM (campos que llena el gestor en el modal WO).
+    # Si falta alguna, se agrega a manual_columns para que aparezcan en la tabla y en el botón Columnas.
+    # Se aplica a FLM y FLM (old) por igual (ambos comparten los campos de trabajo del modal).
+    for _flm_nombre in ('FLM', 'FLM (old)'):
+        flm_proy = Proyecto.query.filter_by(nombre=_flm_nombre).first()
+        if not flm_proy:
+            continue
+        flm_cfg = AppConfig.query.filter_by(proyecto_id=flm_proy.id, clave='manual_columns').first()
+        try:
+            flm_cols = json.loads(flm_cfg.valor) if flm_cfg else []
+            if not isinstance(flm_cols, list):
+                flm_cols = []
+        except Exception:
+            flm_cols = []
+        flm_names = {str(c.get('nombre', '')).strip() for c in flm_cols if isinstance(c, dict)}
+        flm_detalle_cols = [
+            {'nombre': 'SERVICIO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CIUDAD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LATITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE AVERÍA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SE INSTALÓ MUFAS', 'tipo': 'lista', 'opciones': ['GEP', 'GEE', 'NA']},
+            {'nombre': 'LATITUD MUFAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'LONGITUD MUFAS', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SOLUCIÓN', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'SISTEMAS', 'tipo': 'lista', 'opciones': ['Energía', 'Transmisión', 'Aire Acondicionado']},
+            {'nombre': 'REQUIERE CORRECTIVO FINAL', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'DETALLE CORRECTIVO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'BITACORA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'REQUIERE BIÁTICOS', 'tipo': 'lista', 'opciones': ['Sí', 'No']},
+            {'nombre': 'MONTO BIÁTICOS (SOLES)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'COSTO DE MATERIAL (SOLES)', 'tipo': 'texto', 'opciones': []},
+        ]
+        for col in flm_detalle_cols:
+            if col['nombre'] not in flm_names:
+                flm_cols.append(col)
+                flm_names.add(col['nombre'])
+        if flm_cfg:
+            flm_cfg.valor = json.dumps(flm_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=flm_proy.id, clave='manual_columns', valor=json.dumps(flm_cols, ensure_ascii=False)))
+        db.session.commit()
+
+    # Migration: Campos del checklist de PEXT (datos del gestor al atender la incidencia)
+    pext_checklist = Proyecto.query.filter_by(nombre='PEXT').first()
+    if pext_checklist:
+        mc_cfg = AppConfig.query.filter_by(proyecto_id=pext_checklist.id, clave='manual_columns').first()
+        try:
+            existing_cols = json.loads(mc_cfg.valor) if mc_cfg else []
+            if not isinstance(existing_cols, list):
+                existing_cols = []
+        except Exception:
+            existing_cols = []
+        existing_names = {str(c.get('nombre', '')).strip() for c in existing_cols if isinstance(c, dict)}
+        # Plantilla PEXT/FLM: solo 16 campos de Gestión (ver lista del usuario). Eliminar obsoletos si existen.
+        obsoletas = {'MONTO APROBADO','MONTO GASTANDO','MATERIAL USADO','MOTIVO PARADA RELOJ','ROBO HURTO','SUPERVISOR ATENCIÓN','CORREO CIERRE','MOTIVO NO ATENDIDO','FECHA NO ATENDIDO','USUARIO NO ATENDIDO'}
+        existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in obsoletas]
+        # PEXT: CIUDAD, SISTEMAS, SOLUCIÓN y coordenadas no se requieren en el modal
+        # -> se ocultan/eliminan del formulario (SOLUCIÓN y coordenadas se quitan del modal PEXT).
+        no_requeridas_pext = {'CIUDAD', 'SISTEMAS'}
+        existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in no_requeridas_pext]
+        # Campos que ya no se usan en el formulario/modal PEXT (SOLUCIÓN, coordenadas,
+        # mufas, requiere correctivo final y su detalle, Bitácora) -> se quitan de la config PEXT.
+        no_modal_pext = {'SOLUCIÓN', 'SOLUCION', 'LATITUD', 'LONGITUD', 'LATITUD MUFAS',
+                         'LONGITUD MUFAS', 'SE INSTALÓ MUFAS', 'SE INSTALO MUFAS',
+                         'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'BITACORA'}
+        existing_cols = [c for c in existing_cols if str(c.get('nombre','')).strip() not in no_modal_pext]
+        # PEXT: ¿SE INSTALÓ MUFAS? pasa de GEP/GEE/NA a Sí/No.
+        for c in existing_cols:
+            if isinstance(c, dict) and str(c.get('nombre','')).strip() == 'SE INSTALÓ MUFAS':
+                c['tipo'] = 'lista'
+                c['opciones'] = ['Sí', 'No']
+        existing_names = {str(c.get('nombre', '')).strip() for c in existing_cols if isinstance(c, dict)}
+        pext_new_cols = [
+            {'nombre': 'SERVICIO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'TECNICO ASIGNADO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'CONTRATA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FECHA DE ASIGNACI\u00d3N', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE AVER\u00cdA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '\u00bfREQUIERE MATERIAL?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfREQUIERE ACCESO AL SITE?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfFUE TORRERA?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfFUE SITE PROPIO?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': '\u00bfCUADRILLA DE 3 O 2?', 'tipo': 'lista', 'opciones': ['2','3','m\u00e1s de 3']},
+            {'nombre': 'TEAM LEADER ASIGNADO EN APLICATIVO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '\u00bfQUI\u00c9N FUE EL SUPERVISOR A CARGO EN ESE TURNO?', 'tipo': 'lista',
+             'opciones': ['CHAMBERGO ORIHUELA PERCY', 'DIAZ BERECHE JORGE ELVIS']},
+            {'nombre': 'COORDINADOR ENTEL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'STATUS DE ATENCION', 'tipo': 'lista',
+             'opciones': ['PROCESO', 'SUSPENDIDO', 'TERMINADO']},
+            {'nombre': 'QUIEBRE', 'tipo': 'texto', 'opciones': []},
+            {'nombre': '\u00bfQUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?', 'tipo': 'lista', 'opciones': ['S\u00ed','No']},
+            {'nombre': 'DETALLE CORRECTIVO ADICIONAL', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'INICIO DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'FIN DE PARADA', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'MOTIVO DE PARADA', 'tipo': 'texto', 'opciones': []},
+        ]
+        # Actualizar tipo y opciones de columnas existentes que cambiaron definición
+        _pext_patch = {
+            'STATUS DE ATENCION': {'tipo': 'lista', 'opciones': ['PROCESO', 'SUSPENDIDO', 'TERMINADO']},
+            '\u00bfQUI\u00c9N FUE EL SUPERVISOR A CARGO EN ESE TURNO?': {
+                'tipo': 'lista',
+                'opciones': ['CHAMBERGO ORIHUELA PERCY', 'DIAZ BERECHE JORGE ELVIS']
+            },
+        }
+        for c in existing_cols:
+            if isinstance(c, dict) and c.get('nombre') in _pext_patch:
+                c.update(_pext_patch[c['nombre']])
+        # PEXT: no re-agregar CIUDAD ni SISTEMAS aunque falten (no requeridos).
+        for col in pext_new_cols:
+            if col['nombre'] not in existing_names:
+                existing_cols.append(col)
+                existing_names.add(col['nombre'])
+        if mc_cfg:
+            mc_cfg.valor = json.dumps(existing_cols, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=pext_checklist.id, clave='manual_columns',
+                                     valor=json.dumps(existing_cols, ensure_ascii=False)))
+        db.session.commit()
+
+    # Migration: FLM/PEXT - columna visible EDITADO POR (auditoría)
+    for proy_nombre in ('FLM', 'PEXT'):
+        proy = Proyecto.query.filter_by(nombre=proy_nombre).first()
+        if proy:
+            schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+            try:
+                schema_cols = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
+            except Exception:
+                schema_cols = set()
+            if 'EDITADO POR' not in schema_cols:
+                schema_cols.add('EDITADO POR')
+                if schema_cfg:
+                    schema_cfg.valor = json.dumps(list(schema_cols), ensure_ascii=False)
+                else:
+                    db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema', valor=json.dumps(list(schema_cols), ensure_ascii=False)))
+            for r in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                if not d.get('EDITADO POR') and d.get('_ultimo_usuario_manual'):
+                    d['EDITADO POR'] = d['_ultimo_usuario_manual']
+                    r.data_json = json.dumps(d, ensure_ascii=False)
+            db.session.commit()
+
+    # Migration: Backfill COD_MATERIAL en Material donde se guardó solo como key_value.
+    # Sin esto, /api/wo/meta leía d.get('COD_MATERIAL') vacío y el desplegable salía sin [código].
+    try:
+        _mat_proy = Proyecto.query.filter_by(nombre='Material').first()
+        if _mat_proy:
+            _mat_pk_cfg = AppConfig.query.filter_by(proyecto_id=_mat_proy.id, clave='primary_key').first()
+            _mat_pk = str(_mat_pk_cfg.valor or '').strip() if _mat_pk_cfg and _mat_pk_cfg.valor else 'COD_MATERIAL'
+            for _r in NucleusData.query.filter_by(proyecto_id=_mat_proy.id).all():
+                try:
+                    _d = json.loads(_r.data_json)
+                except Exception:
+                    continue
+                if not str(_d.get(_mat_pk) or '').strip() and str(_r.key_value or '').strip():
+                    _d[_mat_pk] = str(_r.key_value).strip()
+                    _r.data_json = json.dumps(_d, ensure_ascii=False)
+            db.session.commit()
+    except Exception:
+        try: db.session.rollback()
+        except Exception: pass
+
+    # Migration: FLM/PEXT - columna GESTOR (quien presiona Guardar; el admin no cuenta).
+    # Reemplaza EDITADO POR para auditoría de gestores.
+    try:
+        for proy_g in ('FLM', 'PEXT'):
+            proy_g_obj = Proyecto.query.filter_by(nombre=proy_g).first()
+            if not proy_g_obj:
+                continue
+            _schema_p = AppConfig.query.filter_by(proyecto_id=proy_g_obj.id, clave='app_schema').first()
+            try:
+                _schema_set = set(json.loads(_schema_p.valor)) if _schema_p and _schema_p.valor else set()
+            except Exception:
+                _schema_set = set()
+            if 'GESTOR' not in _schema_set:
+                _schema_set.add('GESTOR')
+                if _schema_p:
+                    _schema_p.valor = json.dumps(list(_schema_set), ensure_ascii=False)
+                else:
+                    db.session.add(AppConfig(proyecto_id=proy_g_obj.id, clave='app_schema', valor=json.dumps(list(_schema_set), ensure_ascii=False)))
+            for r in NucleusData.query.filter_by(proyecto_id=proy_g_obj.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                if not d.get('GESTOR'):
+                    d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
+                    r.data_json = json.dumps(d, ensure_ascii=False)
+            db.session.commit()
+    except Exception as _e:
+        db.session.rollback()
+
+    # Migration: Corregir 2 gastos de Combustible que dejaban saldo negativo por FECHA anterior al INGRESO
+    # GL17COB N146 key 152 2026-09-02 11:56 -> 15:00, GL04COB N151 key 157 2026-09-03 12:49 -> 2026-09-04 15:00
+    try:
+        comb = Proyecto.query.filter_by(nombre='Combustible').first()
+        if comb:
+            _fixes = {'152': '2026-09-02 15:00', '157': '2026-09-04 15:00'}
+            for _k, _nueva in _fixes.items():
+                _r = NucleusData.query.filter_by(proyecto_id=comb.id, key_value=_k).first()
+                if _r:
+                    try:
+                        _d = json.loads(_r.data_json)
+                    except Exception:
+                        continue
+                    if str(_d.get('FECHA') or '').strip() != _nueva:
+                        _old = _d.get('FECHA')
+                        _d['FECHA'] = _nueva
+                        _d['COMENTARIOS'] = (str(_d.get('COMENTARIOS') or '').strip() + f' | FECHA corregida {_old} -> {_nueva} (migracion orden cronologico)').strip(' |')
+                        _r.data_json = json.dumps(_d, ensure_ascii=False)
+                        print(f"Combustible fix FECHA key {_k}: {_old} -> {_nueva}")
+            db.session.commit()
+    except Exception as _e:
+        print("Warning: combustible fecha fix:", _e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+    # --- Backfill: historial de estado inicial para registros históricos ---
+    # Los registros importados antes de existir el seguimiento de cambios de estado
+    # no tienen fila en historial_cambios. Se crea una entrada 'IMPORT' con el estado
+    # actual para que el historial/estado de cada WO sea visible y no se pierda info.
+    # Es idempotente: se ejecuta una sola vez por proyecto (flag en app_config).
+    WO_STATE_COL_BF = 'Estado de la tarea (WO State)'
+    STATE_TS_COL_BF = 'FECHA CAMBIO ESTADO'
+    for proy in Proyecto.query.all():
+        bf_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='historial_backfill_done').first()
+        if bf_cfg:
+            continue
+        hist_keys = set(kv for (kv,) in db.session.query(HistorialCambios.key_value).filter(
+            HistorialCambios.proyecto_id == proy.id,
+            HistorialCambios.campo_modificado == WO_STATE_COL_BF).distinct().all())
+        n = 0
+        for r in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+            if r.key_value in hist_keys:
+                continue
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            st = str(d.get(WO_STATE_COL_BF, '')).strip()
+            if not st:
+                continue
+            fecha = datetime.utcnow()
+            fec_txt = str(d.get(STATE_TS_COL_BF, '')).strip()
+            if fec_txt:
+                try:
+                    fecha = datetime.strptime(fec_txt[:19], '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    pass
+            db.session.add(HistorialCambios(
+                proyecto_id=proy.id, usuario_id=None, username='IMPORT',
+                key_value=r.key_value, campo_modificado=WO_STATE_COL_BF,
+                valor_anterior='', valor_nuevo=st, fecha=fecha))
+            n += 1
+        if n:
+            print(f"Backfill historial de estado: {n} registros (proyecto {proy.nombre})")
+        db.session.add(AppConfig(proyecto_id=proy.id, clave='historial_backfill_done', valor='1'))
+        db.session.commit()
+
+    try:
+        if _mig_lock_conn is not None:
+            _mig_lock_conn.execute(db.text("SELECT pg_advisory_unlock(917348261)"))
+            _mig_lock_conn.commit()
+            _mig_lock_conn.close()
+    except Exception:
+        pass
+
+def safe_json_dumps(obj):
+    return json.dumps(obj, ensure_ascii=False)
+
+# --- AUTH & PROJECT ROUTES ---
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password')
+        from sqlalchemy import func
+        user = Usuario.query.filter(func.lower(Usuario.username) == username.lower()).first()
+        if not user:
+            # Tolerancia: también permitir entrar con el nombre visible (campo "nombre").
+            user = Usuario.query.filter(func.lower(Usuario.nombre) == username.lower()).first()
+        if user and check_password_hash(user.password_hash, password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            session['rol'] = str(user.rol).strip().lower()
+            
+            # Default to first project with access if none active
+            if 'current_proyecto_id' not in session:
+                if user.rol in ['zeno', 'suport']:
+                    proj = Proyecto.query.first()
+                else:
+                    acceso = AccesoProyecto.query.filter_by(usuario_id=user.id).first()
+                    proj = db.session.get(Proyecto, acceso.proyecto_id) if acceso else None
+                
+                if proj:
+                    session['current_proyecto_id'] = int(proj.id)
+                    session['current_proyecto_nombre'] = proj.nombre
+                    
+            return redirect(url_for('index'))
+        return render_template('login.html', error="Credenciales inválidas")
+    return render_template('login.html')
+
+def get_session_info():
+    uid = session.get('user_id')
+    rol = str(session.get('rol') or 'supervisor').strip().lower()
+    pid_raw = session.get('current_proyecto_id')
+    pid = int(pid_raw) if pid_raw else None
+    return uid, rol, pid
+
+
+def get_menu_proyectos(user_id, user_rol):
+    """Proyectos que se muestran en el menú lateral.
+    - admin/demo: todos.
+    - gestor/contrata: SOLO los proyectos asignados (PEXT o FLM, según acceso).
+    - resto: sus accesos + Dataper/Material si tiene FLM o PEXT asignado."""
+    if user_rol in ('gestor', 'contrata'):
+        accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+        pids = [a.proyecto_id for a in accesos]
+        return Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
+    is_privileged = user_rol in ('zeno', 'suport')
+    if is_privileged:
+        return Proyecto.query.order_by(Proyecto.id).all()
+    accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+    pids = [a.proyecto_id for a in accesos]
+    proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
+    nombres = {p.nombre for p in proyectos}
+    if any(n in nombres for n in ('FLM', 'PEXT', 'Claro', 'Integratel')):
+        extra = Proyecto.query.filter(Proyecto.nombre.in_(['Dataper', 'Material'])).all()
+        extra_ids = {e.id for e in proyectos}
+        proyectos = proyectos + [e for e in extra if e.id not in extra_ids]
+    if 'FLM' in nombres or any(n in nombres for n in ('Claro', 'Integratel')):
+        site = Proyecto.query.filter_by(nombre='Site Name').first()
+        if site and site.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [site]
+        gen = Proyecto.query.filter_by(nombre='Generadores').first()
+        if gen and gen.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [gen]
+        comb = Proyecto.query.filter_by(nombre='Combustible').first()
+        if comb and comb.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [comb]
+        cotp = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+        if cotp and cotp.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [cotp]
+        site2 = Proyecto.query.filter_by(nombre='SITE').first()
+        if site2 and site2.id not in {e.id for e in proyectos}:
+            proyectos = proyectos + [site2]
+    return proyectos
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+@app.route('/api/cambiar-password', methods=['POST'])
+@login_required
+def cambiar_password():
+    data = request.json or {}
+    actual = (data.get('actual') or '').strip()
+    nueva = (data.get('nueva') or '').strip()
+    if not actual or not nueva:
+        return jsonify({'error': 'Actual y nueva requeridas'}), 400
+    if len(nueva) < 4:
+        return jsonify({'error': 'La nueva contraseña debe tener al menos 4 caracteres'}), 400
+    u = db.session.get(Usuario, session.get('user_id'))
+    if not u or not check_password_hash(u.password_hash, actual):
+        return jsonify({'error': 'Contraseña actual incorrecta'}), 403
+    u.password_hash = generate_password_hash(nueva)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/auth/cambiar-password', methods=['POST'])
+def cambiar_password_public():
+    data = request.json or {}
+    username = (data.get('username') or '').strip()
+    actual = (data.get('actual') or '').strip()
+    nueva = (data.get('nueva') or '').strip()
+    if not username or not actual or not nueva:
+        return jsonify({'error': 'Usuario, actual y nueva requeridas'}), 400
+    if len(nueva) < 4:
+        return jsonify({'error': 'Mínimo 4 caracteres'}), 400
+    u = Usuario.query.filter_by(username=username).first()
+    if not u or not check_password_hash(u.password_hash, actual):
+        return jsonify({'error': 'Usuario o contraseña actual incorrecta'}), 403
+    u.password_hash = generate_password_hash(nueva)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/switch_project/<int:pid>')
+@login_required
+def switch_project(pid):
+    # Check permission
+    if session.get('rol') not in ['zeno', 'suport']:
+        acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
+        if not acceso:
+            # Gestor y Contrata solo pueden operar en los proyectos que tienen asignados.
+            if session.get('rol') in ('gestor', 'contrata'):
+                return redirect(url_for('index'))
+            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado.
+            # Site Name: permitir solo si el usuario tiene FLM asignado.
+            proy = db.session.get(Proyecto, pid)
+            if proy and proy.nombre in ('Dataper', 'Material'):
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT', 'Claro', 'Integratel'):
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Site Name':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Generadores':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Combustible':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'Cotizaciones':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            elif proy and proy.nombre == 'SITE':
+                accs = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id')).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    return redirect(url_for('index'))
+            else:
+                return redirect(url_for('index'))
+            
+    proj = db.session.get(Proyecto, pid)
+    proj = db.session.get(Proyecto, pid)
+    if proj:
+        session['current_proyecto_id'] = int(proj.id)
+        session['current_proyecto_nombre'] = proj.nombre
+    
+    # Redirect back to specified page, referrer, or index
+    target = request.args.get('next') or request.referrer or url_for('index')
+    return redirect(target)
+
+# --- MAIN ROUTES ---
+@app.route('/')
+@login_required
+def index():
+    user_id, user_rol, pid = get_session_info()
+    is_admin = user_rol == 'zeno'
+    is_privileged = user_rol in ['zeno', 'suport']
+
+    if not pid:
+        # Emergency fallback or find first allowed
+        if is_privileged:
+            p = Proyecto.query.first()
+        else:
+            acc = AccesoProyecto.query.filter_by(usuario_id=user_id).first()
+            p = db.session.get(Proyecto, acc.proyecto_id) if acc else None
+            
+        if p:
+            session['current_proyecto_id'] = p.id
+            session['current_proyecto_nombre'] = p.nombre
+            pid = p.id
+        else:
+            session.clear()
+            return render_template('login.html', error="No tiene proyectos asignados. Contacte al administrador.")
+
+    # Verify access to current project
+    res_obj = {}
+    if not is_privileged:
+        acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
+        if not acc:
+            # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado.
+            # Site Name: permitir solo si el usuario tiene FLM asignado.
+            proy_check = db.session.get(Proyecto, pid)
+            if proy_check and proy_check.nombre in ('Dataper', 'Material'):
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Site Name':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Generadores':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Combustible':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre == 'FLM':
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            elif proy_check and proy_check.nombre == 'Cotizaciones':
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            else:
+                session.clear()
+                return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+        try:
+            res_obj = json.loads(acc.restricciones or '{}')
+        except:
+            res_obj = {}
+
+    # Load all distinct keys reliably from AppConfig Master Schema
+    schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+    columns_set = set(json.loads(schema_config.valor)) if schema_config else set()
+    
+    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+    manual_cols_data = json.loads(manual_cfg.valor) if manual_cfg else []
+    for mc in manual_cols_data:
+        columns_set.add(mc['nombre'])
+
+    # Generadores: el campo TECNICO ASIGNADO se llena dinámicamente con los técnicos
+    # activos de Dataper con PROYECTO=FLM/PEXT/Claro/Integratel (catálogo declarado por el admin).
+    # Combustible: QR ASIGNADO lista los QR declarados en Generadores, TIPO se
+    # autocompleta desde el mapa generador->TIPO, TECNICO ASIGNADO lista los técnicos.
+    proy_actual = db.session.get(Proyecto, pid)
+    proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    if proy_actual_nombre in ('Generadores', 'Combustible'):
+        dataper_proy = Proyecto.query.filter_by(nombre='Dataper').first()
+        tecnicos_set = set()
+        if dataper_proy:
+            for r in NucleusData.query.filter_by(proyecto_id=dataper_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                est = str(d.get('ESTADO', '')).strip().upper()
+                if est and est != 'ACTIVO':
+                    continue
+                pr = str(d.get('PROYECTO', '')).strip()
+                if pr and pr.upper() not in ('FLM', 'PEXT', 'CLARO', 'INTEGRATEL'):
+                    continue
+                t = str(d.get('TECNICO', '')).strip()
+                if t:
+                    tecnicos_set.add(t)
+        tecnicos_list = sorted(tecnicos_set)
+        for mc in manual_cols_data:
+            if mc.get('nombre') == 'TECNICO ASIGNADO':
+                mc['opciones'] = tecnicos_list
+
+    gen_tipo_map = {}
+    gen_tecnico_map = {}
+    gen_zona_map = {}
+    wo_list = []
+    if proy_actual_nombre == 'Combustible':
+        gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
+        series_list = []
+        if gen_proy:
+            for r in NucleusData.query.filter_by(proyecto_id=gen_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                serie = str(d.get('QR ASIGNADO', '')).strip()
+                if not serie:
+                    continue
+                series_list.append(serie)
+                gen_tipo_map[serie] = str(d.get('TIPO', '')).strip()
+                gen_tecnico_map[serie] = str(d.get('TECNICO ASIGNADO', '')).strip()
+                gen_zona_map[serie] = str(d.get('ZONA', '')).strip()
+        series_list = sorted(set(series_list))
+        for mc in manual_cols_data:
+            if mc.get('nombre') == 'QR ASIGNADO':
+                mc['opciones'] = series_list
+
+        # WOs del proyecto FLM para el buscador del campo WO NUMBER
+        wo_list = _flm_wo_list()
+        for mc in manual_cols_data:
+            if mc.get('nombre') == 'WO NUMBER':
+                mc['opciones'] = wo_list
+    
+    # Add KPI columns to the set so frontend can see them
+    kpi_configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
+    for k in kpi_configs:
+        if k.tipo == 'DILACION':
+            columns_set.add(f"KPI_{k.nombre}")
+    
+    # Ocultar columnas internas (prefijo _) y redundantes de la vista
+    columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
+    # FLM/PEXT: EDITADO POR se reemplaza por GESTOR (quien presiona Guardar, el admin no cuenta).
+    if proy_actual_nombre in ('FLM', 'PEXT'):
+        columns_set.discard('EDITADO POR')
+        columns_set.add('GESTOR')
+    # Columna obsoleta que no aporta información (FLM/PEXT).
+    for _hc in list(columns_set):
+        if 'HORA DE CR' in _hc.upper():
+            columns_set.discard(_hc)
+    
+    # Load and Filter data
+    rows = NucleusData.query.filter_by(proyecto_id=pid).all()
+    raw_data = []
+    for r in rows:
+        d = json.loads(r.data_json)
+        d['_key'] = r.key_value
+        # Visible GESTOR desde EDITADO POR/_ultimo_usuario_manual (FLM/PEXT)
+        if proy_actual_nombre in ('FLM', 'PEXT') and not d.get('GESTOR'):
+            d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
+        raw_data.append(d)
+
+    # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM/PEXT/Claro/Integratel
+    # según los proyectos asignados al usuario (si tiene varios, muestra todos). Comparación case-insensitive.
+    if proy_actual_nombre in ('Dataper', 'Material'):
+        _wo_proys = {'FLM', 'PEXT', 'Claro', 'Integratel'}
+        _wo_upper = {p.upper() for p in _wo_proys}
+        if is_privileged:
+            allowed_proy = set(_wo_proys)
+        else:
+            accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+            allowed_proy = set()
+            for a in accs:
+                ap = db.session.get(Proyecto, a.proyecto_id)
+                if ap and ap.nombre in _wo_proys:
+                    allowed_proy.add(ap.nombre)
+        _allowed_upper = {p.upper() for p in allowed_proy}
+        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper]
+
+    # Cruce dinámico: Site Name → FLM. Se agregan a cada fila de FLM las columnas
+    # DIRECCION, LATITUD, LONGITUD tomadas del proyecto "Site Name" cruzando por
+    # la columna "Nombre de Site" ↔ "NOMBRE DE SITE", solo registros ACTIVOS.
+    if proy_actual_nombre == 'FLM':
+        site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
+        if site_proy:
+            site_map = {}
+            for sr in NucleusData.query.filter_by(proyecto_id=site_proy.id).all():
+                sd = json.loads(sr.data_json)
+                if str(sd.get('ESTADO', '')).strip().upper() != 'ACTIVO':
+                    continue
+                nombre_site = str(sd.get('NOMBRE DE SITE', '')).strip()
+                if not nombre_site:
+                    continue
+                site_map[nombre_site] = {
+                    'DIRECCION': sd.get('DIRECCION', ''),
+                    'LATITUD': sd.get('LATITUD', ''),
+                    'LONGITUD': sd.get('LONGITUD', ''),
+                }
+            for d in raw_data:
+                clave = str(d.get('Nombre de Site', '')).strip()
+                info = site_map.get(clave)
+                if info:
+                    d['DIRECCION'] = info['DIRECCION']
+                    d['LATITUD'] = info['LATITUD']
+                    d['LONGITUD'] = info['LONGITUD']
+            columns_set |= {'DIRECCION', 'LATITUD', 'LONGITUD'}
+
+    data = apply_data_restrictions(raw_data, res_obj)
+
+    # Combustible: saldo disponible por generador (INGRESOS - GASTOS acumulados)
+    # y columna SALDO DISPONIBLE para saber cuántos galones quedan por generador.
+    gen_saldo_map = {}
+    if proy_actual_nombre == 'Combustible':
+        try:
+            def _parse_gal(n):
+                try:
+                    return float(str(n or '').replace(',', '.').strip())
+                except (ValueError, TypeError):
+                    return 0.0
+            ordered = sorted(data, key=lambda d: (_combustible_fecha_ord(d.get('FECHA', '')), str(d.get('_key', '') or '')))
+            balance = {}
+            for d in ordered:
+                gen = str(d.get('QR ASIGNADO', '')).strip()
+                mov = str(d.get('MOVIMIENTO', '')).strip().upper()
+                g = _parse_gal(d.get('GALONES'))
+                prev = balance.get(gen, 0.0)
+                bal = prev + g if mov != 'GASTO' else prev - g
+                balance[gen] = bal
+                d['SALDO ANTES'] = round(prev, 2)
+                d['SALDO DISPONIBLE'] = round(bal, 2)
+            columns_set.add('SALDO DISPONIBLE')
+            gen_saldo_map = balance
+        except Exception:
+            pass
+
+    data, kpi_meta = inject_kpis(pid, data)
+
+    config_key = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+    pk = config_key.valor if config_key else 'NO_DEF'
+    
+    # Keys con MÁS DE UN cambio de estado registrado (por importación o manual).
+    # Cada transición de estado genera una fila en historial_cambios; el filtro
+    # solo muestra los WO con más de una transición registrada (>= 2).
+    WO_STATE_COL_CH = 'Estado de la tarea (WO State)'
+    hist_counts = db.session.query(
+        HistorialCambios.key_value,
+        db.func.count(HistorialCambios.id)
+    ).filter(
+        HistorialCambios.proyecto_id == pid,
+        HistorialCambios.campo_modificado == WO_STATE_COL_CH
+    ).group_by(HistorialCambios.key_value).all()
+    changed_keys_set = set(k for k, cnt in hist_counts if cnt > 1)
+    changed_keys = sorted(changed_keys_set)
+    
+    cols = sorted(list(columns_set))
+    if '_key' in cols: cols.remove('_key')
+    cols.insert(0, '_key')
+    # N° ORDEN siempre entre el check y N° COTIZACION (primero visible)
+    try:
+        if 'N° ORDEN' in cols:
+            cols.remove('N° ORDEN')
+            if '_key' in cols:
+                cols.remove('_key')
+                cols.insert(0, '_key')
+                cols.insert(0, 'N° ORDEN')
+            else:
+                cols.insert(0, 'N° ORDEN')
+    except Exception:
+        pass
+    # Si es Cotizaciones o Combustible y no hay layout guardado, forzar orden N° ORDEN primero
+    _proj_nombre_for_layout = proy_actual_nombre.lower()
+    if _proj_nombre_for_layout in ('cotizaciones', 'combustible') and 'N° ORDEN' in cols:
+        # Asegurar que el layout guardado refleje este orden para futuras cargas
+        try:
+            _layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+            if _layout_cfg and _layout_cfg.valor:
+                _layout = json.loads(_layout_cfg.valor)
+                # Reordenar para que N° ORDEN esté primero
+                _order = {c['field']: i for i, c in enumerate(_layout)}
+                if 'N° ORDEN' in _order and '_key' in _order:
+                    # Si N° ORDEN está después de _key, moverlo antes
+                    if _order['N° ORDEN'] > _order['_key']:
+                        # Extraer y reinsertar
+                        _item_ord = next((x for x in _layout if x['field'] == 'N° ORDEN'), None)
+                        _item_key = next((x for x in _layout if x['field'] == '_key'), None)
+                        if _item_ord and _item_key:
+                            _layout = [x for x in _layout if x['field'] not in ('N° ORDEN', '_key')]
+                            _layout.insert(0, _item_ord)
+                            _layout.insert(1, _item_key)
+                            _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                            db.session.commit()
+                elif 'N° ORDEN' not in _order:
+                    _layout.insert(0, {'field': 'N° ORDEN', 'visible': True})
+                    _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                    db.session.commit()
+                # Asegurar que _key esté justo después de N° ORDEN (posición 1)
+                _order2 = {c['field']: i for i, c in enumerate(json.loads(_layout_cfg.valor))}
+                if 'N° ORDEN' in _order2 and '_key' in _order2 and _order2['_key'] != 1:
+                    _layout = json.loads(_layout_cfg.valor)
+                    _item_key = next((x for x in _layout if x['field'] == '_key'), None)
+                    if _item_key:
+                        _layout = [x for x in _layout if x['field'] != '_key']
+                        _layout.insert(1, _item_key)
+                        _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                        db.session.commit()
+                elif 'N° ORDEN' in _order2 and '_key' not in _order2:
+                    _layout = json.loads(_layout_cfg.valor)
+                    _layout.insert(1, {'field': '_key', 'visible': True})
+                    _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
+                    db.session.commit()
+            # Si no hay layout, crearlo con N° ORDEN primero
+            _layout_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+            if not _layout_cfg2 or not _layout_cfg2.valor or _layout_cfg2.valor.strip() in ('', '[]'):
+                _new_layout = [{'field': c, 'visible': True} for c in cols]
+                if _layout_cfg2:
+                    _layout_cfg2.valor = json.dumps(_new_layout, ensure_ascii=False)
+                else:
+                    db.session.add(AppConfig(proyecto_id=pid, clave='column_layout', valor=json.dumps(_new_layout, ensure_ascii=False)))
+                db.session.commit()
+        except Exception:
+            pass
+
+    # FIX: N antes de N° COTIZACION/QR para Cotizaciones/Combustible (corrige layout guardado al revés)
+    try:
+        _pn_fix = proy_actual_nombre.lower()
+        if _pn_fix in ('cotizaciones','combustible'):
+            _cfg_fix = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+            if _cfg_fix and _cfg_fix.valor:
+                _lyt = json.loads(_cfg_fix.valor)
+                _fields = [c['field'] for c in _lyt]
+                if 'N° ORDEN' in _fields and '_key' in _fields and _fields.index('N° ORDEN') > _fields.index('_key'):
+                    _lyt = [c for c in _lyt if c['field'] not in ('N° ORDEN','_key')]
+                    _lyt.insert(0, {'field':'N° ORDEN','visible':True})
+                    _lyt.insert(1, {'field':'_key','visible':True})
+                    _cfg_fix.valor = json.dumps(_lyt, ensure_ascii=False)
+                    db.session.commit()
+    except: pass
+    # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
+    layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+    column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
+    
+    # List allowed projects for the menu
+    proyectos = get_menu_proyectos(user_id, user_rol)
+    
+    return render_template('index.html', 
+                          data=json.dumps(data), 
+                          columns=json.dumps(cols), 
+                          pk=pk, 
+                          manual_cols=json.dumps(manual_cols_data),
+                          column_layout=json.dumps(column_layout),
+                          kpi_meta=json.dumps(kpi_meta),
+                          changed_keys=json.dumps(changed_keys),
+                          gen_tipo_map=json.dumps(gen_tipo_map),
+                          gen_tecnico_map=json.dumps(gen_tecnico_map),
+                          gen_zona_map=json.dumps(gen_zona_map),
+                          gen_saldo_map=json.dumps(gen_saldo_map),
+                          wo_list=json.dumps(wo_list),
+                          proyecto_id=pid,
+                          proyectos_list=proyectos)
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    user_id, user_rol, pid = get_session_info()
+    is_admin = user_rol == 'zeno'
+
+    # El rol Contrata no accede a dashboards; el Gestor sí (solo lectura)
+    if user_rol in ('contrata',):
+        return redirect(url_for('index'))
+
+    if not pid:
+        return redirect(url_for('index'))
+
+    # Verify access to current project
+    res_obj = {}
+    is_privileged = user_rol in ['zeno', 'suport']
+
+    if not is_privileged:
+        acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
+        if not acc:
+            proy_check = db.session.get(Proyecto, pid)
+            if proy_check and proy_check.nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible'):
+                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+                allowed = False
+                for a in accs:
+                    ap = db.session.get(Proyecto, a.proyecto_id)
+                    if ap and ap.nombre in ('FLM', 'PEXT'):
+                        allowed = True
+                        break
+                if not allowed:
+                    session.clear()
+                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+            else:
+                session.clear()
+                return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
+        try:
+            res_obj = json.loads(acc.restricciones or '{}')
+        except:
+            res_obj = {}
+
+    schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+    columns_set = set(json.loads(schema_config.valor)) if schema_config else set()
+    
+    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+    manual_cols_data = json.loads(manual_cfg.valor) if manual_cfg else []
+    for mc in manual_cols_data:
+        columns_set.add(mc['nombre'])
+        
+    kpi_configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
+    for k in kpi_configs:
+        if k.tipo == 'DILACION':
+            columns_set.add(f"KPI_{k.nombre}")
+    
+    # Ocultar columnas internas (prefijo _) y redundantes de la vista
+    columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
+    # Columna obsoleta que no aporta información (FLM/PEXT).
+    for _hc in list(columns_set):
+        if 'HORA DE CR' in _hc.upper():
+            columns_set.discard(_hc)
+    
+    rows = NucleusData.query.filter_by(proyecto_id=pid).limit(5000).all()
+    raw_data = []
+    for r in rows:
+        d = json.loads(r.data_json)
+        d['_key'] = r.key_value
+        raw_data.append(d)
+
+    # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM o PEXT
+    # según los proyectos asignados al usuario (si tiene ambos, muestra ambos).
+    proy_actual = db.session.get(Proyecto, pid)
+    proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    # FLM/PEXT: GESTOR = quien presiona Guardar (el admin no cuenta).
+    if proy_actual_nombre in ('FLM', 'PEXT'):
+        columns_set.discard('EDITADO POR')
+        columns_set.add('GESTOR')
+        for d in raw_data:
+            if not d.get('GESTOR'):
+                d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
+    if proy_actual_nombre in ('Dataper', 'Material'):
+        _wo_proys2 = {'FLM', 'PEXT', 'Claro', 'Integratel'}
+        _wo_upper2 = {p.upper() for p in _wo_proys2}
+        if is_privileged:
+            allowed_proy = set(_wo_proys2)
+        else:
+            accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+            allowed_proy = set()
+            for a in accs:
+                ap = db.session.get(Proyecto, a.proyecto_id)
+                if ap and ap.nombre in _wo_proys2:
+                    allowed_proy.add(ap.nombre)
+        _allowed_upper2 = {p.upper() for p in allowed_proy}
+        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper2]
+        
+    data = apply_data_restrictions(raw_data, res_obj)
+        
+    data, kpi_meta = inject_kpis(pid, data)
+
+    cols = sorted(list(columns_set))
+    
+    # List allowed projects for the menu
+    proyectos = get_menu_proyectos(user_id, user_rol)
+
+    # Load saved configurations
+    dash_config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_charts').first()
+    saved_charts = json.loads(dash_config.valor) if dash_config else []
+    
+    kpi_config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_kpis').first()
+    saved_kpis = json.loads(kpi_config.valor) if kpi_config else []
+    
+    filt_config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_filters').first()
+    saved_filters = json.loads(filt_config.valor) if filt_config else []
+    
+    # Get current project name
+    proj = Proyecto.query.get(pid)
+    proyecto_nombre = proj.nombre if proj else "Gestión"
+    
+    return render_template('dashboard.html', 
+                          data=json.dumps(data), 
+                          columns=json.dumps(cols), 
+                          proyectos_list=proyectos,
+                          saved_charts=json.dumps(saved_charts),
+                          saved_kpis=json.dumps(saved_kpis),
+                          saved_filters=json.dumps(saved_filters),
+                          proyecto_nombre=proyecto_nombre)
+
+@app.route('/configuraciones')
+@login_required
+def configuraciones():
+    user_rol = str(session.get('rol') or 'supervisor').strip().lower()
+    if user_rol in ('gestor', 'contrata'):
+        return redirect(url_for('index'))
+    user_id = session.get('user_id')
+    if user_rol == 'zeno':
+        proyectos = Proyecto.query.all()
+    else:
+        accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
+        pids = [a.proyecto_id for a in accesos]
+        proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).all()
+    return render_template('configuraciones.html', proyectos_list=proyectos)
+
+@app.route('/admin')
+@login_required
+def admin_panel():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return redirect(url_for('index'))
+    return redirect(url_for('proyectos_page'))
+
+@app.route('/proyectos')
+@login_required
+def proyectos_page():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return redirect(url_for('index'))
+    proy = Proyecto.query.order_by(Proyecto.id).all()
+    return render_template('proyectos.html', proyectos=proy, proyectos_list=proy)
+
+@app.route('/usuarios')
+@login_required
+def usuarios_page():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return redirect(url_for('index'))
+    proy = Proyecto.query.order_by(Proyecto.id).all()
+    user = Usuario.query.all()
+    accesos = {}
+    for a in AccesoProyecto.query.all():
+        accesos.setdefault(a.usuario_id, []).append(a.proyecto_id)
+    return render_template('usuarios.html', proyectos=proy, usuarios=user, proyectos_list=proy, accesos=accesos)
+
+# --- API ---
+@app.route('/api/admin/proyecto', methods=['POST', 'DELETE'])
+@login_required
+def api_admin_proyecto():
+    if session.get('rol') not in ['zeno', 'suport']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar proyectos.'}), 403
+    
+    if request.method == 'POST':
+        data = request.json
+        nombre = data.get('nombre', '').strip()
+        if not nombre: return jsonify({'error': 'Nombre requerido'}), 400
+        try:
+            nuevo = Proyecto(nombre=nombre, descripcion=data.get('descripcion', ''), icono=data.get('icono', 'fa-folder-open'))
+            db.session.add(nuevo)
+            db.session.commit()
+            return jsonify({'success': True, 'id': nuevo.id})
+        except:
+            return jsonify({'error': 'Nombre duplicado'}), 400
+            
+    if request.method == 'DELETE':
+        pid = request.json.get('id')
+        if not pid: return jsonify({'error': 'ID requerido'}), 400
+        p = db.session.get(Proyecto, pid)
+        if p and p.nombre in ('FLM', 'PEXT', 'Dataper', 'Material'):
+            return jsonify({'error': 'Los proyectos FLM, PEXT, Dataper y Material no se pueden eliminar.'}), 403
+        try:
+            # Cascading delete manually for safety (or set up models with cascade)
+            # We must not delete the project 1 (Pangeaco) if it's the only one or a protected one?
+            # User choice, I'll allow deleting any.
+            Tecnico.query.filter_by(proyecto_id=pid).delete()
+            NucleusData.query.filter_by(proyecto_id=pid).delete()
+            AppConfig.query.filter_by(proyecto_id=pid).delete()
+            FiltroMaestro.query.filter_by(proyecto_id=pid).delete()
+            TablaMaestra.query.filter_by(proyecto_id=pid).delete()
+            
+            p = db.session.get(Proyecto, pid)
+            if p:
+                db.session.delete(p)
+                db.session.commit()
+                # If deleted project is active project, clear it
+                if session.get('current_proyecto_id') == int(pid):
+                    session.pop('current_proyecto_id', None)
+                    session.pop('current_proyecto_nombre', None)
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tecnicos', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_tecnicos():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    if request.method == 'GET':
+        pid = request.args.get('proyecto_id', type=int)
+        q = Tecnico.query
+        if pid:
+            q = q.filter_by(proyecto_id=pid)
+        return jsonify([{
+            'id': t.id,
+            'proyecto_id': t.proyecto_id,
+            'nombre': t.nombre,
+            'contrata': t.contrata,
+            'especialidad': t.especialidad,
+            'telefono': t.telefono
+        } for t in q.order_by(Tecnico.nombre).all()])
+
+    if request.method == 'POST':
+        data = request.json
+        pid = data.get('proyecto_id')
+        nombre = (data.get('nombre') or '').strip()
+        if not pid or not nombre:
+            return jsonify({'error': 'Proyecto y nombre requeridos'}), 400
+        nuevo = Tecnico(
+            proyecto_id=pid,
+            nombre=nombre,
+            contrata=(data.get('contrata') or '').strip(),
+            especialidad=(data.get('especialidad') or '').strip(),
+            telefono=(data.get('telefono') or '').strip()
+        )
+        db.session.add(nuevo)
+        db.session.commit()
+        return jsonify({'success': True, 'id': nuevo.id})
+
+    if request.method == 'DELETE':
+        tid = request.json.get('id')
+        if not tid:
+            return jsonify({'error': 'ID requerido'}), 400
+        t = db.session.get(Tecnico, tid)
+        if not t:
+            return jsonify({'error': 'No encontrado'}), 404
+        db.session.delete(t)
+        db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/admin/usuario', methods=['POST', 'PUT', 'DELETE'])
+@login_required
+def api_admin_usuario():
+    if session.get('rol') not in ['zeno', 'suport']:
+        return jsonify({'error': 'Unauthorized'}), 403
+        
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar usuarios.'}), 403
+        
+    if request.method == 'POST':
+        data = request.json
+        nombre = data.get('nombre', '').strip()
+        user = data.get('username', '').strip()
+        pw = data.get('password', '').strip()
+        rol = data.get('rol', 'supervisor').strip()
+        proyectos = data.get('proyectos', [])
+        if not all([user, pw]): return jsonify({'error': 'Datos incompletos'}), 400
+        if rol.strip().lower() in ('gestor', 'contrata') and not proyectos:
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un módulo asignado.'}), 400
+        try:
+            nuevo = Usuario(username=user, password_hash=generate_password_hash(pw), rol=rol, nombre=nombre)
+            db.session.add(nuevo)
+            db.session.flush()
+            for pid in proyectos:
+                db.session.add(AccesoProyecto(usuario_id=nuevo.id, proyecto_id=int(pid), restricciones='{}'))
+            db.session.commit()
+            return jsonify({'success': True, 'id': nuevo.id})
+        except:
+            db.session.rollback()
+            return jsonify({'error': 'Usuario duplicado'}), 400
+            
+    if request.method == 'PUT':
+        data = request.json
+        uid = data.get('id')
+        nombre = data.get('nombre', '').strip()
+        user = data.get('username', '').strip()
+        pw = data.get('password', '').strip()
+        rol = data.get('rol', '').strip()
+        proyectos = data.get('proyectos')
+        
+        if not uid or not user: return jsonify({'error': 'ID y usuario requeridos'}), 400
+        if rol.strip().lower() in ('gestor', 'contrata') and proyectos == []:
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un módulo asignado.'}), 400
+        try:
+            u = db.session.get(Usuario, uid)
+            if not u: return jsonify({'error': 'Usuario no encontrado'}), 404
+            if session.get('rol') == 'suport' and u.rol == 'zeno':
+                return jsonify({'error': 'El rol Suport no puede editar a un usuario Zeno.'}), 403
+            
+            u.nombre = nombre
+            u.username = user
+            if pw:
+                u.password_hash = generate_password_hash(pw)
+            if rol:
+                u.rol = rol
+                
+            if proyectos is not None:
+                AccesoProyecto.query.filter_by(usuario_id=uid).delete()
+                for pid in proyectos:
+                    db.session.add(AccesoProyecto(usuario_id=uid, proyecto_id=int(pid), restricciones='{}'))
+                
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': 'Usuario duplicado o error: ' + str(e)}), 400
+            
+    if request.method == 'DELETE':
+        if session.get('rol') != 'zeno':
+            return jsonify({'error': 'Solo Zeno puede eliminar usuarios.'}), 403
+        uid = request.json.get('id')
+        if not uid: return jsonify({'error': 'ID requerido'}), 400
+        if int(uid) == session.get('user_id'):
+            return jsonify({'error': 'No puedes borrar tu propio usuario'}), 400
+        try:
+            u = db.session.get(Usuario, uid)
+            if u:
+                # Nullify history records referencing this user (FK nullable)
+                HistorialCambios.query.filter_by(usuario_id=uid).update({'usuario_id': None})
+                # Delete project access permissions
+                AccesoProyecto.query.filter_by(usuario_id=uid).delete()
+                db.session.delete(u)
+                db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/usuario/duplicar', methods=['POST'])
+@login_required
+def api_admin_usuario_duplicar():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo Zeno y Suport pueden duplicar usuarios.'}), 403
+        
+    data = request.json
+    src_id = data.get('source_id')
+    new_user = data.get('new_username', '').strip()
+    new_pw = data.get('new_password', '').strip()
+    
+    if not all([src_id, new_user, new_pw]):
+        return jsonify({'error': 'Datos incompletos para duplicar'}), 400
+        
+    src_u = db.session.get(Usuario, src_id)
+    if not src_u: 
+        return jsonify({'error': 'Usuario origen no encontrado'}), 404
+        
+    try:
+        nuevo = Usuario(username=new_user, password_hash=generate_password_hash(new_pw), rol=src_u.rol)
+        db.session.add(nuevo)
+        db.session.flush() # Para obtener el nuevo ID
+        
+        # Copiar permisos (AccesoProyecto)
+        permisos = AccesoProyecto.query.filter_by(usuario_id=src_id).all()
+        for p in permisos:
+            new_p = AccesoProyecto(usuario_id=nuevo.id, proyecto_id=p.proyecto_id, restricciones=p.restricciones)
+            db.session.add(new_p)
+            
+        db.session.commit()
+        return jsonify({'success': True, 'id': nuevo.id})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Error al duplicar (¿Usuario duplicado?): ' + str(e)}), 400
+
+@app.route('/api/admin/permisos', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_admin_permisos():
+    if session.get('rol') not in ['zeno', 'suport']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar permisos.'}), 403
+    
+    if request.method == 'GET':
+        uid = request.args.get('uid')
+        if not uid: return jsonify([])
+        permisos = AccesoProyecto.query.filter_by(usuario_id=uid).all()
+        result = []
+        for p in permisos:
+            proj = db.session.get(Proyecto, p.proyecto_id)
+            result.append({
+                'id': p.id,
+                'proyecto_id': p.proyecto_id,
+                'proyecto_nombre': proj.nombre if proj else 'Desconocido',
+                'restricciones': p.restricciones
+            })
+        return jsonify(result)
+
+    if request.method == 'POST':
+        data = request.json
+        uid = data.get('usuario_id')
+        pid = data.get('proyecto_id')
+        res = data.get('restricciones', '{}')
+        if not uid or not pid: return jsonify({'error': 'Faltan datos'}), 400
+        
+        existente = AccesoProyecto.query.filter_by(usuario_id=uid, proyecto_id=pid).first()
+        if existente:
+            existente.restricciones = res
+        else:
+            nuevo = AccesoProyecto(usuario_id=uid, proyecto_id=pid, restricciones=res)
+            db.session.add(nuevo)
+        db.session.commit()
+        return jsonify({'success': True})
+
+    if request.method == 'DELETE':
+        aid = request.json.get('id')
+        acc = db.session.get(AccesoProyecto, aid)
+        if acc:
+            db.session.delete(acc)
+            db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/admin/columnas')
+@login_required
+def api_admin_columnas():
+    if session.get('rol') not in ['zeno', 'suport']:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    pid = request.args.get('pid')
+    if not pid: return jsonify([])
+    
+    # Standard columns
+    schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+    cols = json.loads(schema_config.valor) if schema_config else []
+    
+    # Manual columns
+    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+    if manual_cfg:
+        m_cols = json.loads(manual_cfg.valor)
+        for mc in m_cols:
+            if mc['nombre'] not in cols:
+                cols.append(mc['nombre'])
+                
+    return jsonify(sorted(cols))
+
+@app.route('/api/import/manual_template')
+@login_required
+def api_import_manual_template():
+    """Generates and downloads an Excel template with primary key + manual columns."""
+    from flask import make_response
+    pid = session.get('current_proyecto_id')
+    if not pid:
+        return jsonify({'error': 'No project selected'}), 400
+
+    # Get the primary key column name
+    config_key = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+    pk_name = config_key.valor if config_key else '_key'
+
+    # Get manual columns
+    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+    manual_cols = [mc['nombre'] for mc in json.loads(manual_cfg.valor)] if manual_cfg else []
+
+    if not manual_cols:
+        return jsonify({'error': 'No hay columnas manuales configuradas en este proyecto.'}), 400
+
+    # Fetch all existing primary key values
+    rows = NucleusData.query.filter_by(proyecto_id=pid).all()
+
+    proy = db.session.get(Proyecto, pid)
+    proy_nombre = proy.nombre if proy else ''
+
+    # Plantilla FLM/PEXT: Detalle (9 campos) + Gestión (16 manuales), con contenidos actuales pre-llenados
+    if proy_nombre in ('PEXT', 'FLM'):
+        detalle_cols = [
+            'Fecha de creación (WO Creation date)',
+            'Nombre de Site',
+            'Autin TT',
+            'Departamento',
+            'Fault Level',
+            'Estado de la tarea (WO State)',
+            'Prioridad del Site',
+            'Provincia',
+            'Distrito',
+        ]
+        # Sin _key duplicado; el PK (Número de WO) va como primera columna para el import
+        all_cols = detalle_cols + manual_cols
+        data = {}
+        # PK primero para poder hacer match en el import
+        data[pk_name] = [r.key_value for r in rows]
+        for col in detalle_cols:
+            data[col] = [str((json.loads(r.data_json).get(col) or '')) for r in rows]
+        for col in manual_cols:
+            data[col] = [str((json.loads(r.data_json).get(col) or '')) for r in rows]
+        df = pd.DataFrame(data)
+        if df.empty and not rows:
+            df = pd.DataFrame(columns=[pk_name] + all_cols)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Plantilla')
+            ws = writer.sheets['Plantilla']
+            # congelar encabezado y autofiltro
+            ws.freeze_panes = 'A2'
+            ws.auto_filter.ref = ws.dimensions
+            for col_cells in ws.columns:
+                max_len = max(len(str(cell.value or '')) for cell in col_cells)
+                ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 38)
+            # resaltar cabeceras de Gestión vs Detalle
+            from openpyxl.styles import PatternFill, Font
+            fill_det = PatternFill(start_color="E8F0FE", end_color="E8F0FE", fill_type="solid")
+            fill_ges = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+            for idx, col_name in enumerate(df.columns, 1):
+                cell = ws.cell(row=1, column=idx)
+                cell.font = Font(bold=True, size=9)
+                if col_name in detalle_cols:
+                    cell.fill = fill_det
+                elif col_name in manual_cols:
+                    cell.fill = fill_ges
+        output.seek(0)
+        response = make_response(output.read())
+        response.headers['Content-Disposition'] = f'attachment; filename=plantilla_{proy_nombre}.xlsx'
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        return response
+
+    # Build DataFrame: pk column pre-filled, manual columns empty
+    df_data = {pk_name: [r.key_value for r in rows]}
+    for col in manual_cols:
+        df_data[col] = [''] * len(rows)
+    df = pd.DataFrame(df_data)
+
+    # Write to in-memory Excel
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Plantilla')
+        # Auto-adjust column widths
+        ws = writer.sheets['Plantilla']
+        for col_cells in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col_cells)
+            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 40)
+    output.seek(0)
+
+    response = make_response(output.read())
+    response.headers['Content-Disposition'] = 'attachment; filename=plantilla_columnas_manuales.xlsx'
+    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    return response
+
+@app.route('/api/import/preview', methods=['POST'])
+@login_required
+def api_import_preview():
+    file = request.files.get('file')
+    if not file: return jsonify({'error': 'No file'}), 400
+    try:
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(file, encoding='utf-8', nrows=5, dtype=str)
+        else:
+            df = pd.read_excel(file, nrows=5, dtype=str)
+        return jsonify({'columns': [str(c).strip() for c in df.columns]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/import/process', methods=['POST'])
+@login_required
+def api_import_process():
+    try:
+        pid = session.get('current_proyecto_id')
+        if session.get('rol') == 'demo':
+            return jsonify({'error': 'Rol DEMO no tiene permisos para realizar importaciones.'}), 403
+        import_type = request.form.get('type') or 'base' # 'base' or 'cruce'
+        sum_duplicates = request.form.get('sum_duplicates') == 'true'
+        sum_type = request.form.get('sum_type', 'number')
+        consolidate_date = request.form.get('consolidate_date') == 'true'
+        date_column = request.form.get('date_column', '').strip()
+        cols_to_keep_str = request.form.get('columns_to_keep', '[]')
+        columns_to_keep = json.loads(cols_to_keep_str)
+        file_key = request.form.get('file_key', '').strip()
+
+        # Columnas manuales del proyecto (datos editados por gestores)
+        manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+        manual_columns_list = []
+        if manual_cfg:
+            for mc in json.loads(manual_cfg.valor):
+                if isinstance(mc, dict):
+                    manual_columns_list.append(str(mc.get('nombre', '')).strip())
+        manual_columns_list = [c for c in manual_columns_list if c]
+        
+        file = request.files.get('file')
+        if not file: return jsonify({'error': 'No file'}), 400
+        
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(file, encoding='utf-8', dtype=str)
+        else:
+            df = pd.read_excel(file, dtype=str)
+            
+        df.columns = [str(c).strip() for c in df.columns]
+        # Tabulator no soporta '.' en nombres de campo (acceso anidado). Se sanean
+        # las columnas aquí para que TODO lo que se importa quede guardado limpio.
+        df = df.rename(columns=_sane_data_key)
+        df.columns = [str(c).strip() for c in df.columns]
+        if not file_key:
+            pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+            candidate = (pk_cfg.valor if pk_cfg else None) or ''
+            if candidate in df.columns:
+                file_key = candidate
+            elif 'id' in df.columns:
+                # Sin pk configurada: preferir "id" antes que la primera columna, que
+                # puede ser un valor repetido (p.ej. "Contractor" = "COBRA") y entonces
+                # TODAS las filas colapsarían en un único registro.
+                file_key = 'id'
+            else:
+                file_key = str(df.columns[0])
+        if file_key not in df.columns:
+            return jsonify({'error': f'Key {file_key} not found in headers.'}), 400
+
+        # Validación interna: PEXT debe traer la columna CATEGORY con el valor
+        # correcto para evitar importar por error datos de otro proceso/mundo.
+        # FLM: sin restricción de CATEGORY (acepta cualquier valor).
+        proy_act = Proyecto.query.get(pid)
+        proy_act_nombre = proy_act.nombre.strip().upper() if proy_act and proy_act.nombre else ''
+        category_esperado = None
+        if proy_act_nombre == 'PEXT':
+            category_esperado = 'O&M PEXT'
+        if category_esperado:
+            cat_col = next((c for c in df.columns if c.strip().upper() == 'CATEGORY'), None)
+            if cat_col is None:
+                return jsonify({'error': f'El archivo no contiene la columna CATEGORY. La importación de {proy_act_nombre} requiere la categoría "{category_esperado}".'}), 400
+            valores_cat = {str(v).strip() for v in df[cat_col].dropna().tolist()}
+            if valores_cat and not valores_cat.issubset({category_esperado}):
+                return jsonify({'error': f'La columna CATEGORY debe contener únicamente "{category_esperado}" para {proy_act_nombre}. Valores detectados: {", ".join(sorted(valores_cat))}.'}), 400
+
+        # Modo columnas manuales: por defecto solo llave + columnas manuales del archivo
+        if import_type == 'manual_cols' and not columns_to_keep:
+            columns_to_keep = [file_key] + [c for c in manual_columns_list if c in df.columns and c != file_key]
+
+        if columns_to_keep:
+            valid_cols = [c for c in columns_to_keep if c in df.columns]
+            if file_key not in valid_cols: valid_cols.append(file_key)
+            if consolidate_date and date_column and date_column in df.columns and date_column not in valid_cols:
+                valid_cols.append(date_column)
+            df = df[valid_cols]
+        df = df.fillna('')
+
+        if consolidate_date and date_column and date_column in df.columns and len(df) > 0:
+            df['_temp_date'] = pd.to_datetime(df[date_column], errors='coerce')
+            df = df.sort_values(by='_temp_date', ascending=True, na_position='first')
+            df = df.drop_duplicates(subset=[file_key], keep='last')
+            df = df.drop(columns=['_temp_date'])
+        elif sum_duplicates and len(df) > 0:
+            # Smart aggregation: Sum numeric columns, last for the rest
+            agg_dict = {}
+            for col in df.columns:
+                if col == file_key: continue
+                
+                if sum_type == 'soles':
+                    # Clean currency formatting before numeric conversion
+                    cleaned_col = df[col].astype(str).str.replace(r'[sS]/\.?\s*', '', regex=True).str.replace(',', '')
+                    temp_numeric = pd.to_numeric(cleaned_col, errors='coerce')
+                else:
+                    temp_numeric = pd.to_numeric(df[col], errors='coerce')
+                    
+                if not temp_numeric.isna().all():
+                    df[col] = temp_numeric.fillna(0)
+                    agg_dict[col] = 'sum'
+                else:
+                    agg_dict[col] = 'last'
+            
+            if agg_dict:
+                df = df.groupby(file_key, as_index=False).agg(agg_dict)
+        
+        filtros = FiltroMaestro.query.filter_by(proyecto_id=pid).all()
+        
+        # Agrupar reglas por "Clusters" de columnas (Connected Components)
+        # Esto permite que reglas para diferentes columnas se sumen con AND
+        # Pero reglas que comparten columnas se sumen con OR
+        raw_reglas = []
+        for f in filtros:
+            cols = [c.strip() for c in f.columna.split(',')]
+            vals = [v.strip() for v in f.valor.split(',')]
+            raw_reglas.append({'cols': set(cols), 'pairs': list(zip(cols, vals))})
+            
+        clusters = []
+        for r in raw_reglas:
+            assigned = False
+            for group in clusters:
+                # Si la regla comparte alguna columna con el grupo, se une a él
+                if any(c in group['columns'] for c in r['cols']):
+                    group['columns'].update(r['cols'])
+                    group['rules'].append(r['pairs'])
+                    assigned = True
+                    break
+            if not assigned:
+                clusters.append({'columns': r['cols'], 'rules': [r['pairs']]})
+        
+        # Consolidar clusters que puedan haberse cruzado después de unirse por partes
+        final_clusters = []
+        for c in clusters:
+            merged = False
+            for f in final_clusters:
+                if c['columns'] & f['columns']:
+                    f['columns'].update(c['columns'])
+                    f['rules'].extend(c['rules'])
+                    merged = True
+                    break
+            if not merged:
+                final_clusters.append(c)
+            
+        tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
+        reglas = []
+        for t in tablas:
+            t_cols = [c.strip() for c in t.columna_criterio.split(',')]
+            t_vals = [v.strip() for v in t.valor_criterio.split(',')]
+            reglas.append({
+                'condiciones': list(zip(t_cols, t_vals)),
+                'nueva_columna': t.nueva_columna,
+                'nuevo_valor': t.nuevo_valor
+            })
+
+        reglas_manuales = ReglaEstadoManual.query.filter_by(proyecto_id=pid).all()
+        for r in reglas_manuales:
+            r_cols = [c.strip() for c in r.columna_criterio.split(',')]
+            r_vals = [v.strip() for v in r.valor_criterio.split(',')]
+            reglas.append({
+                'condiciones': list(zip(r_cols, r_vals)),
+                'nueva_columna': r.columna_manual,
+                'nuevo_valor': r.nuevo_valor
+            })
+
+        config_pk = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+        system_pk = config_pk.valor if config_pk else None
+        
+        if import_type == 'base' and not system_pk:
+            system_pk = file_key
+            db.session.add(AppConfig(proyecto_id=pid, clave='primary_key', valor=system_pk))
+            db.session.commit()
+            
+        # Delta: consultar solo las filas cuyas claves vienen en el archivo,
+        # en chunks de 400 (limite de parametros de SQLite) para no traer toda la tabla.
+        imported_keys = set()
+        for _v in df[file_key].tolist():
+            _s = str(_v).strip()
+            if _s:
+                imported_keys.add(_s)
+
+        existing_records = {}
+        if imported_keys:
+            key_list = sorted(imported_keys)
+            for i in range(0, len(key_list), 400):
+                chunk = key_list[i:i + 400]
+                chunk_records = NucleusData.query.filter(
+                    NucleusData.proyecto_id == pid,
+                    NucleusData.key_value.in_(chunk)
+                ).all()
+                for r in chunk_records:
+                    existing_records[r.key_value] = r
+        
+        # Consolidation Config
+        cons_cfg_row = AppConfig.query.filter_by(proyecto_id=pid, clave='consolidation_config').first()
+        cons_cfg = json.loads(cons_cfg_row.valor) if cons_cfg_row else {}
+        consolidate_on_fail = cons_cfg.get('consolidate_on_filter_fail', False)
+        
+        updated, added, ignored, consolidated = 0, 0, 0, 0
+        rejected_saldo = []
+        dynamic_cols = set()
+        counter_guardados = 0
+
+        WO_STATE_COL = 'Estado de la tarea (WO State)'
+        STATE_TS_COL = 'FECHA CAMBIO ESTADO'
+        DISPATCHED_TS_COL = '_fecha_dispatched'
+        CANCEL_REJECT_TS_COL = '_fecha_cancel_reject'
+        DISPATCHED_STATES = {'dispatched'}
+        TERMINAL_STATES = {'canceled', 'rejected'}
+        now_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Campos protegidos: la importación NO pisa los datos editados manualmente.
+        # EXCEPCIÓN: en modo 'manual_cols' (Dataper) el archivo ES la fuente de datos manuales.
+        protected_fields = set(manual_columns_list)
+        protected_fields.update([
+            'SERVICIO', 'CIUDAD', 'TECNICO', 'CONTRATA',
+            'MOTIVO DE AVERÍA', 'MOTIVO DE AVERIA', 'SOLUCIÓN', 'SOLUCION',
+            'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'SE INSTALO MUFAS',
+            'LATITUD MUFAS', 'LATITUD Mufas', 'LONGITUD MUFAS', 'LONGITUD Mufas',
+            'UBICACIÓN DE MUFAS', 'UBICACION DE MUFAS',
+            'SISTEMAS', 'SISTEMA',
+            'MATERIALES',
+            # Campos del Detalle editables en el modal: el import no pisa lo corregido a mano.
+            'Fecha de creación (WO Creation date)', 'FECHA DE CREACIÓN (WO CREATION DATE)',
+            'Nombre de Site', 'NOMBRE DE SITE',
+            'Autin TT', 'AUTIN TT',
+            'Departamento', 'DEPARTAMENTO',
+            'Fault Level', 'FAULT LEVEL',
+            'Estado de la tarea (WO State)', 'ESTADO DE LA TAREA (WO STATE)',
+            'Prioridad del Site', 'PRIORIDAD DEL SITE',
+            'Provincia', 'PROVINCIA',
+            'Distrito', 'DISTRITO'
+        ])
+        
+        for idx, row in df.iterrows():
+            row_dict = row.to_dict()
+            key_val = str(row_dict.get(file_key, '')).strip()
+            if not key_val: continue
+            imported_keys.add(key_val)
+            
+            # --- 1. MERGE CON DATA EXISTENTE ---
+            is_new = False
+            if key_val in existing_records:
+                record = existing_records[key_val]
+                current_data = json.loads(record.data_json)
+                old_state = str(current_data.get(WO_STATE_COL, '')).strip()
+                if import_type == 'manual_cols':
+                    current_data.update(row_dict)
+                else:
+                    for k, v in row_dict.items():
+                        if k in protected_fields and k in current_data:
+                            continue
+                        current_data[k] = v
+                new_state = str(current_data.get(WO_STATE_COL, '')).strip()
+                new_state_l = new_state.lower()
+                if new_state != old_state:
+                    # Registrar TODA transición (incluye quedarse vacío), de modo
+                    # que el historial nunca pierda cambios de estado por importación.
+                    if new_state_l != old_state.lower():
+                        current_data[STATE_TS_COL] = now_str
+                        dynamic_cols.add(STATE_TS_COL)
+                    db.session.add(HistorialCambios(
+                        proyecto_id=pid,
+                        usuario_id=None,
+                        username='IMPORT',
+                        key_value=key_val,
+                        campo_modificado=WO_STATE_COL,
+                        valor_anterior=old_state,
+                        valor_nuevo=new_state,
+                        fecha=datetime.utcnow()
+                    ))
+                if new_state_l in DISPATCHED_STATES and not current_data.get(DISPATCHED_TS_COL):
+                    current_data[DISPATCHED_TS_COL] = now_str
+                if new_state_l in TERMINAL_STATES and not current_data.get(CANCEL_REJECT_TS_COL):
+                    current_data[CANCEL_REJECT_TS_COL] = now_str
+            else:
+                if import_type == 'cruce':
+                    schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+                    schema_val = json.loads(schema_config.valor) if schema_config else []
+                    if schema_val:
+                        continue
+                current_data = row_dict.copy()
+                init_state = str(current_data.get(WO_STATE_COL, '')).strip().lower()
+                if init_state:
+                    current_data[STATE_TS_COL] = now_str
+                    dynamic_cols.add(STATE_TS_COL)
+                    db.session.add(HistorialCambios(
+                        proyecto_id=pid,
+                        usuario_id=None,
+                        username='IMPORT',
+                        key_value=key_val,
+                        campo_modificado=WO_STATE_COL,
+                        valor_anterior='',
+                        valor_nuevo=str(current_data.get(WO_STATE_COL, '')).strip(),
+                        fecha=datetime.utcnow()
+                    ))
+                if init_state in DISPATCHED_STATES:
+                    current_data[DISPATCHED_TS_COL] = now_str
+                if init_state in TERMINAL_STATES:
+                    current_data[CANCEL_REJECT_TS_COL] = now_str
+                is_new = True
+
+            # --- 2. APLICAR REGLAS Y TABLAS MAESTRAS ---
+            for regla in reglas:
+                match = True
+                for c, v in regla['condiciones']:
+                    if str(current_data.get(c, '')) != v:
+                        match = False; break
+                if match:
+                    current_data[regla['nueva_columna']] = regla['nuevo_valor']
+                    dynamic_cols.add(regla['nueva_columna'])
+
+            # --- 3. LOGICA DE FILTRO POR CLUSTERS ---
+            keep_record = True
+            if final_clusters:
+                for cluster in final_clusters:
+                    # Usamos current_data para evaluar. Si es un cruce, ahora tiene la info base también.
+                    match_cluster = False
+                    for rule in cluster['rules']:
+                        match_rule = True
+                        for c, v in rule:
+                            val_archivo = str(current_data.get(c, '')).strip().upper()
+                            val_filtro = str(v).strip().upper()
+                            if val_archivo != val_filtro:
+                                match_rule = False
+                                break
+                        if match_rule:
+                            match_cluster = True
+                            break
+                    if not match_cluster:
+                        keep_record = False
+                        break
+            
+            # --- 4. DECISIÓN DE CONSOLIDACIÓN ---
+            if not keep_record:
+                if consolidate_on_fail and key_val in existing_records:
+                    record = existing_records[key_val]
+                    # Guardamos el current_data (que contiene las actualizaciones del archivo importado) en el histórico
+                    new_hist = NucleusHistory(proyecto_id=pid, key_value=key_val, data_json=safe_json_dumps(current_data))
+                    db.session.add(new_hist)
+                    db.session.delete(record)
+                    consolidated += 1
+                    updated += 1
+                    del existing_records[key_val]
+                else:
+                    ignored += 1
+                continue
+                
+            # --- 4b. COMBUSTIBLE: normalizar FECHA y validar saldo cronológico ---
+            # Un GASTO importado tampoco puede dejar en negativo el historial
+            # del generador; si lo hace, la fila se omite y se reporta.
+            if proy_act_nombre == 'COMBUSTIBLE':
+                if 'FECHA' in current_data:
+                    current_data['FECHA'] = _combustible_fecha_norm(current_data.get('FECHA', ''))
+                _gen_imp = str(current_data.get('QR ASIGNADO', '')).strip()
+                _mov_imp = str(current_data.get('MOVIMIENTO', '')).strip().upper()
+                _gal_imp = _parse_galones(current_data.get('GALONES'))
+                if _gen_imp and _mov_imp == 'GASTO' and _gal_imp > 0:
+                    _filas_imp = [f for f in _combustible_filas_gen(pid, _gen_imp)
+                                  if str(f.get('key')) != str(key_val)]
+                    _filas_imp.append({'key': str(key_val),
+                                       'fecha': _combustible_fecha_norm(current_data.get('FECHA', '')),
+                                       'mov': 'GASTO', 'gal': _gal_imp})
+                    _filas_imp.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+                    _ok_imp, _info_imp = _combustible_chequear(_filas_imp)
+                    if not _ok_imp:
+                        rejected_saldo.append(str(key_val))
+                        ignored += 1
+                        continue
+
+            # --- 5. GUARDAR REGISTRO ACTIVO ---
+            if is_new:
+                new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=safe_json_dumps(current_data))
+                db.session.add(new_record)
+                existing_records[key_val] = new_record
+                added += 1
+            else:
+                record = existing_records[key_val]
+                record.data_json = safe_json_dumps(current_data)
+                updated += 1
+
+            # Commit por lotes: cada 500 registros guarda y libera la transaccion,
+            # evitando que una importacion grande exceda el timeout del servidor.
+            counter_guardados += 1
+            if counter_guardados % 500 == 0:
+                db.session.commit()
+        
+        # Absence-based Consolidation (Optimized to avoid SQLite parameter limits)
+        absent_consolidated = 0
+        if import_type == 'base' and cons_cfg.get('auto_consolidate_missing'):
+            # Consulta solo la columna key_value (no el data_json pesado)
+            # para comparar las claves existentes contra las del archivo.
+            all_existing_keys = [r[0] for r in db.session.query(NucleusData.key_value)
+                                 .filter(NucleusData.proyecto_id == pid).all()]
+            for kv in all_existing_keys:
+                if kv not in imported_keys:
+                    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=kv).first()
+                    if rec is None:
+                        continue
+                    new_hist = NucleusHistory(proyecto_id=pid, key_value=rec.key_value, data_json=rec.data_json)
+                    db.session.add(new_hist)
+                    db.session.delete(rec)
+                    absent_consolidated += 1
+                    consolidated += 1
+
+        db.session.commit()
+        
+        config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+        schema_cols = set(json.loads(config_schema.valor)) if config_schema else set()
+        new_schema = schema_cols.union(set(df.columns)).union(dynamic_cols)
+        if new_schema != schema_cols:
+            if config_schema:
+                config_schema.valor = safe_json_dumps(list(new_schema))
+            else:
+                db.session.add(AppConfig(proyecto_id=pid, clave='app_schema', valor=safe_json_dumps(list(new_schema))))
+            db.session.commit()
+        return jsonify({
+            'success': True,
+            'added': added,
+            'updated': updated,
+            'ignored': ignored,
+            'consolidated': consolidated,
+            'rejected_saldo': rejected_saldo,
+            'pk': system_pk
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/master/filtros', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_master_filtros():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar filtros.'}), 403
+    if request.method == 'GET':
+        qs = FiltroMaestro.query.filter_by(proyecto_id=pid).all()
+        return jsonify([{'id': q.id, 'columna': q.columna, 'valor': q.valor} for q in qs])
+    if request.method == 'POST':
+        data = request.json
+        try:
+            nuevo = FiltroMaestro(proyecto_id=pid, columna=data['columna'].strip(), valor=data['valor'].strip())
+            db.session.add(nuevo)
+            db.session.commit()
+            return jsonify({'success': True, 'id': nuevo.id})
+        except:
+            db.session.rollback()
+            return jsonify({'error': 'Duplicated or invalid'}), 400
+    if request.method == 'DELETE':
+        data = request.json
+        if data.get('clear_all'):
+            FiltroMaestro.query.filter_by(proyecto_id=pid).delete()
+            db.session.commit()
+            return jsonify({'success': True})
+        
+        id = data.get('id')
+        if id:
+            f = FiltroMaestro.query.filter_by(id=id, proyecto_id=pid).first()
+            if f:
+                db.session.delete(f)
+                db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/master/tablas', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_master_tablas():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar tablas maestras.'}), 403
+    if request.method == 'GET':
+        qs = TablaMaestra.query.filter_by(proyecto_id=pid).all()
+        return jsonify([{'id': q.id, 'columna_criterio': q.columna_criterio, 'valor_criterio': q.valor_criterio, 'nueva_columna': q.nueva_columna, 'nuevo_valor': q.nuevo_valor} for q in qs])
+    if request.method == 'POST':
+        data = request.json
+        nuevo = TablaMaestra(
+            proyecto_id=pid,
+            columna_criterio=data['columna_criterio'].strip(),
+            valor_criterio=data['valor_criterio'].strip(),
+            nueva_columna=data['nueva_columna'].strip(),
+            nuevo_valor=data['nuevo_valor'].strip(),
+        )
+        db.session.add(nuevo)
+        db.session.commit()
+        return jsonify({'success': True, 'id': nuevo.id})
+    if request.method == 'DELETE':
+        data = request.json
+        if data.get('clear_all'):
+            TablaMaestra.query.filter_by(proyecto_id=pid).delete()
+            db.session.commit()
+            return jsonify({'success': True})
+            
+        id = data.get('id')
+        if id:
+            f = TablaMaestra.query.filter_by(id=id, proyecto_id=pid).first()
+            if f:
+                db.session.delete(f)
+                db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/master/reglas_manuales', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_master_reglas_manuales():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar reglas manuales.'}), 403
+    if request.method == 'GET':
+        qs = ReglaEstadoManual.query.filter_by(proyecto_id=pid).all()
+        return jsonify([{'id': q.id, 'columna_criterio': q.columna_criterio, 'valor_criterio': q.valor_criterio, 'columna_manual': q.columna_manual, 'nuevo_valor': q.nuevo_valor} for q in qs])
+    if request.method == 'POST':
+        data = request.json
+        nuevo = ReglaEstadoManual(
+            proyecto_id=pid,
+            columna_criterio=data['columna_criterio'].strip(),
+            valor_criterio=data['valor_criterio'].strip(),
+            columna_manual=data['columna_manual'].strip(),
+            nuevo_valor=data['nuevo_valor'].strip(),
+        )
+        db.session.add(nuevo)
+        db.session.commit()
+        return jsonify({'success': True, 'id': nuevo.id})
+    if request.method == 'DELETE':
+        data = request.json
+        if data.get('clear_all'):
+            ReglaEstadoManual.query.filter_by(proyecto_id=pid).delete()
+            db.session.commit()
+            return jsonify({'success': True})
+            
+        id = data.get('id')
+        if id:
+            f = ReglaEstadoManual.query.filter_by(id=id, proyecto_id=pid).first()
+            if f:
+                db.session.delete(f)
+                db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/master/reprocess', methods=['POST'])
+@login_required
+def api_master_reprocess():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para re-procesar datos.'}), 403
+    try:
+        # 1. Load data update rules (Tablas Maestras & Reglas Manuales)
+        tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
+        reglas = []
+        for t in tablas:
+            t_cols = [c.strip() for c in t.columna_criterio.split(',')]
+            t_vals = [v.strip() for v in t.valor_criterio.split(',')]
+            reglas.append({
+                'condiciones': list(zip(t_cols, t_vals)),
+                'nueva_columna': t.nueva_columna,
+                'nuevo_valor': t.nuevo_valor
+            })
+            
+        reglas_manuales = ReglaEstadoManual.query.filter_by(proyecto_id=pid).all()
+        for r in reglas_manuales:
+            r_cols = [c.strip() for c in r.columna_criterio.split(',')]
+            r_vals = [v.strip() for v in r.valor_criterio.split(',')]
+            reglas.append({
+                'condiciones': list(zip(r_cols, r_vals)),
+                'nueva_columna': r.columna_manual,
+                'nuevo_valor': r.nuevo_valor
+            })
+
+        # 2. Load Filter Rules (Clusters)
+        filtros = FiltroMaestro.query.filter_by(proyecto_id=pid).all()
+        raw_reglas_filtros = []
+        for f in filtros:
+            f_cols = [c.strip() for c in f.columna.split(',')]
+            f_vals = [v.strip() for v in f.valor.split(',')]
+            raw_reglas_filtros.append({'cols': set(f_cols), 'pairs': list(zip(f_cols, f_vals))})
+            
+        temp_clusters = []
+        for r in raw_reglas_filtros:
+            assigned = False
+            for group in temp_clusters:
+                if any(c in group['columns'] for c in r['cols']):
+                    group['columns'].update(r['cols'])
+                    group['rules'].append(r['pairs'])
+                    assigned = True
+                    break
+            if not assigned:
+                temp_clusters.append({'columns': r['cols'], 'rules': [r['pairs']]})
+                
+        # Consolidar clusters transitivos
+        final_clusters = []
+        for c in temp_clusters:
+            merged = False
+            for f in final_clusters:
+                if c['columns'] & f['columns']:
+                    f['columns'].update(c['columns'])
+                    f['rules'].extend(c['rules'])
+                    merged = True
+                    break
+            if not merged:
+                final_clusters.append(c)
+
+        # 3. Load Consolidation Config
+        cons_cfg_row = AppConfig.query.filter_by(proyecto_id=pid, clave='consolidation_config').first()
+        cons_cfg = json.loads(cons_cfg_row.valor) if cons_cfg_row else {}
+        consolidate_on_fail = cons_cfg.get('consolidate_on_filter_fail', False)
+
+        # 4. Process Data
+        records = NucleusData.query.filter_by(proyecto_id=pid).all()
+        updated, consolidated = 0, 0
+        new_columns = set()
+        
+        for record in records:
+            row_dict = json.loads(record.data_json)
+            data_changed = False
+            
+            # Apply update rules
+            for regla in reglas:
+                match = True
+                for c, v in regla['condiciones']:
+                    if str(row_dict.get(c, '')) != v:
+                        match = False; break
+                if match:
+                    if row_dict.get(regla['nueva_columna']) != regla['nuevo_valor']:
+                        row_dict[regla['nueva_columna']] = regla['nuevo_valor']
+                        new_columns.add(regla['nueva_columna'])
+                        data_changed = True
+            
+            # Check Consolidation Rules
+            move_to_history = False
+            
+            # Filter-fail-based
+            if consolidate_on_fail and final_clusters:
+                keep_record = True
+                for cluster in final_clusters:
+                    match_cluster = False
+                    for rule in cluster['rules']:
+                        match_rule = True
+                        for c, v in rule:
+                            val_archivo = str(row_dict.get(c, '')).strip().upper()
+                            val_filtro = str(v).strip().upper()
+                            if val_archivo != val_filtro:
+                                match_rule = False
+                                break
+                        if match_rule:
+                            match_cluster = True
+                            break
+                    if not match_cluster:
+                        keep_record = False
+                        break
+                
+                if not keep_record:
+                    move_to_history = True
+
+            if move_to_history:
+                new_hist = NucleusHistory(proyecto_id=pid, key_value=record.key_value, data_json=safe_json_dumps(row_dict))
+                db.session.add(new_hist)
+                db.session.delete(record)
+                consolidated += 1
+                updated += 1
+            elif data_changed:
+                record.data_json = safe_json_dumps(row_dict)
+                updated += 1
+        
+        db.session.commit()
+        
+        # Update schema if new columns were found
+        if new_columns:
+            config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+            if config_schema:
+                schema_cols = set(json.loads(config_schema.valor))
+                if not new_columns.issubset(schema_cols):
+                    updated_schema = list(schema_cols.union(new_columns))
+                    config_schema.valor = safe_json_dumps(updated_schema)
+                    db.session.commit()
+
+        return jsonify({'success': True, 'updated': updated, 'consolidated': consolidated})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/master/manual_columns', methods=['GET', 'POST', 'DELETE'])
+@login_required
+def api_manual_columns():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar columnas manuales.'}), 403
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+    cols = json.loads(config.valor) if config else []
+    if request.method == 'GET':
+        return jsonify(cols)
+    if request.method == 'POST':
+        data = request.json
+        new_col = {
+            'nombre': data['nombre'].strip(),
+            'tipo': data['tipo'].strip(),
+            'opciones': [opt.strip() for opt in data.get('opciones', '').split(',') if opt.strip()]
+        }
+        for c in cols:
+            if c['nombre'].lower() == new_col['nombre'].lower():
+                return jsonify({'error': 'Columna ya existe'}), 400
+        cols.append(new_col)
+        if config:
+            config.valor = safe_json_dumps(cols)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='manual_columns', valor=safe_json_dumps(cols)))
+        db.session.commit()
+        return jsonify({'success': True})
+    if request.method == 'DELETE':
+        nombre = request.json.get('nombre')
+        cols = [c for c in cols if c['nombre'] != nombre]
+        if config:
+            config.valor = safe_json_dumps(cols)
+            db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/columns/layout', methods=['GET', 'POST'])
+@login_required
+def api_columns_layout():
+    """Orden y visibilidad de columnas definidos por el admin; se aplican a todos los usuarios."""
+    pid = session.get('current_proyecto_id')
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
+    if request.method == 'GET':
+        return jsonify(json.loads(config.valor) if config and config.valor else [])
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo el administrador puede configurar las columnas.'}), 403
+    data = request.get_json(silent=True) or {}
+    columns = data.get('columns') or []
+    cleaned = []
+    for c in columns:
+        if not isinstance(c, dict):
+            continue
+        field = str(c.get('field', '')).strip()
+        if not field or field == '_key' or field.startswith('KPI_'):
+            continue
+        cleaned.append({'field': field, 'visible': bool(c.get('visible', True))})
+    if cleaned:
+        if config:
+            config.valor = safe_json_dumps(cleaned)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='column_layout', valor=safe_json_dumps(cleaned)))
+    else:
+        if config:
+            db.session.delete(config)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/master/dashboard_charts', methods=['GET', 'POST'])
+@login_required
+def api_dashboard_charts():
+    pid = session.get('current_proyecto_id')
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_charts').first()
+    
+    if request.method == 'GET':
+        charts = json.loads(config.valor) if config else []
+        return jsonify(charts)
+        
+    if request.method == 'POST':
+        if session.get('rol') in ['demo', 'contrata', 'gestor']:
+            return jsonify({'error': 'Rol sin permisos para modificar el dashboard.'}), 403
+        charts = request.json # Expecting an array of chart objects
+        if config:
+            config.valor = safe_json_dumps(charts)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='saved_dashboard_charts', valor=safe_json_dumps(charts)))
+        db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/master/dashboard_kpis', methods=['GET', 'POST'])
+@login_required
+def api_dashboard_kpis():
+    pid = session.get('current_proyecto_id')
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_kpis').first()
+    
+    if request.method == 'GET':
+        kpis = json.loads(config.valor) if config else []
+        return jsonify(kpis)
+        
+    if request.method == 'POST':
+        if session.get('rol') in ['demo', 'contrata', 'gestor']:
+            return jsonify({'error': 'Rol sin permisos para modificar el dashboard.'}), 403
+        kpis = request.json
+        if config:
+            config.valor = safe_json_dumps(kpis)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='saved_dashboard_kpis', valor=safe_json_dumps(kpis)))
+        db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/master/all_columns')
+@login_required
+def api_master_all_columns():
+    pid = session.get('current_proyecto_id')
+    schema_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+    
+    cols = set()
+    if schema_cfg:
+        try: cols.update(json.loads(schema_cfg.valor))
+        except: pass
+    if manual_cfg:
+        try:
+            m_list = json.loads(manual_cfg.valor)
+            for m in m_list:
+                cols.add(m['nombre'])
+        except: pass
+        
+    return jsonify(sorted(list(cols)))
+
+@app.route('/api/master/dashboard_filters', methods=['GET', 'POST'])
+@login_required
+def api_dashboard_filters():
+    pid = session.get('current_proyecto_id')
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='saved_dashboard_filters').first()
+    
+    if request.method == 'GET':
+        filters = json.loads(config.valor) if config else []
+        return jsonify(filters)
+        
+    if request.method == 'POST':
+        if session.get('rol') in ['demo', 'contrata', 'gestor']:
+            return jsonify({'error': 'Rol sin permisos para modificar filtros del dashboard.'}), 403
+        filters = request.json
+        if config:
+            config.valor = safe_json_dumps(filters)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='saved_dashboard_filters', valor=safe_json_dumps(filters)))
+        db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/config/consolidation', methods=['GET', 'POST'])
+@login_required
+def api_config_consolidation():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar la configuración de consolidación.'}), 403
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='consolidation_config').first()
+    
+    if request.method == 'GET':
+        return jsonify(json.loads(config.valor) if config else {})
+        
+    if request.method == 'POST':
+        data = request.json
+        if config:
+            config.valor = safe_json_dumps(data)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='consolidation_config', valor=safe_json_dumps(data)))
+        db.session.commit()
+        return jsonify({'success': True})
+
+@app.route('/api/config/cotizacion_margen', methods=['GET', 'POST'])
+@login_required
+def api_config_cotizacion_margen():
+    """Porcentaje de margen aplicado al Precio Cobra para calcular Precio Unid (default 30)."""
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo' and request.method != 'GET':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar el margen de cotización.'}), 403
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_margen_pct').first()
+
+    if request.method == 'GET':
+        if config:
+            try:
+                return jsonify({'porcentaje': float(config.valor)})
+            except Exception:
+                pass
+        return jsonify({'porcentaje': 30})
+
+    if request.method == 'POST':
+        data = request.json or {}
+        try:
+            pct = float(data.get('porcentaje', 30))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Porcentaje inválido'}), 400
+        if pct < 0:
+            return jsonify({'error': 'El porcentaje no puede ser negativo'}), 400
+        if config:
+            config.valor = safe_json_dumps(pct)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='cotizacion_margen_pct', valor=safe_json_dumps(pct)))
+        db.session.commit()
+        return jsonify({'success': True, 'porcentaje': pct})
+
+@app.route('/api/master/template/<tipo>')
+@login_required
+def api_master_template(tipo):
+    output = io.BytesIO()
+    if tipo == 'filtros':
+        df = pd.DataFrame(columns=['columna', 'valor'])
+        filename = "Plantilla_Filtros.xlsx"
+    elif tipo == 'tablas':
+        df = pd.DataFrame(columns=['columna_criterio', 'valor_criterio', 'nueva_columna', 'nuevo_valor'])
+        filename = "Plantilla_Cruces.xlsx"
+    else:
+        return "Tipo no válido", 400
+    
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Plantilla')
+    
+    output.seek(0)
+    from flask import send_file
+    return send_file(output, download_name=filename, as_attachment=True)
+
+@app.route('/api/master/bulk_import/<tipo>', methods=['POST'])
+@login_required
+def api_master_bulk_import(tipo):
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') in ('demo', 'gestor', 'contrata'):
+        return jsonify({'error': 'Sin permisos para realizar importaciones masivas.'}), 403
+    if 'file' not in request.files:
+        return jsonify({'error': 'No se subió ningún archivo'}), 400
+    
+    file = request.files['file']
+    try:
+        df = pd.read_excel(file, dtype=str).fillna('')
+        df.columns = [c.strip().lower() for c in df.columns]
+        
+        added = 0
+        if tipo == 'filtros':
+            required = ['columna', 'valor']
+            if not all(c in df.columns for c in required):
+                return jsonify({'error': f'Columnas faltantes. Se requiere: {required}'}), 400
+            
+            for _, row in df.iterrows():
+                try:
+                    c, v = row['columna'].strip(), row['valor'].strip()
+                    if not c or not v: continue
+                    # Check duplicate
+                    exists = FiltroMaestro.query.filter_by(proyecto_id=pid, columna=c, valor=v).first()
+                    if not exists:
+                        nuevo = FiltroMaestro(proyecto_id=pid, columna=c, valor=v)
+                        db.session.add(nuevo)
+                        added += 1
+                except: continue
+        
+        elif tipo == 'tablas':
+            required = ['columna_criterio', 'valor_criterio', 'nueva_columna', 'nuevo_valor']
+            if not all(c in df.columns for c in required):
+                return jsonify({'error': f'Columnas faltantes. Se requiere: {required}'}), 400
+            
+            for _, row in df.iterrows():
+                try:
+                    cc, vc = row['columna_criterio'].strip(), row['valor_criterio'].strip()
+                    nc, nv = row['nueva_columna'].strip(), row['nuevo_valor'].strip()
+                    if not all([cc, vc, nc, nv]): continue
+                    nuevo = TablaMaestra(proyecto_id=pid, columna_criterio=cc, valor_criterio=vc, nueva_columna=nc, nuevo_valor=nv)
+                    db.session.add(nuevo)
+                    added += 1
+                except: continue
+        
+        db.session.commit()
+        return jsonify({'success': True, 'added': added})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rows/update', methods=['POST'])
+@login_required
+def api_rows_update():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para actualizar datos.'}), 403
+    # SITE: solo supervisor/admin puede editar
+    _proy_chk = db.session.get(Proyecto, pid)
+    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+        return jsonify({'error': 'Solo supervisor o admin puede editar sites.'}), 403
+    try:
+        data = request.json
+        key_val = data.get('key')
+        field = data.get('field')
+        value = data.get('value')
+        if not all([key_val, field]): return jsonify({'error': 'Missing data'}), 400
+        record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
+        if not record: return jsonify({'error': 'Record not found'}), 404
+        row_dict = json.loads(record.data_json)
+
+        # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
+        _proy_upd = db.session.get(Proyecto, pid)
+        _proy_upd_nombre = _proy_upd.nombre.strip() if _proy_upd and _proy_upd.nombre else ''
+        if (_proy_upd_nombre == 'PEXT'
+                and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
+                and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
+            return jsonify({'error': 'Este WO est\u00e1 finalizado y no puede editarse. Contacta al supervisor o administrador.'}), 403
+
+        
+        # N° ORDEN correlativo: no editable una vez asignado
+        if field == 'N° ORDEN':
+            cur_ord = str(row_dict.get('N° ORDEN', '') or '').strip()
+            if cur_ord and str(value).strip() != cur_ord and session.get('rol') not in ('zeno', 'suport'):
+                return jsonify({'error': 'El N° de orden es correlativo automático y no se puede editar.'}), 403
+        # Combustible: el gestor solo puede completar información pendiente (campos
+        # vacíos); los campos ya registrados solo los edita el admin.
+        proy_obj = db.session.get(Proyecto, pid)
+        proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
+        if proy_nombre == 'Combustible':
+            valor_actual = str(row_dict.get(field, '') or '').strip()
+            if session.get('rol') not in ('zeno', 'suport') and valor_actual:
+                return jsonify({'error': f'El campo {field} ya está registrado. Solo el administrador puede editarlo.'}), 403
+            if field == 'GESTOR':
+                return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró el movimiento.'}), 400
+            # WO NUMBER libre: acepta cualquier código (vacío = CM PENDIENTE).
+            if field in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO', 'FECHA'):
+                if field == 'FECHA':
+                    # Normalizar formato para que el orden cronológico no se rompa
+                    value = _combustible_fecha_norm(value)
+                old_gen = str(row_dict.get('QR ASIGNADO', '')).strip()
+                new_gen = str(value if field == 'QR ASIGNADO' else row_dict.get('QR ASIGNADO', '')).strip()
+                new_mov = str(value if field == 'MOVIMIENTO' else row_dict.get('MOVIMIENTO', '')).strip().upper()
+                new_gal = _parse_galones(value if field == 'GALONES' else row_dict.get('GALONES'))
+                new_fec = _combustible_fecha_norm(value if field == 'FECHA' else row_dict.get('FECHA', ''))
+                nuevo = {'key': str(key_val), 'fecha': new_fec, 'mov': new_mov, 'gal': new_gal}
+                # Simulación cronológica: el cambio no puede dejar en negativo
+                # ni el generador origen (si el QR cambia o el INGRESO se reduce)
+                # ni el generador destino.
+                gens_chequear = {old_gen, new_gen} - {''}
+                for _g in gens_chequear:
+                    _filas = [f for f in _combustible_filas_gen(pid, _g)
+                              if str(f.get('key')) != str(key_val)]
+                    if _g == new_gen and new_gen:
+                        _filas.append(dict(nuevo))
+                        _filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+                    _ok, _info = _combustible_chequear(_filas)
+                    if not _ok:
+                        return jsonify({'error': (
+                            'No hay saldo disponible para este cambio. '
+                            f"QR {_g}: al {_info.get('fecha', '')} el saldo quedaría en "
+                            f"{_info.get('saldo', 0):g} galones. "
+                            'Revise el INGRESO correspondiente antes de editar.')}), 400
+
+        # Cotizaciones: GESTOR y la llave (N° COTIZACION) no se editan; una vez
+        # GENERADA, solo el admin puede corregir, salvo NUMERO WO cuando está en CM-PENDIENTE.
+        if proy_nombre == 'Cotizaciones':
+            if field == 'GESTOR':
+                valor_gestor = str(row_dict.get('GESTOR', '') or '').strip()
+                if valor_gestor and str(value).strip() != valor_gestor and session.get('rol') not in ('zeno', 'suport'):
+                    return jsonify({'error': 'El campo GESTOR no se puede editar. Es quien registró la cotización.'}), 400
+                elif not valor_gestor:
+                    pass
+                else:
+                    return jsonify({'success': True})
+            if field == 'N° COTIZACION':
+                if str(value).strip() != str(key_val).strip():
+                    return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
+                else:
+                    return jsonify({'success': True})
+            if session.get('rol') not in ('zeno', 'suport') and str(row_dict.get('GENERADA', '') or '') == '1':
+                if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
+                    pass
+                else:
+                    return jsonify({'error': 'Esta cotización ya fue GENERADA y está bloqueada. Solo el administrador puede editarla.'}), 403
+        
+        # Guardar en el historial de cambios (solo si el valor realmente cambió)
+        valor_anterior = row_dict.get(field, '')
+        if str(valor_anterior) != str(value):
+            historial = HistorialCambios(
+                proyecto_id=pid,
+                usuario_id=session.get('user_id'),
+                username=session.get('username'),
+                key_value=str(key_val),
+                campo_modificado=field,
+                valor_anterior=str(valor_anterior),
+                valor_nuevo=str(value)
+            )
+            db.session.add(historial)
+            if str(field).strip() == 'Estado de la tarea (WO State)':
+                row_dict['FECHA CAMBIO ESTADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        
+        row_dict[field] = value
+        row_dict['_ultimo_usuario_manual'] = session.get('username')
+        row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        row_dict['EDITADO POR'] = session.get('username')
+        # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
+        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+            row_dict['GESTOR'] = session.get('username')
+        
+        # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
+        tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
+        for t in tablas:
+            t_cols = [c.strip() for c in t.columna_criterio.split(',')]
+            t_vals = [v.strip() for v in t.valor_criterio.split(',')]
+            
+            match = True
+            for c, v in zip(t_cols, t_vals):
+                if str(row_dict.get(c, '')) != v:
+                    match = False
+                    break
+            if match:
+                row_dict[t.nueva_columna] = t.nuevo_valor
+
+        # --- Re-apply Reglas de Estado Manual ---
+        reglas_manuales = ReglaEstadoManual.query.filter_by(proyecto_id=pid).all()
+        for r in reglas_manuales:
+            r_cols = [c.strip() for c in r.columna_criterio.split(',')]
+            r_vals = [v.strip() for v in r.valor_criterio.split(',')]
+            
+            match = True
+            for c, v in zip(r_cols, r_vals):
+                if str(row_dict.get(c, '')) != v:
+                    match = False
+                    break
+            if match:
+                row_dict[r.columna_manual] = r.nuevo_valor
+
+        record.data_json = safe_json_dumps(row_dict)
+        # FLM <-> FLM (old): propaga el campo editado al CM espejo del otro proyecto.
+        _sync_metas = {
+            '_ultimo_usuario_manual': row_dict.get('_ultimo_usuario_manual'),
+            '_fecha_ultima_act_manual': row_dict.get('_fecha_ultima_act_manual'),
+            'EDITADO POR': row_dict.get('EDITADO POR'),
+            'FECHA CAMBIO ESTADO': row_dict.get('FECHA CAMBIO ESTADO'),
+            'GESTOR': row_dict.get('GESTOR'),
+        }
+        _flm_sync_campos(pid, key_val, {field: value}, _sync_metas)
+        db.session.commit()
+        
+        # Inject KPI calculations for instant feedback
+        rows_injected, _ = inject_kpis(pid, [row_dict])
+        final_row = rows_injected[0]
+        
+        # Update schema if new tracking columns
+        config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+        if config_schema:
+            schema_cols = set(json.loads(config_schema.valor))
+            nuevas_cols = {'_ultimo_usuario_manual', '_fecha_ultima_act_manual', 'EDITADO POR'}
+            if not nuevas_cols.issubset(schema_cols):
+                updated_schema = list(schema_cols.union(nuevas_cols))
+                config_schema.valor = safe_json_dumps(updated_schema)
+                db.session.commit()
+        
+        return jsonify({'success': True, 'newData': final_row})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rows/edit_key', methods=['POST'])
+@login_required
+def api_rows_edit_key():
+    if session.get('rol') != 'zeno':
+        return jsonify({'error': 'Solo Zeno puede editar la clave principal (código/WO) de un registro.'}), 403
+    
+    pid = session.get('current_proyecto_id')
+    data = request.json
+    old_key = str(data.get('old_key', '')).strip()
+    new_key = str(data.get('new_key', '')).strip()
+    
+    if not old_key or not new_key:
+        return jsonify({'error': 'Faltan datos.'}), 400
+        
+    if NucleusData.query.filter_by(proyecto_id=pid, key_value=new_key).first():
+        return jsonify({'error': 'El nuevo código/WO ya existe.'}), 400
+        
+    try:
+        rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=old_key).first()
+        if not rec:
+            return jsonify({'error': 'Registro no encontrado.'}), 404
+            
+        rec.key_value = new_key
+        
+        import json
+        d = json.loads(rec.data_json)
+        # Actualizar dentro del JSON si la clave vieja coincide
+        for k, v in d.items():
+            if str(v).strip() == old_key:
+                d[k] = new_key
+        rec.data_json = json.dumps(d, ensure_ascii=False)
+        
+        NucleusHistory.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
+        HistorialCambios.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
+        Cotizacion.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
+
+        # FLM <-> FLM (old): renombrar el mismo CM en el proyecto hermano para
+        # no perder el vínculo de sincronización entre ambos.
+        _rec_her = _flm_registro_hermano(pid, old_key)
+        if _rec_her is not None:
+            _rec_her.key_value = new_key
+            try:
+                _d_her = json.loads(_rec_her.data_json)
+            except Exception:
+                _d_her = {}
+            for k, v in _d_her.items():
+                if str(v).strip() == old_key:
+                    _d_her[k] = new_key
+            _rec_her.data_json = json.dumps(_d_her, ensure_ascii=False)
+            NucleusHistory.query.filter_by(proyecto_id=_rec_her.proyecto_id, key_value=old_key).update({'key_value': new_key})
+            HistorialCambios.query.filter_by(proyecto_id=_rec_her.proyecto_id, key_value=old_key).update({'key_value': new_key})
+            Cotizacion.query.filter_by(proyecto_id=_rec_her.proyecto_id, key_value=old_key).update({'key_value': new_key})
+        
+        db.session.commit()
+        return jsonify({'success': True, 'new_key': new_key})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rows/add', methods=['POST'])
+@login_required
+def api_rows_add():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'contrata':
+        return jsonify({'error': 'El rol Contrata no puede añadir nuevos registros.'}), 403
+    _proy_chk = db.session.get(Proyecto, pid)
+    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+        return jsonify({'error': 'Solo supervisor o admin puede añadir sites.'}), 403
+    try:
+        data = request.json
+        key_val = str(data.get('key', '')).strip()
+        
+        # Auto-generate key if none provided (proyecto sin clave primaria definida)
+        if not key_val:
+            existing = NucleusData.query.filter_by(proyecto_id=pid).all()
+            nums = []
+            for rec in existing:
+                try:
+                    nums.append(int(float(rec.key_value)))
+                except (ValueError, TypeError):
+                    pass
+            key_val = str(max(nums) + 1) if nums else '1'
+        else:
+            # Check duplicate
+            exists = NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first()
+            if exists: return jsonify({'error': f'El registro con ID {key_val} ya existe.'}), 400
+        
+        # Create record (with optional full data)
+        row_data = data.get('data') or {}
+        if not isinstance(row_data, dict):
+            row_data = {}
+
+        # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
+        proy_obj = db.session.get(Proyecto, pid)
+        proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
+        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'PEXT'):
+            return jsonify({'error': 'El rol Contrata no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
+        if proy_nombre == 'Combustible':
+            row_data['GESTOR'] = session.get('username', '')
+            mov = str(row_data.get('MOVIMIENTO', '')).strip().upper()
+            gen = str(row_data.get('QR ASIGNADO', '')).strip()
+            gal = row_data.get('GALONES')
+            if mov == 'GASTO':
+                try:
+                    gal_n = float(str(gal or '').replace(',', '.').strip())
+                except (ValueError, TypeError):
+                    return jsonify({'error': 'Ingrese la cantidad de GALONES.'}), 400
+                if not gen:
+                    return jsonify({'error': 'Seleccione el QR ASIGNADO.'}), 400
+                # Validación cronológica: el gasto no puede dejar en negativo
+                # ningún punto del historial del generador (ni siquiera con
+                # fecha anterior a otros movimientos ya registrados).
+                row_data['FECHA'] = _combustible_fecha_norm(row_data.get('FECHA', ''))
+                ok_g, info_g = _combustible_validar_gasto(
+                    pid, gen, row_data.get('FECHA', ''), gal_n)
+                if not ok_g:
+                    return jsonify({'error': (
+                        'No hay saldo disponible para este gasto. '
+                        f"QR {gen}: al {info_g.get('fecha', '')} el saldo quedaría en "
+                        f"{info_g.get('saldo', 0):g} galones. Se intentó gastar: {gal_n:g}. "
+                        'Registre primero el INGRESO correspondiente.')}), 400
+
+        # Cotizaciones: GESTOR automático y N° COTIZACION maleable (solo se fija al generar)
+        if proy_nombre == 'Cotizaciones':
+            import re
+            from datetime import datetime as _dt
+            row_data['GESTOR'] = session.get('username', '')
+            if not str(row_data.get('CLIENTE', '') or '').strip():
+                row_data['CLIENTE'] = 'ENTEL'
+            yr = str(_dt.now().year)
+            user_coti = str(row_data.get('N° COTIZACION', '') or '').strip()
+            # Si el usuario proveyó un N° válido y no duplicado, respétalo (maleable)
+            if user_coti and re.match(r'^HW-\d{4}-\d{7}$', user_coti):
+                if not NucleusData.query.filter_by(proyecto_id=pid, key_value=user_coti).first():
+                    key_val = user_coti
+                    row_data['N° COTIZACION'] = key_val
+                else:
+                    # Duplicado -> genera siguiente
+                    user_coti = ''
+            if not user_coti or not re.match(r'^HW-\d{4}-\d{7}$', user_coti):
+                # Genera siguiente solo si no hay uno válido (al guardar sin generar, puede quedar vacío y se asignará al generar)
+                # Si viene vacío, genera igual para mantener llave única
+                cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_seq').first()
+                try:
+                    cfg_n = int(str(cfg.valor).strip()) if cfg and cfg.valor and str(cfg.valor).strip().isdigit() else 30
+                except Exception:
+                    cfg_n = 30
+                maxn = max(29, cfg_n - 1)
+                for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+                    try:
+                        d2 = json.loads(rec.data_json)
+                        k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
+                        m = re.match(r'^HW-(\d{4})-(\d{7})$', k2)
+                        if m and m.group(1) == yr:
+                            n = int(m.group(2))
+                            if n > maxn:
+                                maxn = n
+                    except Exception:
+                        continue
+                next_n = maxn + 1
+                key_val = f"HW-{yr}-{next_n:07d}"
+                row_data['N° COTIZACION'] = key_val
+                while NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first():
+                    next_n += 1
+                    key_val = f"HW-{yr}-{next_n:07d}"
+                    row_data['N° COTIZACION'] = key_val
+                try:
+                    nxt_val = str(next_n + 1)
+                    if cfg:
+                        cfg.valor = nxt_val
+                    else:
+                        db.session.add(AppConfig(proyecto_id=pid, clave='cotizacion_next_seq', valor=nxt_val))
+                except Exception:
+                    pass
+            else:
+                key_val = user_coti
+
+        # N° ORDEN correlativo para Cotizaciones y Combustible (siempre recalculado)
+        if proy_nombre in ('Cotizaciones', 'Combustible'):
+            max_ord = 0
+            for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+                try:
+                    d2 = json.loads(rec.data_json)
+                    v = str(d2.get('N° ORDEN', '') or '').strip()
+                    if v.isdigit():
+                        max_ord = max(max_ord, int(v))
+                except Exception:
+                    continue
+            row_data['N° ORDEN'] = str(max_ord + 1)
+
+        # Alta manual de WO (FLM/PEXT) por el gestor: exige el CM, fija CATEGORY,
+        # aplica TablaMaestra (ej: Hrs Respuesta según Fault Level) y deja rastro
+        # en historial + esquema para que el WO se consolide en tabla/KPIs.
+        if proy_nombre in ('FLM', 'PEXT'):
+            if not key_val:
+                return jsonify({'error': 'Ingrese el Número de WO (ej: CM-20260719-00000014).'}), 400
+            if not str(row_data.get('CATEGORY', '') or '').strip():
+                row_data['CATEGORY'] = 'O&M CRM' if proy_nombre == 'FLM' else 'O&M PEXT'
+            pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+            pk_col = str(pk_cfg.valor or '').strip() if pk_cfg else ''
+            if pk_col:
+                row_data[pk_col] = key_val
+            row_data['_ultimo_usuario_manual'] = session.get('username', '')
+            row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            row_data['EDITADO POR'] = session.get('username', '')
+            # FLM/PEXT: GESTOR = quien registra/edita; el admin no cuenta.
+            if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+                row_data['GESTOR'] = session.get('username', '')
+            for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
+                t_cols = [c.strip() for c in t.columna_criterio.split(',')]
+                t_vals = [v.strip() for v in t.valor_criterio.split(',')]
+                if all(str(row_data.get(c, '')) == v for c, v in zip(t_cols, t_vals)):
+                    row_data[t.nueva_columna] = t.nuevo_valor
+
+        # Proyectos manuales (Material, Dataper, SITE, Generadores, etc.): la PK debe quedar
+        # también dentro del JSON, no solo como key_value. /api/wo/meta y otros lectores
+        # hacen d.get('COD_MATERIAL') — si no está, el desplegable sale sin [código].
+        if proy_nombre not in ('FLM', 'PEXT'):
+            try:
+                _pk_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+                _pk_col2 = str(_pk_cfg2.valor or '').strip() if _pk_cfg2 else ''
+                if _pk_col2 and _pk_col2 not in row_data:
+                    row_data[_pk_col2] = key_val
+            except Exception:
+                pass
+
+        new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=json.dumps(row_data))
+        db.session.add(new_record)
+        db.session.commit()
+
+        if proy_nombre in ('FLM', 'PEXT'):
+            db.session.add(HistorialCambios(
+                proyecto_id=pid, usuario_id=session.get('user_id'), username=session.get('username'),
+                key_value=key_val, campo_modificado='CREACIÓN',
+                valor_anterior='', valor_nuevo=key_val, fecha=datetime.utcnow()))
+            schema_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+            try:
+                schema_cols = set(json.loads(schema_cfg.valor) if schema_cfg and schema_cfg.valor else [])
+            except Exception:
+                schema_cols = set()
+            nuevas = {k for k in row_data.keys()
+                      if k and not str(k).startswith('_') and not str(k).startswith('KPI_')
+                      and not str(k).startswith('COTIZACION_') and k != 'MATERIALES'}
+            if not nuevas.issubset(schema_cols):
+                merged = schema_cols.union(nuevas)
+                if schema_cfg:
+                    schema_cfg.valor = safe_json_dumps(list(merged))
+                else:
+                    db.session.add(AppConfig(proyecto_id=pid, clave='app_schema', valor=safe_json_dumps(list(merged))))
+            db.session.commit()
+
+        return jsonify({'success': True, 'key': key_val})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rows/delete', methods=['POST'])
+@login_required
+def api_rows_delete():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'No tienes permisos para eliminar registros. Solo Zeno y Suport pueden hacerlo.'}), 403
+    
+    pid = session.get('current_proyecto_id')
+    if not pid: return jsonify({'error': 'No hay proyecto seleccionado'}), 400
+    
+    proy = Proyecto.query.get(pid)
+    proy_nombre = proy.nombre if proy else ''
+    
+    try:
+        data = request.json
+        keys = data.get('keys', [])
+        if not isinstance(keys, list):
+            return jsonify({'error': 'Formato inválido: keys debe ser una lista.'}), 400
+        # Normalizar: strings no vacíos, sin duplicados
+        keys = [str(k).strip() for k in keys if str(k or '').strip()]
+        keys = list(dict.fromkeys(keys))  # dedup preservando orden
+        if not keys: return jsonify({'error': 'No se especificaron registros para eliminar'}), 400
+        
+        # Combustible: eliminar un INGRESO (o cualquier movimiento) no puede
+        # dejar en negativo el historial del generador.
+        if proy_nombre == 'Combustible':
+            _a_borrar = NucleusData.query.filter(
+                NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).all()
+            _por_gen = {}
+            for _r in _a_borrar:
+                try:
+                    _d = json.loads(_r.data_json)
+                except Exception:
+                    continue
+                _g = str(_d.get('QR ASIGNADO', '')).strip()
+                if _g:
+                    _por_gen.setdefault(_g, set()).add(str(_r.key_value))
+            for _g, _keys_g in _por_gen.items():
+                _filas = [f for f in _combustible_filas_gen(pid, _g)
+                          if str(f.get('key')) not in _keys_g]
+                _ok, _info = _combustible_chequear(_filas)
+                if not _ok:
+                    return jsonify({'error': (
+                        'No se puede eliminar: ese movimiento sostiene el saldo del '
+                        f"QR {_g}. Al {_info.get('fecha', '')} el saldo quedaría en "
+                        f"{_info.get('saldo', 0):g} galones. "
+                        'Elimine primero los GASTOS posteriores que dependen de él.')}), 400
+
+        # Delete records
+        NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).delete(synchronize_session=False)
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# --- WO DETAIL (Modal de detalle del registro) ---
+@app.route('/api/combustible/por_wo', methods=['GET'])
+@login_required
+def api_combustible_por_wo():
+    """Movimientos de Combustible (INGRESO/GASTO) asociados al WO (campo WO NUMBER)."""
+    wo = request.args.get('wo', '').strip()
+    if not wo:
+        return jsonify({'movimientos': []})
+    try:
+        comb_proy = Proyecto.query.filter_by(nombre='Combustible').first()
+        if not comb_proy:
+            return jsonify({'movimientos': []})
+        rows = []
+        for r in NucleusData.query.filter_by(proyecto_id=comb_proy.id).all():
+            try:
+                d = json.loads(r.data_json)
+            except Exception:
+                continue
+            if str(d.get('WO NUMBER', '')).strip() != wo:
+                continue
+            d['_key'] = r.key_value
+            rows.append(d)
+        rows.sort(key=lambda d: (str(d.get('FECHA', '') or ''), str(d.get('_key', '') or '')))
+        return jsonify({'movimientos': rows})
+    except Exception:
+        return jsonify({'movimientos': []})
+
+@app.route('/api/wo/meta', methods=['GET'])
+@login_required
+def api_wo_meta():
+    pid = session.get('current_proyecto_id')
+    proy_obj = db.session.get(Proyecto, pid) if pid else None
+    proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
+    try:
+        # Opciones de SERVICIO (configurables por proyecto)
+        scfg = AppConfig.query.filter_by(proyecto_id=pid, clave='servicio_opciones').first()
+        if scfg:
+            try:
+                servicios = json.loads(scfg.valor)
+                if not isinstance(servicios, list):
+                    servicios = []
+            except Exception:
+                servicios = []
+        else:
+            servicios = ['PREVENTIVO', 'CORRECTIVO', 'PREDICTIVO', 'ABASTECIMIENTO DE COMBUSTIBLE',
+                         'ADICIONALES', 'CORTE PROGRAMADO', 'TRABAJO PROGRAMADO']
+
+        # Técnicos: se unen DOS fuentes para que el desplegable nunca quede vacío:
+        #  (1) tabla `tecnicos` declarada en el panel de administración — proyecto
+        #      actual y su hermano FLM / FLM (old) (comparten el mismo equipo);
+        #  (2) Dataper (histórico): técnicos ACTIVOS cuyo PROYECTO coincida con la
+        #      familia del proyecto actual (FLM y FLM (old) cuentan como la misma).
+        # Se deduplica por nombre; si una fuente trae la contrata y la otra no, se conserva.
+        _tec_map = {}
+
+        def _add_tec(nombre, contrata):
+            nom = str(nombre or '').strip()
+            if not nom:
+                return
+            k = nom.lower()
+            reg = _tec_map.get(k)
+            if reg is None:
+                _tec_map[k] = {'nombre': nom, 'contrata': str(contrata or '').strip()}
+            elif not reg['contrata'] and str(contrata or '').strip():
+                reg['contrata'] = str(contrata or '').strip()
+
+        # (1) Declarados en el admin (proyecto actual + hermano FLM)
+        _tec_pids = [pid] if pid else []
+        _hermano = _flm_hermano_id(pid) if pid else None
+        if _hermano:
+            _tec_pids.append(_hermano)
+        if _tec_pids:
+            for t in Tecnico.query.filter(Tecnico.proyecto_id.in_(_tec_pids)).all():
+                _add_tec(t.nombre, t.contrata)
+        elif not pid:
+            for t in Tecnico.query.all():
+                _add_tec(t.nombre, t.contrata)
+
+        # (2) Dataper activos por familia de proyecto
+        _nombres_ok = set()
+        if proy_nombre:
+            _nombres_ok.add(proy_nombre.upper())
+            if proy_nombre.upper() in ('FLM', 'FLM (OLD)'):
+                _nombres_ok.update({'FLM', 'FLM (OLD)'})
+        dataper = Proyecto.query.filter_by(nombre='Dataper').first()
+        if dataper:
+            for r in NucleusData.query.filter_by(proyecto_id=dataper.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                est = str(d.get('ESTADO') or '').strip().upper()
+                if est and est != 'ACTIVO':
+                    continue
+                pr = str(d.get('PROYECTO') or '').strip().upper()
+                if _nombres_ok and pr and pr not in _nombres_ok:
+                    continue
+                _add_tec(d.get('TECNICO'), d.get('CONTRATA'))
+
+        tecnicos = sorted(_tec_map.values(), key=lambda x: x['nombre'])
+
+        # Materiales desde MATERIAL, filtrados por el PROYECTO actual
+        materiales = []
+        material_proy = Proyecto.query.filter_by(nombre='Material').first()
+        if material_proy:
+            seen = set()
+            for r in NucleusData.query.filter_by(proyecto_id=material_proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                pr = str(d.get('PROYECTO') or '').strip()
+                if proy_nombre and pr and pr.upper() != proy_nombre.upper():
+                    continue
+                desc = str(d.get('DESCRIPCION_MATERIAL') or '').strip()
+                if not desc or desc in seen:
+                    continue
+                seen.add(desc)
+                materiales.append({
+                    'codigo': str(d.get('COD_MATERIAL') or r.key_value or '').strip(),
+                    'descripcion': desc,
+                    'tipo': str(d.get('TIPO') or '').strip(),
+                    'um': str(d.get('UM') or '').strip()
+                })
+        materiales.sort(key=lambda x: x['descripcion'])
+
+        return jsonify({'success': True, 'servicios': servicios, 'tecnicos': tecnicos,
+                        'materiales': materiales, 'proyecto': proy_nombre})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/detalle/opciones', methods=['GET'])
+@login_required
+def api_detalle_opciones():
+    try:
+        # Agrega valores válidos para los 5 campos del Detalle (solo admin los edita):
+        # NOMBRE DE SITE, DEPARTAMENTO, PRIORIDAD DEL SITE, PROVINCIA, DISTRITO.
+        # Se recolectan desde SITE (maestro) + Site Name + WOs (FLM/PEXT) para cubrir casos históricos.
+        nombres_set = set()
+        dept_set = set()
+        prov_set = set()
+        dist_set = set()
+        prio_set = set()
+        dept_prov_map = {}
+        prov_dist_map = {}
+        site_geo_map = {}
+        def add_norm(s): return str(s or '').strip()
+        # SITE maestro (id 9) y Site Name (id 5) + FLM/PEXT como respaldo
+        for nombre_proy in ('SITE', 'Site Name', 'FLM', 'PEXT'):
+            proy = Proyecto.query.filter_by(nombre=nombre_proy).first()
+            if not proy:
+                continue
+            for r in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+                try:
+                    d = json.loads(r.data_json)
+                except Exception:
+                    continue
+                # Normalizar claves para búsqueda insensible
+                low_map = {str(k).strip().lower(): v for k, v in d.items()}
+                # Nombre de Site
+                for k in ('nombre de site', 'nombre', 'codigo site'):
+                    v = add_norm(low_map.get(k))
+                    if v and k in ('nombre de site', 'nombre'):
+                        nombres_set.add(v)
+                        # Para SITE, guardar geo del site
+                        if nombre_proy == 'SITE':
+                            dept = add_norm(low_map.get('departamento'))
+                            prov = add_norm(low_map.get('provincia'))
+                            dist = add_norm(low_map.get('distrito'))
+                            prio = add_norm(low_map.get('prioridad'))
+                            if dept: dept_set.add(dept)
+                            if prov: prov_set.add(prov)
+                            if dist: dist_set.add(dist)
+                            if prio: prio_set.add(prio)
+                            if dept and prov:
+                                dept_prov_map.setdefault(dept, set()).add(prov)
+                            if prov and dist:
+                                prov_dist_map.setdefault(prov, set()).add(dist)
+                            site_geo_map[v] = {'departamento': dept, 'provincia': prov, 'distrito': dist, 'prioridad': prio}
+                        # Site Name no tiene geo detallado, pero igual agrega nombre
+                    elif v and k == 'codigo site' and nombre_proy in ('FLM', 'PEXT'):
+                        # No usar código como nombre, solo como fallback si falta nombre
+                        pass
+                if nombre_proy in ('FLM', 'PEXT'):
+                    for k in ('departamento', 'provincia', 'distrito', 'prioridad del site'):
+                        v = add_norm(low_map.get(k))
+                        if not v:
+                            continue
+                        if k == 'departamento': dept_set.add(v)
+                        elif k == 'provincia': prov_set.add(v)
+                        elif k == 'distrito': dist_set.add(v)
+                        elif k == 'prioridad del site': prio_set.add(v)
+                    # También mapa geo desde WOs para jerarquía adicional
+                    dept = add_norm(low_map.get('departamento'))
+                    prov = add_norm(low_map.get('provincia'))
+                    dist = add_norm(low_map.get('distrito'))
+                    if dept and prov:
+                        dept_prov_map.setdefault(dept, set()).add(prov)
+                    if prov and dist:
+                        prov_dist_map.setdefault(prov, set()).add(dist)
+        # Si aún hay pocos departamentos, completar con lista peruana conocida para no bloquear válidos nuevos
+        # Prioridad siempre restringida a P0,P0+,P1-P4
+        if not prio_set:
+            prio_set = {'P0', 'P0+', 'P1', 'P2', 'P3', 'P4'}
+        # Convertir sets a listas ordenadas
+        def s2l(s): return sorted(s, key=lambda x: x.lower())
+        return jsonify({'success': True,
+                        'nombres': s2l(nombres_set),
+                        'departamentos': s2l(dept_set),
+                        'provincias': s2l(prov_set),
+                        'distritos': s2l(dist_set),
+                        'prioridades': s2l(prio_set),
+                        'dept_prov_map': {k: s2l(v) for k, v in dept_prov_map.items()},
+                        'prov_dist_map': {k: s2l(v) for k, v in prov_dist_map.items()},
+                        'site_geo_map': site_geo_map})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/wo/servicios', methods=['POST'])
+@login_required
+def api_wo_servicios():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') not in ['zeno', 'suport', 'supervisor']:
+        return jsonify({'error': 'No tienes permisos para editar servicios.'}), 403
+    try:
+        data = request.json or {}
+        opciones = data.get('opciones', [])
+        if not isinstance(opciones, list):
+            return jsonify({'error': 'Formato inválido'}), 400
+        opciones = [str(o).strip() for o in opciones if str(o).strip()]
+        scfg = AppConfig.query.filter_by(proyecto_id=pid, clave='servicio_opciones').first()
+        if scfg:
+            scfg.valor = json.dumps(opciones, ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='servicio_opciones', valor=json.dumps(opciones, ensure_ascii=False)))
+        db.session.commit()
+        return jsonify({'success': True, 'servicios': opciones})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/wo/historial', methods=['GET'])
+@login_required
+def api_wo_historial():
+    # Estado e Historial del WO: solo visible para admin.
+    if str(session.get('rol') or '').strip().lower() != 'admin':
+        return jsonify({'error': 'Solo el administrador puede ver el historial.'}), 403
+    pid = session.get('current_proyecto_id')
+    key_val = (request.args.get('key') or '').strip()
+    if not key_val:
+        return jsonify({'error': 'Falta el identificador del WO'}), 400
+    try:
+        rows = (HistorialCambios.query
+                .filter_by(proyecto_id=pid, key_value=key_val)
+                .order_by(HistorialCambios.fecha.desc(), HistorialCambios.id.desc())
+                .all())
+        items = [{
+            'campo': h.campo_modificado,
+            'valor_anterior': h.valor_anterior or '',
+            'valor_nuevo': h.valor_nuevo or '',
+            'username': h.username,
+            # La fecha se guarda en UTC y se convierte a hora de Perú (UTC-5).
+            'fecha': (h.fecha - timedelta(hours=5)).isoformat() if h.fecha else None
+        } for h in rows]
+        return jsonify({'success': True, 'historial': items})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/rows/bulk_update', methods=['POST'])
+@login_required
+def api_rows_bulk_update():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para actualizar datos.'}), 403
+    try:
+        data = request.json
+        key_val = data.get('key')
+        updates = data.get('data')
+        if not key_val or not isinstance(updates, dict):
+            return jsonify({'error': 'Datos incompletos'}), 400
+        record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
+        if not record: return jsonify({'error': 'Registro no encontrado'}), 404
+        row_dict = json.loads(record.data_json)
+        old_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
+
+        # Combustible: la edición masiva tampoco puede dejar saldos negativos.
+        _proy_bulk = db.session.get(Proyecto, pid) if pid else None
+        _proy_bulk_nombre = _proy_bulk.nombre.strip() if _proy_bulk and _proy_bulk.nombre else ''
+
+        # WO enviado a aprobación: el rol Contrata ya no puede modificarlo.
+        if (session.get('rol') == 'contrata' and _proy_bulk_nombre in ('FLM', 'FLM (old)', 'PEXT')
+                and str(row_dict.get('_ENVIADO_APROBACION', '')).strip() == '1'):
+            return jsonify({'error': 'Este WO ya fue enviado a aprobaci\u00f3n y no puede editarse. Contacta al personal administrativo.'}), 403
+
+        # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
+        if (_proy_bulk_nombre == 'PEXT'
+                and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
+                and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
+            return jsonify({'error': 'Este WO est\u00e1 finalizado y no puede editarse. Contacta al supervisor o administrador.'}), 403
+
+        # Bitácora es solo para el personal (admin/supervisor/gestor), no para Contrata:
+        # el rol Contrata jamás envía ni modifica BITACORA / entradas de bitácora.
+        if session.get('rol') == 'contrata':
+            updates.pop('BITACORA', None)
+            updates.pop('_BITACORA_ENTRY', None)
+
+        # PEXT: cada guardado con texto en Bitácora agrega una entrada {texto, usuario,
+        # fecha} a la pestaña Bitácora. La clave se consume siempre (sin persistirse).
+        if '_BITACORA_ENTRY' in updates:
+            _bit_txt = str(updates.pop('_BITACORA_ENTRY') or '').strip()
+            if _proy_bulk_nombre == 'PEXT' and _bit_txt:
+                _entradas = row_dict.get('_BITACORA_ENTRIES')
+                if isinstance(_entradas, str):
+                    try:
+                        _entradas = json.loads(_entradas)
+                    except Exception:
+                        _entradas = []
+                if not isinstance(_entradas, list):
+                    _entradas = []
+                _entradas.append({
+                    'texto': _bit_txt,
+                    'usuario': session.get('username') or '',
+                    'fecha': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                })
+                row_dict['_BITACORA_ENTRIES'] = _entradas
+
+        if _proy_bulk_nombre == 'Combustible' and any(
+                k in ('MOVIMIENTO', 'GALONES', 'QR ASIGNADO', 'FECHA') for k in updates.keys()):
+            _old_gen = str(row_dict.get('QR ASIGNADO', '')).strip()
+            _new_gen = str(updates.get('QR ASIGNADO', row_dict.get('QR ASIGNADO', ''))).strip()
+            _new_mov = str(updates.get('MOVIMIENTO', row_dict.get('MOVIMIENTO', ''))).strip().upper()
+            _new_gal = _parse_galones(updates.get('GALONES', row_dict.get('GALONES')))
+            _new_fec = _combustible_fecha_norm(updates.get('FECHA', row_dict.get('FECHA', '')))
+            if 'FECHA' in updates:
+                updates['FECHA'] = _new_fec
+            _nuevo = {'key': str(key_val), 'fecha': _new_fec, 'mov': _new_mov, 'gal': _new_gal}
+            for _g in ({_old_gen, _new_gen} - {''}):
+                _filas = [f for f in _combustible_filas_gen(pid, _g)
+                          if str(f.get('key')) != str(key_val)]
+                if _g == _new_gen and _new_gen:
+                    _filas.append(dict(_nuevo))
+                    _filas.sort(key=lambda f: (_combustible_fecha_ord(f['fecha']), str(f.get('key') or '')))
+                _ok, _info = _combustible_chequear(_filas)
+                if not _ok:
+                    return jsonify({'error': (
+                        'No hay saldo disponible para este cambio. '
+                        f"QR {_g}: al {_info.get('fecha', '')} el saldo quedaría en "
+                        f"{_info.get('saldo', 0):g} galones.")}), 400
+
+        for field, value in updates.items():
+            valor_anterior = row_dict.get(field, '')
+            if str(valor_anterior) != str(value):
+                historial = HistorialCambios(
+                    proyecto_id=pid,
+                    usuario_id=session.get('user_id'),
+                    username=session.get('username'),
+                    key_value=str(key_val),
+                    campo_modificado=field,
+                    valor_anterior=str(valor_anterior),
+                    valor_nuevo=str(value)
+                )
+                db.session.add(historial)
+            row_dict[field] = value
+        row_dict['_ultimo_usuario_manual'] = session.get('username')
+        row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        row_dict['EDITADO POR'] = session.get('username')
+        # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
+        if proy_nombre in ('FLM', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+            row_dict['GESTOR'] = session.get('username')
+
+        new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
+        if new_state and new_state != old_state:
+            row_dict['FECHA CAMBIO ESTADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+        # --- Instant Logic: TablaMaestra ---
+        tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
+        for t in tablas:
+            t_cols = [c.strip() for c in t.columna_criterio.split(',')]
+            t_vals = [v.strip() for v in t.valor_criterio.split(',')]
+            match = True
+            for c, v in zip(t_cols, t_vals):
+                if str(row_dict.get(c, '')) != v:
+                    match = False
+                    break
+            if match:
+                row_dict[t.nueva_columna] = t.nuevo_valor
+
+        # --- Instant Logic: Reglas de Estado Manual ---
+        reglas_manuales = ReglaEstadoManual.query.filter_by(proyecto_id=pid).all()
+        for r in reglas_manuales:
+            r_cols = [c.strip() for c in r.columna_criterio.split(',')]
+            r_vals = [v.strip() for v in r.valor_criterio.split(',')]
+            match = True
+            for c, v in zip(r_cols, r_vals):
+                if str(row_dict.get(c, '')) != v:
+                    match = False
+                    break
+            if match:
+                row_dict[r.columna_manual] = r.nuevo_valor
+
+        record.data_json = safe_json_dumps(row_dict)
+        # FLM <-> FLM (old): propaga al CM espejo los campos editados del payload
+        # (solo los propagables), para que la información/fotos se reflejen en el
+        # otro proyecto sin pisar columnas de esquema propio.
+        _flm_sync_campos(pid, key_val, updates, {
+            '_ultimo_usuario_manual': row_dict.get('_ultimo_usuario_manual'),
+            '_fecha_ultima_act_manual': row_dict.get('_fecha_ultima_act_manual'),
+            'EDITADO POR': row_dict.get('EDITADO POR'),
+            'FECHA CAMBIO ESTADO': row_dict.get('FECHA CAMBIO ESTADO'),
+            'GESTOR': row_dict.get('GESTOR'),
+        })
+        db.session.commit()
+
+        rows_injected, _ = inject_kpis(pid, [row_dict])
+        final_row = rows_injected[0]
+
+        # Update schema if new tracking columns
+        config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+        if config_schema:
+            schema_cols = set(json.loads(config_schema.valor))
+            nuevas_cols = {'_ultimo_usuario_manual', '_fecha_ultima_act_manual', 'FECHA CAMBIO ESTADO', 'EDITADO POR'}
+            if not nuevas_cols.issubset(schema_cols):
+                updated_schema = list(schema_cols.union(nuevas_cols))
+                config_schema.valor = safe_json_dumps(updated_schema)
+                db.session.commit()
+
+        return jsonify({'success': True, 'newData': final_row})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/rows/finalizar', methods=['POST'])
+@login_required
+def api_rows_finalizar():
+    """Finaliza (o revierte) un WO de PEXT. Guarda _FINALIZADO='1'/'0' en data_json.
+    Revertir solo lo puede hacer zeno/suport/supervisor."""
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos.'}), 403
+    try:
+        data = request.json
+        key_val = data.get('key')
+        finalizado = data.get('finalizado', True)  # True = finalizar, False = revertir
+        if not key_val:
+            return jsonify({'error': 'Falta la clave del registro.'}), 400
+
+        # Solo proyecto PEXT
+        proy = db.session.get(Proyecto, pid)
+        if not proy or proy.nombre.strip() != 'PEXT':
+            return jsonify({'error': 'Esta acci\u00f3n solo est\u00e1 disponible en el proyecto PEXT.'}), 403
+
+        # Revertir: solo roles privilegiados
+        if not finalizado and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+            return jsonify({'error': 'Solo el supervisor o administrador puede desbloquear un WO finalizado.'}), 403
+
+        record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
+        if not record:
+            return jsonify({'error': 'Registro no encontrado.'}), 404
+
+        row_dict = json.loads(record.data_json)
+        nuevo_estado = '1' if finalizado else '0'
+        estado_anterior = str(row_dict.get('_FINALIZADO', '0')).strip()
+
+        if estado_anterior == nuevo_estado:
+            return jsonify({'success': True, 'newData': row_dict, 'message': 'Sin cambios.'})  # idempotente
+
+        # Historial
+        historial = HistorialCambios(
+            proyecto_id=pid,
+            usuario_id=session.get('user_id'),
+            username=session.get('username'),
+            key_value=str(key_val),
+            campo_modificado='_FINALIZADO',
+            valor_anterior=estado_anterior,
+            valor_nuevo=nuevo_estado
+        )
+        db.session.add(historial)
+
+        row_dict['_FINALIZADO'] = nuevo_estado
+        row_dict['_FINALIZADO_POR'] = session.get('username') if finalizado else ''
+        row_dict['_FINALIZADO_FECHA'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') if finalizado else ''
+        record.data_json = safe_json_dumps(row_dict)
+        db.session.commit()
+
+        rows_injected, _ = inject_kpis(pid, [row_dict])
+        return jsonify({'success': True, 'newData': rows_injected[0]})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/config/init_manual', methods=['POST'])
+@login_required
+def api_config_init_manual():
+    pid = session.get('current_proyecto_id')
+    if session.get('rol') not in ['zeno', 'suport', 'supervisor']:
+        return jsonify({'error': 'No tienes permisos para inicializar proyectos.'}), 403
+    try:
+        data = request.json
+        pk_name = str(data.get('primary_key', '')).strip()
+        if not pk_name: return jsonify({'error': 'El nombre de la columna principal es requerido.'}), 400
+        
+        # Initialize Primary Key and empty Schema
+        config_pk = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+        if config_pk:
+            config_pk.valor = pk_name
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave='primary_key', valor=pk_name))
+            
+        config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+        if not config_schema:
+            db.session.add(AppConfig(proyecto_id=pid, clave='app_schema', valor=json.dumps([])))
+            
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/clean', methods=['POST'])
+@login_required
+def api_clean():
+    if session.get('rol') in ['contrata', 'gestor', 'demo']:
+        return jsonify({'error': 'No tienes permisos para esta acción.'}), 403
+        
+    pid = session.get('current_proyecto_id')
+    try:
+        NucleusData.query.filter_by(proyecto_id=pid).delete()
+        AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').delete()
+        AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').delete()
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+# --- Evidencia fotográfica (Tiempo Inicio / Proceso / Cierre) ---
+EVIDENCIA_TIPOS = ('inicio', 'proceso', 'cierre')
+EVIDENCIA_MAX_POR_TIPO = 5
+# PEXT: reporte fotográfico estilo Excel de 26 fotografías (solo PEXT usa 'pex').
+EVIDENCIA_MAX_PEX = 26
+# Resguardo: 2 fotos (inicio / fin) en pestaña propia antes de Evidencia
+EVIDENCIA_TIPO_RESGUARDO = 'resguardo'
+EVIDENCIA_MAX_RESGUARDO = 2
+EVIDENCIA_EXT_ALLOWED = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic'}
+
+# Plantilla del reporte fotográfico de PEXT (formato del Excel del cliente).
+PEX_REPORTE_XLSX = os.path.join(BASE_DIR, 'REPORTE FOTOGRAFICO _ CORRECTIVOS.xlsx')
+
+# Slots del reporte: (titulo, observacion por defecto). 13 pares (izq/der) = 26.
+PEX_SLOTS = [
+    ("FOTOGRAFIA 01 - ACTIVACION DE CUADRILLA", "Foto de cuadrilla y vehiculo"),
+    ("FOTOGRAFIA 03 - INICIO DE MOVILIZACION", "Foto de recorrido hacia el punto de averia"),
+    ("FOTOGRAFIA 05 - REPORTE DE INCIDENCIA", "Foto de la infraestructura antes de intervenir"),
+    ("FOTOGRAFIA 07 - DIAGNOSTICO", "Falla encontrada, elemento afectado y/o causa preliminar"),
+    ("FOTOGRAFIA 09 - PRUEBAS INICIALES", "Potencia, OTDR/VFL"),
+    ("FOTOGRAFIA 11 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 13 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 17 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 19 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 21 - PRUEBAS FINALES", "Valores de Potencia y OTDR posterior al correctivo."),
+    ("FOTOGRAFIA 23 - SERVICIO EN UP", ""),
+    ("FOTOGRAFIA 25 - CIERRE DEL SITE", "Puertas, camaras, mufas, NAP, etc correctamente cerradas"),
+    ("FOTOGRAFIA 27 - DEVOLUCION DE LLAVE", ""),
+    ("FOTOGRAFIA 02 - RECOJO DE LLAVES", "Foto de llave + registro de entrega"),
+    ("FOTOGRAFIA 04 - ARRIVO AL PUNTO", "Foto de llegada al Site"),
+    ("FOTOGRAFIA 06 - REPORTE DE INCIDENCIA", "Foto de la infraestructura antes de intervenir"),
+    ("FOTOGRAFIA 08 - DIAGNOSTICO", "Detallar falla encontrada, elemento afectado y/o causa preliminar"),
+    ("FOTOGRAFIA 10 - PRUEBAS INICIALES", "Potencia, OTDR/VFL"),
+    ("FOTOGRAFIA 12 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 14 - EJECUCION DEL CORRECTIVO", "Detallar actividades realizadas"),
+    ("FOTOGRAFIA 18 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 20 - MATERIAL UTILIZADO", "Describir el material utilizado"),
+    ("FOTOGRAFIA 22 - PRUEBAS FINALES", "Valores de Potencia y OTDR posterior al correctivo."),
+    ("FOTOGRAFIA 24 - ORDEN Y LIMPIEZA", ""),
+    ("FOTOGRAFIA 26 - CIERRE DEL SITE", "Puertas, camaras, mufas, NAP, etc correctamente cerradas"),
+    ("FOTOGRAFIA 25 - CIERRE DE ATENCION", ""),
+]
+# Celda donde anclar la foto en cada slot (misma posición que el Excel).
+PEX_ANCHORS = (
+    'A9', 'A18', 'A27', 'A36', 'A45', 'A54', 'A63', 'A72', 'A81', 'A90', 'A99', 'A108', 'A117',
+    'H9', 'H18', 'H27', 'H36', 'H45', 'H54', 'H63', 'H72', 'H81', 'H90', 'H99', 'H108', 'H117',
+)
+# Celda de observaciones de cada slot.
+PEX_OBS_CELLS = (
+    'A14', 'A23', 'A32', 'A41', 'A50', 'A59', 'A68', 'A77', 'A86', 'A95', 'A104', 'A113', 'A122',
+    'H14', 'H23', 'H32', 'H41', 'H50', 'H59', 'H68', 'H77', 'H86', 'H95', 'H104', 'H113', 'H122',
+)
+
+def evidencia_folder(pid, key):
+    return os.path.join(app.config['EVIDENCIA_DIR'], str(pid), secure_filename(str(key)))
+
+def evidencia_limpiar_slot(pid, key, tipo, indice):
+    folder = evidencia_folder(pid, key)
+    for old in glob.glob(os.path.join(folder, f'{tipo}_{int(indice)}.*')):
+        try:
+            os.remove(old)
+        except Exception:
+            pass
+
+def evidencia_comprimir(ruta, calidad=None, max_lado=None):
+    """Comprime y redimensiona una imagen para ahorrar almacenamiento.
+    Devuelve True si se comprimió correctamente; si no puede (ej. HEIC),
+    deja el archivo original tal cual."""
+    calidad = calidad if calidad is not None else app.config['EVIDENCIA_CALIDAD']
+    max_lado = max_lado if max_lado is not None else app.config['EVIDENCIA_MAX_LADO']
+    try:
+        img = Image.open(ruta)
+        img = ImageOps.exif_transpose(img)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGBA')
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[-1])
+            img = bg
+        else:
+            img = img.convert('RGB')
+        w, h = img.size
+        lado_max = max(w, h)
+        if lado_max > max_lado:
+            ratio = max_lado / lado_max
+            img = img.resize((max(1, int(w * ratio)), max(1, int(h * ratio))), Image.LANCZOS)
+        img.save(ruta, 'JPEG', quality=calidad, optimize=True)
+        return True
+    except Exception:
+        return False
+
+def evidencia_usa_b2():
+    return bool(app.config.get('B2_BUCKET') and app.config.get('B2_KEY_ID') and app.config.get('B2_APP_KEY'))
+
+def b2_cliente():
+    import boto3
+    endpoint = app.config['B2_ENDPOINT_URL'] or f"https://s3.{app.config['B2_REGION']}.backblazeb2.com"
+    return boto3.client(
+        's3',
+        endpoint_url=endpoint,
+        aws_access_key_id=app.config['B2_KEY_ID'],
+        aws_secret_access_key=app.config['B2_APP_KEY'],
+        region_name=app.config['B2_REGION'],
+    )
+
+def evidencia_eliminar_b2(key, tipo, indice):
+    client = b2_cliente()
+    bucket = app.config['B2_BUCKET']
+    prefix = f'{key}/{tipo}_{int(indice)}.'
+    try:
+        resp = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        for o in resp.get('Contents', []):
+            client.delete_object(Bucket=bucket, Key=o['Key'])
+    except Exception:
+        pass
+
+# --- OneDrive personal (2do backup, Microsoft Graph) ---
+OD_GRAPH_BASE = 'https://graph.microsoft.com/v1.0'
+OD_TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
+
+def _od_cuenta(num):
+    """Config de la cuenta OneDrive num (1 = principal, 2 = adicional)."""
+    if num == 1:
+        return {
+            'client_id': app.config.get('OD_CLIENT_ID', ''),
+            'client_secret': app.config.get('OD_CLIENT_SECRET', ''),
+            'refresh': app.config.get('OD_REFRESH_TOKEN', ''),
+            'enabled': app.config.get('OD_ENABLED', False),
+            'token_key': 'od_refresh_token',
+        }
+    return {
+        'client_id': app.config.get('OD_CLIENT_ID_2', ''),
+        'client_secret': app.config.get('OD_CLIENT_SECRET_2', ''),
+        'refresh': app.config.get('OD_REFRESH_TOKEN_2', ''),
+        'enabled': app.config.get('OD_ENABLED_2', False),
+        'token_key': 'od_refresh_token_2',
+    }
+
+def _od_refresh_token_guardar(valor, num=1):
+    clave = _od_cuenta(num)['token_key']
+    try:
+        fila = TokenStore.query.filter_by(clave=clave).first()
+        if fila:
+            fila.valor = valor
+        else:
+            db.session.add(TokenStore(clave=clave, valor=valor))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        app.logger.warning('OD: no se pudo persistir el refresh token')
+
+def _od_refresh_token_actual(num=1):
+    clave = _od_cuenta(num)['token_key']
+    try:
+        fila = TokenStore.query.filter_by(clave=clave).first()
+        if fila and fila.valor:
+            return fila.valor
+    except Exception:
+        pass
+    return _od_cuenta(num).get('refresh', '')
+
+def onedrive_access_token(num=1):
+    """Renueva/obtiene el access token de OneDrive. Persiste el refresh rotado."""
+    cuenta = _od_cuenta(num)
+    refresh = _od_refresh_token_actual(num)
+    if not refresh:
+        return None
+    datos = {
+        'client_id': cuenta['client_id'],
+        'grant_type': 'refresh_token',
+        'refresh_token': refresh,
+        'scope': 'Files.ReadWrite offline_access',
+    }
+    if cuenta.get('client_secret'):
+        datos['client_secret'] = cuenta['client_secret']
+    body = urllib.parse.urlencode(datos).encode('utf-8')
+    req = urllib.request.Request(OD_TOKEN_URL, data=body, method='POST')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        info = json.loads(resp.read().decode('utf-8'))
+    if info.get('refresh_token'):
+        _od_refresh_token_guardar(info['refresh_token'], num)
+    return info.get('access_token')
+
+def _od_url(ruta_remota):
+    return OD_GRAPH_BASE + '/me/drive/root:' + ruta_remota
+
+def _onedrive_subir_a(num, b2_key, ruta_local):
+    if not _od_cuenta(num).get('enabled'):
+        return False
+    token = onedrive_access_token(num)
+    if not token:
+        app.logger.warning('OD%d: sin access token, se omite el backup', num)
+        return False
+    nombre = os.path.basename(ruta_local)
+    ruta_remota = '/Nucleus/' + '/'.join(
+        urllib.parse.quote(seg, safe='') for seg in b2_key.split('/'))
+    url = _od_url(ruta_remota) + ':/content'
+    with open(ruta_local, 'rb') as f:
+        data = f.read()
+    req = urllib.request.Request(url, data=data, method='PUT')
+    req.add_header('Authorization', 'Bearer ' + token)
+    req.add_header('Content-Type', 'image/jpeg')
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        resp.read()
+    return True
+
+def onedrive_subir(b2_key, ruta_local):
+    """Sube una foto a todos los OneDrive configurados en /Nucleus/<key>/<nombre>."""
+    ok = False
+    for num in (1, 2):
+        try:
+            if _onedrive_subir_a(num, b2_key, ruta_local):
+                ok = True
+        except Exception as e:
+            app.logger.warning('OD%d subir fallo: %s', num, e)
+    return ok
+
+@app.route('/api/admin/export_zip', methods=['GET'])
+@login_required
+def api_admin_export_zip():
+    """Respaldo completo de la DB (solo datos, las fotos son archivos y no se incluyen).
+    Solo admin. Descarga un ZIP con un JSON por tabla + manifest con conteos.
+    Se excluye token_store (secretos) a propósito."""
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo admin'}), 403
+    import zipfile
+    modelos = {
+        'usuarios': Usuario, 'proyectos': Proyecto, 'app_config': AppConfig,
+        'nucleus_data': NucleusData, 'nucleus_history': NucleusHistory,
+        'filtros_maestros': FiltroMaestro, 'tablas_maestras': TablaMaestra,
+        'reglas_estado_manual': ReglaEstadoManual,
+        'accesos_proyecto': AccesoProyecto, 'kpi_configs': KpiConfig,
+        'historial_cambios': HistorialCambios, 'tecnicos': Tecnico,
+        'cotizaciones': Cotizacion,
+    }
+    fd, ruta = tempfile.mkstemp(suffix='.zip')
+    os.close(fd)
+    manifest = {'tablas': {}, 'proyecto_por_id': {}}
+    try:
+        for p in Proyecto.query.all():
+            manifest['proyecto_por_id'][str(p.id)] = p.nombre
+        with zipfile.ZipFile(ruta, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for nombre, modelo in modelos.items():
+                tiene_pid = hasattr(modelo, 'proyecto_id')
+                if tiene_pid:
+                    pids = [r[0] for r in db.session.query(modelo.proyecto_id).distinct().all()]
+                    total = 0
+                    for _pid in pids:
+                        fil = []
+                        q = modelo.query.filter_by(proyecto_id=_pid).order_by(modelo.id)
+                        offset = 0
+                        while True:
+                            lote = q.offset(offset).limit(2000).all()
+                            if not lote:
+                                break
+                            for obj in lote:
+                                d = {}
+                                for col in modelo.__table__.columns:
+                                    v = getattr(obj, col.name)
+                                    if isinstance(v, datetime):
+                                        v = v.strftime('%Y-%m-%d %H:%M:%S')
+                                    d[col.name] = v
+                                fil.append(d)
+                            offset += len(lote)
+                        zf.writestr(f'{nombre}_p{_pid}.json', json.dumps(fil, ensure_ascii=False))
+                        total += len(fil)
+                    manifest['tablas'][nombre] = total
+                else:
+                    fil = []
+                    for obj in modelo.query.order_by(modelo.id).all():
+                        d = {}
+                        for col in modelo.__table__.columns:
+                            v = getattr(obj, col.name)
+                            if isinstance(v, datetime):
+                                v = v.strftime('%Y-%m-%d %H:%M:%S')
+                            d[col.name] = v
+                        fil.append(d)
+                    zf.writestr(f'{nombre}.json', json.dumps(fil, ensure_ascii=False))
+                    manifest['tablas'][nombre] = len(fil)
+            manifest['exportado_en'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=1))
+    except Exception as e:
+        try:
+            os.remove(ruta)
+        except Exception:
+            pass
+        return jsonify({'error': str(e)}), 500
+    nombre_zip = 'respaldo_nucleus_' + datetime.utcnow().strftime('%Y%m%d_%H%M%S') + '.zip'
+    return send_from_directory(os.path.dirname(ruta), os.path.basename(ruta),
+                               as_attachment=True, download_name=nombre_zip)
+
+@app.route('/api/admin/od_reset', methods=['POST'])
+@login_required
+def api_admin_od_reset():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo admin'}), 403
+    for num in (1, 2):
+        TokenStore.query.filter_by(clave=_od_cuenta(num)['token_key']).delete()
+    db.session.commit()
+    return jsonify({'success': True, 'msg': 'Tokens OneDrive reseteados. Pon los nuevos OD_REFRESH_TOKEN en Render.'})
+
+def _onedrive_eliminar_a(num, key, tipo, indice):
+    if not _od_cuenta(num).get('enabled'):
+        return False
+    token = onedrive_access_token(num)
+    if not token:
+        return False
+    key_san = urllib.parse.quote(secure_filename(str(key)), safe='')
+    url_list = _od_url('/Nucleus/' + key_san) + ':/children'
+    prefijo = f'{tipo}_{int(indice)}.'
+    req = urllib.request.Request(url_list)
+    req.add_header('Authorization', 'Bearer ' + token)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            info = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False
+        raise
+    for item in info.get('value', []):
+        if not str(item.get('name', '')).startswith(prefijo):
+            continue
+        dreq = urllib.request.Request(
+            OD_GRAPH_BASE + '/me/drive/items/' + item['id'], method='DELETE')
+        dreq.add_header('Authorization', 'Bearer ' + token)
+        urllib.request.urlopen(dreq, timeout=60).read()
+    return True
+
+def onedrive_eliminar(key, tipo, indice):
+    """Elimina la foto del slot en todos los OneDrive configurados."""
+    ok = False
+    for num in (1, 2):
+        try:
+            if _onedrive_eliminar_a(num, key, tipo, indice):
+                ok = True
+        except Exception as e:
+            app.logger.warning('OD%d eliminar fallo: %s', num, e)
+    return ok
+
+def _evidencia_aprobacion_bloquea(pid, key):
+    """El rol Contrata no puede subir/quitar evidencia en WOs (PEXT/FLM) ya enviados a aprobación."""
+    if str(session.get('rol') or '').strip().lower() != 'contrata':
+        return False
+    proy = db.session.get(Proyecto, pid) if pid else None
+    if not proy or (proy.nombre or '').strip() not in ('FLM', 'FLM (old)', 'PEXT'):
+        return False
+    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key or '')).first()
+    if not rec:
+        return False
+    try:
+        d = json.loads(rec.data_json or '{}')
+    except Exception:
+        d = {}
+    return str(d.get('_ENVIADO_APROBACION', '')).strip() == '1'
+
+@app.route('/api/evidencia/subir', methods=['POST'])
+@login_required
+def api_evidencia_subir():
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos para subir evidencia.'}), 403
+    pid = session.get('current_proyecto_id')
+    key = (request.form.get('key') or '').strip()
+    tipo = (request.form.get('tipo') or '').strip().lower()
+    if _evidencia_aprobacion_bloquea(pid, key):
+        return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
+    try:
+        indice = int(request.form.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Índice inválido'}), 400
+    file = request.files.get('foto')
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex', EVIDENCIA_TIPO_RESGUARDO):
+        return jsonify({'error': 'Datos incompletos'}), 400
+    if tipo == 'pex':
+        max_i = _pext_max()
+    elif tipo == EVIDENCIA_TIPO_RESGUARDO:
+        max_i = EVIDENCIA_MAX_RESGUARDO
+    else:
+        max_i = EVIDENCIA_MAX_POR_TIPO
+    if indice < 0 or indice >= max_i:
+        return jsonify({'error': 'Índice fuera de rango'}), 400
+    if file is None or not file.filename:
+        return jsonify({'error': 'No se recibió ningún archivo'}), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in EVIDENCIA_EXT_ALLOWED:
+        return jsonify({'error': f'Formato no permitido: {ext}. Usa {", ".join(sorted(EVIDENCIA_EXT_ALLOWED))}'}), 400
+
+    # Guardar a un archivo temporal, comprimir y luego mover/subir.
+    fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
+    os.close(fd)
+    try:
+        file.save(ruta_tmp)
+        nombre = f'{tipo}_{indice}{ext}'
+        if evidencia_comprimir(ruta_tmp):
+            if not nombre.lower().endswith('.jpg'):
+                nueva = ruta_tmp + '.jpg'
+                os.rename(ruta_tmp, nueva)
+                ruta_tmp = nueva
+                nombre = f'{tipo}_{indice}.jpg'
+
+        if evidencia_usa_b2():
+            evidencia_eliminar_b2(key, tipo, indice)
+            b2_cliente().upload_file(ruta_tmp, app.config['B2_BUCKET'], f'{key}/{nombre}')
+        else:
+            folder = evidencia_folder(pid, key)
+            os.makedirs(folder, exist_ok=True)
+            evidencia_limpiar_slot(pid, key, tipo, indice)
+            os.replace(ruta_tmp, os.path.join(folder, nombre))
+            # FLM <-> FLM (old): replica la foto física en la carpeta del proyecto
+            # hermano para que la evidencia sea visible/eliminable desde ambos.
+            her = _flm_hermano_id(pid)
+            if her is not None:
+                her_folder = evidencia_folder(her, key)
+                os.makedirs(her_folder, exist_ok=True)
+                evidencia_limpiar_slot(her, key, tipo, indice)
+                try:
+                    import shutil
+                    shutil.copy2(os.path.join(folder, nombre), os.path.join(her_folder, nombre))
+                except Exception:
+                    pass
+
+        # 2do backup: OneDrive personal. Si falla, no interrumpe la subida principal.
+        try:
+            onedrive_subir(f'{key}/{nombre}', ruta_tmp)
+        except Exception as e:
+            app.logger.warning('OD backup fallo: %s', e)
+
+        url = f'/api/evidencia/foto/{pid}/{secure_filename(str(key))}/{nombre}?v={int(time.time())}'
+        return jsonify({'success': True, 'url': url})
+    finally:
+        if os.path.exists(ruta_tmp):
+            try:
+                os.remove(ruta_tmp)
+            except Exception:
+                pass
+
+@app.route('/api/evidencia/eliminar', methods=['POST'])
+@login_required
+def api_evidencia_eliminar():
+    if session.get('rol') == 'demo':
+        return jsonify({'error': 'Rol DEMO no tiene permisos.'}), 403
+    pid = session.get('current_proyecto_id')
+    data = request.json or {}
+    key = (data.get('key') or '').strip()
+    tipo = (data.get('tipo') or '').strip().lower()
+    if _evidencia_aprobacion_bloquea(pid, key):
+        return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
+    try:
+        indice = int(data.get('indice'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Índice inválido'}), 400
+    if not key or tipo not in EVIDENCIA_TIPOS + ('comb', 'pex', EVIDENCIA_TIPO_RESGUARDO):
+        return jsonify({'error': 'Datos incompletos'}), 400
+    if tipo == 'pex':
+        max_i = _pext_max()
+    elif tipo == EVIDENCIA_TIPO_RESGUARDO:
+        max_i = EVIDENCIA_MAX_RESGUARDO
+    else:
+        max_i = EVIDENCIA_MAX_POR_TIPO
+    if indice < 0 or indice >= max_i:
+        return jsonify({'error': 'Índice inválido'}), 400
+    # Solo admin puede borrar foto de Combustible
+    if tipo == 'comb' and session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo el administrador puede eliminar la foto.'}), 403
+    if evidencia_usa_b2():
+        evidencia_eliminar_b2(key, tipo, indice)
+    else:
+        evidencia_limpiar_slot(pid, key, tipo, indice)
+        # FLM <-> FLM (old): limpiar también en la carpeta del proyecto hermano.
+        her = _flm_hermano_id(pid)
+        if her is not None:
+            evidencia_limpiar_slot(her, key, tipo, indice)
+    try:
+        onedrive_eliminar(key, tipo, indice)
+    except Exception as e:
+        app.logger.warning('OD delete fallo: %s', e)
+    return jsonify({'success': True})
+
+@app.route('/api/wo/enviar_aprobacion', methods=['POST'])
+@login_required
+def api_wo_enviar_aprobacion():
+    """Enviar/un-deshacer la aprobación de un WO PEXT/FLM.
+
+    - Gestor envía ('enviar'): marca `_ENVIADO_APROBACION` y bloquea su edición.
+    - Admin desbloquea ('desbloquear'): vuelve a permitir la edición tras revisión."""
+    rol = str(session.get('rol') or '').strip().lower()
+    if rol not in ('contrata', 'gestor', 'supervisor', 'zeno', 'suport'):
+        return jsonify({'error': 'No tienes permisos para esta acción.'}), 403
+    data = request.json or {}
+    pid = session.get('current_proyecto_id')
+    key = str(data.get('key') or '').strip()
+    accion = str(data.get('accion') or 'enviar').strip().lower()
+    if not pid or not key:
+        return jsonify({'error': 'Faltan datos.'}), 400
+    proy = db.session.get(Proyecto, pid)
+    proy_nombre = proy.nombre.strip() if proy and proy.nombre else ''
+    if proy_nombre not in ('PEXT', 'FLM', 'FLM (old)'):
+        return jsonify({'error': 'Acción solo válida para WOs PEXT/FLM.'}), 400
+    if rol in ('contrata', 'gestor'):
+        acc = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
+        if not acc:
+            return jsonify({'error': 'No tienes acceso a este proyecto.'}), 403
+    record = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if not record:
+        return jsonify({'error': 'WO no encontrado.'}), 404
+    try:
+        d = json.loads(record.data_json or '{}')
+    except Exception:
+        d = {}
+    if accion == 'enviar':
+        if str(d.get('_ENVIADO_APROBACION', '')).strip() == '1':
+            return jsonify({'error': 'Este WO ya fue enviado a aprobación.'}), 400
+        d['_ENVIADO_APROBACION'] = '1'
+        d['_APROBACION_FECHA'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        d['_APROBACION_USUARIO'] = session.get('username') or ''
+    elif accion == 'desbloquear':
+        if rol not in ('zeno', 'suport'):
+            return jsonify({'error': 'Solo el administrador puede desbloquear la aprobación.'}), 403
+        if str(d.get('_ENVIADO_APROBACION', '')).strip() != '1':
+            return jsonify({'error': 'Este WO no está enviado a aprobación.'}), 400
+        d['_ENVIADO_APROBACION'] = '0'
+        d.pop('_APROBACION_FECHA', None)
+        d.pop('_APROBACION_USUARIO', None)
+    else:
+        return jsonify({'error': 'Acción no válida.'}), 400
+    record.data_json = json.dumps(d, ensure_ascii=False)
+    # FLM <-> FLM (old): la aprobación se refleja en el CM espejo del otro proyecto.
+    _flm_sync_campos(pid, key, {
+        '_ENVIADO_APROBACION': d.get('_ENVIADO_APROBACION', '0'),
+        '_APROBACION_FECHA': d.get('_APROBACION_FECHA', ''),
+        '_APROBACION_USUARIO': d.get('_APROBACION_USUARIO', ''),
+    }, None)
+    db.session.commit()
+    rows_injected, _ = inject_kpis(pid, [d])
+    return jsonify({'success': True, 'newData': rows_injected[0]})
+
+@app.route('/api/evidencia/foto/<int:pid>/<path:key>/<path:nombre>')
+@login_required
+def api_evidencia_foto(pid, key, nombre):
+    cur = session.get('current_proyecto_id')
+    # FLM <-> FLM (old): las fotos subidas desde uno son accesibles desde el otro.
+    permitido = (pid == cur) or (_flm_hermano_id(cur) == pid)
+    if not permitido:
+        return jsonify({'error': 'Acceso denegado'}), 403
+    nombre = os.path.basename(nombre)
+    if evidencia_usa_b2():
+        try:
+            obj = b2_cliente().get_object(Bucket=app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
+            data = obj['Body'].read()
+            mt = mimetypes.guess_type(nombre)[0] or 'application/octet-stream'
+            resp = Response(data, mimetype=mt)
+            resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
+            return resp
+        except Exception:
+            return jsonify({'error': 'No encontrado'}), 404
+    folder = evidencia_folder(pid, key)
+    ruta = os.path.join(folder, nombre)
+    if not os.path.exists(ruta):
+        if '/' not in nombre and '\\' not in nombre and not nombre.startswith('.') and os.path.isdir(folder):
+            pre, _ = os.path.splitext(nombre)
+            candidatos = [f for f in os.listdir(folder) if f == nombre or f.startswith(pre + '.')]
+            if candidatos:
+                nombre = sorted(candidatos)[0]
+    return send_from_directory(folder, nombre, max_age=604800)
+
+@app.route('/api/evidencia/zip/<int:pid>/<path:key>')
+@login_required
+def api_evidencia_zip(pid, key):
+    if pid != session.get('current_proyecto_id'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    key = (key or '').strip()
+    if not key:
+        return jsonify({'error': 'Ticket sin clave'}), 400
+    # Sanitizar para evitar path traversal
+    if '/' in key or '\\' in key or '..' in key:
+        return jsonify({'error': 'Clave inválida'}), 400
+    zip_buf = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        if evidencia_usa_b2():
+            try:
+                client = b2_cliente()
+                bucket = app.config['B2_BUCKET']
+                resp = client.list_objects_v2(Bucket=bucket, Prefix=f'{key}/')
+                for obj in resp.get('Contents', []):
+                    k = obj['Key']
+                    # solo archivos de evidencia de este ticket
+                    fname = os.path.basename(k)
+                    if not fname:
+                        continue
+                    # opcional: filtrar por tipos conocidos
+                    if not any(fname.startswith(t + '_') for t in EVIDENCIA_TIPOS) and not fname.startswith('comb_'):
+                        # incluir igual si está bajo el prefijo
+                        pass
+                    try:
+                        data = client.get_object(Bucket=bucket, Key=k)['Body'].read()
+                    except Exception:
+                        continue
+                    # Guardar en zip con carpeta por clave
+                    arcname = f'{key}/{fname}'
+                    zf.writestr(arcname, data)
+                    count += 1
+            except Exception as e:
+                return jsonify({'error': f'Error B2: {e}'}), 500
+        else:
+            folder = evidencia_folder(pid, key)
+            if os.path.isdir(folder):
+                for fp in glob.glob(os.path.join(folder, '*.*')):
+                    if not os.path.isfile(fp):
+                        continue
+                    fname = os.path.basename(fp)
+                    try:
+                        with open(fp, 'rb') as f:
+                            data = f.read()
+                    except Exception:
+                        continue
+                    zf.writestr(f'{key}/{fname}', data)
+                    count += 1
+    if count == 0:
+        return jsonify({'error': 'No hay fotos cargadas para este ticket'}), 404
+    zip_buf.seek(0)
+    return Response(
+        zip_buf.getvalue(),
+        mimetype='application/zip',
+        headers={'Content-Disposition': f'attachment; filename="evidencia_{secure_filename(key)}.zip"'}
+    )
+
+def _evidencia_leer(pid, key, nombre):
+    """Devuelve los bytes de un archivo de evidencia (local o B2), o None."""
+    if evidencia_usa_b2():
+        try:
+            obj = b2_cliente().get_object(Bucket=app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
+            return obj['Body'].read()
+        except Exception:
+            return None
+    ruta = os.path.join(evidencia_folder(pid, key), nombre)
+    try:
+        with open(ruta, 'rb') as f:
+            return f.read()
+    except Exception:
+        return None
+
+def _box_px(ws, min_row, max_row, min_col, max_col):
+    """Tamaño aproximado en px del área de celdas del cuadro para encajar la foto."""
+    from openpyxl.utils import get_column_letter
+    w = 0.0
+    for ci in range(min_col, max_col + 1):
+        letter = get_column_letter(ci)
+        wd = ws.column_dimensions[letter].width if letter in ws.column_dimensions else None
+        w += (wd if wd else 8.43) * 7 + 5
+    h = 0.0
+    for ri in range(min_row, max_row + 1):
+        ht = ws.row_dimensions[ri].height if ri in ws.row_dimensions else None
+        h += (ht if ht else 15.0) * 4.0 / 3.0
+    return w, h
+
+
+def _n_a_en_box(ws, top, bottom, col0, col1):
+    """Escribe 'N/A' centrado en el interior del cuadro cuando la foto no aplica."""
+    from openpyxl.styles import Alignment, Font
+    row = (top + bottom) // 2
+    if col1 - col0 >= 2:
+        ws.merge_cells(start_row=row, start_column=col0 + 1,
+                       end_row=row, end_column=col1 - 1)
+    cell = ws.cell(row=row, column=col0 + 1)
+    cell.value = 'N/A'
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.font = Font(size=16, bold=True, color='FF8C8C8C')
+
+def _encajar_foto(bytes_img, box_w, box_h, margen=14):
+    try:
+        im = Image.open(io.BytesIO(bytes_img))
+        iw, ih = im.size
+    except Exception:
+        iw, ih = 800, 600
+    max_w = max(box_w - margen, 40)
+    max_h = max(box_h - margen, 40)
+    ratio = min(max_w / iw, max_h / ih, 1.0)
+    return max(1, int(iw * ratio)), max(1, int(ih * ratio))
+
+def _pext_config():
+    """Lee la plantilla y devuelve los slots del reporte en orden de exportación
+    (columna izquierda de arriba a abajo, luego columna derecha). Robustez: se
+    adapta a cajas/títulos/observaciones que edite el usuario en el Excel."""
+    import re
+    from openpyxl import load_workbook
+    from openpyxl.utils import get_column_letter
+    wb = load_workbook(PEX_REPORTE_XLSX)
+    ws = wb.worksheets[0]
+    bands = [('L', 1, 6), ('R', 8, 13)]
+    titles = {'L': [], 'R': []}
+    obs_rows = {'L': [], 'R': []}
+    boxes = {'L': [], 'R': []}
+    for rng in ws.merged_cells.ranges:
+        band = None
+        for k, c0, c1 in bands:
+            if (rng.min_row == rng.max_row
+                    and rng.min_col <= c0 and rng.max_col >= c1):
+                band = k
+                break
+        if band:
+            v = ws.cell(row=rng.min_row, column=rng.min_col).value
+            v = (v or '').strip() if v is not None else ''
+            if re.match(r'^FOTOGRAFIA\b', v, re.I):
+                titles[band].append(rng.min_row)
+            elif re.match(r'^OBSERVACION', v, re.I):
+                obs_rows[band].append(rng.min_row)
+        else:
+            for k, c0, c1 in bands:
+                if (rng.max_row - rng.min_row) >= 3 and rng.min_col <= c0 and rng.max_col >= c1:
+                    boxes[k].append(rng)
+                    break
+    slots = []
+    for k, c0, c1 in bands:
+        titles[k].sort()
+        obs_rows[k].sort()
+        for trow in titles[k]:
+            titulo = (ws.cell(row=trow, column=c0).value or '').strip()
+            top = trow + 1
+            bottom = None
+            for o in obs_rows[k]:
+                if o > trow:
+                    bottom = o - 1
+                    break
+            for rng in boxes[k]:
+                if rng.min_row == trow + 1:
+                    bottom = rng.max_row
+                    break
+            if bottom is None:
+                bottom = top + 4
+            obs_def = ''
+            for o in obs_rows[k]:
+                if o == bottom + 1:
+                    ov = (ws.cell(row=o, column=c0).value or '').strip()
+                    ov = re.sub(r'^OBSERVACIONES?\s*:?\s*', '', ov, flags=re.I)
+                    obs_def = ov
+                    break
+            slots.append({
+                'anchor': get_column_letter(c0) + str(top),
+                'titulo': titulo,
+                'obs': obs_def,
+                'top': top,
+                'bottom': bottom,
+                'col0': c0,
+                'col1': c1,
+            })
+    if not slots:
+        return _pext_config_cajas(wb)
+    maxnum = 0
+    for s in slots:
+        m = re.search(r'FOTOGRAFIA\s+(\d+)', s['titulo'])
+        if m:
+            maxnum = max(maxnum, int(m.group(1)))
+    for s in slots:
+        if not s['titulo']:
+            maxnum += 1
+            s['titulo'] = f'FOTOGRAFIA {maxnum}'
+    return slots
+
+
+def _pext_config_cajas(wb):
+    """Fallback: slots detectados por cajas fusionadas (sin títulos/obs)."""
+    import re
+    from openpyxl.utils import get_column_letter
+    ws = wb.worksheets[0]
+    left, right = [], []
+    for rng in ws.merged_cells.ranges:
+        if (rng.max_row - rng.min_row) == 3:
+            if rng.min_col <= 1 and rng.max_col >= 6:
+                left.append(rng)
+            elif rng.min_col <= 8 and rng.max_col >= 13:
+                right.append(rng)
+    left.sort(key=lambda r: r.min_row)
+    right.sort(key=lambda r: r.min_row)
+    slots = []
+    for rng in list(left) + list(right):
+        band = 1 if rng.min_col <= 6 else 8
+        titulo = (ws.cell(row=rng.min_row - 2, column=band).value or '').strip()
+        obs_def = ''
+        for mr in ws.merged_cells.ranges:
+            if (mr.min_row == rng.max_row + 2
+                    and mr.min_col <= rng.max_col and mr.max_col >= rng.min_col):
+                v = (ws.cell(row=mr.min_row, column=mr.min_col).value or '').strip()
+                if v.startswith('OBSERVACIONES:'):
+                    v = v[len('OBSERVACIONES:'):].strip()
+                obs_def = v
+                break
+        slots.append({
+            'anchor': rng.coord.split(':')[0],
+            'titulo': titulo,
+            'obs': obs_def,
+            'top': rng.min_row,
+            'bottom': rng.max_row,
+            'col0': rng.min_col,
+            'col1': rng.max_col,
+        })
+    return slots
+
+def _pext_max():
+    try:
+        return len(_pext_config())
+    except Exception:
+        return EVIDENCIA_MAX_PEX
+
+def _encajar_foto_cover(bytes_img, box_w, box_h, margen=4):
+    """Escala para que la foto ocupe el cuadro respetando el borde rojo.
+    Mantiene la proporción (vertical/horizontal) y ajusta al interior del cuadro."""
+    try:
+        im = Image.open(io.BytesIO(bytes_img))
+        iw, ih = im.size
+    except Exception:
+        iw, ih = 800, 600
+    eff_w = max(box_w - margen * 2, 40)
+    eff_h = max(box_h - margen * 2, 40)
+    ratio = min(eff_w / iw, eff_h / ih, 1.0)
+    # si la imagen es más chica que el cuadro, escala hasta llenarlo proporcionalmente
+    if iw < eff_w and ih < eff_h:
+        ratio = min(eff_w / iw, eff_h / ih)
+    return max(1, int(iw * ratio)), max(1, int(ih * ratio))
+
+@app.route('/api/evidencia/reporte_config')
+@login_required
+def api_evidencia_reporte_config():
+    """Devuelve la configuración del reporte fotográfico leída de la plantilla."""
+    try:
+        slots = _pext_config()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return jsonify({'slots': slots, 'max': len(slots)})
+
+@app.route('/api/evidencia/reporte_xlsx/<int:pid>/<path:key>')
+@login_required
+def api_evidencia_reporte_xlsx(pid, key):
+    """Genera el reporte fotográfico de PEXT (plantilla del cliente) con las
+    fotos incrustadas en su cuadro, CM, contratista y observaciones."""
+    if pid != session.get('current_proyecto_id'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    key = (key or '').strip()
+    if not key or '/' in key or '\\' in key or '..' in key:
+        return jsonify({'error': 'Clave inválida'}), 400
+    if not os.path.isfile(PEX_REPORTE_XLSX):
+        return jsonify({'error': 'Plantilla del reporte no disponible en el servidor.'}), 500
+
+    record = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if not record:
+        return jsonify({'error': 'Registro no encontrado'}), 404
+    try:
+        d = json.loads(record.data_json)
+    except Exception:
+        d = {}
+
+    # Heal: si el registro aún viene del formato anterior (26), se reubica al formato
+    # actual (28) y se persiste para que la interfaz también lo muestre ordenado.
+    if _evidencia_migrar_legacy(d):
+        record.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
+
+    def _arr(campo):
+        try:
+            v = json.loads(d.get(campo) or '[]')
+            return v if isinstance(v, list) else []
+        except Exception:
+            return []
+
+    fotos = _arr('_EVIDENCIA_FOTOS')
+    obs = _arr('_EVIDENCIA_OBS')
+    aplica = _arr('_EVIDENCIA_APLICA')
+
+    try:
+        from openpyxl import load_workbook
+        from openpyxl.drawing.image import Image as XLImage
+        wb = load_workbook(PEX_REPORTE_XLSX)
+    except Exception as e:
+        return jsonify({'error': f'No se pudo cargar la plantilla: {e}'}), 500
+    ws = wb.worksheets[0]
+
+    # Cabecera del reporte: CM = número de WO (B5) y CONTRATISTA siempre "COBRA".
+    ws['B5'] = key
+    ws['J4'] = 'COBRA'
+    ws['K5'] = 'COBRA'
+
+    n_fotos = 0
+    try:
+        conf_slots = _pext_config() or []
+    except Exception:
+        conf_slots = []
+    for i, slot in enumerate(conf_slots):
+        top = slot.get('top')
+        bottom = slot.get('bottom')
+        col0 = slot.get('col0')
+        col1 = slot.get('col1')
+        anchor = slot.get('anchor')
+        if not (top and bottom and col0 and col1):
+            continue
+        url = fotos[i] if i < len(fotos) else ''
+        no_aplica = (i < len(aplica)) and not aplica[i]
+        if url and not no_aplica:
+            fname = os.path.basename(str(url).split('?')[0])
+            data = _evidencia_leer(pid, key, fname)
+            if data:
+                box_w, box_h = _box_px(ws, top, bottom, col0, col1)
+                img_w, img_h = _encajar_foto_cover(data, box_w, box_h)
+                xl = XLImage(io.BytesIO(data))
+                xl.width = img_w
+                xl.height = img_h
+                off_x = max(0, (box_w - img_w) // 2)
+                off_y = max(0, (box_h - img_h) // 2)
+                from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, OneCellAnchor
+                from openpyxl.drawing.xdr import XDRPositiveSize2D
+                from openpyxl.utils.units import pixels_to_EMU
+                mk = AnchorMarker(col=col0 - 1, colOff=pixels_to_EMU(off_x),
+                                  row=top - 1, rowOff=pixels_to_EMU(off_y))
+                xl.anchor = OneCellAnchor(_from=mk,
+                                          ext=XDRPositiveSize2D(cx=pixels_to_EMU(img_w),
+                                                                cy=pixels_to_EMU(img_h)))
+                ws.add_image(xl)
+                ws[anchor] = None  # quitar "N/A" del interior
+                n_fotos += 1
+        elif no_aplica:
+            _n_a_en_box(ws, top, bottom, col0, col1)
+
+        # Observaciones: la fila justo debajo del cuadro de la foto.
+        # Si el gestor no escribió nada se conserva el texto por defecto que
+        # viene en la plantilla; si escribió, se pisa con su observación.
+        orng = None
+        for mr in ws.merged_cells.ranges:
+            if (mr.min_row == bottom + 1
+                    and mr.min_col <= col1 and mr.max_col >= col0):
+                orng = mr
+                break
+        o = obs[i] if i < len(obs) else ''
+        o = ('' if o is None else str(o)).strip()
+        if o:
+            if orng:
+                # Forzar que la observación quede en una sola fila.
+                if orng.min_row != orng.max_row:
+                    ws.unmerge_cells(str(orng))
+                    ws.merge_cells(
+                        start_row=orng.min_row, start_column=orng.min_col,
+                        end_row=orng.min_row, end_column=orng.max_col,
+                    )
+                ws.cell(row=orng.min_row, column=orng.min_col).value = 'OBSERVACIONES: ' + o
+            else:
+                ws.cell(row=bottom + 1, column=col0).value = 'OBSERVACIONES: ' + o
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': f'attachment; filename="reporte_fotografico_{secure_filename(key)}.xlsx"'}
+    )
+
+@app.route('/healthz')
+def healthz():
+    return 'OK', 200
+
+# ---- COTIZACION -------------------------------------------------------
+@app.route('/api/cotizacion/estado', methods=['GET'])
+@login_required
+def api_cotizacion_estado():
+    """Devuelve si la cotización de este ticket ya fue generada (bloqueada)."""
+    pid = session.get('current_proyecto_id')
+    key = request.args.get('key', '').strip()
+    if not pid or not key:
+        return jsonify({'bloqueada': False})
+    cot = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if cot:
+        return jsonify({
+            'bloqueada': cot.bloqueada,
+            'numero': cot.numero,
+            'nota': cot.nota,
+            'cotizado_por': cot.cotizado_por,
+            'revisado_por': cot.revisado_por,
+            'fecha': cot.fecha_generacion.strftime('%d/%m/%Y') if cot.fecha_generacion else ''
+        })
+    return jsonify({'bloqueada': False})
+
+@app.route('/api/cotizacion/lista', methods=['GET'])
+@login_required
+def api_cotizacion_lista():
+    """Devuelve todas las cotizaciones del ticket (puede haber varias)."""
+    pid = session.get('current_proyecto_id')
+    key = request.args.get('key', '').strip()
+    if not pid or not key:
+        return jsonify({'lista': []})
+    # FLM <-> FLM (old): las cotizaciones del CM se muestran desde ambos proyectos,
+    # sin importar en cuál fueron creadas.
+    pids = [pid]
+    her = _flm_hermano_id(pid)
+    if her is not None:
+        pids.append(her)
+    cots = Cotizacion.query.filter(
+        Cotizacion.proyecto_id.in_(pids), Cotizacion.key_value == key
+    ).order_by(Cotizacion.id.asc()).all()
+    lista = [{
+        'id': c.id,
+        'numero': c.numero,
+        'nota': c.nota,
+        'cotizado_por': c.cotizado_por,
+        'revisado_por': c.revisado_por,
+        'fecha': c.fecha_generacion.strftime('%d/%m/%Y') if c.fecha_generacion else '',
+        'bloqueada': c.bloqueada,
+        'gastos': json.loads(c.gastos_json or '[]'),
+        'mano_obra': json.loads(c.mano_obra_json or '[]'),
+        'formato': c.formato or '',
+        'site': c.site or '',
+        'supervisor': c.supervisor or '',
+        'objetivo': c.nota or '',
+        'items': json.loads(c.items_json or '[]'),
+    } for c in cots]
+    return jsonify({'lista': lista})
+
+@app.route('/api/cotizacion/registro', methods=['GET'])
+@login_required
+def api_cotizacion_registro():
+    """Cotizaciones registradas en el módulo 'Cotizaciones' asociadas a un WO
+    de FLM (match por NUMERO WO). Se muestran en la pestaña Cotización del WO."""
+    key = request.args.get('key', '').strip()
+    if not key:
+        return jsonify({'lista': []})
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not cot_proy:
+        return jsonify({'lista': []})
+    klow = key.lower()
+    lista = []
+    regs = NucleusData.query.filter_by(proyecto_id=cot_proy.id).order_by(NucleusData.id.asc()).all()
+    for r in regs:
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
+        wo = str(d.get('NUMERO WO', '') or '').strip()
+        if not wo or wo.lower() != klow:
+            continue
+        try:
+            items = json.loads(d.get('ITEMS_JSON') or '[]')
+        except Exception:
+            items = []
+        lista.append({
+            'id': 'R' + str(r.id),
+            'numero': str(d.get('N° COTIZACION', '') or ''),
+            'fecha': str(d.get('FECHA', '') or ''),
+            'formato': 'cobra',
+            'site': str(d.get('SITE', '') or ''),
+            'supervisor': str(d.get('SUPERVISOR', '') or ''),
+            'objetivo': str(d.get('OBJETIVO', '') or ''),
+            'ticket': str(d.get('TICKET', '') or ''),
+            'gestor': str(d.get('GESTOR', '') or ''),
+            'generada': str(d.get('GENERADA', '') or ''),
+            'sub_total': str(d.get('SUB TOTAL + FEE', '') or ''),
+            'items': items,
+        })
+    return jsonify({'lista': lista})
+
+@app.route('/api/cotizacion/descargar_registro', methods=['POST'])
+@login_required
+def api_cotizacion_descargar_registro():
+    """Descarga el PDF de una cotización registrada en el módulo 'Cotizaciones'."""
+    data = request.json or {}
+    rid_raw = str(data.get('registro_id', '')).lstrip('R')
+    try:
+        rid = int(rid_raw)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Registro inválido'}), 400
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not cot_proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe'}), 404
+    rec = NucleusData.query.filter_by(id=rid, proyecto_id=cot_proy.id).first()
+    if not rec:
+        return jsonify({'error': 'Cotización no encontrada'}), 404
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    try:
+        items = json.loads(d.get('ITEMS_JSON') or '[]')
+    except Exception:
+        items = []
+    numero = str(d.get('N° COTIZACION', '') or '')
+    try:
+        pdf_bytes = _generar_pdf_cotizacion_cobra(
+            numero=numero,
+            site=str(d.get('SITE', '') or ''),
+            supervisor=str(d.get('SUPERVISOR', '') or ''),
+            objetivo=str(d.get('OBJETIVO', '') or ''),
+            ticket=str(d.get('TICKET', '') or ''),
+            elaborado_por=str(d.get('GESTOR', '') or ''),
+            items=items
+        )
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    safe_num = numero.replace('/', '-').replace(' ', '_') or 'cotizacion'
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+def _cotizacion_registro_pdf_response(rec):
+    """Construye el PDF Cobra desde un registro del módulo Cotizaciones.
+    Solo si la cotización ya fue GENERADA (bloqueo respetado en todas las vías).
+    Si NUMERO WO está vacío, muestra CM-PENDIENTE como en Combustible."""
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    if str(d.get('GENERADA', '') or '') != '1':
+        return jsonify({'error': 'La cotización aún no ha sido generada. Usa "Generar Cotización" primero.'}), 400
+    try:
+        items = json.loads(d.get('ITEMS_JSON') or '[]')
+    except Exception:
+        items = []
+    numero = str(d.get('N° COTIZACION', '') or '')
+    # NUMERO WO → CM-PENDIENTE si está vacío, igual que Combustible
+    numero_wo = str(d.get('NUMERO WO', '') or '').strip()
+    ticket_raw = str(d.get('TICKET', '') or '').strip()
+    # Para el PDF, el campo TICKET muestra el NUMERO WO asociado o CM-PENDIENTE
+    pdf_ticket = numero_wo if numero_wo else "CM-PENDIENTE"
+    # Si TICKET tiene valor y es distinto, lo anteponemos, pero si es igual o vacío, usamos el display
+    if ticket_raw and ticket_raw != numero_wo and ticket_raw != "CM-PENDIENTE":
+        # Si ambos tienen valor y son distintos, priorizar NUMERO WO pero dejar constancia
+        # Por ahora, mostrar NUMERO WO (con CM-PENDIENTE si vacío)
+        pass
+    pdf_bytes = _generar_pdf_cotizacion_cobra(
+        numero=numero,
+        site=str(d.get('SITE', '') or d.get('NOMBRE SITE', '') or ''),
+        supervisor=str(d.get('SUPERVISOR', '') or ''),
+        objetivo=str(d.get('OBJETIVO', '') or ''),
+        ticket=pdf_ticket,
+        elaborado_por=str(d.get('GESTOR', '') or session.get('username', '')),
+        items=items
+    )
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    safe_num = numero.replace('/', '-').replace(' ', '_') or 'cotizacion'
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+@app.route('/api/cotizacion/next_seq', methods=['GET', 'POST'])
+@login_required
+def api_cotizacion_next_seq():
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not cot_proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe'}), 404
+    if request.method == 'GET':
+        cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
+        try:
+            val = int(cfg.valor) if cfg and cfg.valor else 30
+        except Exception:
+            val = 30
+        return jsonify({'next': val})
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo el admin puede configurar el correlativo'}), 403
+    data = request.json or {}
+    try:
+        nxt = int(data.get('next', 0))
+        if nxt < 1 or nxt > 9999999:
+            raise ValueError
+    except Exception:
+        return jsonify({'error': 'Valor inválido (1-9999999)'}), 400
+    cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
+    if not cfg:
+        cfg = AppConfig(proyecto_id=cot_proy.id, clave='cotizacion_next_seq', valor=str(nxt))
+        db.session.add(cfg)
+    else:
+        cfg.valor = str(nxt)
+    db.session.commit()
+    return jsonify({'success': True, 'next': nxt})
+
+
+@app.route('/api/cotizacion/previsualizar', methods=['POST'])
+@login_required
+def api_cotizacion_previsualizar():
+    """Genera PDF de previsualización sin guardar ni consumir correlativo."""
+    data = request.json or {}
+    numero = str(data.get('numero', '') or '').strip()
+    site = str(data.get('site', '') or data.get('nombre site', '') or '').strip()
+    supervisor = str(data.get('supervisor', '') or '').strip()
+    objetivo = str(data.get('objetivo', '') or str(data.get('nota', '') or '')).strip()
+    ticket = str(data.get('ticket', '') or str(data.get('numero_wo', '') or '')).strip()
+    if not ticket:
+        ticket = 'CM-PENDIENTE'
+    items = data.get('items', [])
+    # Validación mínima igual que generar
+    if not numero:
+        return jsonify({'error': 'Falta N° Cotización'}), 400
+    try:
+        pdf_bytes = _generar_pdf_cotizacion_cobra(
+            numero=numero,
+            site=site,
+            supervisor=supervisor,
+            objetivo=objetivo,
+            ticket=ticket,
+            elaborado_por=str(session.get('username', '') or ''),
+            items=items
+        )
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'inline; filename=Preview_{numero.replace("/", "-")}.pdf'
+    return resp
+
+
+def _obtener_registro_cotizacion():
+    """Valida proyecto actual = Cotizaciones y devuelve el registro por key."""
+    data = request.json or {}
+    key_val = str(data.get('key', '')).strip()
+    pid = session.get('current_proyecto_id')
+    proy_obj = db.session.get(Proyecto, pid)
+    if not key_val:
+        return None, None, ({'error': 'Falta la clave del registro'}, 400)
+    if not proy_obj or (proy_obj.nombre or '').strip().lower() != 'cotizaciones':
+        return None, None, ({'error': 'Proyecto inválido'}, 400)
+    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first()
+    if not rec:
+        return None, None, ({'error': 'Cotización no encontrada'}, 404)
+    return rec, proy_obj, None
+
+
+@app.route('/api/cotizacion/registro_pdf', methods=['POST'])
+@login_required
+def api_cotizacion_registro_pdf():
+    """Descarga directa del PDF desde la tabla del módulo Cotizaciones."""
+    rec, _proy, err = _obtener_registro_cotizacion()
+    if err:
+        return err
+    try:
+        return _cotizacion_registro_pdf_response(rec)
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+@app.route('/api/cotizacion/registro_generar', methods=['POST'])
+@login_required
+def api_cotizacion_registro_generar():
+    """Marca la cotización como GENERADA (bloquea edición para gestores) y devuelve el PDF."""
+    rec, _proy, err = _obtener_registro_cotizacion()
+    if err:
+        return err
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    d['GENERADA'] = '1'
+    rec.data_json = json.dumps(d, ensure_ascii=False)
+    db.session.commit()
+    try:
+        return _cotizacion_registro_pdf_response(rec)
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+@app.route('/api/cotizacion/desbloquear', methods=['POST'])
+@login_required
+def api_cotizacion_desbloquear():
+    """Solo admin puede desbloquear una cotización para permitir edición."""
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo admin puede desbloquear cotizaciones.'}), 403
+    pid = session.get('current_proyecto_id')
+    data = request.json or {}
+    key = data.get('key', '').strip()
+    cid = data.get('cotizacion_id')
+    if not pid or not key:
+        return jsonify({'error': 'Datos incompletos'}), 400
+    query = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key)
+    if cid:
+        query = query.filter_by(id=cid)
+    cot = query.first()
+    if not cot:
+        return jsonify({'error': 'Cotización no encontrada'}), 404
+    cot.bloqueada = False
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/cotizacion/eliminar', methods=['POST'])
+@login_required
+def api_cotizacion_eliminar():
+    """Solo admin puede eliminar una cotización."""
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo admin puede eliminar cotizaciones.'}), 403
+    pid = session.get('current_proyecto_id')
+    data = request.json or {}
+    key = data.get('key', '').strip()
+    cid = data.get('cotizacion_id')
+    if not pid or not key or not cid:
+        return jsonify({'error': 'Datos incompletos'}), 400
+    cot = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
+    if not cot:
+        return jsonify({'error': 'Cotización no encontrada'}), 404
+    db.session.delete(cot)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/cotizacion/generar', methods=['POST'])
+@login_required
+def api_cotizacion_generar():
+    """
+    Guarda la cotización en BD (bloqueándola) y devuelve un PDF listo para descargar.
+    Cada generación crea una NUEVA cotización para el ticket (puede haber varias).
+    Datos del cliente fijos: HUAWEI DEL PERU, RUC 20507646728, etc.
+    """
+    pid = session.get('current_proyecto_id')
+    user_rol = str(session.get('rol') or '').strip().lower()
+    data = request.json or {}
+    key = data.get('key', '').strip()
+    if not pid or not key:
+        return jsonify({'error': 'Datos incompletos'}), 400
+
+    # Admin puede regenerar una cotización existente desbloqueada (opcional: cotizacion_id)
+    cid = data.get('cotizacion_id')
+    cot_existente = None
+    if cid:
+        cot_existente = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
+        if cot_existente and cot_existente.bloqueada and user_rol not in ('zeno', 'suport'):
+            return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
+
+    numero = data.get('numero', '').strip()
+    nota = data.get('nota', '').strip()
+    gastos = data.get('gastos', [])
+    mano_obra = data.get('mano_obra', [])
+
+    # Formato Cobra (FLM): items unicos con TIPO/UND/FEE
+    formato = str(data.get('formato', '') or '').strip().lower()
+    site = str(data.get('site', '') or data.get('nombre site', '') or data.get('NOMBRE SITE', '') or '').strip()
+    supervisor = str(data.get('supervisor', '') or '').strip()
+    objetivo = str(data.get('objetivo', '') or '').strip()
+    items_cobra = data.get('items', [])
+    if formato == 'cobra':
+        nota = objetivo
+
+    # Obtener nombre del gestor actual como "Cotizado por" y "Revisado por"
+    usuario = db.session.get(Usuario, session.get('user_id'))
+    nombre_gestor = (usuario.nombre or usuario.username) if usuario else (session.get('username') or '')
+
+    # Guardar en BD (nueva fila si no se pasa cotizacion_id, o regenerar esa)
+    if cot_existente:
+        cot_existente.numero = numero
+        cot_existente.nota = nota
+        cot_existente.cotizado_por = nombre_gestor
+        cot_existente.revisado_por = nombre_gestor
+        cot_existente.gastos_json = json.dumps(gastos, ensure_ascii=False)
+        cot_existente.mano_obra_json = json.dumps(mano_obra, ensure_ascii=False)
+        cot_existente.fecha_generacion = datetime.utcnow()
+        cot_existente.bloqueada = True
+        if formato == 'cobra':
+            cot_existente.formato = 'cobra'
+            cot_existente.site = site
+            cot_existente.supervisor = supervisor
+            cot_existente.items_json = json.dumps(items_cobra, ensure_ascii=False)
+        db.session.commit()
+    else:
+        cot_existente = Cotizacion(
+            proyecto_id=pid,
+            key_value=key,
+            numero=numero,
+            nota=nota,
+            cotizado_por=nombre_gestor,
+            revisado_por=nombre_gestor,
+            gastos_json=json.dumps(gastos, ensure_ascii=False),
+            mano_obra_json=json.dumps(mano_obra, ensure_ascii=False),
+            fecha_generacion=datetime.utcnow(),
+            bloqueada=True,
+            formato='cobra' if formato == 'cobra' else '',
+            site=site,
+            supervisor=supervisor,
+            items_json=json.dumps(items_cobra, ensure_ascii=False) if formato == 'cobra' else '[]'
+        )
+        db.session.add(cot_existente)
+        db.session.commit()
+
+    # Actualizar también los campos en NucleusData para que quede persistido
+    rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+    if rec:
+        d = json.loads(rec.data_json)
+        if formato == 'cobra':
+            d['COTIZACION_ITEMS'] = json.dumps(items_cobra, ensure_ascii=False)
+        else:
+            d['COTIZACION_GASTOS'] = json.dumps(gastos, ensure_ascii=False)
+            d['COTIZACION_MANO_OBRA'] = json.dumps(mano_obra, ensure_ascii=False)
+        d['COTIZACION_NOTA'] = nota
+        d['COTIZACION_NUMERO'] = numero
+        d['COTIZACION_BLOQUEADA'] = '1'
+        rec.data_json = json.dumps(d, ensure_ascii=False)
+        db.session.commit()
+
+    # Generar PDF
+    try:
+        if formato == 'cobra':
+            pdf_bytes = _generar_pdf_cotizacion_cobra(
+                numero=numero,
+                site=site,
+                supervisor=supervisor,
+                objetivo=objetivo,
+                ticket=key,
+                elaborado_por=nombre_gestor,
+                items=items_cobra
+            )
+        else:
+            pdf_bytes = _generar_pdf_cotizacion(
+                numero=numero,
+                nota=nota,
+                ticket=key,
+                cotizado_por=nombre_gestor,
+                revisado_por=nombre_gestor,
+                fecha=datetime.now().strftime('%d/%m/%Y'),
+                gastos=gastos,
+                mano_obra=mano_obra
+            )
+    except Exception as e:
+        return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
+
+    from flask import make_response
+    resp = make_response(pdf_bytes)
+    safe_num = numero.replace('/', '-').replace(' ', '_')
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fecha, gastos, mano_obra):
+    """Genera el PDF de cotización con el formato exacto de la imagen."""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+    from reportlab.pdfgen import canvas
+    from reportlab.platypus import BaseDocTemplate, PageTemplate, Frame
+
+    buf = io.BytesIO()
+    PAGE_W, PAGE_H = landscape(A4)
+    M = 6 * mm  # margen
+
+    # Colores corporativos
+    NAVY = colors.HexColor('#1B3A6B')
+    WHITE = colors.white
+    LIGHT_GRAY = colors.HexColor('#F2F2F2')
+    MID_GRAY = colors.HexColor('#D9D9D9')
+    DARK = colors.HexColor('#1a1a1a')
+
+    def fmt_soles(v):
+        try:
+            f = float(v)
+            return f'S/ {f:,.2f}'
+        except:
+            return 'S/ -'
+
+    def safe_str(v):
+        return str(v) if v is not None else ''
+
+    # Calcular subtotales
+    subtotal_a = sum(float(g.get('total_p', 0) or 0) for g in gastos)
+    subtotal_b = sum(float(m.get('total_p', 0) or 0) for m in mano_obra)
+    total_ab = subtotal_a + subtotal_b
+
+    # Estilos de párrafo
+    style_normal = ParagraphStyle('normal', fontName='Helvetica', fontSize=7, leading=8)
+    style_bold = ParagraphStyle('bold', fontName='Helvetica-Bold', fontSize=7, leading=8)
+    style_title = ParagraphStyle('title', fontName='Helvetica-Bold', fontSize=12, leading=15, textColor=NAVY)
+    style_header_white = ParagraphStyle('hw', fontName='Helvetica-Bold', fontSize=7, leading=8, textColor=WHITE)
+    style_section = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=7, leading=8, textColor=WHITE)
+    style_right = ParagraphStyle('right', fontName='Helvetica', fontSize=7, leading=8, alignment=TA_RIGHT)
+    style_right_bold = ParagraphStyle('rb', fontName='Helvetica-Bold', fontSize=7, leading=8, alignment=TA_RIGHT)
+
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                             leftMargin=M, rightMargin=M,
+                             topMargin=M, bottomMargin=M)
+    W = PAGE_W - 2 * M
+    story = []
+
+    # ---- CABECERA: Logo | N° Cotización ---
+    logo_path = os.path.join(BASE_DIR, 'static', 'img', 'cobra-logo.png')
+    if os.path.exists(logo_path):
+        logo = RLImage(logo_path, width=30*mm, height=17*mm)
+    else:
+        logo = Paragraph('<b>cobra</b>', style_title)
+
+    num_para = Paragraph(f'<b>N° Cotización :&nbsp;&nbsp;&nbsp;{numero}</b>', style_title)
+    header_data = [[logo, num_para]]
+    header_tbl = Table(header_data, colWidths=[W * 0.4, W * 0.6])
+    header_tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    story.append(header_tbl)
+    story.append(Spacer(1, 1.5 * mm))
+
+    # ---- SECCIÓN A: DATOS DEL CLIENTE ---
+    def section_row(label):
+        return [Paragraph(f'<b>{label}</b>', style_header_white), '', '', '']
+
+    def client_row(label, value, label2='', value2=''):
+        cells = [
+            Paragraph(f'<b>{label}</b>', style_bold),
+            Paragraph(safe_str(value), style_normal),
+            Paragraph(f'<b>{label2}</b>', style_bold) if label2 else '',
+            Paragraph(safe_str(value2), style_normal) if value2 else '',
+        ]
+        return cells
+
+    c1 = W * 0.18
+    c2 = W * 0.42
+    c3 = W * 0.12
+    c4 = W * 0.28
+
+    sec_a_data = [
+        [Paragraph('<b>A: DATOS DEL CLIENTE</b>', style_header_white), '', '', ''],
+        client_row('Cliente:', 'HUAWEI DEL PERU', 'RUC:', '20507646728'),
+        client_row('Domicilio:', 'Cal. las Begonias Nro. 415 Int. 2301'),
+        client_row('Solicitado por:', 'Even Vivar'),
+        client_row('Validador:', 'Sergio Huaman'),
+        client_row('Nota:', nota or ''),
+    ]
+    sec_a_tbl = Table(sec_a_data, colWidths=[c1, c2, c3, c4])
+    sec_a_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('SPAN', (0, 0), (-1, 0)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('SPAN', (1, 2), (3, 2)),
+        ('SPAN', (1, 3), (3, 3)),
+        ('SPAN', (1, 4), (3, 4)),
+        ('SPAN', (1, 5), (3, 5)),
+    ]))
+    story.append(sec_a_tbl)
+    story.append(Spacer(1, 1 * mm))
+
+    # ---- SECCIÓN B: DATOS DE COTIZACIÓN ---
+    sec_b_data = [
+        [Paragraph('<b>B: DATOS DE COTIZACION</b>', style_header_white), '', '', ''],
+        client_row('Cotizado por:', 'Dennis Unton', 'Fecha:', fecha),
+        client_row('Revisado por:', 'Dennis Unton', 'Fecha:', fecha),
+    ]
+    sec_b_tbl = Table(sec_b_data, colWidths=[c1, c2, c3, c4])
+    sec_b_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('SPAN', (0, 0), (-1, 0)),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(sec_b_tbl)
+    story.append(Spacer(1, 1 * mm))
+
+    # ---- TABLA 1: Materiales, Herramientas y/o Homologaciones ---
+    col_item = W * 0.06
+    col_cod  = W * 0.07
+    col_desc = W * 0.30
+    col_unid = W * 0.07
+    col_cant = W * 0.08
+    col_pu   = W * 0.18
+    col_tp   = W * 0.24
+
+    t1_cols = [col_item, col_cod, col_desc, col_unid, col_cant, col_pu, col_tp]
+
+    t1_header_sub = [Paragraph('<b>1. Materiales,  Herramientas y/o Homologaciones</b>', style_section), '', '', '', '', '', '']
+    t1_col_header = [
+        Paragraph('<b>Item</b>', style_bold),
+        Paragraph('<b>Cod.</b>', style_bold),
+        Paragraph('<b>Descripción</b>', style_bold),
+        Paragraph('<b>Unid</b>', style_bold),
+        Paragraph('<b>Cant</b>', style_bold),
+        Paragraph('<b>Precio unid.</b>', style_bold),
+        Paragraph('<b>Total P.</b>', style_bold),
+    ]
+
+    t1_rows = [t1_header_sub, t1_col_header]
+    MAX_ROWS_1 = max(len(gastos), 2)
+    for i in range(MAX_ROWS_1):
+        if i < len(gastos):
+            g = gastos[i]
+            row = [
+                Paragraph(safe_str(g.get('item', i+1)), style_normal),
+                Paragraph(safe_str(g.get('cod', 'SC')), style_normal),
+                Paragraph(safe_str(g.get('descripcion', '')), style_normal),
+                Paragraph(safe_str(g.get('unid', '')), style_normal),
+                Paragraph(safe_str(g.get('cant', '')), style_normal),
+                Paragraph(fmt_soles(g.get('precio_unid', '')), style_right),
+                Paragraph(fmt_soles(g.get('total_p', '')), style_right),
+            ]
+        else:
+            row = ['', '', '', '', '', Paragraph('S/', style_right), Paragraph('-', style_right)]
+        t1_rows.append(row)
+
+    # Fila Total subtotal A
+    t1_rows.append([
+        '', '', '', '', '', '',
+        '',
+    ])
+    t1_rows.append([
+        Paragraph('<b>Total</b>', style_bold), '', '', '', '', '',
+        Paragraph(f'<b>Subtotal_A&nbsp;&nbsp;&nbsp;{fmt_soles(subtotal_a)}</b>', style_right_bold),
+    ])
+
+    t1_tbl = Table(t1_rows, colWidths=t1_cols)
+    n_data_rows_1 = len(t1_rows)
+    t1_style = [
+        # Sub-header navy
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('SPAN', (0, 0), (-1, 0)),
+        # Col header
+        ('BACKGROUND', (0, 1), (-1, 1), LIGHT_GRAY),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 2), (-1, n_data_rows_1-3), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Total row
+        ('BACKGROUND', (0, n_data_rows_1-1), (-1, n_data_rows_1-1), LIGHT_GRAY),
+        ('SPAN', (0, n_data_rows_1-1), (4, n_data_rows_1-1)),
+        ('SPAN', (5, n_data_rows_1-1), (5, n_data_rows_1-1)),
+    ]
+    t1_tbl.setStyle(TableStyle(t1_style))
+    story.append(t1_tbl)
+    story.append(Spacer(1, 1.5 * mm))
+
+    # ---- TABLA 2: Mano de Obra ---
+    t2_cols = [col_item, col_cod, col_desc, col_unid, col_cant, col_pu, col_tp]
+
+    t2_header_sub = [Paragraph('<b>2. Mano de Obra</b>', style_section), '', '', '', '', '', '']
+    t2_col_header = [
+        Paragraph('<b>Item</b>', style_bold),
+        Paragraph('<b>Cod.</b>', style_bold),
+        Paragraph('<b>Descripción</b>', style_bold),
+        Paragraph('<b>Unid</b>', style_bold),
+        Paragraph('<b>Cant</b>', style_bold),
+        Paragraph('<b>Precio unid.</b>', style_bold),
+        Paragraph('<b>Total P.</b>', style_bold),
+    ]
+
+    t2_rows = [t2_header_sub, t2_col_header]
+    MAX_ROWS_2 = max(len(mano_obra), 2)
+    for i in range(MAX_ROWS_2):
+        if i < len(mano_obra):
+            m = mano_obra[i]
+            row = [
+                Paragraph(safe_str(m.get('item', i+1)), style_normal),
+                Paragraph(safe_str(m.get('cod', 'SC')), style_normal),
+                Paragraph(safe_str(m.get('descripcion', '')), style_normal),
+                Paragraph(safe_str(m.get('unid', '')), style_normal),
+                Paragraph(safe_str(m.get('cant', '')), style_normal),
+                Paragraph(fmt_soles(m.get('precio_unid', '')), style_right),
+                Paragraph(fmt_soles(m.get('total_p', '')), style_right),
+            ]
+        else:
+            row = ['', '', '', '', '', '', '']
+        t2_rows.append(row)
+
+    t2_rows.append([
+        Paragraph('<b>Total</b>', style_bold), '', '', '', '', '',
+        Paragraph(f'<b>Subtotal_B&nbsp;&nbsp;&nbsp;{fmt_soles(subtotal_b)}</b>', style_right_bold),
+    ])
+
+    t2_tbl = Table(t2_rows, colWidths=t2_cols)
+    n_data_rows_2 = len(t2_rows)
+    t2_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('SPAN', (0, 0), (-1, 0)),
+        ('BACKGROUND', (0, 1), (-1, 1), LIGHT_GRAY),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 2), (-1, n_data_rows_2-2), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 1.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, n_data_rows_2-1), (-1, n_data_rows_2-1), LIGHT_GRAY),
+        ('SPAN', (0, n_data_rows_2-1), (5, n_data_rows_2-1)),
+    ]
+    t2_tbl.setStyle(TableStyle(t2_style))
+    story.append(t2_tbl)
+    story.append(Spacer(1, 2 * mm))
+
+    # ---- CONDICIONES COMERCIALES + TOTAL FINAL ---
+    # Layout exacto de la imagen:
+    # [Condiciones Comerciales | (vacío) | (vacío) | (vacío)]
+    # [texto condiciones       | Total Cotización (A+B) | S/ | monto]
+    try:
+        total_val = f'{total_ab:,.2f}'
+    except:
+        total_val = '0.00'
+
+    cond_col_left = W * 0.50
+    cond_col_mid  = W * 0.25
+    cond_col_soles = W * 0.07
+    cond_col_monto = W * 0.18
+
+    style_cond_hdr = ParagraphStyle('condh', fontName='Helvetica-Bold', fontSize=7, leading=9)
+    style_cond_body = ParagraphStyle('condb', fontName='Helvetica', fontSize=7, leading=10)
+    style_total_label = ParagraphStyle('tl', fontName='Helvetica-Bold', fontSize=7, leading=9, alignment=TA_CENTER)
+    style_soles = ParagraphStyle('sol', fontName='Helvetica-Bold', fontSize=7, leading=9, alignment=TA_CENTER)
+    style_monto = ParagraphStyle('mnt', fontName='Helvetica-Bold', fontSize=7, leading=9, alignment=TA_RIGHT)
+
+    cond_lines = 'Moneda Nacional soles (S/)<br/>Pagos Según contrato<br/>No incluye IGV'
+    cond_data = [
+        [
+            Paragraph('<b>Condiciones Comerciales</b>', style_cond_hdr),
+            '', '', ''
+        ],
+        [
+            Paragraph(cond_lines, style_cond_body),
+            Paragraph('<b>Total Cotización (A+B)</b>', style_total_label),
+            Paragraph('<b>S/</b>', style_soles),
+            Paragraph(f'<b>{total_val}</b>', style_monto),
+        ],
+    ]
+    cond_tbl = Table(cond_data, colWidths=[cond_col_left, cond_col_mid, cond_col_soles, cond_col_monto])
+    cond_tbl.setStyle(TableStyle([
+        ('BOX',  (0, 0), (-1, -1), 0.5, MID_GRAY),
+        ('GRID', (0, 0), (-1, -1), 0.3, MID_GRAY),
+        # Header row
+        ('BACKGROUND', (0, 0), (-1, 0), LIGHT_GRAY),
+        ('SPAN', (0, 0), (-1, 0)),
+        # Data row bg
+        ('BACKGROUND', (0, 1), (0, 1), WHITE),
+        ('BACKGROUND', (1, 1), (3, 1), LIGHT_GRAY),
+        # Padding
+        ('TOPPADDING',    (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (2, 1), (3, 1), 'RIGHT'),
+    ]))
+    story.append(cond_tbl)
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+
+def _fecha_larga_es(fecha=None):
+    """Fecha en formato largo español: 'viernes, 21 de Agosto de 2026'."""
+    DIAS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+    MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+             'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    f = fecha or datetime.now()
+    return f'{DIAS[f.weekday()]}, {f.day} de {MESES[f.month - 1]} de {f.year}'
+
+
+def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, elaborado_por, items):
+    """
+    Genera el PDF de cotizacion FLM con el formato Cobra:
+    cabecera (FECHA/EMPRESA/DIRIGIDO A/SITE/N COTIZACION/OBJETIVO + RESPONSABLE/
+    ELABORADO POR/SUPERVISOR/TICKET), tabla unica de items con FEE y secciones
+    fijas de cierre.
+    """
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+
+    buf = io.BytesIO()
+    PAGE_W, PAGE_H = landscape(A4)
+    M = 8 * mm
+
+    NAVY = colors.HexColor('#1F4E79')
+    STEEL = colors.HexColor('#2E75B6')
+    WHITE = colors.white
+    LIGHT_GRAY = colors.HexColor('#F2F2F2')
+    MID_GRAY = colors.HexColor('#BFBFBF')
+    YELLOW = colors.HexColor('#FFF2CC')
+    DARK = colors.HexColor('#1a1a1a')
+
+    def safe_str(v):
+        return str(v) if v is not None else ''
+
+    def fmt_soles(v):
+        try:
+            return f'S/ {float(v):,.2f}'
+        except Exception:
+            return 'S/ 0.00'
+
+    def fmt_num(v):
+        try:
+            f = float(v)
+            return ('%g' % f) if f == int(f) else f'{f:,.2f}'
+        except Exception:
+            return ''
+
+    # ---- Estilos ----
+    st_norm = ParagraphStyle('n', fontName='Helvetica', fontSize=8, leading=10)
+    st_bold = ParagraphStyle('b', fontName='Helvetica-Bold', fontSize=8, leading=10)
+    st_hdr_w = ParagraphStyle('hw', fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=WHITE)
+    st_sec = ParagraphStyle('sec', fontName='Helvetica-Bold', fontSize=9, leading=11, textColor=DARK)
+    st_cell_c = ParagraphStyle('cc', fontName='Helvetica', fontSize=8, leading=10, alignment=TA_CENTER)
+    st_cell_r = ParagraphStyle('cr', fontName='Helvetica', fontSize=8, leading=10, alignment=TA_RIGHT)
+
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=M, rightMargin=M,
+                            topMargin=M, bottomMargin=M)
+    W = PAGE_W - 2 * M
+    story = []
+
+    # ---- LOGO + Supplier name and RUC No ----
+    logo_path = os.path.join(BASE_DIR, 'static', 'img', 'cobra-logo.png')
+    logo_cell = []
+    if os.path.exists(logo_path):
+        logo_cell.append(RLImage(logo_path, width=42 * mm, height=20 * mm))
+    else:
+        logo_cell.append(Paragraph('<b>cobra</b>', ParagraphStyle(
+            'lg', fontName='Helvetica-Bold', fontSize=22, leading=24, textColor=NAVY)))
+    logo_cell.append(Paragraph('COBRA PERU S.A.C. — RUC 20253881438', ParagraphStyle(
+        'ruc', fontName='Helvetica', fontSize=7, leading=9, textColor=colors.HexColor('#333333'))))
+
+    fecha_str = _fecha_larga_es()
+    num_para = Paragraph(f'<b>N° COTIZACIÓN :&nbsp;&nbsp;&nbsp;&nbsp;{safe_str(numero)}</b>',
+                         ParagraphStyle('np', fontName='Helvetica-Bold', fontSize=12, leading=15))
+    head_tbl = Table([[logo_cell, num_para]], colWidths=[W * 0.45, W * 0.55])
+    head_tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ]))
+    story.append(head_tbl)
+    story.append(Spacer(1, 2 * mm))
+
+    # ---- CABECERA DE DATOS (4 columnas) ----
+    c1, c2, c3, c4 = W * 0.14, W * 0.36, W * 0.14, W * 0.36
+
+    def row_lbl(lbl, val, lbl2='', val2=''):
+        return [
+            Paragraph(f'<b>{lbl}</b>', st_bold),
+            Paragraph(safe_str(val), st_norm),
+            Paragraph(f'<b>{lbl2}</b>', st_bold) if lbl2 else '',
+            Paragraph(safe_str(val2), st_norm) if val2 else '',
+        ]
+
+    hdr_data = [
+        row_lbl('FECHA:', fecha_str),
+        row_lbl('EMPRESA:', 'Cobra Perú'),
+        row_lbl('DIRIGIDO A :', 'Huawei del Perú', 'RESPONSABLE', 'Dennis Unton'),
+        row_lbl('SITE:', site, 'ELABORADO POR', elaborado_por),
+        row_lbl('N° COTIZACIÓN :', numero, 'SUPERVISOR', supervisor),
+        row_lbl('OBJETIVO:', objetivo, 'TICKET', ticket),
+    ]
+    hdr_tbl = Table(hdr_data, colWidths=[c1, c2, c3, c4])
+    hdr_tbl.setStyle(TableStyle([
+        ('GRID', (0, 0), (-1, -1), 0.4, MID_GRAY),
+        ('BACKGROUND', (0, 0), (0, -1), LIGHT_GRAY),
+        ('BACKGROUND', (2, 0), (2, -1), LIGHT_GRAY),
+        # N° COTIZACION resaltado en amarillo
+        ('BACKGROUND', (0, 4), (1, 4), YELLOW),
+        ('SPAN', (1, 0), (3, 0)),   # FECHA valor ancho
+        ('SPAN', (1, 1), (3, 1)),   # EMPRESA valor ancho
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(hdr_tbl)
+    story.append(Spacer(1, 3 * mm))
+
+    # ---- TABLA DE ITEMS ---- (ajustado para que REEMBOLSABLE no se corte)
+    col_correl = W * 0.065
+    col_tipo = W * 0.11
+    col_texto = W * 0.26
+    col_und = W * 0.055
+    col_cant = W * 0.065
+    col_vu = W * 0.10
+    col_fee = W * 0.06
+    col_vt = W * 0.115
+    col_coment = W * 0.17
+    it_cols = [col_correl, col_tipo, col_texto, col_und, col_cant, col_vu, col_fee, col_vt, col_coment]
+
+    it_header = [
+        Paragraph('<b>CORRELATIVO</b>', st_hdr_w),
+        Paragraph('<b>TIPO</b>', st_hdr_w),
+        Paragraph('<b>TEXTO EXPLICATIVO</b>', st_hdr_w),
+        Paragraph('<b>UND</b>', st_hdr_w),
+        Paragraph('<b>CANTIDAD</b>', st_hdr_w),
+        Paragraph('<b>VALOR UNITARIO</b>', st_hdr_w),
+        Paragraph('<b>FEE %</b>', st_hdr_w),
+        Paragraph('<b>VALOR TOTAL</b>', st_hdr_w),
+        Paragraph('<b>COMENTARIOS</b>', st_hdr_w),
+    ]
+
+    it_rows = [it_header]
+    items_ok = []
+    for i, it in enumerate(items or []):
+        try:
+            cant = float(str(it.get('cantidad', '') or 0).replace(',', '.'))
+        except Exception:
+            cant = 0.0
+        try:
+            vu = float(str(it.get('valor_unitario', '') or 0).replace(',', '.'))
+        except Exception:
+            vu = 0.0
+        tipo = str(it.get('tipo', '') or '').strip().upper()
+        fee = 5.0 if tipo == 'REEMBOLSABLE' else 0.0
+        vt = cant * vu * (1 + fee / 100.0)
+        items_ok.append(vt)
+        it_rows.append([
+            Paragraph(str(i + 1), st_cell_c),
+            Paragraph(safe_str(tipo), st_cell_c),
+            Paragraph(safe_str(it.get('texto', '')), st_norm),
+            Paragraph(safe_str(it.get('und', '')), st_cell_c),
+            Paragraph(fmt_num(cant), st_cell_r),
+            Paragraph(fmt_soles(vu), st_cell_r),
+            Paragraph(f'{fee:g}%', st_cell_c),
+            Paragraph(fmt_soles(vt), st_cell_r),
+            Paragraph(safe_str(it.get('comentarios', '')), st_norm),
+        ])
+
+    total_fee = sum(items_ok)
+    it_rows.append([
+        '', '', '', '', '', '',
+        Paragraph('<b>sub total + FEE</b>', st_bold),
+        Paragraph(f'<b>{fmt_soles(total_fee)}</b>', st_cell_r),
+        '',
+    ])
+
+    n_it = len(it_rows)
+    it_tbl = Table(it_rows, colWidths=it_cols, repeatRows=1)
+    it_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), STEEL),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('GRID', (0, 0), (-1, -1), 0.4, MID_GRAY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, max(n_it - 2, 1)), [WHITE, LIGHT_GRAY]),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        # Fila total resaltada
+        ('BACKGROUND', (0, n_it - 1), (-1, n_it - 1), YELLOW),
+        ('SPAN', (0, n_it - 1), (5, n_it - 1)),
+        ('ALIGN', (6, n_it - 1), (7, n_it - 1), 'RIGHT'),
+    ]
+    if not items_ok:
+        it_style.append(('SPAN', (0, 1), (-1, 1)))
+        it_rows.append([Paragraph('Sin items registrados.', st_norm), '', '', '', '', '', '', '', ''])
+    it_tbl.setStyle(TableStyle(it_style))
+    story.append(it_tbl)
+    story.append(Spacer(1, 4 * mm))
+
+    # ---- SECCIONES FIJAS DE CIERRE ----
+    secciones_cierre = {
+        'TIEMPO DE ENTREGA': '',
+        'LUGAR DE ENTREGA': 'En la puerta del site',
+        'VALIDEZ DE LA OFERTA': '15 días calendario',
+        'CONDICIONES GENERALES': ''
+    }
+    for titulo, contenido in secciones_cierre.items():
+        sec_tbl = Table([[Paragraph(f'<b>{titulo}</b>', st_sec)]], colWidths=[W])
+        sec_tbl.setStyle(TableStyle([
+            ('BOX', (0, 0), (-1, -1), 0.5, MID_GRAY),
+            ('BACKGROUND', (0, 0), (-1, -1), LIGHT_GRAY),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(sec_tbl)
+        if contenido:
+            body_tbl = Table([[Paragraph(contenido, st_norm)]], colWidths=[W])
+            body_tbl.setStyle(TableStyle([
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(body_tbl)
+        story.append(Spacer(1, 1.5 * mm))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+# ── Mapa SITE ──────────────────────────────────────────────────────────
+@app.route('/mapa-site')
+@app.route('/mapa')
+@login_required
+def mapa_site():
+    """Mapa de sites del maestro SITE (lat/lng) con buscador para resaltar."""
+    user_id = session.get('user_id')
+    user_rol = session.get('rol')
+    # Permiso: admin/demo o cualquier usuario con FLM (como SITE en el menú)
+    proy_site = Proyecto.query.filter_by(nombre='SITE').first()
+    if not proy_site:
+        from flask import abort
+        abort(404)
+    if user_rol not in ('zeno', 'suport'):
+        # Debe tener FLM para ver el mapa de sites
+        flm = Proyecto.query.filter_by(nombre='FLM').first()
+        has_flm = False
+        if flm:
+            has_flm = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=flm.id).first() is not None
+        if not has_flm:
+            has_flm = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy_site.id).first() is not None
+        if not has_flm:
+            from flask import redirect, url_for
+            return redirect(url_for('index'))
+    # Contar sites con coordenadas válidas (para el hint)
+    count_valid = 0
+    for r in NucleusData.query.filter_by(proyecto_id=proy_site.id).all():
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
+        lat_raw = d.get('Latitud (°)', '') or d.get('Latitud', '') or d.get('LATITUD', '')
+        lng_raw = d.get('Longitud (°)', '') or d.get('Longitud', '') or d.get('LONGITUD', '')
+        try:
+            lat = float(str(lat_raw).replace(',', '.').strip())
+            lng = float(str(lng_raw).replace(',', '.').strip())
+        except Exception:
+            continue
+        if -90 <= lat <= 90 and -180 <= lng <= 180 and not (lat == 0 and lng == 0):
+            count_valid += 1
+    proyectos = get_menu_proyectos(user_id, user_rol)
+    return render_template('mapa_site.html', sites_count=count_valid, proyectos_list=proyectos)
+
+@app.route('/api/sites')
+@login_required
+def api_sites():
+    """API que devuelve todos los sites con coordenadas válidas para el mapa."""
+    proy_site = Proyecto.query.filter_by(nombre='SITE').first()
+    if not proy_site:
+        return jsonify([])
+    sites = []
+    for r in NucleusData.query.filter_by(proyecto_id=proy_site.id).all():
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
+        lat_raw = d.get('Latitud (°)', '') or d.get('Latitud', '') or d.get('LATITUD', '')
+        lng_raw = d.get('Longitud (°)', '') or d.get('Longitud', '') or d.get('LONGITUD', '')
+        try:
+            lat = float(str(lat_raw).replace(',', '.').strip())
+            lng = float(str(lng_raw).replace(',', '.').strip())
+        except Exception:
+            continue
+        if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+            continue
+        if lat == 0 and lng == 0:
+            continue
+        site_entry = {
+            'codigo': d.get('Código', '') or d.get('Código Site', '') or d.get('Codigo', '') or r.key_value,
+            'nombre': d.get('Nombre', '') or d.get('Nombre Site', ''),
+            'lat': lat,
+            'lng': lng,
+            'estado': d.get('Estado', '') or d.get('ESTADO', ''),
+            'prioridad': d.get('Prioridad', '') or d.get('PRIORIDAD', ''),
+            'departamento': d.get('Departamento', ''),
+            'provincia': d.get('Provincia', ''),
+            'distrito': d.get('Distrito', ''),
+            'direccion': d.get('Dirección', '') or d.get('Direccion', ''),
+            'region': d.get('Región', '') or d.get('Region', ''),
+            'supervisor': d.get('SUPERVISOR', '') or d.get('Supervisor', ''),
+            'all': {k: str(v) for k, v in d.items() if not k.startswith('_')},
+        }
+        sites.append(site_entry)
+    return jsonify(sites)
+
+@app.route('/api/wos_flm')
+@login_required
+def api_wos_flm():
+    """Devuelve la lista de números de WO (CMs) del proyecto FLM para autocompletado."""
+    proy_flm = Proyecto.query.filter_by(nombre='FLM').first()
+    if not proy_flm:
+        return jsonify([])
+    # The key_value is the "Número de WO" in FLM
+    wos = [r.key_value for r in db.session.query(NucleusData.key_value).filter_by(proyecto_id=proy_flm.id).all()]
+    return jsonify(wos)
+
+@app.route('/api/wo/resolver')
+@login_required
+def api_wo_resolver():
+    """Resuelve a qué proyecto (FLM/PEXT) pertenece un WO por su Número de WO."""
+    wo = (request.args.get('wo') or request.args.get('key') or '').strip()
+    if not wo:
+        return jsonify({'found': False, 'error': 'Falta WO'}), 400
+    for nombre in ['FLM', 'PEXT']:
+        proy = Proyecto.query.filter_by(nombre=nombre).first()
+        if not proy:
+            continue
+        rec = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=wo).first()
+        if rec:
+            return jsonify({'found': True, 'proyecto_id': proy.id, 'proyecto_nombre': proy.nombre, 'key': wo})
+    return jsonify({'found': False}), 404
+
+# -----------------------------------------------------------------------
+
+if __name__ == '__main__':
+    app.run(debug=True, port=int(os.environ.get('PORT', 5001)))
