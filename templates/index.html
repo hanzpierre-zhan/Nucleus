@@ -2840,13 +2840,16 @@
     };
 
     // --- Data stats: PEXT = tarjetas de KPIs; otros = tarjetas de conteo ---
-    function buildDataStats() {
+    // rows: filas a contar (default: todas). Se repinta con el filtro activo
+    // para que los números reflejen lo filtrado en la grilla.
+    function buildDataStats(rows) {
         const container = document.getElementById('data-stats');
         if (!container) return;
         const proy = currentProjectNombre.trim().toLowerCase();
+        const filas = rows || rawData;
 
         if (proy === 'pext' || proy === 'flm - entel') {
-            renderCardsStats(container);
+            renderCardsStats(container, filas);
             return;
         }
 
@@ -2858,7 +2861,7 @@
         const norm = v => String(v == null ? '' : v).trim().toUpperCase();
         let hasEstado = false, hasProyecto = false;
         let activos = 0, cesados = 0, flm = 0, pext = 0;
-        rawData.forEach(r => {
+        filas.forEach(r => {
             const est = norm(r.ESTADO);
             if (est === 'ACTIVO') { activos++; hasEstado = true; }
             else if (est === 'CESADO') { cesados++; hasEstado = true; }
@@ -2866,10 +2869,27 @@
             if (proy === 'FLM - ENTEL') { flm++; hasProyecto = true; }
             else if (proy === 'PEXT') { pext++; hasProyecto = true; }
         });
-        if (!hasEstado && !hasProyecto) return;
+        // Detecta las columnas sobre la muestra completa si el filtro dejó 0 filas.
+        if (!hasEstado && !hasProyecto) {
+            if (filas === rawData) return;
+            rawData.forEach(r => {
+                const est = norm(r.ESTADO);
+                if (est === 'ACTIVO' || est === 'CESADO') hasEstado = true;
+                const p = norm(r.PROYECTO);
+                if (p === 'FLM - ENTEL' || p === 'PEXT') hasProyecto = true;
+            });
+            if (!hasEstado && !hasProyecto) return;
+            container.style.display = 'grid';
+            container.innerHTML =
+                `<div class="data-stat">` +
+                `<div class="data-stat-ic" style="background:var(--ios-accent)1F; color:var(--ios-accent);"><i class="fa-solid fa-users"></i></div>` +
+                `<div class="data-stat-meta"><b>0</b><span>Personal</span></div>` +
+                `</div>`;
+            return;
+        }
 
         const cards = [
-            ["var(--ios-accent)", "fa-users", "Personal", rawData.length]
+            ["var(--ios-accent)", "fa-users", "Personal", filas.length]
         ];
         if (hasEstado) {
             cards.push(['#34C759', 'fa-user-check', 'Activos', activos]);
@@ -2967,7 +2987,9 @@
     }
 
     // --- FLM - ENTEL: tarjetas de los 7 estados de WO (filtrables al click) ---
-    function renderCardsStats(container) {
+    // rows: filas a contar (default: todas). Se repinta con el filtro activo
+    // para que los números reflejen lo filtrado en la grilla.
+    function renderCardsStats(container, rows) {
         const norm = v => String(v == null ? '' : v).trim().toLowerCase();
         const val = (row, ...keys) => {
             for (const k of keys) {
@@ -2976,6 +2998,7 @@
             }
             return null;
         };
+        const filas = rows || rawData;
 
         // Los 10 estados (3 de Tipo WO, 7 de Operate Phase)
         const WO_STATES = [
@@ -2995,7 +3018,7 @@
         const counts = {};
         WO_STATES.forEach(s => counts[s.key] = 0);
 
-        rawData.forEach(r => {
+        filas.forEach(r => {
             const opPhase = norm(val(r, 'operate phase') || '');
             const tipoWo = norm(val(r, 'tipo wo') || '');
             
@@ -3018,6 +3041,55 @@
             `<div class="data-stat-meta"><b>${counts[s.key]}</b><span>${s.label}</span></div>` +
             `</div>`
         ).join('');
+
+        // Re-marcar la tarjeta-filtro activa (se repintó el innerHTML).
+        if (_tarjetaFiltroActiva != null) {
+            container.querySelectorAll('.data-stat').forEach(d => {
+                const v = d.getAttribute('data-wo-state') || d.getAttribute('data-sla') ||
+                          d.getAttribute('data-wo') || d.getAttribute('data-zona');
+                if (v === _tarjetaFiltroActiva) d.classList.add('stat-active');
+            });
+        }
+    }
+
+    // Repinta las tarjetas PEXT/FLM con las filas que pasan los filtros de la
+    // grilla (fecha, columnas, búsqueda y la propia tarjeta). Si el filtro
+    // activo es una tarjeta, se descuenta su propio filtro (facetado) para que
+    // las demás tarjetas sigan mostrando sus conteos y se pueda cambiar de
+    // tarjeta sin "reiniciar" la vista.
+    let _tarjetasRepintTimer = null;
+    function _refrescarTarjetasFiltradas() {
+        const container = document.getElementById('data-stats');
+        if (!container) return;
+        if (typeof table === 'undefined' || !table) return;
+        const proy = (typeof currentProjectNombre !== 'undefined' ? currentProjectNombre : '').trim().toLowerCase();
+        if (proy === 'combustible') return;
+
+        let filas = null;
+        if (_tarjetaFiltroActiva != null && _filtroTarjetaFn) {
+            const otrosFiltros = table.getFilters();          // solo filtros de lista (fechas, etc.)
+            const restantes = otrosFiltros.filter(f => f && f.field !== _filtroTarjetaFn);
+            try {
+                _refrescandoTarjetas = true;
+                if (restantes.length) table.setFilter(restantes); else table.clearFilter();
+                filas = table.getRows('active').map(r => r.getData());
+            } catch (e) {
+                filas = null; // degradar a global si la API cambia
+            } finally {
+                // Devuelve el filtro de la tarjeta (descriptor {field}, nunca la
+                // fn cruda: addFilter sólo envuelve el argumento principal).
+                try {
+                    if (restantes.length) table.setFilter(restantes.concat([{ field: _filtroTarjetaFn }]));
+                    else table.setFilter([{ field: _filtroTarjetaFn }]);
+                } catch (e2) { /* sin filtro de tarjeta: la grilla queda sin él */ }
+                _refrescandoTarjetas = false;
+            }
+        }
+        if (!filas) {
+            try { filas = table.getRows('active').map(r => r.getData()); }
+            catch (e) { filas = null; }
+        }
+        buildDataStats(filas || rawData);
     }
 
     // Filtra la tabla al hacer click en una tarjeta de FLM/PEXT.
@@ -3026,6 +3098,8 @@
     // 'zona'     → filtra por zona (Combustible).
     // Un segundo click sobre la misma tarjeta quita el filtro.
     let _tarjetaFiltroActiva = null;
+    let _filtroTarjetaFn = null;   // función del filtro activo (para el facetado)
+    let _refrescandoTarjetas = false;
     async function filtrarPorTarjeta(el) {
         const tipo = el.getAttribute('data-tipo');
         const valor = el.getAttribute('data-wo-state') || el.getAttribute('data-sla') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
@@ -3033,6 +3107,7 @@
 
         if (_tarjetaFiltroActiva === valor) {
             _tarjetaFiltroActiva = null;
+            _filtroTarjetaFn = null;
             table.clearFilter();
             document.querySelectorAll('#data-stats .data-stat').forEach(d => d.classList.remove('stat-active'));
             return;
@@ -3047,36 +3122,39 @@
             return null;
         };
 
+        let fn = null;
         if (tipo === 'wo-state') {
             // Filtro exacto por Operate Phase
-            table.setFilter((rowData) => {
+            fn = (rowData) => {
                 const opPhase = norm(val(rowData, 'operate phase') || '');
                 return opPhase === valor;
-            });
+            };
         } else if (tipo === 'tipo-wo') {
             // Filtro por Tipo WO
-            table.setFilter((rowData) => {
+            fn = (rowData) => {
                 const tipoWo = norm(val(rowData, 'tipo wo') || '');
                 return tipoWo === valor || tipoWo.startsWith(valor);
-            });
+            };
         } else if (tipo === 'sla') {
-            table.setFilter((rowData) => {
+            fn = (rowData) => {
                 const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData), esCanceladoOM(rowData));
                 return st.texto === valor;
-            });
+            };
         } else if (tipo === 'zona') {
-            table.setFilter((rowData) => {
+            fn = (rowData) => {
                 const zona = String(rowData['ZONA'] || genZonaMap && genZonaMap[rowData['QR ASIGNADO']] || '').trim().toUpperCase();
                 return zona === norm(valor).toUpperCase();
-            });
+            };
         } else {
-            table.setFilter((rowData) => {
+            fn = (rowData) => {
                 const woState = String(val(rowData, 'estado de la tarea (wo state)', 'estado del tt', 'estado') || '').trim().toLowerCase();
                 return woState === norm(valor);
-            });
+            };
         }
 
         _tarjetaFiltroActiva = valor;
+        _filtroTarjetaFn = fn;
+        table.setFilter(fn);
         document.querySelectorAll('#data-stats .data-stat').forEach(d => d.classList.remove('stat-active'));
         el.classList.add('stat-active');
     }
@@ -4573,7 +4651,14 @@
         }
     }
 
-    table.on("dataFiltered", function () { setTimeout(_actualizarBadgeRegistros, 50); });
+    table.on("dataFiltered", function () {
+        // Los repintos internos del facetado disparan dataFiltered otra vez:
+        // en ese caso no re-agendar (evita un bucle de repintado).
+        if (_refrescandoTarjetas) return;
+        setTimeout(_actualizarBadgeRegistros, 50);
+        clearTimeout(_tarjetasRepintTimer);
+        _tarjetasRepintTimer = setTimeout(_refrescarTarjetasFiltradas, 60);
+    });
     table.on("pageLoaded", function () { _actualizarBadgeRegistros(); });
     table.on("tableBuilt", function () { _actualizarBadgeRegistros(); });
 
