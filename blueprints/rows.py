@@ -123,7 +123,23 @@ def api_rows_update():
             # con el mismo N°. En los demás estados, el bloqueo por GENERADA sigue.
             _est_cot = str(row_dict.get('ESTADO COTIZACION', '') or '').strip()
             _liberada = _est_cot in ('Observado', 'Rechazado')
-            if session.get('rol') not in ('zeno', 'suport') and str(row_dict.get('GENERADA', '') or '') == '1' and not _liberada:
+            if field == 'ESTADO COTIZACION':
+                # Aprobación: la mueve cualquiera con el módulo Cotizaciones, aunque
+                # la cotización ya esté GENERADA/bloqueada. Solo se valida que el
+                # estado pertenezca a la lista configurada del proyecto.
+                try:
+                    _mc_coti = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+                    _cols_coti = json.loads(_mc_coti.valor) if _mc_coti else []
+                    _def_coti = next((c for c in _cols_coti
+                                      if str(c.get('nombre', '') or '').strip() == 'ESTADO COTIZACION'), None)
+                    if _def_coti and str(_def_coti.get('tipo', '')) == 'lista':
+                        _opc = [str(o).strip() for o in (_def_coti.get('opciones') or [])]
+                        _val_est = str(value if value is not None else '').strip()
+                        if _opc and _val_est not in _opc:
+                            return jsonify({'error': 'Estado de cotización inválido: ' + _val_est}), 400
+                except Exception:
+                    pass
+            elif session.get('rol') not in ('zeno', 'suport') and str(row_dict.get('GENERADA', '') or '') == '1' and not _liberada:
                 if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
                     pass
                 else:

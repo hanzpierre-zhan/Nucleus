@@ -3984,6 +3984,22 @@
                 delete colDef.headerFilterParams;
             }
 
+            // Aprobación: ESTADO COTIZACION es editable para TODOS los que tienen
+            // el módulo Cotizaciones, también para Contrata/Gestor (que no entran
+            // al bloque de edición de arriba) y también si la cotización está GENERADA.
+            if (manualDef && manualDef.tipo === 'lista'
+                    && fieldName === 'ESTADO COTIZACION'
+                    && currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
+                colDef.editor = "list";
+                colDef.editorParams = {
+                    values: manualDef.opciones,
+                    clearable: true,
+                    autocomplete: true,
+                    listOnEmpty: false,
+                    freetext: false
+                };
+            }
+
             // N° ORDEN nunca editable (correlativo automático)
             if (fieldName === 'N° ORDEN') {
                 colDef.editable = false;
@@ -4017,6 +4033,9 @@
                 }
                 colDef.editable = function (cell) {
                     const d = cell.getRow().getData() || {};
+                    // La aprobación (ESTADO COTIZACION) se mueve siempre: el
+                    // bloqueo por GENERADA aplica al resto de los campos.
+                    if (fieldName === 'ESTADO COTIZACION') return true;
                     const generada = String(d['GENERADA'] || '') === '1';
                     if (generada && !isAdminUser) {
                         if (fieldName === 'NUMERO WO' && !String(d['NUMERO WO'] || '').trim()) return true;
