@@ -204,6 +204,7 @@ def run_migrations(app, database_url=''):
         # ── Proyectos fijos ───────────────────────────────────────────────
         fixed = [
             ('FLM - ENTEL', 'FLM – Proyecto Entel'),
+            ('FLM - INTEGRATEL', 'FLM – Proyecto Integratel'),
             ('Dataper', 'DataPer S.A.C.'),
             ('Material', 'Materiales Disponibles'),
             ('Site Name', 'Sitios (solo FLM)'),
