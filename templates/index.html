@@ -1792,6 +1792,30 @@
         font-weight: 600;
     }
 
+    .evidencia-slot-reintentar {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--ios-accent);
+        background: var(--ios-blue-light);
+        border-radius: 10px;
+        cursor: pointer;
+        padding: 4px;
+    }
+    .evidencia-slot-reintentar:hover {
+        background: rgba(0, 122, 255, 0.14);
+    }
+
+    .reporte-block-photo .evidencia-slot-reintentar {
+        min-height: 120px;
+        border-radius: 10px;
+    }
+
     .evidencia-slot-del {
         position: absolute;
         top: 5px;
@@ -7470,8 +7494,16 @@ btnItem.onclick = () => cotRegAgregarFila();
                 img.alt = 'Reporte ' + (i + 1);
                 img.loading = 'lazy';
                 img.onerror = () => {
-                    evidenciaState.reporte.fotos[i] = '';
-                    renderEvidenciaReporte();
+                    const u = evidenciaState.reporte.fotos[i];
+                    if (!u) return;
+                    const btn = document.createElement('div');
+                    btn.className = 'evidencia-slot-reintentar';
+                    btn.textContent = 'Reintentar';
+                    btn.title = 'No se pudo cargar la foto. Clic para reintentar.';
+                    btn.addEventListener('click', ev => { ev.stopPropagation(); renderEvidenciaReporte(); });
+                    photo.innerHTML = '';
+                    photo.className = 'reporte-block-photo';
+                    photo.appendChild(btn);
                 };
                 img.addEventListener('click', ev => { ev.stopPropagation(); abrirEvidenciaFoto(url); });
                 photo.appendChild(img);
@@ -7587,8 +7619,19 @@ btnItem.onclick = () => cotRegAgregarFila();
                 img.alt = 'Evidencia ' + (i + 1);
                 img.loading = 'lazy';
                 img.onerror = () => {
-                    evidenciaState[tipo].fotos[i] = null;
-                    renderEvidenciaGrupo(tipo);
+                    const u = evidenciaState[tipo].fotos[i];
+                    if (!u) return;
+                    const btn = document.createElement('div');
+                    btn.className = 'evidencia-slot-reintentar';
+                    btn.textContent = 'Reintentar';
+                    btn.title = 'No se pudo cargar la foto. Clic para reintentar.';
+                    btn.addEventListener('click', ev => {
+                        ev.stopPropagation();
+                        renderEvidenciaGrupo(tipo);
+                    });
+                    slot.innerHTML = '';
+                    slot.className = 'evidencia-slot has-img' + (editable ? '' : ' disable');
+                    slot.appendChild(btn);
                 };
                 img.addEventListener('click', ev => {
                     ev.stopPropagation();
@@ -7752,7 +7795,18 @@ btnItem.onclick = () => cotRegAgregarFila();
                 img.src = url;
                 img.alt = RESGUARDO_LABELS[i];
                 img.loading = 'lazy';
-                img.onerror = () => { evidenciaState[RESGUARDO_TIPO].fotos[i] = ''; renderResguardo(); };
+                img.onerror = () => {
+                    const u = evidenciaState[RESGUARDO_TIPO].fotos[i];
+                    if (!u) return;
+                    const btn = document.createElement('div');
+                    btn.className = 'evidencia-slot-reintentar';
+                    btn.textContent = 'Reintentar';
+                    btn.title = 'No se pudo cargar la foto. Clic para reintentar.';
+                    btn.addEventListener('click', ev => { ev.stopPropagation(); renderResguardo(); });
+                    slot.innerHTML = '';
+                    slot.className = 'evidencia-slot has-img' + (editable ? '' : ' disable');
+                    slot.appendChild(btn);
+                };
                 img.addEventListener('click', ev => { ev.stopPropagation(); abrirEvidenciaFoto(url); });
                 slot.appendChild(img);
                 if (editable) {
