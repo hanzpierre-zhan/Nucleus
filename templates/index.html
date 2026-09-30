@@ -84,7 +84,7 @@
         <button type="button" id="btn-top-next" class="action-pill">Guardar</button>
     </div>
     {% endif %}
-    {% if proy_nombre == 'cotizaciones' or puede_cotizaciones %}
+    {% if proy_nombre == 'cotizaciones' %}
     <div id="coti-lote-top" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
         <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">PDFs generadas:</span>
         <input type="date" id="coti-lote-desde" title="Desde" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
@@ -97,7 +97,14 @@
         <i class="fa-solid fa-file-excel"></i> Exportar
     </button>
 
-    {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
+    {% if proy_nombre == 'rendicion' and session.get('rol') in ['zeno', 'suport', 'admin'] %}
+    <!-- Botón Sincronizar (Trae las solicitudes nuevas del Google Form) -->
+    <button type="button" id="btn-sync-rendicion" onclick="sincronizarTodo()" class="action-pill pill-teal"
+        title="Sincronizar solicitudes del formulario y sustentos del archivo">
+        <i class="fa-solid fa-rotate"></i> Sincronizar
+    </button>
+    {% endif %}
+
     {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
     <!-- Botón Añadir Registro (Azul) -->
     <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
@@ -112,7 +119,7 @@
     </button>
     {% endif %}
 
-    {% if session.get('rol') in ['zeno', 'suport'] %}
+    {% if session.get('rol') in ['zeno', 'suport'] and proy_nombre != 'rendicion' %}
     <!-- Botón Importar Masivo (Teal) -->
     <button onclick="abrirModalImportar()" class="action-pill pill-teal"
         title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">
@@ -132,10 +139,95 @@
     </button>
     {% endif %}
 </div>
+{% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
+{% if proy_nombre_flow == 'rendicion' %}
+<!-- Pestañas del flujo: la solicitud salta de hoja según su ESTADO -->
+<div class="rend-tabs" id="rend-tabs">
+    <button type="button" class="rend-tab active" data-vista="validacion" onclick="rendCambiarVista('validacion')">
+        <i class="fa-solid fa-clipboard-check"></i> Validación <span class="rend-badge" id="rend-cnt-validacion">0</span>
+    </button>
+    <button type="button" class="rend-tab" data-vista="depositos" onclick="rendCambiarVista('depositos')">
+        <i class="fa-solid fa-money-bill-transfer"></i> Depósitos <span class="rend-badge" id="rend-cnt-depositos">0</span>
+    </button>
+    <button type="button" class="rend-tab" data-vista="evidencia" onclick="rendCambiarVista('evidencia')">
+        <i class="fa-solid fa-camera-retro"></i> Evidencia <span class="rend-badge" id="rend-cnt-evidencia">0</span>
+    </button>
+    <button type="button" class="rend-tab" data-vista="rendicion" onclick="rendCambiarVista('rendicion')">
+        <i class="fa-solid fa-file-invoice-dollar"></i> Rendición <span class="rend-badge" id="rend-cnt-sustentos">0</span>
+    </button>
+    <button type="button" class="rend-tab" data-vista="rechazados" onclick="rendCambiarVista('rechazados')">
+        <i class="fa-solid fa-ban"></i> Rechazados <span class="rend-badge" id="rend-cnt-rechazados">0</span>
+    </button>
+    <button type="button" class="rend-tab" data-vista="cerrado" onclick="rendCambiarVista('cerrado')">
+        <i class="fa-solid fa-check-double"></i> Cerrado <span class="rend-badge" id="rend-cnt-cerrado">0</span>
+    </button>
+</div>
+{% endif %}
 <div id="data-stats" class="data-stats"></div>
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 
 <style>
+    /* Pestañas del flujo de Rendicion (hojas tipo Excel) */
+    .rend-tabs { display: flex; gap: 4px; padding: 0 12px 8px; flex-wrap: wrap; }
+    .rend-tab {
+        display: inline-flex; align-items: center; gap: 7px;
+        padding: 8px 14px; border-radius: 8px; cursor: pointer;
+        background: var(--ios-card-bg, #fff); border: 1px solid var(--ios-hairline, #E5E5EA);
+        color: var(--ios-label, #000); font-size: 13px; font-weight: 600;
+        font-family: inherit;
+    }
+    .rend-tab:hover { background: #F2F2F7; }
+    .rend-tab.active { background: var(--ios-blue, #007AFF); border-color: var(--ios-blue, #007AFF); color: #fff; }
+    .rend-badge {
+        background: rgba(0,0,0,.10); color: inherit; border-radius: 9px;
+        padding: 1px 7px; font-size: 11px; font-weight: 700; min-width: 20px; text-align: center;
+    }
+    .rend-tab.active .rend-badge { background: rgba(255,255,255,.28); }
+    /* Botones de accion del flujo en la fila */
+    .rend-acciones { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+    .rend-btn {
+        border: none; border-radius: 7px; cursor: pointer; font-family: inherit;
+        font-size: 11.5px; font-weight: 700; padding: 5px 11px; color: #fff; white-space: nowrap;
+        transition: filter .15s, transform .1s, box-shadow .15s;
+        box-shadow: 0 1px 3px rgba(0,0,0,.18);
+    }
+    .rend-btn-ok  { background: linear-gradient(135deg,#28A745,#1e8a38); }
+    .rend-btn-no  { background: linear-gradient(135deg,#FF3B30,#d62c22); }
+    .rend-btn-dep { background: linear-gradient(135deg,#007AFF,#005ecb); }
+    .rend-btn-sus { background: linear-gradient(135deg,#AF52DE,#8e3ab8); }
+    .rend-btn-done { background: transparent; color: #28A745; font-size: 13px; cursor: default; font-weight: 700; }
+    .rend-btn:hover  { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.22); }
+    .rend-btn:active { filter: brightness(.93); transform: translateY(0); }
+    /* Formularios de los modales del flujo */
+    .rend-modal-body label { display: block; font-size: 12px; font-weight: 600; color: var(--ios-label2, #6D6D72); margin: 12px 0 4px; }
+    .rend-modal-body input[type="date"], .rend-modal-body input[type="number"],
+    .rend-modal-body input[type="text"], .rend-modal-body textarea {
+        width: 100%; box-sizing: border-box; padding: 9px 10px; font-size: 14px; font-family: inherit;
+        border: 1px solid var(--ios-hairline, #E5E5EA); border-radius: 8px;
+        background: var(--ios-card-bg, #fff); color: var(--ios-label, #000);
+        transition: border-color .15s, box-shadow .15s;
+    }
+    .rend-modal-body input:focus, .rend-modal-body textarea:focus {
+        outline: none; border-color: var(--ios-blue, #007AFF);
+        box-shadow: 0 0 0 3px rgba(0,122,255,.13);
+    }
+    .rend-modal-body textarea { resize: vertical; min-height: 80px; }
+    /* Info de estado del flujo en modal */
+    .rend-flow-info {
+        display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+        background: rgba(0,122,255,.08); border-radius: 8px; margin-bottom: 4px;
+        font-size: 12px; color: var(--ios-blue, #007AFF); font-weight: 600;
+    }
+    /* Slots de foto */
+    .rend-slot {
+        border: 1.5px dashed var(--ios-hairline, #C7C7CC); border-radius: 10px; padding: 10px;
+        text-align: center; font-size: 12px; color: var(--ios-label2, #6D6D72);
+        cursor: pointer; transition: border-color .15s, background .15s;
+    }
+    .rend-slot:hover { border-color: var(--ios-blue, #007AFF); background: rgba(0,122,255,.05); }
+    .rend-slot.filled { border-style: solid; border-color: #28A745; color: #28A745; }
+    .rend-slot img { max-width: 100%; height: 74px; object-fit: cover; border-radius: 6px; display: block; margin: 0 auto 4px; }
+
     /* ============================================================
        SCROLL HORIZONTAL VISIBLE — barra más gruesa para que los
        gestores noten que la tabla se puede deslizar lateralmente
@@ -2802,6 +2894,41 @@
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm - entel';
     const IS_FLM_LIKE = IS_FLM || _projNorm.includes('flm - entel'); // 'flm' y 'flm - entel' usan el mismo formulario/modal
     const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
+    // Rendicion: pestañas por estado del flujo (Validación/Depósitos/Evidencia/Rechazados)
+    const IS_RENDICION = _projNorm === 'rendicion';
+    const REND_ESTADO_COLORS = {
+        'PENDIENTE':  { bg: '#8E8E93', fg: '#fff' },
+        'VALIDADO':   { bg: '#007AFF', fg: '#fff' },
+        'DEPOSITADO': { bg: '#FF9500', fg: '#fff' },
+        'CON SUSTENTO':{bg: '#17A2B8', fg: '#fff' },
+        'SUSTENTADO': { bg: '#28A745', fg: '#fff' },
+        'RECHAZADO':  { bg: '#FF3B30', fg: '#fff' }
+    };
+    const REND_VISTAS = {
+        // Validación: muestra todo lo que cargó el técnico (sin restricción de cols)
+        validacion:  { estados: ['PENDIENTE', ''], cols: null },
+        // Depósitos: solo campos de pago + acción
+        depositos:   { estados: ['VALIDADO'],
+                       cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
+                              'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'ESTADO', '_accion'] },
+        // Evidencia: (ahora solo DEPOSITADO, sin boton de accion)
+        evidencia:   { estados: ['DEPOSITADO'],
+                       cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
+                              'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO',
+                              'FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'ESTADO', '_accion'] },
+        // Rendición: (CON SUSTENTO) aquí se habilita el botón SUSTENTADO
+        rendicion:   { estados: ['CON SUSTENTO'],
+                       cols: null },
+        // Cerrado: Todo completo
+        cerrado:     { estados: ['SUSTENTADO'],
+                       cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
+                              'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO',
+                              'FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'ESTADO', '_accion'] },
+        // Rechazados:
+        rechazados:  { estados: ['RECHAZADO'],
+                       cols: null,
+                       showCols: ['OBSERVACIONES', 'FECHA RECHAZO', 'ESTADO', '_accion'] }
+    };
 
     const FAULT_COLORS = IS_FLM ? {
         'Critical': { bg: '#dc3545', fg: '#fff', hrs: '4hrs' },
@@ -3447,13 +3574,20 @@
     };
 
     // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
-    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site', 'flm - entel'];
+    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site', 'flm - entel', 'rendicion', 'flm - integratel'];
     if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
         ["SLA", "SLA Cumplimiento"].forEach(slaName => {
             if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
                 rawCols.push(slaName);
             }
         });
+    }
+    
+    // Ensure CODIGO DEPOSITO exists in rawCols for Rendicion
+    if (IS_RENDICION) {
+        if (!rawCols.includes('CODIGO DEPOSITO')) {
+            rawCols.push('CODIGO DEPOSITO');
+        }
     }
 
     const looksLikeDatetime = (v) => /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(String(v || '').trim());
@@ -4008,6 +4142,40 @@
                 delete colDef.headerFilterParams;
             }
 
+            // Rendicion: ESTADO muestra un badge con el color de su estado dentro
+            // del flujo, y las fotos (pago / sustento) se abren al hacer clic.
+            if (IS_RENDICION && fieldName === 'ESTADO') {
+                colDef.editor = false; // la gestiona el flujo, no se edita a mano
+                colDef.headerFilter = listaHeaderFilter(manualDef ? manualDef.opciones : []);
+                colDef.formatter = function (cell) {
+                    const est = rendEstadoDe({ ESTADO: cell.getValue() });
+                    const c = REND_ESTADO_COLORS[est] || REND_ESTADO_COLORS['PENDIENTE'];
+                    return `<span style="background:${c.bg};color:${c.fg};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">${est}</span>`;
+                };
+            }
+            if (IS_RENDICION && (fieldName === 'FOTO PAGO' || fieldName === 'FOTOS SUSTENTO')) {
+                const esSustento = fieldName === 'FOTOS SUSTENTO';
+                colDef.editor = false;
+                colDef.formatter = function (cell) {
+                    const raw = cell.getValue();
+                    if (!raw) return '';
+                    let urls = [];
+                    if (esSustento) {
+                        try { urls = JSON.parse(raw); } catch (e) { urls = [raw]; }
+                        if (!Array.isArray(urls)) urls = [raw];
+                    } else {
+                        urls = [raw];
+                    }
+                    const n = urls.filter(u => String(u || '').trim()).length;
+                    if (!n) return '';
+                    return `<span style="color:#AF52DE;font-weight:700;cursor:pointer;" title="Ver foto(s)">
+                        <i class="fa-solid fa-camera"></i> ${n}</span>`;
+                };
+                colDef.cellClick = function (e, cell) {
+                    rendVerFotos(cell.getRow().getData(), esSustento);
+                };
+            }
+
             // Aprobación: ESTADO COTIZACION es editable para TODOS los que tienen
             // el módulo Cotizaciones, también para Contrata/Gestor (que no entran
             // al bloque de edición de arriba) y también si la cotización está GENERADA.
@@ -4273,6 +4441,26 @@
             };
         }
 
+        // Enlaces de Drive / HTTP en columnas de Sustento
+        if (fieldName && fieldName.startsWith('SUSTENTO_')) {
+            colDef.formatter = function (cell) {
+                const val = cell.getValue();
+                if (!val) return '';
+                const valStr = String(val).trim();
+                // Si son multiples links separados por coma o espacio (común en google forms)
+                if (valStr.startsWith('http://') || valStr.startsWith('https://')) {
+                    const links = valStr.split(/[\s,]+/);
+                    return links.map(l => {
+                        if (l.startsWith('http')) {
+                            return `<a href="${escapeHtml(l)}" target="_blank" style="display:inline-block; padding:4px 8px; background:rgba(0,122,255,0.1); color:var(--ios-blue); border-radius:12px; text-decoration:none; font-size:11px; font-weight:700; margin-right:4px; margin-bottom:2px;"><i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir</a>`;
+                        }
+                        return escapeHtml(l);
+                    }).join('');
+                }
+                return escapeHtml(valStr);
+            };
+        }
+
         // FECHA CAMBIO ESTADO: guardada en UTC -> mostrar en hora de Perú (UTC-5)
         if (fieldName === "FECHA CAMBIO ESTADO") {
             colDef.formatter = function (cell) {
@@ -4444,6 +4632,92 @@
                     : '<i class="fa-solid fa-circle-minus"></i>';
                 btn.onclick = (e) => { e.stopPropagation(); marcarNoAtendido(cell.getRow()); };
                 return btn;
+            },
+            cellClick: function (e, cell) { }
+        });
+    }
+
+    // Rendicion: columna de acciones del flujo. Cada fila muestra el boton que
+    // corresponde a su ESTADO: Validar/Rechazar, Depositar o Sustentar.
+    if (IS_RENDICION) {
+        tableColumns.push({
+            title: "Flujo",
+            field: "_accion",
+            width: 240,
+            minWidth: 220,
+            maxWidth: 300,
+            frozen: true,
+            headerSort: false,
+            hozAlign: "left",
+            formatter: function (cell) {
+                const row = cell.getRow().getData();
+                const est = rendEstadoDe(row);
+                const wrap = document.createElement('div');
+                wrap.className = 'rend-acciones';
+                const key = row._key;
+                const puede = rendPuedeGestionar();
+
+                function mk(clase, texto, titulo, fn) {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'rend-btn ' + clase;
+                    b.textContent = texto;
+                    b.title = titulo;
+                    b.disabled = !puede;
+                    b.onclick = (e) => { e.stopPropagation(); fn(); };
+                    wrap.appendChild(b);
+                }
+
+                if (est === 'PENDIENTE') {
+                    mk('rend-btn-ok', '✓ Validar', 'Validar solicitud → pasa a Depósitos',
+                       () => rendValidar(key));
+                    mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
+                       () => rendAbrirRechazo(key));
+                } else if (est === 'VALIDADO') {
+                    mk('rend-btn-dep', 'DEPOSITADO', 'Registrar fecha, monto y foto del pago',
+                       () => rendAbrirDeposito(key));
+                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
+                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Pendiente', () => rendRevertir(key));
+                    }
+                } else if (est === 'DEPOSITADO') {
+                    const chk = document.createElement('span');
+                    chk.className = 'rend-btn-done';
+                    chk.style.color = '#8E8E93';
+                    chk.title = 'Pendiente de sustentar en Google Sheet';
+                    chk.innerHTML = '<i class="fa-solid fa-clock"></i> Pdte Sustentar';
+                    wrap.appendChild(chk);
+                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
+                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Validado', () => rendRevertir(key));
+                    }
+                } else if (est === 'CON SUSTENTO') {
+                    mk('rend-btn-sus', 'SUSTENTADO', 'Subir fotos adicionales o cerrar la solicitud',
+                       () => rendAbrirSustento(key));
+                    mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
+                       () => rendAbrirRechazo(key));
+                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
+                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Depositado', () => rendRevertir(key));
+                    }
+                } else if (est === 'SUSTENTADO') {
+                    const chk = document.createElement('span');
+                    chk.className = 'rend-btn-done';
+                    chk.title = 'Completado - Sustentado';
+                    chk.innerHTML = '<i class="fa-solid fa-circle-check"></i> Sustentado';
+                    wrap.appendChild(chk);
+                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
+                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Depositado', () => rendRevertir(key));
+                    }
+                } else if (est === 'RECHAZADO') {
+                    const chk = document.createElement('span');
+                    chk.className = 'rend-btn-done';
+                    chk.style.color = '#FF3B30';
+                    chk.title = 'Rechazado';
+                    chk.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Rechazado';
+                    wrap.appendChild(chk);
+                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
+                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Pendiente', () => rendRevertir(key));
+                    }
+                }
+                return wrap;
             },
             cellClick: function (e, cell) { }
         });
@@ -4684,7 +4958,7 @@
             : [],
         height: "100%",
         headerHeight: 90,
-        rowHeight: 25,
+        rowHeight: IS_RENDICION ? 42 : 25,
         selectable: isAdmin,
         selectableRangeMode: false,
         pagination: "local",
@@ -5244,6 +5518,55 @@
             alert("Error de red");
         });
     });
+
+    function sincronizarTodo() {
+        const btn = document.getElementById('btn-sync-rendicion');
+        const iconoOriginal = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sincronizando';
+        }
+        
+        let msgs = [];
+        // Primero sincronizamos solicitudes
+        fetch('/api/rendicion/sync', { credentials: 'same-origin' })
+            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(({ ok, j }) => {
+                if (!ok || j.error) {
+                    msgs.push('Error Form: ' + (j.error || 'error desconocido'));
+                } else {
+                    msgs.push(j.nuevas > 0 ? `+${j.nuevas} forms` : 'Forms al día');
+                }
+                
+                // Luego sincronizamos sustentos
+                return fetch('/api/rendicion/sync_sustentos', { method: 'POST', credentials: 'same-origin' });
+            })
+            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(({ ok, j }) => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = iconoOriginal;
+                }
+                if (!ok || j.error) {
+                    msgs.push('Error Sust: ' + (j.error || 'error desconocido'));
+                } else {
+                    msgs.push(j.actualizados > 0 ? `+${j.actualizados} sustentos` : 'Sustentos al día');
+                }
+                
+                if (typeof table !== 'undefined' && table && typeof table.replaceData === 'function') {
+                    location.reload();
+                } else {
+                    alert(msgs.join('\n'));
+                }
+            })
+            .catch(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = iconoOriginal;
+                }
+                alert('Error de red al sincronizar. Revisa tu conexión.');
+            });
+    }
 
     function descargarExcel() {
         if (typeof XLSX === 'undefined') {
@@ -11139,6 +11462,64 @@ btnItem.onclick = () => cotRegAgregarFila();
     </div>
   </div>
 </div>
+<!-- Modales del flujo de Rendicion -->
+<div id="rend-modal" class="mar-overlay" style="display:none;">
+  <div class="mar-modal" style="max-width:560px;">
+    <div class="mar-header">
+      <div>
+        <h3 id="rend-modal-title">Confirmar</h3>
+        <p id="rend-modal-sub"></p>
+      </div>
+      <button type="button" onclick="rendCerrarModal()" class="mar-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mar-body" style="display:block;">
+      <div id="rend-modal-cuerpo" class="rend-modal-body">
+        <label id="rend-lbl-motivo" for="rend-motivo" style="display:none;">Motivo del rechazo</label>
+        <textarea id="rend-motivo" style="display:none;" placeholder="Ej.: No coincide con la OT"></textarea>
+
+        <div id="rend-dep-form" style="display:none;">
+          <div id="rend-dep-summary" style="margin-bottom:15px; padding:12px; background:var(--ios-card-bg, #f8f9fa); border: 1px solid var(--ios-hairline); border-radius:8px; display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12.5px; max-height: 200px; overflow-y: auto;">
+          </div>
+          <hr style="border:none; border-top:1px dashed var(--ios-hairline, #C7C7CC); margin: 0 0 15px 0;">
+
+          <label for="rend-fecha-pago">Fecha del pago *</label>
+          <input type="date" id="rend-fecha-pago">
+          <label for="rend-monto-pago">Monto pagado *</label>
+          <input type="number" id="rend-monto-pago" step="0.01" min="0" placeholder="0.00">
+          <label>Comprobante del pago *</label>
+          <div class="rend-slot" id="rend-slot-pago" onclick="rendElegirFoto('pago')">
+            <i class="fa-solid fa-camera"></i> Tomar o elegir foto
+          </div>
+        </div>
+
+        <div id="rend-sus-form" style="display:none;">
+          <label>Fotos del sustento (máx. 5)</label>
+          <div id="rend-slots-sus" style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"></div>
+          <label for="rend-comentario">Comentario / siguiente paso</label>
+          <textarea id="rend-comentario" rows="3" placeholder="Ej.: Se Cargó soporte al drive, pendiente factura"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="mar-footer">
+      <button type="button" onclick="rendCerrarModal()" class="mar-btn-ghost">Cancelar</button>
+      <button type="button" id="rend-modal-ok" onclick="rendConfirmarModal()" class="mar-btn-primary">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Visor de fotos (pago / sustento) -->
+<div id="rend-fotos" class="mar-overlay" style="display:none;">
+  <div class="mar-modal" style="max-width:900px;">
+    <div class="mar-header">
+      <div><h3 id="rend-fotos-title">Fotos</h3><p id="rend-fotos-sub"></p></div>
+      <button type="button" onclick="rendCerrarFotos()" class="mar-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mar-body" style="display:block;">
+      <div id="rend-fotos-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px;"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Texto Amplio (Cotizaciones ITEMS) -->
 <div id="modal-texto-amplio" class="mar-overlay" style="display:none;">
   <div class="mar-modal" style="max-width:600px;">
@@ -11207,6 +11588,357 @@ async function editarCodigoWO() {
     } catch(e) {
         alert('Error de conexión.');
     }
+}
+/* ================================================================
+   RENDICION — flujo por pestañas (hojas tipo Excel)
+   Cada solicitud salta de hoja sola cuando cambia su ESTADO.
+   ================================================================ */
+const REND_ROLES_GESTIONAR = ['admin', 'zeno', 'suport', 'supervisor', 'gestor'];
+let _rendVista = 'validacion';
+let _rendFiltroFn = null;          // filtro de la pestaña activa
+let _rendColsVisibles = null;      // visibilidad original de cada columna
+let _rendModal = null;             // {accion, key, estadoPrevio, fotos:[], ...}
+const _rendFotosPend = {};         // slot -> url ya subida
+
+function rendPuedeGestionar() {
+    if (!IS_RENDICION) return false;
+    return REND_ROLES_GESTIONAR.includes(String(USER_ROLE || '').trim().toLowerCase());
+}
+
+// Roles del usuario actual como array (ej: ['zeno'])
+const _rendUserRoles = [String(USER_ROLE || '').trim().toLowerCase()];
+
+// Revierte el estado de una fila un paso atrás (solo zeno/admin)
+function rendRevertir(key) {
+    if (!confirm('¿Seguro que deseas revertir esta solicitud al estado anterior?')) return;
+    rendAccion(key, 'revertir', {}).then(j => {
+        if (!j) return;
+        rendTrasAccion(j, key);
+    });
+}
+
+function rendEstadoDe(row) {
+    const v = String((row && row.ESTADO) || '').trim().toUpperCase();
+    return v || 'PENDIENTE';
+}
+
+// ── Cambio de hoja: filtra por estado y aplica sus columnas ──
+function rendCambiarVista(vista) {
+    if (!IS_RENDICION || !REND_VISTAS[vista]) return;
+    _rendVista = vista;
+
+    document.querySelectorAll('#rend-tabs .rend-tab').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-vista') === vista);
+    });
+
+    // Guarda la visibilidad original (column_layout) una sola vez.
+    if (!_rendColsVisibles) {
+        _rendColsVisibles = {};
+        table.getColumns().forEach(c => {
+            const f = c.getField();
+            if (f) _rendColsVisibles[f] = c.isVisible();
+        });
+    }
+
+    const cfg = REND_VISTAS[vista];
+    table.getColumns().forEach(c => {
+        const f = c.getField();
+        if (!f) return;
+        let visible = false;
+        if (cfg.cols) {
+            visible = cfg.cols.includes(f);
+        } else {
+            visible = _rendColsVisibles[f] !== false;
+            if (cfg.showCols && cfg.showCols.includes(f)) visible = true;
+            if (cfg.hideCols && cfg.hideCols.includes(f)) visible = false;
+        }
+        if (visible && !c.isVisible()) c.show();
+        if (!visible && c.isVisible()) c.hide();
+    });
+
+    rendAplicarFiltro();
+    rendActualizarContadores();
+}
+
+// Aplica el filtro de la hoja limpiando cualquier filtro previo (incluidos los de cabecera)
+// para que al cambiar de pestaña siempre se vean todas las filas del estado correspondiente.
+function rendAplicarFiltro() {
+    const cfg = REND_VISTAS[_rendVista];
+    if (!cfg || !table) return;
+    // clearFilter(true) limpia TODOS los filtros (cabecera + programáticos).
+    // Necesario al cambiar de pestaña para que no queden filtros residuales de otra vista.
+    table.clearFilter(true);
+    const fn = (rowData) => cfg.estados.includes(rendEstadoDe(rowData));
+    _rendFiltroFn = fn;
+    table.setFilter(fn);
+}
+
+// ── Conteos por hoja ──
+function rendActualizarContadores() {
+    if (!IS_RENDICION) return;
+    const c = { validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, cerrado: 0, rechazados: 0 };
+    rawData.forEach(r => {
+        const e = rendEstadoDe(r);
+        if (e === 'PENDIENTE') c.validacion++;
+        else if (e === 'VALIDADO') c.depositos++;
+        else if (e === 'DEPOSITADO') c.evidencia++;
+        else if (e === 'CON SUSTENTO') c.sustentos++;
+        else if (e === 'SUSTENTADO') c.cerrado++;
+        else if (e === 'RECHAZADO') c.rechazados++;
+    });
+    Object.keys(c).forEach(k => {
+        const el = document.getElementById('rend-cnt-' + k);
+        if (el) el.textContent = c[k];
+    });
+}
+
+// ── Backend del flujo ──
+function rendAccion(key, accion, extra) {
+    const body = Object.assign({ key: key, accion: accion }, extra || {});
+    return fetch('/api/rendicion/accion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+        .then(r => r.json().then(j => ({ ok: r.ok, j })))
+        .then(({ ok, j }) => {
+            if (!ok || j.error) { alert(j.error || 'No se pudo completar la acción.'); return null; }
+            return j;
+        })
+        .catch(() => { alert('Error de conexión.'); return null; });
+}
+
+// Tras la acción la fila cambia de hoja: se actualiza en memoria y se re-filtra.
+function rendTrasAccion(j, key) {
+    const i = rawData.findIndex(r => r._key === key);
+    if (i > -1 && j.newData) rawData[i] = Object.assign({}, rawData[i], j.newData);
+    const row = table.getRows().find(r => r.getData()._key === key);
+    if (row && j.newData) {
+        row.update(j.newData);
+        if (typeof row.reformat === 'function') row.reformat();
+    }
+    rendAplicarFiltro();
+    rendActualizarContadores();
+}
+
+/* ── Modales: rechazo, depósito y sustento ── */
+function rendAbrirModal(titulo, sub, okTexto, cuerpo) {
+    document.getElementById('rend-modal-title').textContent = titulo;
+    document.getElementById('rend-modal-sub').textContent = sub || '';
+    document.getElementById('rend-modal-ok').textContent = okTexto || 'Confirmar';
+    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
+    if (cuerpo) document.getElementById(cuerpo).style.display = 'block';
+    document.getElementById('rend-modal').style.display = 'flex';
+}
+function rendCerrarModal() {
+    document.getElementById('rend-modal').style.display = 'none';
+    _rendModal = null;
+}
+
+// Validar: muestra confirmación con 2 opciones visibles
+function rendValidar(key) {
+    _rendModal = { accion: 'validar', key: key };
+    rendAbrirModal(
+        '✓ Validar solicitud',
+        'La solicitud pasará a la pestaña Depósitos para registrar el pago.',
+        'Confirmar Validación',
+        null
+    );
+}
+
+// Rechazar: pide motivo obligatorio (lo guarda en OBSERVACIONES)
+function rendAbrirRechazo(key) {
+    _rendModal = { accion: 'rechazar', key: key };
+    document.getElementById('rend-motivo').value = '';
+    rendAbrirModal(
+        '✕ Rechazar solicitud',
+        'Escribe el motivo del rechazo — quedará guardado en OBSERVACIONES.',
+        'Confirmar Rechazo',
+        'rend-motivo'
+    );
+    document.getElementById('rend-lbl-motivo').style.display = 'block';
+    document.getElementById('rend-motivo').style.display = 'block';
+    setTimeout(() => document.getElementById('rend-motivo').focus(), 80);
+}
+
+// Depositar: fecha + monto + 1 foto (obligatorios) + Info a modo de lectura
+function rendAbrirDeposito(key) {
+    _rendModal = { accion: 'depositar', key: key, fotos: {} };
+    Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
+    
+    // Llenar datos de lectura en el modal
+    const row = rawData.find(r => r._key === key) || {};
+    const sumEl = document.getElementById('rend-dep-summary');
+    sumEl.innerHTML = `
+        <div style="grid-column: span 2; padding-bottom: 5px; margin-bottom: 5px; border-bottom: 1px solid var(--ios-hairline);">
+            <span style="color:var(--ios-label2);">Site:</span> <strong>${escapeHtml(row['Nombre de site'] || '-')}</strong> <br>
+            <span style="color:var(--ios-label2);">Tarea:</span> <strong>${escapeHtml(row['Tarea'] || '-')}</strong>
+        </div>
+        <div><span style="color:var(--ios-label2);">Técnico:</span><br><b>${escapeHtml(row['Técnico beneficiario'] || '-')}</b></div>
+        <div><span style="color:var(--ios-label2);">Titular Cta:</span><br><b>${escapeHtml(row['Titular de la cuenta'] || '-')}</b></div>
+        <div><span style="color:var(--ios-label2);">Monto:</span><br><b style="color:var(--ios-blue); font-size:14px;">${escapeHtml(row['Monto total del depósito'] || '-')}</b></div>
+        <div><span style="color:var(--ios-label2);">Medio / Celular:</span><br><b>${escapeHtml(row['Tipo de depósito a realizar'] || '-')} - ${escapeHtml(row['Número de celular o CCI'] || '-')}</b></div>
+        <div><span style="color:var(--ios-label2);">Presupuesto:</span><br><span>${escapeHtml(row['Tipo de presupuesto'] || '-')}</span></div>
+        <div><span style="color:var(--ios-label2);">Validado por:</span><br><span>${escapeHtml(row['VALIDADO POR'] || row['Responsable de la validación'] || '-')}</span></div>
+    `;
+
+    document.getElementById('rend-fecha-pago').value = new Date().toISOString().slice(0, 10);
+    // Pre-llenar monto si es posible
+    const montoBase = parseFloat(row['Monto total del depósito'] || 0);
+    document.getElementById('rend-monto-pago').value = montoBase > 0 ? montoBase : '';
+    rendPintarSlot('pago', null);
+    rendAbrirModal(
+        '⬆ Registrar depósito',
+        'Completa los 3 campos: fecha, monto y foto del comprobante. Al confirmar pasa a Evidencia.',
+        'Registrar Depósito',
+        'rend-dep-form'
+    );
+}
+
+// Sustentar: hasta 5 fotos + comentario (mínimo 1 foto obligatoria)
+function rendAbrirSustento(key) {
+    _rendModal = { accion: 'sustentar', key: key, fotos: {} };
+    Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
+    document.getElementById('rend-comentario').value = '';
+    const grid = document.getElementById('rend-slots-sus');
+    grid.innerHTML = '';
+    for (let i = 1; i <= 5; i++) {
+        const d = document.createElement('div');
+        d.className = 'rend-slot';
+        d.setAttribute('data-slot', 'susto_' + i);
+        d.onclick = () => rendElegirFoto('susto_' + i);
+        grid.appendChild(d);
+    }
+    for (let i = 1; i <= 5; i++) rendPintarSlot('susto_' + i, null);
+    rendAbrirModal(
+        '★ Sustentar depósito',
+        'Sube hasta 5 fotos de sustento y escribe el comentario con el siguiente paso. Al confirmar cambia a estado SUSTENTADO.',
+        'Confirmar Sustento',
+        'rend-sus-form'
+    );
+}
+
+function rendPintarSlot(slot, url) {
+    const el = slot === 'pago'
+        ? document.getElementById('rend-slot-pago')
+        : document.querySelector('#rend-slots-sus [data-slot="' + slot + '"]');
+    if (!el) return;
+    if (url) {
+        el.classList.add('filled');
+        el.innerHTML = '<img src="' + url + '" alt=""><i class="fa-solid fa-check"></i>';
+    } else {
+        el.classList.remove('filled');
+        el.innerHTML = '<i class="fa-solid fa-camera"></i> Foto';
+    }
+}
+
+// Sube una foto y guarda su URL en el modal
+function rendElegirFoto(slot) {
+    if (!_rendModal) return;
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*';
+    inp.onchange = () => {
+        const f = inp.files && inp.files[0];
+        if (!f) return;
+        const fd = new FormData();
+        fd.append('key', _rendModal.key);
+        fd.append('slot', slot);
+        fd.append('foto', f);
+        rendPintarSlot(slot, 'Cargando...');
+        fetch('/api/rendicion/subir_foto', { method: 'POST', body: fd })
+            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(({ ok, j }) => {
+                if (!ok || j.error) { rendPintarSlot(slot, null); alert(j.error || 'No se pudo subir la foto.'); return; }
+                _rendFotosPend[slot] = j.url;
+                _rendModal.fotos[slot] = j.url;
+                rendPintarSlot(slot, j.url);
+            })
+            .catch(() => { rendPintarSlot(slot, null); alert('Error de red al subir la foto.'); });
+    };
+    inp.click();
+}
+
+// Confirma la acción del modal abierta
+function rendConfirmarModal() {
+    if (!_rendModal) return;
+    const { accion, key } = _rendModal;
+    const extra = {};
+
+    if (accion === 'rechazar') {
+        const motivo = document.getElementById('rend-motivo').value.trim();
+        if (!motivo) { alert('Escribe el motivo del rechazo.'); return; }
+        extra.observaciones = motivo;
+    } else if (accion === 'depositar') {
+        const fecha = document.getElementById('rend-fecha-pago').value;
+        const monto = document.getElementById('rend-monto-pago').value;
+        if (!fecha) { alert('Ingresa la fecha del pago.'); return; }
+        if (!monto || parseFloat(monto) <= 0) { alert('Ingresa el monto pagado.'); return; }
+        if (!_rendFotosPend['pago']) { alert('Adjunta la captura del comprobante.'); return; }
+        extra.fecha_pago = fecha;
+        extra.monto_pago = monto;
+        extra.foto_pago = _rendFotosPend['pago'];
+    } else if (accion === 'sustentar') {
+        const fotos = Object.keys(_rendFotosPend)
+            .sort()
+            .map(k => _rendFotosPend[k])
+            .filter(Boolean);
+        if (!fotos.length) { alert('Sube al menos una foto de sustento.'); return; }
+        extra.fotos = fotos;
+        extra.comentario = document.getElementById('rend-comentario').value.trim();
+    }
+
+    const btn = document.getElementById('rend-modal-ok');
+    btn.disabled = true;
+    const txt = btn.textContent;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando';
+
+    rendAccion(key, accion, extra).then(j => {
+        btn.disabled = false;
+        btn.textContent = txt;
+        if (!j) return;
+        
+        if (accion === 'depositar' && j.newData && j.newData['CODIGO DEPOSITO']) {
+            setTimeout(() => nucleusAlert('Depósito registrado con éxito.<br>Código de ticket: <b>' + j.newData['CODIGO DEPOSITO'] + '</b>'), 300);
+        }
+        
+        rendCerrarModal();
+        rendTrasAccion(j, key);
+    });
+}
+
+/* ── Visor de fotos ── */
+function rendVerFotos(row, esSustento) {
+    let urls = [];
+    const raw = row[esSustento ? 'FOTOS SUSTENTO' : 'FOTO PAGO'];
+    if (raw) {
+        if (esSustento) {
+            try { urls = JSON.parse(raw); } catch (e) { urls = [raw]; }
+            if (!Array.isArray(urls)) urls = [raw];
+        } else {
+            urls = [raw];
+        }
+    }
+    urls = urls.filter(u => String(u || '').trim());
+    document.getElementById('rend-fotos-title').textContent = esSustento ? 'Fotos de sustento' : 'Comprobante de pago';
+    document.getElementById('rend-fotos-sub').textContent = row['Nombre de site'] || row._key || '';
+    const grid = document.getElementById('rend-fotos-grid');
+    grid.innerHTML = '';
+    urls.forEach(u => {
+        const a = document.createElement('a');
+        a.href = u; a.target = '_blank'; a.rel = 'noopener';
+        a.innerHTML = '<img src="' + u + '" style="width:100%;height:170px;object-fit:cover;border-radius:8px;border:1px solid var(--excel-border);">';
+        grid.appendChild(a);
+    });
+    document.getElementById('rend-fotos').style.display = 'flex';
+}
+function rendCerrarFotos() { document.getElementById('rend-fotos').style.display = 'none'; }
+
+// Al abrir el módulo, arranca en la hoja Validación con el filtro aplicado.
+if (IS_RENDICION && document.getElementById('rend-tabs')) {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(() => rendCambiarVista('validacion'), 0));
 }
 </script>
 {% endblock %}

@@ -90,10 +90,11 @@ def _register_blueprints(app):
     from blueprints.rows import bp as rows_bp
     from blueprints.wo import bp as wo_bp
     from blueprints.evidencia import bp as evidencia_bp
+    from blueprints.rendicion import bp as rendicion_bp
     from blueprints.cotizacion import bp as cotizacion_bp
 
     for _bp in (auth_bp, pages_bp, admin_bp, imports_bp, master_bp,
-                rows_bp, wo_bp, evidencia_bp, cotizacion_bp):
+                rows_bp, wo_bp, evidencia_bp, rendicion_bp, cotizacion_bp):
         app.register_blueprint(_bp)
 
 
