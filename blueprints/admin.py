@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
+import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile, csv
+import urllib.request
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
 from collections import Counter
@@ -548,3 +549,97 @@ def api_config_init_manual():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+RENDICION_CSV_TEMPLATE = 'https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}'
+# Claves AppConfig usadas por el módulo Rendición:
+#   rendicion_csv_url  -> URL CSV pública del Google Form
+#   rendicion_sync_key -> token de sincronización (cron externo)
+
+
+@bp.route('/api/rendicion/sync', methods=['GET', 'POST'])
+def api_rendicion_sync():
+    """Importa SOLO las filas nuevas del Google Form al módulo 'Rendicion'.
+
+    Requiere ?key=<rendicion_sync_key> (para cron externo, sin sesión).
+    No toca filas existentes: solo inserta IDs de solicitud nuevos.
+    """
+    key = request.args.get('key') or (request.get_json(silent=True) or {}).get('key', '')
+    if not key:
+        return jsonify({'error': 'Falta la key de sincronización.'}), 400
+    cfg = AppConfig.query.filter_by(clave='rendicion_sync_key').first()
+    if not cfg or not cfg.valor or key != cfg.valor:
+        return jsonify({'error': 'Key de sincronización inválida.'}), 403
+
+    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not proy:
+        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
+
+    url_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='rendicion_csv_url').first()
+    csv_url = (url_cfg.valor if url_cfg and url_cfg.valor else '').strip()
+    if not csv_url:
+        return jsonify({'error': 'No hay URL de CSV configurada (rendicion_csv_url).'}), 500
+
+    # Descargar CSV
+    try:
+        req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+    except Exception as e:
+        return jsonify({'error': 'No se pudo descargar el CSV: %s' % e}), 502
+    text = raw.decode('utf-8-sig', errors='replace')
+
+    reader = csv.DictReader(io.StringIO(text))
+    fields = reader.fieldnames or []
+    if 'ID Solicitud' not in fields:
+        return jsonify({'error': 'El CSV no tiene la columna ID Solicitud.'}), 502
+
+    renombrar = {'Estado': 'Estado (Form)', 'Observaciones': 'Observaciones (Form)'}
+
+    # Schema actual del módulo
+    schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+    try:
+        schema_cols = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
+    except Exception:
+        schema_cols = set()
+
+    # PK configurada (key_value) del módulo
+    pk_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='primary_key').first()
+
+    nuevas = 0
+    omitidas = 0
+    t0 = time.time()
+    for row in reader:
+        datos = {}
+        for f in fields:
+            if f is None:
+                continue
+            v = (row.get(f) or '').strip()
+            datos[renombrar.get(f, f)] = v
+        id_sol = str(datos.get('ID Solicitud', '') or '').strip()
+        if not id_sol:
+            omitidas += 1
+            continue
+        existe = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=id_sol).first()
+        if existe:
+            omitidas += 1
+            continue
+        db.session.add(NucleusData(proyecto_id=proy.id, key_value=id_sol,
+                                   data_json=safe_json_dumps(datos)))
+        schema_cols.update(set(datos.keys()))
+        nuevas += 1
+
+    # Persistir schema ampliado
+    if schema_cfg:
+        schema_cfg.valor = safe_json_dumps(sorted(schema_cols))
+    else:
+        db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema',
+                                 valor=safe_json_dumps(sorted(schema_cols))))
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'nuevas': nuevas,
+        'omitidas_existentes': omitidas,
+        'segundos': round(time.time() - t0, 2),
+    })

@@ -201,10 +201,23 @@ def run_migrations(app, database_url=''):
             print("Warning: rename FLM:", e)
             db.session.rollback()
 
+        # ── Renombrar Solicitudes -> Rendicion (idempotente) ───────────────
+        try:
+            _old_s = Proyecto.query.filter_by(nombre='Solicitudes').first()
+            _already_s = Proyecto.query.filter_by(nombre='Rendicion').first()
+            if _old_s and not _already_s:
+                _old_s.nombre = 'Rendicion'
+                db.session.commit()
+                print("Renombrado Solicitudes -> Rendicion")
+        except Exception as e:
+            print("Warning: rename Solicitudes:", e)
+            db.session.rollback()
+
         # ── Proyectos fijos ───────────────────────────────────────────────
         fixed = [
             ('FLM - ENTEL', 'FLM – Proyecto Entel'),
             ('FLM - INTEGRATEL', 'FLM – Proyecto Integratel'),
+            ('Rendicion', 'Solicitudes de Técnicos (Google Form)'),
             ('Dataper', 'DataPer S.A.C.'),
             ('Material', 'Materiales Disponibles'),
             ('Site Name', 'Sitios (solo FLM)'),
