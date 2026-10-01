@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from services.utilidades import (
     login_required, ahora_peru, safe_json_dumps, inject_kpis, apply_data_restrictions,
-    get_session_info, get_menu_proyectos, PROYECTOS_FIJOS, PROYECTOS_REMOVIDOS,
+    get_session_info, get_menu_proyectos, puede_cotizaciones, PROYECTOS_FIJOS, PROYECTOS_REMOVIDOS,
     _parse_galones, _combustible_fecha_norm, _combustible_fecha_ord,
     _combustible_filas_gen, _combustible_chequear, _combustible_validar_gasto,
     _combustible_saldo, _flm_wo_list, _sane_data_key, _sane_dict,
@@ -20,13 +20,13 @@ from services.apoyo import (
     _evidencia_aprobacion_bloquea, _EVIDENCIA_OLD26_A_NUEVO,
     _evidencia_migrar_legacy, _evidencia_leer, _box_px, _n_a_en_box,
     _encajar_foto_cover, _pext_config, _pext_config_cajas, _pext_max,
-    _fecha_larga_es, _generar_pdf_cotizacion, _generar_pdf_cotizacion_cobra,
+    _fecha_larga_es, _parse_fecha_registro, _generar_pdf_cotizacion, _generar_pdf_cotizacion_cobra,
     _obtener_registro_cotizacion, _cotizacion_registro_pdf_response
 )
 
 __all__ = [
     'login_required', 'ahora_peru', 'safe_json_dumps', 'inject_kpis', 'apply_data_restrictions',
-    'get_session_info', 'get_menu_proyectos', 'PROYECTOS_FIJOS', 'PROYECTOS_REMOVIDOS',
+    'get_session_info', 'get_menu_proyectos', 'puede_cotizaciones', 'PROYECTOS_FIJOS', 'PROYECTOS_REMOVIDOS',
     '_parse_galones', '_combustible_fecha_norm', '_combustible_fecha_ord',
     '_combustible_filas_gen', '_combustible_chequear', '_combustible_validar_gasto',
     '_combustible_saldo', '_flm_wo_list', '_sane_data_key', '_sane_dict',
@@ -43,6 +43,6 @@ __all__ = [
     '_evidencia_aprobacion_bloquea', '_EVIDENCIA_OLD26_A_NUEVO',
     '_evidencia_migrar_legacy', '_evidencia_leer', '_box_px', '_n_a_en_box',
     '_encajar_foto_cover', '_pext_config', '_pext_config_cajas', '_pext_max',
-    '_fecha_larga_es', '_generar_pdf_cotizacion', '_generar_pdf_cotizacion_cobra',
+    '_fecha_larga_es', '_parse_fecha_registro', '_generar_pdf_cotizacion', '_generar_pdf_cotizacion_cobra',
     '_obtener_registro_cotizacion', '_cotizacion_registro_pdf_response'
 ]

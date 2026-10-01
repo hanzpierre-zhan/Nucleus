@@ -548,6 +548,41 @@ def _fecha_larga_es(fecha=None):
     return f'{DIAS[f.weekday()]}, {f.day} de {MESES[f.month - 1]} de {f.year}'
 
 
+def _parse_fecha_registro(v):
+    """Convierte el valor guardado de FECHA a datetime.
+    Acepta datetime o strings: 'YYYY-MM-DD HH:MM[:SS]', 'YYYY-MM-DD',
+    'DD/MM/YYYY [HH:MM [a.m./p.m.]]'. Devuelve None si no se interpreta."""
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v
+    s = str(v).strip()
+    if not s:
+        return None
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$', s)
+    if m:
+        try:
+            return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                            int(m.group(4) or 0), int(m.group(5) or 0), int(m.group(6) or 0))
+        except ValueError:
+            return None
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?:\s*([ap])\.?\s*m\.?)?)?$',
+                 s, re.IGNORECASE)
+    if m:
+        try:
+            hh = int(m.group(4) or 0)
+            ap = (m.group(6) or '').lower()
+            if ap == 'p' and hh < 12:
+                hh += 12
+            if ap == 'a' and hh == 12:
+                hh = 0
+            return datetime(int(m.group(3)), int(m.group(2)), int(m.group(1)),
+                            hh, int(m.group(5) or 0))
+        except ValueError:
+            return None
+    return None
+
+
 def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fecha, gastos, mano_obra):
     """Genera el PDF de cotización con el formato exacto de la imagen."""
     from reportlab.lib.pagesizes import A4, landscape
@@ -864,12 +899,14 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
     return buf.read()
 
 
-def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, elaborado_por, items):
+def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, elaborado_por, items, fecha=None):
     """
     Genera el PDF de cotizacion FLM con el formato Cobra:
     cabecera (FECHA/EMPRESA/DIRIGIDO A/SITE/N COTIZACION/OBJETIVO + RESPONSABLE/
     ELABORADO POR/SUPERVISOR/TICKET), tabla unica de items con FEE y secciones
     fijas de cierre.
+    `fecha`: datetime o string del campo FECHA del registro. Si no se puede
+    interpretar, se usa la fecha actual (comportamiento anterior).
     """
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
@@ -931,7 +968,8 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     logo_cell.append(Paragraph('COBRA PERU S.A.C. — RUC 20253881438', ParagraphStyle(
         'ruc', fontName='Helvetica', fontSize=7, leading=9, textColor=colors.HexColor('#333333'))))
 
-    fecha_str = _fecha_larga_es(ahora_peru())
+    fecha_dt = _parse_fecha_registro(fecha) or ahora_peru()
+    fecha_str = _fecha_larga_es(fecha_dt)
     num_para = Paragraph(f'<b>N° COTIZACIÓN :&nbsp;&nbsp;&nbsp;&nbsp;{safe_str(numero)}</b>',
                          ParagraphStyle('np', fontName='Helvetica-Bold', fontSize=12, leading=15))
     head_tbl = Table([[logo_cell, num_para]], colWidths=[W * 0.45, W * 0.55])
@@ -1138,7 +1176,9 @@ def _cotizacion_registro_pdf_response(rec):
         objetivo=str(d.get('OBJETIVO', '') or ''),
         ticket=pdf_ticket,
         elaborado_por=str(d.get('GESTOR', '') or session.get('username', '')),
-        items=items
+        items=items,
+        # FECHA registrada de la cotización (no la fecha de descarga)
+        fecha=d.get('FECHA')
     )
     from flask import make_response
     resp = make_response(pdf_bytes)

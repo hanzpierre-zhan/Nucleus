@@ -27,6 +27,15 @@ from services import *
 bp = Blueprint('cotizacion', __name__)
 
 
+def _puede_cotizaciones():
+    """True si el usuario puede usar el módulo Cotizaciones (ver services)."""
+    return puede_cotizaciones(
+        session.get('user_id'),
+        str(session.get('rol') or '').strip().lower(),
+        session.get('current_proyecto_nombre'),
+    )
+
+
 
 @bp.route('/api/cotizacion/estado', methods=['GET'])
 @login_required
@@ -161,7 +170,9 @@ def api_cotizacion_descargar_registro():
             objetivo=str(d.get('OBJETIVO', '') or ''),
             ticket=str(d.get('TICKET', '') or ''),
             elaborado_por=str(d.get('GESTOR', '') or ''),
-            items=items
+            items=items,
+            # FECHA registrada de la cotización (no la fecha de descarga)
+            fecha=d.get('FECHA')
         )
     except Exception as e:
         return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
@@ -170,6 +181,88 @@ def api_cotizacion_descargar_registro():
     safe_num = numero.replace('/', '-').replace(' ', '_') or 'cotizacion'
     resp.headers['Content-Type'] = 'application/pdf'
     resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
+    return resp
+
+
+@bp.route('/api/cotizacion/descargar_lote', methods=['POST'])
+@login_required
+def api_cotizacion_descargar_lote():
+    """Descarga un ZIP con los PDFs de las cotizaciones GENERADAS cuyo campo
+    FECHA cae dentro del rango [desde, hasta] (fechas 'YYYY-MM-DD').
+    Límite: rango máximo 366 días y 200 cotizaciones por lote."""
+    if not _puede_cotizaciones():
+        return jsonify({'error': 'No tienes el módulo Cotizaciones en tu perfil.'}), 403
+    data = request.json or {}
+    desde_s = str(data.get('desde', '') or '').strip()
+    hasta_s = str(data.get('hasta', '') or '').strip()
+    try:
+        desde_d = datetime.strptime(desde_s, '%Y-%m-%d').date()
+        hasta_d = datetime.strptime(hasta_s, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Rango de fechas inválido.'}), 400
+    if desde_d > hasta_d:
+        return jsonify({'error': 'La fecha "desde" no puede ser mayor que "hasta".'}), 400
+    if (hasta_d - desde_d).days > 366:
+        return jsonify({'error': 'El rango máximo es 366 días. Acorte las fechas.'}), 400
+    cot_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not cot_proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe'}), 404
+    seleccion = []
+    for rec in NucleusData.query.filter_by(proyecto_id=cot_proy.id).order_by(NucleusData.id.asc()).all():
+        try:
+            d = json.loads(rec.data_json)
+        except Exception:
+            continue
+        if str(d.get('GENERADA', '') or '') != '1':
+            continue
+        fdt = _parse_fecha_registro(d.get('FECHA'))
+        if fdt is None:
+            continue
+        if not (desde_d <= fdt.date() <= hasta_d):
+            continue
+        seleccion.append((rec, d))
+    if not seleccion:
+        return jsonify({'error': 'No hay cotizaciones generadas en ese rango de fechas.'}), 404
+    MAX_LOTE = 200
+    if len(seleccion) > MAX_LOTE:
+        return jsonify({'error': f'Son {len(seleccion)} cotizaciones; el máximo por lote es {MAX_LOTE}. Acorte el rango.'}), 400
+    zbuf = io.BytesIO()
+    usados = set()
+    try:
+        with zipfile.ZipFile(zbuf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for rec, d in seleccion:
+                try:
+                    items = json.loads(d.get('ITEMS_JSON') or '[]')
+                except Exception:
+                    items = []
+                numero = str(d.get('N° COTIZACION', '') or rec.key_value or '').strip() or ('registro_%d' % rec.id)
+                numero_wo = str(d.get('NUMERO WO', '') or '').strip()
+                pdf_bytes = _generar_pdf_cotizacion_cobra(
+                    numero=numero,
+                    site=str(d.get('SITE', '') or d.get('NOMBRE SITE', '') or ''),
+                    supervisor=str(d.get('SUPERVISOR', '') or ''),
+                    objetivo=str(d.get('OBJETIVO', '') or ''),
+                    ticket=numero_wo if numero_wo else 'CM-PENDIENTE',
+                    elaborado_por=str(d.get('GESTOR', '') or session.get('username', '')),
+                    items=items,
+                    # FECHA registrada de cada cotización (no la fecha de descarga)
+                    fecha=d.get('FECHA')
+                )
+                safe = re.sub(r'[^\w\-.]+', '_', numero).strip('_') or ('registro_%d' % rec.id)
+                nombre = f'Cotizacion_{safe}.pdf'
+                k = 2
+                while nombre in usados:
+                    nombre = f'Cotizacion_{safe}_{k}.pdf'
+                    k += 1
+                usados.add(nombre)
+                zf.writestr(nombre, pdf_bytes)
+    except Exception as e:
+        return jsonify({'error': f'Error al generar el lote: {str(e)}'}), 500
+    from flask import make_response
+    resp = make_response(zbuf.getvalue())
+    resp.headers['Content-Type'] = 'application/zip'
+    resp.headers['Content-Disposition'] = (
+        f"attachment; filename=Cotizaciones_{desde_s.replace('-', '')}_{hasta_s.replace('-', '')}.zip")
     return resp
 
 
@@ -218,6 +311,8 @@ def api_cotizacion_previsualizar():
     if not ticket:
         ticket = 'CM-PENDIENTE'
     items = data.get('items', [])
+    # Fecha del formulario (FECHA Y HORA); si no viene, el PDF usa la actual
+    fecha_form = data.get('fecha') or ''
     # Validación mínima igual que generar
     if not numero:
         return jsonify({'error': 'Falta N° Cotización'}), 400
@@ -229,7 +324,8 @@ def api_cotizacion_previsualizar():
             objetivo=objetivo,
             ticket=ticket,
             elaborado_por=str(session.get('username', '') or ''),
-            items=items
+            items=items,
+            fecha=fecha_form or None
         )
     except Exception as e:
         return jsonify({'error': f'Error al generar PDF: {str(e)}'}), 500
@@ -337,7 +433,18 @@ def api_cotizacion_generar():
     if cid:
         cot_existente = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
         if cot_existente and cot_existente.bloqueada and user_rol not in ('zeno', 'suport'):
-            return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
+            # Liberación por estado: en Observado/Rechazado se puede regenerar
+            # aunque la cotización siga marcada como bloqueada.
+            _liberada = False
+            _rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+            if _rec:
+                try:
+                    _d_est = json.loads(_rec.data_json or '{}')
+                except Exception:
+                    _d_est = {}
+                _liberada = str(_d_est.get('ESTADO COTIZACION', '') or '').strip() in ('Observado', 'Rechazado')
+            if not _liberada:
+                return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
 
     numero = data.get('numero', '').strip()
     nota = data.get('nota', '').strip()

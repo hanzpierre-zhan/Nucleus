@@ -201,16 +201,30 @@ def run_migrations(app, database_url=''):
             print("Warning: rename FLM:", e)
             db.session.rollback()
 
+        # ── Renombrar Solicitudes -> Rendicion (idempotente) ───────────────
+        try:
+            _old_s = Proyecto.query.filter_by(nombre='Solicitudes').first()
+            _already_s = Proyecto.query.filter_by(nombre='Rendicion').first()
+            if _old_s and not _already_s:
+                _old_s.nombre = 'Rendicion'
+                db.session.commit()
+                print("Renombrado Solicitudes -> Rendicion")
+        except Exception as e:
+            print("Warning: rename Solicitudes:", e)
+            db.session.rollback()
+
         # ── Proyectos fijos ───────────────────────────────────────────────
         fixed = [
             ('FLM - ENTEL', 'FLM – Proyecto Entel'),
+            ('FLM - INTEGRATEL', 'FLM – Proyecto Integratel'),
+            ('Rendicion', 'Solicitudes de Técnicos (Google Form)'),
             ('Dataper', 'DataPer S.A.C.'),
             ('Material', 'Materiales Disponibles'),
             ('Site Name', 'Sitios (solo FLM)'),
             ('Generadores', 'Grupos Electrógenos (solo FLM)'),
             ('Combustible', 'Consumo de Combustible (solo FLM)'),
             ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)'),
-            ('SITE', 'Maestro de Sites – COBRA SITES (10 columnas)'),
+            ('SITE', 'Maestro de Sites – COBRA SITES (20 columnas)'),
         ]
         for nombre, desc in fixed:
             if not Proyecto.query.filter_by(nombre=nombre).first():
@@ -420,9 +434,11 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
     if site_proy:
         site_proy.icono = 'fa-location-dot'
         site_cols = [
+            {'nombre': 'Item', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Código', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Nombre', 'tipo': 'texto', 'opciones': []},
-            {'nombre': 'Prioridad', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Estado', 'tipo': 'lista', 'opciones': ['ON AIR', 'OFF AIR']},
+            {'nombre': 'Prioridad', 'tipo': 'lista', 'opciones': ['P0+', 'P0', 'P1', 'P2', 'P3', 'P4']},
             {'nombre': 'Departamento', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Provincia', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Distrito', 'tipo': 'texto', 'opciones': []},
@@ -430,6 +446,14 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
             {'nombre': 'Latitud (°)', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Longitud (°)', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Región', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Coordinador O&M Sitios', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Tipo de Torre', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Altura de Torre (m)', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Tipo de Estación', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Cobicador', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Infraestructura Critica', 'tipo': 'lista', 'opciones': ['SI', 'NO']},
+            {'nombre': 'Tipo de Site', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'Contrata', 'tipo': 'lista', 'opciones': ['COBRA', 'FUERA DE CONTRATA']},
         ]
         mc = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
         if mc:
@@ -445,6 +469,21 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         if not AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first():
             db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor='[]'))
         db.session.commit()
+
+        # Deploy v2 (solo las 20 columnas del formato): limpieza ÚNICA de las
+        # columnas viejas que había en app_schema (42) y column_layout (41) para
+        # que la grilla SITE no muestre nada distinto de las 20 nuevas.
+        # Se hace solo una vez (flag) para no pisar el orden/visibilidad que el
+        # admin pueda configurar después con "Ordenar columnas".
+        if not AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='site_cols_v2').first():
+            _sc = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first()
+            if _sc:
+                _sc.valor = json.dumps([], ensure_ascii=False)
+            _cl = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='column_layout').first()
+            if _cl:
+                _cl.valor = json.dumps([], ensure_ascii=False)
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='site_cols_v2', valor='1'))
+            db.session.commit()
 
     # ── Generadores ────────────────────────────────────────────────────────
     gen_proy = Proyecto.query.filter_by(nombre='Generadores').first()
@@ -528,7 +567,8 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
             {'nombre': 'OBJETIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SUB TOTAL + FEE', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'ESTADO COTIZACION', 'tipo': 'lista',
-             'opciones': ['Pendiente de Aprobacion', 'Cotizacion Aprobada', 'Cotizacion Cancelada', 'Cotizacion Rechazada']},
+             'opciones': ['En proceso', 'Observado', 'Rechazado', 'Validado', 'Cancelado']},
+            {'nombre': 'MOTIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []},
         ]
         mc = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='manual_columns').first()

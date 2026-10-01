@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
+import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile, csv
+import urllib.request
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
 from collections import Counter
@@ -548,3 +549,260 @@ def api_config_init_manual():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+RENDICION_CSV_TEMPLATE = 'https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}'
+# Claves AppConfig usadas por el módulo Rendición:
+#   rendicion_csv_url  -> URL CSV pública del Google Form
+#   rendicion_sync_key -> token de sincronización (cron externo)
+
+
+@bp.route('/api/rendicion/sync', methods=['GET', 'POST'])
+def api_rendicion_sync():
+    """Importa SOLO las filas nuevas del Google Form al módulo 'Rendicion'.
+
+    Autorización por dos vías:
+      - Botón "Sincronizar" en la web: usuario con sesión y rol admin/zeno/suport.
+      - Cron externo: ?key=<rendicion_sync_key> (sin sesión).
+    No toca filas existentes: solo inserta claves nuevas (Marca temporal).
+    """
+    key = request.args.get('key') or (request.get_json(silent=True) or {}).get('key', '')
+    cfg = AppConfig.query.filter_by(clave='rendicion_sync_key').first()
+    key_valida = bool(cfg and cfg.valor and key == cfg.valor)
+    if not key_valida:
+        rol = session.get('rol')
+        autorizado_web = bool(
+            session.get('user_id')
+            and rol in ('admin', 'zeno', 'suport')
+            and (session.get('current_proyecto_nombre') or '').strip().lower() == 'rendicion'
+        )
+        if not autorizado_web:
+            if not key:
+                return jsonify({'error': 'Falta la key de sincronización.'}), 400
+            return jsonify({'error': 'Key de sincronización inválida.'}), 403
+
+    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not proy:
+        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
+
+    url_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='rendicion_csv_url').first()
+    csv_url = (url_cfg.valor if url_cfg and url_cfg.valor else '').strip()
+    if not csv_url:
+        return jsonify({'error': 'No hay URL de CSV configurada (rendicion_csv_url).'}), 500
+
+    # Descargar CSV
+    try:
+        req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+    except Exception as e:
+        return jsonify({'error': 'No se pudo descargar el CSV: %s' % e}), 502
+    text = raw.decode('utf-8-sig', errors='replace')
+
+    reader = csv.DictReader(io.StringIO(text))
+    fields = reader.fieldnames or []
+    # Clave del módulo: la que esté configurada en primary_key (Marca temporal en Rendicion).
+    pk_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='primary_key').first()
+    pk_col = (pk_cfg.valor if pk_cfg and pk_cfg.valor else '').strip() or 'Marca temporal'
+    if pk_col not in fields:
+        return jsonify({'error': 'El CSV no tiene la columna clave "%s".' % pk_col}), 502
+
+    # 'Observaciones' del form se renombra para no chocar con la columna manual OBSERVACIONES.
+    renombrar = {'Observaciones': 'Observaciones (Form)'}
+
+    # Claves que escribe el sistema/flujo del módulo: si el form trajera un
+    # encabezado idéntico, se desplaza con sufijo ' (Form)' para no pisarlas.
+    claves_sistema = {
+        'ESTADO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
+        'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',
+        'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',
+        'RECHAZADO POR', 'FECHA VALIDACION', 'VALIDADO POR',
+        'DEPOSITADO POR', 'SUSTENTADO POR', 'EDITADO POR',
+    }
+
+    # Esquema DINÁMICO: las columnas del grid son exactamente las que traiga el
+    # CSV del form HOY. Agregar, quitar o renombrar una pregunta en el form se
+    # refleja en el próximo sync (sin tocar código): las nuevas aparecen, las
+    # dadas de baja (o renombradas) dejan de mostrarse. Las columnas SUSTENTO_*
+    # (Hoja 2) NUNCA son columnas del grid: si estuvieran en el esquema/layout,
+    # este sync las elimina de nuevo.
+    schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+    try:
+        schema_previo = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
+    except Exception:
+        schema_previo = set()
+    form_previas = schema_previo
+
+    mapa_cols = {}
+    for f in fields:
+        if f is None or not str(f).strip():
+            continue
+        nombre_col = renombrar.get(str(f).strip(), str(f).strip())
+        if nombre_col in claves_sistema:
+            nombre_col = '%s (Form)' % nombre_col
+        if nombre_col not in mapa_cols.values():
+            mapa_cols[f] = nombre_col
+    form_actual = set(mapa_cols.values())
+    columnas_agregadas = sorted(form_actual - form_previas)
+    columnas_quitadas = sorted(form_previas - form_actual)
+    schema_cols = form_actual
+
+    nuevas = 0
+    omitidas = 0
+    t0 = time.time()
+    # Claves existentes en una sola consulta (antes: 1 query por fila del CSV).
+    existentes = {r[0] for r in NucleusData.query.with_entities(NucleusData.key_value)
+                  .filter_by(proyecto_id=proy.id).all()}
+    for row in reader:
+        datos = {}
+        for f in fields:
+            nombre_col = mapa_cols.get(f)
+            if not nombre_col:
+                continue
+            datos[nombre_col] = (row.get(f) or '').strip()
+        
+        id_sol = str(datos.get(pk_col, '') or '').strip()
+        if not id_sol:
+            omitidas += 1
+            continue
+        if id_sol in existentes:
+            omitidas += 1
+            continue
+        db.session.add(NucleusData(proyecto_id=proy.id, key_value=id_sol,
+                                   data_json=safe_json_dumps(datos)))
+        existentes.add(id_sol)
+        schema_cols.update(set(datos.keys()))
+        nuevas += 1
+
+    # Persistir esquema DINÁMICO (reemplaza columnas dadas de baja, no solo agrega)
+    if schema_cfg:
+        schema_cfg.valor = safe_json_dumps(sorted(schema_cols))
+    else:
+        db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema',
+                                 valor=safe_json_dumps(sorted(schema_cols))))
+    # Podar el layout: quitar entradas de columnas de form que ya no existen
+    # (quitadas o renombradas) para que no queden fantasmas en la tabla.
+    try:
+        layout_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='column_layout').first()
+        if layout_cfg and layout_cfg.valor:
+            layout = json.loads(layout_cfg.valor)
+            quitadas = set(columnas_quitadas)
+            layout_filtrado = [e for e in layout if e.get('field') not in quitadas]
+            if len(layout_filtrado) != len(layout):
+                layout_cfg.valor = safe_json_dumps(layout_filtrado)
+    except Exception:
+        pass
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'nuevas': nuevas,
+        'omitidas_existentes': omitidas,
+        'columnas_agregadas': columnas_agregadas,
+        'columnas_quitadas': columnas_quitadas,
+        'segundos': round(time.time() - t0, 2),
+    })
+@bp.route('/api/rendicion/sync_sustentos', methods=['POST'])
+def api_rendicion_sync_sustentos():
+    """Sincroniza los sustentos desde la segunda hoja de Google Sheets."""
+    rol = session.get('rol')
+    autorizado = bool(session.get('user_id') and rol in ('admin', 'zeno', 'suport'))
+    if not autorizado:
+        return jsonify({'error': 'No autorizado.'}), 403
+
+    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not proy:
+        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
+
+    # URL configurable (AppConfig rendicion_sustentos_url) con fallback a la hoja fija.
+    url_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='rendicion_sustentos_url').first()
+    csv_url = ((url_cfg.valor if url_cfg and url_cfg.valor else '').strip()
+               or 'https://docs.google.com/spreadsheets/d/18CYUhXGN8jWk4hzr194p3vhdU6H90WD-O0Aw77WxgEY/export?format=csv&gid=831408062')
+    try:
+        req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+    except Exception as e:
+        return jsonify({'error': 'No se pudo descargar el CSV de Sustentos: %s' % e}), 502
+    
+    text = raw.decode('utf-8-sig', errors='replace')
+    reader = csv.DictReader(io.StringIO(text))
+    fields = reader.fieldnames or []
+
+    # Buscamos la columna CODIGO DEPOSITO
+    col_codigo = next((f for f in fields if 'codigo' in str(f).lower() and 'deposito' in str(f).lower()), None)
+    if not col_codigo:
+        # Fallback a la primera columna o un nombre estandar
+        col_codigo = 'CODIGO DEPOSITO' if 'CODIGO DEPOSITO' in fields else (fields[0] if fields else None)
+    
+    if not col_codigo:
+         return jsonify({'error': 'No se encontro la columna CODIGO DEPOSITO en la hoja.'}), 400
+
+    # Los datos de sustento se guardan en la fila (SUSTENTO_* en data_json) para
+    # no perder el comprobante, pero NUNCA son columnas del grid: si algo los
+    # hubiera reagregado al esquema o al layout, este sync los elimina.
+    schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+    try:
+        schema_previo = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
+    except Exception:
+        schema_previo = set()
+    sustento_en_schema = {c for c in schema_previo if c.startswith('SUSTENTO_')}
+    if sustento_en_schema and schema_cfg:
+        schema_cfg.valor = safe_json_dumps(sorted(schema_previo - sustento_en_schema))
+    try:
+        layout_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='column_layout').first()
+        if layout_cfg and layout_cfg.valor:
+            layout = json.loads(layout_cfg.valor)
+            layout_filtrado = [e for e in layout if not str(e.get('field', '')).startswith('SUSTENTO_')]
+            if len(layout_filtrado) != len(layout):
+                layout_cfg.valor = safe_json_dumps(layout_filtrado)
+    except Exception:
+        pass
+
+    actualizados = 0
+    omitidos = 0
+    no_encontrados = 0
+    t0 = time.time()
+
+    # Índice único por CODIGO DEPOSITO (antes: full-scan por cada fila del CSV).
+    idx_cod = {}
+    for d in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+        try:
+            dj = json.loads(d.data_json)
+        except Exception:
+            continue
+        cod = str(dj.get('CODIGO DEPOSITO', '') or '').strip()
+        if cod and cod not in idx_cod:
+            idx_cod[cod] = (d, dj)
+
+    for row in reader:
+        cod = (row.get(col_codigo) or '').strip()
+        if not cod: continue
+
+        target, target_dict = idx_cod.get(cod, (None, None))
+        if not target:
+            no_encontrados += 1
+            continue
+            
+        estado_actual = str(target_dict.get('ESTADO', '')).strip().upper()
+        if estado_actual == 'DEPOSITADO':
+            # Actualizamos estado y agregamos data
+            for k, v in row.items():
+                if k and k != col_codigo:
+                    target_dict[f'SUSTENTO_{k.upper()}'] = str(v).strip()
+            
+            target_dict['ESTADO'] = 'CON SUSTENTO'
+            target.data_json = safe_json_dumps(target_dict)
+            actualizados += 1
+        else:
+            omitidos += 1
+            
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'actualizados': actualizados,
+        'omitidos_por_estado': omitidos,
+        'no_encontrados': no_encontrados,
+        'segundos': round(time.time() - t0, 2)
+    })

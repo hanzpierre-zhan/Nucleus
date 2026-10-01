@@ -118,7 +118,34 @@ def api_rows_update():
                     return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
                 else:
                     return jsonify({'success': True})
-            if session.get('rol') not in ('zeno', 'suport') and str(row_dict.get('GENERADA', '') or '') == '1':
+            # Una cotización en Observado/Rechazado queda LIBERADA: puede editarse
+            # (los gestores incluidos) para corregirla y volver a generar el PDF
+            # con el mismo N°. En los demás estados, el bloqueo por GENERADA sigue.
+            # El bloqueo aplica solo a cambios REALES: reenviar un valor igual al
+            # guardado (p. ej. la cadena campo por campo del modal) no se bloquea.
+            _est_cot = str(row_dict.get('ESTADO COTIZACION', '') or '').strip()
+            _liberada = _est_cot in ('Observado', 'Rechazado')
+            _ant = row_dict.get(field)
+            _valor_igual = str(_ant if _ant is not None else '') == str(value if value is not None else '')
+            if field == 'ESTADO COTIZACION':
+                # Aprobación: la mueve cualquiera con el módulo Cotizaciones, aunque
+                # la cotización ya esté GENERADA/bloqueada. Solo se valida que el
+                # estado pertenezca a la lista configurada del proyecto.
+                try:
+                    _mc_coti = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+                    _cols_coti = json.loads(_mc_coti.valor) if _mc_coti else []
+                    _def_coti = next((c for c in _cols_coti
+                                      if str(c.get('nombre', '') or '').strip() == 'ESTADO COTIZACION'), None)
+                    if _def_coti and str(_def_coti.get('tipo', '')) == 'lista':
+                        _opc = [str(o).strip() for o in (_def_coti.get('opciones') or [])]
+                        _val_est = str(value if value is not None else '').strip()
+                        if _opc and _val_est not in _opc:
+                            return jsonify({'error': 'Estado de cotización inválido: ' + _val_est}), 400
+                except Exception:
+                    pass
+            elif (session.get('rol') not in ('zeno', 'suport')
+                    and str(row_dict.get('GENERADA', '') or '') == '1'
+                    and not _liberada and not _valor_igual):
                 if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
                     pass
                 else:

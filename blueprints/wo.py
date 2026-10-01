@@ -400,16 +400,35 @@ def api_sites():
             'lng': lng,
             'estado': d.get('Estado', '') or d.get('ESTADO', ''),
             'prioridad': d.get('Prioridad', '') or d.get('PRIORIDAD', ''),
+            'contrata': d.get('Contrata', '') or d.get('CONTRATA', ''),
             'departamento': d.get('Departamento', ''),
             'provincia': d.get('Provincia', ''),
             'distrito': d.get('Distrito', ''),
             'direccion': d.get('Dirección', '') or d.get('Direccion', ''),
             'region': d.get('Región', '') or d.get('Region', ''),
             'supervisor': d.get('SUPERVISOR', '') or d.get('Supervisor', ''),
-            'all': {k: str(v) for k, v in d.items() if not k.startswith('_')},
         }
         sites.append(site_entry)
     return jsonify(sites)
+
+
+@bp.route('/api/site/detalle')
+@login_required
+def api_site_detalle():
+    """Devuelve TODOS los campos de un site (para el panel de detalle del mapa).
+    Se carga bajo demanda para no enviar el maestro completo en la lista."""
+    codigo = (request.args.get('codigo') or '').strip()
+    proy_site = Proyecto.query.filter_by(nombre='SITE').first()
+    if not proy_site:
+        return jsonify({}), 404
+    rec = NucleusData.query.filter_by(proyecto_id=proy_site.id, key_value=codigo).first()
+    if not rec:
+        return jsonify({'error': 'Site no encontrado.'}), 404
+    try:
+        d = json.loads(rec.data_json)
+    except Exception:
+        d = {}
+    return jsonify({k: str(v) for k, v in d.items() if not k.startswith('_')})
 
 
 @bp.route('/api/wos_flm')

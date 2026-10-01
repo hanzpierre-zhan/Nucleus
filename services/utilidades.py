@@ -87,6 +87,38 @@ def get_menu_proyectos(user_id, user_rol):
     return proyectos
 
 
+# ── Módulo Cotizaciones ──────────────────────────────────────────────────────
+def puede_cotizaciones(user_id, user_rol, proy_nombre):
+    """True si el usuario puede usar el módulo Cotizaciones.
+
+    Misma regla con la que pages.index autoriza entrar al módulo, así nadie
+    pierde la descarga por fecha que ya tenía:
+      · módulo abierto en la sesión,
+      · rol zeno/suport/admin,
+      · Cotizaciones visible en su menú (perfil/accesos),
+      · acceso a FLM / FLM - ENTEL / PEXT.
+    """
+    if str(proy_nombre or '').strip().lower() == 'cotizaciones':
+        return True
+    rol = str(user_rol or '').strip().lower()
+    if rol in ('zeno', 'suport', 'admin'):
+        return True
+    try:
+        menu = get_menu_proyectos(user_id, rol) or []
+    except Exception:
+        menu = []
+    if any(str(getattr(p, 'nombre', '') or '').strip() == 'Cotizaciones' for p in menu):
+        return True
+    try:
+        for a in AccesoProyecto.query.filter_by(usuario_id=user_id).all():
+            ap = db.session.get(Proyecto, a.proyecto_id)
+            if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+                return True
+    except Exception:
+        pass
+    return False
+
+
 # ── KPIs ───────────────────────────────────────────────────────────────────
 def inject_kpis(pid, rows):
     configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
