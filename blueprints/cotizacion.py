@@ -433,7 +433,18 @@ def api_cotizacion_generar():
     if cid:
         cot_existente = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
         if cot_existente and cot_existente.bloqueada and user_rol not in ('zeno', 'suport'):
-            return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
+            # Liberación por estado: en Observado/Rechazado se puede regenerar
+            # aunque la cotización siga marcada como bloqueada.
+            _liberada = False
+            _rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+            if _rec:
+                try:
+                    _d_est = json.loads(_rec.data_json or '{}')
+                except Exception:
+                    _d_est = {}
+                _liberada = str(_d_est.get('ESTADO COTIZACION', '') or '').strip() in ('Observado', 'Rechazado')
+            if not _liberada:
+                return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
 
     numero = data.get('numero', '').strip()
     nota = data.get('nota', '').strip()

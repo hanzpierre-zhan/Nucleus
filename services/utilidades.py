@@ -119,6 +119,28 @@ def puede_cotizaciones(user_id, user_rol, proy_nombre):
     return False
 
 
+def puede_rendicion(user_id, user_rol, proy_nombre):
+    """True si el usuario puede usar el módulo Rendicion (Exportar, Sincronizar
+    y los botones del flujo de estados).
+
+    Misma regla con la que pages.index autoriza entrar al módulo:
+      · módulo abierto en la sesión,
+      · rol zeno/suport/admin,
+      · Rendicion visible en su menú (perfil/accesos).
+    """
+    if str(proy_nombre or '').strip().lower() == 'rendicion':
+        return True
+    rol = str(user_rol or '').strip().lower()
+    if rol in ('zeno', 'suport', 'admin'):
+        return True
+    try:
+        menu = get_menu_proyectos(user_id, rol) or []
+    except Exception:
+        menu = []
+    return any(str(getattr(p, 'nombre', '') or '').strip().lower() == 'rendicion'
+               for p in menu)
+
+
 # ── KPIs ───────────────────────────────────────────────────────────────────
 def inject_kpis(pid, rows):
     configs = KpiConfig.query.filter_by(proyecto_id=pid).all()

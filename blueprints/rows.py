@@ -121,8 +121,12 @@ def api_rows_update():
             # Una cotización en Observado/Rechazado queda LIBERADA: puede editarse
             # (los gestores incluidos) para corregirla y volver a generar el PDF
             # con el mismo N°. En los demás estados, el bloqueo por GENERADA sigue.
+            # El bloqueo aplica solo a cambios REALES: reenviar un valor igual al
+            # guardado (p. ej. la cadena campo por campo del modal) no se bloquea.
             _est_cot = str(row_dict.get('ESTADO COTIZACION', '') or '').strip()
             _liberada = _est_cot in ('Observado', 'Rechazado')
+            _ant = row_dict.get(field)
+            _valor_igual = str(_ant if _ant is not None else '') == str(value if value is not None else '')
             if field == 'ESTADO COTIZACION':
                 # Aprobación: la mueve cualquiera con el módulo Cotizaciones, aunque
                 # la cotización ya esté GENERADA/bloqueada. Solo se valida que el
@@ -139,7 +143,9 @@ def api_rows_update():
                             return jsonify({'error': 'Estado de cotización inválido: ' + _val_est}), 400
                 except Exception:
                     pass
-            elif session.get('rol') not in ('zeno', 'suport') and str(row_dict.get('GENERADA', '') or '') == '1' and not _liberada:
+            elif (session.get('rol') not in ('zeno', 'suport')
+                    and str(row_dict.get('GENERADA', '') or '') == '1'
+                    and not _liberada and not _valor_igual):
                 if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
                     pass
                 else:

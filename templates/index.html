@@ -92,18 +92,20 @@
         <button type="button" id="btn-coti-lote" class="action-pill pill-teal" onclick="descargarCotizacionesLote()" title="Descargar ZIP con los PDFs de las cotizaciones generadas en el rango"><i class="fa-solid fa-file-arrow-down"></i> PDFs</button>
     </div>
     {% endif %}
-    <!-- Botón Excel (Verde) -->
+    <!-- Botón Excel (Verde). En Rendicion solo para quienes tienen el módulo. -->
+    {% if proy_nombre != 'rendicion' or puede_rendicion %}
     <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
         <i class="fa-solid fa-file-excel"></i> Exportar
     </button>
+    {% endif %}
 
-    {% if proy_nombre == 'rendicion' and session.get('rol') in ['zeno', 'suport', 'admin'] %}
+{% if proy_nombre == 'rendicion' and puede_rendicion %}
     <!-- Botón Sincronizar (Trae las solicitudes nuevas del Google Form) -->
     <button type="button" id="btn-sync-rendicion" onclick="sincronizarTodo()" class="action-pill pill-teal"
         title="Sincronizar solicitudes del formulario y sustentos del archivo">
         <i class="fa-solid fa-rotate"></i> Sincronizar
     </button>
-    {% endif %}
+{% endif %}
 
     {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
     <!-- Botón Añadir Registro (Azul) -->
@@ -195,6 +197,28 @@
     .rend-btn-no  { background: linear-gradient(135deg,#FF3B30,#d62c22); }
     .rend-btn-dep { background: linear-gradient(135deg,#007AFF,#005ecb); }
     .rend-btn-sus { background: linear-gradient(135deg,#AF52DE,#8e3ab8); }
+    .rend-btn-mini { font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 600; box-shadow: none; }
+    /* Revertir: solo icono, gris (nunca rojo para no confundir con Rechazar) */
+    .rend-btn-rev { background: linear-gradient(135deg,#8E8E93,#5a5a5f); font-size: 13px; min-width: 28px; padding: 3px 7px; }
+    /* Rendición: detalle de registro en el modal de Validación */
+    .rend-detalle-grid { display: grid; grid-template-columns: minmax(150px, 42%) 1fr; }
+    .rend-detalle-grid .rd-k {
+        padding: 9px 12px;
+        font-size: 10.5px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: var(--ios-gray-2, #8E8E93);
+        border-bottom: 1px solid var(--ios-hairline, rgba(140,140,140,0.18));
+        word-break: break-word;
+    }
+    .rend-detalle-grid .rd-v {
+        padding: 9px 12px;
+        font-size: 13px;
+        color: var(--ios-label, #1c1c1e);
+        word-break: break-word;
+        border-bottom: 1px solid var(--ios-hairline, rgba(140,140,140,0.18));
+    }
     .rend-btn-done { background: transparent; color: #28A745; font-size: 13px; cursor: default; font-weight: 700; }
     .rend-btn:hover  { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.22); }
     .rend-btn:active { filter: brightness(.93); transform: translateY(0); }
@@ -2236,7 +2260,7 @@
                             class="fa-solid fa-camera"></i> Evidencia</button>
                     <button type="button" class="wo-tab" id="wo-tab-bitacora" style="display:none;"
                         onclick="cambiarWoTab('bitacora')"><i class="fa-solid fa-book"></i> Bitácora</button>
-                    {% if session.get('rol') == 'admin' %}
+                    {% if session.get('rol') in ('zeno', 'suport') %}
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i
                             class="fa-solid fa-arrows-spin"></i> Estado</button>
                     {% endif %}
@@ -2521,7 +2545,7 @@
                         <span id="badge-coti-bloqueada" title="Cotización bloqueada"
                             style="display:none; background:#FF3B30; color:#fff; width:30px; height:30px; font-size:13px; border-radius:50%; letter-spacing:0.3px; align-items:center; justify-content:center;"><i
                                 class="fa-solid fa-lock"></i></span>
-                        {% if session.get('rol') == 'admin' %}
+                        {% if session.get('rol') in ('zeno', 'suport') %}
                         <button type="button" id="btn-coti-desbloquear" onclick="desbloquearCotizacion()"
                             title="Desbloquear cotización"
                             style="display:none; background:#FF9500; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i
@@ -4230,6 +4254,10 @@
                     if (fieldName === 'ESTADO COTIZACION') return true;
                     const generada = String(d['GENERADA'] || '') === '1';
                     if (generada && !isAdminUser) {
+                        // Liberada (Observado/Rechazado): editable de nuevo,
+                        // igual que valida el backend en /api/rows/update.
+                        const est = String(d['ESTADO COTIZACION'] || '').trim();
+                        if (est === 'Observado' || est === 'Rechazado') return true;
                         if (fieldName === 'NUMERO WO' && !String(d['NUMERO WO'] || '').trim()) return true;
                         return false;
                     }
@@ -4656,6 +4684,8 @@
                 wrap.className = 'rend-acciones';
                 const key = row._key;
                 const puede = rendPuedeGestionar();
+                // Revertir: mismo criterio de admin en todo el sistema (zeno/suport) + admin
+                const puedeRev = ['zeno', 'admin', 'suport'].includes(String(USER_ROLE || '').trim().toLowerCase());
 
                 function mk(clase, texto, titulo, fn) {
                     const b = document.createElement('button');
@@ -4676,8 +4706,8 @@
                 } else if (est === 'VALIDADO') {
                     mk('rend-btn-dep', 'DEPOSITADO', 'Registrar fecha, monto y foto del pago',
                        () => rendAbrirDeposito(key));
-                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
-                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Pendiente', () => rendRevertir(key));
+                    if (puedeRev) {
+                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
                     }
                 } else if (est === 'DEPOSITADO') {
                     const chk = document.createElement('span');
@@ -4686,16 +4716,16 @@
                     chk.title = 'Pendiente de sustentar en Google Sheet';
                     chk.innerHTML = '<i class="fa-solid fa-clock"></i> Pdte Sustentar';
                     wrap.appendChild(chk);
-                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
-                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Validado', () => rendRevertir(key));
+                    if (puedeRev) {
+                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Validado', () => rendRevertir(key));
                     }
                 } else if (est === 'CON SUSTENTO') {
                     mk('rend-btn-sus', 'SUSTENTADO', 'Subir fotos adicionales o cerrar la solicitud',
                        () => rendAbrirSustento(key));
                     mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
-                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
-                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Depositado', () => rendRevertir(key));
+                    if (puedeRev) {
+                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Depositado', () => rendRevertir(key));
                     }
                 } else if (est === 'SUSTENTADO') {
                     const chk = document.createElement('span');
@@ -4703,8 +4733,8 @@
                     chk.title = 'Completado - Sustentado';
                     chk.innerHTML = '<i class="fa-solid fa-circle-check"></i> Sustentado';
                     wrap.appendChild(chk);
-                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
-                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Depositado', () => rendRevertir(key));
+                    if (puedeRev) {
+                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Rendición (CON SUSTENTO)', () => rendRevertir(key));
                     }
                 } else if (est === 'RECHAZADO') {
                     const chk = document.createElement('span');
@@ -4713,8 +4743,8 @@
                     chk.title = 'Rechazado';
                     chk.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Rechazado';
                     wrap.appendChild(chk);
-                    if (USER_ROLE === 'zeno' || USER_ROLE === 'admin') {
-                        mk('rend-btn-no', '↺ Revertir', 'Regresar a Pendiente', () => rendRevertir(key));
+                    if (puedeRev) {
+                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
                     }
                 }
                 return wrap;
@@ -7316,7 +7346,26 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
             if (btnGen) btnGen.disabled = true;
 
-            const fieldsToUpdate = Object.keys(data).filter(f => f !== 'N° COTIZACION' && f !== 'GESTOR' && f !== '_COT_NUM_DIGITS' && !f.startsWith('_'));
+            // Solo se envían los campos que REALMENTE cambiaron, y ademas
+            // ESTADO COTIZACION (y MOTIVO) van PRIMEROS: al pasar a
+            // Observado/Rechazado el backend libera la fila y el resto de los
+            // cambios se guarda sin chocar con el bloqueo por GENERADA.
+            const _orig = (typeof cotiEditData !== 'undefined' && cotiEditData) ? cotiEditData : {};
+            const _sVal = v => String(v == null ? '' : v).trim();
+            const _parseArr = s => { try { const a = JSON.parse(s); return Array.isArray(a) ? a : null; } catch (e) { return null; } };
+            const fieldsToUpdate = Object.keys(data).filter(f => {
+                if (f === 'N° COTIZACION' || f === 'GESTOR' || f === '_COT_NUM_DIGITS' || f.startsWith('_')) return false;
+                if (f === 'ITEMS_JSON') {
+                    const a = JSON.stringify(_parseArr(_orig['ITEMS_JSON'] || _orig['ITEMS'] || '[]') || []);
+                    const b = JSON.stringify(_parseArr(data['ITEMS_JSON'] || '[]') || []);
+                    return a !== b;
+                }
+                return _sVal(_orig[f]) !== _sVal(data[f]);
+            });
+            fieldsToUpdate.sort((a, b) => {
+                const prio = f => (f === 'ESTADO COTIZACION' ? 0 : (f === 'MOTIVO' ? 1 : 2));
+                return prio(a) - prio(b);
+            });
             let chain = Promise.resolve();
             fieldsToUpdate.forEach(field => {
                 chain = chain.then(() => fetch('/api/rows/update', {
@@ -10697,8 +10746,11 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function cambiarWoTab(tab) {
-        // Estado: solo admin
-        if (tab === 'estado' && typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
+        // Estado: solo administradores (zeno/suport); el rol 'admin' ya no existe
+        if (tab === 'estado') {
+            const _rolEst = String(typeof USER_ROLE !== 'undefined' ? USER_ROLE : '').trim().toLowerCase();
+            if (!['zeno', 'suport'].includes(_rolEst)) return;
+        }
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         const tabMat = document.getElementById('wo-tab-materiales');
         if (tabMat) tabMat.classList.toggle('active', tab === 'materiales');
@@ -10770,7 +10822,8 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     function cargarWoEstado() {
-        if (typeof USER_IS_ADMIN !== 'undefined' && !USER_IS_ADMIN) return;
+        const _rolEst2 = String(typeof USER_ROLE !== 'undefined' ? USER_ROLE : '').trim().toLowerCase();
+        if (!['zeno', 'suport'].includes(_rolEst2)) return;
         if (!woKey) return;
         const cont = document.getElementById('wo-estado');
         if (!cont) return;
@@ -11498,6 +11551,11 @@ btnItem.onclick = () => cotRegAgregarFila();
           <label for="rend-comentario">Comentario / siguiente paso</label>
           <textarea id="rend-comentario" rows="3" placeholder="Ej.: Se Cargó soporte al drive, pendiente factura"></textarea>
         </div>
+
+        <div id="rend-validar-detalle" style="display:none; max-height:45vh; overflow-y:auto; border:1px solid var(--ios-hairline); border-radius:10px; margin-top:4px;">
+          <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--ios-gray-2, #8E8E93); padding:9px 12px 3px;"><i class="fa-regular fa-clipboard"></i> Datos de la solicitud</div>
+          <div id="rend-validar-detalle-grid" class="rend-detalle-grid"></div>
+        </div>
       </div>
     </div>
     <div class="mar-footer">
@@ -11519,6 +11577,9 @@ btnItem.onclick = () => cotRegAgregarFila();
     </div>
   </div>
 </div>
+
+<!-- Detalle completo del registro: se inyecta en el modal de Validación -->
+
 
 <!-- Modal Texto Amplio (Cotizaciones ITEMS) -->
 <div id="modal-texto-amplio" class="mar-overlay" style="display:none;">
@@ -11546,6 +11607,40 @@ function abrirNDetalle(data){
   document.getElementById('modal-n-detalle').style.display='flex';
 }
 function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.display='none'; }
+
+// Rendición: genera el detalle del registro (todas las columnas en el orden de
+// la tabla) dentro del contenedor indicado (se usa en el modal de Validación).
+function rendPoblarDetalle(data, gridId) {
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+    data = data || {};
+    const items = [];
+    const seen = new Set();
+    const cols = (typeof table !== 'undefined' && table && typeof table.getColumns === 'function')
+        ? table.getColumns() : [];
+    cols.forEach(col => {
+        const def = (col && col.getDefinition) ? col.getDefinition() : {};
+        const f = def.field;
+        if (!f || f === '_key' || f === '_accion' || seen.has(f)) return;
+        seen.add(f);
+        const label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
+        const raw = data[f];
+        const val = (raw === null || raw === undefined) ? '' : String(raw).trim();
+        let valHtml;
+        if (f === 'ESTADO' && val && typeof rendEstadoDe === 'function' && typeof REND_ESTADO_COLORS !== 'undefined') {
+            const est = rendEstadoDe({ ESTADO: val });
+            const c = REND_ESTADO_COLORS[est];
+            valHtml = c
+                ? `<span style="background:${c.bg};color:${c.fg};padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;">${escapeHtml(est)}</span>`
+                : escapeHtml(est);
+        } else {
+            valHtml = val ? escapeHtml(val)
+                : '<span style="color:var(--ios-gray-3, #C7C7CC); opacity:.55;">—</span>';
+        }
+        items.push(`<div class="rd-k">${escapeHtml(label)}</div><div class="rd-v">${valHtml}</div>`);
+    });
+    grid.innerHTML = items.join('') || '<div class="rd-k">Registro</div><div class="rd-v">Sin datos</div>';
+}
 let _textoAmplioTarget=null;
 function abrirTextoAmplio(input,title){
   _textoAmplioTarget=input;
@@ -11594,6 +11689,8 @@ async function editarCodigoWO() {
    Cada solicitud salta de hoja sola cuando cambia su ESTADO.
    ================================================================ */
 const REND_ROLES_GESTIONAR = ['admin', 'zeno', 'suport', 'supervisor', 'gestor'];
+// Botones habilitados para quien tenga el módulo Rendicion (no por rol).
+const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
 let _rendVista = 'validacion';
 let _rendFiltroFn = null;          // filtro de la pestaña activa
 let _rendColsVisibles = null;      // visibilidad original de cada columna
@@ -11602,6 +11699,7 @@ const _rendFotosPend = {};         // slot -> url ya subida
 
 function rendPuedeGestionar() {
     if (!IS_RENDICION) return false;
+    if (typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR) return true;
     return REND_ROLES_GESTIONAR.includes(String(USER_ROLE || '').trim().toLowerCase());
 }
 
@@ -11726,7 +11824,7 @@ function rendAbrirModal(titulo, sub, okTexto, cuerpo) {
     document.getElementById('rend-modal-title').textContent = titulo;
     document.getElementById('rend-modal-sub').textContent = sub || '';
     document.getElementById('rend-modal-ok').textContent = okTexto || 'Confirmar';
-    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form'].forEach(id => {
+    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form', 'rend-validar-detalle'].forEach(id => {
         document.getElementById(id).style.display = 'none';
     });
     if (cuerpo) document.getElementById(cuerpo).style.display = 'block';
@@ -11737,14 +11835,16 @@ function rendCerrarModal() {
     _rendModal = null;
 }
 
-// Validar: muestra confirmación con 2 opciones visibles
+// Validar: muestra confirmación con el detalle completo de la solicitud
 function rendValidar(key) {
     _rendModal = { accion: 'validar', key: key };
+    const row = rawData.find(r => r._key === key) || {};
+    rendPoblarDetalle(row, 'rend-validar-detalle-grid');
     rendAbrirModal(
         '✓ Validar solicitud',
         'La solicitud pasará a la pestaña Depósitos para registrar el pago.',
         'Confirmar Validación',
-        null
+        'rend-validar-detalle'
     );
 }
 

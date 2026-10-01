@@ -36,8 +36,10 @@ def _proy():
 
 
 def _puede_gestionar():
+    """Habilitado para cualquier usuario que tenga el módulo Rendicion."""
     return bool(session.get('user_id')
-                and (session.get('rol') or '').strip().lower() in ROLES_ACCION)
+                and puede_rendicion(session.get('user_id'), session.get('rol'),
+                                    session.get('current_proyecto_nombre')))
 
 
 def _estado_de(d):
@@ -63,7 +65,7 @@ def api_rendicion_accion():
     data = request.get_json(silent=True) or {}
     key = str(data.get('key') or '').strip()
     accion = str(data.get('accion') or '').strip().lower()
-    if not key or accion not in ('validar', 'rechazar', 'depositar', 'sustentar'):
+    if not key or accion not in ('validar', 'rechazar', 'depositar', 'sustentar', 'revertir'):
         return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
 
     fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
@@ -76,13 +78,14 @@ def api_rendicion_accion():
 
     estado = _estado_de(row)
     # Reglas del flujo: cada acción solo desde la hoja que le corresponde.
+    # 'revertir' no usa esta tabla: valida su propio mapa de estados más abajo.
     permitido = {
         'validar': ('PENDIENTE',),
-        'rechazar': ('PENDIENTE',),
+        'rechazar': ('PENDIENTE', 'CON SUSTENTO'),
         'depositar': ('VALIDADO',),
-        'sustentar': ('DEPOSITADO',),
+        'sustentar': ('DEPOSITADO', 'CON SUSTENTO'),
     }
-    if estado not in permitido[accion]:
+    if accion in permitido and estado not in permitido[accion]:
         return jsonify({'error': 'No se puede "%s" una solicitud en estado %s.'
                                 % (accion, estado)}), 409
 
@@ -154,8 +157,9 @@ def api_rendicion_accion():
         row['SUSTENTADO POR'] = usuario_actual
 
     elif accion == 'revertir':
-        # Permite retroceder el estado de la solicitud (solo zeno o admin)
-        if 'zeno' not in session.get('roles', []) and 'admin' not in session.get('roles', []):
+        # Permite retroceder el estado de la solicitud (solo zeno, suport o admin).
+        # Nota: la sesión guarda el rol en 'rol' (string), no en 'roles'.
+        if (session.get('rol') or '').strip().lower() not in ('zeno', 'suport', 'admin'):
             return jsonify({'error': 'No tienes permisos para revertir estados.'}), 403
         est = str(row.get('ESTADO', '')).strip().upper()
         if est == 'VALIDADO':
@@ -248,6 +252,11 @@ def api_rendicion_subir_foto():
 @bp.route('/api/rendicion/foto/<int:pid>/<path:key>/<path:nombre>')
 @login_required
 def api_rendicion_foto(pid, key, nombre):
+    if not _puede_gestionar():
+        return jsonify({'error': 'No autorizado.'}), 403
+    proy = _proy()
+    if not proy or int(pid) != int(proy.id):
+        return jsonify({'error': 'No encontrado'}), 404
     nombre = os.path.basename(secure_filename(nombre))
     if evidencia_usa_b2():
         try:
