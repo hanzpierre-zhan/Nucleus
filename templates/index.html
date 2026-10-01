@@ -3,16 +3,17 @@
 {% block title %}Nucleus{% endblock %}
 
 {% block content %}
-<div style="display: flex; align-items: center; gap: 8px; padding: 4px 14px; flex-wrap: wrap; min-height: 40px;">
+{% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
+<div class="topbar-row{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}"
+    style="display: flex; align-items: center; gap: 8px; padding: 4px 14px; min-height: 40px;">
     <span id="status-record-count" class="topbar-badge" title="Total de registros en la vista actual"
         style="margin-left:0;">
-        <i class="fa-solid fa-list-ol"></i> Cargando...
+        <i class="fa-solid fa-list-ol"></i> <span class="reg-txt">Cargando...</span>
     </span>
 
     {% set rol_es_admin = session.get('rol') in ['zeno', 'suport', 'admin'] %}
     {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'PEXT'] %}
 
-    {% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
     {% if proy_nombre_flow == 'rendicion' %}
     <!-- Pestañas del flujo: ocupan el espacio libre de la barra superior -->
     <div class="rend-tabs" id="rend-tabs">
@@ -43,7 +44,7 @@
     <div class="col-visibility-wrap" id="col-wrap">
         <!-- Botón Columnas (Neutro) -->
         <button onclick="toggleVisibilityMenu()" class="action-pill pill-neutral" title="Mostrar/Ocultar Columnas">
-            <i class="fa-solid fa-table-columns"></i> Columnas
+            <i class="fa-solid fa-table-columns"></i><span class="pill-txt"> Columnas</span>
         </button>
 
         <!-- Visibility Menu (Absolute positioned near topbar) -->
@@ -66,7 +67,7 @@
         <!-- Botón Ordenar columnas (zeno y suport) -->
         <button onclick="toggleOrderMenu()" class="action-pill pill-neutral"
             title="Reordenar las columnas de la tabla (el orden se aplica a todos los usuarios)">
-            <i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar
+            <i class="fa-solid fa-arrow-down-wide-short"></i><span class="pill-txt"> Ordenar</span>
         </button>
 
         <!-- Order Menu (Absolute positioned near topbar) -->
@@ -120,7 +121,7 @@
     <!-- Botón Excel (Verde). En Rendicion solo para quienes tienen el módulo. -->
     {% if proy_nombre != 'rendicion' or puede_rendicion %}
     <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
-        <i class="fa-solid fa-file-excel"></i> Exportar
+        <i class="fa-solid fa-file-excel"></i><span class="pill-txt"> Exportar</span>
     </button>
     {% endif %}
 
@@ -128,7 +129,7 @@
     <!-- Botón Sincronizar (Trae las solicitudes nuevas del Google Form) -->
     <button type="button" id="btn-sync-rendicion" onclick="sincronizarTodo()" class="action-pill pill-teal"
         title="Sincronizar solicitudes del formulario y sustentos del archivo">
-        <i class="fa-solid fa-rotate"></i> Sincronizar
+        <i class="fa-solid fa-rotate"></i><span class="pill-txt"> Sincronizar</span>
     </button>
 
     <!-- Campanita: avisos del flujo (quién validó, depositó, rechazó...) -->
@@ -191,10 +192,28 @@
 
 <style>
     /* Pestañas del flujo: viven en la barra superior y ocupan su espacio libre */
-    .rend-tabs { display: flex; align-items: center; gap: 5px; flex: 1 1 auto; min-width: 0; padding: 0 6px; flex-wrap: wrap; }
+    .topbar-row { flex-wrap: wrap; }
+    /* En Rendicion TODO va en UNA sola línea: la barra no se parte (las
+       pestañas encogen y se desplazan solas si no cabe el ancho).
+       OJO: sin overflow hidden, para no cortar los menús desplegables. */
+    .topbar-row-rend { flex-wrap: nowrap; }
+    .rend-tabs {
+        display: flex; align-items: center; gap: 5px; flex: 1 1 auto; min-width: 0;
+        padding: 0 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    }
+    .rend-tabs::-webkit-scrollbar { display: none; }
     /* Con las pestañas presentes la paginación no se centra con auto-margins:
        se queda pegada a los botones y las pestañas toman el espacio libre. */
-    .rend-tabs ~ #pagination-container { margin: 0 4px; }
+    .rend-tabs ~ #pagination-container { margin: 0 4px; flex: 0 0 auto; }
+    /* La barra va en una línea: botones de acción solo icono (el título del
+       navegador hace de etiqueta al pasar el mouse) y el contador de registros
+       sin la palabra "Registros" (queda solo el icono con los números). */
+    .rend-tabs ~ .pill-txt,
+    .rend-tabs ~ * .pill-txt { display: none; }
+    .rend-tabs ~ .action-pill,
+    .rend-tabs ~ * .action-pill { padding: 0 10px; }
+    .topbar-row-rend .reg-txt { display: none; }
+    .rend-tabs ~ #pagination-container .tabulator-page { padding: 3px 7px; font-size: 11.5px; }
     .rend-tab {
         display: inline-flex; align-items: center; gap: 6px;
         padding: 6px 12px; border-radius: 8px; cursor: pointer;
@@ -5192,13 +5211,13 @@ let _rendCambiandoVista = false;
             if (page > 0 && table.getPageMax() > 1) {
                 status.innerHTML = `<i class="fa-solid fa-list-ol"></i> ${from}–${to} de ${total}`;
             } else {
-                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> <span class="reg-txt">Registros </span>${total}`;
             }
         } else {
             if (page > 0 && table.getPageMax() > 1) {
                 status.innerHTML = `<i class="fa-solid fa-list-ol"></i> ${from}–${to} de ${filteredRows} (${total} total)`;
             } else {
-                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${filteredRows} | ${total}`;
+                status.innerHTML = `<i class="fa-solid fa-list-ol"></i> <span class="reg-txt">Registros </span>${filteredRows} | ${total}`;
             }
         }
     }
@@ -5211,8 +5230,18 @@ let _rendCambiandoVista = false;
         clearTimeout(_tarjetasRepintTimer);
         _tarjetasRepintTimer = setTimeout(_refrescarTarjetasFiltradas, 60);
     });
-    table.on("pageLoaded", function () { _actualizarBadgeRegistros(); });
-    table.on("tableBuilt", function () { _actualizarBadgeRegistros(); });
+    // En Rendicion la barra va en UNA línea: la paginación usa glifos
+    // (« ‹ › ») en vez de First/Prev/Next/Last para no ocupar espacio.
+    function rendComprimirPaginacion() {
+        if (!document.getElementById('rend-tabs')) return;
+        const mapa = { first: '«', prev: '‹', next: '›', last: '»' };
+        document.querySelectorAll('#pagination-container .tabulator-page').forEach(b => {
+            const t = (b.textContent || '').trim().toLowerCase();
+            if (mapa[t]) b.textContent = mapa[t];
+        });
+    }
+    table.on("pageLoaded", function () { _actualizarBadgeRegistros(); rendComprimirPaginacion(); });
+    table.on("tableBuilt", function () { _actualizarBadgeRegistros(); rendComprimirPaginacion(); });
 
     // ===== Ordenar columnas (panel, solo zeno) =====
     let orderApplying = false;
@@ -5441,7 +5470,7 @@ let _rendCambiandoVista = false;
     // Initial count on page load (fallback)
     const statusEl = document.getElementById('status-record-count');
     if (statusEl) {
-        statusEl.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${rawData.length}`;
+        statusEl.innerHTML = `<i class="fa-solid fa-list-ol"></i> <span class="reg-txt">Registros </span>${rawData.length}`;
     }
     // Hipervínculo NUMERO WO → detalle FLM/PEXT
     window.irADetalleWO = async function(wo){
@@ -11663,7 +11692,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             const status = document.getElementById('status-record-count');
             if (!status) return;
             const total = table.getDataCount();
-            status.innerHTML = `<i class="fa-solid fa-list-ol"></i> Registros ${total}`;
+            status.innerHTML = `<i class="fa-solid fa-list-ol"></i> <span class="reg-txt">Registros </span>${total}`;
         }
     }
 
