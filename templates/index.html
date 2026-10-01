@@ -12,7 +12,32 @@
     {% set rol_es_admin = session.get('rol') in ['zeno', 'suport', 'admin'] %}
     {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'PEXT'] %}
 
+    {% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
+    {% if proy_nombre_flow == 'rendicion' %}
+    <!-- Pestañas del flujo: ocupan el espacio libre de la barra superior -->
+    <div class="rend-tabs" id="rend-tabs">
+        <button type="button" class="rend-tab active" data-vista="validacion" onclick="rendCambiarVista('validacion')">
+            <i class="fa-solid fa-clipboard-check"></i> Validación <span class="rend-badge" id="rend-cnt-validacion">0</span>
+        </button>
+        <button type="button" class="rend-tab" data-vista="depositos" onclick="rendCambiarVista('depositos')">
+            <i class="fa-solid fa-money-bill-transfer"></i> Depósitos <span class="rend-badge" id="rend-cnt-depositos">0</span>
+        </button>
+        <button type="button" class="rend-tab" data-vista="evidencia" onclick="rendCambiarVista('evidencia')">
+            <i class="fa-solid fa-camera-retro"></i> Evidencia <span class="rend-badge" id="rend-cnt-evidencia">0</span>
+        </button>
+        <button type="button" class="rend-tab" data-vista="rendicion" onclick="rendCambiarVista('rendicion')">
+            <i class="fa-solid fa-file-invoice-dollar"></i> Rendición <span class="rend-badge" id="rend-cnt-sustentos">0</span>
+        </button>
+        <button type="button" class="rend-tab" data-vista="rechazados" onclick="rendCambiarVista('rechazados')">
+            <i class="fa-solid fa-ban"></i> Rechazados <span class="rend-badge" id="rend-cnt-rechazados">0</span>
+        </button>
+        <button type="button" class="rend-tab" data-vista="cerrado" onclick="rendCambiarVista('cerrado')">
+            <i class="fa-solid fa-check-double"></i> Cerrado <span class="rend-badge" id="rend-cnt-cerrado">0</span>
+        </button>
+    </div>
+    {% else %}
     <div style="flex: 1;"></div>
+    {% endif %}
 
     {% if rol_es_admin %}
     <div class="col-visibility-wrap" id="col-wrap">
@@ -161,43 +186,22 @@
     </button>
     {% endif %}
 </div>
-{% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
-{% if proy_nombre_flow == 'rendicion' %}
-<!-- Pestañas del flujo: la solicitud salta de hoja según su ESTADO -->
-<div class="rend-tabs" id="rend-tabs">
-    <button type="button" class="rend-tab active" data-vista="validacion" onclick="rendCambiarVista('validacion')">
-        <i class="fa-solid fa-clipboard-check"></i> Validación <span class="rend-badge" id="rend-cnt-validacion">0</span>
-    </button>
-    <button type="button" class="rend-tab" data-vista="depositos" onclick="rendCambiarVista('depositos')">
-        <i class="fa-solid fa-money-bill-transfer"></i> Depósitos <span class="rend-badge" id="rend-cnt-depositos">0</span>
-    </button>
-    <button type="button" class="rend-tab" data-vista="evidencia" onclick="rendCambiarVista('evidencia')">
-        <i class="fa-solid fa-camera-retro"></i> Evidencia <span class="rend-badge" id="rend-cnt-evidencia">0</span>
-    </button>
-    <button type="button" class="rend-tab" data-vista="rendicion" onclick="rendCambiarVista('rendicion')">
-        <i class="fa-solid fa-file-invoice-dollar"></i> Rendición <span class="rend-badge" id="rend-cnt-sustentos">0</span>
-    </button>
-    <button type="button" class="rend-tab" data-vista="rechazados" onclick="rendCambiarVista('rechazados')">
-        <i class="fa-solid fa-ban"></i> Rechazados <span class="rend-badge" id="rend-cnt-rechazados">0</span>
-    </button>
-    <button type="button" class="rend-tab" data-vista="cerrado" onclick="rendCambiarVista('cerrado')">
-        <i class="fa-solid fa-check-double"></i> Cerrado <span class="rend-badge" id="rend-cnt-cerrado">0</span>
-    </button>
-</div>
-{% endif %}
 <div id="data-stats" class="data-stats"></div>
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 
 <style>
-    /* Pestañas del flujo de Rendicion (hojas tipo Excel) */
-    .rend-tabs { display: flex; gap: 4px; padding: 0 12px 8px; flex-wrap: wrap; }
+    /* Pestañas del flujo: viven en la barra superior y ocupan su espacio libre */
+    .rend-tabs { display: flex; align-items: center; gap: 5px; flex: 1 1 auto; min-width: 0; padding: 0 6px; flex-wrap: wrap; }
+    /* Con las pestañas presentes la paginación no se centra con auto-margins:
+       se queda pegada a los botones y las pestañas toman el espacio libre. */
+    .rend-tabs ~ #pagination-container { margin: 0 4px; }
     .rend-tab {
-        display: inline-flex; align-items: center; gap: 7px;
-        padding: 8px 14px; border-radius: 8px; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 12px; border-radius: 8px; cursor: pointer;
         background: var(--tab-bg, var(--ios-card-bg, #fff));
         border: 1px solid var(--tab-c, var(--ios-hairline, #E5E5EA));
-        color: var(--ios-label, #000); font-size: 13px; font-weight: 600;
-        font-family: inherit;
+        color: var(--ios-label, #000); font-size: 12.5px; font-weight: 700;
+        font-family: inherit; white-space: nowrap;
         transition: background .15s, color .15s, box-shadow .15s;
     }
     /* Color propio de cada hoja del flujo */
@@ -207,6 +211,15 @@
     .rend-tab[data-vista="rendicion"]  { --tab-c: #AF52DE; --tab-bg: #F6EBFC; }
     .rend-tab[data-vista="rechazados"] { --tab-c: #FF3B30; --tab-bg: #FFECEB; }
     .rend-tab[data-vista="cerrado"]    { --tab-c: #8E8E93; --tab-bg: #F0F0F3; }
+    /* Tema oscuro: los tintes claros no se leen, van translúcidos sobre el fondo */
+    body.dark-mode .rend-tab[data-vista="validacion"] { --tab-bg: rgba(52,199,89,.20); }
+    body.dark-mode .rend-tab[data-vista="depositos"]  { --tab-bg: rgba(0,122,255,.24); }
+    body.dark-mode .rend-tab[data-vista="evidencia"]  { --tab-bg: rgba(255,204,0,.20); }
+    body.dark-mode .rend-tab[data-vista="rendicion"]  { --tab-bg: rgba(175,82,222,.26); }
+    body.dark-mode .rend-tab[data-vista="rechazados"] { --tab-bg: rgba(255,59,48,.24); }
+    body.dark-mode .rend-tab[data-vista="cerrado"]    { --tab-bg: rgba(142,142,147,.26); }
+    body.dark-mode .rend-tab { color: var(--ios-label, #E5E5EA); }
+    body.dark-mode .rend-tab[data-vista="evidencia"] .rend-badge { color: #1C1C1E; }
     .rend-tab:hover { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
     .rend-tab.active {
         background: var(--tab-c, var(--ios-blue, #007AFF));
@@ -231,29 +244,37 @@
         transition: filter .15s;
     }
     .rend-foto-btn:hover { filter: brightness(1.1); }
-    /* Avisos del flujo: emergen en la esquina, apilados, con su X */
+    /* Avisos del flujo: emergen CENTRADOS arriba de todo, apilados, con su X */
     .rend-aviso-toast {
         pointer-events: auto; background: #fff; color: #1C1C1E;
-        border-left: 6px solid #007AFF; border-radius: 13px;
-        padding: 11px 13px 12px; min-width: 300px; max-width: 100%;
-        box-shadow: 0 14px 36px rgba(0,0,0,.30), 0 3px 10px rgba(0,0,0,.16);
-        opacity: 0; transform: translateX(28px);
-        transition: opacity .25s, transform .25s;
+        border: 1px solid rgba(0,0,0,.10); border-left: 7px solid #007AFF;
+        border-radius: 14px; padding: 13px 15px 14px; min-width: 320px; max-width: 100%;
+        box-shadow: 0 18px 50px rgba(0,0,0,.42), 0 4px 14px rgba(0,0,0,.24);
+        opacity: 0; transform: translateY(-22px);
+        transition: opacity .28s, transform .28s;
     }
     .rend-aviso-toast.on { opacity: 1; transform: none; }
     .rend-aviso-toast-head {
         display: flex; align-items: center; justify-content: space-between; gap: 10px;
-        font-size: 10.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+        font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase;
         color: #8E8E93; margin-bottom: 6px;
     }
     .rend-aviso-x {
-        border: none; background: #F2F2F7; color: #3A3A3C; width: 23px; height: 23px;
-        border-radius: 50%; font-size: 16px; line-height: 1; cursor: pointer;
+        border: none; background: #F2F2F7; color: #3A3A3C; width: 26px; height: 26px;
+        border-radius: 50%; font-size: 18px; line-height: 1; cursor: pointer;
         display: flex; align-items: center; justify-content: center; padding: 0; flex: 0 0 auto;
     }
     .rend-aviso-x:hover { background: #FF3B30; color: #fff; }
-    .rend-aviso-toast-txt { font-size: 13.5px; line-height: 1.45; font-weight: 600; word-break: break-word; }
-    .rend-aviso-toast-hora { font-size: 11px; color: #8E8E93; margin-top: 5px; }
+    .rend-aviso-toast-txt { font-size: 15px; line-height: 1.45; font-weight: 700; word-break: break-word; }
+    .rend-aviso-toast-hora { font-size: 12px; color: #8E8E93; margin-top: 6px; }
+    body.dark-mode .rend-aviso-toast {
+        background: #1C1C1E; color: #F2F2F7; border-color: rgba(255,255,255,.12);
+        box-shadow: 0 20px 55px rgba(0,0,0,.7), 0 4px 14px rgba(0,0,0,.5);
+    }
+    body.dark-mode .rend-aviso-toast-head { color: #98989E; }
+    body.dark-mode .rend-aviso-x { background: #2C2C2E; color: #E5E5EA; }
+    body.dark-mode .rend-aviso-x:hover { background: #FF3B30; color: #fff; }
+    body.dark-mode .rend-aviso-toast-hora { color: #98989E; }
     /* Botones de accion del flujo en la fila */
     .rend-acciones { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
     .rend-btn {
@@ -12354,19 +12375,19 @@ function rendAvisosPintar(lista) {
 }
 
 function rendAvisosToast(a) {
-    // Contenedor apilable: los avisos se acumulan en la esquina superior
-    // derecha, por encima de cualquier ventana (z-index máximo).
+    // Contenedor apilable: los avisos se acumulan CENTRADOS Y ENCIMA DE TODO
+    // (z-index maximo del navegador), para que no haya forma de no verlos.
     let box = document.getElementById('rend-aviso-stack');
     if (!box) {
         box = document.createElement('div');
         box.id = 'rend-aviso-stack';
-        box.style.cssText = 'position:fixed; top:74px; right:16px; z-index:2147483647; '
-            + 'display:flex; flex-direction:column; gap:10px; width:390px; '
-            + 'max-width:calc(100vw - 32px); pointer-events:none;';
+        box.style.cssText = 'position:fixed; top:10px; left:50%; transform:translateX(-50%); '
+            + 'z-index:2147483647; display:flex; flex-direction:column; gap:10px; '
+            + 'width:min(560px, calc(100vw - 24px)); pointer-events:none;';
         document.body.appendChild(box);
     }
-    // Nunca tapa toda la pantalla: como máximo 6 avisos a la vez
-    while (box.children.length >= 6) box.removeChild(box.firstElementChild);
+    // Nunca tapa toda la pantalla: como máximo 4 avisos a la vez
+    while (box.children.length >= 4) box.removeChild(box.firstElementChild);
 
     const el = document.createElement('div');
     el.className = 'rend-aviso-toast';
@@ -12388,9 +12409,63 @@ function rendAvisosToast(a) {
         e.stopPropagation();
         cerrar();
     });
-    // Se va solo a los 15 s (o cuando el usuario lo cierra)
-    clearTimeout(el._t);
-    el._t = setTimeout(cerrar, 15000);
+    // Se queda hasta que el gestor lo cierre (garantiza que lo vio).
+    rendAvisosNavegador(a);
+    rendAvisosPitido();
+}
+
+// Notificación del NAVEGADOR: sale encima de Chrome/Windows, aunque la pestaña
+// no esté activa. requireInteraction la deja fija hasta que hagan clic.
+function rendAvisosNavegador(a) {
+    try {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+        const n = new Notification('🔔 Aviso del flujo de Rendición', {
+            body: (a.texto || '') + (a.creada_en ? '\n' + a.creada_en : ''),
+            tag: 'rend-aviso-' + (a.id || Date.now()),
+            requireInteraction: true
+        });
+        n.onclick = () => { window.focus(); try { n.close(); } catch (e) { } };
+    } catch (e) { }
+}
+
+// Pide permiso para avisar fuera de la pestaña (en el primer clic del usuario,
+// que es lo que exige Chrome).
+function rendAvisosPedirPermiso() {
+    try {
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    } catch (e) { }
+}
+document.addEventListener('click', function _rendPedirPermiso() {
+    document.removeEventListener('click', _rendPedirPermiso);
+    rendAvisosPedirPermiso();
+});
+
+// Pip cortito (dos tonos) para que el aviso se note también por audio.
+function rendAvisosPitido() {
+    try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!rendAvisosPitido._ctx) rendAvisosPitido._ctx = new AC();
+        const ctx = rendAvisosPitido._ctx;
+        if (ctx.state === 'suspended') ctx.resume();
+        const t0 = ctx.currentTime;
+        [988, 1319].forEach((f, i) => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.value = f;
+            const t = t0 + i * 0.17;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+            o.connect(g);
+            g.connect(ctx.destination);
+            o.start(t);
+            o.stop(t + 0.17);
+        });
+    } catch (e) { }
 }
 
 // Carga los avisos. silencioso=true la primera vez (no revienta con toasts
