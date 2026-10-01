@@ -2873,6 +2873,8 @@
     const rawCols = {{ columns | safe }};
     const manualColsConfig = {{ manual_cols | safe }};
     const columnLayout = {{ column_layout | safe }} || [];
+    // Rendicion: layout propio de cada hoja (validacion, depositos, ...)
+    const columnLayoutVistas = {% if column_layout_vistas is defined %}{{ column_layout_vistas | safe }}{% else %}{}{% endif %} || {};
 // Rendicion: true mientras las pestañas ocultan/muestran columnas (visibilidad
 // transitoria que NO debe persistirse como layout global). Declarado arriba para
 // que los listeners de Tabulator lo vean definido desde el primer evento.
@@ -5344,10 +5346,6 @@ let _rendCambiandoVista = false;
 
     function toggleColumnAuto(field) {
         table.toggleColumn(field);
-        const c = table.getColumn(field);
-        if (typeof rendRegistrarVisibilidad === 'function' && c) {
-            rendRegistrarVisibilidad(field, c.isVisible());
-        }
         saveColumnLayout(true);
     }
 
@@ -5360,14 +5358,6 @@ let _rendCambiandoVista = false;
             const shouldShow = (col.isVisible() !== visible);
             if (shouldShow) table.toggleColumn(def.field);
         });
-        // Registra la elección en la base de Rendicion para que sobreviva al
-        // cambio de pestaña.
-        if (typeof rendRegistrarVisibilidad === 'function') {
-            table.getColumns().forEach(col => {
-                const f = col.getField();
-                if (f && f !== '_key') rendRegistrarVisibilidad(f, col.isVisible());
-            });
-        }
         saveColumnLayout(true);
         // Refresh the checkboxes without closing the menu
         const menu = document.getElementById('col-menu');
@@ -5442,22 +5432,29 @@ let _rendCambiandoVista = false;
 
     async function saveColumnLayout(showToast) {
         if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return;
+        // En Rendicion cada hoja guarda su propia vista (visibilidad + orden):
+        // se envia la hoja activa y el servidor la guarda aparte, de modo que
+        // todos los usuarios ven lo mismo que declaro el administrador.
+        let vista = null;
+        if (IS_RENDICION && typeof rendEstadoParaGuardar === 'function') {
+            rendEstadoParaGuardar();
+            vista = (typeof _rendVista !== 'undefined') ? _rendVista : null;
+        }
         const cols = table.getColumns().map(c => {
             const def = c.getDefinition();
             if (!def.field || def.field === '_key' || def.field === '_accion' || def.field.startsWith('KPI_')) return null;
-            // En Rendicion la pestaña activa recorta columnas: se guarda la
-            // visibilidad que eligió el usuario, no la de la hoja.
-            const intencion = (typeof rendVisibilidadParaGuardar === 'function')
-                ? rendVisibilidadParaGuardar(def.field)
-                : null;
-            return { field: def.field, visible: intencion === null ? c.isVisible() : intencion };
+            return { field: def.field, visible: c.isVisible() };
         }).filter(Boolean);
-        fetch('/api/columns/layout', {
+        fetch('/api/columns/layout' + (vista ? '?vista=' + encodeURIComponent(vista) : ''), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ columns: cols })
+            body: JSON.stringify({ columns: cols, vista: vista || undefined })
         }).then(r => r.json()).then(res => {
-            if (res.success && showToast) woToast('Configuración de columnas guardada para todos los usuarios.');
+            if (res.success && showToast) {
+                woToast(vista
+                    ? 'Vista de la hoja guardada: todos los usuarios la veran igual.'
+                    : 'Configuracion de columnas guardada para todos los usuarios.');
+            }
         }).catch(() => { });
     }
 
@@ -5479,11 +5476,21 @@ let _rendCambiandoVista = false;
         if (await nucleusConfirm('¿Restaurar orden y visibilidad de las columnas al estado por defecto original?')) {
             localStorage.removeItem('tabulator-nucleus-layout');
             const done = () => location.reload();
-            if (isAdmin && hasServerLayout) {
-                fetch('/api/columns/layout', {
+            // En Rendicion se restaura solo la hoja activa (su vista es propia);
+            // en el resto de modulos, la vista general del modulo.
+            let vista = null;
+            let tieneLayout = hasServerLayout;
+            if (IS_RENDICION && typeof _rendVista !== 'undefined') {
+                vista = _rendVista;
+                const propia = (typeof columnLayoutVistas !== 'undefined' && columnLayoutVistas)
+                    ? columnLayoutVistas[vista] : null;
+                if (propia && propia.length) tieneLayout = true;
+            }
+            if (isAdmin && tieneLayout) {
+                fetch('/api/columns/layout' + (vista ? '?vista=' + encodeURIComponent(vista) : ''), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ columns: [] })
+                    body: JSON.stringify({ columns: [], vista: vista || undefined })
                 }).then(done).catch(done);
             } else {
                 done();
@@ -11561,12 +11568,17 @@ btnItem.onclick = () => cotRegAgregarFila();
     </div>
     <div class="mar-body" style="display:block;">
       <div id="rend-modal-cuerpo" class="rend-modal-body">
+        <!-- Resumen de la fila: muestra las columnas que están en la tabla (hoja activa).
+             Compartido por todos los botones del flujo: validar, depositar, sustentar, rechazar. -->
+        <div id="rend-resumen" style="max-height:38vh; overflow-y:auto; border:1px solid var(--ios-hairline); border-radius:10px; margin-bottom:14px;">
+          <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--ios-gray-2, #8E8E93); padding:9px 12px 3px;"><i class="fa-regular fa-clipboard"></i> Datos de la solicitud</div>
+          <div id="rend-resumen-grid" class="rend-detalle-grid"></div>
+        </div>
+
         <label id="rend-lbl-motivo" for="rend-motivo" style="display:none;">Motivo del rechazo</label>
         <textarea id="rend-motivo" style="display:none;" placeholder="Ej.: No coincide con la OT"></textarea>
 
         <div id="rend-dep-form" style="display:none;">
-          <div id="rend-dep-summary" style="margin-bottom:15px; padding:12px; background:var(--ios-card-bg, #f8f9fa); border: 1px solid var(--ios-hairline); border-radius:8px; display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12.5px; max-height: 200px; overflow-y: auto;">
-          </div>
           <hr style="border:none; border-top:1px dashed var(--ios-hairline, #C7C7CC); margin: 0 0 15px 0;">
 
           <label for="rend-fecha-pago">Fecha del pago *</label>
@@ -11584,11 +11596,6 @@ btnItem.onclick = () => cotRegAgregarFila();
           <div id="rend-slots-sus" style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"></div>
           <label for="rend-comentario">Comentario / siguiente paso</label>
           <textarea id="rend-comentario" rows="3" placeholder="Ej.: Se Cargó soporte al drive, pendiente factura"></textarea>
-        </div>
-
-        <div id="rend-validar-detalle" style="display:none; max-height:45vh; overflow-y:auto; border:1px solid var(--ios-hairline); border-radius:10px; margin-top:4px;">
-          <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; color:var(--ios-gray-2, #8E8E93); padding:9px 12px 3px;"><i class="fa-regular fa-clipboard"></i> Datos de la solicitud</div>
-          <div id="rend-validar-detalle-grid" class="rend-detalle-grid"></div>
         </div>
       </div>
     </div>
@@ -11642,8 +11649,8 @@ function abrirNDetalle(data){
 }
 function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.display='none'; }
 
-// Rendición: genera el detalle del registro (todas las columnas en el orden de
-// la tabla) dentro del contenedor indicado (se usa en el modal de Validación).
+// Rendición: genera el detalle del registro (las columnas que están en la tabla
+// de la hoja activa, en el mismo orden) dentro del contenedor indicado.
 function rendPoblarDetalle(data, gridId) {
     const grid = document.getElementById(gridId);
     if (!grid) return;
@@ -11656,6 +11663,8 @@ function rendPoblarDetalle(data, gridId) {
         const def = (col && col.getDefinition) ? col.getDefinition() : {};
         const f = def.field;
         if (!f || f === '_key' || f === '_accion' || seen.has(f)) return;
+        // Solo lo que se ve en la tabla (la hoja activa puede ocultar columnas)
+        if (typeof col.isVisible === 'function' && !col.isVisible()) return;
         seen.add(f);
         const label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
         const raw = data[f];
@@ -11727,7 +11736,10 @@ async function editarCodigoWO() {
 const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
 let _rendVista = 'validacion';
 let _rendFiltroFn = null;          // filtro de la pestaña activa
-let _rendColsVisibles = null;      // visibilidad original de cada columna
+// Cada hoja tiene SU vista de columnas: {visibles:{campo: bool}, orden:[campo,...]}.
+// Mostrar/ocultar/ordenar en Depósitos no toca a Validación ni a otros módulos.
+const _rendEstadoVistas = {};
+let _rendEstadoListo = false;
 let _rendModal = null;             // {accion, key, estadoPrevio, fotos:[], ...}
 const _rendFotosPend = {};         // slot -> url ya subida
 
@@ -11752,71 +11764,136 @@ function rendEstadoDe(row) {
     return v || 'PENDIENTE';
 }
 
-// ── Cambio de hoja: filtra por estado y aplica sus columnas ──
-function rendCambiarVista(vista) {
-    if (!IS_RENDICION || !REND_VISTAS[vista]) return;
+// Columnas que no participan en el orden por hoja (fijas / KPI).
+function _rendEsColumnaDeVista(f) {
+    return !!f && f !== '_key' && f !== '_accion' && String(f).indexOf('KPI_') !== 0;
+}
 
-    // Si venimos de Validación, ahí el usuario pudo mostrar/ocultar columnas:
-    // lo que se ve ahí es su intención real, así que lo adoptamos como base.
-    if (_rendVista === 'validacion' || !_rendColsVisibles) {
-        _rendColsVisibles = {};
+// Visibilidad y orden tal como se ven ahora en la tabla (= la hoja activa).
+function _rendSnapshot() {
+    const visibles = {}, orden = [];
+    if (typeof table === 'undefined' || !table) return { visibles: visibles, orden: orden };
+    table.getColumns().forEach(c => {
+        const f = c.getField();
+        if (!f) return;
+        visibles[f] = c.isVisible();
+        if (_rendEsColumnaDeVista(f)) orden.push(f);
+    });
+    return { visibles: visibles, orden: orden };
+}
+
+// Visibilidad por defecto: la del layout general del modulо.
+function _rendVisPorDefecto(f) {
+    const lay = (typeof columnLayout !== 'undefined' && columnLayout) ? columnLayout : [];
+    for (let i = 0; i < lay.length; i++) {
+        if (lay[i] && lay[i].field === f) return lay[i].visible !== false;
+    }
+    return true;
+}
+
+// Una sola vez: arma la vista de cada hoja con lo GUARDADO para esa hoja
+// (column_layout__hoja en el servidor, asi lo ven todos los usuarios) o, si la
+// hoja nunca se toco, con el default de la hoja sobre la vista del modulo.
+function _rendInitEstados() {
+    if (_rendEstadoListo) return;
+    _rendEstadoListo = true;
+    const base = _rendSnapshot();
+    const vistas = (typeof REND_VISTAS !== 'undefined' && REND_VISTAS) ? REND_VISTAS : {};
+    Object.keys(vistas).forEach(vista => {
+        const cfg = vistas[vista] || {};
+        const guardado = (typeof columnLayoutVistas !== 'undefined' && columnLayoutVistas)
+            ? columnLayoutVistas[vista] : null;
+        let est;
+        if (guardado && guardado.length) {
+            est = { visibles: {}, orden: [] };
+            guardado.forEach(c => {
+                if (!c || !c.field) return;
+                est.visibles[c.field] = c.visible !== false;
+                if (_rendEsColumnaDeVista(c.field) && est.orden.indexOf(c.field) < 0) est.orden.push(c.field);
+            });
+            // Columnas nuevas (aparecieron despues de guardar): visibilidad por
+            // defecto y orden al final.
+            Object.keys(base.visibles).forEach(f => {
+                if (!Object.prototype.hasOwnProperty.call(est.visibles, f)) est.visibles[f] = _rendVisPorDefecto(f);
+            });
+            base.orden.forEach(f => { if (est.orden.indexOf(f) < 0) est.orden.push(f); });
+        } else {
+            est = { visibles: Object.assign({}, base.visibles), orden: base.orden.slice() };
+            if (cfg.cols) {
+                const set = cfg.cols;
+                Object.keys(est.visibles).forEach(f => { est.visibles[f] = set.indexOf(f) >= 0; });
+            }
+            if (cfg.showCols) cfg.showCols.forEach(f => { est.visibles[f] = true; });
+            if (cfg.hideCols) cfg.hideCols.forEach(f => { est.visibles[f] = false; });
+        }
+        _rendEstadoVistas[vista] = est;
+    });
+}
+
+// Reordena columnas al orden guardado de la hoja.
+// column.move(destino, false) = colocarlo ANTES del destino (Tabulator 5.x).
+function _rendAplicarOrden(orden) {
+    if (!orden || orden.length < 2) return;
+    const actual = table.getColumns().map(c => c.getField())
+        .filter(f => f && orden.indexOf(f) >= 0);
+    if (actual.join('|') === orden.join('|')) return;
+    for (let i = orden.length - 2; i >= 0; i--) {
+        if (orden[i] === orden[i + 1]) continue;
+        const a = table.getColumn(orden[i]);
+        const b = table.getColumn(orden[i + 1]);
+        if (a && b && typeof a.move === 'function') a.move(orden[i + 1], false);
+    }
+}
+
+// Aplica la vista (visibilidad + orden) de una hoja sin guardar el layout.
+function _rendAplicarEstado(est) {
+    if (!est || !table) return;
+    _rendCambiandoVista = true;
+    try {
         table.getColumns().forEach(c => {
             const f = c.getField();
-            if (f) _rendColsVisibles[f] = c.isVisible();
+            if (!f) return;
+            const vis = est.visibles[f] !== false;
+            if (vis && !c.isVisible()) c.show();
+            if (!vis && c.isVisible()) c.hide();
         });
+        _rendAplicarOrden(est.orden);
+    } finally {
+        _rendCambiandoVista = false;
     }
+}
+
+// Vista que debe guardarse: la de la hoja activa, con lo que se esta viendo.
+function rendEstadoParaGuardar() {
+    if (!IS_RENDICION) return null;
+    _rendInitEstados();
+    const est = _rendSnapshot();
+    _rendEstadoVistas[_rendVista] = est;
+    return est;
+}
+
+// Resumen de la fila en los modales: las columnas que estan en la tabla.
+function rendMostrarResumen(key) {
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+    rendPoblarDetalle(row, 'rend-resumen-grid');
+}
+
+// Cambio de hoja: filtra por estado y aplica la vista de columnas de esa hoja.
+function rendCambiarVista(vista) {
+    if (!IS_RENDICION || !REND_VISTAS[vista]) return;
+    _rendInitEstados();
+    // La hoja saliente se queda con lo que el usuario tenia en pantalla.
+    if (_rendVista !== vista) _rendEstadoVistas[_rendVista] = _rendSnapshot();
     _rendVista = vista;
 
     document.querySelectorAll('#rend-tabs .rend-tab').forEach(b => {
         b.classList.toggle('active', b.getAttribute('data-vista') === vista);
     });
 
-    const cfg = REND_VISTAS[vista];
-    // Mientras movemos visibilidad por pestaña NO se debe persistir el layout:
-    // si no, "Depósitos" grabaría su vista de 9 columnas como la global.
-    _rendCambiandoVista = true;
-    try {
-        table.getColumns().forEach(c => {
-            const f = c.getField();
-            if (!f) return;
-            let visible = false;
-            if (cfg.cols) {
-                visible = cfg.cols.includes(f);
-            } else {
-                visible = _rendColsVisibles[f] !== false;
-                if (cfg.showCols && cfg.showCols.includes(f)) visible = true;
-                if (cfg.hideCols && cfg.hideCols.includes(f)) visible = false;
-            }
-            if (visible && !c.isVisible()) c.show();
-            if (!visible && c.isVisible()) c.hide();
-        });
-    } finally {
-        _rendCambiandoVista = false;
-    }
+    _rendAplicarEstado(_rendEstadoVistas[vista]);
 
     rendAplicarFiltro();
     rendActualizarContadores();
-}
-
-// Visibilidad que debe persistirse: la "intención" del usuario (base), no la
-// visibilidad recortada de la pestaña activa.
-function rendVisibilidadParaGuardar(f) {
-    if (!IS_RENDICION || _rendVista === 'validacion' || !_rendColsVisibles
-        || !Object.prototype.hasOwnProperty.call(_rendColsVisibles, f)) return null;
-    return _rendColsVisibles[f];
-}
-
-// Registra en la base una visibilidad elegida por el usuario (menú Columnas).
-function rendRegistrarVisibilidad(f, visible) {
-    if (!IS_RENDICION) return;
-    if (!_rendColsVisibles) {
-        _rendColsVisibles = {};
-        table.getColumns().forEach(c => {
-            const k = c.getField();
-            if (k) _rendColsVisibles[k] = c.isVisible();
-        });
-    }
-    _rendColsVisibles[f] = visible;
 }
 
 // Aplica el filtro de la hoja limpiando cualquier filtro previo (incluidos los de cabecera)
@@ -11885,7 +11962,7 @@ function rendAbrirModal(titulo, sub, okTexto, cuerpo) {
     document.getElementById('rend-modal-title').textContent = titulo;
     document.getElementById('rend-modal-sub').textContent = sub || '';
     document.getElementById('rend-modal-ok').textContent = okTexto || 'Confirmar';
-    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form', 'rend-validar-detalle'].forEach(id => {
+    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form'].forEach(id => {
         document.getElementById(id).style.display = 'none';
     });
     if (cuerpo) document.getElementById(cuerpo).style.display = 'block';
@@ -11899,13 +11976,12 @@ function rendCerrarModal() {
 // Validar: muestra confirmación con el detalle completo de la solicitud
 function rendValidar(key) {
     _rendModal = { accion: 'validar', key: key };
-    const row = rawData.find(r => r._key === key) || {};
-    rendPoblarDetalle(row, 'rend-validar-detalle-grid');
+    rendMostrarResumen(key);
     rendAbrirModal(
         '✓ Validar solicitud',
         'La solicitud pasará a la pestaña Depósitos para registrar el pago.',
         'Confirmar Validación',
-        'rend-validar-detalle'
+        null
     );
 }
 
@@ -11913,6 +11989,7 @@ function rendValidar(key) {
 function rendAbrirRechazo(key) {
     _rendModal = { accion: 'rechazar', key: key };
     document.getElementById('rend-motivo').value = '';
+    rendMostrarResumen(key);
     rendAbrirModal(
         '✕ Rechazar solicitud',
         'Escribe el motivo del rechazo — quedará guardado en OBSERVACIONES.',
@@ -11929,21 +12006,9 @@ function rendAbrirDeposito(key) {
     _rendModal = { accion: 'depositar', key: key, fotos: {} };
     Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
     
-    // Llenar datos de lectura en el modal
+    // Resumen de lectura: las mismas columnas que se ven en la tabla
     const row = rawData.find(r => r._key === key) || {};
-    const sumEl = document.getElementById('rend-dep-summary');
-    sumEl.innerHTML = `
-        <div style="grid-column: span 2; padding-bottom: 5px; margin-bottom: 5px; border-bottom: 1px solid var(--ios-hairline);">
-            <span style="color:var(--ios-label2);">Site:</span> <strong>${escapeHtml(row['Nombre de site'] || '-')}</strong> <br>
-            <span style="color:var(--ios-label2);">Tarea:</span> <strong>${escapeHtml(row['Tarea'] || '-')}</strong>
-        </div>
-        <div><span style="color:var(--ios-label2);">Técnico:</span><br><b>${escapeHtml(row['Técnico beneficiario'] || '-')}</b></div>
-        <div><span style="color:var(--ios-label2);">Titular Cta:</span><br><b>${escapeHtml(row['Titular de la cuenta'] || '-')}</b></div>
-        <div><span style="color:var(--ios-label2);">Monto:</span><br><b style="color:var(--ios-blue); font-size:14px;">${escapeHtml(row['Monto total del depósito'] || '-')}</b></div>
-        <div><span style="color:var(--ios-label2);">Medio / Celular:</span><br><b>${escapeHtml(row['Tipo de depósito a realizar'] || '-')} - ${escapeHtml(row['Número de celular o CCI'] || '-')}</b></div>
-        <div><span style="color:var(--ios-label2);">Presupuesto:</span><br><span>${escapeHtml(row['Tipo de presupuesto'] || '-')}</span></div>
-        <div><span style="color:var(--ios-label2);">Validado por:</span><br><span>${escapeHtml(row['VALIDADO POR'] || row['Responsable de la validación'] || '-')}</span></div>
-    `;
+    rendMostrarResumen(key);
 
     document.getElementById('rend-fecha-pago').value = new Date().toISOString().slice(0, 10);
     // Pre-llenar monto si es posible
@@ -11963,6 +12028,7 @@ function rendAbrirSustento(key) {
     _rendModal = { accion: 'sustentar', key: key, fotos: {} };
     Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
     document.getElementById('rend-comentario').value = '';
+    rendMostrarResumen(key);
     const grid = document.getElementById('rend-slots-sus');
     grid.innerHTML = '';
     for (let i = 1; i <= 5; i++) {

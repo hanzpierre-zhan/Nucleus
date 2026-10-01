@@ -402,7 +402,19 @@ def index():
     # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
     layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
-    
+    # En Rendicion cada hoja guarda su propia vista: column_layout__depositos, etc.
+    column_layout_vistas = {}
+    try:
+        _pref = 'column_layout__'
+        for _vcfg in AppConfig.query.filter(
+                AppConfig.proyecto_id == pid,
+                AppConfig.clave.like(_pref + '%')).all():
+            _vista = (_vcfg.clave or '')[len(_pref):].strip().lower()
+            if _vista and _vcfg.valor:
+                column_layout_vistas[_vista] = json.loads(_vcfg.valor)
+    except Exception:
+        column_layout_vistas = {}
+
     # List allowed projects for the menu
     proyectos = get_menu_proyectos(user_id, user_rol)
     # Descarga de Cotizaciones por fecha: disponible a quien tenga el módulo.
@@ -416,6 +428,7 @@ def index():
                           pk=pk, 
                           manual_cols=json.dumps(manual_cols_data),
                           column_layout=json.dumps(column_layout),
+                          column_layout_vistas=json.dumps(column_layout_vistas),
                           kpi_meta=json.dumps(kpi_meta),
                           changed_keys=json.dumps(changed_keys),
                           gen_tipo_map=json.dumps(gen_tipo_map),
