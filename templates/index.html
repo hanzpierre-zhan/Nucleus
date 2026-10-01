@@ -2873,6 +2873,10 @@
     const rawCols = {{ columns | safe }};
     const manualColsConfig = {{ manual_cols | safe }};
     const columnLayout = {{ column_layout | safe }} || [];
+// Rendicion: true mientras las pestañas ocultan/muestran columnas (visibilidad
+// transitoria que NO debe persistirse como layout global). Declarado arriba para
+// que los listeners de Tabulator lo vean definido desde el primer evento.
+let _rendCambiandoVista = false;
     const hasServerLayout = Array.isArray(columnLayout) && columnLayout.length > 0;
     const kpiMeta = {{ kpi_meta | safe }};
     const genTipoMap = {{ gen_tipo_map | safe }};
@@ -5238,7 +5242,9 @@
     }
 
     async function guardarOrdenColumnas() {
-        if ("{{ session.get('rol') }}" !== "zeno") return;
+        // Mismo criterio que saveColumnLayout: si el botón es visible para
+        // zeno/suport, guardar también tiene que funcionar para ellos.
+        if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return;
         if (orderMenuCols.length < 2) {
             cerrarOrderMenu();
             return;
@@ -5264,9 +5270,11 @@
     {% endif %}
 
     // Auto-guardar el orden de columnas al arrastrar (solo admin).
+    // _rendCambiandoVista: los cambios que hacen las pestañas de Rendicion son
+    // transitorios (recortan la vista) y NO deben guardarse como layout global.
     if (isAdmin) {
-        table.on("columnMoved", function () { if (!orderApplying) saveColumnLayout(); });
-        table.on("columnVisibilityChanged", function () { if (!orderApplying) saveColumnLayout(); });
+        table.on("columnMoved", function () { if (!orderApplying && !_rendCambiandoVista) saveColumnLayout(); });
+        table.on("columnVisibilityChanged", function () { if (!orderApplying && !_rendCambiandoVista) saveColumnLayout(); });
     }
 
     // Initial count on page load (fallback)
@@ -5305,18 +5313,26 @@
             list.innerHTML = '';
             table.getColumns().forEach(col => {
                 const def = col.getDefinition();
+                if (!def.field) return; // columna sin campo (check de selección): no se lista
                 if (def.field === '_key') return; // protect key
+                if (def.field === '_accion') return; // Flujo: no se persiste, ocultarlo no se conservaria
+                if (String(def.field).startsWith('KPI_')) return; // KPIs: tampoco se persisten
                 if (MANUAL_PROJECT && def.field === pkName) return; // protect duplicate PK
 
                 const isVisible = col.isVisible();
                 const checked = isVisible ? "checked" : "";
+                // Los títulos pueden traer HTML/iconos o venir vacíos (antes
+                // aparecía una entrada "undefined" en la lista).
+                let texto = typeof def.title === 'string' ? def.title : '';
+                texto = texto.replace(/<[^>]*>/g, '').trim();
+                if (!texto) texto = def.field;
 
                 // create element safely
                 const div = document.createElement('label');
                 div.className = 'col-visibility-item';
                 div.innerHTML = `
-                    <input type="checkbox" ${checked} onchange="toggleColumnAuto('${def.field}')">
-                    <span>${def.title}</span>
+                    <input type="checkbox" ${checked} onchange="toggleColumnAuto('${def.field.replace(/'/g, "\\'")}')">
+                    <span>${escapeHtml(texto)}</span>
                 `;
                 list.appendChild(div);
             });
@@ -5328,17 +5344,30 @@
 
     function toggleColumnAuto(field) {
         table.toggleColumn(field);
+        const c = table.getColumn(field);
+        if (typeof rendRegistrarVisibilidad === 'function' && c) {
+            rendRegistrarVisibilidad(field, c.isVisible());
+        }
         saveColumnLayout(true);
     }
 
     function setAllColumns(visible) {
         table.getColumns().forEach(col => {
             const def = col.getDefinition();
+            if (!def.field) return; // columna sin campo (check de selección)
             if (def.field === '_key') return;
             if (MANUAL_PROJECT && def.field === pkName) return; // protect duplicate PK
             const shouldShow = (col.isVisible() !== visible);
             if (shouldShow) table.toggleColumn(def.field);
         });
+        // Registra la elección en la base de Rendicion para que sobreviva al
+        // cambio de pestaña.
+        if (typeof rendRegistrarVisibilidad === 'function') {
+            table.getColumns().forEach(col => {
+                const f = col.getField();
+                if (f && f !== '_key') rendRegistrarVisibilidad(f, col.isVisible());
+            });
+        }
         saveColumnLayout(true);
         // Refresh the checkboxes without closing the menu
         const menu = document.getElementById('col-menu');
@@ -5416,7 +5445,12 @@
         const cols = table.getColumns().map(c => {
             const def = c.getDefinition();
             if (!def.field || def.field === '_key' || def.field === '_accion' || def.field.startsWith('KPI_')) return null;
-            return { field: def.field, visible: c.isVisible() };
+            // En Rendicion la pestaña activa recorta columnas: se guarda la
+            // visibilidad que eligió el usuario, no la de la hoja.
+            const intencion = (typeof rendVisibilidadParaGuardar === 'function')
+                ? rendVisibilidadParaGuardar(def.field)
+                : null;
+            return { field: def.field, visible: intencion === null ? c.isVisible() : intencion };
         }).filter(Boolean);
         fetch('/api/columns/layout', {
             method: 'POST',
@@ -11721,39 +11755,68 @@ function rendEstadoDe(row) {
 // ── Cambio de hoja: filtra por estado y aplica sus columnas ──
 function rendCambiarVista(vista) {
     if (!IS_RENDICION || !REND_VISTAS[vista]) return;
-    _rendVista = vista;
 
-    document.querySelectorAll('#rend-tabs .rend-tab').forEach(b => {
-        b.classList.toggle('active', b.getAttribute('data-vista') === vista);
-    });
-
-    // Guarda la visibilidad original (column_layout) una sola vez.
-    if (!_rendColsVisibles) {
+    // Si venimos de Validación, ahí el usuario pudo mostrar/ocultar columnas:
+    // lo que se ve ahí es su intención real, así que lo adoptamos como base.
+    if (_rendVista === 'validacion' || !_rendColsVisibles) {
         _rendColsVisibles = {};
         table.getColumns().forEach(c => {
             const f = c.getField();
             if (f) _rendColsVisibles[f] = c.isVisible();
         });
     }
+    _rendVista = vista;
+
+    document.querySelectorAll('#rend-tabs .rend-tab').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-vista') === vista);
+    });
 
     const cfg = REND_VISTAS[vista];
-    table.getColumns().forEach(c => {
-        const f = c.getField();
-        if (!f) return;
-        let visible = false;
-        if (cfg.cols) {
-            visible = cfg.cols.includes(f);
-        } else {
-            visible = _rendColsVisibles[f] !== false;
-            if (cfg.showCols && cfg.showCols.includes(f)) visible = true;
-            if (cfg.hideCols && cfg.hideCols.includes(f)) visible = false;
-        }
-        if (visible && !c.isVisible()) c.show();
-        if (!visible && c.isVisible()) c.hide();
-    });
+    // Mientras movemos visibilidad por pestaña NO se debe persistir el layout:
+    // si no, "Depósitos" grabaría su vista de 9 columnas como la global.
+    _rendCambiandoVista = true;
+    try {
+        table.getColumns().forEach(c => {
+            const f = c.getField();
+            if (!f) return;
+            let visible = false;
+            if (cfg.cols) {
+                visible = cfg.cols.includes(f);
+            } else {
+                visible = _rendColsVisibles[f] !== false;
+                if (cfg.showCols && cfg.showCols.includes(f)) visible = true;
+                if (cfg.hideCols && cfg.hideCols.includes(f)) visible = false;
+            }
+            if (visible && !c.isVisible()) c.show();
+            if (!visible && c.isVisible()) c.hide();
+        });
+    } finally {
+        _rendCambiandoVista = false;
+    }
 
     rendAplicarFiltro();
     rendActualizarContadores();
+}
+
+// Visibilidad que debe persistirse: la "intención" del usuario (base), no la
+// visibilidad recortada de la pestaña activa.
+function rendVisibilidadParaGuardar(f) {
+    if (!IS_RENDICION || _rendVista === 'validacion' || !_rendColsVisibles
+        || !Object.prototype.hasOwnProperty.call(_rendColsVisibles, f)) return null;
+    return _rendColsVisibles[f];
+}
+
+// Registra en la base una visibilidad elegida por el usuario (menú Columnas).
+function rendRegistrarVisibilidad(f, visible) {
+    if (!IS_RENDICION) return;
+    if (!_rendColsVisibles) {
+        _rendColsVisibles = {};
+        table.getColumns().forEach(c => {
+            const k = c.getField();
+            if (k) _rendColsVisibles[k] = c.isVisible();
+        });
+    }
+    _rendColsVisibles[f] = visible;
 }
 
 // Aplica el filtro de la hoja limpiando cualquier filtro previo (incluidos los de cabecera)
