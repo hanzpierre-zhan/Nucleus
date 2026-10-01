@@ -167,14 +167,19 @@
         border-top: 1px solid var(--ios-hairline);
         display: flex;
         align-items: center;
-        justify-content: space-around;
-        padding: 0 4px;
+        justify-content: flex-start; /* changed from space-around to allow scrolling */
+        overflow-x: auto; /* allow horizontal scrolling */
+        scrollbar-width: none;
+        padding: 0 8px;
         padding-bottom: env(safe-area-inset-bottom);
         z-index: 5000;
+        gap: 6px;
     }
 
+    #mob-bottom-nav::-webkit-scrollbar { display: none; }
+
     .mob-nav-item {
-        flex: 1;
+        flex: 0 0 65px; /* fixed width to allow scrolling */
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -212,10 +217,10 @@
         max-width: 56px;
     }
 
-    .mob-nav-item.active {
+    .mob-nav-item.mob-active {
         color: var(--ios-accent, #007AFF) !important;
     }
-    .mob-nav-item.active i { transform: scale(1.1); }
+    .mob-nav-item.mob-active i { transform: scale(1.1); }
 
     /* Badge de notificaciones (avisos rendición) */
     .mob-nav-badge {
@@ -248,9 +253,8 @@
    EXTRA PEQUEÑO — ≤ 480px (teléfonos pequeños)
    ───────────────────────────────────────────────────────────── */
 @media (max-width: 480px) {
-    /* Pestañas: solo icono + badge */
-    .rend-tab { padding: 4px 6px !important; }
-    .rend-tab > i ~ *:not(.rend-badge) { display: none !important; }
+    /* Pestañas: ligeramente más compactas, pero texto visible */
+    .rend-tab { padding: 4px 6px !important; font-size: 10px !important; }
 
     /* Modal al máximo */
     .mar-modal { max-height: 98vh !important; }

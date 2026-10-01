@@ -150,7 +150,7 @@ def api_rendicion_accion():
     # 'revertir' no usa esta tabla: valida su propio mapa de estados más abajo.
     permitido = {
         'validar': ('PENDIENTE',),
-        'rechazar': ('PENDIENTE', 'CON SUSTENTO'),
+        'rechazar': ('PENDIENTE', 'VALIDADO', 'CON SUSTENTO'),
         'depositar': ('VALIDADO',),
         'sustentar': ('DEPOSITADO', 'CON SUSTENTO'),
     }

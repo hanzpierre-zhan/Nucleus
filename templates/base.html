@@ -187,9 +187,8 @@
         nav.id = 'mob-bottom-nav';
         nav.setAttribute('aria-label', 'Navegación principal');
 
-        // Íconos y etiquetas limitados a los más relevantes para móvil
-        const MAX_ITEMS = 5;
-        const items = sidebarLinks.slice(0, MAX_ITEMS);
+        // Mostrar todos los módulos en la barra scrolleable
+        const items = sidebarLinks;
         const currentHref = window.location.pathname + window.location.search;
 
         items.forEach(link => {
@@ -203,7 +202,7 @@
 
             const btn = document.createElement('a');
             btn.href = href;
-            btn.className = 'mob-nav-item' + (isActive ? ' active' : '');
+            btn.className = 'mob-nav-item' + (isActive ? ' mob-active' : '');
             btn.setAttribute('aria-label', label);
             btn.innerHTML = `
                 <i class="${iconClass}"></i>
