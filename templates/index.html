@@ -231,6 +231,29 @@
         transition: filter .15s;
     }
     .rend-foto-btn:hover { filter: brightness(1.1); }
+    /* Avisos del flujo: emergen en la esquina, apilados, con su X */
+    .rend-aviso-toast {
+        pointer-events: auto; background: #fff; color: #1C1C1E;
+        border-left: 6px solid #007AFF; border-radius: 13px;
+        padding: 11px 13px 12px; min-width: 300px; max-width: 100%;
+        box-shadow: 0 14px 36px rgba(0,0,0,.30), 0 3px 10px rgba(0,0,0,.16);
+        opacity: 0; transform: translateX(28px);
+        transition: opacity .25s, transform .25s;
+    }
+    .rend-aviso-toast.on { opacity: 1; transform: none; }
+    .rend-aviso-toast-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        font-size: 10.5px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+        color: #8E8E93; margin-bottom: 6px;
+    }
+    .rend-aviso-x {
+        border: none; background: #F2F2F7; color: #3A3A3C; width: 23px; height: 23px;
+        border-radius: 50%; font-size: 16px; line-height: 1; cursor: pointer;
+        display: flex; align-items: center; justify-content: center; padding: 0; flex: 0 0 auto;
+    }
+    .rend-aviso-x:hover { background: #FF3B30; color: #fff; }
+    .rend-aviso-toast-txt { font-size: 13.5px; line-height: 1.45; font-weight: 600; word-break: break-word; }
+    .rend-aviso-toast-hora { font-size: 11px; color: #8E8E93; margin-top: 5px; }
     /* Botones de accion del flujo en la fila */
     .rend-acciones { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
     .rend-btn {
