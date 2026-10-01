@@ -146,3 +146,19 @@ class Cotizacion(db.Model):
     site = db.Column(db.String(200), default='')
     supervisor = db.Column(db.String(120), default='')
     items_json = db.Column(db.Text, default='[]')
+
+
+class Notificacion(db.Model):
+    """Avisos del flujo de Rendicion (quién validó, depositó, rechazó...).
+
+    Los ve todo usuario que tenga el módulo Rendicion asignado.
+    """
+    __tablename__ = 'notificaciones'
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, index=True)
+    tipo = db.Column(db.String(20), default='')      # validar/depositar/rechazar/sustentar/revertir
+    texto = db.Column(db.Text, default='')
+    color = db.Column(db.String(20), default='#007AFF')
+    autor = db.Column(db.String(80), default='')     # usuario que hizo clic
+    creada_en = db.Column(db.String(19), default='')
+    leida_por = db.Column(db.Text, default='')       # ids de usuario, separados por coma

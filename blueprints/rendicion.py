@@ -17,7 +17,7 @@ from flask import (Blueprint, request, jsonify, session, current_app,
 from werkzeug.utils import secure_filename
 
 from db import db
-from models import Proyecto, NucleusData, AppConfig
+from models import Proyecto, NucleusData, AppConfig, Notificacion
 from services import *
 
 bp = Blueprint('rendicion', __name__)
@@ -29,6 +29,7 @@ ROLES_ACCION = ('admin', 'zeno', 'suport', 'supervisor', 'gestor')
 MAX_FOTOS_SUSTENTO = 5
 SLOTS = ('pago', 'susto_1', 'susto_2', 'susto_3', 'susto_4', 'susto_5')
 EXT_OK = ('.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif')
+_TABLA_AVISOS_OK = [False]
 
 
 def _proy():
@@ -44,6 +45,74 @@ def _puede_gestionar():
 
 def _estado_de(d):
     return str(d.get('ESTADO', '') or '').strip().upper() or 'PENDIENTE'
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Avisos del flujo: se guardan una vez y los ven todos los que tengan el
+# módulo Rendicion asignado (campanita de la barra superior).
+# ─────────────────────────────────────────────────────────────────────────────
+def _site_de(row):
+    for c in ('Nombre de site', 'SITE', 'Site', 'Nombre Site'):
+        v = str(row.get(c) or '').strip()
+        if v:
+            return v
+    return ''
+
+
+def _monto_de(row):
+    for c in ('Monto total del depósito', 'MONTO PAGO', 'Monto', 'Monto total'):
+        v = str(row.get(c) or '').strip()
+        if v:
+            return v
+    return ''
+
+
+def _crear_aviso(proy_id, tipo, texto, color, autor):
+    """Guarda el aviso (nunca rompe el flujo si falla)."""
+    try:
+        if not _TABLA_AVISOS_OK[0]:
+            Notificacion.__table__.create(db.engine, checkfirst=True)
+            _TABLA_AVISOS_OK[0] = True
+        db.session.add(Notificacion(
+            proyecto_id=proy_id, tipo=tipo, texto=texto, color=color,
+            autor=autor, creada_en=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def _avisar_flujo(proy_id, accion, row, usuario):
+    """Texto del aviso según la acción que se acaba de confirmar."""
+    try:
+        site = _site_de(row) or 'Solicitud'
+        monto = _monto_de(row) or '0'
+        codigo = str(row.get('CODIGO DEPOSITO') or '').strip()
+        if accion == 'validar':
+            # Color de la hoja Depósitos: ahí es donde entra la solicitud
+            _crear_aviso(proy_id, 'validar',
+                         '%s validó S/ %s para depósito — %s' % (usuario, monto, site),
+                         '#FF9500', usuario)
+        elif accion == 'depositar':
+            _crear_aviso(proy_id, 'depositar',
+                         '%s depositó S/ %s — código %s (%s)' % (usuario, monto, codigo, site),
+                         '#007AFF', usuario)
+        elif accion == 'rechazar':
+            motivo = str(row.get('OBSERVACIONES') or '').strip()
+            _crear_aviso(proy_id, 'rechazar',
+                         '%s rechazó la solicitud — %s%s'
+                         % (usuario, site, (': ' + motivo) if motivo else ''),
+                         '#FF3B30', usuario)
+        elif accion == 'sustentar':
+            _crear_aviso(proy_id, 'sustentar',
+                         '%s sustentó el depósito %s — %s' % (usuario, codigo or '-', site),
+                         '#AF52DE', usuario)
+        elif accion == 'revertir':
+            _crear_aviso(proy_id, 'revertir',
+                         '%s revirtió la solicitud — %s ahora %s' % (usuario, site, _estado_de(row)),
+                         '#8E8E93', usuario)
+    except Exception:
+        pass
+
 
 
 def _folder(pid, key):
@@ -179,6 +248,8 @@ def api_rendicion_accion():
     fila.data_json = safe_json_dumps(row)
     fila.key_value = key
     db.session.commit()
+    # Aviso para todos los que tengan el módulo ("Jessica depositó S/ 100 ...")
+    _avisar_flujo(proy.id, accion, row, usuario_actual)
     return jsonify({'success': True, 'estado': row['ESTADO'], 'newData': row})
 
 
@@ -273,3 +344,71 @@ def api_rendicion_foto(pid, key, nombre):
     if not os.path.exists(ruta):
         return jsonify({'error': 'No encontrado'}), 404
     return send_from_directory(folder, nombre, max_age=604800)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route('/api/rendicion/avisos')
+@login_required
+def api_rendicion_avisos():
+    """Últimos avisos del flujo. Solo para quien tenga el módulo Rendicion."""
+    if not _puede_gestionar():
+        return jsonify({'error': 'No autorizado.'}), 403
+    proy = _proy()
+    if not proy:
+        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
+    uid = int(session.get('user_id') or 0)
+    try:
+        if not _TABLA_AVISOS_OK[0]:
+            Notificacion.__table__.create(db.engine, checkfirst=True)
+            _TABLA_AVISOS_OK[0] = True
+        filas = (Notificacion.query.filter_by(proyecto_id=proy.id)
+                 .order_by(Notificacion.id.desc()).limit(30).all())
+    except Exception:
+        return jsonify({'avisos': [], 'no_leidas': 0})
+    items = []
+    for n in filas:
+        leidos = set()
+        for x in str(n.leida_por or '').replace(';', ',').split(','):
+            x = x.strip()
+            if x.isdigit():
+                leidos.add(int(x))
+        items.append({
+            'id': n.id, 'tipo': n.tipo, 'texto': n.texto, 'color': n.color,
+            'autor': n.autor, 'creada_en': n.creada_en, 'leida': uid in leidos
+        })
+    return jsonify({'avisos': items,
+                    'no_leidas': sum(1 for i in items if not i['leida'])})
+
+
+@bp.route('/api/rendicion/avisos/leer', methods=['POST'])
+@login_required
+def api_rendicion_avisos_leer():
+    """Marca como leídos los avisos (todos o solo los indicados)."""
+    if not _puede_gestionar():
+        return jsonify({'error': 'No autorizado.'}), 403
+    proy = _proy()
+    if not proy:
+        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
+    uid = int(session.get('user_id') or 0)
+    data = request.get_json(silent=True) or {}
+    ids = data.get('ids')
+    try:
+        if not _TABLA_AVISOS_OK[0]:
+            Notificacion.__table__.create(db.engine, checkfirst=True)
+            _TABLA_AVISOS_OK[0] = True
+        q = Notificacion.query.filter_by(proyecto_id=proy.id)
+        if isinstance(ids, list) and ids:
+            q = q.filter(Notificacion.id.in_([int(i) for i in ids if str(i).isdigit()]))
+        for n in q.all():
+            leidos = set()
+            for x in str(n.leida_por or '').replace(';', ',').split(','):
+                x = x.strip()
+                if x.isdigit():
+                    leidos.add(int(x))
+            leidos.add(uid)
+            n.leida_por = ','.join(str(x) for x in sorted(leidos))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'No se pudo marcar como leído.'}), 500
+    return jsonify({'success': True})

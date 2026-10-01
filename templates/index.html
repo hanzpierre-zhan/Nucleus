@@ -105,6 +105,26 @@
         title="Sincronizar solicitudes del formulario y sustentos del archivo">
         <i class="fa-solid fa-rotate"></i> Sincronizar
     </button>
+
+    <!-- Campanita: avisos del flujo (quién validó, depositó, rechazó...) -->
+    <div id="rend-avisos-wrap" style="position:relative;">
+        <button type="button" id="btn-rend-avisos" class="action-pill" onclick="rendAvisosToggle()"
+            title="Avisos del flujo de Rendicion" style="position:relative;">
+            <i class="fa-solid fa-bell"></i>
+            <span id="rend-avisos-badge" style="display:none; position:absolute; top:-7px; right:-7px;
+                background:#FF3B30; color:#fff; font-size:10px; font-weight:800; border-radius:9px;
+                min-width:17px; height:17px; line-height:17px; padding:0 4px; text-align:center;">0</span>
+        </button>
+        <div id="rend-avisos-panel" style="display:none; position:absolute; top:calc(100% + 8px); right:0;
+            width:370px; max-height:60vh; overflow-y:auto; background:var(--ios-card-bg, #fff);
+            border:1px solid var(--ios-hairline); border-radius:12px;
+            box-shadow:0 14px 34px rgba(0,0,0,.30); z-index:9999;">
+            <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+                color:var(--ios-secondary); padding:11px 13px 7px;">
+                <i class="fa-solid fa-bell"></i> Avisos del flujo</div>
+            <div id="rend-avisos-lista"></div>
+        </div>
+    </div>
 {% endif %}
 
     {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
@@ -174,22 +194,48 @@
     .rend-tab {
         display: inline-flex; align-items: center; gap: 7px;
         padding: 8px 14px; border-radius: 8px; cursor: pointer;
-        background: var(--ios-card-bg, #fff); border: 1px solid var(--ios-hairline, #E5E5EA);
+        background: var(--tab-bg, var(--ios-card-bg, #fff));
+        border: 1px solid var(--tab-c, var(--ios-hairline, #E5E5EA));
         color: var(--ios-label, #000); font-size: 13px; font-weight: 600;
         font-family: inherit;
+        transition: background .15s, color .15s, box-shadow .15s;
     }
-    .rend-tab:hover { background: #F2F2F7; }
-    .rend-tab.active { background: var(--ios-blue, #007AFF); border-color: var(--ios-blue, #007AFF); color: #fff; }
+    /* Color propio de cada hoja del flujo */
+    .rend-tab[data-vista="validacion"] { --tab-c: #34C759; --tab-bg: #E8F8EE; }
+    .rend-tab[data-vista="depositos"]  { --tab-c: #007AFF; --tab-bg: #E8F1FF; }
+    .rend-tab[data-vista="evidencia"]  { --tab-c: #FFCC00; --tab-bg: #FFF7DA; }
+    .rend-tab[data-vista="rendicion"]  { --tab-c: #AF52DE; --tab-bg: #F6EBFC; }
+    .rend-tab[data-vista="rechazados"] { --tab-c: #FF3B30; --tab-bg: #FFECEB; }
+    .rend-tab[data-vista="cerrado"]    { --tab-c: #8E8E93; --tab-bg: #F0F0F3; }
+    .rend-tab:hover { box-shadow: 0 2px 6px rgba(0,0,0,.14); }
+    .rend-tab.active {
+        background: var(--tab-c, var(--ios-blue, #007AFF));
+        border-color: var(--tab-c, var(--ios-blue, #007AFF));
+        color: #fff;
+    }
+    /* Amarillo: texto oscuro para que se lea */
+    .rend-tab.active[data-vista="evidencia"] { color: #1C1C1E; }
     .rend-badge {
-        background: rgba(0,0,0,.10); color: inherit; border-radius: 9px;
+        background: var(--tab-c, rgba(0,0,0,.10)); color: #fff; border-radius: 9px;
         padding: 1px 7px; font-size: 11px; font-weight: 700; min-width: 20px; text-align: center;
     }
-    .rend-tab.active .rend-badge { background: rgba(255,255,255,.28); }
+    .rend-tab[data-vista="evidencia"] .rend-badge { color: #1C1C1E; }
+    .rend-tab.active .rend-badge { background: rgba(255,255,255,.30); color: inherit; }
+    .rend-tab.active[data-vista="evidencia"] .rend-badge { background: rgba(0,0,0,.16); color: #1C1C1E; }
+    /* Botoncito que abre la foto / el archivo (en celda) */
+    .rend-foto-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        background: #AF52DE; color: #fff; border: none; border-radius: 7px;
+        padding: 3px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
+        white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.18);
+        transition: filter .15s;
+    }
+    .rend-foto-btn:hover { filter: brightness(1.1); }
     /* Botones de accion del flujo en la fila */
-    .rend-acciones { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+    .rend-acciones { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
     .rend-btn {
         border: none; border-radius: 7px; cursor: pointer; font-family: inherit;
-        font-size: 11.5px; font-weight: 700; padding: 5px 11px; color: #fff; white-space: nowrap;
+        font-size: 11.5px; font-weight: 700; padding: 5px 9px; color: #fff; white-space: nowrap;
         transition: filter .15s, transform .1s, box-shadow .15s;
         box-shadow: 0 1px 3px rgba(0,0,0,.18);
     }
@@ -198,8 +244,8 @@
     .rend-btn-dep { background: linear-gradient(135deg,#007AFF,#005ecb); }
     .rend-btn-sus { background: linear-gradient(135deg,#AF52DE,#8e3ab8); }
     .rend-btn-mini { font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 600; box-shadow: none; }
-    /* Revertir: solo icono, gris (nunca rojo para no confundir con Rechazar) */
-    .rend-btn-rev { background: linear-gradient(135deg,#8E8E93,#5a5a5f); font-size: 13px; min-width: 28px; padding: 3px 7px; }
+    /* Revertir: color ámbar (nunca rojo para no confundir con Rechazar) */
+    .rend-btn-rev { background: linear-gradient(135deg,#FF9500,#e07f00); font-size: 13px; min-width: 28px; padding: 3px 7px; }
     /* Rendición: detalle de registro en el modal de Validación */
     .rend-detalle-grid { display: grid; grid-template-columns: minmax(150px, 42%) 1fr; }
     .rend-detalle-grid .rd-k {
@@ -220,6 +266,15 @@
         border-bottom: 1px solid var(--ios-hairline, rgba(140,140,140,0.18));
     }
     .rend-btn-done { background: transparent; color: #28A745; font-size: 13px; cursor: default; font-weight: 700; }
+    /* Pastillas de estado en la columna Flujo (con color, como los demas botones) */
+    .rend-pill {
+        display: inline-block; padding: 5px 10px; border-radius: 7px;
+        font-size: 11.5px; font-weight: 700; color: #fff; white-space: nowrap;
+        cursor: default; box-shadow: 0 1px 3px rgba(0,0,0,.18);
+    }
+    .rend-pill-rech { background: linear-gradient(135deg,#FF3B30,#d62c22); }
+    .rend-pill-sus  { background: linear-gradient(135deg,#28A745,#1e8a38); }
+    .rend-pill-pdte { background: linear-gradient(135deg,#FF9500,#e07f00); }
     .rend-btn:hover  { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.22); }
     .rend-btn:active { filter: brightness(.93); transform: translateY(0); }
     /* Formularios de los modales del flujo */
@@ -2942,13 +2997,16 @@ let _rendCambiandoVista = false;
                        cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
                               'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'ESTADO', '_accion'] },
         // Evidencia: (ahora solo DEPOSITADO, sin boton de accion)
+        // showPrefijos: muestra las columnas del 2.º formulario (SUSTENTO_*)
         evidencia:   { estados: ['DEPOSITADO'],
                        cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
                               'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO',
-                              'FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'ESTADO', '_accion'] },
+                              'FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'ESTADO', '_accion'],
+                       showPrefijos: ['SUSTENTO_'] },
         // Rendición: (CON SUSTENTO) aquí se habilita el botón SUSTENTADO
         rendicion:   { estados: ['CON SUSTENTO'],
-                       cols: null },
+                       cols: null,
+                       showPrefijos: ['SUSTENTO_'] },
         // Cerrado: Todo completo
         cerrado:     { estados: ['SUSTENTADO'],
                        cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
@@ -3613,11 +3671,17 @@ let _rendCambiandoVista = false;
         });
     }
     
-    // Ensure CODIGO DEPOSITO exists in rawCols for Rendicion
+    // Rendicion: el CSV del form NO trae las columnas que escribe el flujo del
+    // módulo (pago, validación, sustento, rechazo) ni la llave del depósito;
+    // si no se agregan aquí, cada pestaña quedaría sin esas columnas.
     if (IS_RENDICION) {
-        if (!rawCols.includes('CODIGO DEPOSITO')) {
-            rawCols.push('CODIGO DEPOSITO');
-        }
+        ['CODIGO DEPOSITO', 'ESTADO', 'FECHA VALIDACION', 'VALIDADO POR',
+         'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'DEPOSITADO POR',
+         'FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO',
+         'SUSTENTADO POR', 'FECHA RECHAZO', 'RECHAZADO POR',
+         'INTERACCION', 'OBSERVACIONES'].forEach(f => {
+            if (rawCols.indexOf(f) < 0) rawCols.push(f);
+        });
     }
 
     const looksLikeDatetime = (v) => /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(String(v || '').trim());
@@ -4677,9 +4741,9 @@ let _rendCambiandoVista = false;
         tableColumns.push({
             title: "Flujo",
             field: "_accion",
-            width: 240,
-            minWidth: 220,
-            maxWidth: 300,
+            width: 175,
+            minWidth: 150,
+            maxWidth: 230,
             frozen: true,
             headerSort: false,
             hozAlign: "left",
@@ -4717,8 +4781,7 @@ let _rendCambiandoVista = false;
                     }
                 } else if (est === 'DEPOSITADO') {
                     const chk = document.createElement('span');
-                    chk.className = 'rend-btn-done';
-                    chk.style.color = '#8E8E93';
+                    chk.className = 'rend-btn-done rend-pill rend-pill-pdte';
                     chk.title = 'Pendiente de sustentar en Google Sheet';
                     chk.innerHTML = '<i class="fa-solid fa-clock"></i> Pdte Sustentar';
                     wrap.appendChild(chk);
@@ -4735,7 +4798,7 @@ let _rendCambiandoVista = false;
                     }
                 } else if (est === 'SUSTENTADO') {
                     const chk = document.createElement('span');
-                    chk.className = 'rend-btn-done';
+                    chk.className = 'rend-btn-done rend-pill rend-pill-sus';
                     chk.title = 'Completado - Sustentado';
                     chk.innerHTML = '<i class="fa-solid fa-circle-check"></i> Sustentado';
                     wrap.appendChild(chk);
@@ -4744,8 +4807,7 @@ let _rendCambiandoVista = false;
                     }
                 } else if (est === 'RECHAZADO') {
                     const chk = document.createElement('span');
-                    chk.className = 'rend-btn-done';
-                    chk.style.color = '#FF3B30';
+                    chk.className = 'rend-btn-done rend-pill rend-pill-rech';
                     chk.title = 'Rechazado';
                     chk.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Rechazado';
                     wrap.appendChild(chk);
@@ -4763,6 +4825,59 @@ let _rendCambiandoVista = false;
     if (keyColumn) tableColumns.push(keyColumn);
 
     tableColumns.push(...restColumns);
+
+    // ── Fotos y enlaces: en vez del texto/URL crudo, un botón que abre el
+    //    visor (fotos) o el archivo (enlaces de Drive/comprobantes) ──────────
+    tableColumns.forEach(c => {
+        if (!c.field) return;
+        const nom = String(c.field);
+
+        // Fotos del flujo (FOTO PAGO / FOTOS SUSTENTO): botón → visor con la
+        // foto o las fotos de la fila.
+        if (nom === 'FOTO PAGO' || nom === 'FOTOS SUSTENTO') {
+            const esSustento = nom === 'FOTOS SUSTENTO';
+            c.editor = false;
+            c.hozAlign = 'center';
+            c.formatter = function (cell) {
+                let urls = rendUrlsFoto(cell.getValue(), esSustento);
+                if (!urls.length) return '';
+                return '<span class="rend-foto-btn" title="Ver ' + urls.length
+                    + (urls.length > 1 ? ' fotos' : ' foto') + '">'
+                    + '<i class="fa-solid fa-camera"></i> Ver'
+                    + (urls.length > 1 ? ' (' + urls.length + ')' : '') + '</span>';
+            };
+            c.cellClick = function (e, cell) {
+                rendVerFotos(cell.getRow().getData(), esSustento);
+            };
+            return;
+        }
+
+        if (nom.indexOf('SUSTENTO_') !== 0) return;
+        c.width = 155;
+        c.minWidth = 90;
+        c.maxWidth = 300;
+        c.headerWordWrap = true;
+        if (/PRECIO|MOTO TOTAL|MONTO|TOTAL/.test(nom)) c.hozAlign = 'right';
+        const esFoto = /^SUSTENTO_FOTO/.test(nom);
+        c.formatter = function (cell) {
+            const raw = cell.getValue();
+            const v = (raw === null || raw === undefined) ? '' : String(raw).trim();
+            if (!v) return '';
+            if (/^https?:\/\//i.test(v)) {
+                const icono = esFoto ? 'fa-camera' : 'fa-arrow-up-right-from-square';
+                const titulo = esFoto ? 'Ver foto' : 'Abrir';
+                return '<span class="rend-foto-btn" data-url="' + escapeHtml(v) + '" title="' + titulo + '">'
+                    + '<i class="fa-solid ' + icono + '"></i> ' + titulo + '</span>';
+            }
+            return escapeHtml(v);
+        };
+        if (esFoto) {
+            c.cellClick = function (e, cell) {
+                const v = String(cell.getValue() || '').trim();
+                if (/^https?:\/\//i.test(v)) window.open(v, '_blank');
+            };
+        }
+    });
 
     // Cotizaciones: columna de descarga al FINAL (a la derecha de SUB TOTAL + FEE),
     // con dinámica "Sin PDF" / "PDF generado" como FOTO en Combustible.
@@ -11784,6 +11899,9 @@ function _rendSnapshot() {
 
 // Visibilidad por defecto: la del layout general del modulо.
 function _rendVisPorDefecto(f) {
+    // Columnas del 2.º formulario (Sustento): ocultas por defecto, solo las
+    // pestañas Evidencia y Rendición las muestran (showPrefijos).
+    if (String(f).indexOf('SUSTENTO_') === 0) return false;
     const lay = (typeof columnLayout !== 'undefined' && columnLayout) ? columnLayout : [];
     for (let i = 0; i < lay.length; i++) {
         if (lay[i] && lay[i].field === f) return lay[i].visible !== false;
@@ -11804,7 +11922,9 @@ function _rendInitEstados() {
         const guardado = (typeof columnLayoutVistas !== 'undefined' && columnLayoutVistas)
             ? columnLayoutVistas[vista] : null;
         let est;
+        let camposGuardados = null;
         if (guardado && guardado.length) {
+            camposGuardados = new Set(guardado.map(c => (c && c.field) || '').filter(Boolean));
             est = { visibles: {}, orden: [] };
             guardado.forEach(c => {
                 if (!c || !c.field) return;
@@ -11825,6 +11945,17 @@ function _rendInitEstados() {
             }
             if (cfg.showCols) cfg.showCols.forEach(f => { est.visibles[f] = true; });
             if (cfg.hideCols) cfg.hideCols.forEach(f => { est.visibles[f] = false; });
+        }
+        // Prefijos que esta hoja quiere ver (SUSTENTO_* en Evidencia y Rendición).
+        // Si el usuario ya guardó su propia vista, manda lo que él eligió.
+        if (cfg.showPrefijos && cfg.showPrefijos.length) {
+            cfg.showPrefijos.forEach(pre => {
+                Object.keys(est.visibles).forEach(f => {
+                    if (String(f).indexOf(pre) !== 0) return;
+                    if (camposGuardados && camposGuardados.has(f)) return;
+                    est.visibles[f] = true;
+                });
+            });
         }
         _rendEstadoVistas[vista] = est;
     });
@@ -11955,6 +12086,8 @@ function rendTrasAccion(j, key) {
     }
     rendAplicarFiltro();
     rendActualizarContadores();
+    // Actualiza la campanita con el aviso que acaba de generarse
+    if (typeof rendAvisosCargar === 'function') rendAvisosCargar(true);
 }
 
 /* ── Modales: rechazo, depósito y sustento ── */
@@ -12137,9 +12270,9 @@ function rendConfirmarModal() {
 }
 
 /* ── Visor de fotos ── */
-function rendVerFotos(row, esSustento) {
+// Lista de fotos guardadas en una celda (FOTO PAGO = una; FOTOS SUSTENTO = JSON)
+function rendUrlsFoto(raw, esSustento) {
     let urls = [];
-    const raw = row[esSustento ? 'FOTOS SUSTENTO' : 'FOTO PAGO'];
     if (raw) {
         if (esSustento) {
             try { urls = JSON.parse(raw); } catch (e) { urls = [raw]; }
@@ -12148,7 +12281,10 @@ function rendVerFotos(row, esSustento) {
             urls = [raw];
         }
     }
-    urls = urls.filter(u => String(u || '').trim());
+    return urls.map(u => String(u || '').trim()).filter(u => u);
+}
+function rendVerFotos(row, esSustento) {
+    const urls = rendUrlsFoto(row[esSustento ? 'FOTOS SUSTENTO' : 'FOTO PAGO'], esSustento);
     document.getElementById('rend-fotos-title').textContent = esSustento ? 'Fotos de sustento' : 'Comprobante de pago';
     document.getElementById('rend-fotos-sub').textContent = row['Nombre de site'] || row._key || '';
     const grid = document.getElementById('rend-fotos-grid');
@@ -12165,7 +12301,135 @@ function rendCerrarFotos() { document.getElementById('rend-fotos').style.display
 
 // Al abrir el módulo, arranca en la hoja Validación con el filtro aplicado.
 if (IS_RENDICION && document.getElementById('rend-tabs')) {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(() => rendCambiarVista('validacion'), 0));
+    /* ── Avisos del flujo (campanita): quién validó / depositó / rechazó ── */
+let _rendAvisosVistos = [];   // ids ya conocidos (para no repetir el toast)
+let _rendAvisosPrimera = true;
+
+function rendAvisosBadge(n) {
+    const b = document.getElementById('rend-avisos-badge');
+    if (!b) return;
+    b.textContent = String(n || 0);
+    b.style.display = (n > 0) ? 'block' : 'none';
+}
+
+function rendAvisosPintar(lista) {
+    const p = document.getElementById('rend-avisos-lista');
+    if (!p) return;
+    if (!lista || !lista.length) {
+        p.innerHTML = '<div style="padding:14px 13px; font-size:13px; color:var(--ios-secondary);">'
+            + 'Todavía no hay avisos.</div>';
+        return;
+    }
+    p.innerHTML = lista.map(a => `
+        <div style="display:flex; gap:9px; padding:10px 13px; border-top:1px solid var(--ios-hairline);${a.leida ? ' opacity:.6;' : ''}">
+            <span style="flex:0 0 4px; width:4px; border-radius:4px; background:${a.color || '#007AFF'};"></span>
+            <div style="flex:1; min-width:0;">
+                <div style="font-size:12.5px; line-height:1.4;${a.leida ? '' : ' font-weight:700;'}">${escapeHtml(a.texto || '')}</div>
+                <div style="font-size:10.5px; color:var(--ios-secondary); margin-top:3px;">${escapeHtml(a.creada_en || '')}</div>
+            </div>
+        </div>`).join('');
+}
+
+function rendAvisosToast(a) {
+    // Contenedor apilable: los avisos se acumulan en la esquina superior
+    // derecha, por encima de cualquier ventana (z-index máximo).
+    let box = document.getElementById('rend-aviso-stack');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'rend-aviso-stack';
+        box.style.cssText = 'position:fixed; top:74px; right:16px; z-index:2147483647; '
+            + 'display:flex; flex-direction:column; gap:10px; width:390px; '
+            + 'max-width:calc(100vw - 32px); pointer-events:none;';
+        document.body.appendChild(box);
+    }
+    // Nunca tapa toda la pantalla: como máximo 6 avisos a la vez
+    while (box.children.length >= 6) box.removeChild(box.firstElementChild);
+
+    const el = document.createElement('div');
+    el.className = 'rend-aviso-toast';
+    el.style.borderLeftColor = a.color || '#007AFF';
+    el.innerHTML = '<div class="rend-aviso-toast-head">'
+        + '<span><i class="fa-solid fa-bell"></i> Aviso del flujo</span>'
+        + '<button type="button" class="rend-aviso-x" title="Cerrar">&times;</button>'
+        + '</div>'
+        + '<div class="rend-aviso-toast-txt">' + escapeHtml(a.texto || '') + '</div>'
+        + '<div class="rend-aviso-toast-hora">' + escapeHtml(a.creada_en || '') + '</div>';
+    box.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('on'));
+
+    const cerrar = () => {
+        el.classList.remove('on');
+        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 260);
+    };
+    el.querySelector('.rend-aviso-x').addEventListener('click', (e) => {
+        e.stopPropagation();
+        cerrar();
+    });
+    // Se va solo a los 15 s (o cuando el usuario lo cierra)
+    clearTimeout(el._t);
+    el._t = setTimeout(cerrar, 15000);
+}
+
+// Carga los avisos. silencioso=true la primera vez (no revienta con toasts
+// de todo lo histórico); después solo avisa de los que llegan nuevos.
+function rendAvisosCargar(silencioso) {
+    const btn = document.getElementById('btn-rend-avisos');
+    if (!btn) return Promise.resolve();
+    return fetch('/api/rendicion/avisos')
+        .then(r => (r && r.ok) ? r.json() : null)
+        .then(j => {
+            if (!j || !Array.isArray(j.avisos)) return;
+            const nuevos = [];
+            j.avisos.forEach(a => {
+                if (_rendAvisosVistos.indexOf(a.id) < 0) {
+                    _rendAvisosVistos.push(a.id);
+                    if (!silencioso && !a.leida) nuevos.push(a);
+                }
+            });
+            rendAvisosBadge(j.no_leidas || 0);
+            rendAvisosPintar(j.avisos);
+            // El más reciente primero en el toast
+            nuevos.slice(0, 3).reverse().forEach((a, i) => {
+                setTimeout(() => rendAvisosToast(a), i * 900);
+            });
+        })
+        .catch(() => { });
+}
+
+function rendAvisosToggle() {
+    const panel = document.getElementById('rend-avisos-panel');
+    if (!panel) return;
+    const abierto = panel.style.display !== 'none';
+    if (abierto) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = 'block';
+    // Al abrir, todo queda como leído para este usuario
+    fetch('/api/rendicion/avisos/leer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+    }).then(() => rendAvisosCargar(true)).catch(() => { });
+}
+
+// Cierra el panel al hacer clic fuera
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('rend-avisos-panel');
+    const wrap = document.getElementById('rend-avisos-wrap');
+    if (panel && wrap && panel.style.display !== 'none'
+        && !wrap.contains(e.target)) {
+        panel.style.display = 'none';
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => rendCambiarVista('validacion'), 0);
+    if (document.getElementById('btn-rend-avisos')) {
+        setTimeout(() => rendAvisosCargar(true), 600);   // silencioso: sin toasts históricos
+        setInterval(() => rendAvisosCargar(false), 30000); // revisa avisos nuevos cada 30 s
+    }
+});
 }
 </script>
 {% endblock %}

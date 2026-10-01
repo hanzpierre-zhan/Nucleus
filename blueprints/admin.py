@@ -620,18 +620,20 @@ def api_rendicion_sync():
         'DEPOSITADO POR', 'SUSTENTADO POR', 'EDITADO POR',
     }
 
-    # Esquema DINÁMICO: las columnas del grid son exactamente las que traiga el
-    # CSV del form HOY. Agregar, quitar o renombrar una pregunta en el form se
+    # Esquema DINÁMICO: las columnas del grid del form son exactamente las que
+    # traiga el CSV HOY. Agregar, quitar o renombrar una pregunta en el form se
     # refleja en el próximo sync (sin tocar código): las nuevas aparecen, las
-    # dadas de baja (o renombradas) dejan de mostrarse. Las columnas SUSTENTO_*
-    # (Hoja 2) NUNCA son columnas del grid: si estuvieran en el esquema/layout,
-    # este sync las elimina de nuevo.
+    # dadas de baja (o renombradas) dejan de mostrarse.
+    # El 2.º formulario (SUSTENTO_*) y las claves que escribe el flujo NO vienen
+    # del CSV: este sync las conserva en lugar de borrarlas.
     schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
     try:
         schema_previo = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
     except Exception:
         schema_previo = set()
-    form_previas = schema_previo
+    sistema_cols = {c for c in schema_previo
+                    if c.startswith('SUSTENTO_') or c in claves_sistema}
+    form_previas = schema_previo - sistema_cols
 
     mapa_cols = {}
     for f in fields:
@@ -645,7 +647,7 @@ def api_rendicion_sync():
     form_actual = set(mapa_cols.values())
     columnas_agregadas = sorted(form_actual - form_previas)
     columnas_quitadas = sorted(form_previas - form_actual)
-    schema_cols = form_actual
+    schema_cols = form_actual | sistema_cols
 
     nuevas = 0
     omitidas = 0
@@ -739,30 +741,16 @@ def api_rendicion_sync_sustentos():
     if not col_codigo:
          return jsonify({'error': 'No se encontro la columna CODIGO DEPOSITO en la hoja.'}), 400
 
-    # Los datos de sustento se guardan en la fila (SUSTENTO_* en data_json) para
-    # no perder el comprobante, pero NUNCA son columnas del grid: si algo los
-    # hubiera reagregado al esquema o al layout, este sync los elimina.
+    # Los datos del 2.º formulario se guardan en la fila como SUSTENTO_* y SÍ
+    # son columnas del grid: se agregan al esquema al final del sync. Quedan
+    # ocultas por defecto (no estorban en Validación/Depósitos) y las pestañas
+    # Evidencia y Rendición las muestran con showPrefijos.
     schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
-    try:
-        schema_previo = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
-    except Exception:
-        schema_previo = set()
-    sustento_en_schema = {c for c in schema_previo if c.startswith('SUSTENTO_')}
-    if sustento_en_schema and schema_cfg:
-        schema_cfg.valor = safe_json_dumps(sorted(schema_previo - sustento_en_schema))
-    try:
-        layout_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='column_layout').first()
-        if layout_cfg and layout_cfg.valor:
-            layout = json.loads(layout_cfg.valor)
-            layout_filtrado = [e for e in layout if not str(e.get('field', '')).startswith('SUSTENTO_')]
-            if len(layout_filtrado) != len(layout):
-                layout_cfg.valor = safe_json_dumps(layout_filtrado)
-    except Exception:
-        pass
 
     actualizados = 0
     omitidos = 0
     no_encontrados = 0
+    nuevas_sustento = set()
     t0 = time.time()
 
     # Índice único por CODIGO DEPOSITO (antes: full-scan por cada fila del CSV).
@@ -786,24 +774,40 @@ def api_rendicion_sync_sustentos():
             continue
             
         estado_actual = str(target_dict.get('ESTADO', '')).strip().upper()
-        if estado_actual == 'DEPOSITADO':
-            # Actualizamos estado y agregamos data
+        if estado_actual in ('DEPOSITADO', 'CON SUSTENTO'):
+            # Actualizamos data; DEPOSITADO además pasa a CON SUSTENTO.
+            # (CON SUSTENTO se refresca: así los cambios que hagas en el
+            #  2.º formulario -columnas nuevas- se ven al volver a sincronizar)
             for k, v in row.items():
                 if k and k != col_codigo:
-                    target_dict[f'SUSTENTO_{k.upper()}'] = str(v).strip()
-            
-            target_dict['ESTADO'] = 'CON SUSTENTO'
+                    col = 'SUSTENTO_%s' % k.upper()
+                    target_dict[col] = str(v).strip()
+                    nuevas_sustento.add(col)
+
+            if estado_actual == 'DEPOSITADO':
+                target_dict['ESTADO'] = 'CON SUSTENTO'
             target.data_json = safe_json_dumps(target_dict)
             actualizados += 1
         else:
             omitidos += 1
-            
+
+    # ── Columnas del 2.º formulario: se suman al esquema del módulo ─────────
+    try:
+        schema_previo = list(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else []
+    except Exception:
+        schema_previo = []
+    faltantes = sorted(set(nuevas_sustento) - set(schema_previo))
+    if faltantes and schema_cfg:
+        schema_cfg.valor = safe_json_dumps(sorted(set(schema_previo) | set(nuevas_sustento)))
+
     db.session.commit()
-    
+
     return jsonify({
         'success': True,
         'actualizados': actualizados,
         'omitidos_por_estado': omitidos,
         'no_encontrados': no_encontrados,
+        'columnas_sustento': len(nuevas_sustento),
+        'columnas_nuevas': faltantes,
         'segundos': round(time.time() - t0, 2)
     })
