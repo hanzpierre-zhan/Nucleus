@@ -59,22 +59,36 @@
 
     /* 5. BOTONES DE ACCIÓN DEL FLUJO RENDICIÓN */
     .rend-acciones {
-        flex-direction: column !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
         gap: 4px !important;
-        align-items: stretch !important;
+        align-items: center !important;
     }
     .rend-btn {
-        width: 100% !important;
+        width: auto !important;
         text-align: center !important;
-        font-size: 12px !important;
-        padding: 7px 10px !important;
+        font-size: 11px !important;
+        padding: 7px 4px !important;
         border-radius: 8px !important;
+        flex: 1 1 auto !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* El botón principal (Depositar, Validar, Sustentar) ocupa el doble de ancho */
+    .rend-btn-dep, .rend-btn-val, .rend-btn-sus {
+        flex: 1.8 1 auto !important;
+    }
+    /* El botón de rechazar es más angosto */
+    .rend-btn-no {
+        flex: 1 1 auto !important;
     }
     .rend-btn-mini {
-        width: auto !important;
-        align-self: flex-end !important;
-        font-size: 10px !important;
-        padding: 3px 8px !important;
+        width: 32px !important;
+        flex: 0 0 32px !important;
+        font-size: 13px !important;
+        padding: 6px 0 !important;
+        align-self: center !important;
     }
 
     /* 6. MODALES DEL FLUJO: slide-up desde abajo */
@@ -264,6 +278,6 @@
     /* Modal al máximo */
     .mar-modal { max-height: 98vh !important; }
 
-    /* Botones de acción más grandes */
-    .rend-btn { padding: 9px 10px !important; font-size: 13px !important; }
+    /* Botones de acción ajustados para la fila horizontal */
+    .rend-btn { padding: 7px 2px !important; font-size: 10.5px !important; }
 }
