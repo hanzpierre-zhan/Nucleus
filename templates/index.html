@@ -142,12 +142,8 @@
                 min-width:17px; height:17px; line-height:17px; padding:0 4px; text-align:center;">0</span>
         </button>
         <div id="rend-avisos-panel" style="display:none; position:absolute; top:calc(100% + 8px); right:0;
-            width:370px; max-height:60vh; overflow-y:auto; background:var(--ios-card-bg, #fff);
-            border:1px solid var(--ios-hairline); border-radius:12px;
-            box-shadow:0 14px 34px rgba(0,0,0,.30); z-index:9999;">
-            <div style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
-                color:var(--ios-secondary); padding:11px 13px 7px;">
-                <i class="fa-solid fa-bell"></i> Avisos del flujo</div>
+            width:370px; max-height:60vh; overflow-y:auto; z-index:9999;">
+            <div class="rend-aviso-head"><i class="fa-solid fa-bell"></i> Avisos del flujo</div>
             <div id="rend-avisos-lista"></div>
         </div>
     </div>
@@ -269,7 +265,7 @@
         border: 1px solid rgba(0,0,0,.10); border-left: 7px solid #007AFF;
         border-radius: 14px; padding: 13px 15px 14px; min-width: 320px; max-width: 100%;
         box-shadow: 0 18px 50px rgba(0,0,0,.42), 0 4px 14px rgba(0,0,0,.24);
-        opacity: 0; transform: translateY(-22px);
+        opacity: 0; transform: translateX(24px);
         transition: opacity .28s, transform .28s;
     }
     .rend-aviso-toast.on { opacity: 1; transform: none; }
@@ -294,6 +290,59 @@
     body.dark-mode .rend-aviso-x { background: #2C2C2E; color: #E5E5EA; }
     body.dark-mode .rend-aviso-x:hover { background: #FF3B30; color: #fff; }
     body.dark-mode .rend-aviso-toast-hora { color: #98989E; }
+    /* Panel de la campanita: lista de avisos, siempre a tono con el tema */
+    #rend-avisos-panel {
+        background: var(--ios-card-bg, #fff);
+        color: var(--ios-label, #1C1C1E);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 12px;
+        box-shadow: 0 14px 34px rgba(0,0,0,.30);
+    }
+    body.dark-mode #rend-avisos-panel {
+        background: #1C1C1E !important;
+        color: #F2F2F7;
+        border-color: rgba(255,255,255,.14);
+        box-shadow: 0 18px 46px rgba(0,0,0,.70), 0 4px 14px rgba(0,0,0,.50);
+    }
+    body.theme-vercel.dark-mode #rend-avisos-panel {
+        background: #222222 !important;
+        border-color: #2E384D;
+    }
+    .rend-aviso-head {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+        color: var(--ios-secondary); padding: 11px 13px 7px;
+        border-bottom: 1px solid var(--ios-hairline);
+    }
+    body.dark-mode .rend-aviso-head { color: #98989E; border-bottom-color: rgba(255,255,255,.10); }
+    .rend-aviso-item {
+        display: flex; gap: 9px; align-items: flex-start;
+        padding: 10px 6px 10px 13px;
+        border-top: 1px solid var(--ios-hairline);
+        transition: background .15s;
+    }
+    .rend-aviso-item:first-child { border-top: none; }
+    .rend-aviso-item:hover { background: rgba(0,0,0,.04); }
+    body.dark-mode .rend-aviso-item {
+        border-top-color: rgba(255,255,255,.08);
+        background: #1C1C1E; color: #E5E5EA;
+    }
+    body.dark-mode .rend-aviso-item:hover { background: #2C2C2E; }
+    body.theme-vercel.dark-mode .rend-aviso-item { background: #222222; }
+    body.theme-vercel.dark-mode .rend-aviso-item:hover { background: #2C2C2C; }
+    .rend-aviso-item .rend-aviso-hora { font-size: 10.5px; color: var(--ios-secondary); margin-top: 3px; }
+    body.dark-mode .rend-aviso-item .rend-aviso-hora { color: #98989E; }
+    .rend-aviso-close {
+        flex: 0 0 auto; border: none; background: transparent;
+        color: var(--ios-gray-1, #8E8E93);
+        width: 22px; height: 22px; border-radius: 50%;
+        font-size: 17px; line-height: 1; cursor: pointer; padding: 0;
+        display: flex; align-items: center; justify-content: center;
+        transition: background .15s, color .15s;
+    }
+    .rend-aviso-close:hover { background: #FF3B30; color: #fff; }
+    body.dark-mode .rend-aviso-close { color: #98989E; }
+    body.dark-mode .rend-aviso-close:hover { background: #FF3B30; color: #fff; }
     /* Botones de accion del flujo en la fila */
     .rend-acciones { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
     .rend-btn {
@@ -4837,8 +4886,10 @@ let _rendCambiandoVista = false;
                     mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
                 } else if (est === 'VALIDADO') {
-                    mk('rend-btn-dep', 'DEPOSITADO', 'Registrar fecha, monto y foto del pago',
+                    mk('rend-btn-dep', '⬆ Depositar', 'Registrar fecha, monto y foto del pago',
                        () => rendAbrirDeposito(key));
+                    mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
+                       () => rendAbrirRechazo(key));
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
                     }
@@ -4852,7 +4903,7 @@ let _rendCambiandoVista = false;
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Validado', () => rendRevertir(key));
                     }
                 } else if (est === 'CON SUSTENTO') {
-                    mk('rend-btn-sus', 'SUSTENTADO', 'Subir fotos adicionales o cerrar la solicitud',
+                    mk('rend-btn-sus', '★ Sustentar', 'Subir fotos adicionales o cerrar la solicitud',
                        () => rendAbrirSustento(key));
                     mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
@@ -11769,10 +11820,15 @@ btnItem.onclick = () => cotRegAgregarFila();
         <div id="rend-dep-form" style="display:none;">
           <hr style="border:none; border-top:1px dashed var(--ios-hairline, #C7C7CC); margin: 0 0 15px 0;">
 
-          <label for="rend-fecha-pago">Fecha del pago *</label>
-          <input type="date" id="rend-fecha-pago">
-          <label for="rend-monto-pago">Monto pagado *</label>
-          <input type="number" id="rend-monto-pago" step="0.01" min="0" placeholder="0.00">
+          <label for="rend-fecha-pago"><i class="fa-regular fa-calendar-clock" style="color:var(--ios-blue);"></i> Fecha y hora del pago *</label>
+          <input type="datetime-local" id="rend-fecha-pago">
+          <label for="rend-monto-pago"><i class="fa-solid fa-sack-dollar" style="color:#28A745;"></i> Monto pagado *</label>
+          <input type="number" id="rend-monto-pago" step="0.01" min="0" placeholder="0.00"
+            style="font-size:20px; font-weight:800; color:#fff;
+                   background:linear-gradient(135deg,#28A745,#1e8a38);
+                   border:none; border-radius:10px; padding:10px 14px;
+                   box-shadow:0 2px 8px rgba(40,167,69,.35);
+                   text-align:center; letter-spacing:0.5px;">
           <label>Comprobante del pago *</label>
           <div class="rend-slot" id="rend-slot-pago" onclick="rendElegirFoto('pago')">
             <i class="fa-solid fa-camera"></i> Tomar o elegir foto
@@ -11858,12 +11914,16 @@ function rendPoblarDetalle(data, gridId) {
         const raw = data[f];
         const val = (raw === null || raw === undefined) ? '' : String(raw).trim();
         let valHtml;
+        // Campos de monto: resaltados con pastilla verde (mismo estilo que los valores de estado)
+        const _camposMonto = ['Monto total del depósito', 'MONTO PAGO', 'Monto', 'Monto total'];
         if (f === 'ESTADO' && val && typeof rendEstadoDe === 'function' && typeof REND_ESTADO_COLORS !== 'undefined') {
             const est = rendEstadoDe({ ESTADO: val });
             const c = REND_ESTADO_COLORS[est];
             valHtml = c
                 ? `<span style="background:${c.bg};color:${c.fg};padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;">${escapeHtml(est)}</span>`
                 : escapeHtml(est);
+        } else if (_camposMonto.includes(f) && val) {
+            valHtml = `<span style="background:linear-gradient(135deg,#28A745,#1e8a38);color:#fff;padding:3px 12px;border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 1px 4px rgba(40,167,69,.35);letter-spacing:.3px;">S/ ${escapeHtml(val)}</span>`;
         } else {
             valHtml = val ? escapeHtml(val)
                 : '<span style="color:var(--ios-gray-3, #C7C7CC); opacity:.55;">—</span>';
@@ -12216,7 +12276,12 @@ function rendAbrirDeposito(key) {
     const row = rawData.find(r => r._key === key) || {};
     rendMostrarResumen(key);
 
-    document.getElementById('rend-fecha-pago').value = new Date().toISOString().slice(0, 10);
+    // datetime-local requiere formato YYYY-MM-DDTHH:MM (sin segundos ni Z)
+    const _now = new Date();
+    const _pad = n => String(n).padStart(2, '0');
+    document.getElementById('rend-fecha-pago').value =
+        _now.getFullYear() + '-' + _pad(_now.getMonth()+1) + '-' + _pad(_now.getDate()) +
+        'T' + _pad(_now.getHours()) + ':' + _pad(_now.getMinutes());
     // Pre-llenar monto si es posible
     const montoBase = parseFloat(row['Monto total del depósito'] || 0);
     document.getElementById('rend-monto-pago').value = montoBase > 0 ? montoBase : '';
@@ -12377,6 +12442,24 @@ if (IS_RENDICION && document.getElementById('rend-tabs')) {
     /* ── Avisos del flujo (campanita): quién validó / depositó / rechazó ── */
 let _rendAvisosVistos = [];   // ids ya conocidos (para no repetir el toast)
 let _rendAvisosPrimera = true;
+let _rendAvisosUltimos = [];   // última lista pintada (para volver a pintar tras cerrar uno)
+const _rendAvisosCERRADOS = 'rend_avisos_cerrados';   // localStorage: avisos que el usuario cerró
+
+function _rendAvisosCerrados() {
+    try { return JSON.parse(localStorage.getItem(_rendAvisosCERRADOS) || '[]') || []; }
+    catch (e) { return []; }
+}
+
+// Cierra UN aviso del panel: se recuerda para no volver a mostrarlo (server lo conserva)
+function rendAvisosCerrar(id) {
+    const ids = _rendAvisosCerrados();
+    const sid = String(id);
+    if (ids.indexOf(sid) < 0) {
+        ids.push(sid);
+        try { localStorage.setItem(_rendAvisosCERRADOS, JSON.stringify(ids.slice(-300))); } catch (e) { }
+    }
+    rendAvisosPintar(_rendAvisosUltimos);
+}
 
 function rendAvisosBadge(n) {
     const b = document.getElementById('rend-avisos-badge');
@@ -12388,19 +12471,30 @@ function rendAvisosBadge(n) {
 function rendAvisosPintar(lista) {
     const p = document.getElementById('rend-avisos-lista');
     if (!p) return;
-    if (!lista || !lista.length) {
+    _rendAvisosUltimos = Array.isArray(lista) ? lista : [];
+    const cerrados = _rendAvisosCerrados();
+    const visibles = _rendAvisosUltimos.filter(a => !a || cerrados.indexOf(String(a.id)) < 0);
+    if (!visibles.length) {
         p.innerHTML = '<div style="padding:14px 13px; font-size:13px; color:var(--ios-secondary);">'
             + 'Todavía no hay avisos.</div>';
         return;
     }
-    p.innerHTML = lista.map(a => `
-        <div style="display:flex; gap:9px; padding:10px 13px; border-top:1px solid var(--ios-hairline);${a.leida ? ' opacity:.6;' : ''}">
+    p.innerHTML = visibles.map(a => `
+        <div class="rend-aviso-item"${a.leida ? ' style="opacity:.6;"' : ''}>
             <span style="flex:0 0 4px; width:4px; border-radius:4px; background:${a.color || '#007AFF'};"></span>
             <div style="flex:1; min-width:0;">
                 <div style="font-size:12.5px; line-height:1.4;${a.leida ? '' : ' font-weight:700;'}">${escapeHtml(a.texto || '')}</div>
-                <div style="font-size:10.5px; color:var(--ios-secondary); margin-top:3px;">${escapeHtml(a.creada_en || '')}</div>
+                <div class="rend-aviso-hora">${escapeHtml(a.creada_en || '')}</div>
             </div>
+            <button type="button" class="rend-aviso-close" data-id="${escapeHtml(String(a.id))}"
+                title="Cerrar este aviso">&times;</button>
         </div>`).join('');
+    p.querySelectorAll('.rend-aviso-close').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            rendAvisosCerrar(btn.dataset.id);
+        });
+    });
 }
 
 function rendAvisosToast(a) {
@@ -12410,9 +12504,9 @@ function rendAvisosToast(a) {
     if (!box) {
         box = document.createElement('div');
         box.id = 'rend-aviso-stack';
-        box.style.cssText = 'position:fixed; top:10px; left:50%; transform:translateX(-50%); '
-            + 'z-index:2147483647; display:flex; flex-direction:column; gap:10px; '
-            + 'width:min(560px, calc(100vw - 24px)); pointer-events:none;';
+        box.style.cssText = 'position:fixed; bottom:80px; right:18px; '
+            + 'z-index:2147483647; display:flex; flex-direction:column-reverse; gap:10px; '
+            + 'width:min(380px, calc(100vw - 24px)); pointer-events:none;';
         document.body.appendChild(box);
     }
     // Nunca tapa toda la pantalla: como máximo 4 avisos a la vez

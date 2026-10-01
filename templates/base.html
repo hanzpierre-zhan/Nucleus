@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css?v=3.0">
     <link rel="stylesheet" href="/static/css/themes.css?v=5">
+    <link rel="stylesheet" href="/static/css/mobile.css?v=1">
     <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -171,6 +172,72 @@
 
     </script>
     {% block scripts %}{% endblock %}
+
+    <!-- Bottom Nav Bar para móvil: se construye a partir del sidebar existente -->
+    <script>
+    (function () {
+        // Solo en pantallas móviles
+        if (window.innerWidth > 768) return;
+
+        // Recopilamos los links del sidebar
+        const sidebarLinks = Array.from(document.querySelectorAll('.sidebar-link'));
+        if (!sidebarLinks.length) return; // no autenticado
+
+        const nav = document.createElement('nav');
+        nav.id = 'mob-bottom-nav';
+        nav.setAttribute('aria-label', 'Navegación principal');
+
+        // Íconos y etiquetas limitados a los más relevantes para móvil
+        const MAX_ITEMS = 5;
+        const items = sidebarLinks.slice(0, MAX_ITEMS);
+        const currentHref = window.location.pathname + window.location.search;
+
+        items.forEach(link => {
+            const icon = link.querySelector('i');
+            const textEl = link.querySelector('.sidebar-link-text');
+            const href = link.getAttribute('href') || '#';
+            const label = (textEl ? textEl.textContent : link.textContent).trim();
+            const iconClass = icon ? icon.className : 'fa-solid fa-circle';
+            const isActive = link.classList.contains('active');
+            const isRendicion = label.toLowerCase().includes('rendicion') || label.toLowerCase().includes('rendición');
+
+            const btn = document.createElement('a');
+            btn.href = href;
+            btn.className = 'mob-nav-item' + (isActive ? ' active' : '');
+            btn.setAttribute('aria-label', label);
+            btn.innerHTML = `
+                <i class="${iconClass}"></i>
+                ${ isRendicion ? '<span id="mob-nav-badge-rend" class="mob-nav-badge"></span>' : '' }
+                <span>${label.length > 7 ? label.slice(0,7) + '…' : label}</span>
+            `;
+            nav.appendChild(btn);
+        });
+
+        document.body.appendChild(nav);
+
+        // Sincronizar badge de rendición con el de la campanita
+        function syncRendBadge() {
+            const src = document.getElementById('rend-avisos-badge');
+            const dst = document.getElementById('mob-nav-badge-rend');
+            if (!src || !dst) return;
+            const n = parseInt(src.textContent || '0', 10);
+            dst.textContent = n > 0 ? (n > 99 ? '99+' : n) : '';
+            dst.classList.toggle('visible', n > 0);
+        }
+
+        // Observar cambios en el badge original
+        const badgeSrc = document.getElementById('rend-avisos-badge');
+        if (badgeSrc) {
+            new MutationObserver(syncRendBadge).observe(badgeSrc, { childList: true, characterData: true, subtree: true });
+            syncRendBadge();
+        }
+
+        // Re-evaluar en resize (por si rotan el teléfono)
+        window.addEventListener('resize', () => {
+            nav.style.display = window.innerWidth <= 768 ? 'flex' : 'none';
+        });
+    })();
+    </script>
 
     <!-- Nucleus Dialog — reemplaza alert/confirm/prompt nativos -->
     <div id="nucleus-dialog" class="nucleus-dialog-overlay" aria-hidden="true">
