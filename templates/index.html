@@ -11688,8 +11688,8 @@ async function editarCodigoWO() {
    RENDICION — flujo por pestañas (hojas tipo Excel)
    Cada solicitud salta de hoja sola cuando cambia su ESTADO.
    ================================================================ */
-const REND_ROLES_GESTIONAR = ['admin', 'zeno', 'suport', 'supervisor', 'gestor'];
-// Botones habilitados para quien tenga el módulo Rendicion (no por rol).
+// Botones del flujo: solo si el usuario tiene asignado el módulo Rendicion.
+// El servidor lo decide (puede_rendicion); aquí no seYR por rol.
 const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
 let _rendVista = 'validacion';
 let _rendFiltroFn = null;          // filtro de la pestaña activa
@@ -11698,9 +11698,7 @@ let _rendModal = null;             // {accion, key, estadoPrevio, fotos:[], ...}
 const _rendFotosPend = {};         // slot -> url ya subida
 
 function rendPuedeGestionar() {
-    if (!IS_RENDICION) return false;
-    if (typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR) return true;
-    return REND_ROLES_GESTIONAR.includes(String(USER_ROLE || '').trim().toLowerCase());
+    return IS_RENDICION && typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR === true;
 }
 
 // Roles del usuario actual como array (ej: ['zeno'])

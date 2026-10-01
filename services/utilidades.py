@@ -120,21 +120,18 @@ def puede_cotizaciones(user_id, user_rol, proy_nombre):
 
 
 def puede_rendicion(user_id, user_rol, proy_nombre):
-    """True si el usuario puede usar el módulo Rendicion (Exportar, Sincronizar
-    y los botones del flujo de estados).
+    """True si el usuario tiene ASIGNADO el módulo Rendicion.
 
-    Misma regla con la que pages.index autoriza entrar al módulo:
-      · módulo abierto en la sesión,
-      · rol zeno/suport/admin,
-      · Rendicion visible en su menú (perfil/accesos).
+    Sin excepciones por rol: los botones Exportar y Sincronizar (y las acciones
+    del flujo) se habilitan únicamente para quienes lo tienen asignado en su
+    perfil de accesos, que es la misma lista que arma su menú lateral. Si el
+    módulo ya está abierto en su sesión es porque acaba de entrar, o sea que lo
+    tiene asignado.
     """
     if str(proy_nombre or '').strip().lower() == 'rendicion':
         return True
-    rol = str(user_rol or '').strip().lower()
-    if rol in ('zeno', 'suport', 'admin'):
-        return True
     try:
-        menu = get_menu_proyectos(user_id, rol) or []
+        menu = get_menu_proyectos(user_id, str(user_rol or '').strip().lower()) or []
     except Exception:
         menu = []
     return any(str(getattr(p, 'nombre', '') or '').strip().lower() == 'rendicion'
