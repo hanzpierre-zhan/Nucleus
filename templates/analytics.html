@@ -95,6 +95,9 @@
         .an-grid { grid-template-columns: minmax(0, 1fr); }
         .an-prod, .an-table-card { grid-column: auto; grid-row: auto; }
     }
+    /* Tarjetas automáticas (proyectos no WO): fila propia bajo la rejilla principal */
+    .an-gen { display: grid; gap: 14px; margin-bottom: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); align-items: start; }
     .an-card { background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0) 30%),
         var(--ios-card-bg, #1C1C1E);
         border: 1px solid var(--ios-hairline, rgba(255,255,255,0.09));
@@ -222,6 +225,9 @@
             </div>
         </div>
     </div>
+    <!-- Tarjetas genéricas: proyectos sin columnas de WO (Dataper, SITE, Material,
+         Combustible, Cotizaciones, Rendicion…) se llenan solas con sus columnas. -->
+    <div class="an-gen" id="an-gen-cards" style="display:none;"></div>
     <div id="an-view-seg" style="display:none;">
         <div class="an-grid-seg">
             <div class="an-card" id="an-card-sgop">
@@ -279,8 +285,12 @@
 (function () {
     const rawData = {{ data | safe }};
     const proyName = "{{ proyecto_nombre }}";
-    // El análisis completo (filtros + gráficos + sites) aplica a FLM - ENTEL / FLM / PEXT.
-    const isPext = ['flm - entel', 'flm', 'pext'].includes(proyName.trim().toLowerCase());
+    // El análisis completo (filtros + gráficos + sites) aplica a FLM - ENTEL / FLM /
+    // PEXT / FLM - INTEGRATEL (mismas columnas de WO). El resto de proyectos entra
+    // en el modo genérico (tarjetas automáticas más abajo).
+    const _pn = proyName.trim().toLowerCase();
+    const isPext = ['flm - entel', 'flm', 'pext', 'flm - integratel', 'integratel', 'claro'].includes(_pn)
+        || _pn.startsWith('flm');
     // Norm sin tildes para matchear columnas reales como 'Número de WO' / 'Causa raíz'.
     const deTildes = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const norm = v => deTildes(v == null ? '' : v).trim().toLowerCase();
@@ -415,7 +425,9 @@
         complete: ['#34C759', 'fa-circle-check'],
         close: ['#8E8E93', 'fa-lock']
     };
-    const K_CRE = keyNamed('fecha de creacion', 'fecha creacion', 'creation date', 'fecha_ticket', 'fecha');
+    // 'marca temporal' (sello del formulario) queda al final: solo se usa si el
+    // proyecto no trae una fecha de creación dedicada (p. ej. Rendicion).
+    const K_CRE = keyNamed('fecha de creacion', 'fecha creacion', 'creation date', 'fecha_ticket', 'fecha', 'marca temporal');
     const K_CAMBIO = keyNamed('fecha cambio estado');
     const K_PHASE = keyNamed('operate phase');
     const K_SITE = keyNamed('nombre de site');
@@ -466,19 +478,24 @@
         return Array.from(s).sort().reverse();
     }
     function baseFilteredRows() {
-        if (!isPext) return rawData || [];
         let rows = rawData || [];
-        if (anState.tipos.size) rows = rows.filter(r => anState.tipos.has(tipoOf(r)));
-        if (anState.dep.size) rows = rows.filter(r => K_DEPT && anState.dep.has(norm(cellLbl(r, K_DEPT))));
-        if (anState.causa.size) rows = rows.filter(r => K_CAUSA && anState.causa.has(norm(cellLbl(r, K_CAUSA))));
-        if (anState.chart) rows = rows.filter(r => chartMatches(r, anState.chart));
+        if (isPext) {
+            if (anState.tipos.size) rows = rows.filter(r => anState.tipos.has(tipoOf(r)));
+            // Sin columna resoluble NO se filtra: antes `K_DEPT && ...` devolvía false
+            // para todas las filas y elegir esa opción vaciaba toda la pantalla.
+            if (anState.dep.size && K_DEPT) rows = rows.filter(r => anState.dep.has(norm(cellLbl(r, K_DEPT))));
+            if (anState.causa.size && K_CAUSA) rows = rows.filter(r => anState.causa.has(norm(cellLbl(r, K_CAUSA))));
+        }
+        // El filtro por clic en un gráfico aplica también a los proyectos genéricos
+        // (antes solo isPext, así que en Dataper/SITE/etc. el clic no hacía nada).
+        if (anState.chart && chartKey(anState.chart.field)) rows = rows.filter(r => chartMatches(r, anState.chart));
         return rows;
     }
     function filteredRows() {
         const rows = baseFilteredRows();
-        if (!isPext || anState.all || anState.months.size === 0) return rows;
+        if (!isPext || anState.all || anState.months.size === 0 || !K_CRE) return rows;
         return rows.filter(r => {
-            const ym = K_CRE ? parseYm(r[K_CRE]) : null;
+            const ym = parseYm(r[K_CRE]);
             return ym && anState.months.has(ym);
         });
     }
@@ -492,9 +509,13 @@
         return prodRows(baseFilteredRows());
     }
     function chartKey(field) {
+        // Columnas creadas por las tarjetas genéricas: 'gen:<nombre de columna>'.
+        if (typeof field === 'string' && field.indexOf('gen:') === 0) return field.slice(4);
         switch (field) {
             case 'phase': return K_PHASE;
             case 'fault': return keyNamed('fault level', 'departamento', 'provincia', 'category');
+            // Gráfico "Detalle": la clave la decide renderBarFault (proyecto genérico).
+            case 'bar': return keyNamed('departamento', 'provincia', 'fault level', 'category');
             case 'dept': return K_DEPT;
             case 'causa': return K_CAUSA;
             case 'tipoav': return K_TIPOAV;
@@ -504,7 +525,10 @@
     }
     function chartMatches(r, f) {
         const k = chartKey(f.field);
-        return !!k && norm(r[k]) === f.value;
+        // Sin clave resoluble NO se filtra: antes devolvía false para todas las
+        // filas y el clic en una barra vaciaba toda la pantalla.
+        if (!k) return true;
+        return norm(r[k]) === f.value;
     }
     function toggleChart(field, value, label) {
         if (anState.chart && anState.chart.field === field && anState.chart.value === value) anState.chart = null;
@@ -1132,6 +1156,113 @@
         safeRender(() => renderSgTipoav(rows), 'sgtipoav');
         safeRender(() => renderSgSites(rows), 'sgsites');
     }
+    /* ── Tarjetas genéricas (proyectos NO tipo WO) ─────────────────────────────
+       Dataper, SITE, Material, Combustible, Cotizaciones, Rendicion… no tienen
+       columnas de WO/fase, así que las tarjetas fijas se quedaban ocultas y el
+       dashboard salía casi vacío (solo "Detalle"). Aquí se eligen hasta 6
+       columnas categóricas con datos reales y se grafican solas. */
+    const GEN_PREF = ['estado', 'tipo', 'prioridad', 'proyecto', 'categoria', 'category',
+        'zona', 'region', 'provincia', 'distrito', 'contrata', 'gestor', 'supervisor',
+        'coordinador', 'cargo', 'tipo de estacion', 'tipo de site', 'tipo de torre',
+        'motivo de la solicitud', 'tipo de proyecto', 'responsable de la validacion'];
+    const GEN_MAX = 6;
+    // Columnas que nunca sirven como categoría: fechas, ids, links, montos,
+    // fotos/evidencia y los SUSTENTO_* (pertenecen a la pestaña de comprobantes).
+    const GEN_NOSIRVE = /^(fecha|hora|mes|id$|key|codigo|url|link|foto|evidencia|adjunt|documento|dni|celular|telefono|correo|email|nit|ruc|cci|cuenta|titular|observacion|comentario|nota|detalle|direccion|latitud|longitud|monto|precio|total|saldo|costo|presupuesto|altura|marca temporal|numero|nro|n[°º]|item$|codigo|.*json)/;
+    function genSirve(k) {
+        const s = String(k || '');
+        if (!s || s[0] === '_') return false;
+        if (s.toUpperCase().indexOf('SUSTENTO_') === 0) return false;
+        return !GEN_NOSIRVE.test(norm(s));
+    }
+    // Perfil de una columna: cuántas filas la llenan, cuántos valores distintos
+    // tiene, y si casi todo es número o URL (no sirve como categoría).
+    function genPerfil(rows, key) {
+        const map = {};
+        let filled = 0, nums = 0, urls = 0, distintos = 0, listas = 0;
+        for (let i = 0; i < rows.length; i++) {
+            const v = String(rows[i][key] == null ? '' : rows[i][key]).trim();
+            if (!v) continue;
+            filled++;
+            if (/^https?:\/\//i.test(v)) urls++;
+            else if (/^[\[{]/.test(v)) listas++;          // JSON / listas pegadas
+            else if (!isNaN(Number(v))) nums++;
+            if (map[v] === undefined) {
+                if (distintos >= 40) continue;
+                map[v] = 1; distintos++;
+            } else map[v]++;
+        }
+        return { filled, distintos, urls, listas, numerico: filled > 0 && nums / filled > 0.9 };
+    }
+    function renderGenerics(rows) {
+        const cont = document.getElementById('an-gen-cards');
+        if (!cont) return;
+        Object.keys(charts).forEach(k => { if (k.indexOf('gen') === 0) killChart(k); });
+        cont.innerHTML = '';
+        cont.style.display = 'none';
+        if (isPext || !rows.length) return;
+        const n = rows.length;
+        // La tarjeta "Detalle" (bar) ya cubre departamento/provincia/fault/category,
+        // y las fechas no se grafican como categorías.
+        const tomadas = new Set();
+        const yaGraficada = keyNamed('departamento', 'provincia', 'fault level', 'category');
+        if (yaGraficada) tomadas.add(yaGraficada);
+        [K_CRE, K_CAMBIO].forEach(k => { if (k) tomadas.add(k); });
+        // Unión de columnas: las filas no siempre comparten el mismo esquema.
+        const keys = [], seenKeys = {};
+        for (let i = 0; i < rows.length && keys.length < 400; i++) {
+            Object.keys(rows[i] || {}).forEach(k => {
+                if (seenKeys[k] === undefined) { seenKeys[k] = 1; keys.push(k); }
+            });
+        }
+        const porNorm = {};
+        keys.forEach(k => { if (!(norm(k) in porNorm)) porNorm[norm(k)] = k; });
+        const cands = [];
+        const add = k => {
+            if (k && !tomadas.has(k) && cands.indexOf(k) < 0 && genSirve(k)) cands.push(k);
+        };
+        GEN_PREF.forEach(p => add(porNorm[p]));
+        keys.forEach(add);
+        const minLleno = Math.max(3, Math.ceil(n * 0.1));
+        const ok = [];
+        for (const k of cands) {
+            if (ok.length >= GEN_MAX) break;
+            const p = genPerfil(rows, k);
+            if (p.filled < minLleno) continue;             // casi vacía
+            if (p.urls || p.listas) continue;              // links, fotos o JSON
+            if (p.distintos < 2 || p.distintos > 16) continue;  // ni 1 valor ni catálogo eterno
+            if (p.numerico) continue;                      // montos/ids: no es categoría
+            ok.push(k);
+        }
+        if (!ok.length) return;
+        cont.innerHTML = ok.map((k, i) =>
+            '<div class="an-card an-gen-card" id="an-gen-card-' + i + '">' +
+            '<h4 id="an-gen-title-' + i + '"></h4>' +
+            '<div class="an-sub" id="an-gen-sub-' + i + '"></div>' +
+            '<div class="an-cv"><canvas id="an-gen-cv-' + i + '"></canvas></div></div>').join('');
+        cont.style.display = 'grid';
+        ok.forEach((k, i) => {
+            const top = countableNorm(rows, k, 8);
+            hbar({
+                chartKey: 'gen' + i, cardId: 'an-gen-card-' + i, canvasId: 'an-gen-cv-' + i,
+                titleEl: 'an-gen-title-' + i, subEl: 'an-gen-sub-' + i,
+                field: 'gen:' + k, key: k, title: k,
+                sub: fmtN(n) + ' registros · ' + top.length + ' valores · clic para filtrar',
+                top
+            });
+        });
+    }
+    /* Sin ninguna tarjeta visible el dashboard quedaba en blanco, sin aviso. */
+    function anSinTarjetas() {
+        if (isPext) { anQuitarAviso('an-aviso-sin-tarjetas'); return; }
+        const vis = Array.prototype.slice
+            .call(document.querySelectorAll('#an-view-prod .an-card, #an-gen-cards .an-card'))
+            .filter(c => c.style.display !== 'none');
+        if (vis.length) { anQuitarAviso('an-aviso-sin-tarjetas'); return; }
+        anAviso('an-aviso-sin-tarjetas',
+            'Este proyecto no tiene columnas categóricas con datos suficientes para graficar. ' +
+            'Se muestra solo el total de registros.', 'warn');
+    }
     function safeRender(fn, name) {
         try { fn(); } catch (e) { try { console.warn('[analytics] ' + name + ' falló:', e); } catch (_) {} }
     }
@@ -1150,11 +1281,25 @@
             safeRender(() => renderHbarPrior(prows), 'prior');
             safeRender(renderLine, 'linea');
             safeRender(() => renderSites(prows), 'sites');
+            safeRender(() => renderGenerics(prows), 'genericas');
+            anEstadoVacio(rows.length, prows.length);
+            safeRender(anSinTarjetas, 'sin-tarjetas');
         } else {
             safeRender(() => renderTotal(rows), 'total');
             renderAllSeg(rows);
+            anEstadoVacio(rows.length, rows.length);
+            anQuitarAviso('an-aviso-sin-tarjetas');
         }
         resizeCharts();
+    }
+    /* Si tras filtrar no queda nada visible, se avisa en vez de dejar la pantalla
+       en blanco (antes cada tarjeta se ocultaba con display:none y no había aviso). */
+    function anEstadoVacio(totalFiltradas, visibles) {
+        if (visibles > 0) { anQuitarAviso('an-aviso-vacio'); return; }
+        const msg = totalFiltradas === 0
+            ? 'Los filtros actuales no dejan registros. Ajusta o limpia los filtros para volver a ver datos.'
+            : 'No hay registros con Operate Phase = "close" con los filtros actuales.';
+        anAviso('an-aviso-vacio', msg, 'warn');
     }
     // Reajusta el tamaño por si algún canvas quedó en 0 (p. ej. creado oculto).
     function resizeCharts() {
@@ -1170,18 +1315,30 @@
     let anDash = 'seg';
     try { anDash = sessionStorage.getItem('an-dash') || 'seg'; } catch (e) {}
     if (!DASH_NAMES[anDash]) anDash = 'seg';
+    // Sin columnas de Seguimiento (proyecto no WO o sin Operate Phase) esa vista
+    // sale siempre vacía: se abre directo en Producción, que sí tiene datos.
+    if (anDash === 'seg' && (!isPext || !K_PHASE)) anDash = 'prod';
     function applyDashUI() {
         const isProd = anDash === 'prod';
         document.getElementById('an-dashname').textContent = DASH_NAMES[anDash];
         document.querySelectorAll('.an-dashopt').forEach(b =>
             b.classList.toggle('on', b.dataset.d === anDash));
+        // Seguimiento solo tiene datos en proyectos WO con Operate Phase: en el
+        // resto se oculta para no ofrecer una vista que quedaría siempre vacía.
+        const conSeg = isPext && !!K_PHASE;
+        const segOpt = document.querySelector('.an-dashopt[data-d="seg"]');
+        if (segOpt) segOpt.style.display = conSeg ? '' : 'none';
         document.getElementById('an-view-prod').style.display = isProd ? '' : 'none';
         document.getElementById('an-view-seg').style.display = isProd ? 'none' : '';
+        // Las tarjetas genéricas viven fuera de la rejilla de Producción.
+        const gen = document.getElementById('an-gen-cards');
+        if (gen && !isProd) gen.style.display = 'none';
         document.getElementById('an-filters').style.display = isPext ? '' : 'none';
         document.getElementById('an-totalwrap').style.display = '';
     }
     function setDash(d) {
         if (!DASH_NAMES[d] || d === anDash) { closeAllSels(); return; }
+        if (d === 'seg' && !(isPext && K_PHASE)) { closeAllSels(); return; }
         anDash = d;
         try { sessionStorage.setItem('an-dash', d); } catch (e) {}
         applyDashUI();
@@ -1201,22 +1358,88 @@
         });
         panel.querySelectorAll('.an-dashopt').forEach(b => b.addEventListener('click', () => setDash(b.dataset.d)));
     }
+    /* Avisos en línea (nunca se vacía .an-wrap-inner: perdería filtros, tablas y gráficos). */
+    function anAviso(id, msg, tipo) {
+        const wrap = document.querySelector('.an-wrap-inner');
+        if (!wrap) return null;
+        let b = document.getElementById(id);
+        if (!b) {
+            b = document.createElement('div');
+            b.id = id;
+            b.className = 'an-empty';
+            b.style.cssText = 'display:block;padding:12px 16px;margin:0 0 12px;border-radius:12px;' +
+                'font-weight:600;text-align:left;';
+            const head = wrap.querySelector('.an-head');
+            if (head && head.nextSibling) wrap.insertBefore(b, head.nextSibling);
+            else wrap.appendChild(b);
+        }
+        b.textContent = msg;
+        const _esError = (tipo === 'error'), _esWarn = (tipo === 'warn');
+        b.style.color = _esError ? '#FF3B30' : (_esWarn ? '#FF9500' : 'var(--ios-gray-1, #8E8E93)');
+        b.style.background = _esError ? 'rgba(255,59,48,0.10)' : (_esWarn ? 'rgba(255,149,0,0.10)' : 'rgba(142,142,147,0.12)');
+        b.style.border = '1px solid ' + (_esError ? 'rgba(255,59,48,0.30)' : (_esWarn ? 'rgba(255,149,0,0.35)' : 'rgba(142,142,147,0.28)'));
+        return b;
+    }
+    function anQuitarAviso(id) { const b = document.getElementById(id); if (b) b.remove(); }
+
+    /* Chart.js no cargó (CDN caído/sin red): en vez de borrar toda la página se
+       instala un shim que deja las tarjetas con un aviso y sigue funcionando
+       el total, las tablas y los filtros. */
     if (!window.Chart) {
-        document.querySelector('.an-wrap-inner').innerHTML = `<div class="an-empty">Librería de gráficos no disponible (sin conexión a CDN).</div>`;
-        return;
+        anAviso('an-aviso-cdn',
+            'La librería de gráficos no pudo cargarse (sin conexión al CDN). Se muestran el total, las tablas y los filtros.',
+            'error');
+        window.Chart = function (canvas, cfg) {
+            try {
+                const holder = (canvas && canvas.parentElement) || null;
+                if (holder && !holder.querySelector('.an-nolib')) {
+                    const d = document.createElement('div');
+                    d.className = 'an-empty an-nolib';
+                    d.style.padding = '20px 8px';
+                    d.textContent = 'Gráfico no disponible (sin conexión al CDN).';
+                    holder.appendChild(d);
+                }
+            } catch (e) {}
+            return { resize: function () {}, destroy: function () {}, update: function () {},
+                     stop: function () {}, data: (cfg && cfg.data) || {} };
+        };
     }
-    if (isPext) {
-        const months = availableMonths();
-        const cur = currentYm();
-        if (months.includes(cur)) anState.months.add(cur);
-        else if (months.length) anState.months.add(months[0]);
-        document.getElementById('an-filters').style.display = '';
-        buildSels();
-        wireSelToggles();
+
+    /* Si la vista por defecto (Seguimiento) no aplica a este proyecto, abrir Producción:
+       Seguimiento solo tiene datos en FLM/PEXT y en el resto quedaba una página vacía. */
+    if (!isPext) anDash = 'prod';
+
+    try {
+        if (isPext) {
+            const months = availableMonths();
+            const cur = currentYm();
+            if (months.includes(cur)) anState.months.add(cur);
+            else if (months.length) anState.months.add(months[0]);
+            document.getElementById('an-filters').style.display = '';
+            buildSels();
+            wireSelToggles();
+        }
+        wireDash();
+        applyDashUI();
+        renderAll();
+        (function () {
+            const total = {{ data_total if data_total is defined else 0 }};
+            const limite = {{ data_limite if data_limite is defined else 0 }};
+            if (limite && total > limite) {
+                anAviso('an-aviso-limite',
+                    'Este proyecto tiene ' + total.toLocaleString('es-PE') +
+                    ' filas y Analytics analiza las ' + limite.toLocaleString('es-PE') +
+                    ' primeras. Los KPIs no incluyen las ' +
+                    (total - limite).toLocaleString('es-PE') + ' restantes.', 'warn');
+            }
+        })();
+    } catch (e) {
+        try { console.error('[analytics] init:', e); } catch (_) {}
+        try { wireDash(); applyDashUI(); } catch (_) {}
+        anAviso('an-aviso-init',
+            'Ocurrió un error al iniciar Analytics: ' + ((e && e.message) || e) +
+            '. Recarga la página si persiste.', 'error');
     }
-    wireDash();
-    applyDashUI();
-    renderAll();
 })();
 </script>
 {% endblock %}

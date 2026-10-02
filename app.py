@@ -77,6 +77,21 @@ def _register_compress(app):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Las páginas HTML se revalidan siempre (así los cambios de plantilla/JS se
+# reflejan en cuanto se actualiza el servidor, sin depender de la caché del navegador)
+# ─────────────────────────────────────────────────────────────────────────────
+def _register_no_cache_html(app):
+    @app.after_request
+    def _no_cache_html(response):
+        try:
+            if response.mimetype == 'text/html' and not response.headers.get('Cache-Control'):
+                response.headers['Cache-Control'] = 'no-cache'
+        except Exception:
+            pass
+        return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Registro de blueprints
 # ─────────────────────────────────────────────────────────────────────────────
 def _register_blueprints(app):
@@ -99,6 +114,34 @@ def _register_blueprints(app):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Invalidación del cache de "opciones del Detalle" (ver blueprints/wo.py)
+# ─────────────────────────────────────────────────────────────────────────────
+def _on_commit(*_args, **_kwargs):
+    try:
+        from blueprints.wo import invalidar_opciones_cache
+        invalidar_opciones_cache()
+    except Exception:
+        pass
+    try:
+        from blueprints.pages import invalidar_site_map_cache
+        invalidar_site_map_cache()
+    except Exception:
+        pass
+
+
+def _register_opciones_cache_invalidation():
+    """Cada COMMIT (alta/edición/import de filas) recalcula la lista de opciones."""
+    from sqlalchemy import event
+    if getattr(_register_opciones_cache_invalidation, '_hecho', False):
+        return
+    try:
+        event.listen(db.session, 'after_commit', _on_commit)
+        _register_opciones_cache_invalidation._hecho = True
+    except Exception:
+        pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # App factory
 # ─────────────────────────────────────────────────────────────────────────────
 def create_app(config_object=None):
@@ -118,8 +161,10 @@ def create_app(config_object=None):
 
     _register_error_handlers(app)
     _register_compress(app)
+    _register_no_cache_html(app)
 
     db.init_app(app)
+    _register_opciones_cache_invalidation()
     _register_blueprints(app)
 
     # Migraciones de base de datos (idempotentes)

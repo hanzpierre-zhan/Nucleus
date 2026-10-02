@@ -67,6 +67,15 @@ def _monto_de(row):
     return ''
 
 
+def _motivo_de(row):
+    for c in ('Motivo de la solicitud', 'MOTIVO DE LA SOLICITUD',
+              'Motivo solicitud', 'MOTIVO'):
+        v = str(row.get(c) or '').strip()
+        if v:
+            return v
+    return ''
+
+
 def _crear_aviso(proy_id, tipo, texto, color, autor):
     """Guarda el aviso (nunca rompe el flujo si falla)."""
     try:
@@ -88,9 +97,10 @@ def _avisar_flujo(proy_id, accion, row, usuario):
         monto = _monto_de(row) or '0'
         codigo = str(row.get('CODIGO DEPOSITO') or '').strip()
         if accion == 'validar':
-            # Color de la hoja Depósitos: ahí es donde entra la solicitud
+            # Muestra el Motivo de la solicitud (si no tiene, usa el site)
+            detalle = _motivo_de(row) or site
             _crear_aviso(proy_id, 'validar',
-                         '%s validó S/ %s para depósito — %s' % (usuario, monto, site),
+                         '%s validó S/ %s para depósito — %s' % (usuario, monto, detalle),
                          '#FF9500', usuario)
         elif accion == 'depositar':
             _crear_aviso(proy_id, 'depositar',
@@ -165,7 +175,12 @@ def api_rendicion_accion():
     row['INTERACCION'] = usuario_actual
 
     if accion == 'validar':
+        # El modal exige elegir una de las 3 opciones de tiempo de respuesta.
+        tiempo = str(data.get('tiempo') or '').strip()
+        if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica'):
+            return jsonify({'error': 'Selecciona una opción de tiempo de respuesta.'}), 400
         row['ESTADO'] = 'VALIDADO'
+        row['TIEMPO DE RESPUESTA'] = tiempo
         row['FECHA VALIDACION'] = ahora
         row['VALIDADO POR'] = usuario_actual
         row['OBSERVACIONES'] = str(data.get('observaciones') or row.get('OBSERVACIONES') or '').strip()
@@ -217,10 +232,10 @@ def api_rendicion_accion():
         if isinstance(fotos, str):
             fotos = json.loads(fotos)
         fotos = [str(f).strip() for f in fotos if str(f).strip()][:MAX_FOTOS_SUSTENTO]
-        if not fotos:
-            return jsonify({'error': 'Sube al menos una foto de sustento.'}), 400
         row['ESTADO'] = 'SUSTENTADO'
-        row['FOTOS SUSTENTO'] = json.dumps(fotos, ensure_ascii=False)
+        # Las fotos ya no son obligatorias: si no vienen, se conservan las anteriores.
+        if fotos:
+            row['FOTOS SUSTENTO'] = json.dumps(fotos, ensure_ascii=False)
         row['COMENTARIOS SUSTENTO'] = str(data.get('comentario') or '').strip()
         row['FECHA SUSTENTO'] = ahora
         row['SUSTENTADO POR'] = usuario_actual

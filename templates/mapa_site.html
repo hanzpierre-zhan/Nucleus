@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/static/vendor/css/leaflet.css?v=1" />
 <style>
   /* Force the main content area to fill all available space */
   .excel-main { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden !important; }
@@ -193,7 +193,7 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/static/js/leaflet.js?v=1"></script>
 <script>
 let SITES = [];
 let map, markers = [], highlighted = null, highlightCircle = null;

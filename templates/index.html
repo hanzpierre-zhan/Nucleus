@@ -343,6 +343,123 @@
     .rend-aviso-close:hover { background: #FF3B30; color: #fff; }
     body.dark-mode .rend-aviso-close { color: #98989E; }
     body.dark-mode .rend-aviso-close:hover { background: #FF3B30; color: #fff; }
+    /* ── Detalle de Evidencia: chips, tarjetas, miniaturas y visor ───────────── */
+    .ev-modal { max-width: none; width: 96vw; max-height: 92vh; display: flex; flex-direction: column; border-radius: 18px; }
+    .ev-hint { font-size: 11.5px; font-weight: 600; color: var(--ios-gray-1); text-transform: none; letter-spacing: 0; margin-left: 8px; }
+    .ev-stats {
+        display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+        padding: 10px 16px; flex-shrink: 0;
+        border-bottom: 1px solid var(--ios-hairline);
+    }
+    .ev-chip {
+        border: 1px solid var(--ios-hairline); background: var(--ios-fill, rgba(120,120,128,.14));
+        color: var(--ios-secondary); border-radius: 999px; padding: 6px 13px;
+        font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 7px;
+        transition: background .15s, border-color .15s, color .15s;
+    }
+    .ev-chip b { background: var(--ios-blue); color: #fff; border-radius: 999px; font-size: 10.5px; padding: 1px 7px; }
+    .ev-chip:hover { border-color: var(--ios-blue); }
+    .ev-chip.on { background: #0A84FF; border-color: #0A84FF; color: #fff; }
+    .ev-chip.on b { background: rgba(255,255,255,.28); }
+    .ev-body { padding: 16px; overflow: auto; flex: 1; background: var(--ios-bg); }
+    #evidencia-contenedor {
+        display: grid; grid-column: 1 / -1;
+        grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+        gap: 14px; align-items: start;
+    }
+    .ev-card {
+        background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
+        border-radius: 14px; padding: 14px; box-shadow: var(--shadow-soft); min-width: 0;
+    }
+    .ev-card-h {
+        display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+        color: var(--ios-label); font-size: 13.5px; text-transform: uppercase;
+        font-weight: 800; border-bottom: 1px solid var(--ios-hairline); padding-bottom: 9px;
+    }
+    .ev-card-h i { color: var(--ios-blue); }
+    .ev-badge {
+        margin-left: auto; background: rgba(10,132,255,.15); color: var(--ios-blue);
+        font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 9px;
+    }
+    .ev-textos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .ev-t {
+        display: flex; justify-content: space-between; align-items: center; gap: 10px;
+        font-size: 12.5px; background: var(--ios-bg); border: 1px solid var(--ios-hairline);
+        padding: 8px 11px; border-radius: 9px; min-width: 0;
+    }
+    .ev-t > span:first-child { color: var(--ios-gray-1); font-weight: 700; font-size: 10.5px; text-transform: uppercase; flex: 0 1 auto; }
+    .ev-t > span:last-child { font-weight: 800; color: var(--ios-label); text-align: right; max-width: 60%; word-break: break-word; }
+    .ev-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 9px; }
+    .ev-f-wrap { position: relative; }
+    .ev-f-go {
+        position: absolute; top: 5px; right: 5px; width: 24px; height: 24px;
+        border-radius: 50%; background: rgba(0,0,0,.62); color: #fff; font-size: 11px;
+        display: flex; align-items: center; justify-content: center; text-decoration: none;
+        border: 1px solid rgba(255,255,255,.28); z-index: 2;
+    }
+    .ev-f-go:hover { background: #0A84FF; border-color: #0A84FF; }
+    .ev-f {
+        position: relative; padding: 0; border: 1px solid var(--ios-hairline);
+        border-radius: 11px; overflow: hidden; background: #000; aspect-ratio: 1;
+        width: 100%; cursor: zoom-in; display: block;
+    }
+    .ev-f img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .88; transition: transform .2s, opacity .2s; }
+    .ev-f:hover img { transform: scale(1.06); opacity: 1; }
+    .ev-f-cap {
+        position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.62);
+        color: #fff; font-size: 9.5px; font-weight: 700; padding: 4px 5px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+    }
+    .ev-empty { grid-column: 1 / -1; text-align: center; padding: 34px 16px; color: var(--ios-gray-1); font-weight: 600; }
+    .ev-empty i { font-size: 32px; display: block; margin-bottom: 10px; opacity: .5; }
+    /* Visor (lightbox) */
+    .ev-lb { position: fixed; inset: 0; z-index: 2147483000; background: rgba(0,0,0,.93); display: none; flex-direction: column; }
+    .ev-lb-top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: #fff; flex-shrink: 0; }
+    .ev-lb-cat { background: rgba(10,132,255,.28); border: 1px solid rgba(10,132,255,.6); color: #6fb6ff;
+        font-size: 11px; font-weight: 800; text-transform: uppercase; border-radius: 999px; padding: 3px 10px; }
+    .ev-lb-cap { font-size: 13.5px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ev-lb-count { font-size: 12px; color: #bbb; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .ev-lb-x {
+        border: none; background: rgba(255,255,255,.12); color: #fff; width: 34px; height: 34px;
+        border-radius: 50%; font-size: 20px; line-height: 1; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .ev-lb-x:hover { background: #FF3B30; }
+    .ev-lb-stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0 58px 8px; }
+    .ev-lb-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: #111; }
+    .ev-lb-nav {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+        background: rgba(255,255,255,.14); color: #fff; font-size: 17px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .ev-lb-nav:hover { background: #0A84FF; }
+    .ev-lb-prev { left: 8px; }
+    .ev-lb-next { right: 8px; }
+    .ev-lb-bottom { text-align: center; padding: 0 0 16px; flex-shrink: 0; }
+    .ev-lb-open { color: #6fb6ff; font-weight: 700; font-size: 13px; text-decoration: none; }
+    .ev-lb-open:hover { text-decoration: underline; }
+    /* Drive no deja previsualizar archivos que exigen iniciar sesion: en vez del
+       logo de reemplazo se avisa y se da el boton para abrirlo en Drive. */
+    .ev-lb-fail {
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        gap: 10px; color: #98989E; text-align: center; padding: 26px; max-width: 420px;
+        background: rgba(255,255,255,.05); border: 1px dashed rgba(255,255,255,.22); border-radius: 14px;
+    }
+    .ev-lb-fail i.fa-image { font-size: 34px; opacity: .55; }
+    .ev-lb-fail p { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.5; }
+    .ev-lb-cta {
+        background: #0A84FF; color: #fff; text-decoration: none; font-weight: 700;
+        font-size: 13px; padding: 9px 16px; border-radius: 10px; display: inline-flex; gap: 8px; align-items: center;
+    }
+    .ev-lb-cta:hover { filter: brightness(1.1); }
+    @media (max-width: 760px) {
+        #evidencia-contenedor { grid-template-columns: 1fr; }
+        .ev-lb-stage { padding: 0 6px 8px; }
+        .ev-lb-nav { width: 38px; height: 38px; }
+        .ev-lb-cap { display: none; }
+    }
     /* Botones de accion del flujo en la fila */
     .rend-acciones { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
     .rend-btn {
@@ -403,6 +520,27 @@
         box-shadow: 0 0 0 3px rgba(0,122,255,.13);
     }
     .rend-modal-body textarea { resize: vertical; min-height: 80px; }
+    /* Opciones de tiempo de respuesta (modal Validar): 3 botones tipo radio */
+    .rend-opciones { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }
+    .rend-modal-body label.rend-op {
+        display: block; margin: 0; padding: 0; cursor: pointer;
+        flex: 1 1 130px; min-width: 120px;
+    }
+    .rend-op span {
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        min-height: 42px; padding: 8px 10px; font-size: 13px; font-weight: 700;
+        color: var(--ios-label, #000); text-align: center;
+        border: 1px solid var(--ios-hairline, #E5E5EA); border-radius: 10px;
+        background: var(--ios-card-bg, #fff);
+        transition: border-color .15s, background .15s, color .15s, box-shadow .15s;
+    }
+    .rend-op:hover span { border-color: var(--ios-blue, #007AFF); }
+    .rend-op input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .rend-op input:checked + span {
+        border-color: var(--ios-blue, #007AFF); color: var(--ios-blue, #007AFF);
+        background: rgba(0,122,255,.10); box-shadow: 0 0 0 2px rgba(0,122,255,.18);
+    }
+    .rend-op input:focus-visible + span { outline: 2px solid var(--ios-blue, #007AFF); outline-offset: 2px; }
     /* Info de estado del flujo en modal */
     .rend-flow-info {
         display: flex; align-items: center; gap: 10px; padding: 10px 14px;
@@ -1277,6 +1415,189 @@
         padding: 6px 0;
     }
 
+    /* ── AUTIN ─────────────────────────────────────────────────────────── */
+    .wo-autin-ruta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--ios-gray-1);
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 10px;
+        padding: 8px 10px;
+        margin-bottom: 12px;
+        word-break: break-all;
+    }
+
+    .autin-ruta-txt {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        max-width: 55%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .autin-badge {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    .autin-badge.ok {
+        color: #34C759;
+        background: rgba(52, 199, 89, .12);
+        border-color: rgba(52, 199, 89, .30);
+    }
+
+    .autin-badge.bad {
+        color: #FF3B30;
+        background: rgba(255, 59, 48, .10);
+        border-color: rgba(255, 59, 48, .30);
+    }
+
+    .autin-badge.neutral {
+        color: var(--ios-gray-1);
+        background: var(--ios-fill-2, rgba(120, 120, 128, .10));
+        border-color: var(--ios-hairline);
+    }
+
+    .autin-ruta-edit {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex: 1 1 260px;
+        min-width: 220px;
+    }
+
+    .autin-ruta-edit input {
+        flex: 1;
+        min-width: 140px;
+        font-size: 12px;
+        font-family: inherit;
+        padding: 5px 8px;
+        border: 1px solid var(--ios-hairline);
+        border-radius: 8px;
+        background: var(--excel-bg, #fff);
+        color: inherit;
+    }
+
+    .autin-estado {
+        margin-bottom: 16px;
+    }
+
+    .autin-estado-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--ios-label);
+        margin-bottom: 8px;
+    }
+
+    .autin-estado-title i {
+        color: #007AFF;
+        width: 16px;
+        text-align: center;
+    }
+
+    .autin-cont {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ios-gray-1);
+        background: var(--ios-fill);
+        border: 1px solid var(--ios-hairline);
+        border-radius: 999px;
+        padding: 1px 8px;
+    }
+
+    .autin-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+        gap: 10px;
+    }
+
+    .autin-thumb {
+        margin: 0;
+        border: 1px solid var(--ios-hairline);
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--ios-fill);
+        cursor: zoom-in;
+        transition: box-shadow .15s ease, transform .15s ease;
+    }
+
+    .autin-thumb:hover {
+        box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+        transform: translateY(-1px);
+    }
+
+    .autin-thumb img {
+        display: block;
+        width: 100%;
+        height: 110px;
+        object-fit: cover;
+        background: var(--ios-fill);
+    }
+
+    .autin-thumb figcaption {
+        font-size: 10.5px;
+        color: var(--ios-gray-1);
+        padding: 5px 6px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border-top: 1px solid var(--ios-hairline);
+    }
+
+    .autin-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 4000;
+        background: rgba(0, 0, 0, .86);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        gap: 10px;
+    }
+
+    .autin-lightbox img {
+        max-width: 94vw;
+        max-height: 84vh;
+        object-fit: contain;
+        border-radius: 8px;
+        background: #111;
+    }
+
+    .autin-lb-bar {
+        width: 94vw;
+        max-width: 1100px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: #fff;
+        font-size: 13px;
+    }
+
+    .autin-lb-bar .mar-close {
+        background: rgba(255, 255, 255, .14);
+        border: none;
+        border-radius: 8px;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+        color: #fff;
+        flex-shrink: 0;
+    }
+
     .wo-tabs {
         display: flex;
         gap: 4px;
@@ -1969,6 +2290,15 @@
     .wo-zip-btn:active { transform: translateY(0) scale(0.98); }
     .wo-zip-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
+    /* Agrupa botones de acción a la derecha dentro de un título de sección */
+    .wo-title-acciones {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .wo-title-acciones .wo-zip-btn { margin-left: 0; }
+
     .evidencia-titulo {
         margin-top: 18px;
         font-size: 13px;
@@ -2425,6 +2755,8 @@
                             class="fa-solid fa-shield-halved"></i> Resguardo</button>
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i
                             class="fa-solid fa-camera"></i> Evidencia</button>
+                    <button type="button" class="wo-tab" id="wo-tab-autin" onclick="cambiarWoTab('autin')"><i
+                            class="fa-solid fa-tower-broadcast"></i> Autin</button>
                     <button type="button" class="wo-tab" id="wo-tab-bitacora" style="display:none;"
                         onclick="cambiarWoTab('bitacora')"><i class="fa-solid fa-book"></i> Bitácora</button>
                     {% if session.get('rol') in ('zeno', 'suport') %}
@@ -2960,6 +3292,24 @@
                     </div>
                 </div>
             </div>
+            <div id="wo-panel-autin" style="display:none;">
+                <div class="wo-section">
+                    <div class="wo-section-title" style="text-transform:none;"><i class="fa-solid fa-tower-broadcast"></i> Fotos Autin
+                        <span class="wo-title-acciones">
+                            <button type="button" id="btn-autin-zip" class="wo-zip-btn" onclick="autinDescargarZip()"
+                                title="Descargar todas las fotos del WO en un ZIP"><i class="fa-solid fa-file-zipper"></i>
+                                Descargar ZIP</button>
+                            <button type="button" id="btn-autin-recargar" class="wo-zip-btn"
+                                onclick="cargarAutinFotos(true)" title="Volver a leer la carpeta"><i
+                                    class="fa-solid fa-rotate"></i> Recargar</button>
+                        </span>
+                    </div>
+                    <div class="wo-autin-ruta" id="wo-autin-ruta"></div>
+                    <div id="wo-autin-body">
+                        <div class="wo-empty">Selecciona un WO para ver sus fotos.</div>
+                    </div>
+                </div>
+            </div>
             <div id="wo-panel-bitacora" style="display:none;">
                 <div class="wo-section">
                     <div class="wo-section-title"><i class="fa-solid fa-book"></i> Bitácora</div>
@@ -3101,6 +3451,31 @@ let _rendCambiandoVista = false;
         'SUSTENTADO': { bg: '#28A745', fg: '#fff' },
         'RECHAZADO':  { bg: '#FF3B30', fg: '#fff' }
     };
+    // Definida aquí (bloque 1) porque los formatters de la tabla la usan al
+    // construirse, antes de que se ejecute el 2.º bloque <script>.
+    function rendEstadoDe(row) {
+        const v = String((row && row.ESTADO) || '').trim().toUpperCase();
+        return v || 'PENDIENTE';
+    }
+    // Botones del flujo: solo si el usuario tiene asignado el módulo Rendicion.
+    // El servidor lo decide (puede_rendicion); aquí no se mira por rol.
+    const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
+    function rendPuedeGestionar() {
+        return IS_RENDICION && typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR === true;
+    }
+    // Utilidad de URLs de foto también usada por los formatters del bloque 1.
+    function rendUrlsFoto(raw, esSustento) {
+        let urls = [];
+        if (raw) {
+            if (esSustento) {
+                try { urls = JSON.parse(raw); } catch (e) { urls = [raw]; }
+                if (!Array.isArray(urls)) urls = [raw];
+            } else {
+                urls = [raw];
+            }
+        }
+        return urls.map(u => String(u || '').trim()).filter(u => u);
+    }
     const REND_VISTAS = {
         // Validación: muestra todo lo que cargó el técnico (sin restricción de cols)
         validacion:  { estados: ['PENDIENTE', ''], cols: null },
@@ -3118,7 +3493,8 @@ let _rendCambiandoVista = false;
         // Rendición: (CON SUSTENTO) aquí se habilita el botón SUSTENTADO
         rendicion:   { estados: ['CON SUSTENTO'],
                        cols: null,
-                       showPrefijos: ['SUSTENTO_'] },
+                       hidePrefijos: ['SUSTENTO_'],
+                       showCols: ['_evidencia_btn'] },
         // Cerrado: Todo completo
         cerrado:     { estados: ['SUSTENTADO'],
                        cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
@@ -3788,6 +4164,7 @@ let _rendCambiandoVista = false;
     // si no se agregan aquí, cada pestaña quedaría sin esas columnas.
     if (IS_RENDICION) {
         ['CODIGO DEPOSITO', 'ESTADO', 'FECHA VALIDACION', 'VALIDADO POR',
+         'TIEMPO DE RESPUESTA',
          'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'DEPOSITADO POR',
          'FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO',
          'SUSTENTADO POR', 'FECHA RECHAZO', 'RECHAZADO POR',
@@ -4853,8 +5230,8 @@ let _rendCambiandoVista = false;
         tableColumns.push({
             title: "Flujo",
             field: "_accion",
-            width: 175,
-            minWidth: 150,
+            // Sin width fijo: Tabulator la ajusta al contenido (iconos del flujo).
+            minWidth: 92,
             maxWidth: 230,
             frozen: true,
             headerSort: false,
@@ -4873,7 +5250,9 @@ let _rendCambiandoVista = false;
                     const b = document.createElement('button');
                     b.type = 'button';
                     b.className = 'rend-btn ' + clase;
-                    b.textContent = texto;
+                    // Soporta glifos Unicode (textContent) e iconos FontAwesome (HTML).
+                    if (String(texto).trim().charAt(0) === '<') b.innerHTML = texto;
+                    else b.textContent = texto;
                     b.title = titulo;
                     b.disabled = !puede;
                     b.onclick = (e) => { e.stopPropagation(); fn(); };
@@ -4881,14 +5260,15 @@ let _rendCambiandoVista = false;
                 }
 
                 if (est === 'PENDIENTE') {
-                    mk('rend-btn-ok', '✓ Validar', 'Validar solicitud → pasa a Depósitos',
+                    mk('rend-btn-ok', '✓', 'Validar solicitud → pasa a Depósitos',
                        () => rendValidar(key));
-                    mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
+                    mk('rend-btn-no', '✕', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
                 } else if (est === 'VALIDADO') {
-                    mk('rend-btn-dep', '⬆ Depositar', 'Registrar fecha, monto y foto del pago',
+                    mk('rend-btn-dep', '<i class="fa-solid fa-money-bill-transfer"></i>',
+                       'Registrar fecha, monto y foto del pago (Depositar)',
                        () => rendAbrirDeposito(key));
-                    mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
+                    mk('rend-btn-no', '✕', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
@@ -4897,15 +5277,15 @@ let _rendCambiandoVista = false;
                     const chk = document.createElement('span');
                     chk.className = 'rend-btn-done rend-pill rend-pill-pdte';
                     chk.title = 'Pendiente de sustentar en Google Sheet';
-                    chk.innerHTML = '<i class="fa-solid fa-clock"></i> Pdte Sustentar';
+                    chk.innerHTML = '<i class="fa-solid fa-clock"></i>';
                     wrap.appendChild(chk);
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Validado', () => rendRevertir(key));
                     }
                 } else if (est === 'CON SUSTENTO') {
-                    mk('rend-btn-sus', '★ Sustentar', 'Subir fotos adicionales o cerrar la solicitud',
+                    mk('rend-btn-sus', '★', 'Subir fotos adicionales o cerrar la solicitud (Sustentar)',
                        () => rendAbrirSustento(key));
-                    mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
+                    mk('rend-btn-no', '✕', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Depositado', () => rendRevertir(key));
@@ -4914,7 +5294,7 @@ let _rendCambiandoVista = false;
                     const chk = document.createElement('span');
                     chk.className = 'rend-btn-done rend-pill rend-pill-sus';
                     chk.title = 'Completado - Sustentado';
-                    chk.innerHTML = '<i class="fa-solid fa-circle-check"></i> Sustentado';
+                    chk.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
                     wrap.appendChild(chk);
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Rendición (CON SUSTENTO)', () => rendRevertir(key));
@@ -4923,7 +5303,7 @@ let _rendCambiandoVista = false;
                     const chk = document.createElement('span');
                     chk.className = 'rend-btn-done rend-pill rend-pill-rech';
                     chk.title = 'Rechazado';
-                    chk.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Rechazado';
+                    chk.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
                     wrap.appendChild(chk);
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
@@ -4932,6 +5312,37 @@ let _rendCambiandoVista = false;
                 return wrap;
             },
             cellClick: function (e, cell) { }
+        });
+    }
+
+    // Rendicion: Columna de botón de Evidencias (congelada junto al Flujo)
+    if (IS_RENDICION) {
+        tableColumns.push({
+            title: "Evidencia",
+            field: "_evidencia_btn",
+            width: 95,
+            frozen: true, // Se mantiene congelada a la izquierda junto al Flujo
+            headerSort: false,
+            hozAlign: "center",
+            visible: false, // Solo se mostrará en la pestaña Rendición
+            formatter: function (cell) {
+                const row = cell.getRow().getData();
+                // solo mostrar si hay al menos un campo SUSTENTO_ con valor
+                const tieneSustento = Object.keys(row).some(k => k.startsWith('SUSTENTO_') && String(row[k]).trim() !== '');
+                if (!tieneSustento) return '<span style="color:#aaa; font-size:11px;">N/A</span>';
+                
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'rend-btn-mini';
+                btn.style.cssText = 'background:var(--ios-blue-light); color:var(--ios-blue); border:none; padding:4px 8px; border-radius:6px; font-weight:700; cursor:pointer; width:100%; height:100%; display:flex; align-items:center; justify-content:center; gap:4px; font-size:11.5px;';
+                btn.innerHTML = '<i class="fa-solid fa-camera-retro"></i> Ver';
+                btn.title = 'Ver detalle de comprobantes y fotos';
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    rendAbrirDetalleEvidencia(row._key);
+                };
+                return btn;
+            }
         });
     }
 
@@ -5247,7 +5658,7 @@ let _rendCambiandoVista = false;
         history: true,
         movableColumns: isAdmin,
         persistence: { columns: ["width"] },
-        persistenceID: "nucleus-layout-{{ proyecto_id }}-v4"
+        persistenceID: "nucleus-layout-{{ proyecto_id }}-v5"
     });
     function _actualizarBadgeRegistros() {
         const status = document.getElementById('status-record-count');
@@ -5517,6 +5928,16 @@ let _rendCambiandoVista = false;
         table.on("columnMoved", function () { if (!orderApplying && !_rendCambiandoVista) saveColumnLayout(); });
         table.on("columnVisibilityChanged", function () { if (!orderApplying && !_rendCambiandoVista) saveColumnLayout(); });
     }
+
+    // Anchos: cuando el usuario ajusta una columna a mano, ese ancho se graba en
+    // su definición. Así los reajustes internos de Tabulator (cambiar de hoja,
+    // reordenar, re-render) restauran el ancho DEL USUARIO y no el original.
+    table.on("columnResized", function (col) {
+        try {
+            const def = col.getDefinition();
+            if (def) def.width = col.getWidth();
+        } catch (e) { }
+    });
 
     // Initial count on page load (fallback)
     const statusEl = document.getElementById('status-record-count');
@@ -9571,6 +9992,14 @@ btnItem.onclick = () => cotRegAgregarFila();
         woRow = row;
         woKey = data._key;
         document.getElementById('wo-title').textContent = String(woKey || 'WO');
+        // Autin: si la pestaña quedó abierta de un WO anterior, recargar sus fotos al instante
+        {
+            const _tabAutin = document.getElementById('wo-tab-autin');
+            const _panAutin = document.getElementById('wo-panel-autin');
+            if (_tabAutin && _tabAutin.classList.contains('active') && _panAutin && _panAutin.style.display !== 'none') {
+                setTimeout(() => cargarAutinFotos(true), 0);
+            }
+        }
 
         aplicarConfigWoPorProyecto();
 
@@ -11025,6 +11454,172 @@ btnItem.onclick = () => cotRegAgregarFila();
         });
     }
 
+    // ── AUTIN: fotos del WO leídas desde la PC/unidad montada ───────────────
+    const AUTIN_ESTADOS = [
+        ['llegada', 'Llegada', 'fa-location-dot'],
+        ['completado', 'Completado', 'fa-flag-checkered'],
+        ['salida', 'Salida', 'fa-door-open'],
+        ['suspendido', 'Suspendido', 'fa-pause'],
+        ['otros', 'Otros', 'fa-images']
+    ];
+    let _autinWoCargada = null;
+
+    function _autinEsAdmin() {
+        const r = String(typeof USER_ROLE !== 'undefined' ? USER_ROLE : '').trim().toLowerCase();
+        return r === 'zeno' || r === 'suport';
+    }
+
+    function cargarAutinFotos(force) {
+        const body = document.getElementById('wo-autin-body');
+        const rutaEl = document.getElementById('wo-autin-ruta');
+        if (!body) return;
+        const wo = woKey;
+        if (!wo) {
+            body.innerHTML = '<div class="wo-empty">Selecciona un WO para ver sus fotos.</div>';
+            return;
+        }
+        if (!force && _autinWoCargada === wo && body.dataset.wo === wo && body.dataset.ok === '1') return;
+        body.dataset.wo = wo;
+        body.dataset.ok = '0';
+        body.innerHTML = '<div class="wo-empty">Cargando fotos de Autin...</div>';
+        if (rutaEl) {
+            rutaEl.innerHTML = '';
+            rutaEl.style.display = _autinEsAdmin() ? '' : 'none';
+        }
+        fetch('/api/autin/fotos?wo=' + encodeURIComponent(wo) + '&_=' + Date.now(), { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(j => { if (String(j.wo || '') === String(wo)) renderAutin(j); })
+            .catch(() => { body.innerHTML = '<div class="wo-empty">No se pudieron leer las fotos de Autin.</div>'; });
+    }
+
+    function renderAutin(j) {
+        const body = document.getElementById('wo-autin-body');
+        const rutaEl = document.getElementById('wo-autin-ruta');
+        if (!body) return;
+        body.dataset.wo = String(j.wo || '');
+        body.dataset.ok = '1';
+        _autinWoCargada = String(j.wo || '');
+
+        if (rutaEl) {
+            // La ruta de la carpeta solo se muestra a administradores (zeno/suport)
+            if (!_autinEsAdmin()) {
+                rutaEl.innerHTML = '';
+                rutaEl.style.display = 'none';
+            } else {
+                rutaEl.style.display = '';
+                let html = '<i class="fa-solid ' + (j.raiz_existe ? 'fa-folder-open' : 'fa-folder-closed') + '"></i>' +
+                    '<span class="autin-ruta-txt" title="' + escapeHtml(j.raiz || '') + '">' + escapeHtml(j.raiz || '') + '</span>';
+                html += '<span class="autin-badge ' + (j.raiz_existe ? 'ok' : 'bad') + '">' +
+                    (j.raiz_existe ? 'Carpeta accesible' : 'Carpeta no encontrada') + '</span>';
+                if (j.carpeta) html += '<span class="autin-badge neutral">' + escapeHtml(j.carpeta) + '</span>';
+                html += '<span class="autin-ruta-edit">' +
+                    '<input type="text" id="autin-ruta-input" value="' + escapeHtml(j.raiz || '') + '" ' +
+                    'placeholder="Ruta de la carpeta Autin (unidad montada)">' +
+                    '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
+                    '<i class="fa-solid fa-floppy-disk"></i> Guardar</button></span>';
+                rutaEl.innerHTML = html;
+            }
+        }
+
+        if (!j.raiz_existe || !j.carpeta) {
+            body.innerHTML = '<div class="wo-empty"><i class="fa-solid fa-circle-info"></i> ' +
+                escapeHtml(j.mensaje || 'Sin fotos para este WO.') + '</div>';
+            return;
+        }
+
+        let html = '';
+        let conFotos = 0;
+        AUTIN_ESTADOS.forEach(est => {
+            const key = est[0], label = est[1], icono = est[2];
+            const arr = (j.grupos && j.grupos[key]) || [];
+            if (!arr.length) return;
+            conFotos += arr.length;
+            html += '<div class="autin-estado">' +
+                '<div class="autin-estado-title"><i class="fa-solid ' + icono + '"></i> ' + label +
+                ' <span class="autin-cont">' + arr.length + '</span></div>' +
+                '<div class="autin-grid">';
+            arr.forEach(rel => {
+                const src = '/api/autin/foto?wo=' + encodeURIComponent(j.wo) + '&f=' + encodeURIComponent(rel);
+                const nombre = rel.split('/').pop();
+                html += '<figure class="autin-thumb" onclick="autinVerFoto(\'' + escapeHtml(src).replace(/'/g, '%27') + '\',\'' + escapeHtml(nombre).replace(/'/g, '%27') + '\')" title="' + escapeHtml(rel) + '">' +
+                    '<img loading="lazy" src="' + src + '" alt="' + escapeHtml(nombre) + '">' +
+                    '<figcaption>' + escapeHtml(nombre) + '</figcaption></figure>';
+            });
+            html += '</div></div>';
+        });
+
+        if (!conFotos) {
+            body.innerHTML = '<div class="wo-empty"><i class="fa-solid fa-circle-info"></i> ' +
+                escapeHtml(j.mensaje || 'La carpeta del WO no contiene imágenes.') + '</div>';
+            return;
+        }
+        body.innerHTML = html;
+    }
+
+    function autinGuardarRuta() {
+        const inp = document.getElementById('autin-ruta-input');
+        if (!inp) return;
+        const fd = new FormData();
+        fd.append('ruta', inp.value);
+        fetch('/api/autin/config', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(() => cargarAutinFotos(true))
+            .catch(() => { });
+    }
+
+    function autinDescargarZip() {
+        if (!woKey) { nucleusAlert('No hay ticket seleccionado.'); return; }
+        const btn = document.getElementById('btn-autin-zip');
+        const old = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...'; }
+        fetch('/api/autin/zip?wo=' + encodeURIComponent(woKey), { credentials: 'same-origin' })
+            .then(async r => {
+                if (!r.ok) {
+                    let msg = 'Error al generar el ZIP';
+                    try { const j = await r.json(); msg = j.error || msg; } catch (e) { }
+                    throw new Error(msg);
+                }
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'autin_' + String(woKey).replace(/[^a-zA-Z0-9_-]/g, '_') + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => nucleusAlert(err.message || 'Error al generar el ZIP'))
+            .finally(() => { if (btn) { btn.disabled = false; btn.innerHTML = old; } });
+    }
+
+    function autinVerFoto(src, nombre) {
+        let ov = document.getElementById('autin-lightbox');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.id = 'autin-lightbox';
+            ov.className = 'autin-lightbox';
+            ov.style.display = 'none';
+            ov.innerHTML = '<div class="autin-lb-bar"><span id="autin-lb-name"></span>' +
+                '<button type="button" class="mar-close" onclick="autinCerrarFoto()"><i class="fa-solid fa-xmark"></i></button></div>' +
+                '<img id="autin-lb-img" alt="">';
+            ov.addEventListener('click', e => { if (e.target === ov) autinCerrarFoto(); });
+            document.body.appendChild(ov);
+        }
+        document.getElementById('autin-lb-img').src = src;
+        document.getElementById('autin-lb-name').textContent = nombre || '';
+        ov.style.display = 'flex';
+    }
+
+    function autinCerrarFoto() {
+        const ov = document.getElementById('autin-lightbox');
+        if (ov) { ov.style.display = 'none'; const i = document.getElementById('autin-lb-img'); if (i) i.src = ''; }
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') autinCerrarFoto(); });
+
     function cambiarWoTab(tab) {
         // Estado: solo administradores (zeno/suport); el rol 'admin' ya no existe
         if (tab === 'estado') {
@@ -11034,7 +11629,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-tab-detalle').classList.toggle('active', tab === 'detalle');
         const tabMat = document.getElementById('wo-tab-materiales');
         if (tabMat) tabMat.classList.toggle('active', tab === 'materiales');
-        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-resguardo', 'wo-tab-evidencia', 'wo-tab-estado', 'wo-tab-bitacora'].forEach(tid => {
+        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-resguardo', 'wo-tab-evidencia', 'wo-tab-autin', 'wo-tab-estado', 'wo-tab-bitacora'].forEach(tid => {
             const _t = document.getElementById(tid);
             if (_t) _t.classList.toggle('active', tab === tid.replace('wo-tab-', ''));
         });
@@ -11045,6 +11640,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-panel-cotizacion').style.display = tab === 'cotizacion' ? '' : 'none';
         document.getElementById('wo-panel-resguardo').style.display = tab === 'resguardo' ? '' : 'none';
         document.getElementById('wo-panel-evidencia').style.display = tab === 'evidencia' ? '' : 'none';
+        const panAutin = document.getElementById('wo-panel-autin');
+        if (panAutin) panAutin.style.display = tab === 'autin' ? '' : 'none';
         document.getElementById('wo-panel-bitacora').style.display = tab === 'bitacora' ? '' : 'none';
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
         if (tab === 'gastos') {
@@ -11053,6 +11650,8 @@ btnItem.onclick = () => cotRegAgregarFila();
             cargarWoEstado();
         } else if (tab === 'evidencia') {
             renderEvidenciaSlots();
+        } else if (tab === 'autin') {
+            cargarAutinFotos();
         } else if (tab === 'resguardo') {
             renderResguardo();
         } else if (tab === 'bitacora') {
@@ -11162,6 +11761,10 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('modal-wo').style.display = 'none';
         woRow = null; woKey = null;
         evidenciaState = null;
+        // Autin: invalidar el caché para que la próxima apertura relea la carpeta
+        if (typeof _autinWoCargada !== 'undefined') _autinWoCargada = null;
+        const _bAutin = document.getElementById('wo-autin-body');
+        if (_bAutin) { _bAutin.dataset.wo = ''; _bAutin.dataset.ok = '0'; }
     }
 
     function copiarAlPortapapeles(texto) {
@@ -11761,6 +12364,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     // Real-time SLA update every second
     setInterval(() => {
+        if (document.hidden) return;
         if (typeof table !== 'undefined' && table) {
             ["SLA", "SLA Cumplimiento"].forEach(slaName => {
                 const slaCol = table.getColumn(slaName);
@@ -11836,10 +12440,20 @@ btnItem.onclick = () => cotRegAgregarFila();
         </div>
 
         <div id="rend-sus-form" style="display:none;">
-          <label>Fotos del sustento (máx. 5)</label>
-          <div id="rend-slots-sus" style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"></div>
           <label for="rend-comentario">Comentario / siguiente paso</label>
           <textarea id="rend-comentario" rows="3" placeholder="Ej.: Se Cargó soporte al drive, pendiente factura"></textarea>
+        </div>
+
+        <div id="rend-val-form" style="display:none;">
+          <hr style="border:none; border-top:1px dashed var(--ios-hairline, #C7C7CC); margin: 0 0 15px 0;">
+          <label>Tiempo de respuesta *</label>
+          <div class="rend-opciones" id="rend-val-ops">
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="Menor a 4 horas"><span><i class="fa-regular fa-clock"></i> Menor a 4 horas</span></label>
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="Mayor a 4 horas"><span><i class="fa-solid fa-clock"></i> Mayor a 4 horas</span></label>
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="No aplica"><span><i class="fa-solid fa-ban"></i> No aplica</span></label>
+          </div>
+          <label for="rend-val-obs">Observación de la validación</label>
+          <textarea id="rend-val-obs" rows="2" placeholder="Ej.: validado por Héctor"></textarea>
         </div>
       </div>
     </div>
@@ -11852,13 +12466,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 <!-- Visor de fotos (pago / sustento) -->
 <div id="rend-fotos" class="mar-overlay" style="display:none;">
-  <div class="mar-modal" style="max-width:900px;">
+  <div class="mar-modal mar-modal-wide" style="max-width:none; width:96vw;">
     <div class="mar-header">
       <div><h3 id="rend-fotos-title">Fotos</h3><p id="rend-fotos-sub"></p></div>
       <button type="button" onclick="rendCerrarFotos()" class="mar-close"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div class="mar-body" style="display:block;">
-      <div id="rend-fotos-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px;"></div>
+      <div id="rend-fotos-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px;"></div>
     </div>
   </div>
 </div>
@@ -11910,8 +12524,15 @@ function rendPoblarDetalle(data, gridId) {
         // Solo lo que se ve en la tabla (la hoja activa puede ocultar columnas)
         if (typeof col.isVisible === 'function' && !col.isVisible()) return;
         seen.add(f);
-        const label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
-        const raw = data[f];
+        let label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
+        let raw = data[f];
+        // En el resumen del flujo el site se muestra como "Motivo de la solicitud"
+        const _normCol = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        if (_normCol(f) === 'nombre de site' || _normCol(f) === 'nombre site') {
+            seen.add('Motivo de la solicitud');
+            label = 'Motivo de la solicitud';
+            raw = data['Motivo de la solicitud'];
+        }
         const val = (raw === null || raw === undefined) ? '' : String(raw).trim();
         let valHtml;
         // Campos de monto: resaltados con pastilla verde (mismo estilo que los valores de estado)
@@ -11979,9 +12600,7 @@ async function editarCodigoWO() {
    RENDICION — flujo por pestañas (hojas tipo Excel)
    Cada solicitud salta de hoja sola cuando cambia su ESTADO.
    ================================================================ */
-// Botones del flujo: solo si el usuario tiene asignado el módulo Rendicion.
-// El servidor lo decide (puede_rendicion); aquí no seYR por rol.
-const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
+
 let _rendVista = 'validacion';
 let _rendFiltroFn = null;          // filtro de la pestaña activa
 // Cada hoja tiene SU vista de columnas: {visibles:{campo: bool}, orden:[campo,...]}.
@@ -11991,9 +12610,6 @@ let _rendEstadoListo = false;
 let _rendModal = null;             // {accion, key, estadoPrevio, fotos:[], ...}
 const _rendFotosPend = {};         // slot -> url ya subida
 
-function rendPuedeGestionar() {
-    return IS_RENDICION && typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR === true;
-}
 
 // Roles del usuario actual como array (ej: ['zeno'])
 const _rendUserRoles = [String(USER_ROLE || '').trim().toLowerCase()];
@@ -12007,15 +12623,11 @@ function rendRevertir(key) {
     });
 }
 
-function rendEstadoDe(row) {
-    const v = String((row && row.ESTADO) || '').trim().toUpperCase();
-    return v || 'PENDIENTE';
-}
-
 // Columnas que no participan en el orden por hoja (fijas / KPI).
 function _rendEsColumnaDeVista(f) {
     return !!f && f !== '_key' && f !== '_accion' && String(f).indexOf('KPI_') !== 0;
 }
+
 
 // Visibilidad y orden tal como se ven ahora en la tabla (= la hoja activa).
 function _rendSnapshot() {
@@ -12080,13 +12692,22 @@ function _rendInitEstados() {
             if (cfg.hideCols) cfg.hideCols.forEach(f => { est.visibles[f] = false; });
         }
         // Prefijos que esta hoja quiere ver (SUSTENTO_* en Evidencia y Rendición).
-        // Si el usuario ya guardó su propia vista, manda lo que él eligió.
         if (cfg.showPrefijos && cfg.showPrefijos.length) {
             cfg.showPrefijos.forEach(pre => {
                 Object.keys(est.visibles).forEach(f => {
                     if (String(f).indexOf(pre) !== 0) return;
                     if (camposGuardados && camposGuardados.has(f)) return;
                     est.visibles[f] = true;
+                });
+            });
+        }
+        // Prefijos que esta hoja quiere OCULTAR expresamente.
+        if (cfg.hidePrefijos && cfg.hidePrefijos.length) {
+            cfg.hidePrefijos.forEach(pre => {
+                Object.keys(est.visibles).forEach(f => {
+                    if (String(f).indexOf(pre) === 0) {
+                        est.visibles[f] = false;
+                    }
                 });
             });
         }
@@ -12225,10 +12846,11 @@ function rendTrasAccion(j, key) {
 
 /* ── Modales: rechazo, depósito y sustento ── */
 function rendAbrirModal(titulo, sub, okTexto, cuerpo) {
-    document.getElementById('rend-modal-title').textContent = titulo;
+    // innerHTML: permite iconos FontAwesome en el título (todos los literales de código).
+    document.getElementById('rend-modal-title').innerHTML = titulo;
     document.getElementById('rend-modal-sub').textContent = sub || '';
     document.getElementById('rend-modal-ok').textContent = okTexto || 'Confirmar';
-    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form'].forEach(id => {
+    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form', 'rend-val-form'].forEach(id => {
         document.getElementById(id).style.display = 'none';
     });
     if (cuerpo) document.getElementById(cuerpo).style.display = 'block';
@@ -12240,14 +12862,27 @@ function rendCerrarModal() {
 }
 
 // Validar: muestra confirmación con el detalle completo de la solicitud
+// + selección de tiempo de respuesta (3 opciones) y observación.
 function rendValidar(key) {
     _rendModal = { accion: 'validar', key: key };
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+    const previo = String(row['TIEMPO DE RESPUESTA'] || '').trim();
+    let hay = false;
+    document.querySelectorAll('#rend-val-ops input[type="radio"]').forEach(r => {
+        r.checked = (r.value === previo);
+        if (r.checked) hay = true;
+    });
+    if (!hay) {
+        const primero = document.querySelector('#rend-val-ops input[type="radio"]');
+        if (primero) primero.checked = false;
+    }
+    document.getElementById('rend-val-obs').value = String(row['OBSERVACIONES'] || '');
     rendMostrarResumen(key);
     rendAbrirModal(
         '✓ Validar solicitud',
-        'La solicitud pasará a la pestaña Depósitos para registrar el pago.',
+        'Elige el tiempo de respuesta y escribe la observación. La solicitud pasará a Depósitos.',
         'Confirmar Validación',
-        null
+        'rend-val-form'
     );
 }
 
@@ -12287,7 +12922,7 @@ function rendAbrirDeposito(key) {
     document.getElementById('rend-monto-pago').value = montoBase > 0 ? montoBase : '';
     rendPintarSlot('pago', null);
     rendAbrirModal(
-        '⬆ Registrar depósito',
+        '<i class="fa-solid fa-money-bill-transfer"></i> Registrar depósito',
         'Completa los 3 campos: fecha, monto y foto del comprobante. Al confirmar pasa a Evidencia.',
         'Registrar Depósito',
         'rend-dep-form'
@@ -12300,19 +12935,9 @@ function rendAbrirSustento(key) {
     Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
     document.getElementById('rend-comentario').value = '';
     rendMostrarResumen(key);
-    const grid = document.getElementById('rend-slots-sus');
-    grid.innerHTML = '';
-    for (let i = 1; i <= 5; i++) {
-        const d = document.createElement('div');
-        d.className = 'rend-slot';
-        d.setAttribute('data-slot', 'susto_' + i);
-        d.onclick = () => rendElegirFoto('susto_' + i);
-        grid.appendChild(d);
-    }
-    for (let i = 1; i <= 5; i++) rendPintarSlot('susto_' + i, null);
     rendAbrirModal(
         '★ Sustentar depósito',
-        'Sube hasta 5 fotos de sustento y escribe el comentario con el siguiente paso. Al confirmar cambia a estado SUSTENTADO.',
+        'Escribe el comentario con el siguiente paso. Al confirmar cambia a estado SUSTENTADO.',
         'Confirmar Sustento',
         'rend-sus-form'
     );
@@ -12365,7 +12990,12 @@ function rendConfirmarModal() {
     const { accion, key } = _rendModal;
     const extra = {};
 
-    if (accion === 'rechazar') {
+    if (accion === 'validar') {
+        const op = document.querySelector('#rend-val-ops input[name="rend-val-op"]:checked');
+        if (!op) { alert('Selecciona una opción de tiempo de respuesta.'); return; }
+        extra.tiempo = op.value;
+        extra.observaciones = document.getElementById('rend-val-obs').value.trim();
+    } else if (accion === 'rechazar') {
         const motivo = document.getElementById('rend-motivo').value.trim();
         if (!motivo) { alert('Escribe el motivo del rechazo.'); return; }
         extra.observaciones = motivo;
@@ -12379,12 +13009,13 @@ function rendConfirmarModal() {
         extra.monto_pago = monto;
         extra.foto_pago = _rendFotosPend['pago'];
     } else if (accion === 'sustentar') {
+        // Sin fotos: el sustento se confirma solo con el comentario (las fotos, si
+        // existieran de antes, se conservan tal cual en el registro).
         const fotos = Object.keys(_rendFotosPend)
             .sort()
             .map(k => _rendFotosPend[k])
             .filter(Boolean);
-        if (!fotos.length) { alert('Sube al menos una foto de sustento.'); return; }
-        extra.fotos = fotos;
+        if (fotos.length) extra.fotos = fotos;
         extra.comentario = document.getElementById('rend-comentario').value.trim();
     }
 
@@ -12408,19 +13039,6 @@ function rendConfirmarModal() {
 }
 
 /* ── Visor de fotos ── */
-// Lista de fotos guardadas en una celda (FOTO PAGO = una; FOTOS SUSTENTO = JSON)
-function rendUrlsFoto(raw, esSustento) {
-    let urls = [];
-    if (raw) {
-        if (esSustento) {
-            try { urls = JSON.parse(raw); } catch (e) { urls = [raw]; }
-            if (!Array.isArray(urls)) urls = [raw];
-        } else {
-            urls = [raw];
-        }
-    }
-    return urls.map(u => String(u || '').trim()).filter(u => u);
-}
 function rendVerFotos(row, esSustento) {
     const urls = rendUrlsFoto(row[esSustento ? 'FOTOS SUSTENTO' : 'FOTO PAGO'], esSustento);
     document.getElementById('rend-fotos-title').textContent = esSustento ? 'Fotos de sustento' : 'Comprobante de pago';
@@ -12643,6 +13261,284 @@ document.addEventListener('click', (e) => {
         panel.style.display = 'none';
     }
 });
+}
+
+// ============================================================================
+// MODAL DE DETALLE DE EVIDENCIAS (NUEVO REQUERIMIENTO)
+// ============================================================================
+/* ── Evidencia: helpers de Google Drive ──────────────────────────────────────
+   Los enlaces llegan en varios formatos (open?id=ID, /file/d/ID/view,
+   uc?export=download&id=ID); de todos sacamos el ID para armar miniaturas
+   que sí cargan (drive.google.com/thumbnail suele devolver 404 y caía siempre
+   en el logo de reemplazo). */
+function evDriveId(u) {
+    const s = String(u || '');
+    let m = s.match(/[?&]id=([A-Za-z0-9_-]{8,})/);
+    if (m) return m[1];
+    m = s.match(/\/d\/([A-Za-z0-9_-]{8,})/);
+    if (m) return m[1];
+    return null;
+}
+function evVerUrl(u) {
+    const id = evDriveId(u);
+    return id ? ('https://drive.google.com/file/d/' + id + '/view') : String(u || '#');
+}
+// Cadena de respaldo para <img>: se avanza automáticamente con evImgFail().
+function evThumbChain(u) {
+    const id = evDriveId(u);
+    const c = [];
+    if (id) {
+        c.push('https://lh3.googleusercontent.com/d/' + id + '=w400');
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w400');
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w800');
+    }
+    c.push(u);
+    return c;
+}
+function evFullChain(u) {
+    const id = evDriveId(u);
+    const c = [];
+    if (id) {
+        c.push('https://lh3.googleusercontent.com/d/' + id + '=s2000');
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w2000');
+    }
+    c.push(u);
+    return c;
+}
+// Sustituto neutro cuando Drive no deja previsualizar (archivo con acceso restringido):
+// un icono de foto, nunca el logo, para que no parezca que la evidencia es otra cosa.
+const EV_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">' +
+    '<rect width="240" height="240" fill="#1c1c1e"/>' +
+    '<g fill="none" stroke="#5a5a5f" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="54" y="74" width="132" height="100" rx="14"/>' +
+    '<circle cx="92" cy="110" r="13"/>' +
+    '<path d="M60 162l40-40 30 30 21-17 31 27"/></g>' +
+    '<text x="120" y="212" fill="#8E8E93" font-family="Arial,Helvetica,sans-serif" ' +
+    'font-size="17" font-weight="bold" text-anchor="middle">Drive</text></svg>');
+function evImgFail(img) {
+    try {
+        const urls = String(img.dataset.urls || '').split('|||').filter(Boolean);
+        let i = parseInt(img.dataset.i || '0', 10) + 1;
+        if (i < urls.length) { img.dataset.i = String(i); img.src = urls[i]; return; }
+    } catch (e) {}
+    img.onerror = null;
+    if (img.classList.contains('ev-lb-img')) {
+        img.style.display = 'none';
+        const f = document.getElementById('ev-lb-fail');
+        if (f) f.style.display = 'flex';
+        return;
+    }
+    img.src = EV_PLACEHOLDER;
+    img.dataset.fallo = '1';
+}
+// Fotos ya extraidas (para recorrerlas con ← → en el visor).
+let EV_FOTOS = [];
+function evLbBox() {
+    let b = document.getElementById('ev-lb');
+    if (b) return b;
+    b = document.createElement('div');
+    b.id = 'ev-lb';
+    b.className = 'ev-lb';
+    b.innerHTML =
+        '<div class="ev-lb-top">' +
+            '<span class="ev-lb-cat"></span>' +
+            '<span class="ev-lb-cap"></span>' +
+            '<span class="ev-lb-count"></span>' +
+            '<button type="button" class="ev-lb-x" title="Cerrar (Esc)">&times;</button>' +
+        '</div>' +
+        '<div class="ev-lb-stage">' +
+            '<button type="button" class="ev-lb-nav ev-lb-prev" title="Anterior (←)">&#10094;</button>' +
+            '<img class="ev-lb-img" alt="">' +
+            '<div class="ev-lb-fail" id="ev-lb-fail">' +
+                '<i class="fa-solid fa-image"></i>' +
+                '<p>Google Drive no permite previsualizar este archivo desde aqui ' +
+                '(acceso restringido). Abre el original para verlo.</p>' +
+                '<a class="ev-lb-cta ev-lb-href" href="#" target="_blank" rel="noopener">' +
+                'Abrir en Drive <i class="fa-solid fa-arrow-up-right-from-square"></i></a>' +
+            '</div>' +
+            '<button type="button" class="ev-lb-nav ev-lb-next" title="Siguiente (→)">&#10095;</button>' +
+        '</div>' +
+        '<div class="ev-lb-bottom"><a class="ev-lb-open ev-lb-href" href="#" target="_blank" rel="noopener">' +
+        '<i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir original</a></div>';
+    document.body.appendChild(b);
+    b.addEventListener('click', e => { if (e.target === b) evLbCierra(); });
+    b.querySelector('.ev-lb-x').onclick = evLbCierra;
+    b.querySelector('.ev-lb-prev').onclick = () => evLbMuestra((window.__evLbI || 0) - 1);
+    b.querySelector('.ev-lb-next').onclick = () => evLbMuestra((window.__evLbI || 0) + 1);
+    if (!window.__evLbTeclado) {
+        window.__evLbTeclado = true;
+        document.addEventListener('keydown', e => {
+            const box = document.getElementById('ev-lb');
+            if (!box || box.style.display !== 'flex') return;
+            if (e.key === 'Escape') evLbCierra();
+            else if (e.key === 'ArrowLeft') evLbMuestra((window.__evLbI || 0) - 1);
+            else if (e.key === 'ArrowRight') evLbMuestra((window.__evLbI || 0) + 1);
+        });
+    }
+    return b;
+}
+function evLbMuestra(i) {
+    const n = EV_FOTOS.length;
+    if (!n) return;
+    i = ((i % n) + n) % n;
+    window.__evLbI = i;
+    const it = EV_FOTOS[i];
+    const b = evLbBox();
+    b.style.display = 'flex';
+    const img = b.querySelector('.ev-lb-img');
+    const cadena = evFullChain(it.url);
+    img.style.display = '';
+    const fail = document.getElementById('ev-lb-fail');
+    if (fail) fail.style.display = 'none';
+    img.dataset.urls = cadena.join('|||');
+    img.dataset.i = '0';
+    img.onerror = function () { evImgFail(this); };
+    img.src = cadena[0];
+    b.querySelector('.ev-lb-cat').textContent = it.cat;
+    b.querySelector('.ev-lb-cap').textContent = it.k;
+    b.querySelector('.ev-lb-count').textContent = (i + 1) + ' / ' + n;
+    const href = evVerUrl(it.url);
+    b.querySelectorAll('.ev-lb-href').forEach(a => { a.href = href; });
+}
+function evLbCierra() { const b = document.getElementById('ev-lb'); if (b) b.style.display = 'none'; }
+
+function rendAbrirDetalleEvidencia(key) {
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key);
+    if (!row) return;
+
+    const CATS = ['PAGO', 'PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
+                  'HOSPEDAJE', 'OTROS', 'COMPROBANTE', 'GENERAL'];
+    const data = {};
+    CATS.forEach(c => data[c] = { textos: [], fotos: [] });
+
+    const catDe = k => {
+        const K = String(k).toUpperCase();
+        if (K === 'FOTO PAGO' || K === 'FOTOS SUSTENTO') return 'PAGO';
+        const base = K.indexOf('SUSTENTO_') === 0 ? K.slice(9) : K;
+        for (const c of ['PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
+                         'HOSPEDAJE', 'OTROS', 'COMPROBANTE']) {
+            if (base.indexOf(c) >= 0) return c;
+        }
+        return 'GENERAL';
+    };
+    // Devuelve cuantas URLs agrego (un campo puede traer varias).
+    // Tambien rutas del propio servidor (/api/rendicion/foto/..., /static/...).
+    const addFotos = (cat, etiqueta, valor) => {
+        const s = String(valor == null ? '' : valor).replace(/\\\//g, '/');
+        const urls = s.match(/(?:https?:\/\/[^\s,;"'<>]+|\/(?:api|static)\/[^\s,;"'<>]+)/g) || [];
+        urls.forEach((u, i) => data[cat].fotos.push({
+            k: urls.length > 1 ? (etiqueta + ' ' + (i + 1)) : etiqueta,
+            url: u
+        }));
+        return urls.length;
+    };
+
+    if (String(row['FOTO PAGO'] || '').trim()) addFotos('PAGO', 'Comprobante de pago', row['FOTO PAGO']);
+    if (row['FOTOS SUSTENTO']) addFotos('PAGO', 'Foto de sustento', row['FOTOS SUSTENTO']);
+
+    Object.keys(row).forEach(k => {
+        if (k.indexOf('SUSTENTO_') !== 0) return;
+        const v = String(row[k] == null ? '' : row[k]).trim();
+        if (!v) return;
+        let clean = k.slice(9).trim();
+        if (clean.toUpperCase().indexOf('FOTO ') === 0) clean = clean.slice(5).trim();
+        const cat = catDe(k);
+        if (!addFotos(cat, clean || 'FOTO/DOC', v)) data[cat].textos.push({ k: clean || k, v: v });
+    });
+
+    const catsCon = CATS.filter(c => data[c].textos.length || data[c].fotos.length);
+    const nTextos = catsCon.reduce((s, c) => s + data[c].textos.length, 0);
+    const nFotos = catsCon.reduce((s, c) => s + data[c].fotos.length, 0);
+    EV_FOTOS = [];
+
+    const overlay = document.createElement('div');
+    overlay.className = 'mar-overlay show';
+    overlay.style.zIndex = '9999';
+    overlay.innerHTML = `
+        <div class="mar-modal mar-modal-wide ev-modal">
+            <div class="mar-header" style="flex-shrink:0;">
+                <h3 class="mar-title"><i class="fa-solid fa-file-invoice-dollar"></i> Detalle de Evidencia
+                    <span class="ev-hint">${catsCon.length} categorías · ${nFotos} fotos · ${nTextos} campos</span></h3>
+                <button type="button" class="mar-close">&times;</button>
+            </div>
+            <div class="ev-stats" id="ev-stats"></div>
+            <div class="mar-body ev-body">
+                <div id="evidencia-contenedor"></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const cerrar = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 250); };
+    overlay.querySelector('.mar-close').onclick = cerrar;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
+
+    const cont = overlay.querySelector('#evidencia-contenedor');
+    let gi = 0;
+    if (!catsCon.length) {
+        cont.innerHTML = '<div class="ev-empty"><i class="fa-solid fa-folder-open"></i>' +
+            'No hay evidencias registradas en el formulario para esta solicitud.</div>';
+    }
+    catsCon.forEach(cat => {
+        const d = data[cat];
+        const card = document.createElement('div');
+        card.className = 'ev-card';
+        card.dataset.cat = cat;
+        let html = '<div class="ev-card-h"><i class="fa-solid fa-hashtag"></i> ' + cat +
+            '<span class="ev-badge">' + (d.fotos.length + d.textos.length) + '</span></div>';
+        if (d.textos.length) {
+            html += '<div class="ev-textos">';
+            d.textos.forEach(t => {
+                html += '<div class="ev-t"><span>' + escapeHtml(t.k) + '</span>' +
+                    '<span>' + escapeHtml(t.v) + '</span></div>';
+            });
+            html += '</div>';
+        }
+        if (d.fotos.length) {
+            html += '<div class="ev-fotos">';
+            d.fotos.forEach(f => {
+                const cadena = evThumbChain(f.url);
+                EV_FOTOS.push({ url: f.url, k: f.k, cat: cat });
+                html += '<div class="ev-f-wrap">' +
+                    '<button type="button" class="ev-f" data-i="' + gi + '" title="Ver: ' +
+                    escapeHtml(f.k) + '">' +
+                    '<img data-urls="' + escapeHtml(cadena.join('|||')) + '" data-i="0" src="' +
+                    escapeHtml(cadena[0]) + '" alt="" onerror="evImgFail(this)">' +
+                    '<span class="ev-f-cap">' + escapeHtml(f.k) + '</span></button>' +
+                    '<a class="ev-f-go" href="' + escapeHtml(evVerUrl(f.url)) +
+                    '" target="_blank" rel="noopener" title="Abrir archivo original">&#8599;</a>' +
+                    '</div>';
+                gi++;
+            });
+            html += '</div>';
+        }
+        card.innerHTML = html;
+        cont.appendChild(card);
+    });
+    cont.querySelectorAll('.ev-f').forEach(btn => {
+        btn.onclick = () => evLbMuestra(parseInt(btn.dataset.i, 10) || 0);
+    });
+
+    // Chips de categoria: filtran las tarjetas sin recargar el modal.
+    const stats = overlay.querySelector('#ev-stats');
+    if (stats && catsCon.length) {
+        const chip = (cat, txt, n, on) =>
+            '<button type="button" class="ev-chip' + (on ? ' on' : '') + '" data-cat="' + cat + '">' +
+            txt + ' <b>' + n + '</b></button>';
+        let html = chip('__all', 'Todas', catsCon.length + nTextos + nFotos, true);
+        catsCon.forEach(c => { html += chip(c, c, data[c].textos.length + data[c].fotos.length, false); });
+        stats.innerHTML = html;
+        stats.querySelectorAll('.ev-chip').forEach(b => {
+            b.onclick = () => {
+                const sel = b.dataset.cat;
+                stats.querySelectorAll('.ev-chip').forEach(x => x.classList.toggle('on', x === b));
+                cont.querySelectorAll('.ev-card').forEach(c => {
+                    c.style.display = (sel === '__all' || c.dataset.cat === sel) ? '' : 'none';
+                });
+            };
+        });
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => rendCambiarVista('validacion'), 0);
@@ -12651,6 +13547,5 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(() => rendAvisosCargar(false), 30000); // revisa avisos nuevos cada 30 s
     }
 });
-}
 </script>
 {% endblock %}

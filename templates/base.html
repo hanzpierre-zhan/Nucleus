@@ -8,14 +8,15 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23007AFF' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23007AFF'/%3E%3C/svg%3E">
 
     <!-- Tabulator CSS for the Excel-like grid -->
-    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="/static/vendor/css/tabulator.min.css?v=1" rel="stylesheet">
+    <link rel="stylesheet" href="/static/vendor/css/fontawesome.min.css?v=1">
     <link rel="stylesheet" href="/static/css/style.css?v=3.0">
     <link rel="stylesheet" href="/static/css/themes.css?v=5">
     <link rel="stylesheet" href="/static/css/mobile.css?v=1">
-    <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
-    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Librerías servidas en LOCAL: eliminar el bloqueo de ~1,9 s de 4 CDNs en la primera carga -->
+    <script src="/static/js/luxon.min.js?v=1"></script>
+    <script src="/static/js/xlsx.full.min.js?v=1"></script>
+    <script src="/static/js/chart.umd.min.js?v=1"></script>
 </head>
 <body>
     <script>
@@ -107,7 +108,7 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    <script src="/static/js/tabulator.min.js?v=1"></script>
     <script>
         // Highlighting active nav items in the sidebar
         const currentPath = window.location.pathname;
