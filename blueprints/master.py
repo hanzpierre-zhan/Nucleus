@@ -315,17 +315,39 @@ def api_manual_columns():
         return jsonify({'success': True})
 
 
+# Clave de AppConfig donde se guarda el orden/visibilidad de columnas.
+# En Rendicion cada hoja guarda la suya: column_layout__depositos, etc.
+_PREFIJO_LAYOUT = 'column_layout'
+
+
+def _clave_layout(vista):
+    """column_layout (general) o column_layout__<hoja> si viene una hoja valida."""
+    import re
+    v = str(vista or '').strip().lower()
+    if v and re.fullmatch(r'[a-z0-9_\-]{1,40}', v):
+        return '%s__%s' % (_PREFIJO_LAYOUT, v)
+    return _PREFIJO_LAYOUT
+
+
 @bp.route('/api/columns/layout', methods=['GET', 'POST'])
 @login_required
 def api_columns_layout():
-    """Orden y visibilidad de columnas definidos por el admin; se aplican a todos los usuarios."""
+    """Orden y visibilidad de columnas definidos por el admin; se aplican a todos los usuarios.
+
+    En el módulo Rendicion cada hoja (Validación, Depósitos, Evidencia, ...)
+    tiene su propia vista: se indica con ?vista=<hoja> (GET) o {"vista": ...}
+    (POST) y se guarda en una clave distinta. Sin hoja se usa la vista general.
+    """
     pid = session.get('current_proyecto_id')
-    config = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     if request.method == 'GET':
+        config = AppConfig.query.filter_by(
+            proyecto_id=pid, clave=_clave_layout(request.args.get('vista'))).first()
         return jsonify(json.loads(config.valor) if config and config.valor else [])
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo el administrador puede configurar las columnas.'}), 403
     data = request.get_json(silent=True) or {}
+    clave = _clave_layout(data.get('vista'))
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave=clave).first()
     columns = data.get('columns') or []
     cleaned = []
     for c in columns:
@@ -339,7 +361,7 @@ def api_columns_layout():
         if config:
             config.valor = safe_json_dumps(cleaned)
         else:
-            db.session.add(AppConfig(proyecto_id=pid, clave='column_layout', valor=safe_json_dumps(cleaned)))
+            db.session.add(AppConfig(proyecto_id=pid, clave=clave, valor=safe_json_dumps(cleaned)))
     else:
         if config:
             db.session.delete(config)

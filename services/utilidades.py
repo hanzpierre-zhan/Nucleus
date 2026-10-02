@@ -119,6 +119,25 @@ def puede_cotizaciones(user_id, user_rol, proy_nombre):
     return False
 
 
+def puede_rendicion(user_id, user_rol, proy_nombre):
+    """True si el usuario tiene ASIGNADO el módulo Rendicion.
+
+    Sin excepciones por rol: los botones Exportar y Sincronizar (y las acciones
+    del flujo) se habilitan únicamente para quienes lo tienen asignado en su
+    perfil de accesos, que es la misma lista que arma su menú lateral. Si el
+    módulo ya está abierto en su sesión es porque acaba de entrar, o sea que lo
+    tiene asignado.
+    """
+    if str(proy_nombre or '').strip().lower() == 'rendicion':
+        return True
+    try:
+        menu = get_menu_proyectos(user_id, str(user_rol or '').strip().lower()) or []
+    except Exception:
+        menu = []
+    return any(str(getattr(p, 'nombre', '') or '').strip().lower() == 'rendicion'
+               for p in menu)
+
+
 # ── KPIs ───────────────────────────────────────────────────────────────────
 def inject_kpis(pid, rows):
     configs = KpiConfig.query.filter_by(proyecto_id=pid).all()

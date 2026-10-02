@@ -27,6 +27,44 @@ from services import *
 bp = Blueprint('pages', __name__)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Cache del cruce Site Name → FLM (5.000+ filas con json.loads en CADA / de FLM)
+# ─────────────────────────────────────────────────────────────────────────────
+_SITE_MAP_TTL = 120.0
+_site_map_cache = {'ts': 0.0, 'data': None}
+
+
+def invalidar_site_map_cache():
+    _site_map_cache['ts'] = 0.0
+    _site_map_cache['data'] = None
+
+
+def _get_site_map():
+    if _site_map_cache['data'] is not None and (time.time() - _site_map_cache['ts']) < _SITE_MAP_TTL:
+        return _site_map_cache['data']
+    site_map = {}
+    site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
+    if site_proy:
+        for sr in NucleusData.query.filter_by(proyecto_id=site_proy.id).all():
+            try:
+                sd = json.loads(sr.data_json)
+            except Exception:
+                continue
+            if str(sd.get('ESTADO', '')).strip().upper() != 'ACTIVO':
+                continue
+            nombre_site = str(sd.get('NOMBRE DE SITE', '')).strip()
+            if not nombre_site:
+                continue
+            site_map[nombre_site] = {
+                'DIRECCION': sd.get('DIRECCION', ''),
+                'LATITUD': sd.get('LATITUD', ''),
+                'LONGITUD': sd.get('LONGITUD', ''),
+            }
+    _site_map_cache['data'] = site_map
+    _site_map_cache['ts'] = time.time()
+    return site_map
+
+
 
 @bp.route('/')
 @login_required
@@ -247,19 +285,7 @@ def index():
     if proy_actual_nombre in ('FLM', 'FLM - ENTEL'):
         site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
         if site_proy:
-            site_map = {}
-            for sr in NucleusData.query.filter_by(proyecto_id=site_proy.id).all():
-                sd = json.loads(sr.data_json)
-                if str(sd.get('ESTADO', '')).strip().upper() != 'ACTIVO':
-                    continue
-                nombre_site = str(sd.get('NOMBRE DE SITE', '')).strip()
-                if not nombre_site:
-                    continue
-                site_map[nombre_site] = {
-                    'DIRECCION': sd.get('DIRECCION', ''),
-                    'LATITUD': sd.get('LATITUD', ''),
-                    'LONGITUD': sd.get('LONGITUD', ''),
-                }
+            site_map = _get_site_map()
             for d in raw_data:
                 clave = str(d.get('Nombre de Site', '')).strip()
                 info = site_map.get(clave)
@@ -402,11 +428,25 @@ def index():
     # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
     layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
-    
+    # En Rendicion cada hoja guarda su propia vista: column_layout__depositos, etc.
+    column_layout_vistas = {}
+    try:
+        _pref = 'column_layout__'
+        for _vcfg in AppConfig.query.filter(
+                AppConfig.proyecto_id == pid,
+                AppConfig.clave.like(_pref + '%')).all():
+            _vista = (_vcfg.clave or '')[len(_pref):].strip().lower()
+            if _vista and _vcfg.valor:
+                column_layout_vistas[_vista] = json.loads(_vcfg.valor)
+    except Exception:
+        column_layout_vistas = {}
+
     # List allowed projects for the menu
     proyectos = get_menu_proyectos(user_id, user_rol)
     # Descarga de Cotizaciones por fecha: disponible a quien tenga el módulo.
     puede_coti = puede_cotizaciones(user_id, user_rol, session.get('current_proyecto_nombre'))
+    # Exportar / Sincronizar y botones del flujo: para quien tenga Rendicion.
+    puede_rend = puede_rendicion(user_id, user_rol, session.get('current_proyecto_nombre'))
 
     return render_template('index.html', 
                           data=json.dumps(data, ensure_ascii=False, separators=(',', ':')), 
@@ -414,6 +454,7 @@ def index():
                           pk=pk, 
                           manual_cols=json.dumps(manual_cols_data),
                           column_layout=json.dumps(column_layout),
+                          column_layout_vistas=json.dumps(column_layout_vistas),
                           kpi_meta=json.dumps(kpi_meta),
                           changed_keys=json.dumps(changed_keys),
                           gen_tipo_map=json.dumps(gen_tipo_map),
@@ -423,7 +464,8 @@ def index():
                           wo_list=json.dumps(wo_list),
                           proyecto_id=pid,
                           proyectos_list=proyectos,
-                          puede_cotizaciones=puede_coti)
+                          puede_cotizaciones=puede_coti,
+                          puede_rendicion=puede_rend)
 
 
 @bp.route('/dashboard')
@@ -471,10 +513,18 @@ def analytics():
         except:
             res_obj = {}
 
-    rows = NucleusData.query.filter_by(proyecto_id=pid).limit(5000).all()
+    # Límite de seguridad contra proyectos gigantes. Antes era 5000 y SITE (5583 filas)
+    # se quedaba SIN 583 filas en los KPIs, y sin ORDER BY se elegían filas al azar.
+    _ANALYTICS_MAX = 20000
+    _total_rows = NucleusData.query.filter_by(proyecto_id=pid).count()
+    rows = (NucleusData.query.filter_by(proyecto_id=pid)
+            .order_by(NucleusData.id).limit(_ANALYTICS_MAX).all())
     raw_data = []
     for r in rows:
-        d = json.loads(r.data_json)
+        try:
+            d = json.loads(r.data_json)
+        except Exception:
+            continue
         d['_key'] = r.key_value
         raw_data.append(d)
 
@@ -507,7 +557,9 @@ def analytics():
                            data=json.dumps(data, ensure_ascii=False, separators=(',', ':')),
                            proyectos_list=proyectos,
                            proyecto_nombre=proy_actual_nombre,
-                           proyecto_id=pid)
+                           proyecto_id=pid,
+                           data_total=_total_rows,
+                           data_limite=_ANALYTICS_MAX)
 
 
 @bp.route('/configuraciones')

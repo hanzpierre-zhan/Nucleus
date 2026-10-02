@@ -469,16 +469,18 @@
         if (!isPext) return rawData || [];
         let rows = rawData || [];
         if (anState.tipos.size) rows = rows.filter(r => anState.tipos.has(tipoOf(r)));
-        if (anState.dep.size) rows = rows.filter(r => K_DEPT && anState.dep.has(norm(cellLbl(r, K_DEPT))));
-        if (anState.causa.size) rows = rows.filter(r => K_CAUSA && anState.causa.has(norm(cellLbl(r, K_CAUSA))));
-        if (anState.chart) rows = rows.filter(r => chartMatches(r, anState.chart));
+        // Sin columna resoluble NO se filtra: antes `K_DEPT && ...` devolvía false
+        // para todas las filas y elegir esa opción vaciaba toda la pantalla.
+        if (anState.dep.size && K_DEPT) rows = rows.filter(r => anState.dep.has(norm(cellLbl(r, K_DEPT))));
+        if (anState.causa.size && K_CAUSA) rows = rows.filter(r => anState.causa.has(norm(cellLbl(r, K_CAUSA))));
+        if (anState.chart && chartKey(anState.chart.field)) rows = rows.filter(r => chartMatches(r, anState.chart));
         return rows;
     }
     function filteredRows() {
         const rows = baseFilteredRows();
-        if (!isPext || anState.all || anState.months.size === 0) return rows;
+        if (!isPext || anState.all || anState.months.size === 0 || !K_CRE) return rows;
         return rows.filter(r => {
-            const ym = K_CRE ? parseYm(r[K_CRE]) : null;
+            const ym = parseYm(r[K_CRE]);
             return ym && anState.months.has(ym);
         });
     }
@@ -495,6 +497,8 @@
         switch (field) {
             case 'phase': return K_PHASE;
             case 'fault': return keyNamed('fault level', 'departamento', 'provincia', 'category');
+            // Gráfico "Detalle": la clave la decide renderBarFault (proyecto genérico).
+            case 'bar': return keyNamed('departamento', 'provincia', 'fault level', 'category');
             case 'dept': return K_DEPT;
             case 'causa': return K_CAUSA;
             case 'tipoav': return K_TIPOAV;
@@ -504,7 +508,10 @@
     }
     function chartMatches(r, f) {
         const k = chartKey(f.field);
-        return !!k && norm(r[k]) === f.value;
+        // Sin clave resoluble NO se filtra: antes devolvía false para todas las
+        // filas y el clic en una barra vaciaba toda la pantalla.
+        if (!k) return true;
+        return norm(r[k]) === f.value;
     }
     function toggleChart(field, value, label) {
         if (anState.chart && anState.chart.field === field && anState.chart.value === value) anState.chart = null;
@@ -1150,11 +1157,22 @@
             safeRender(() => renderHbarPrior(prows), 'prior');
             safeRender(renderLine, 'linea');
             safeRender(() => renderSites(prows), 'sites');
+            anEstadoVacio(rows.length, prows.length);
         } else {
             safeRender(() => renderTotal(rows), 'total');
             renderAllSeg(rows);
+            anEstadoVacio(rows.length, rows.length);
         }
         resizeCharts();
+    }
+    /* Si tras filtrar no queda nada visible, se avisa en vez de dejar la pantalla
+       en blanco (antes cada tarjeta se ocultaba con display:none y no había aviso). */
+    function anEstadoVacio(totalFiltradas, visibles) {
+        if (visibles > 0) { anQuitarAviso('an-aviso-vacio'); return; }
+        const msg = totalFiltradas === 0
+            ? 'Los filtros actuales no dejan registros. Ajusta o limpia los filtros para volver a ver datos.'
+            : 'No hay registros con Operate Phase = "close" con los filtros actuales.';
+        anAviso('an-aviso-vacio', msg, 'warn');
     }
     // Reajusta el tamaño por si algún canvas quedó en 0 (p. ej. creado oculto).
     function resizeCharts() {
@@ -1175,6 +1193,10 @@
         document.getElementById('an-dashname').textContent = DASH_NAMES[anDash];
         document.querySelectorAll('.an-dashopt').forEach(b =>
             b.classList.toggle('on', b.dataset.d === anDash));
+        // Seguimiento solo tiene datos en FLM/PEXT: en el resto se oculta para
+        // no ofrecer una vista que quedaría siempre vacía.
+        const segOpt = document.querySelector('.an-dashopt[data-d="seg"]');
+        if (segOpt) segOpt.style.display = isPext ? '' : 'none';
         document.getElementById('an-view-prod').style.display = isProd ? '' : 'none';
         document.getElementById('an-view-seg').style.display = isProd ? 'none' : '';
         document.getElementById('an-filters').style.display = isPext ? '' : 'none';
@@ -1182,6 +1204,7 @@
     }
     function setDash(d) {
         if (!DASH_NAMES[d] || d === anDash) { closeAllSels(); return; }
+        if (d === 'seg' && !isPext) { closeAllSels(); return; }
         anDash = d;
         try { sessionStorage.setItem('an-dash', d); } catch (e) {}
         applyDashUI();
@@ -1201,22 +1224,88 @@
         });
         panel.querySelectorAll('.an-dashopt').forEach(b => b.addEventListener('click', () => setDash(b.dataset.d)));
     }
+    /* Avisos en línea (nunca se vacía .an-wrap-inner: perdería filtros, tablas y gráficos). */
+    function anAviso(id, msg, tipo) {
+        const wrap = document.querySelector('.an-wrap-inner');
+        if (!wrap) return null;
+        let b = document.getElementById(id);
+        if (!b) {
+            b = document.createElement('div');
+            b.id = id;
+            b.className = 'an-empty';
+            b.style.cssText = 'display:block;padding:12px 16px;margin:0 0 12px;border-radius:12px;' +
+                'font-weight:600;text-align:left;';
+            const head = wrap.querySelector('.an-head');
+            if (head && head.nextSibling) wrap.insertBefore(b, head.nextSibling);
+            else wrap.appendChild(b);
+        }
+        b.textContent = msg;
+        const _esError = (tipo === 'error'), _esWarn = (tipo === 'warn');
+        b.style.color = _esError ? '#FF3B30' : (_esWarn ? '#FF9500' : 'var(--ios-gray-1, #8E8E93)');
+        b.style.background = _esError ? 'rgba(255,59,48,0.10)' : (_esWarn ? 'rgba(255,149,0,0.10)' : 'rgba(142,142,147,0.12)');
+        b.style.border = '1px solid ' + (_esError ? 'rgba(255,59,48,0.30)' : (_esWarn ? 'rgba(255,149,0,0.35)' : 'rgba(142,142,147,0.28)'));
+        return b;
+    }
+    function anQuitarAviso(id) { const b = document.getElementById(id); if (b) b.remove(); }
+
+    /* Chart.js no cargó (CDN caído/sin red): en vez de borrar toda la página se
+       instala un shim que deja las tarjetas con un aviso y sigue funcionando
+       el total, las tablas y los filtros. */
     if (!window.Chart) {
-        document.querySelector('.an-wrap-inner').innerHTML = `<div class="an-empty">Librería de gráficos no disponible (sin conexión a CDN).</div>`;
-        return;
+        anAviso('an-aviso-cdn',
+            'La librería de gráficos no pudo cargarse (sin conexión al CDN). Se muestran el total, las tablas y los filtros.',
+            'error');
+        window.Chart = function (canvas, cfg) {
+            try {
+                const holder = (canvas && canvas.parentElement) || null;
+                if (holder && !holder.querySelector('.an-nolib')) {
+                    const d = document.createElement('div');
+                    d.className = 'an-empty an-nolib';
+                    d.style.padding = '20px 8px';
+                    d.textContent = 'Gráfico no disponible (sin conexión al CDN).';
+                    holder.appendChild(d);
+                }
+            } catch (e) {}
+            return { resize: function () {}, destroy: function () {}, update: function () {},
+                     stop: function () {}, data: (cfg && cfg.data) || {} };
+        };
     }
-    if (isPext) {
-        const months = availableMonths();
-        const cur = currentYm();
-        if (months.includes(cur)) anState.months.add(cur);
-        else if (months.length) anState.months.add(months[0]);
-        document.getElementById('an-filters').style.display = '';
-        buildSels();
-        wireSelToggles();
+
+    /* Si la vista por defecto (Seguimiento) no aplica a este proyecto, abrir Producción:
+       Seguimiento solo tiene datos en FLM/PEXT y en el resto quedaba una página vacía. */
+    if (!isPext) anDash = 'prod';
+
+    try {
+        if (isPext) {
+            const months = availableMonths();
+            const cur = currentYm();
+            if (months.includes(cur)) anState.months.add(cur);
+            else if (months.length) anState.months.add(months[0]);
+            document.getElementById('an-filters').style.display = '';
+            buildSels();
+            wireSelToggles();
+        }
+        wireDash();
+        applyDashUI();
+        renderAll();
+        (function () {
+            const total = {{ data_total if data_total is defined else 0 }};
+            const limite = {{ data_limite if data_limite is defined else 0 }};
+            if (limite && total > limite) {
+                anAviso('an-aviso-limite',
+                    'Este proyecto tiene ' + total.toLocaleString('es-PE') +
+                    ' filas y Analytics analiza las ' + limite.toLocaleString('es-PE') +
+                    ' primeras. Los KPIs no incluyen las ' +
+                    (total - limite).toLocaleString('es-PE') + ' restantes.', 'warn');
+            }
+        })();
+    } catch (e) {
+        try { console.error('[analytics] init:', e); } catch (_) {}
+        try { wireDash(); applyDashUI(); } catch (_) {}
+        anAviso('an-aviso-init',
+            'Ocurrió un error al iniciar Analytics: ' + ((e && e.message) || e) +
+            '. Recarga la página si persiste.', 'error');
     }
-    wireDash();
-    applyDashUI();
-    renderAll();
 })();
 </script>
 {% endblock %}

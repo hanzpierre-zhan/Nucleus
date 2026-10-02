@@ -169,10 +169,24 @@ def api_wo_meta():
         return jsonify({'error': str(e)}), 500
 
 
+_OPCIONES_TTL = 120.0
+_opciones_cache = {'ts': 0.0, 'data': None}
+
+
+def invalidar_opciones_cache():
+    """Se llama tras escribir filas para que las listas de opciones se recalculen."""
+    _opciones_cache['ts'] = 0.0
+    _opciones_cache['data'] = None
+
+
 @bp.route('/api/detalle/opciones', methods=['GET'])
 @login_required
 def api_detalle_opciones():
     try:
+        # Cache en memoria: este endpoint recorre SITE + Site Name + FLM + PEXT
+        # (decenas de miles de filas con json.loads) y se pide en CADA carga de FLM.
+        if _opciones_cache['data'] is not None and (time.time() - _opciones_cache['ts']) < _OPCIONES_TTL:
+            return jsonify(_opciones_cache['data'])
         # Agrega valores válidos para los 5 campos del Detalle (solo admin los edita):
         # NOMBRE DE SITE, DEPARTAMENTO, PRIORIDAD DEL SITE, PROVINCIA, DISTRITO.
         # Se recolectan desde SITE (maestro) + Site Name + WOs (FLM/PEXT) para cubrir casos históricos.
@@ -244,15 +258,18 @@ def api_detalle_opciones():
             prio_set = {'P0', 'P0+', 'P1', 'P2', 'P3', 'P4'}
         # Convertir sets a listas ordenadas
         def s2l(s): return sorted(s, key=lambda x: x.lower())
-        return jsonify({'success': True,
-                        'nombres': s2l(nombres_set),
-                        'departamentos': s2l(dept_set),
-                        'provincias': s2l(prov_set),
-                        'distritos': s2l(dist_set),
-                        'prioridades': s2l(prio_set),
-                        'dept_prov_map': {k: s2l(v) for k, v in dept_prov_map.items()},
-                        'prov_dist_map': {k: s2l(v) for k, v in prov_dist_map.items()},
-                        'site_geo_map': site_geo_map})
+        payload = {'success': True,
+                   'nombres': s2l(nombres_set),
+                   'departamentos': s2l(dept_set),
+                   'provincias': s2l(prov_set),
+                   'distritos': s2l(dist_set),
+                   'prioridades': s2l(prio_set),
+                   'dept_prov_map': {k: s2l(v) for k, v in dept_prov_map.items()},
+                   'prov_dist_map': {k: s2l(v) for k, v in prov_dist_map.items()},
+                   'site_geo_map': site_geo_map}
+        _opciones_cache['data'] = payload
+        _opciones_cache['ts'] = time.time()
+        return jsonify(payload)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -460,3 +477,206 @@ def api_wo_resolver():
         if rec:
             return jsonify({'found': True, 'proyecto_id': proy.id, 'proyecto_nombre': proy.nombre, 'key': wo})
     return jsonify({'found': False}), 404
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTIN · fotos del WO leídas desde una PC/unidad montada
+#   Estructura esperada:  <RAIZ>\<prefijo><WO NUMBER>\arrive_1.jpg ...
+#   La RAIZ se resuelve:  env AUTIN_FOTOS_DIR  >  AppConfig(autin_fotos_dir)  >  <BASE>/fotos_autin
+# ─────────────────────────────────────────────────────────────────────────────
+import unicodedata
+
+AUTIN_CLAVE = 'autin_fotos_dir'
+_AUTIN_IMG_EXT = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.heic', '.avif')
+_AUTIN_ESTADOS = ('llegada', 'completado', 'salida', 'suspendido', 'otros')
+_AUTIN_LABEL = {'llegada': 'Llegada', 'completado': 'Completado', 'salida': 'Salida',
+                'suspendido': 'Suspendido', 'otros': 'Otros'}
+_AUTIN_ICONO = {'llegada': 'fa-location-dot', 'completado': 'fa-flag-checkered',
+                'salida': 'fa-door-open', 'suspendido': 'fa-pause', 'otros': 'fa-images'}
+_AUTIN_MAX_FOTOS = 500
+_AUTIN_MAX_PROF = 3
+
+
+def _autin_norm(s):
+    s = unicodedata.normalize('NFD', str(s or ''))
+    return ''.join(c for c in s if unicodedata.category(c) != 'Mn').lower()
+
+
+def _autin_estado(nombre):
+    """Clasifica el archivo por el prefijo/palabra de estado en su nombre."""
+    base = _autin_norm(os.path.splitext(str(nombre or ''))[0])
+    if 'susp' in base or 'deten' in base:
+        return 'suspendido'
+    if 'arrive' in base or 'arrival' in base or 'llegad' in base or 'inicio' in base or 'entrad' in base:
+        return 'llegada'
+    if 'complete' in base or 'completad' in base or 'cierre' in base or 'finaliz' in base or 'terminad' in base:
+        return 'completado'
+    if 'leave' in base or 'leaving' in base or 'salida' in base or 'exit' in base:
+        return 'salida'
+    return 'otros'
+
+
+def _autin_dentro(raiz, destino):
+    try:
+        return os.path.commonpath([raiz, destino]) == raiz
+    except Exception:
+        return False
+
+
+def _autin_raiz(pid):
+    """Raíz configurada: env > AppConfig(del proyecto del WO) > AppConfig(sesión) > carpeta por defecto."""
+    p = (os.environ.get('AUTIN_FOTOS_DIR') or '').strip().strip('"')
+    origen = 'env'
+    if not p and pid:
+        cfg = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_CLAVE).first()
+        if cfg and (cfg.valor or '').strip():
+            p = cfg.valor.strip()
+            origen = 'proyecto'
+    if not p:
+        cfg = AppConfig.query.filter_by(clave=AUTIN_CLAVE).first()
+        if cfg and (cfg.valor or '').strip():
+            p = cfg.valor.strip()
+            origen = 'global'
+    if not p:
+        p = os.path.join(BASE_DIR, 'fotos_autin')
+        origen = 'defecto'
+    return p, origen
+
+
+def _autin_proyecto_del_wo(wo):
+    for nombre in ('FLM - ENTEL', 'FLM', 'PEXT'):
+        proy = Proyecto.query.filter_by(nombre=nombre).first()
+        if not proy:
+            continue
+        if NucleusData.query.filter_by(proyecto_id=proy.id, key_value=wo).first():
+            return proy.id
+    return None
+
+
+def _autin_carpeta(raiz, wo):
+    """Carpeta del WO dentro de la raíz (nombre exacto, que empiece por el WO o que lo contenga)."""
+    wo_l = _autin_norm(wo)
+    if not wo_l or not os.path.isdir(raiz):
+        return None
+    try:
+        nombres = sorted(os.listdir(raiz))
+    except OSError:
+        return None
+    carpetas = [n for n in nombres if os.path.isdir(os.path.join(raiz, n))]
+    for nivel in (0, 1, 2):  # exacto → prefijo → contiene
+        for n in carpetas:
+            nn = _autin_norm(n)
+            if (nivel == 0 and nn == wo_l) or (nivel == 1 and nn.startswith(wo_l)) or \
+               (nivel == 2 and wo_l in nn):
+                return os.path.realpath(os.path.join(raiz, n))
+    return None
+
+
+def _autin_listar(carpeta):
+    """Devuelve los archivos de imagen de la carpeta del WO (con subcarpetas, profundidad limitada)."""
+    raiz_r = os.path.realpath(carpeta)
+    encontrados = []
+    pendientes = [(raiz_r, 0)]
+    while pendientes and len(encontrados) < _AUTIN_MAX_FOTOS:
+        actual, prof = pendientes.pop(0)
+        try:
+            entradas = sorted(os.listdir(actual))
+        except OSError:
+            continue
+        for nombre in entradas:
+            if len(encontrados) >= _AUTIN_MAX_FOTOS:
+                break
+            full = os.path.join(actual, nombre)
+            try:
+                es_dir = os.path.isdir(full)
+            except OSError:
+                continue
+            if es_dir:
+                if prof < _AUTIN_MAX_PROF:
+                    pendientes.append((full, prof + 1))
+                continue
+            if os.path.splitext(nombre)[1].lower() in _AUTIN_IMG_EXT:
+                encontrados.append(os.path.relpath(full, raiz_r).replace(os.sep, '/'))
+    encontrados.sort(key=lambda s: s.lower())
+    return encontrados
+
+
+@bp.route('/api/autin/fotos', methods=['GET'])
+@login_required
+def api_autin_fotos():
+    """Agrupa las fotos del WO por estado (llegada/completado/salida/suspendido)."""
+    wo = (request.args.get('wo') or request.args.get('key') or '').strip()
+    _, _, pid_sesion = get_session_info()
+    pid = _autin_proyecto_del_wo(wo) or pid_sesion
+    if not wo:
+        return jsonify({'success': False, 'error': 'Falta el número de WO'}), 400
+    raiz, origen = _autin_raiz(pid)
+    base = {'success': True, 'wo': wo, 'raiz': raiz, 'origen': origen,
+            'raiz_existe': os.path.isdir(raiz), 'carpeta': None, 'total': 0,
+            'grupos': {e: [] for e in _AUTIN_ESTADOS}}
+    if not base['raiz_existe']:
+        base['mensaje'] = 'No se encuentra la carpeta de fotos AUTIN.'
+        return jsonify(base)
+    carpeta = _autin_carpeta(raiz, wo)
+    if not carpeta:
+        base['mensaje'] = 'Sin carpeta de fotos para este WO.'
+        return jsonify(base)
+    base['carpeta'] = os.path.basename(carpeta)
+    raiz_r = os.path.realpath(raiz)
+    for rel in _autin_listar(carpeta):
+        if not _autin_dentro(raiz_r, os.path.realpath(os.path.join(carpeta, rel))):
+            continue
+        base['grupos'][_autin_estado(rel)].append(rel)
+    base['total'] = sum(len(v) for v in base['grupos'].values())
+    if not base['total']:
+        base['mensaje'] = 'La carpeta del WO no contiene imágenes.'
+    return jsonify(base)
+
+
+@bp.route('/api/autin/foto', methods=['GET'])
+@login_required
+def api_autin_foto():
+    """Sirve una foto del WO validando que quede dentro de la raíz configurada."""
+    wo = (request.args.get('wo') or '').strip()
+    rel = (request.args.get('f') or request.args.get('file') or '').strip()
+    _, _, pid_sesion = get_session_info()
+    pid = _autin_proyecto_del_wo(wo) or pid_sesion
+    if not wo or not rel:
+        abort(400)
+    raiz, _ = _autin_raiz(pid)
+    raiz_r = os.path.realpath(raiz)
+    if not os.path.isdir(raiz_r):
+        abort(404)
+    carpeta = _autin_carpeta(raiz_r, wo) or raiz_r
+    candidatos = [os.path.join(carpeta, rel), os.path.join(raiz_r, rel)]
+    for cand in candidatos:
+        full = os.path.realpath(cand)
+        if not _autin_dentro(raiz_r, full):
+            continue
+        if os.path.isfile(full) and os.path.splitext(full)[1].lower() in _AUTIN_IMG_EXT:
+            resp = send_file(full, conditional=True)
+            resp.headers['Cache-Control'] = 'private, max-age=3600'
+            return resp
+    abort(404)
+
+
+@bp.route('/api/autin/config', methods=['GET', 'POST'])
+@login_required
+def api_autin_config():
+    """Consulta/guarda la raíz de fotos AUTIN (guardar: solo zeno/suport)."""
+    user_id, user_rol, pid = get_session_info()
+    if request.method == 'POST':
+        if user_rol not in ('zeno', 'suport'):
+            return jsonify({'success': False, 'error': 'Sin permisos'}), 403
+        ruta = (request.form.get('ruta') or (request.get_json(silent=True) or {}).get('ruta') or '').strip()
+        if not pid:
+            return jsonify({'success': False, 'error': 'Sin proyecto activo'}), 400
+        cfg = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_CLAVE).first()
+        if cfg:
+            cfg.valor = ruta
+        else:
+            db.session.add(AppConfig(proyecto_id=pid, clave=AUTIN_CLAVE, valor=ruta))
+        db.session.commit()
+    raiz, origen = _autin_raiz(pid)
+    return jsonify({'success': True, 'raiz': raiz, 'origen': origen,
+                    'existe': os.path.isdir(raiz), 'editable': user_rol in ('zeno', 'suport')})

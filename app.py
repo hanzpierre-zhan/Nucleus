@@ -99,6 +99,34 @@ def _register_blueprints(app):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Invalidación del cache de "opciones del Detalle" (ver blueprints/wo.py)
+# ─────────────────────────────────────────────────────────────────────────────
+def _on_commit(*_args, **_kwargs):
+    try:
+        from blueprints.wo import invalidar_opciones_cache
+        invalidar_opciones_cache()
+    except Exception:
+        pass
+    try:
+        from blueprints.pages import invalidar_site_map_cache
+        invalidar_site_map_cache()
+    except Exception:
+        pass
+
+
+def _register_opciones_cache_invalidation():
+    """Cada COMMIT (alta/edición/import de filas) recalcula la lista de opciones."""
+    from sqlalchemy import event
+    if getattr(_register_opciones_cache_invalidation, '_hecho', False):
+        return
+    try:
+        event.listen(db.session, 'after_commit', _on_commit)
+        _register_opciones_cache_invalidation._hecho = True
+    except Exception:
+        pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # App factory
 # ─────────────────────────────────────────────────────────────────────────────
 def create_app(config_object=None):
@@ -120,6 +148,7 @@ def create_app(config_object=None):
     _register_compress(app)
 
     db.init_app(app)
+    _register_opciones_cache_invalidation()
     _register_blueprints(app)
 
     # Migraciones de base de datos (idempotentes)
