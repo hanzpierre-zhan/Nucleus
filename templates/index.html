@@ -3341,8 +3341,12 @@ let _rendCambiandoVista = false;
         // Rendición: (CON SUSTENTO) aquí se habilita el botón SUSTENTADO
         rendicion:   { estados: ['CON SUSTENTO'],
                        cols: null,
+<<<<<<< HEAD
                        hidePrefijos: ['SUSTENTO_'],
                        showCols: ['_evidencia_btn'] },
+=======
+                       showPrefijos: ['SUSTENTO_'] },
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
         // Cerrado: Todo completo
         cerrado:     { estados: ['SUSTENTADO'],
                        cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
@@ -5077,8 +5081,13 @@ let _rendCambiandoVista = false;
         tableColumns.push({
             title: "Flujo",
             field: "_accion",
+<<<<<<< HEAD
             // Sin width fijo: Tabulator la ajusta al contenido (iconos del flujo).
             minWidth: 92,
+=======
+            width: 175,
+            minWidth: 150,
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
             maxWidth: 230,
             frozen: true,
             headerSort: false,
@@ -5112,10 +5121,16 @@ let _rendCambiandoVista = false;
                     mk('rend-btn-no', '✕', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
                 } else if (est === 'VALIDADO') {
+<<<<<<< HEAD
                     mk('rend-btn-dep', '<i class="fa-solid fa-money-bill-transfer"></i>',
                        'Registrar fecha, monto y foto del pago (Depositar)',
                        () => rendAbrirDeposito(key));
                     mk('rend-btn-no', '✕', 'Rechazar con motivo',
+=======
+                    mk('rend-btn-dep', '⬆ Depositar', 'Registrar fecha, monto y foto del pago',
+                       () => rendAbrirDeposito(key));
+                    mk('rend-btn-no', '✕ Rechazar', 'Rechazar con motivo',
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
                        () => rendAbrirRechazo(key));
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
@@ -5130,7 +5145,11 @@ let _rendCambiandoVista = false;
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Validado', () => rendRevertir(key));
                     }
                 } else if (est === 'CON SUSTENTO') {
+<<<<<<< HEAD
                     mk('rend-btn-sus', '★', 'Subir fotos adicionales o cerrar la solicitud (Sustentar)',
+=======
+                    mk('rend-btn-sus', '★ Sustentar', 'Subir fotos adicionales o cerrar la solicitud',
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
                        () => rendAbrirSustento(key));
                     mk('rend-btn-no', '✕', 'Rechazar con motivo',
                        () => rendAbrirRechazo(key));
@@ -12382,6 +12401,12 @@ async function editarCodigoWO() {
    RENDICION — flujo por pestañas (hojas tipo Excel)
    Cada solicitud salta de hoja sola cuando cambia su ESTADO.
    ================================================================ */
+<<<<<<< HEAD
+=======
+// Botones del flujo: solo si el usuario tiene asignado el módulo Rendicion.
+// El servidor lo decide (puede_rendicion); aquí no seYR por rol.
+const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
 let _rendVista = 'validacion';
 let _rendFiltroFn = null;          // filtro de la pestaña activa
 // Cada hoja tiene SU vista de columnas: {visibles:{campo: bool}, orden:[campo,...]}.
@@ -12391,6 +12416,13 @@ let _rendEstadoListo = false;
 let _rendModal = null;             // {accion, key, estadoPrevio, fotos:[], ...}
 const _rendFotosPend = {};         // slot -> url ya subida
 
+<<<<<<< HEAD
+=======
+function rendPuedeGestionar() {
+    return IS_RENDICION && typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR === true;
+}
+
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
 // Roles del usuario actual como array (ej: ['zeno'])
 const _rendUserRoles = [String(USER_ROLE || '').trim().toLowerCase()];
 
@@ -12408,6 +12440,14 @@ function _rendEsColumnaDeVista(f) {
     return !!f && f !== '_key' && f !== '_accion' && String(f).indexOf('KPI_') !== 0;
 }
 
+<<<<<<< HEAD
+=======
+// Columnas que no participan en el orden por hoja (fijas / KPI).
+function _rendEsColumnaDeVista(f) {
+    return !!f && f !== '_key' && f !== '_accion' && String(f).indexOf('KPI_') !== 0;
+}
+
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
 // Visibilidad y orden tal como se ven ahora en la tabla (= la hoja activa).
 function _rendSnapshot() {
     const visibles = {}, orden = [];
@@ -12471,6 +12511,10 @@ function _rendInitEstados() {
             if (cfg.hideCols) cfg.hideCols.forEach(f => { est.visibles[f] = false; });
         }
         // Prefijos que esta hoja quiere ver (SUSTENTO_* en Evidencia y Rendición).
+<<<<<<< HEAD
+=======
+        // Si el usuario ya guardó su propia vista, manda lo que él eligió.
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
         if (cfg.showPrefijos && cfg.showPrefijos.length) {
             cfg.showPrefijos.forEach(pre => {
                 Object.keys(est.visibles).forEach(f => {
@@ -12480,6 +12524,7 @@ function _rendInitEstados() {
                 });
             });
         }
+<<<<<<< HEAD
         // Prefijos que esta hoja quiere OCULTAR expresamente.
         if (cfg.hidePrefijos && cfg.hidePrefijos.length) {
             cfg.hidePrefijos.forEach(pre => {
@@ -12490,6 +12535,8 @@ function _rendInitEstados() {
                 });
             });
         }
+=======
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
         _rendEstadoVistas[vista] = est;
     });
 }
@@ -12809,6 +12856,22 @@ function rendConfirmarModal() {
 }
 
 /* ── Visor de fotos ── */
+<<<<<<< HEAD
+=======
+// Lista de fotos guardadas en una celda (FOTO PAGO = una; FOTOS SUSTENTO = JSON)
+function rendUrlsFoto(raw, esSustento) {
+    let urls = [];
+    if (raw) {
+        if (esSustento) {
+            try { urls = JSON.parse(raw); } catch (e) { urls = [raw]; }
+            if (!Array.isArray(urls)) urls = [raw];
+        } else {
+            urls = [raw];
+        }
+    }
+    return urls.map(u => String(u || '').trim()).filter(u => u);
+}
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
 function rendVerFotos(row, esSustento) {
     const urls = rendUrlsFoto(row[esSustento ? 'FOTOS SUSTENTO' : 'FOTO PAGO'], esSustento);
     document.getElementById('rend-fotos-title').textContent = esSustento ? 'Fotos de sustento' : 'Comprobante de pago';
@@ -13031,6 +13094,7 @@ document.addEventListener('click', (e) => {
         panel.style.display = 'none';
     }
 });
+<<<<<<< HEAD
 }
 
 // ============================================================================
@@ -13137,6 +13201,16 @@ function rendAbrirDetalleEvidencia(key) {
     if (!tieneAlgo) {
         cont.innerHTML = '<div style="text-align:center; padding:30px; color:var(--ios-gray-1); font-weight:600;"><i class="fa-solid fa-folder-open" style="font-size:32px; display:block; margin-bottom:10px; opacity:0.5;"></i>No hay evidencias registradas en el formulario para esta solicitud.</div>';
     }
+=======
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => rendCambiarVista('validacion'), 0);
+    if (document.getElementById('btn-rend-avisos')) {
+        setTimeout(() => rendAvisosCargar(true), 600);   // silencioso: sin toasts históricos
+        setInterval(() => rendAvisosCargar(false), 30000); // revisa avisos nuevos cada 30 s
+    }
+});
+>>>>>>> 0eba8a06f801f626f49c22e9601fad7c8e1f4dfb
 }
 </script>
 {% endblock %}
