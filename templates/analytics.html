@@ -95,6 +95,9 @@
         .an-grid { grid-template-columns: minmax(0, 1fr); }
         .an-prod, .an-table-card { grid-column: auto; grid-row: auto; }
     }
+    /* Tarjetas automáticas (proyectos no WO): fila propia bajo la rejilla principal */
+    .an-gen { display: grid; gap: 14px; margin-bottom: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); align-items: start; }
     .an-card { background: linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0) 30%),
         var(--ios-card-bg, #1C1C1E);
         border: 1px solid var(--ios-hairline, rgba(255,255,255,0.09));
@@ -139,6 +142,8 @@
             <div class="an-sel-panel" id="an-dashpanel">
                 <button type="button" class="an-dashopt on" data-d="seg"><i class="fa-solid fa-magnifying-glass-chart"></i>Seguimiento</button>
                 <button type="button" class="an-dashopt" data-d="prod"><i class="fa-solid fa-industry"></i>Producción</button>
+                <button type="button" class="an-dashopt" data-d="rend"><i class="fa-solid fa-money-bill-transfer"></i>Rendición</button>
+                <button type="button" class="an-dashopt" data-d="coti"><i class="fa-solid fa-file-invoice-dollar"></i>Cotización</button>
             </div>
         </div>
         <div class="an-fboxes" id="an-filters" style="display:none;">
@@ -222,6 +227,9 @@
             </div>
         </div>
     </div>
+    <!-- Tarjetas genéricas: proyectos sin columnas de WO (Dataper, SITE, Material,
+         Combustible, Cotizaciones, Rendicion…) se llenan solas con sus columnas. -->
+    <div class="an-gen" id="an-gen-cards" style="display:none;"></div>
     <div id="an-view-seg" style="display:none;">
         <div class="an-grid-seg">
             <div class="an-card" id="an-card-sgop">
@@ -272,6 +280,76 @@
             </div>
         </div>
     </div>
+    <!-- ── Dashboard Rendición ─────────────────────────────────────────────── -->
+    <div id="an-view-rend" style="display:none;">
+        <div class="an-grid">
+            <div class="an-card" id="an-card-rendest">
+                <h4>Estado</h4>
+                <div class="an-sub" id="an-rendest-sub"></div>
+                <div class="an-cv"><canvas id="an-rendest"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rendresp" style="display:none;">
+                <h4>Responsable de validación</h4>
+                <div class="an-sub" id="an-rendresp-sub"></div>
+                <div class="an-cv"><canvas id="an-rendresp"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rendprov" style="display:none;">
+                <h4>Proyecto</h4>
+                <div class="an-sub" id="an-rendprov-sub"></div>
+                <div class="an-cv"><canvas id="an-rendprov"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rendprio" style="display:none;">
+                <h4>Criticidad</h4>
+                <div class="an-sub" id="an-rendprio-sub"></div>
+                <div class="an-cv"><canvas id="an-rendprio"></canvas></div>
+            </div>
+            <div class="an-card an-prod" id="an-card-rendline" style="display:none;">
+                <h4>EVOLUCIÓN MENSUAL</h4>
+                <div class="an-sub" id="an-rendline-sub"></div>
+                <div class="an-cv-prod"><canvas id="an-rendline"></canvas></div>
+            </div>
+            <div class="an-card an-table-card" id="an-card-rendtab" style="display:none;">
+                <h4>Resumen por estado</h4>
+                <div class="an-sub" id="an-rendtab-sub"></div>
+                <div id="an-rendtab"></div>
+            </div>
+        </div>
+    </div>
+    <!-- ── Dashboard Cotización ────────────────────────────────────────────── -->
+    <div id="an-view-coti" style="display:none;">
+        <div class="an-grid">
+            <div class="an-card" id="an-card-cotiest">
+                <h4>Estado cotización</h4>
+                <div class="an-sub" id="an-cotiest-sub"></div>
+                <div class="an-cv"><canvas id="an-cotiest"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-coticlie" style="display:none;">
+                <h4>Cliente</h4>
+                <div class="an-sub" id="an-coticlie-sub"></div>
+                <div class="an-cv"><canvas id="an-coticlie"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cotisup" style="display:none;">
+                <h4>Supervisor</h4>
+                <div class="an-sub" id="an-cotisup-sub"></div>
+                <div class="an-cv"><canvas id="an-cotisup"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cotigest" style="display:none;">
+                <h4>Gestor</h4>
+                <div class="an-sub" id="an-cotigest-sub"></div>
+                <div class="an-cv"><canvas id="an-cotigest"></canvas></div>
+            </div>
+            <div class="an-card an-prod" id="an-card-cotiline" style="display:none;">
+                <h4>EVOLUCIÓN MENSUAL</h4>
+                <div class="an-sub" id="an-cotiline-sub"></div>
+                <div class="an-cv-prod"><canvas id="an-cotiline"></canvas></div>
+            </div>
+            <div class="an-card an-table-card" id="an-card-cotitab" style="display:none;">
+                <h4>Resumen por estado</h4>
+                <div class="an-sub" id="an-cotitab-sub"></div>
+                <div id="an-cotitab"></div>
+            </div>
+        </div>
+    </div>
 </div></div>
 {% endblock %}
 {% block scripts %}
@@ -279,8 +357,12 @@
 (function () {
     const rawData = {{ data | safe }};
     const proyName = "{{ proyecto_nombre }}";
-    // El análisis completo (filtros + gráficos + sites) aplica a FLM - ENTEL / FLM / PEXT.
-    const isPext = ['flm - entel', 'flm', 'pext'].includes(proyName.trim().toLowerCase());
+    // El análisis completo (filtros + gráficos + sites) aplica a FLM - ENTEL / FLM /
+    // PEXT / FLM - INTEGRATEL (mismas columnas de WO). El resto de proyectos entra
+    // en el modo genérico (tarjetas automáticas más abajo).
+    const _pn = proyName.trim().toLowerCase();
+    const isPext = ['flm - entel', 'flm', 'pext', 'flm - integratel', 'integratel', 'claro'].includes(_pn)
+        || _pn.startsWith('flm');
     // Norm sin tildes para matchear columnas reales como 'Número de WO' / 'Causa raíz'.
     const deTildes = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const norm = v => deTildes(v == null ? '' : v).trim().toLowerCase();
@@ -415,7 +497,9 @@
         complete: ['#34C759', 'fa-circle-check'],
         close: ['#8E8E93', 'fa-lock']
     };
-    const K_CRE = keyNamed('fecha de creacion', 'fecha creacion', 'creation date', 'fecha_ticket', 'fecha');
+    // 'marca temporal' (sello del formulario) queda al final: solo se usa si el
+    // proyecto no trae una fecha de creación dedicada (p. ej. Rendicion).
+    const K_CRE = keyNamed('fecha de creacion', 'fecha creacion', 'creation date', 'fecha_ticket', 'fecha', 'marca temporal');
     const K_CAMBIO = keyNamed('fecha cambio estado');
     const K_PHASE = keyNamed('operate phase');
     const K_SITE = keyNamed('nombre de site');
@@ -466,13 +550,16 @@
         return Array.from(s).sort().reverse();
     }
     function baseFilteredRows() {
-        if (!isPext) return rawData || [];
         let rows = rawData || [];
-        if (anState.tipos.size) rows = rows.filter(r => anState.tipos.has(tipoOf(r)));
-        // Sin columna resoluble NO se filtra: antes `K_DEPT && ...` devolvía false
-        // para todas las filas y elegir esa opción vaciaba toda la pantalla.
-        if (anState.dep.size && K_DEPT) rows = rows.filter(r => anState.dep.has(norm(cellLbl(r, K_DEPT))));
-        if (anState.causa.size && K_CAUSA) rows = rows.filter(r => anState.causa.has(norm(cellLbl(r, K_CAUSA))));
+        if (isPext) {
+            if (anState.tipos.size) rows = rows.filter(r => anState.tipos.has(tipoOf(r)));
+            // Sin columna resoluble NO se filtra: antes `K_DEPT && ...` devolvía false
+            // para todas las filas y elegir esa opción vaciaba toda la pantalla.
+            if (anState.dep.size && K_DEPT) rows = rows.filter(r => anState.dep.has(norm(cellLbl(r, K_DEPT))));
+            if (anState.causa.size && K_CAUSA) rows = rows.filter(r => anState.causa.has(norm(cellLbl(r, K_CAUSA))));
+        }
+        // El filtro por clic en un gráfico aplica también a los proyectos genéricos
+        // (antes solo isPext, así que en Dataper/SITE/etc. el clic no hacía nada).
         if (anState.chart && chartKey(anState.chart.field)) rows = rows.filter(r => chartMatches(r, anState.chart));
         return rows;
     }
@@ -494,6 +581,10 @@
         return prodRows(baseFilteredRows());
     }
     function chartKey(field) {
+        // Dashboards Rendición/Cotización: el campo ya trae la columna resuelta.
+        if (typeof field === 'string' && field.indexOf('an:') === 0) return field.slice(3);
+        // Columnas creadas por las tarjetas genéricas: 'gen:<nombre de columna>'.
+        if (typeof field === 'string' && field.indexOf('gen:') === 0) return field.slice(4);
         switch (field) {
             case 'phase': return K_PHASE;
             case 'fault': return keyNamed('fault level', 'departamento', 'provincia', 'category');
@@ -1139,6 +1230,272 @@
         safeRender(() => renderSgTipoav(rows), 'sgtipoav');
         safeRender(() => renderSgSites(rows), 'sgsites');
     }
+    /* ── Tarjetas genéricas (proyectos NO tipo WO) ─────────────────────────────
+       Dataper, SITE, Material, Combustible, Cotizaciones, Rendicion… no tienen
+       columnas de WO/fase, así que las tarjetas fijas se quedaban ocultas y el
+       dashboard salía casi vacío (solo "Detalle"). Aquí se eligen hasta 6
+       columnas categóricas con datos reales y se grafican solas. */
+    const GEN_PREF = ['estado', 'tipo', 'prioridad', 'proyecto', 'categoria', 'category',
+        'zona', 'region', 'provincia', 'distrito', 'contrata', 'gestor', 'supervisor',
+        'coordinador', 'cargo', 'tipo de estacion', 'tipo de site', 'tipo de torre',
+        'motivo de la solicitud', 'tipo de proyecto', 'responsable de la validacion'];
+    const GEN_MAX = 6;
+    // Columnas que nunca sirven como categoría: fechas, ids, links, montos,
+    // fotos/evidencia y los SUSTENTO_* (pertenecen a la pestaña de comprobantes).
+    const GEN_NOSIRVE = /^(fecha|hora|mes|id$|key|codigo|url|link|foto|evidencia|adjunt|documento|dni|celular|telefono|correo|email|nit|ruc|cci|cuenta|titular|observacion|comentario|nota|detalle|direccion|latitud|longitud|monto|precio|total|saldo|costo|presupuesto|altura|marca temporal|numero|nro|n[°º]|item$|codigo|.*json)/;
+    function genSirve(k) {
+        const s = String(k || '');
+        if (!s || s[0] === '_') return false;
+        if (s.toUpperCase().indexOf('SUSTENTO_') === 0) return false;
+        return !GEN_NOSIRVE.test(norm(s));
+    }
+    // Perfil de una columna: cuántas filas la llenan, cuántos valores distintos
+    // tiene, y si casi todo es número o URL (no sirve como categoría).
+    function genPerfil(rows, key) {
+        const map = {};
+        let filled = 0, nums = 0, urls = 0, distintos = 0, listas = 0;
+        for (let i = 0; i < rows.length; i++) {
+            const v = String(rows[i][key] == null ? '' : rows[i][key]).trim();
+            if (!v) continue;
+            filled++;
+            if (/^https?:\/\//i.test(v)) urls++;
+            else if (/^[\[{]/.test(v)) listas++;          // JSON / listas pegadas
+            else if (!isNaN(Number(v))) nums++;
+            if (map[v] === undefined) {
+                if (distintos >= 40) continue;
+                map[v] = 1; distintos++;
+            } else map[v]++;
+        }
+        return { filled, distintos, urls, listas, numerico: filled > 0 && nums / filled > 0.9 };
+    }
+    function renderGenerics(rows) {
+        const cont = document.getElementById('an-gen-cards');
+        if (!cont) return;
+        Object.keys(charts).forEach(k => { if (k.indexOf('gen') === 0) killChart(k); });
+        cont.innerHTML = '';
+        cont.style.display = 'none';
+        if (isPext || !rows.length) return;
+        const n = rows.length;
+        // La tarjeta "Detalle" (bar) ya cubre departamento/provincia/fault/category,
+        // y las fechas no se grafican como categorías.
+        const tomadas = new Set();
+        const yaGraficada = keyNamed('departamento', 'provincia', 'fault level', 'category');
+        if (yaGraficada) tomadas.add(yaGraficada);
+        [K_CRE, K_CAMBIO].forEach(k => { if (k) tomadas.add(k); });
+        // Unión de columnas: las filas no siempre comparten el mismo esquema.
+        const keys = [], seenKeys = {};
+        for (let i = 0; i < rows.length && keys.length < 400; i++) {
+            Object.keys(rows[i] || {}).forEach(k => {
+                if (seenKeys[k] === undefined) { seenKeys[k] = 1; keys.push(k); }
+            });
+        }
+        const porNorm = {};
+        keys.forEach(k => { if (!(norm(k) in porNorm)) porNorm[norm(k)] = k; });
+        const cands = [];
+        const add = k => {
+            if (k && !tomadas.has(k) && cands.indexOf(k) < 0 && genSirve(k)) cands.push(k);
+        };
+        GEN_PREF.forEach(p => add(porNorm[p]));
+        keys.forEach(add);
+        const minLleno = Math.max(3, Math.ceil(n * 0.1));
+        const ok = [];
+        for (const k of cands) {
+            if (ok.length >= GEN_MAX) break;
+            const p = genPerfil(rows, k);
+            if (p.filled < minLleno) continue;             // casi vacía
+            if (p.urls || p.listas) continue;              // links, fotos o JSON
+            if (p.distintos < 2 || p.distintos > 16) continue;  // ni 1 valor ni catálogo eterno
+            if (p.numerico) continue;                      // montos/ids: no es categoría
+            ok.push(k);
+        }
+        if (!ok.length) return;
+        cont.innerHTML = ok.map((k, i) =>
+            '<div class="an-card an-gen-card" id="an-gen-card-' + i + '">' +
+            '<h4 id="an-gen-title-' + i + '"></h4>' +
+            '<div class="an-sub" id="an-gen-sub-' + i + '"></div>' +
+            '<div class="an-cv"><canvas id="an-gen-cv-' + i + '"></canvas></div></div>').join('');
+        cont.style.display = 'grid';
+        ok.forEach((k, i) => {
+            const top = countableNorm(rows, k, 8);
+            hbar({
+                chartKey: 'gen' + i, cardId: 'an-gen-card-' + i, canvasId: 'an-gen-cv-' + i,
+                titleEl: 'an-gen-title-' + i, subEl: 'an-gen-sub-' + i,
+                field: 'gen:' + k, key: k, title: k,
+                sub: fmtN(n) + ' registros · ' + top.length + ' valores · clic para filtrar',
+                top
+            });
+        });
+    }
+    /* Sin ninguna tarjeta visible el dashboard quedaba en blanco, sin aviso. */
+    function anSinTarjetas() {
+        if (isPext) { anQuitarAviso('an-aviso-sin-tarjetas'); return; }
+        const vis = Array.prototype.slice
+            .call(document.querySelectorAll('#an-view-prod .an-card, #an-gen-cards .an-card'))
+            .filter(c => c.style.display !== 'none');
+        if (vis.length) { anQuitarAviso('an-aviso-sin-tarjetas'); return; }
+        anAviso('an-aviso-sin-tarjetas',
+            'Este proyecto no tiene columnas categóricas con datos suficientes para graficar. ' +
+            'Se muestra solo el total de registros.', 'warn');
+    }
+    /* ── Dashboards Rendición y Cotización ────────────────────────────────────
+       Vistas propias con sus columnas reales (estado, responsable, monto,
+       fecha). Todas las claves se resuelven con keyNamed, así que si cambia
+       el formulario vuelven a acomodarse solas. */
+    // Acepta aaaa-mm-dd (Cotizaciones) y d/m/aaaa (Marca temporal de Forms).
+    function parseYmAny(v) {
+        const s = String(v == null ? '' : v).trim();
+        if (!s) return null;
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (m) return m[1] + '-' + String(m[2]).padStart(2, '0');
+        m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+        if (m) return m[3] + '-' + String(m[2]).padStart(2, '0');
+        return null;
+    }
+    function anNum(v) {
+        const n = Number(String(v == null ? '' : v).replace(/[^0-9.\-]/g, ''));
+        return isNaN(n) ? 0 : n;
+    }
+    const fmtMoney = n => 'S/ ' + (Math.round(Number(n || 0) * 100) / 100)
+        .toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    function anHideCard(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+    function anShowCard(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
+    // Tarjeta horizontal: registros agrupados por los valores de una columna.
+    function anHbar(o) {
+        try {
+            if (!o.key || !(o.rows || []).length || !o.rows.some(r => String(r[o.key] == null ? '' : r[o.key]).trim())) {
+                anHideCard(o.cardId); return;
+            }
+            const top = countableNorm(o.rows, o.key, o.max || 8);
+            hbar({ chartKey: o.chartKeyC, cardId: o.cardId, canvasId: o.canvasId,
+                titleEl: null, subEl: o.subEl, field: 'an:' + o.key, key: o.key,
+                sub: o.sub, top });
+        } catch (e) { anHideCard(o.cardId); }
+    }
+    // Línea de evolución mensual.
+    function anLine(o) {
+        const el = document.getElementById(o.cardId);
+        killChart(o.chartKeyC);
+        try {
+            if (!o.key || !(o.rows || []).length) { anHideCard(o.cardId); return; }
+            const agg = {};
+            o.rows.forEach(r => { const ym = parseYmAny(r[o.key]); if (ym) agg[ym] = (agg[ym] || 0) + 1; });
+            const months = Object.keys(agg).sort();
+            if (months.length < 2) { anHideCard(o.cardId); return; }
+            anShowCard(o.cardId);
+            document.getElementById(o.subEl).textContent = o.sub;
+            charts[o.chartKeyC] = new Chart(document.getElementById(o.canvasId), {
+                type: 'line',
+                data: { labels: months,
+                    datasets: [{ label: o.label, data: months.map(m => agg[m] || 0),
+                        borderColor: '#0A84FF', backgroundColor: 'rgba(10,132,255,0.18)',
+                        fill: true, tension: 0.35, pointRadius: 4.5 }] },
+                options: { plugins: { legend: { display: false }, tooltip: TIP },
+                    scales: { x: { grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { precision: 0 },
+                            grid: { color: 'rgba(255,255,255,0.05)' } } } }
+            });
+        } catch (e) { anHideCard(o.cardId); }
+    }
+    // Tabla resumen: una fila por estado con registros, % y monto (si hay).
+    function anResumen(o) {
+        try {
+            const el = document.getElementById(o.cardId);
+            const cont = document.getElementById(o.tabId);
+            if (!el || !cont) return;
+            if (!o.stateKey || !(o.rows || []).length) { anHideCard(o.cardId); return; }
+            const agg = {};
+            o.rows.forEach(r => {
+                const est = cellLbl(r, o.stateKey);
+                if (!agg[est]) agg[est] = { n: 0, monto: 0 };
+                agg[est].n++;
+                if (o.montoKey) agg[est].monto += anNum(r[o.montoKey]);
+            });
+            const list = Object.entries(agg).sort((a, b) => b[1].n - a[1].n);
+            if (!list.length) { anHideCard(o.cardId); return; }
+            anShowCard(o.cardId);
+            document.getElementById(o.subEl).textContent = o.sub;
+            const tot = list.reduce((s, [, d]) => s + d.n, 0);
+            const totMonto = list.reduce((s, [, d]) => s + d.monto, 0);
+            const head = '<tr><th>#</th><th>' + esc(o.stateTitle || 'Estado') + '</th>' +
+                '<th class="num">Registros</th><th class="num">%</th>' +
+                (o.montoKey ? '<th class="num">Monto</th>' : '') + '</tr>';
+            const body = list.map(([est, d], i) =>
+                '<tr><td>' + (i + 1) + '</td><td title="' + esc(est) + '">' + esc(est) + '</td>' +
+                '<td class="num">' + fmtN(d.n) + '</td>' +
+                '<td class="num">' + (tot ? (d.n * 100 / tot).toFixed(1) : '0.0') + '%</td>' +
+                (o.montoKey ? '<td class="num">' + fmtMoney(d.monto) + '</td>' : '') + '</tr>').join('');
+            const foot = '<tr class="an-tfoot"><td></td><td>TOTAL</td>' +
+                '<td class="num">' + fmtN(tot) + '</td><td class="num">100%</td>' +
+                (o.montoKey ? '<td class="num t-total">' + fmtMoney(totMonto) + '</td>' : '') + '</tr>';
+            cont.innerHTML = '<div class="an-sitelist"><table class="an-tbl">' +
+                '<thead>' + head + '</thead><tbody>' + body + '</tbody>' + foot + '</table></div>';
+        } catch (e) { anHideCard(o.cardId); }
+    }
+    function renderAllRend(rows) {
+        const kEst = keyNamed('estado');
+        const kResp = keyNamed('responsable de la validacion', 'validado por', 'depositado por');
+        const kProv = keyNamed('nombre del proyecto', 'proyecto');
+        const kPrio = keyNamed('criticidad - prioridad', 'criticidad', 'prioridad');
+        const kFech = keyNamed('marca temporal', 'fecha de creacion', 'fecha');
+        const kMonto = keyNamed('monto total del deposito', 'monto', 'total');
+        safeRender(() => anHbar({ chartKeyC: 'rendest', cardId: 'an-card-rendest',
+            canvasId: 'an-rendest', subEl: 'an-rendest-sub', key: kEst, rows,
+            sub: 'Solicitudes por estado · ' + fmtN(rows.length) + ' registros' }), 'rend-est');
+        safeRender(() => anHbar({ chartKeyC: 'rendresp', cardId: 'an-card-rendresp',
+            canvasId: 'an-rendresp', subEl: 'an-rendresp-sub', key: kResp, rows, max: 10,
+            sub: 'Quién valida / deposita · clic para filtrar' }), 'rend-resp');
+        safeRender(() => anHbar({ chartKeyC: 'rendprov', cardId: 'an-card-rendprov',
+            canvasId: 'an-rendprov', subEl: 'an-rendprov-sub', key: kProv, rows, max: 8,
+            sub: 'Solicitudes por proyecto' }), 'rend-prov');
+        safeRender(() => anHbar({ chartKeyC: 'rendprio', cardId: 'an-card-rendprio',
+            canvasId: 'an-rendprio', subEl: 'an-rendprio-sub', key: kPrio, rows, max: 8,
+            sub: 'Solicitudes por criticidad' }), 'rend-prio');
+        safeRender(() => anLine({ chartKeyC: 'rendline', cardId: 'an-card-rendline',
+            canvasId: 'an-rendline', subEl: 'an-rendline-sub', key: kFech, rows,
+            label: 'Solicitudes', sub: 'Solicitudes creadas por mes · ' + filterLabel() }), 'rend-line');
+        safeRender(() => anResumen({ cardId: 'an-card-rendtab', tabId: 'an-rendtab',
+            subEl: 'an-rendtab-sub', stateKey: kEst, montoKey: kMonto, rows,
+            stateTitle: 'Estado', sub: 'Distribución de ' + fmtN(rows.length) +
+                ' solicitudes · ' + filterLabel() }), 'rend-tab');
+        anSinTarjetasGeneric('#an-view-rend .an-card');
+    }
+    function renderAllCoti(rows) {
+        const kEst = keyNamed('estado cotizacion', 'estado');
+        const kClie = keyNamed('cliente');
+        const kSup = keyNamed('supervisor');
+        const kGes = keyNamed('gestor');
+        const kFech = keyNamed('fecha', 'fecha de creacion', 'marca temporal');
+        const kMonto = keyNamed('sub total + fee', 'monto total', 'total', 'monto');
+        safeRender(() => anHbar({ chartKeyC: 'cotiest', cardId: 'an-card-cotiest',
+            canvasId: 'an-cotiest', subEl: 'an-cotiest-sub', key: kEst, rows, max: 8,
+            sub: 'Cotizaciones por estado · ' + fmtN(rows.length) + ' registros' }), 'coti-est');
+        safeRender(() => anHbar({ chartKeyC: 'coticlie', cardId: 'an-card-coticlie',
+            canvasId: 'an-coticlie', subEl: 'an-coticlie-sub', key: kClie, rows, max: 8,
+            sub: 'Cotizaciones por cliente · clic para filtrar' }), 'coti-clie');
+        safeRender(() => anHbar({ chartKeyC: 'cotisup', cardId: 'an-card-cotisup',
+            canvasId: 'an-cotisup', subEl: 'an-cotisup-sub', key: kSup, rows, max: 10,
+            sub: 'Cotizaciones por supervisor' }), 'coti-sup');
+        safeRender(() => anHbar({ chartKeyC: 'cotigest', cardId: 'an-card-cotigest',
+            canvasId: 'an-cotigest', subEl: 'an-cotigest-sub', key: kGes, rows, max: 10,
+            sub: 'Cotizaciones por gestor' }), 'coti-ges');
+        safeRender(() => anLine({ chartKeyC: 'cotiline', cardId: 'an-card-cotiline',
+            canvasId: 'an-cotiline', subEl: 'an-cotiline-sub', key: kFech, rows,
+            label: 'Cotizaciones', sub: 'Cotizaciones emitidas por mes · ' + filterLabel() }), 'coti-line');
+        safeRender(() => anResumen({ cardId: 'an-card-cotitab', tabId: 'an-cotitab',
+            subEl: 'an-cotitab-sub', stateKey: kEst, montoKey: kMonto, rows,
+            stateTitle: 'Estado cotización', sub: 'Distribución de ' + fmtN(rows.length) +
+                ' cotizaciones · ' + filterLabel() }), 'coti-tab');
+        anSinTarjetasGeneric('#an-view-coti .an-card');
+    }
+    // Aviso cuando la vista no encontró ni una columna que graficar.
+    function anSinTarjetasGeneric(sel) {
+        const vis = Array.prototype.slice.call(document.querySelectorAll(sel))
+            .filter(c => c.style.display !== 'none');
+        if (vis.length) { anQuitarAviso('an-aviso-sin-tarjetas'); return; }
+        anAviso('an-aviso-sin-tarjetas',
+            'Este proyecto no tiene las columnas que este dashboard analiza ' +
+            '(estado, responsable, monto, fecha). Cambia de dashboard o de proyecto.', 'warn');
+    }
     function safeRender(fn, name) {
         try { fn(); } catch (e) { try { console.warn('[analytics] ' + name + ' falló:', e); } catch (_) {} }
     }
@@ -1157,11 +1514,22 @@
             safeRender(() => renderHbarPrior(prows), 'prior');
             safeRender(renderLine, 'linea');
             safeRender(() => renderSites(prows), 'sites');
+            safeRender(() => renderGenerics(prows), 'genericas');
             anEstadoVacio(rows.length, prows.length);
+            safeRender(anSinTarjetas, 'sin-tarjetas');
+        } else if (anDash === 'rend') {
+            safeRender(() => renderTotal(rows), 'total');
+            safeRender(() => renderAllRend(rows), 'rendicion');
+            anEstadoVacio(rows.length, rows.length);
+        } else if (anDash === 'coti') {
+            safeRender(() => renderTotal(rows), 'total');
+            safeRender(() => renderAllCoti(rows), 'cotizacion');
+            anEstadoVacio(rows.length, rows.length);
         } else {
             safeRender(() => renderTotal(rows), 'total');
             renderAllSeg(rows);
             anEstadoVacio(rows.length, rows.length);
+            anQuitarAviso('an-aviso-sin-tarjetas');
         }
         resizeCharts();
     }
@@ -1180,33 +1548,52 @@
             Object.keys(charts).forEach(k => { try { if (charts[k]) charts[k].resize(); } catch (e) {} });
         } catch (e) {}
     }
-    /* Selector de dashboard: Producción / Seguimiento.
+    /* Selector de dashboard: Seguimiento / Producción / Rendición / Cotización.
        Abre en Seguimiento al iniciar sesión o abrir el navegador de nuevo
        (sesiónStorage se limpia al cerrar la pestaña); dentro de la misma
-       sesión se recuerda la vista elegida. */
-    const DASH_NAMES = { seg: 'Seguimiento', prod: 'Producción' };
-    let anDash = 'seg';
-    try { anDash = sessionStorage.getItem('an-dash') || 'seg'; } catch (e) {}
-    if (!DASH_NAMES[anDash]) anDash = 'seg';
+       sesión se recuerda la vista elegida POR PROYECTO, para que al pasar de
+       Rendición a FLM no se herede una vista que no aplica. */
+    const DASH_NAMES = { seg: 'Seguimiento', prod: 'Producción',
+        rend: 'Rendición', coti: 'Cotización' };
+    // Rendición / Cotización son proyectos con su propio formulario.
+    const isRendProy = _pn === 'rendicion' || _pn.indexOf('rendicion') === 0;
+    const isCotiProy = _pn === 'cotizaciones' || _pn.indexOf('cotizacion') === 0;
+    const DASH_STORE = 'an-dash:' + proyName;
+    let anDash = null;
+    try { anDash = sessionStorage.getItem(DASH_STORE); } catch (e) {}
+    if (!DASH_NAMES[anDash]) anDash = null;
+    // Seguimiento solo tiene datos en proyectos WO con Operate Phase.
+    if (anDash === 'seg' && !(isPext && K_PHASE)) anDash = null;
+    // Sin elección previa, abrir la vista que corresponde a este proyecto.
+    if (!anDash) anDash = isRendProy ? 'rend'
+        : (isCotiProy ? 'coti' : ((isPext && K_PHASE) ? 'seg' : 'prod'));
     function applyDashUI() {
-        const isProd = anDash === 'prod';
-        document.getElementById('an-dashname').textContent = DASH_NAMES[anDash];
+        document.getElementById('an-dashname').textContent = DASH_NAMES[anDash] || 'Analytics';
         document.querySelectorAll('.an-dashopt').forEach(b =>
             b.classList.toggle('on', b.dataset.d === anDash));
-        // Seguimiento solo tiene datos en FLM/PEXT: en el resto se oculta para
-        // no ofrecer una vista que quedaría siempre vacía.
+        // Seguimiento solo tiene datos en proyectos WO con Operate Phase: en el
+        // resto se oculta para no ofrecer una vista que quedaría siempre vacía.
+        const conSeg = isPext && !!K_PHASE;
         const segOpt = document.querySelector('.an-dashopt[data-d="seg"]');
-        if (segOpt) segOpt.style.display = isPext ? '' : 'none';
-        document.getElementById('an-view-prod').style.display = isProd ? '' : 'none';
-        document.getElementById('an-view-seg').style.display = isProd ? 'none' : '';
+        if (segOpt) segOpt.style.display = conSeg ? '' : 'none';
+        const show = { prod: anDash === 'prod', seg: anDash === 'seg',
+            rend: anDash === 'rend', coti: anDash === 'coti' };
+        ['prod', 'seg', 'rend', 'coti'].forEach(d => {
+            const v = document.getElementById('an-view-' + d);
+            if (v) v.style.display = show[d] ? '' : 'none';
+        });
+        // Las tarjetas genéricas viven fuera de la rejilla de Producción.
+        const gen = document.getElementById('an-gen-cards');
+        if (gen && !show.prod) gen.style.display = 'none';
+        // Los filtros WO (Tipo/Mes/Departamento/Causa) solo existen en PEXT.
         document.getElementById('an-filters').style.display = isPext ? '' : 'none';
         document.getElementById('an-totalwrap').style.display = '';
     }
     function setDash(d) {
         if (!DASH_NAMES[d] || d === anDash) { closeAllSels(); return; }
-        if (d === 'seg' && !isPext) { closeAllSels(); return; }
+        if (d === 'seg' && !(isPext && K_PHASE)) { closeAllSels(); return; }
         anDash = d;
-        try { sessionStorage.setItem('an-dash', d); } catch (e) {}
+        try { sessionStorage.setItem(DASH_STORE, d); } catch (e) {}
         applyDashUI();
         renderAll();
         try { requestAnimationFrame(() => { resizeCharts(); }); } catch (e) {}
@@ -1271,9 +1658,11 @@
         };
     }
 
-    /* Si la vista por defecto (Seguimiento) no aplica a este proyecto, abrir Producción:
-       Seguimiento solo tiene datos en FLM/PEXT y en el resto quedaba una página vacía. */
-    if (!isPext) anDash = 'prod';
+    /* Vistas que no aplican a este proyecto quedan descartadas al cargar:
+       Rendición/Cotización solo auto-abren en su proyecto y Seguimiento solo
+       en FLM/PEXT; en el resto se abre Producción. */
+    if (anDash === 'rend' && !isRendProy && !keyNamed('estado')) anDash = 'prod';
+    if (anDash === 'coti' && !isCotiProy && !keyNamed('estado cotizacion', 'estado')) anDash = 'prod';
 
     try {
         if (isPext) {

@@ -343,6 +343,123 @@
     .rend-aviso-close:hover { background: #FF3B30; color: #fff; }
     body.dark-mode .rend-aviso-close { color: #98989E; }
     body.dark-mode .rend-aviso-close:hover { background: #FF3B30; color: #fff; }
+    /* ── Detalle de Evidencia: chips, tarjetas, miniaturas y visor ───────────── */
+    .ev-modal { max-width: none; width: 96vw; max-height: 92vh; display: flex; flex-direction: column; border-radius: 18px; }
+    .ev-hint { font-size: 11.5px; font-weight: 600; color: var(--ios-gray-1); text-transform: none; letter-spacing: 0; margin-left: 8px; }
+    .ev-stats {
+        display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+        padding: 10px 16px; flex-shrink: 0;
+        border-bottom: 1px solid var(--ios-hairline);
+    }
+    .ev-chip {
+        border: 1px solid var(--ios-hairline); background: var(--ios-fill, rgba(120,120,128,.14));
+        color: var(--ios-secondary); border-radius: 999px; padding: 6px 13px;
+        font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 7px;
+        transition: background .15s, border-color .15s, color .15s;
+    }
+    .ev-chip b { background: var(--ios-blue); color: #fff; border-radius: 999px; font-size: 10.5px; padding: 1px 7px; }
+    .ev-chip:hover { border-color: var(--ios-blue); }
+    .ev-chip.on { background: #0A84FF; border-color: #0A84FF; color: #fff; }
+    .ev-chip.on b { background: rgba(255,255,255,.28); }
+    .ev-body { padding: 16px; overflow: auto; flex: 1; background: var(--ios-bg); }
+    #evidencia-contenedor {
+        display: grid; grid-column: 1 / -1;
+        grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+        gap: 14px; align-items: start;
+    }
+    .ev-card {
+        background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
+        border-radius: 14px; padding: 14px; box-shadow: var(--shadow-soft); min-width: 0;
+    }
+    .ev-card-h {
+        display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+        color: var(--ios-label); font-size: 13.5px; text-transform: uppercase;
+        font-weight: 800; border-bottom: 1px solid var(--ios-hairline); padding-bottom: 9px;
+    }
+    .ev-card-h i { color: var(--ios-blue); }
+    .ev-badge {
+        margin-left: auto; background: rgba(10,132,255,.15); color: var(--ios-blue);
+        font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 9px;
+    }
+    .ev-textos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .ev-t {
+        display: flex; justify-content: space-between; align-items: center; gap: 10px;
+        font-size: 12.5px; background: var(--ios-bg); border: 1px solid var(--ios-hairline);
+        padding: 8px 11px; border-radius: 9px; min-width: 0;
+    }
+    .ev-t > span:first-child { color: var(--ios-gray-1); font-weight: 700; font-size: 10.5px; text-transform: uppercase; flex: 0 1 auto; }
+    .ev-t > span:last-child { font-weight: 800; color: var(--ios-label); text-align: right; max-width: 60%; word-break: break-word; }
+    .ev-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 9px; }
+    .ev-f-wrap { position: relative; }
+    .ev-f-go {
+        position: absolute; top: 5px; right: 5px; width: 24px; height: 24px;
+        border-radius: 50%; background: rgba(0,0,0,.62); color: #fff; font-size: 11px;
+        display: flex; align-items: center; justify-content: center; text-decoration: none;
+        border: 1px solid rgba(255,255,255,.28); z-index: 2;
+    }
+    .ev-f-go:hover { background: #0A84FF; border-color: #0A84FF; }
+    .ev-f {
+        position: relative; padding: 0; border: 1px solid var(--ios-hairline);
+        border-radius: 11px; overflow: hidden; background: #000; aspect-ratio: 1;
+        width: 100%; cursor: zoom-in; display: block;
+    }
+    .ev-f img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .88; transition: transform .2s, opacity .2s; }
+    .ev-f:hover img { transform: scale(1.06); opacity: 1; }
+    .ev-f-cap {
+        position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.62);
+        color: #fff; font-size: 9.5px; font-weight: 700; padding: 4px 5px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+    }
+    .ev-empty { grid-column: 1 / -1; text-align: center; padding: 34px 16px; color: var(--ios-gray-1); font-weight: 600; }
+    .ev-empty i { font-size: 32px; display: block; margin-bottom: 10px; opacity: .5; }
+    /* Visor (lightbox) */
+    .ev-lb { position: fixed; inset: 0; z-index: 2147483000; background: rgba(0,0,0,.93); display: none; flex-direction: column; }
+    .ev-lb-top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: #fff; flex-shrink: 0; }
+    .ev-lb-cat { background: rgba(10,132,255,.28); border: 1px solid rgba(10,132,255,.6); color: #6fb6ff;
+        font-size: 11px; font-weight: 800; text-transform: uppercase; border-radius: 999px; padding: 3px 10px; }
+    .ev-lb-cap { font-size: 13.5px; font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ev-lb-count { font-size: 12px; color: #bbb; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .ev-lb-x {
+        border: none; background: rgba(255,255,255,.12); color: #fff; width: 34px; height: 34px;
+        border-radius: 50%; font-size: 20px; line-height: 1; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .ev-lb-x:hover { background: #FF3B30; }
+    .ev-lb-stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0 58px 8px; }
+    .ev-lb-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: #111; }
+    .ev-lb-nav {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer;
+        background: rgba(255,255,255,.14); color: #fff; font-size: 17px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .ev-lb-nav:hover { background: #0A84FF; }
+    .ev-lb-prev { left: 8px; }
+    .ev-lb-next { right: 8px; }
+    .ev-lb-bottom { text-align: center; padding: 0 0 16px; flex-shrink: 0; }
+    .ev-lb-open { color: #6fb6ff; font-weight: 700; font-size: 13px; text-decoration: none; }
+    .ev-lb-open:hover { text-decoration: underline; }
+    /* Drive no deja previsualizar archivos que exigen iniciar sesion: en vez del
+       logo de reemplazo se avisa y se da el boton para abrirlo en Drive. */
+    .ev-lb-fail {
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        gap: 10px; color: #98989E; text-align: center; padding: 26px; max-width: 420px;
+        background: rgba(255,255,255,.05); border: 1px dashed rgba(255,255,255,.22); border-radius: 14px;
+    }
+    .ev-lb-fail i.fa-image { font-size: 34px; opacity: .55; }
+    .ev-lb-fail p { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.5; }
+    .ev-lb-cta {
+        background: #0A84FF; color: #fff; text-decoration: none; font-weight: 700;
+        font-size: 13px; padding: 9px 16px; border-radius: 10px; display: inline-flex; gap: 8px; align-items: center;
+    }
+    .ev-lb-cta:hover { filter: brightness(1.1); }
+    @media (max-width: 760px) {
+        #evidencia-contenedor { grid-template-columns: 1fr; }
+        .ev-lb-stage { padding: 0 6px 8px; }
+        .ev-lb-nav { width: 38px; height: 38px; }
+        .ev-lb-cap { display: none; }
+    }
     /* Botones de accion del flujo en la fila */
     .rend-acciones { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
     .rend-btn {
@@ -403,6 +520,27 @@
         box-shadow: 0 0 0 3px rgba(0,122,255,.13);
     }
     .rend-modal-body textarea { resize: vertical; min-height: 80px; }
+    /* Opciones de tiempo de respuesta (modal Validar): 3 botones tipo radio */
+    .rend-opciones { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; }
+    .rend-modal-body label.rend-op {
+        display: block; margin: 0; padding: 0; cursor: pointer;
+        flex: 1 1 130px; min-width: 120px;
+    }
+    .rend-op span {
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+        min-height: 42px; padding: 8px 10px; font-size: 13px; font-weight: 700;
+        color: var(--ios-label, #000); text-align: center;
+        border: 1px solid var(--ios-hairline, #E5E5EA); border-radius: 10px;
+        background: var(--ios-card-bg, #fff);
+        transition: border-color .15s, background .15s, color .15s, box-shadow .15s;
+    }
+    .rend-op:hover span { border-color: var(--ios-blue, #007AFF); }
+    .rend-op input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .rend-op input:checked + span {
+        border-color: var(--ios-blue, #007AFF); color: var(--ios-blue, #007AFF);
+        background: rgba(0,122,255,.10); box-shadow: 0 0 0 2px rgba(0,122,255,.18);
+    }
+    .rend-op input:focus-visible + span { outline: 2px solid var(--ios-blue, #007AFF); outline-offset: 2px; }
     /* Info de estado del flujo en modal */
     .rend-flow-info {
         display: flex; align-items: center; gap: 10px; padding: 10px 14px;
@@ -1417,6 +1555,42 @@
         border-top: 1px solid var(--ios-hairline);
     }
 
+    /* Foto que no cargó (servidor de fotos apagado o WO sin archivos) */
+    .autin-thumb.sin-foto {
+        cursor: default;
+        border-style: dashed;
+        border-color: rgba(255, 59, 48, .45);
+    }
+
+    .autin-thumb.sin-foto:hover {
+        box-shadow: none;
+        transform: none;
+    }
+
+    .autin-thumb-falla {
+        height: 110px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #FF3B30;
+        background: rgba(255, 59, 48, .07);
+    }
+
+    .autin-thumb-falla i {
+        font-size: 22px;
+        opacity: .85;
+    }
+
+    .wo-empty.autin-aviso-mal {
+        color: #FF3B30;
+        background: rgba(255, 59, 48, .08);
+        border: 1px solid rgba(255, 59, 48, .30);
+    }
+
     .autin-lightbox {
         position: fixed;
         inset: 0;
@@ -2152,6 +2326,15 @@
     .wo-zip-btn:active { transform: translateY(0) scale(0.98); }
     .wo-zip-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
+    /* Agrupa botones de acción a la derecha dentro de un título de sección */
+    .wo-title-acciones {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .wo-title-acciones .wo-zip-btn { margin-left: 0; }
+
     .evidencia-titulo {
         margin-top: 18px;
         font-size: 13px;
@@ -2609,7 +2792,7 @@
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i
                             class="fa-solid fa-camera"></i> Evidencia</button>
                     <button type="button" class="wo-tab" id="wo-tab-autin" onclick="cambiarWoTab('autin')"><i
-                            class="fa-solid fa-tower-broadcast"></i> AUTIN</button>
+                            class="fa-solid fa-tower-broadcast"></i> Autin</button>
                     <button type="button" class="wo-tab" id="wo-tab-bitacora" style="display:none;"
                         onclick="cambiarWoTab('bitacora')"><i class="fa-solid fa-book"></i> Bitácora</button>
                     {% if session.get('rol') in ('zeno', 'suport') %}
@@ -3147,10 +3330,12 @@
             </div>
             <div id="wo-panel-autin" style="display:none;">
                 <div class="wo-section">
-                    <div class="wo-section-title"><i class="fa-solid fa-tower-broadcast"></i> Fotos AUTIN
-                        <button type="button" id="btn-autin-recargar" class="wo-zip-btn"
-                            onclick="cargarAutinFotos(true)" title="Volver a leer la carpeta"><i
-                                class="fa-solid fa-rotate"></i> Recargar</button>
+                    <div class="wo-section-title" style="text-transform:none;"><i class="fa-solid fa-tower-broadcast"></i> Fotos Autin
+                        <span class="wo-title-acciones">
+                            <button type="button" id="btn-autin-zip" class="wo-zip-btn" onclick="autinDescargarZip()"
+                                title="Descargar todas las fotos del WO en un ZIP"><i class="fa-solid fa-file-zipper"></i>
+                                Descargar ZIP</button>
+                        </span>
                     </div>
                     <div class="wo-autin-ruta" id="wo-autin-ruta"></div>
                     <div id="wo-autin-body">
@@ -4012,6 +4197,7 @@ let _rendCambiandoVista = false;
     // si no se agregan aquí, cada pestaña quedaría sin esas columnas.
     if (IS_RENDICION) {
         ['CODIGO DEPOSITO', 'ESTADO', 'FECHA VALIDACION', 'VALIDADO POR',
+         'TIEMPO DE RESPUESTA',
          'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'DEPOSITADO POR',
          'FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO',
          'SUSTENTADO POR', 'FECHA RECHAZO', 'RECHAZADO POR',
@@ -5162,13 +5348,14 @@ let _rendCambiandoVista = false;
         });
     }
 
-    // Rendicion: Columna de botón de Evidencias (congelada junto al Flujo)
+    // Rendicion: Columna de botón de Evidencias
     if (IS_RENDICION) {
         tableColumns.push({
             title: "Evidencia",
             field: "_evidencia_btn",
             width: 95,
-            frozen: true, // Se mantiene congelada a la izquierda junto al Flujo
+            // Sin `frozen`: debe poder arrastrarse y reordenarse como cualquier otra
+            // columna (movableColumns). El orden lo guarda column_layout.
             headerSort: false,
             hozAlign: "center",
             visible: false, // Solo se mostrará en la pestaña Rendición
@@ -9839,6 +10026,14 @@ btnItem.onclick = () => cotRegAgregarFila();
         woRow = row;
         woKey = data._key;
         document.getElementById('wo-title').textContent = String(woKey || 'WO');
+        // Autin: si la pestaña quedó abierta de un WO anterior, recargar sus fotos al instante
+        {
+            const _tabAutin = document.getElementById('wo-tab-autin');
+            const _panAutin = document.getElementById('wo-panel-autin');
+            if (_tabAutin && _tabAutin.classList.contains('active') && _panAutin && _panAutin.style.display !== 'none') {
+                setTimeout(() => cargarAutinFotos(true), 0);
+            }
+        }
 
         aplicarConfigWoPorProyecto();
 
@@ -11302,10 +11497,19 @@ btnItem.onclick = () => cotRegAgregarFila();
         ['otros', 'Otros', 'fa-images']
     ];
     let _autinWoCargada = null;
+    let _autinBase = '';      // URL del servidor (solo zeno; vacío = no editable)
+    let _autinFotosBase = ''; // base real de las imágenes (servidor remoto)
+    let _autinFotosQs = '';   // ?k=... si el servidor exige token
+    let _autinZipUrl = '';    // ZIP generado por el servidor remoto (modo api)
 
     function _autinEsAdmin() {
         const r = String(typeof USER_ROLE !== 'undefined' ? USER_ROLE : '').trim().toLowerCase();
         return r === 'zeno' || r === 'suport';
+    }
+
+    function _autinEsZeno() {
+        const r = String(typeof USER_ROLE !== 'undefined' ? USER_ROLE : '').trim().toLowerCase();
+        return r === 'zeno';
     }
 
     function cargarAutinFotos(force) {
@@ -11320,12 +11524,15 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (!force && _autinWoCargada === wo && body.dataset.wo === wo && body.dataset.ok === '1') return;
         body.dataset.wo = wo;
         body.dataset.ok = '0';
-        body.innerHTML = '<div class="wo-empty">Cargando fotos de AUTIN...</div>';
-        if (rutaEl) rutaEl.innerHTML = '';
+        body.innerHTML = '<div class="wo-empty">Cargando fotos de Autin...</div>';
+        if (rutaEl) {
+            rutaEl.innerHTML = '';
+            rutaEl.style.display = _autinEsAdmin() ? '' : 'none';
+        }
         fetch('/api/autin/fotos?wo=' + encodeURIComponent(wo) + '&_=' + Date.now(), { credentials: 'same-origin' })
             .then(r => r.json())
             .then(j => { if (String(j.wo || '') === String(wo)) renderAutin(j); })
-            .catch(() => { body.innerHTML = '<div class="wo-empty">No se pudieron leer las fotos de AUTIN.</div>'; });
+            .catch(() => { body.innerHTML = '<div class="wo-empty">No se pudieron leer las fotos de Autin.</div>'; });
     }
 
     function renderAutin(j) {
@@ -11335,21 +11542,47 @@ btnItem.onclick = () => cotRegAgregarFila();
         body.dataset.wo = String(j.wo || '');
         body.dataset.ok = '1';
         _autinWoCargada = String(j.wo || '');
+        _autinBase = String(j.base_url || '').replace(/\/+$/, '');
+        _autinFotosBase = String(j.fotos_base || '').replace(/\/+$/, '');
+        _autinFotosQs = String(j.fotos_qs || '');
+        _autinZipUrl = String(j.zip_url || '');
 
         if (rutaEl) {
-            let html = '<i class="fa-solid ' + (j.raiz_existe ? 'fa-folder-open' : 'fa-folder-closed') + '"></i>' +
-                '<span class="autin-ruta-txt" title="' + escapeHtml(j.raiz || '') + '">' + escapeHtml(j.raiz || '') + '</span>';
-            html += '<span class="autin-badge ' + (j.raiz_existe ? 'ok' : 'bad') + '">' +
-                (j.raiz_existe ? 'Carpeta accesible' : 'Carpeta no encontrada') + '</span>';
-            if (j.carpeta) html += '<span class="autin-badge neutral">' + escapeHtml(j.carpeta) + '</span>';
-            if (_autinEsAdmin()) {
+            // La ruta y la URL solo se muestran a administradores (zeno/suport)
+            if (!_autinEsAdmin()) {
+                rutaEl.innerHTML = '';
+                rutaEl.style.display = 'none';
+            } else {
+                rutaEl.style.display = '';
+                const fuente = _autinBase || _autinFotosBase || j.raiz || '';
+                let html = '<i class="fa-solid ' + (j.sin_conexion ? 'fa-plug-circle-xmark' : (j.raiz_existe ? 'fa-folder-open' : 'fa-folder-closed')) + '"></i>' +
+                    '<span class="autin-ruta-txt" title="' + escapeHtml(fuente) + '">' + escapeHtml(fuente) + '</span>';
+                html += '<span class="autin-badge ' + (j.raiz_existe ? 'ok' : 'bad') + '">' +
+                    (j.sin_conexion ? 'Servidor no disponible'
+                        : (j.raiz_existe ? (j.modo === 'local' ? 'Carpeta accesible' : 'Servidor de fotos activo') : 'Carpeta no encontrada')) + '</span>';
+                if (j.carpeta) html += '<span class="autin-badge neutral">' + escapeHtml(j.carpeta) + '</span>';
                 html += '<span class="autin-ruta-edit">' +
                     '<input type="text" id="autin-ruta-input" value="' + escapeHtml(j.raiz || '') + '" ' +
-                    'placeholder="Ruta de la carpeta AUTIN (unidad montada)">' +
+                    'placeholder="Ruta de la carpeta Autin (unidad montada)">' +
                     '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
                     '<i class="fa-solid fa-floppy-disk"></i> Guardar</button></span>';
+                // La URL del servidor cambia en cada reinicio del túnel: solo zeno la pega y guarda
+                if (_autinEsZeno()) {
+                    html += '<span class="autin-ruta-edit">' +
+                        '<input type="text" id="autin-base-input" value="' + escapeHtml(_autinBase) + '" ' +
+                        'placeholder="URL del servidor de fotos (cambia al reiniciar el túnel)">' +
+                        '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
+                        '<i class="fa-solid fa-floppy-disk"></i> Guardar URL</button>' +
+                        '</span>';
+                }
+                rutaEl.innerHTML = html;
             }
-            rutaEl.innerHTML = html;
+        }
+
+        if (j.sin_conexion) {
+            body.innerHTML = '<div class="wo-empty autin-aviso-mal"><i class="fa-solid fa-plug-circle-xmark"></i> ' +
+                escapeHtml(j.mensaje || 'Servidor de fotos no disponible.') + '</div>';
+            return;
         }
 
         if (!j.raiz_existe || !j.carpeta) {
@@ -11370,10 +11603,12 @@ btnItem.onclick = () => cotRegAgregarFila();
                 ' <span class="autin-cont">' + arr.length + '</span></div>' +
                 '<div class="autin-grid">';
             arr.forEach(rel => {
-                const src = '/api/autin/foto?wo=' + encodeURIComponent(j.wo) + '&f=' + encodeURIComponent(rel);
                 const nombre = rel.split('/').pop();
+                const src = _autinFotosBase
+                    ? _autinFotosBase + '/' + rel.split('/').map(encodeURIComponent).join('/') + _autinFotosQs
+                    : '/api/autin/foto?wo=' + encodeURIComponent(j.wo) + '&f=' + encodeURIComponent(rel);
                 html += '<figure class="autin-thumb" onclick="autinVerFoto(\'' + escapeHtml(src).replace(/'/g, '%27') + '\',\'' + escapeHtml(nombre).replace(/'/g, '%27') + '\')" title="' + escapeHtml(rel) + '">' +
-                    '<img loading="lazy" src="' + src + '" alt="' + escapeHtml(nombre) + '">' +
+                    '<img loading="lazy" src="' + src + '" alt="' + escapeHtml(nombre) + '" onerror="autinFotoError(this)">' +
                     '<figcaption>' + escapeHtml(nombre) + '</figcaption></figure>';
             });
             html += '</div></div>';
@@ -11387,15 +11622,93 @@ btnItem.onclick = () => cotRegAgregarFila();
         body.innerHTML = html;
     }
 
+    // Una foto no cargó (502 del túnel, servidor apagado, WO borrado, etc.).
+    // El túnel de Cloudflare devuelve 502 esporádicamente en ráfagas: se reintenta
+    // con espera creciente y solo se marca "No disponible" al agotar los intentos.
+    function autinFotoError(img) {
+        if (!img || img.dataset.mf === '1') return;
+        const n = parseInt(img.dataset.reintentos || '0', 10);
+        if (n < 3) {
+            img.dataset.reintentos = String(n + 1);
+            if (!img.dataset.src0) img.dataset.src0 = img.src;
+            const esperas = [1500, 4000, 9000];
+            setTimeout(function () {
+                if (!img.isConnected) return;
+                const base = img.dataset.src0;
+                const sep = base.indexOf('?') >= 0 ? '&' : '?';
+                img.src = base + sep + '_r=' + Date.now();
+            }, esperas[n]);
+            return;
+        }
+        img.dataset.mf = '1';
+        const fig = img && img.closest ? img.closest('.autin-thumb') : null;
+        if (fig && !fig.classList.contains('sin-foto')) {
+            fig.classList.add('sin-foto');
+            fig.onclick = null;
+            fig.innerHTML = '<div class="autin-thumb-falla"><i class="fa-solid fa-plug-circle-xmark"></i>' +
+                '<span>No disponible</span></div>';
+        }
+        const body = document.getElementById('wo-autin-body');
+        if (body && !document.getElementById('autin-aviso-fallas')) {
+            const d = document.createElement('div');
+            d.id = 'autin-aviso-fallas';
+            d.className = 'wo-empty autin-aviso-mal';
+            d.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' +
+                'Algunas fotos no cargan — el servidor de fotos no responde.';
+            body.insertBefore(d, body.firstChild);
+        }
+    }
+
     function autinGuardarRuta() {
         const inp = document.getElementById('autin-ruta-input');
-        if (!inp) return;
+        const inpB = document.getElementById('autin-base-input');
+        if (!inp && !inpB) return;
         const fd = new FormData();
-        fd.append('ruta', inp.value);
+        if (inp) fd.append('ruta', inp.value);
+        if (inpB) fd.append('base_url', inpB.value.trim());
+        if (woKey) fd.append('wo', woKey);
         fetch('/api/autin/config', { method: 'POST', body: fd, credentials: 'same-origin' })
             .then(r => r.json())
-            .then(() => cargarAutinFotos(true))
+            .then(j => { if (j && j.error) nucleusAlert(j.error); else cargarAutinFotos(true); })
             .catch(() => { });
+    }
+
+    function autinDescargarZip() {
+        if (!woKey) { nucleusAlert('No hay ticket seleccionado.'); return; }
+        const btn = document.getElementById('btn-autin-zip');
+        // Modo api: el ZIP lo genera el servidor de fotos (no pasa por Render)
+        if (_autinZipUrl) {
+            const a = document.createElement('a');
+            a.href = _autinZipUrl;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            return;
+        }
+        const old = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...'; }
+        fetch('/api/autin/zip?wo=' + encodeURIComponent(woKey), { credentials: 'same-origin' })
+            .then(async r => {
+                if (!r.ok) {
+                    let msg = 'Error al generar el ZIP';
+                    try { const j = await r.json(); msg = j.error || msg; } catch (e) { }
+                    throw new Error(msg);
+                }
+                return r.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'autin_' + String(woKey).replace(/[^a-zA-Z0-9_-]/g, '_') + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => nucleusAlert(err.message || 'Error al generar el ZIP'))
+            .finally(() => { if (btn) { btn.disabled = false; btn.innerHTML = old; } });
     }
 
     function autinVerFoto(src, nombre) {
@@ -11564,6 +11877,10 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('modal-wo').style.display = 'none';
         woRow = null; woKey = null;
         evidenciaState = null;
+        // Autin: invalidar el caché para que la próxima apertura relea la carpeta
+        if (typeof _autinWoCargada !== 'undefined') _autinWoCargada = null;
+        const _bAutin = document.getElementById('wo-autin-body');
+        if (_bAutin) { _bAutin.dataset.wo = ''; _bAutin.dataset.ok = '0'; }
     }
 
     function copiarAlPortapapeles(texto) {
@@ -12239,10 +12556,20 @@ btnItem.onclick = () => cotRegAgregarFila();
         </div>
 
         <div id="rend-sus-form" style="display:none;">
-          <label>Fotos del sustento (máx. 5)</label>
-          <div id="rend-slots-sus" style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"></div>
           <label for="rend-comentario">Comentario / siguiente paso</label>
           <textarea id="rend-comentario" rows="3" placeholder="Ej.: Se Cargó soporte al drive, pendiente factura"></textarea>
+        </div>
+
+        <div id="rend-val-form" style="display:none;">
+          <hr style="border:none; border-top:1px dashed var(--ios-hairline, #C7C7CC); margin: 0 0 15px 0;">
+          <label>Tiempo de respuesta *</label>
+          <div class="rend-opciones" id="rend-val-ops">
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="Menor a 4 horas"><span><i class="fa-regular fa-clock"></i> Menor a 4 horas</span></label>
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="Mayor a 4 horas"><span><i class="fa-solid fa-clock"></i> Mayor a 4 horas</span></label>
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="No aplica"><span><i class="fa-solid fa-ban"></i> No aplica</span></label>
+          </div>
+          <label for="rend-val-obs">Observación de la validación</label>
+          <textarea id="rend-val-obs" rows="2" placeholder="Ej.: validado por Héctor"></textarea>
         </div>
       </div>
     </div>
@@ -12313,8 +12640,15 @@ function rendPoblarDetalle(data, gridId) {
         // Solo lo que se ve en la tabla (la hoja activa puede ocultar columnas)
         if (typeof col.isVisible === 'function' && !col.isVisible()) return;
         seen.add(f);
-        const label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
-        const raw = data[f];
+        let label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
+        let raw = data[f];
+        // En el resumen del flujo el site se muestra como "Motivo de la solicitud"
+        const _normCol = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        if (_normCol(f) === 'nombre de site' || _normCol(f) === 'nombre site') {
+            seen.add('Motivo de la solicitud');
+            label = 'Motivo de la solicitud';
+            raw = data['Motivo de la solicitud'];
+        }
         const val = (raw === null || raw === undefined) ? '' : String(raw).trim();
         let valHtml;
         // Campos de monto: resaltados con pastilla verde (mismo estilo que los valores de estado)
@@ -12632,7 +12966,7 @@ function rendAbrirModal(titulo, sub, okTexto, cuerpo) {
     document.getElementById('rend-modal-title').innerHTML = titulo;
     document.getElementById('rend-modal-sub').textContent = sub || '';
     document.getElementById('rend-modal-ok').textContent = okTexto || 'Confirmar';
-    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form'].forEach(id => {
+    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form', 'rend-val-form'].forEach(id => {
         document.getElementById(id).style.display = 'none';
     });
     if (cuerpo) document.getElementById(cuerpo).style.display = 'block';
@@ -12644,14 +12978,27 @@ function rendCerrarModal() {
 }
 
 // Validar: muestra confirmación con el detalle completo de la solicitud
+// + selección de tiempo de respuesta (3 opciones) y observación.
 function rendValidar(key) {
     _rendModal = { accion: 'validar', key: key };
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+    const previo = String(row['TIEMPO DE RESPUESTA'] || '').trim();
+    let hay = false;
+    document.querySelectorAll('#rend-val-ops input[type="radio"]').forEach(r => {
+        r.checked = (r.value === previo);
+        if (r.checked) hay = true;
+    });
+    if (!hay) {
+        const primero = document.querySelector('#rend-val-ops input[type="radio"]');
+        if (primero) primero.checked = false;
+    }
+    document.getElementById('rend-val-obs').value = String(row['OBSERVACIONES'] || '');
     rendMostrarResumen(key);
     rendAbrirModal(
         '✓ Validar solicitud',
-        'La solicitud pasará a la pestaña Depósitos para registrar el pago.',
+        'Elige el tiempo de respuesta y escribe la observación. La solicitud pasará a Depósitos.',
         'Confirmar Validación',
-        null
+        'rend-val-form'
     );
 }
 
@@ -12704,19 +13051,9 @@ function rendAbrirSustento(key) {
     Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
     document.getElementById('rend-comentario').value = '';
     rendMostrarResumen(key);
-    const grid = document.getElementById('rend-slots-sus');
-    grid.innerHTML = '';
-    for (let i = 1; i <= 5; i++) {
-        const d = document.createElement('div');
-        d.className = 'rend-slot';
-        d.setAttribute('data-slot', 'susto_' + i);
-        d.onclick = () => rendElegirFoto('susto_' + i);
-        grid.appendChild(d);
-    }
-    for (let i = 1; i <= 5; i++) rendPintarSlot('susto_' + i, null);
     rendAbrirModal(
         '★ Sustentar depósito',
-        'Sube hasta 5 fotos de sustento y escribe el comentario con el siguiente paso. Al confirmar cambia a estado SUSTENTADO.',
+        'Escribe el comentario con el siguiente paso. Al confirmar cambia a estado SUSTENTADO.',
         'Confirmar Sustento',
         'rend-sus-form'
     );
@@ -12769,7 +13106,12 @@ function rendConfirmarModal() {
     const { accion, key } = _rendModal;
     const extra = {};
 
-    if (accion === 'rechazar') {
+    if (accion === 'validar') {
+        const op = document.querySelector('#rend-val-ops input[name="rend-val-op"]:checked');
+        if (!op) { alert('Selecciona una opción de tiempo de respuesta.'); return; }
+        extra.tiempo = op.value;
+        extra.observaciones = document.getElementById('rend-val-obs').value.trim();
+    } else if (accion === 'rechazar') {
         const motivo = document.getElementById('rend-motivo').value.trim();
         if (!motivo) { alert('Escribe el motivo del rechazo.'); return; }
         extra.observaciones = motivo;
@@ -12783,12 +13125,13 @@ function rendConfirmarModal() {
         extra.monto_pago = monto;
         extra.foto_pago = _rendFotosPend['pago'];
     } else if (accion === 'sustentar') {
+        // Sin fotos: el sustento se confirma solo con el comentario (las fotos, si
+        // existieran de antes, se conservan tal cual en el registro).
         const fotos = Object.keys(_rendFotosPend)
             .sort()
             .map(k => _rendFotosPend[k])
             .filter(Boolean);
-        if (!fotos.length) { alert('Sube al menos una foto de sustento.'); return; }
-        extra.fotos = fotos;
+        if (fotos.length) extra.fotos = fotos;
         extra.comentario = document.getElementById('rend-comentario').value.trim();
     }
 
@@ -13039,106 +13382,277 @@ document.addEventListener('click', (e) => {
 // ============================================================================
 // MODAL DE DETALLE DE EVIDENCIAS (NUEVO REQUERIMIENTO)
 // ============================================================================
+/* ── Evidencia: helpers de Google Drive ──────────────────────────────────────
+   Los enlaces llegan en varios formatos (open?id=ID, /file/d/ID/view,
+   uc?export=download&id=ID); de todos sacamos el ID para armar miniaturas
+   que sí cargan (drive.google.com/thumbnail suele devolver 404 y caía siempre
+   en el logo de reemplazo). */
+function evDriveId(u) {
+    const s = String(u || '');
+    let m = s.match(/[?&]id=([A-Za-z0-9_-]{8,})/);
+    if (m) return m[1];
+    m = s.match(/\/d\/([A-Za-z0-9_-]{8,})/);
+    if (m) return m[1];
+    return null;
+}
+function evVerUrl(u) {
+    const id = evDriveId(u);
+    return id ? ('https://drive.google.com/file/d/' + id + '/view') : String(u || '#');
+}
+// Cadena de respaldo para <img>: se avanza automáticamente con evImgFail().
+function evThumbChain(u) {
+    const id = evDriveId(u);
+    const c = [];
+    if (id) {
+        c.push('https://lh3.googleusercontent.com/d/' + id + '=w400');
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w400');
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w800');
+    }
+    c.push(u);
+    return c;
+}
+function evFullChain(u) {
+    const id = evDriveId(u);
+    const c = [];
+    if (id) {
+        c.push('https://lh3.googleusercontent.com/d/' + id + '=s2000');
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w2000');
+    }
+    c.push(u);
+    return c;
+}
+// Sustituto neutro cuando Drive no deja previsualizar (archivo con acceso restringido):
+// un icono de foto, nunca el logo, para que no parezca que la evidencia es otra cosa.
+const EV_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">' +
+    '<rect width="240" height="240" fill="#1c1c1e"/>' +
+    '<g fill="none" stroke="#5a5a5f" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">' +
+    '<rect x="54" y="74" width="132" height="100" rx="14"/>' +
+    '<circle cx="92" cy="110" r="13"/>' +
+    '<path d="M60 162l40-40 30 30 21-17 31 27"/></g>' +
+    '<text x="120" y="212" fill="#8E8E93" font-family="Arial,Helvetica,sans-serif" ' +
+    'font-size="17" font-weight="bold" text-anchor="middle">Drive</text></svg>');
+function evImgFail(img) {
+    try {
+        const urls = String(img.dataset.urls || '').split('|||').filter(Boolean);
+        let i = parseInt(img.dataset.i || '0', 10) + 1;
+        if (i < urls.length) { img.dataset.i = String(i); img.src = urls[i]; return; }
+    } catch (e) {}
+    img.onerror = null;
+    if (img.classList.contains('ev-lb-img')) {
+        img.style.display = 'none';
+        const f = document.getElementById('ev-lb-fail');
+        if (f) f.style.display = 'flex';
+        return;
+    }
+    img.src = EV_PLACEHOLDER;
+    img.dataset.fallo = '1';
+}
+// Fotos ya extraidas (para recorrerlas con ← → en el visor).
+let EV_FOTOS = [];
+function evLbBox() {
+    let b = document.getElementById('ev-lb');
+    if (b) return b;
+    b = document.createElement('div');
+    b.id = 'ev-lb';
+    b.className = 'ev-lb';
+    b.innerHTML =
+        '<div class="ev-lb-top">' +
+            '<span class="ev-lb-cat"></span>' +
+            '<span class="ev-lb-cap"></span>' +
+            '<span class="ev-lb-count"></span>' +
+            '<button type="button" class="ev-lb-x" title="Cerrar (Esc)">&times;</button>' +
+        '</div>' +
+        '<div class="ev-lb-stage">' +
+            '<button type="button" class="ev-lb-nav ev-lb-prev" title="Anterior (←)">&#10094;</button>' +
+            '<img class="ev-lb-img" alt="">' +
+            '<div class="ev-lb-fail" id="ev-lb-fail">' +
+                '<i class="fa-solid fa-image"></i>' +
+                '<p>Google Drive no permite previsualizar este archivo desde aqui ' +
+                '(acceso restringido). Abre el original para verlo.</p>' +
+                '<a class="ev-lb-cta ev-lb-href" href="#" target="_blank" rel="noopener">' +
+                'Abrir en Drive <i class="fa-solid fa-arrow-up-right-from-square"></i></a>' +
+            '</div>' +
+            '<button type="button" class="ev-lb-nav ev-lb-next" title="Siguiente (→)">&#10095;</button>' +
+        '</div>' +
+        '<div class="ev-lb-bottom"><a class="ev-lb-open ev-lb-href" href="#" target="_blank" rel="noopener">' +
+        '<i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir original</a></div>';
+    document.body.appendChild(b);
+    b.addEventListener('click', e => { if (e.target === b) evLbCierra(); });
+    b.querySelector('.ev-lb-x').onclick = evLbCierra;
+    b.querySelector('.ev-lb-prev').onclick = () => evLbMuestra((window.__evLbI || 0) - 1);
+    b.querySelector('.ev-lb-next').onclick = () => evLbMuestra((window.__evLbI || 0) + 1);
+    if (!window.__evLbTeclado) {
+        window.__evLbTeclado = true;
+        document.addEventListener('keydown', e => {
+            const box = document.getElementById('ev-lb');
+            if (!box || box.style.display !== 'flex') return;
+            if (e.key === 'Escape') evLbCierra();
+            else if (e.key === 'ArrowLeft') evLbMuestra((window.__evLbI || 0) - 1);
+            else if (e.key === 'ArrowRight') evLbMuestra((window.__evLbI || 0) + 1);
+        });
+    }
+    return b;
+}
+function evLbMuestra(i) {
+    const n = EV_FOTOS.length;
+    if (!n) return;
+    i = ((i % n) + n) % n;
+    window.__evLbI = i;
+    const it = EV_FOTOS[i];
+    const b = evLbBox();
+    b.style.display = 'flex';
+    const img = b.querySelector('.ev-lb-img');
+    const cadena = evFullChain(it.url);
+    img.style.display = '';
+    const fail = document.getElementById('ev-lb-fail');
+    if (fail) fail.style.display = 'none';
+    img.dataset.urls = cadena.join('|||');
+    img.dataset.i = '0';
+    img.onerror = function () { evImgFail(this); };
+    img.src = cadena[0];
+    b.querySelector('.ev-lb-cat').textContent = it.cat;
+    b.querySelector('.ev-lb-cap').textContent = it.k;
+    b.querySelector('.ev-lb-count').textContent = (i + 1) + ' / ' + n;
+    const href = evVerUrl(it.url);
+    b.querySelectorAll('.ev-lb-href').forEach(a => { a.href = href; });
+}
+function evLbCierra() { const b = document.getElementById('ev-lb'); if (b) b.style.display = 'none'; }
+
 function rendAbrirDetalleEvidencia(key) {
     const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key);
     if (!row) return;
-    
+
+    const CATS = ['PAGO', 'PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
+                  'HOSPEDAJE', 'OTROS', 'COMPROBANTE', 'GENERAL'];
+    const data = {};
+    CATS.forEach(c => data[c] = { textos: [], fotos: [] });
+
+    const catDe = k => {
+        const K = String(k).toUpperCase();
+        if (K === 'FOTO PAGO' || K === 'FOTOS SUSTENTO') return 'PAGO';
+        const base = K.indexOf('SUSTENTO_') === 0 ? K.slice(9) : K;
+        for (const c of ['PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
+                         'HOSPEDAJE', 'OTROS', 'COMPROBANTE']) {
+            if (base.indexOf(c) >= 0) return c;
+        }
+        return 'GENERAL';
+    };
+    // Devuelve cuantas URLs agrego (un campo puede traer varias).
+    // Tambien rutas del propio servidor (/api/rendicion/foto/..., /static/...).
+    const addFotos = (cat, etiqueta, valor) => {
+        const s = String(valor == null ? '' : valor).replace(/\\\//g, '/');
+        const urls = s.match(/(?:https?:\/\/[^\s,;"'<>]+|\/(?:api|static)\/[^\s,;"'<>]+)/g) || [];
+        urls.forEach((u, i) => data[cat].fotos.push({
+            k: urls.length > 1 ? (etiqueta + ' ' + (i + 1)) : etiqueta,
+            url: u
+        }));
+        return urls.length;
+    };
+
+    if (String(row['FOTO PAGO'] || '').trim()) addFotos('PAGO', 'Comprobante de pago', row['FOTO PAGO']);
+    if (row['FOTOS SUSTENTO']) addFotos('PAGO', 'Foto de sustento', row['FOTOS SUSTENTO']);
+
+    Object.keys(row).forEach(k => {
+        if (k.indexOf('SUSTENTO_') !== 0) return;
+        const v = String(row[k] == null ? '' : row[k]).trim();
+        if (!v) return;
+        let clean = k.slice(9).trim();
+        if (clean.toUpperCase().indexOf('FOTO ') === 0) clean = clean.slice(5).trim();
+        const cat = catDe(k);
+        if (!addFotos(cat, clean || 'FOTO/DOC', v)) data[cat].textos.push({ k: clean || k, v: v });
+    });
+
+    const catsCon = CATS.filter(c => data[c].textos.length || data[c].fotos.length);
+    const nTextos = catsCon.reduce((s, c) => s + data[c].textos.length, 0);
+    const nFotos = catsCon.reduce((s, c) => s + data[c].fotos.length, 0);
+    EV_FOTOS = [];
+
     const overlay = document.createElement('div');
     overlay.className = 'mar-overlay show';
     overlay.style.zIndex = '9999';
     overlay.innerHTML = `
-        <div class="mar-modal mar-modal-wide" style="max-width:none; width:96vw; max-height:92vh; display:flex; flex-direction:column; border-radius:18px;">
+        <div class="mar-modal mar-modal-wide ev-modal">
             <div class="mar-header" style="flex-shrink:0;">
-                <h3 class="mar-title"><i class="fa-solid fa-file-invoice-dollar"></i> Detalle de Evidencia</h3>
+                <h3 class="mar-title"><i class="fa-solid fa-file-invoice-dollar"></i> Detalle de Evidencia
+                    <span class="ev-hint">${catsCon.length} categorías · ${nFotos} fotos · ${nTextos} campos</span></h3>
                 <button type="button" class="mar-close">&times;</button>
             </div>
-            <div class="mar-body" style="padding:16px; overflow:auto; flex:1; background:var(--ios-bg);">
-                <div id="evidencia-contenedor" style="display:grid; grid-column:1/-1; grid-template-columns:repeat(auto-fit, minmax(min(420px,100%), 1fr)); gap:12px; align-items:start;"></div>
+            <div class="ev-stats" id="ev-stats"></div>
+            <div class="mar-body ev-body">
+                <div id="evidencia-contenedor"></div>
             </div>
         </div>
     `;
-    
     document.body.appendChild(overlay);
     const cerrar = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 250); };
     overlay.querySelector('.mar-close').onclick = cerrar;
-    overlay.addEventListener('click', (e) => { if(e.target===overlay) cerrar(); });
-    
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
+
     const cont = overlay.querySelector('#evidencia-contenedor');
-    
-    // Categorizar campos
-    const categorias = ['PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS', 'HOSPEDAJE', 'OTROS', 'COMPROBANTE', 'GENERAL'];
-    const dataPorCat = {};
-    categorias.forEach(c => dataPorCat[c] = []);
-    
-    Object.keys(row).forEach(k => {
-        if (!k.startsWith('SUSTENTO_')) return;
-        const val = String(row[k] || '').trim();
-        if (!val) return; // omitir vacios
-        
-        let cleanName = k.replace('SUSTENTO_', '').trim();
-        if (cleanName.toUpperCase().startsWith('FOTO ')) cleanName = cleanName.substring(5).trim();
-        
-        let cat = 'GENERAL';
-        for (const c of categorias) {
-            if (k.toUpperCase().includes(c)) { cat = c; break; }
-        }
-        dataPorCat[cat].push({ k: cleanName || 'FOTO/DOC', v: val, original: k });
-    });
-    
-    let tieneAlgo = false;
-    categorias.forEach(cat => {
-        if (dataPorCat[cat].length === 0) return;
-        tieneAlgo = true;
-        
+    let gi = 0;
+    if (!catsCon.length) {
+        cont.innerHTML = '<div class="ev-empty"><i class="fa-solid fa-folder-open"></i>' +
+            'No hay evidencias registradas en el formulario para esta solicitud.</div>';
+    }
+    catsCon.forEach(cat => {
+        const d = data[cat];
         const card = document.createElement('div');
-        card.style.cssText = 'background:var(--ios-card-bg); border:1px solid var(--ios-hairline); border-radius:14px; padding:14px; box-shadow:var(--shadow-soft);';
-        
-        let html = `<h4 style="margin:0 0 12px 0; color:var(--ios-label); font-size:14px; text-transform:uppercase; font-weight:700; border-bottom:1px solid var(--ios-hairline); padding-bottom:8px; display:flex; align-items:center; gap:6px;">
-            <i class="fa-solid fa-hashtag" style="color:var(--ios-blue);"></i> ${cat}
-        </h4>`;
-        
-        // Separar las fotos/links de los campos de texto
-        const textos = [];
-        const fotos = [];
-        dataPorCat[cat].forEach(item => {
-            const isLink = item.v.startsWith('http') || item.v.includes('drive.google.com');
-            if (isLink) fotos.push(item);
-            else textos.push(item);
-        });
-        
-        if (textos.length > 0) {
-            html += `<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">`;
-            textos.forEach(item => {
-                html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; background:var(--ios-bg); padding:8px 12px; border-radius:8px;">
-                            <span style="color:var(--ios-gray-1); font-weight:600; font-size:11px; text-transform:uppercase;">${escapeHtml(item.k)}</span>
-                            <span style="font-weight:700; color:var(--ios-label); text-align:right; max-width:60%; word-break:break-word;">${escapeHtml(item.v)}</span>
-                         </div>`;
+        card.className = 'ev-card';
+        card.dataset.cat = cat;
+        let html = '<div class="ev-card-h"><i class="fa-solid fa-hashtag"></i> ' + cat +
+            '<span class="ev-badge">' + (d.fotos.length + d.textos.length) + '</span></div>';
+        if (d.textos.length) {
+            html += '<div class="ev-textos">';
+            d.textos.forEach(t => {
+                html += '<div class="ev-t"><span>' + escapeHtml(t.k) + '</span>' +
+                    '<span>' + escapeHtml(t.v) + '</span></div>';
             });
-            html += `</div>`;
+            html += '</div>';
         }
-        
-        if (fotos.length > 0) {
-            html += `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:8px;">`;
-            fotos.forEach((item, idx) => {
-                let url = item.v.split(',')[0].trim(); // por si hay varias
-                let thUrl = url;
-                if (url.includes('drive.google.com/open?id=')) {
-                    thUrl = 'https://drive.google.com/thumbnail?id=' + url.split('id=')[1] + '&sz=w400';
-                }
-                html += `<a href="${url}" target="_blank" title="${escapeHtml(item.k)}" style="display:block; text-decoration:none; border-radius:10px; overflow:hidden; border:1px solid var(--ios-hairline); background:#000; position:relative; aspect-ratio:1;">
-                            <img src="${thUrl}" style="width:100%; height:100%; object-fit:cover; opacity:0.85; transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.85" onerror="this.src='/static/img/cobra-logo.png'">
-                            <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; padding:3px; text-align:center; font-weight:bold; white-space:nowrap; text-overflow:ellipsis; overflow:hidden;">${escapeHtml(item.k)}</div>
-                         </a>`;
+        if (d.fotos.length) {
+            html += '<div class="ev-fotos">';
+            d.fotos.forEach(f => {
+                const cadena = evThumbChain(f.url);
+                EV_FOTOS.push({ url: f.url, k: f.k, cat: cat });
+                html += '<div class="ev-f-wrap">' +
+                    '<button type="button" class="ev-f" data-i="' + gi + '" title="Ver: ' +
+                    escapeHtml(f.k) + '">' +
+                    '<img data-urls="' + escapeHtml(cadena.join('|||')) + '" data-i="0" src="' +
+                    escapeHtml(cadena[0]) + '" alt="" onerror="evImgFail(this)">' +
+                    '<span class="ev-f-cap">' + escapeHtml(f.k) + '</span></button>' +
+                    '<a class="ev-f-go" href="' + escapeHtml(evVerUrl(f.url)) +
+                    '" target="_blank" rel="noopener" title="Abrir archivo original">&#8599;</a>' +
+                    '</div>';
+                gi++;
             });
-            html += `</div>`;
+            html += '</div>';
         }
-        
         card.innerHTML = html;
         cont.appendChild(card);
     });
-    
-    if (!tieneAlgo) {
-        cont.innerHTML = '<div style="text-align:center; padding:30px; color:var(--ios-gray-1); font-weight:600;"><i class="fa-solid fa-folder-open" style="font-size:32px; display:block; margin-bottom:10px; opacity:0.5;"></i>No hay evidencias registradas en el formulario para esta solicitud.</div>';
+    cont.querySelectorAll('.ev-f').forEach(btn => {
+        btn.onclick = () => evLbMuestra(parseInt(btn.dataset.i, 10) || 0);
+    });
+
+    // Chips de categoria: filtran las tarjetas sin recargar el modal.
+    const stats = overlay.querySelector('#ev-stats');
+    if (stats && catsCon.length) {
+        const chip = (cat, txt, n, on) =>
+            '<button type="button" class="ev-chip' + (on ? ' on' : '') + '" data-cat="' + cat + '">' +
+            txt + ' <b>' + n + '</b></button>';
+        let html = chip('__all', 'Todas', catsCon.length + nTextos + nFotos, true);
+        catsCon.forEach(c => { html += chip(c, c, data[c].textos.length + data[c].fotos.length, false); });
+        stats.innerHTML = html;
+        stats.querySelectorAll('.ev-chip').forEach(b => {
+            b.onclick = () => {
+                const sel = b.dataset.cat;
+                stats.querySelectorAll('.ev-chip').forEach(x => x.classList.toggle('on', x === b));
+                cont.querySelectorAll('.ev-card').forEach(c => {
+                    c.style.display = (sel === '__all' || c.dataset.cat === sel) ? '' : 'none';
+                });
+            };
+        });
     }
 }
 

@@ -249,10 +249,16 @@ def api_evidencia_zip(pid, key):
 @login_required
 def api_evidencia_reporte_config():
     """Devuelve la configuración del reporte fotográfico leída de la plantilla."""
+    if not os.path.isfile(PEX_REPORTE_XLSX):
+        return jsonify({'error': 'Plantilla del reporte no disponible en el servidor.',
+                        'plantilla': os.path.basename(PEX_REPORTE_XLSX),
+                        'slots': [], 'max': 0}), 503
     try:
         slots = _pext_config()
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.warning('reporte_config: %s', e)
+        return jsonify({'error': 'No se pudo leer la plantilla del reporte: %s' % e,
+                        'slots': [], 'max': 0}), 500
     return jsonify({'slots': slots, 'max': len(slots)})
 
 

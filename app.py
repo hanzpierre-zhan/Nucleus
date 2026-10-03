@@ -77,6 +77,21 @@ def _register_compress(app):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Las páginas HTML se revalidan siempre (así los cambios de plantilla/JS se
+# reflejan en cuanto se actualiza el servidor, sin depender de la caché del navegador)
+# ─────────────────────────────────────────────────────────────────────────────
+def _register_no_cache_html(app):
+    @app.after_request
+    def _no_cache_html(response):
+        try:
+            if response.mimetype == 'text/html' and not response.headers.get('Cache-Control'):
+                response.headers['Cache-Control'] = 'no-cache'
+        except Exception:
+            pass
+        return response
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Registro de blueprints
 # ─────────────────────────────────────────────────────────────────────────────
 def _register_blueprints(app):
@@ -146,6 +161,7 @@ def create_app(config_object=None):
 
     _register_error_handlers(app)
     _register_compress(app)
+    _register_no_cache_html(app)
 
     db.init_app(app)
     _register_opciones_cache_invalidation()
