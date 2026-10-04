@@ -278,6 +278,42 @@ superior. La vista elegida se recuerda **por proyecto** (`sessionStorage an-dash
   más, se muestra el aviso ámbar `an-aviso-limite` con el total real.
 - Clic en una barra → filtro de gráfico (`anState.chart`); el chip superior lo quita.
 
+**¿Por qué el dashboard puede verse distinto entre entornos/proyectos?** No es un bug:
+cada proyecto muestra las vistas que sus columnas permiten y sus propias tarjetas.
+
+- La opción **Seguimiento** solo aparece si `isPext && K_PHASE`
+  (`templates/analytics.html`), es decir: nombre de proyecto en `FLM - ENTEL / FLM /
+  PEXT / CLARO / FLM-INTEGRATEL` **y** que exista la columna `Operate Phase` en ese
+  proyecto. Si falta cualquiera de las dos, se oculta y se abre **Producción**.
+- Las tarjetas fijas (`Operate Phase`, `Backlog`, `Sites`, `Prioridad`, `Nivel de Falla`,
+  `Departamento`, `Tipo de Avería`) y los filtros WO (Tipo WO / Mes / Departamento /
+  Causa raíz) viven en `#an-view-seg` y solo se ven en esa vista.
+- Proyectos **no-WO** (Dataper, Material, SITE, Combustible…) usan las **tarjetas
+  automáticas** `#an-gen-cards` (tipo «112 registros · N valores · clic para filtrar»),
+  que se generan a partir de sus propias columnas: es normal que no se parezcan a las de
+  FLM.
+- La vista elegida se recuerda por proyecto (`sessionStorage an-dash:<proyecto>`) y los
+  contadores reflejan los filtros activos (p. ej. `MES 2026-09`), por lo que los totales
+  cambian aunque la BD sea la misma.
+
+### 7.7 Avisos legales y cookies
+
+- **3 rutas públicas** (sin login) en `blueprints/pages.py`: `/privacidad`, `/terminos`
+  y `/cookies`. Las tres renderizan la misma plantilla `templates/legal.html` con el
+  parámetro `seccion`; cada página tiene pestañas para ir a las otras dos.
+- **Banner de consentimiento**: `templates/cookie_banner.html`, incluido con
+  `{% include %}` en `login.html` y `base.html` (todas las páginas de la app). Se muestra
+  solo si no existe `localStorage['nucleus-consent']`; el botón *Entendido* lo guarda y
+  lo oculta. El contenido se documenta en `/cookies`.
+- **Enlaces legales**: pie del login (`.vl-footer`) y fila `.sidebar-legal` en
+  `base.html` (Privacidad · Términos · Cookies).
+- **Cookies en uso**: solo la cookie de sesión de Flask (técnica, no requiere
+  consentimiento) + `localStorage` (`nucleus-theme`, `nucleus-consent`, orden y
+  visibilidad de columnas). **No hay analítica ni píxeles de terceros**: si se añade uno,
+  debe pedirse consentimiento previo instalando el mismo aviso.
+- Prueba: `Temp\opencode\legal_test.py` (rutas 200 sin sesión, banner visible → acepta →
+  no vuelve a aparecer, enlaces en login y sidebar).
+
 ---
 
 ## 8. PERMISOS POR ROL

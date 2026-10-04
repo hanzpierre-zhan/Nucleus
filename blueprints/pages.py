@@ -656,3 +656,21 @@ def mapa_site():
             count_valid += 1
     proyectos = get_menu_proyectos(user_id, user_rol)
     return render_template('mapa_site.html', sites_count=count_valid, proyectos_list=proyectos)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Avisos legales (públicos: se enlazan desde el login y desde el banner de cookies)
+# ─────────────────────────────────────────────────────────────────────────────
+@bp.route('/privacidad')
+def privacidad_page():
+    return render_template('legal.html', seccion='privacidad')
+
+
+@bp.route('/terminos')
+def terminos_page():
+    return render_template('legal.html', seccion='terminos')
+
+
+@bp.route('/cookies')
+def cookies_page():
+    return render_template('legal.html', seccion='cookies')

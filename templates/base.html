@@ -87,6 +87,13 @@
                         <div style="font-size: 10px; color: var(--ios-gray-1, #8E8E93); text-transform: uppercase; letter-spacing: 0.4px;">{{ session.get('rol') }}</div>
                     </div>
                 </div>
+                <div class="sidebar-legal" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:6px 4px 4px;font-size:9.5px;letter-spacing:.2px;">
+                    <a href="/privacidad" style="color:#8E8E93;text-decoration:none;">Privacidad</a>
+                    <span style="color:#48484A;">·</span>
+                    <a href="/terminos" style="color:#8E8E93;text-decoration:none;">Términos</a>
+                    <span style="color:#48484A;">·</span>
+                    <a href="/cookies" style="color:#8E8E93;text-decoration:none;">Cookies</a>
+                </div>
                 <div class="sidebar-actions">
                     <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
                         <i class="fa-solid fa-moon"></i>
@@ -338,5 +345,6 @@
     })();
     </script>
     <script>document.addEventListener('DOMContentLoaded',function(){var o=document.getElementById('nucleus-dialog'),m=document.getElementById('nucleus-dialog-message');if(o&&m&&!m.textContent.trim()){o.classList.remove('show');o.style.display='none'}});</script>
+    {% include 'cookie_banner.html' %}
 </body>
 </html>
