@@ -248,6 +248,8 @@ Dentro del modal WO hay una pestaña **AUTIN** que agrupa las fotos del WO por e
   `/api/autin/foto?wo=..&f=..` como proxy local. `zip_url` descarga todo el WO en ZIP.
 - **Endpoints:** `GET /api/autin/fotos` (config + grupos), `GET /api/autin/foto`,
   `GET /api/autin/zip`, `GET|POST /api/autin/config`.
+- **Botón "Recargar"** (junto a *Descargar ZIP*): relee la carpeta con
+  `cargarAutinFotos(true)` sin refrescar la página.
 - **Anti-traversal:** los nombres de archivo se validan contra la carpeta del WO (los intentos
   de `..\..\` devuelven 404).
 - ⚠️ El túnel de Cloudflare cambia de URL en cada reinicio: hay que re-pegarla en el campo
@@ -269,6 +271,9 @@ superior. La vista elegida se recuerda **por proyecto** (`sessionStorage an-dash
 - Los nombres de columna se resuelven con `keyNamed(...)`, así que si cambias el formulario
   las tarjetas se reacomodan solas; si no hay columnas compatibles aparece un aviso en vez
   de una pantalla vacía.
+- **Tarjetas automáticas** (`#an-gen-cards`, solo proyectos no-WO como Dataper, SITE,
+  Material, Combustible): se eligen hasta 6 columnas categóricas con datos reales y se
+  grafican solas (`gen:<columna>`). Si ninguna califica aparece `an-aviso-sin-tarjetas`.
 - Límite de filas: `_ANALYTICS_MAX = 20000` en `blueprints/pages.py`. Si el proyecto tiene
   más, se muestra el aviso ámbar `an-aviso-limite` con el total real.
 - Clic en una barra → filtro de gráfico (`anState.chart`); el chip superior lo quita.
