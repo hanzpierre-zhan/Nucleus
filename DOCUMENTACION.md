@@ -241,15 +241,15 @@ Dentro del modal WO hay una pestaña **AUTIN** que agrupa las fotos del WO por e
 
 - **Clave:** el **número de WO** (`NucleusData.key_value`, p. ej. `CM-20260814-00000160`).
 - **Origen de las fotos:** `AppConfig autin_fotos_dir` (por defecto `C:\Evidencias\FLM - ENTEL`)
-  más la carpeta `<raíz>/<WO>`. La raíz es editable desde la propia pestaña (solo zeno/suport)
-  y se guarda con `POST /api/autin/config`.
+  más la carpeta `<raíz>/<WO>`. La raíz local solo se muestra (y se edita con
+  `POST /api/autin/config`) si la carpeta existe de verdad en el servidor; en un contenedor
+  (Render) esa ruta no está montada, así que la pestaña solo muestra la URL del servidor
+  de fotos.
 - **Modo de entrega:** si `autin_base_url` (túnel Cloudflare) está configurado, el frontend
   arma las URLs directamente (`fotos_base`) y las pide al túnel; si no, usa
   `/api/autin/foto?wo=..&f=..` como proxy local. `zip_url` descarga todo el WO en ZIP.
 - **Endpoints:** `GET /api/autin/fotos` (config + grupos), `GET /api/autin/foto`,
   `GET /api/autin/zip`, `GET|POST /api/autin/config`.
-- **Botón "Recargar"** (junto a *Descargar ZIP*): relee la carpeta con
-  `cargarAutinFotos(true)` sin refrescar la página.
 - **Anti-traversal:** los nombres de archivo se validan contra la carpeta del WO (los intentos
   de `..\..\` devuelven 404).
 - ⚠️ El túnel de Cloudflare cambia de URL en cada reinicio: hay que re-pegarla en el campo

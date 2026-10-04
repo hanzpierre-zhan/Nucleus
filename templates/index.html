@@ -3335,9 +3335,6 @@
                             <button type="button" id="btn-autin-zip" class="wo-zip-btn" onclick="autinDescargarZip()"
                                 title="Descargar todas las fotos del WO en un ZIP"><i class="fa-solid fa-file-zipper"></i>
                                 Descargar ZIP</button>
-                            <button type="button" id="btn-autin-recargar" class="wo-zip-btn"
-                                onclick="cargarAutinFotos(true)" title="Volver a leer la carpeta"><i
-                                    class="fa-solid fa-rotate"></i> Recargar</button>
                         </span>
                     </div>
                     <div class="wo-autin-ruta" id="wo-autin-ruta"></div>
@@ -11557,18 +11554,31 @@ btnItem.onclick = () => cotRegAgregarFila();
                 rutaEl.style.display = 'none';
             } else {
                 rutaEl.style.display = '';
-                const fuente = _autinBase || _autinFotosBase || j.raiz || '';
-                let html = '<i class="fa-solid ' + (j.sin_conexion ? 'fa-plug-circle-xmark' : (j.raiz_existe ? 'fa-folder-open' : 'fa-folder-closed')) + '"></i>' +
-                    '<span class="autin-ruta-txt" title="' + escapeHtml(fuente) + '">' + escapeHtml(fuente) + '</span>';
-                html += '<span class="autin-badge ' + (j.raiz_existe ? 'ok' : 'bad') + '">' +
+                // La ruta local SOLO se muestra si la carpeta existe de verdad y no
+                // hay URL del servidor: en Render esa ruta nunca está montada y solo
+                // ensuciaba la pestaña con un aviso de carpeta inexistente + un campo editable
+                // que no lleva a ninguna parte. Ahí manda la URL del servidor de fotos.
+                const conUrl = !!(_autinBase || _autinFotosBase);
+                const conLocal = !conUrl && !!j.raiz_existe;
+                const fuente = conUrl ? (_autinBase || _autinFotosBase)
+                    : (conLocal ? (j.raiz || '') : '');
+                const icono = j.sin_conexion ? 'fa-plug-circle-xmark'
+                    : (fuente ? 'fa-folder-open' : 'fa-folder-closed');
+                let html = '<i class="fa-solid ' + icono + '"></i>' +
+                    '<span class="autin-ruta-txt" title="' + escapeHtml(fuente) + '">' +
+                    escapeHtml(fuente || 'Sin URL del servidor de fotos') + '</span>';
+                html += '<span class="autin-badge ' + (j.sin_conexion || !fuente ? 'bad' : 'ok') + '">' +
                     (j.sin_conexion ? 'Servidor no disponible'
-                        : (j.raiz_existe ? (j.modo === 'local' ? 'Carpeta accesible' : 'Servidor de fotos activo') : 'Carpeta no encontrada')) + '</span>';
+                        : (conUrl ? 'Servidor de fotos activo'
+                            : (conLocal ? 'Carpeta accesible' : 'Sin URL configurada'))) + '</span>';
                 if (j.carpeta) html += '<span class="autin-badge neutral">' + escapeHtml(j.carpeta) + '</span>';
-                html += '<span class="autin-ruta-edit">' +
-                    '<input type="text" id="autin-ruta-input" value="' + escapeHtml(j.raiz || '') + '" ' +
-                    'placeholder="Ruta de la carpeta Autin (unidad montada)">' +
-                    '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
-                    '<i class="fa-solid fa-floppy-disk"></i> Guardar</button></span>';
+                if (conLocal) {
+                    html += '<span class="autin-ruta-edit">' +
+                        '<input type="text" id="autin-ruta-input" value="' + escapeHtml(j.raiz || '') + '" ' +
+                        'placeholder="Ruta de la carpeta Autin (unidad montada)">' +
+                        '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
+                        '<i class="fa-solid fa-floppy-disk"></i> Guardar</button></span>';
+                }
                 // La URL del servidor cambia en cada reinicio del túnel: solo zeno la pega y guarda
                 if (_autinEsZeno()) {
                     html += '<span class="autin-ruta-edit">' +
@@ -12796,11 +12806,20 @@ function _rendInitEstados() {
                 if (_rendEsColumnaDeVista(c.field) && est.orden.indexOf(c.field) < 0) est.orden.push(c.field);
             });
             // Columnas nuevas (aparecieron despues de guardar): visibilidad por
-            // defecto y orden al final.
+            // defecto y orden en la misma posicion que ocupan en la vista base
+            // del modulo. Antes se empujaban AL FINAL y quedaban pegadas al
+            // extremo derecho de la tabla, de donde ya no era facil sacarlas.
             Object.keys(base.visibles).forEach(f => {
                 if (!Object.prototype.hasOwnProperty.call(est.visibles, f)) est.visibles[f] = _rendVisPorDefecto(f);
             });
-            base.orden.forEach(f => { if (est.orden.indexOf(f) < 0) est.orden.push(f); });
+            base.orden.forEach((f, i) => {
+                if (est.orden.indexOf(f) >= 0) return;
+                let pos = est.orden.length;
+                for (let j = 0; j < est.orden.length; j++) {
+                    if (base.orden.indexOf(est.orden[j]) > i) { pos = j; break; }
+                }
+                est.orden.splice(pos, 0, f);
+            });
         } else {
             est = { visibles: Object.assign({}, base.visibles), orden: base.orden.slice() };
             if (cfg.cols) {
