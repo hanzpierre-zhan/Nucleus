@@ -147,7 +147,8 @@
     </div>
 {% endif %}
 
-    {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
+    {# En Cotizaciones el boton Añadir vive dentro del engranaje #}
+    {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible'] %}
     <!-- Botón Añadir Registro (Azul) -->
     <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
         <i class="fa-solid fa-plus"></i><span class="pill-txt"> Añadir</span>
@@ -185,10 +186,11 @@
     <!-- Engranaje: en Cotizaciones agrupa las acciones que antes vivían en la barra -->
     <div class="col-visibility-wrap" id="coti-gear-wrap">
         <button type="button" id="btn-coti-gear" class="action-pill pill-neutral" onclick="cotiGearToggle()"
-            title="Más acciones: Exportar, Plantilla, Columnas, Ordenar, Importar y PDFs">
-            <i class="fa-solid fa-gear"></i>
+            title="Configuración: PDFs, Excel, Plantilla, Columnas, Ordenar, Añadir, Importar y Eliminar">
+            <i class="fa-solid fa-gear"></i><span class="pill-txt"> Configuración</span>
         </button>
-        <div id="coti-gear-menu" class="col-visibility-menu" style="min-width:245px; padding:8px;">
+        <div id="coti-gear-menu" class="col-visibility-menu" style="min-width:250px; padding:8px;">
+            <div class="coti-gear-head"><i class="fa-solid fa-gear"></i> Configuración</div>
             <div class="coti-gear-group"><i class="fa-solid fa-file-export"></i> Exportar</div>
             <button type="button" class="coti-gear-item" onclick="cotiGearPdf()">
                 <i class="fa-solid fa-file-arrow-down" style="color:var(--ios-teal, #30B0C7);"></i> PDFs (elige fechas)
@@ -206,13 +208,17 @@
             <button type="button" class="coti-gear-item" onclick="cotiGearAbrir('order')">
                 <i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar
             </button>
-            {% if session.get('rol') in ['zeno', 'suport'] %}
-            <div class="coti-gear-group"><i class="fa-solid fa-ellipsis"></i> Más</div>
-            <button type="button" class="coti-gear-item" onclick="cotiGearAccion(abrirModalImportar)">
-                <i class="fa-solid fa-file-arrow-up"></i> Importar
-            </button>
+            <div class="coti-gear-group"><i class="fa-solid fa-table-list"></i> Registros</div>
             <button type="button" class="coti-gear-item" onclick="cotiGearAccion(aniadirRegistro)">
-                <i class="fa-solid fa-plus"></i> Añadir registro
+                <i class="fa-solid fa-plus" style="color:var(--ios-blue, #0A84FF);"></i> Añadir registro
+            </button>
+            {% if session.get('rol') in ['zeno', 'suport'] %}
+            <button type="button" class="coti-gear-item" onclick="cotiGearAccion(abrirModalImportar)">
+                <i class="fa-solid fa-file-arrow-up" style="color:var(--ios-teal, #30B0C7);"></i> Importar
+            </button>
+            <button type="button" id="coti-gear-del" class="coti-gear-item coti-gear-item-danger" style="display:none;"
+                title="Eliminar los registros seleccionados" onclick="cotiGearAccion(eliminarRegistros)">
+                <i class="fa-solid fa-trash-can"></i> Eliminar registros<span class="coti-gear-count" id="coti-gear-del-n"></span>
             </button>
             {% endif %}
         </div>
@@ -228,12 +234,28 @@
     .topbar-row-coti .pill-txt { display: none; }
     .topbar-row-coti .action-pill { padding: 0 10px; }
     .topbar-row-coti #status-record-count .reg-txt { display: none; }
-    /* Se fueron al engranaje */
+    /* Se fueron al engranaje (Configuración) */
     .topbar-row-coti #btn-top-export,
     .topbar-row-coti #btn-top-import,
     .topbar-row-coti #btn-top-plantilla,
+    .topbar-row-coti #btn-delete-rows,
     .topbar-row-coti #col-wrap > .action-pill,
-    .topbar-row-coti #order-wrap > .action-pill { display: none; }
+    .topbar-row-coti #order-wrap > .action-pill { display: none !important; }
+    /* El engranaje sí muestra su nombre: es el único botón con etiqueta */
+    .topbar-row-coti #btn-coti-gear .pill-txt { display: inline; margin-left: 6px; }
+    /* Menú del engranaje */
+    .coti-gear-head {
+        display: flex; align-items: center; gap: 7px;
+        font-size: 12.5px; font-weight: 800; color: var(--ios-label, #000);
+        padding: 3px 10px 8px; margin-bottom: 3px;
+        border-bottom: 1px solid var(--ios-hairline, #E5E5EA);
+    }
+    .coti-gear-item-danger, .coti-gear-item-danger i { color: var(--ios-red, #FF3B30); }
+    .coti-gear-count {
+        margin-left: auto; font-size: 10.5px; font-weight: 800;
+        background: rgba(255, 59, 48, .14); color: var(--ios-red, #FF3B30);
+        border-radius: 999px; padding: 1px 7px;
+    }
     /* Menú del engranaje */
     .coti-gear-group {
         display: flex; align-items: center; gap: 6px;
@@ -12701,6 +12723,13 @@ btnItem.onclick = () => cotRegAgregarFila();
         const btn = document.getElementById('btn-delete-rows');
         if (btn) {
             btn.style.display = rows.length > 0 ? "inline-flex" : "none";
+        }
+        // En Cotizaciones el boton rojo vive en el menu de Configuracion
+        const delGear = document.getElementById('coti-gear-del');
+        if (delGear) {
+            delGear.style.display = rows.length > 0 ? "flex" : "none";
+            const n = document.getElementById('coti-gear-del-n');
+            if (n) n.textContent = rows.length > 0 ? String(rows.length) : '';
         }
         const allCb = document.querySelector('.tabulator-select-all');
         if (allCb) {
