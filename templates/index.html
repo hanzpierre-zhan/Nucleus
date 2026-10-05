@@ -239,7 +239,6 @@
     .topbar-row-coti #btn-top-export,
     .topbar-row-coti #btn-top-import,
     .topbar-row-coti #btn-top-plantilla,
-    .topbar-row-coti #btn-delete-rows,
     .topbar-row-coti #col-wrap > .action-pill,
     .topbar-row-coti #order-wrap > .action-pill { display: none !important; }
     /* El engranaje sí muestra su nombre: es el único botón con etiqueta */
@@ -293,43 +292,6 @@
         color: var(--ios-label); text-decoration: none; cursor: pointer;
     }
     .coti-gear-item:hover { background: var(--ios-fill, rgba(120, 120, 128, .12)); }
-
-    /* ── Aviso de depósito por WhatsApp (Rendición) ── */
-    .rend-wa-datos {
-        display: grid; grid-template-columns: auto 1fr; gap: 5px 12px;
-        font-size: 13px; margin: 0 0 12px;
-    }
-    .rend-wa-datos b {
-        color: var(--ios-secondary, #8E8E93); font-weight: 800;
-        font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
-        padding-top: 2px; white-space: nowrap;
-    }
-    .rend-wa-datos span { color: var(--ios-label, #000); font-weight: 500; word-break: break-word; }
-    .rend-wa-box {
-        border: 1px solid var(--ios-hairline, #E5E5EA); border-radius: 10px;
-        overflow: hidden; background: rgba(120, 120, 128, .05);
-    }
-    .rend-wa-box-head {
-        display: flex; align-items: center; gap: 7px;
-        font-size: 10.5px; font-weight: 800; text-transform: uppercase;
-        letter-spacing: .05em; color: #25D366;
-        padding: 7px 11px; border-bottom: 1px solid var(--ios-hairline, #E5E5EA);
-    }
-    .rend-wa-texto {
-        margin: 0; padding: 11px; font-family: inherit; font-size: 12.5px;
-        line-height: 1.55; white-space: pre-wrap; word-break: break-word;
-        color: var(--ios-label, #000); max-height: 200px; overflow: auto;
-    }
-    .rend-wa-aviso {
-        margin: 10px 0 0; font-size: 11.5px; line-height: 1.5;
-        color: var(--ios-gray-2, #8E8E93);
-    }
-    .mar-btn-whatsapp {
-        background: #25D366; color: #fff; font-weight: 700;
-        display: inline-flex; align-items: center; gap: 7px;
-    }
-    .mar-btn-whatsapp:hover { background: #1EBE5A; }
-    .mar-btn-whatsapp:disabled { opacity: .6; cursor: default; }
 
     /* Pestañas del flujo: viven en la barra superior y ocupan su espacio libre */
     .topbar-row { flex-wrap: wrap; }
@@ -6727,7 +6689,13 @@ let _rendCambiandoVista = false;
             exportCols.forEach(c => {
                 const up = String(c).trim().toUpperCase();
                 let v = r[c];
-                if (up === 'SLA') {
+                if (up === 'ESTADO' && esRendicion) {
+                    // Mismo criterio que la tabla (rendEstadoDe): vacío = PENDIENTE.
+                    v = (v === null || v === undefined) ? '' : v;
+                    if (!String(v).trim()) {
+                        v = (typeof rendEstadoDe === 'function') ? rendEstadoDe(r) : 'PENDIENTE';
+                    }
+                } else if (up === 'SLA') {
                     const info = computarSlaData(r);
                     v = info ? (info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins)) : '';
                 } else if (up === 'SLA CUMPLIMIENTO') {
@@ -12843,35 +12811,6 @@ btnItem.onclick = () => cotRegAgregarFila();
     </div>
   </div>
 </div>
-<!-- Depósito registrado: resumen + aviso por WhatsApp (enlace wa.me, sin costo) -->
-<div id="rend-wa-modal" class="mar-overlay" style="display:none;">
-  <div class="mar-modal" style="max-width:430px;">
-    <div class="mar-header">
-      <div>
-        <h3><i class="fa-solid fa-circle-check" style="color:var(--ios-green, #34C759);"></i> Depósito registrado</h3>
-        <p id="rend-wa-sub">Resumen del depósito</p>
-      </div>
-      <button type="button" onclick="rendWaCerrar()" class="mar-close"><i class="fa-solid fa-xmark"></i></button>
-    </div>
-    <div class="mar-body" style="display:block;">
-      <div id="rend-wa-datos" class="rend-wa-datos"></div>
-      <div id="rend-wa-box" class="rend-wa-box">
-        <div class="rend-wa-box-head"><i class="fa-brands fa-whatsapp"></i> Mensaje que se enviará</div>
-        <pre id="rend-wa-texto" class="rend-wa-texto"></pre>
-      </div>
-      <p id="rend-wa-aviso" class="rend-wa-aviso"></p>
-    </div>
-    <div class="mar-footer">
-      <button type="button" onclick="rendWaCerrar()" class="mar-btn-ghost">Cerrar</button>
-      <button type="button" id="rend-wa-copiar" onclick="rendWaCopiarFoto()" class="mar-btn-ghost" style="display:none;">
-        <i class="fa-regular fa-copy"></i> Copiar comprobante
-      </button>
-      <button type="button" id="rend-wa-btn" onclick="rendWaEnviar()" class="mar-btn-whatsapp" style="display:none;">
-        <i class="fa-brands fa-whatsapp"></i> Enviar por WhatsApp
-      </button>
-    </div>
-  </div>
-</div>
 <div id="modal-n-detalle" class="mar-overlay" style="display:none;">
   <div class="mar-modal" style="max-width:480px;">
     <div class="mar-header">
@@ -13596,13 +13535,9 @@ function rendConfirmarModal() {
         if (!j) return;
         
         if (accion === 'depositar' && j.newData && j.newData['CODIGO DEPOSITO']) {
-            // El comprobante se acaba de subir: se ofrece copiarlo al portapapeles
-            // para pegarlo en WhatsApp (el enlace wa.me solo lleva texto).
-            const _foto = (function () {
-                const u = rendUrlsFoto(j.newData['FOTO PAGO'], false);
-                return u.length ? u[0] : '';
-            })();
-            setTimeout(() => rendWaAbrir(j.wa, _foto, j.newData), 300);
+            // Sin vista previa: ahí mismo, al confirmar, se abre WhatsApp con el
+            // mensaje ya escrito (solo falta apretar el botón verde de enviar).
+            rendWaDirecto(j.wa);
         }
         if (accion === 'rechazar' && j.estado === 'DEPOSITADO') {
             setTimeout(() => nucleusAlert('Solicitud devuelta a Evidencia para revisión.'), 300);
@@ -13617,113 +13552,26 @@ function rendConfirmarModal() {
    El backend arma un enlace wa.me (gratis, sin API ni cuenta de Meta): al
    abrirlo, WhatsApp muestra el mensaje YA ESCRITO y solo falta apretar el
    botón verde de enviar. Desde el celular abre la app; desde la computadora,
-   WhatsApp Web (hay que haberlo vinculado una vez con QR). */
-let _rendWa = null;
-
-function rendWaEscapar(s) {
-    return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-// Mismo "normalizado" que el backend (sin acentos ni símbolos), para no
-// depender de si el dato trae 'N°' o 'Número'.
-function rendWaCampo(row, patron) {
-    const norm = s => String(s == null ? '' : s).normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const p = norm(patron);
-    for (const k in row) {
-        if (norm(k) === p) return String(row[k] == null ? '' : row[k]).trim();
+   WhatsApp Web (hay que haberlo vinculado una vez con QR).
+   Sin vista previa: la ventana se abre SOLO al registrar el depósito. */
+function rendWaDirecto(wa) {
+    if (!wa || !wa.url) {
+        nucleusAlert('Depósito registrado. Esta solicitud no tiene un celular válido (Yape/Plin o "Número de celular o CCI"), por eso no se pudo avisar por WhatsApp.');
+        return;
     }
-    return '';
-}
-
-function rendWaAbrir(wa, fotoUrl, row) {
-    const m = document.getElementById('rend-wa-modal');
-    if (!m) return;
-    row = row || {};
-    _rendWa = { wa: wa || null, fotoUrl: fotoUrl || '' };
-
-    // Resumen con los datos del depósito recién guardado.
-    const pares = [
-        ['Código', row['CODIGO DEPOSITO']],
-        ['Beneficiario', rendWaCampo(row, 'Tecnico beneficiario')],
-        ['Motivo', rendWaCampo(row, 'Motivo de la solicitud')],
-        ['Monto', row['MONTO PAGO']],
-        ['Fecha', row['FECHA PAGO']],
-        ['Sitio', rendWaCampo(row, 'Nombre de site')],
-    ].filter(p => p[1]);
-    document.getElementById('rend-wa-datos').innerHTML = pares
-        .map(p => '<b>' + p[0] + '</b><span>' + rendWaEscapar(p[1]) + '</span>').join('');
-
-    const btn = document.getElementById('rend-wa-btn');
-    const box = document.getElementById('rend-wa-box');
-    const txt = document.getElementById('rend-wa-texto');
-    const sub = document.getElementById('rend-wa-sub');
-    const av = document.getElementById('rend-wa-aviso');
-    if (wa && wa.url) {
-        btn.style.display = '';
-        box.style.display = '';
-        txt.textContent = wa.texto || '';
-        sub.textContent = 'Se enviará al celular ' + (wa.numero || '');
-        av.textContent = 'Se abrirá WhatsApp con el mensaje escrito: solo falta apretar el botón verde de enviar.';
+    const w = window.open(wa.url, '_blank', 'noopener');
+    if (w) return;
+    // El navegador bloqueó la ventana: se copia el mensaje para pegarlo a mano.
+    const aviso = 'Depósito registrado. El navegador bloqueó la ventana de WhatsApp; ';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(wa.texto || '')
+            .then(() => nucleusAlert(aviso + 'el mensaje quedó copiado, pégalo con Ctrl+V.'))
+            .catch(() => nucleusAlert(aviso + 'abre WhatsApp y escríbele al ' + (wa.numero || '') + '.'));
     } else {
-        btn.style.display = 'none';
-        box.style.display = 'none';
-        sub.textContent = 'Resumen del depósito';
-        av.textContent = 'Esta solicitud no tiene un celular válido (Yape/Plin o "Número de celular o CCI"), por eso no se puede avisar por WhatsApp.';
-    }
-
-    const cop = document.getElementById('rend-wa-copiar');
-    cop.style.display = fotoUrl ? '' : 'none';
-    cop.disabled = false;
-    m.style.display = 'flex';
-}
-
-function rendWaCerrar() {
-    const m = document.getElementById('rend-wa-modal');
-    if (m) m.style.display = 'none';
-}
-
-function rendWaEnviar() {
-    if (_rendWa && _rendWa.wa && _rendWa.wa.url) {
-        window.open(_rendWa.wa.url, '_blank', 'noopener');
+        nucleusAlert(aviso + 'abre WhatsApp y escríbele al ' + (wa.numero || '') + '.');
     }
 }
 
-/* El enlace de WhatsApp no puede adjuntar la foto (es texto), así que se deja
-   el comprobante en el portapapeles: en WhatsApp se pega con Ctrl+V. */
-async function rendWaCopiarFoto() {
-    const url = _rendWa && _rendWa.fotoUrl;
-    const btn = document.getElementById('rend-wa-copiar');
-    if (!url || !btn) return;
-    btn.disabled = true;
-    try {
-        const resp = await fetch(url, { credentials: 'same-origin' });
-        if (!resp.ok) throw new Error('no se pudo leer el comprobante');
-        const blob = await resp.blob();
-        let png = blob;
-        if (blob.type !== 'image/png') {
-            png = await new Promise((res, rej) => {
-                const img = new Image();
-                const tmp = URL.createObjectURL(blob);
-                img.onload = () => {
-                    const c = document.createElement('canvas');
-                    c.width = img.naturalWidth; c.height = img.naturalHeight;
-                    c.getContext('2d').drawImage(img, 0, 0);
-                    URL.revokeObjectURL(tmp);
-                    c.toBlob(b => (b ? res(b) : rej(new Error('no se pudo convertir'))), 'image/png');
-                };
-                img.onerror = () => { URL.revokeObjectURL(tmp); rej(new Error('no se pudo abrir el comprobante')); };
-                img.src = tmp;
-            });
-        }
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
-        nucleusAlert('Comprobante copiado. Abre WhatsApp y pégalo con Ctrl+V.');
-    } catch (e) {
-        nucleusAlert('No se pudo copiar el comprobante (' + ((e && e.message) ? e.message : 'error') + '). Puedes abrir la foto del depósito y arrastrarla a WhatsApp.');
-    }
-    btn.disabled = false;
-}
 /* ── Visor de fotos ── */
 function rendVerFotos(row, esSustento) {
     const urls = rendUrlsFoto(row[esSustento ? 'FOTOS SUSTENTO' : 'FOTO PAGO'], esSustento);

@@ -169,7 +169,11 @@ def _wa_deposito(row):
         lineas.append('Sitio: %s' % site)
     if ticket:
         lineas.append('N° de ticket: %s' % ticket)
-    lineas += ['', 'Gracias.']
+    lineas += ['',
+               '📌 Recuerda sustentar la solicitud en las próximas 24 horas.',
+               'Cualquier consulta, comunícate con tu gestor; este medio no es para responder.',
+               '',
+               'Gracias.']
     texto = '\n'.join(lineas)
 
     return {'numero': '51' + num, 'texto': texto,
