@@ -103,13 +103,6 @@
     <div id="pagination-container" style="display: flex; align-items: center; gap: 4px; margin: 0 auto;"></div>
 
     {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
-    {% if session.get('rol') in ['zeno', 'suport', 'admin'] and proy_nombre == 'cotizaciones' %}
-    <div id="admin-coti-next-top" style="display:flex; align-items:center; gap:6px;">
-        <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">Próximo: HW-<span id="top-next-year"></span>-</span>
-        <input type="number" id="top-next-seq" min="1" max="9999999" style="width:90px; height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; font-weight:600; text-align:center; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
-        <button type="button" id="btn-top-next" class="action-pill" title="Guardar el correlativo siguiente"><i class="fa-solid fa-check"></i><span class="pill-txt"> Guardar</span></button>
-    </div>
-    {% endif %}
     {% if proy_nombre == 'cotizaciones' %}
     <button type="button" id="btn-coti-pdf" class="action-pill pill-teal" onclick="cotiLoteAbrir()"
         title="Descargar ZIP con los PDFs de las cotizaciones generadas en un rango de fechas">
@@ -147,8 +140,7 @@
     </div>
 {% endif %}
 
-    {# En Cotizaciones el boton Añadir vive dentro del engranaje #}
-    {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible'] %}
+    {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
     <!-- Botón Añadir Registro (Azul) -->
     <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
         <i class="fa-solid fa-plus"></i><span class="pill-txt"> Añadir</span>
@@ -186,11 +178,22 @@
     <!-- Engranaje: en Cotizaciones agrupa las acciones que antes vivían en la barra -->
     <div class="col-visibility-wrap" id="coti-gear-wrap">
         <button type="button" id="btn-coti-gear" class="action-pill pill-neutral" onclick="cotiGearToggle()"
-            title="Configuración: PDFs, Excel, Plantilla, Columnas, Ordenar, Añadir, Importar y Eliminar">
+            title="Configuración: Correlativo, PDFs, Excel, Plantilla, Columnas, Ordenar, Importar y Eliminar">
             <i class="fa-solid fa-gear"></i><span class="pill-txt"> Configuración</span>
         </button>
-        <div id="coti-gear-menu" class="col-visibility-menu" style="min-width:250px; padding:8px;">
+        <div id="coti-gear-menu" class="col-visibility-menu" style="min-width:272px; padding:8px;">
             <div class="coti-gear-head"><i class="fa-solid fa-gear"></i> Configuración</div>
+            {% if session.get('rol') in ['zeno', 'suport', 'admin'] %}
+            <div class="coti-gear-group"><i class="fa-solid fa-hashtag"></i> Correlativo</div>
+            <div id="admin-coti-next-top" class="coti-gear-next">
+                <div class="coti-gear-next-top">Próximo: HW-<span id="top-next-year"></span>-</div>
+                <div class="coti-gear-next-row">
+                    <input type="number" id="top-next-seq" min="1" max="9999999">
+                    <button type="button" id="btn-top-next" class="action-pill"
+                        title="Guardar el correlativo siguiente"><i class="fa-solid fa-check"></i><span class="pill-txt"> Guardar</span></button>
+                </div>
+            </div>
+            {% endif %}
             <div class="coti-gear-group"><i class="fa-solid fa-file-export"></i> Exportar</div>
             <button type="button" class="coti-gear-item" onclick="cotiGearPdf()">
                 <i class="fa-solid fa-file-arrow-down" style="color:var(--ios-teal, #30B0C7);"></i> PDFs (elige fechas)
@@ -209,9 +212,6 @@
                 <i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar
             </button>
             <div class="coti-gear-group"><i class="fa-solid fa-table-list"></i> Registros</div>
-            <button type="button" class="coti-gear-item" onclick="cotiGearAccion(aniadirRegistro)">
-                <i class="fa-solid fa-plus" style="color:var(--ios-blue, #0A84FF);"></i> Añadir registro
-            </button>
             {% if session.get('rol') in ['zeno', 'suport'] %}
             <button type="button" class="coti-gear-item" onclick="cotiGearAccion(abrirModalImportar)">
                 <i class="fa-solid fa-file-arrow-up" style="color:var(--ios-teal, #30B0C7);"></i> Importar
@@ -235,6 +235,7 @@
     .topbar-row-coti .action-pill { padding: 0 10px; }
     .topbar-row-coti #status-record-count .reg-txt { display: none; }
     /* Se fueron al engranaje (Configuración) */
+    .topbar-row-coti #btn-coti-pdf,
     .topbar-row-coti #btn-top-export,
     .topbar-row-coti #btn-top-import,
     .topbar-row-coti #btn-top-plantilla,
@@ -243,6 +244,27 @@
     .topbar-row-coti #order-wrap > .action-pill { display: none !important; }
     /* El engranaje sí muestra su nombre: es el único botón con etiqueta */
     .topbar-row-coti #btn-coti-gear .pill-txt { display: inline; margin-left: 6px; }
+    /* Dentro del menú las etiquetas se ven (solo la barra es de solo-icono) */
+    .topbar-row-coti #coti-gear-menu .pill-txt { display: inline; }
+    .topbar-row-coti #coti-gear-menu .action-pill { padding: 7px 12px; font-size: 12.5px; }
+    /* Correlativo (Próximo) dentro del menú */
+    .coti-gear-next {
+        margin: 2px 4px 4px; padding: 8px 6px;
+        border: 1px solid var(--ios-hairline, #E5E5EA); border-radius: 9px;
+        background: rgba(120, 120, 128, .07);
+    }
+    .coti-gear-next-top {
+        display: flex; align-items: center; gap: 0;
+        font-size: 12px; font-weight: 800; color: var(--ios-secondary, #8E8E93);
+        white-space: nowrap; margin-bottom: 7px;
+    }
+    .coti-gear-next-row { display: flex; align-items: center; gap: 6px; }
+    .coti-gear-next-row input {
+        flex: 1; min-width: 0; height: 30px;
+        border: 1px solid var(--ios-hairline, #E5E5EA); border-radius: 6px;
+        padding: 0 8px; font-size: 13px; font-weight: 600; text-align: center;
+        box-sizing: border-box; background: var(--ios-card-bg, #fff); color: var(--ios-label, #000);
+    }
     /* Menú del engranaje */
     .coti-gear-head {
         display: flex; align-items: center; gap: 7px;
