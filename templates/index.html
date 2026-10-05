@@ -4,7 +4,7 @@
 
 {% block content %}
 {% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
-<div class="topbar-row{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}"
+<div class="topbar-row{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}{% if proy_nombre_flow == 'cotizaciones' %} topbar-row-coti{% endif %}"
     style="display: flex; align-items: center; gap: 8px; padding: 4px 14px; min-height: 40px;">
     <span id="status-record-count" class="topbar-badge" title="Total de registros en la vista actual"
         style="margin-left:0;">
@@ -107,20 +107,18 @@
     <div id="admin-coti-next-top" style="display:flex; align-items:center; gap:6px;">
         <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">Próximo: HW-<span id="top-next-year"></span>-</span>
         <input type="number" id="top-next-seq" min="1" max="9999999" style="width:90px; height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; font-weight:600; text-align:center; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
-        <button type="button" id="btn-top-next" class="action-pill">Guardar</button>
+        <button type="button" id="btn-top-next" class="action-pill" title="Guardar el correlativo siguiente"><i class="fa-solid fa-check"></i><span class="pill-txt"> Guardar</span></button>
     </div>
     {% endif %}
     {% if proy_nombre == 'cotizaciones' %}
-    <div id="coti-lote-top" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-        <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">PDFs generadas:</span>
-        <input type="date" id="coti-lote-desde" title="Desde" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
-        <input type="date" id="coti-lote-hasta" title="Hasta" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
-        <button type="button" id="btn-coti-lote" class="action-pill pill-teal" onclick="descargarCotizacionesLote()" title="Descargar ZIP con los PDFs de las cotizaciones generadas en el rango"><i class="fa-solid fa-file-arrow-down"></i> PDFs</button>
-    </div>
+    <button type="button" id="btn-coti-pdf" class="action-pill pill-teal" onclick="cotiLoteAbrir()"
+        title="Descargar ZIP con los PDFs de las cotizaciones generadas en un rango de fechas">
+        <i class="fa-solid fa-file-arrow-down"></i><span class="pill-txt"> PDFs</span>
+    </button>
     {% endif %}
     <!-- Botón Excel (Verde). En Rendicion solo para quienes tienen el módulo. -->
     {% if proy_nombre != 'rendicion' or puede_rendicion %}
-    <button onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
+    <button id="btn-top-export" onclick="descargarExcel()" class="action-pill pill-green" title="Descargar reporte Excel">
         <i class="fa-solid fa-file-excel"></i><span class="pill-txt"> Exportar</span>
     </button>
     {% endif %}
@@ -152,7 +150,7 @@
     {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
     <!-- Botón Añadir Registro (Azul) -->
     <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
-        <i class="fa-solid fa-plus"></i> Añadir
+        <i class="fa-solid fa-plus"></i><span class="pill-txt"> Añadir</span>
     </button>
     {% endif %}
 
@@ -165,13 +163,13 @@
 
     {% if session.get('rol') in ['zeno', 'suport'] and proy_nombre != 'rendicion' %}
     <!-- Botón Importar Masivo (Teal) -->
-    <button onclick="abrirModalImportar()" class="action-pill pill-teal"
+    <button id="btn-top-import" onclick="abrirModalImportar()" class="action-pill pill-teal"
         title="Importar datos (actualiza existentes, agrega nuevos, conserva manuales)">
         <i class="fa-solid fa-file-arrow-up"></i><span class="pill-txt"> Importar</span>
     </button>
 
     <!-- Botón Plantilla (Verde) -->
-    <a href="/api/import/manual_template" download class="action-pill pill-green"
+    <a href="/api/import/manual_template" download id="btn-top-plantilla" class="action-pill pill-green"
         title="Descargar plantilla Excel para importar">
         <i class="fa-solid fa-download"></i><span class="pill-txt"> Plantilla</span>
     </a>
@@ -182,11 +180,76 @@
         <i class="fa-solid fa-trash-can"></i><span class="pill-txt"> Eliminar</span>
     </button>
     {% endif %}
+
+    {% if proy_nombre == 'cotizaciones' %}
+    <!-- Engranaje: en Cotizaciones agrupa las acciones que antes vivían en la barra -->
+    <div class="col-visibility-wrap" id="coti-gear-wrap">
+        <button type="button" id="btn-coti-gear" class="action-pill pill-neutral" onclick="cotiGearToggle()"
+            title="Más acciones: Exportar, Plantilla, Columnas, Ordenar, Importar y PDFs">
+            <i class="fa-solid fa-gear"></i>
+        </button>
+        <div id="coti-gear-menu" class="col-visibility-menu" style="min-width:245px; padding:8px;">
+            <div class="coti-gear-group"><i class="fa-solid fa-file-export"></i> Exportar</div>
+            <button type="button" class="coti-gear-item" onclick="cotiGearPdf()">
+                <i class="fa-solid fa-file-arrow-down" style="color:var(--ios-teal, #30B0C7);"></i> PDFs (elige fechas)
+            </button>
+            <button type="button" class="coti-gear-item" onclick="cotiGearAccion(descargarExcel)">
+                <i class="fa-solid fa-file-excel" style="color:#28A745;"></i> Exportar Excel
+            </button>
+            <a class="coti-gear-item" href="/api/import/manual_template" download onclick="cotiGearCerrar()">
+                <i class="fa-solid fa-download" style="color:#28A745;"></i> Plantilla
+            </a>
+            <div class="coti-gear-group"><i class="fa-solid fa-table-columns"></i> Tabla</div>
+            <button type="button" class="coti-gear-item" onclick="cotiGearAbrir('col')">
+                <i class="fa-solid fa-table-columns"></i> Columnas
+            </button>
+            <button type="button" class="coti-gear-item" onclick="cotiGearAbrir('order')">
+                <i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar
+            </button>
+            {% if session.get('rol') in ['zeno', 'suport'] %}
+            <div class="coti-gear-group"><i class="fa-solid fa-ellipsis"></i> Más</div>
+            <button type="button" class="coti-gear-item" onclick="cotiGearAccion(abrirModalImportar)">
+                <i class="fa-solid fa-file-arrow-up"></i> Importar
+            </button>
+            <button type="button" class="coti-gear-item" onclick="cotiGearAccion(aniadirRegistro)">
+                <i class="fa-solid fa-plus"></i> Añadir registro
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 <div id="data-stats" class="data-stats"></div>
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 
 <style>
+    /* Cotizaciones: barra de un solo bloque, botones de solo icono
+       (el title del botón hace de etiqueta al pasar el mouse). */
+    .topbar-row-coti .pill-txt { display: none; }
+    .topbar-row-coti .action-pill { padding: 0 10px; }
+    .topbar-row-coti #status-record-count .reg-txt { display: none; }
+    /* Se fueron al engranaje */
+    .topbar-row-coti #btn-top-export,
+    .topbar-row-coti #btn-top-import,
+    .topbar-row-coti #btn-top-plantilla,
+    .topbar-row-coti #col-wrap > .action-pill,
+    .topbar-row-coti #order-wrap > .action-pill { display: none; }
+    /* Menú del engranaje */
+    .coti-gear-group {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+        letter-spacing: .05em; color: var(--ios-gray-2, #8E8E93);
+        padding: 8px 10px 3px;
+    }
+    .coti-gear-item {
+        display: flex; align-items: center; gap: 9px;
+        width: 100%; padding: 7px 10px; margin: 1px 0;
+        border: none; background: none; border-radius: 8px;
+        font-size: 13px; font-weight: 500; text-align: left;
+        color: var(--ios-label); text-decoration: none; cursor: pointer;
+    }
+    .coti-gear-item:hover { background: var(--ios-fill, rgba(120, 120, 128, .12)); }
+
     /* Pestañas del flujo: viven en la barra superior y ocupan su espacio libre */
     .topbar-row { flex-wrap: wrap; }
     /* En Rendicion TODO va en UNA sola línea: la barra no se parte (las
@@ -3448,6 +3511,15 @@ let _rendCambiandoVista = false;
         // Rango por defecto del lote de PDFs: primer día del mes actual -> hoy
         const _ld = document.getElementById('coti-lote-desde'), _lh = document.getElementById('coti-lote-hasta');
         if (_ld && _lh) { const _t = new Date(), _f = (x) => String(x).padStart(2, '0'); _lh.value = _t.getFullYear() + '-' + _f(_t.getMonth() + 1) + '-' + _f(_t.getDate()); _ld.value = _t.getFullYear() + '-' + _f(_t.getMonth() + 1) + '-01'; }
+        // Los menús de Columnas/Ordenar se abren desde el engranaje: se mueven
+        // a su wrap para que el desplegable salga anclado debajo del engranaje.
+        const _gw = document.getElementById('coti-gear-wrap');
+        if (_gw) {
+            ['col-wrap', 'order-wrap'].forEach(function (_id) {
+                const _el = document.getElementById(_id);
+                if (_el) _gw.appendChild(_el);
+            });
+        }
         setTimeout(()=>{
             const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'), btn=document.getElementById('btn-top-next');
             if(y) y.textContent=new Date().getFullYear();
@@ -3455,7 +3527,7 @@ let _rendCambiandoVista = false;
             if(btn) btn.onclick=async()=>{
                 const v=parseInt(inp.value,10);
                 if(!v||v<1){ nucleusAlert('Correlativo inválido'); return; }
-                btn.disabled=true; const old=btn.textContent; btn.textContent='Guardando...';
+                btn.disabled=true; const old=btn.innerHTML; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i>';
                 try{
                     const r=await fetch('/api/cotizacion/next_seq',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({next:v})});
                     const j=await r.json();
@@ -3463,7 +3535,7 @@ let _rendCambiandoVista = false;
                     cotiNextSeqConfig=v;
                     nucleusAlert('Próximo correlativo guardado: HW-'+new Date().getFullYear()+'-'+String(v).padStart(7,'0'));
                 }catch(e){ nucleusAlert(e.message||'Error'); }
-                finally{ btn.disabled=false; btn.textContent=old; }
+                finally{ btn.disabled=false; btn.innerHTML=old; }
             };
         }, 400);
     }
@@ -5398,7 +5470,9 @@ let _rendCambiandoVista = false;
             // columna (movableColumns). El orden lo guarda column_layout.
             headerSort: false,
             hozAlign: "center",
-            visible: false, // Solo se mostrará en la pestaña Rendición
+            visible: false, // Oculto por defecto: se muestra si la hoja lo guarda en su layout
+                            // (pestaña Rendición lo trae con showCols; en las demás el admin lo
+                            // enciende desde Columnas y queda guardado).
             formatter: function (cell) {
                 const row = cell.getRow().getData();
                 // solo mostrar si hay al menos un campo SUSTENTO_ con valor
@@ -6248,6 +6322,15 @@ let _rendCambiandoVista = false;
                 event.target.closest('#order-wrap');
             if (!isClickInsideOrder) {
                 orderMenu.classList.remove('show');
+            }
+        }
+        // Menú del engranaje (Cotizaciones)
+        const gearMenu = document.getElementById('coti-gear-menu');
+        if (gearMenu && gearMenu.classList.contains('show')) {
+            const isClickInsideGear = gearMenu.contains(event.target) ||
+                event.target.closest('#btn-coti-gear');
+            if (!isClickInsideGear) {
+                gearMenu.classList.remove('show');
             }
         }
     });
@@ -7786,6 +7869,44 @@ btnItem.onclick = () => cotRegAgregarFila();
     }
 
     // Descarga en ZIP los PDFs de las cotizaciones GENERADAS en un rango de fechas
+    // ---- Cotizaciones: ventanita de fechas para el lote de PDFs ----
+    function cotiLoteAbrir() {
+        const m = document.getElementById('coti-lote-modal');
+        if (!m) return;
+        const d = document.getElementById('coti-lote-desde'), h = document.getElementById('coti-lote-hasta');
+        if (d && h && (!d.value || !h.value)) {
+            const t = new Date(), f = (x) => String(x).padStart(2, '0');
+            h.value = t.getFullYear() + '-' + f(t.getMonth() + 1) + '-' + f(t.getDate());
+            d.value = t.getFullYear() + '-' + f(t.getMonth() + 1) + '-01';
+        }
+        m.style.display = 'flex';
+    }
+    function cotiLoteCerrar() {
+        const m = document.getElementById('coti-lote-modal');
+        if (m) m.style.display = 'none';
+    }
+
+    // ---- Cotizaciones: menú del engranaje de la barra ----
+    function cotiGearToggle() {
+        const menu = document.getElementById('coti-gear-menu');
+        if (menu) menu.classList.toggle('show');
+    }
+    function cotiGearCerrar() {
+        const menu = document.getElementById('coti-gear-menu');
+        if (menu) menu.classList.remove('show');
+    }
+    function cotiGearAccion(fn) {
+        cotiGearCerrar();
+        if (typeof fn === 'function') fn();
+    }
+    function cotiGearPdf() { cotiGearCerrar(); cotiLoteAbrir(); }
+    function cotiGearAbrir(cual) {
+        cotiGearCerrar();
+        // Se abre después del click: el listener de "clic afuera" cierra los
+        // menús de columnas/orden cuando el click viene de fuera de su wrap.
+        setTimeout(() => { cual === 'col' ? toggleVisibilityMenu() : toggleOrderMenu(); }, 0);
+    }
+
     async function descargarCotizacionesLote() {
         const dEl = document.getElementById('coti-lote-desde');
         const hEl = document.getElementById('coti-lote-hasta');
@@ -7807,6 +7928,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            cotiLoteCerrar();
             setTimeout(() => URL.revokeObjectURL(url), 60000);
         } catch (err) { alert(err.message || 'Error de red'); }
         finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
@@ -12606,6 +12728,33 @@ btnItem.onclick = () => cotRegAgregarFila();
     }, 1000);
 </script>
 <!-- Modal N Detalle (Cotizaciones) -->
+<!-- Ventanita: rango de fechas para descargar los PDFs en lote (Cotizaciones) -->
+<div id="coti-lote-modal" class="mar-overlay" style="display:none;">
+  <div class="mar-modal" style="max-width:400px;">
+    <div class="mar-header">
+      <div>
+        <h3><i class="fa-solid fa-file-zipper"></i> PDFs en lote</h3>
+        <p>Elige el rango de fechas de generación</p>
+      </div>
+      <button type="button" onclick="cotiLoteCerrar()" class="mar-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="mar-body" style="display:block;">
+      <label for="coti-lote-desde"><i class="fa-regular fa-calendar" style="color:var(--ios-blue, #007AFF);"></i> Desde</label>
+      <input type="date" id="coti-lote-desde" title="Desde">
+      <label for="coti-lote-hasta"><i class="fa-regular fa-calendar-check" style="color:var(--ios-blue, #007AFF);"></i> Hasta</label>
+      <input type="date" id="coti-lote-hasta" title="Hasta">
+      <p style="margin:8px 0 0; font-size:12px; color:var(--ios-gray-2, #8E8E93);">
+        Se descargará un ZIP con los PDFs de las cotizaciones generadas en ese rango.
+      </p>
+    </div>
+    <div class="mar-footer">
+      <button type="button" onclick="cotiLoteCerrar()" class="mar-btn-ghost">Cancelar</button>
+      <button type="button" id="btn-coti-lote" onclick="descargarCotizacionesLote()" class="mar-btn-primary">
+        <i class="fa-solid fa-file-arrow-down"></i> Descargar ZIP
+      </button>
+    </div>
+  </div>
+</div>
 <div id="modal-n-detalle" class="mar-overlay" style="display:none;">
   <div class="mar-modal" style="max-width:480px;">
     <div class="mar-header">
@@ -12848,15 +12997,20 @@ function rendRevertir(key) {
 }
 
 // Columnas que no participan en el orden por hoja (fijas / KPI).
+// _evidencia_btn (botón "Ver" de comprobantes) SÍ participa: es una columna
+// de cara al usuario y su orden/visibilidad se guarda con la hoja.
 function _rendEsColumnaDeVista(f) {
-    return !!f && f !== '_key' && f !== '_accion'
+    return !!f && f !== '_key' && f !== '_accion' && f !== '_evidencia_btn'
         && String(f).indexOf('_') !== 0
         && String(f).indexOf('KPI_') !== 0;
 }
 
 // Rastro interno del flujo: prefijo "_" salvo _accion (esa es la columna
 // Flujo, con los botones Validar/Depositar/Sustentar): esa NUNCA se oculta.
+// Tampoco _evidencia_btn: se puede mostrar/ocultar desde Columnas y se
+// persiste en el layout de la hoja (antes se reseteaba y "desaparecia").
 function _rendEsColInterna(f) {
+    if (f === '_evidencia_btn') return false;
     return (String(f).indexOf('_') === 0 && f !== '_accion') || REND_COLS_OCULTAS.has(f);
 }
 
@@ -12893,6 +13047,9 @@ function _rendVisPorDefecto(f) {
     for (let i = 0; i < lay.length; i++) {
         if (lay[i] && lay[i].field === f) return lay[i].visible !== false;
     }
+    // El botón de Evidencia no es una columna de datos: oculto por defecto en
+    // cualquier hoja que no lo tenga guardado en su layout.
+    if (f === '_evidencia_btn') return false;
     return true;
 }
 
@@ -12922,8 +13079,14 @@ function _rendInitEstados() {
             // defecto y orden en la misma posicion que ocupan en la vista base
             // del modulo. Antes se empujaban AL FINAL y quedaban pegadas al
             // extremo derecho de la tabla, de donde ya no era facil sacarlas.
+            // Si la hoja declara showCols/hideCols, eso manda sobre el default
+            // del modulo (p.ej. el boton de Evidencia en la hoja Rendicion).
             Object.keys(base.visibles).forEach(f => {
-                if (!Object.prototype.hasOwnProperty.call(est.visibles, f)) est.visibles[f] = _rendVisPorDefecto(f);
+                if (Object.prototype.hasOwnProperty.call(est.visibles, f)) return;
+                let v = _rendVisPorDefecto(f);
+                if (cfg.showCols && cfg.showCols.indexOf(f) >= 0) v = true;
+                if (cfg.hideCols && cfg.hideCols.indexOf(f) >= 0) v = false;
+                est.visibles[f] = v;
             });
             base.orden.forEach((f, i) => {
                 if (est.orden.indexOf(f) >= 0) return;
