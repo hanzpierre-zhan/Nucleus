@@ -52,3 +52,25 @@ migrate_to_postgres.py
 extract_blueprints.py
 fix_urls.py
 clean_sla.py
+
+# Utilidades de diagnóstico / reparación de una sola vez (no forman parte de la app)
+# Se quitaron del repo el 03/10/2026: nada del código los importa ni los menciona.
+/check_*.py
+/clean_*.py
+/fix_*.py
+/find_*.py
+/compare_*.py
+/count_*.py
+/dump_*.py
+/inspect_*.py
+/print_*.py
+/restore_*.py
+/temp_*.py
+/update_*.py
+/extract_*.py
+/load_site_excel.py
+/process_dwg_data.py
+
+# Fixture de pruebas de la pestaña AUTIN (la ruta real es C:\Evidencias\FLM - ENTEL)
+/fotos_autin/
+
