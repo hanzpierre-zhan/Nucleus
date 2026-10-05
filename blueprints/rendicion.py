@@ -9,7 +9,7 @@
    - SUSTENTADO    -> hoja Evidencia (completado)
    - RECHAZADO     -> hoja Rechazados
 """
-import os, json, time, tempfile, mimetypes
+import os, json, time, tempfile, mimetypes, urllib.request
 from datetime import datetime
 
 from flask import (Blueprint, request, jsonify, session, current_app,
@@ -116,9 +116,21 @@ def _avisar_flujo(proy_id, accion, row, usuario):
             _crear_aviso(proy_id, 'sustentar',
                          '%s sustentó el depósito %s — %s' % (usuario, codigo or '-', site),
                          '#AF52DE', usuario)
+        elif accion == 'rebote':
+            # Rechazo en Rendición (CON SUSTENTO): vuelve a Evidencia para revisión.
+            motivo = str(row.get('OBSERVACIONES') or '').strip()
+            _crear_aviso(proy_id, 'devolver',
+                         '%s rechazó la solicitud en Rendición — %s vuelve a Evidencia%s'
+                         % (usuario, site, (': ' + motivo) if motivo else ''),
+                         '#FF3B30', usuario)
         elif accion == 'revertir':
             _crear_aviso(proy_id, 'revertir',
                          '%s revirtió la solicitud — %s ahora %s' % (usuario, site, _estado_de(row)),
+                         '#8E8E93', usuario)
+        elif accion == 'devolver':
+            _crear_aviso(proy_id, 'devolver',
+                         '%s devolvió la solicitud — %s vuelve a %s para corregir'
+                         % (usuario, site, _estado_de(row)),
                          '#8E8E93', usuario)
     except Exception:
         pass
@@ -128,6 +140,110 @@ def _avisar_flujo(proy_id, accion, row, usuario):
 def _folder(pid, key):
     return os.path.join(BASE_DIR, 'static', 'evidencia', str(pid),
                          secure_filename(str(key)))
+
+
+def _bajar_foto_form(url):
+    """Descarga una imagen del 2.º formulario a un archivo temporal.
+    Devuelve (ruta_tmp, extension) o (None, None) si falla."""
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = resp.read()
+        ctype = (resp.headers.get('Content-Type') or '').lower()
+        if ctype.startswith('image/png'):
+            ext = '.png'
+        elif ctype.startswith('image/webp'):
+            ext = '.webp'
+        else:
+            ext = '.jpg'
+        fd, ruta = tempfile.mkstemp(suffix=ext)
+        os.close(fd)
+        with open(ruta, 'wb') as fh:
+            fh.write(data)
+        return ruta, ext
+    except Exception:
+        return None, None
+
+
+def _persistir_fotos_form(proy_id, key, row):
+    """Copia a B2 (o a la carpeta de evidencias si no hay B2) todas las fotos
+    que traen las columnas SUSTENTO_* del 2.º formulario, para que el registro
+    no dependa del form (los enlaces de Google Forms pueden caducar).
+    Devuelve cuántas fotos se persistieron. Nunca rompe el flujo."""
+    guardado_clave = '_SUSTENTO_FOTOS_FORM'
+    try:
+        prev = {}
+        if row.get(guardado_clave):
+            try:
+                prev = json.loads(str(row.get(guardado_clave)))
+            except Exception:
+                prev = {}
+        # Columnas SUSTENTO_* del form + FOTO PAGO del flujo: copiamos las que
+        # sean enlaces externos (http/https). Las nuestras (relativas /api/...)
+        # ya viven en B2/evidencias y se ignoran.
+        candidatos = []
+        vistos = set()
+        for k, v in row.items():
+            if not str(k).startswith('SUSTENTO_'):
+                continue
+            val = str(v or '').strip()
+            if not (val.startswith('http://') or val.startswith('https://')):
+                continue
+            if val in vistos:
+                continue
+            vistos.add(val)
+            candidatos.append((k, val))
+        vp = str(row.get('FOTO PAGO') or '').strip()
+        if vp and (vp.startswith('http://') or vp.startswith('https://')) and vp not in vistos:
+            vistos.add(vp)
+            candidatos.append(('FOTO PAGO', vp))
+
+        if not candidatos:
+            return 0
+
+        folder = _folder(proy_id, key)
+        persistidas = 0
+        idx = 0
+        for col, url in candidatos:
+            idx += 1
+            saved = prev.get(url)
+            if not saved:
+                ruta_tmp, ext = _bajar_foto_form(url)
+                if not ruta_tmp:
+                    continue
+                try:
+                    try:
+                        evidencia_comprimir(ruta_tmp)
+                    except Exception:
+                        pass
+                    nombre = 'sustento_form_%03d%s' % (idx, ext)
+                    if evidencia_usa_b2():
+                        b2_cliente().upload_file(ruta_tmp,
+                                                 current_app.config['B2_BUCKET'],
+                                                 f'{key}/{nombre}')
+                    else:
+                        os.makedirs(folder, exist_ok=True)
+                        with open(os.path.join(folder, nombre), 'wb') as fh, \
+                             open(ruta_tmp, 'rb') as src:
+                            fh.write(src.read())
+                    saved = '/api/rendicion/foto/%d/%s/%s?v=%d' % (
+                        proy_id, key, nombre, int(time.time()))
+                    prev[url] = saved
+                finally:
+                    if os.path.exists(ruta_tmp):
+                        try:
+                            os.remove(ruta_tmp)
+                        except Exception:
+                            pass
+            if saved:
+                row[col] = saved
+                persistidas += 1
+
+        if prev:
+            row[guardado_clave] = safe_json_dumps(prev)
+        return persistidas
+    except Exception:
+        return 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -144,7 +260,7 @@ def api_rendicion_accion():
     data = request.get_json(silent=True) or {}
     key = str(data.get('key') or '').strip()
     accion = str(data.get('accion') or '').strip().lower()
-    if not key or accion not in ('validar', 'rechazar', 'depositar', 'sustentar', 'revertir'):
+    if not key or accion not in ('validar', 'rechazar', 'depositar', 'sustentar', 'revertir', 'devolver'):
         return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
 
     fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
@@ -160,9 +276,10 @@ def api_rendicion_accion():
     # 'revertir' no usa esta tabla: valida su propio mapa de estados más abajo.
     permitido = {
         'validar': ('PENDIENTE',),
-        'rechazar': ('PENDIENTE', 'VALIDADO', 'CON SUSTENTO'),
+        'rechazar': ('PENDIENTE', 'VALIDADO', 'DEPOSITADO', 'CON SUSTENTO'),
         'depositar': ('VALIDADO',),
         'sustentar': ('DEPOSITADO', 'CON SUSTENTO'),
+        'devolver': ('RECHAZADO',),
     }
     if accion in permitido and estado not in permitido[accion]:
         return jsonify({'error': 'No se puede "%s" una solicitud en estado %s.'
@@ -186,12 +303,29 @@ def api_rendicion_accion():
         row['OBSERVACIONES'] = str(data.get('observaciones') or row.get('OBSERVACIONES') or '').strip()
 
     elif accion == 'rechazar':
-        row['ESTADO'] = 'RECHAZADO'
-        row['FECHA RECHAZO'] = ahora
-        row['RECHAZADO POR'] = usuario_actual
-        motivo = str(data.get('observaciones') or '').strip()
-        if motivo:
-            row['OBSERVACIONES'] = motivo
+        if estado == 'CON SUSTENTO':
+            # En Rendición el rechazo NO va a la hoja de Rechazados: devuelve la
+            # solicitud a Evidencia (DEPOSITADO) para que el gestor la revise.
+            row['ESTADO'] = 'DEPOSITADO'
+            row['DEVUELTO POR'] = usuario_actual
+            row['FECHA DEVOLUCION'] = ahora
+            motivo = str(data.get('observaciones') or '').strip()
+            if motivo:
+                row['OBSERVACIONES'] = motivo
+        else:
+            row['ESTADO'] = 'RECHAZADO'
+            # De dónde viene el rechazo (para devolver a la hoja anterior) + contador.
+            row['RECHAZADO DESDE'] = estado
+            try:
+                vez = int(str(row.get('VECES RECHAZADO', '') or '0').strip() or 0) + 1
+            except (ValueError, TypeError):
+                vez = 1
+            row['VECES RECHAZADO'] = str(vez)
+            row['FECHA RECHAZO'] = ahora
+            row['RECHAZADO POR'] = usuario_actual
+            motivo = str(data.get('observaciones') or '').strip()
+            if motivo:
+                row['OBSERVACIONES'] = motivo
 
     elif accion == 'depositar':
         fecha_pago = str(data.get('fecha_pago') or '').strip()
@@ -239,6 +373,9 @@ def api_rendicion_accion():
         row['COMENTARIOS SUSTENTO'] = str(data.get('comentario') or '').strip()
         row['FECHA SUSTENTO'] = ahora
         row['SUSTENTADO POR'] = usuario_actual
+        # Al quedar en Cerrado, las fotos del 2.º formulario se copian a
+        # B2/evidencias para que el registro no dependa del form.
+        _persistir_fotos_form(proy.id, key, row)
 
     elif accion == 'revertir':
         # Permite retroceder el estado de la solicitud (solo zeno, suport o admin).
@@ -259,12 +396,30 @@ def api_rendicion_accion():
         else:
             return jsonify({'error': 'No se puede revertir desde este estado.'}), 400
 
+    elif accion == 'devolver':
+        # Rechazo con corrección: la solicitud rechazada vuelve a la hoja ANTERIOR
+        # (según de dónde vino) para que se corrijan los datos y el flujo avance.
+        # Los rechazos hechos en Validación (PENDIENTE) son definitivos.
+        est = str(row.get('ESTADO', '')).strip().upper()
+        if est != 'RECHAZADO':
+            return jsonify({'error': 'Solo se puede devolver una solicitud rechazada.'}), 409
+        fuente = str(row.get('RECHAZADO DESDE', '') or '').strip().upper() or 'PENDIENTE'
+        destino = {'VALIDADO': 'PENDIENTE',
+                   'DEPOSITADO': 'VALIDADO',
+                   'CON SUSTENTO': 'DEPOSITADO'}.get(fuente)
+        if not destino:
+            return jsonify({'error': 'Este rechazo es definitivo y no puede devolverse al flujo.'}), 400
+        row['ESTADO'] = destino
+        row['DEVUELTO POR'] = usuario_actual
+        row['FECHA DEVOLUCION'] = ahora
+
 
     fila.data_json = safe_json_dumps(row)
     fila.key_value = key
     db.session.commit()
     # Aviso para todos los que tengan el módulo ("Jessica depositó S/ 100 ...")
-    _avisar_flujo(proy.id, accion, row, usuario_actual)
+    _aviso = 'rebote' if (accion == 'rechazar' and row.get('ESTADO') == 'DEPOSITADO') else accion
+    _avisar_flujo(proy.id, _aviso, row, usuario_actual)
     return jsonify({'success': True, 'estado': row['ESTADO'], 'newData': row})
 
 

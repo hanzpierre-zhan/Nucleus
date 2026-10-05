@@ -618,6 +618,8 @@ def api_rendicion_sync():
         'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',
         'RECHAZADO POR', 'FECHA VALIDACION', 'VALIDADO POR',
         'DEPOSITADO POR', 'SUSTENTADO POR', 'EDITADO POR',
+        'RECHAZADO DESDE', 'VECES RECHAZADO', 'DEVUELTO POR',
+        'FECHA DEVOLUCION', '_SUSTENTO_MARCAS',
     }
 
     # Esquema DINÁMICO: las columnas del grid del form son exactamente las que
@@ -741,6 +743,16 @@ def api_rendicion_sync_sustentos():
     if not col_codigo:
          return jsonify({'error': 'No se encontro la columna CODIGO DEPOSITO en la hoja.'}), 400
 
+    # Independencia del form 2: cada envío (Marca temporal) aplica UNA sola vez.
+    # Si la hoja no trae columna de fecha/hora, se conserva el comportamiento
+    # anterior (refresh de SUSTENTO_*) por compatibilidad.
+    col_marca = next((f for f in fields
+                      if 'marca' in str(f).lower() and 'temporal' in str(f).lower()), None)
+    if not col_marca:
+        col_marca = next((f for f in fields
+                          if str(f).strip().lower() in ('marca temporal', 'timestamp',
+                                                        'marca de tiempo')), None)
+
     # Los datos del 2.º formulario se guardan en la fila como SUSTENTO_* y SÍ
     # son columnas del grid: se agregan al esquema al final del sync. Quedan
     # ocultas por defecto (no estorban en Validación/Depósitos) y las pestañas
@@ -774,22 +786,41 @@ def api_rendicion_sync_sustentos():
             continue
             
         estado_actual = str(target_dict.get('ESTADO', '')).strip().upper()
-        if estado_actual in ('DEPOSITADO', 'CON SUSTENTO'):
-            # Actualizamos data; DEPOSITADO además pasa a CON SUSTENTO.
-            # (CON SUSTENTO se refresca: así los cambios que hagas en el
-            #  2.º formulario -columnas nuevas- se ven al volver a sincronizar)
-            for k, v in row.items():
-                if k and k != col_codigo:
-                    col = 'SUSTENTO_%s' % k.upper()
-                    target_dict[col] = str(v).strip()
-                    nuevas_sustento.add(col)
-
-            if estado_actual == 'DEPOSITADO':
-                target_dict['ESTADO'] = 'CON SUSTENTO'
-            target.data_json = safe_json_dumps(target_dict)
-            actualizados += 1
-        else:
+        if estado_actual not in ('DEPOSITADO', 'CON SUSTENTO'):
             omitidos += 1
+            continue
+
+        # Cada envío del 2.º formulario aplica una sola vez (append-only por
+        # Marca temporal): los cambios posteriores en el form ya no re-escriben
+        # lo que se haya corregido en la app (independencia del form 2).
+        marca_actual = None
+        if col_marca:
+            marca_actual = str(row.get(col_marca) or '').strip()
+            if not marca_actual:
+                omitidos += 1
+                continue
+            procesadas = set()
+            for x in str(target_dict.get('_SUSTENTO_MARCAS', '') or '').replace(';', '\n').split('\n'):
+                x = x.strip()
+                if x:
+                    procesadas.add(x)
+            if marca_actual in procesadas:
+                omitidos += 1
+                continue
+
+        for k, v in row.items():
+            if k and k != col_codigo and k != col_marca:
+                col = 'SUSTENTO_%s' % k.upper()
+                target_dict[col] = str(v).strip()
+                nuevas_sustento.add(col)
+
+        if estado_actual == 'DEPOSITADO':
+            target_dict['ESTADO'] = 'CON SUSTENTO'
+        if marca_actual:
+            procesadas.add(marca_actual)
+            target_dict['_SUSTENTO_MARCAS'] = ';'.join(sorted(procesadas))
+        target.data_json = safe_json_dumps(target_dict)
+        actualizados += 1
 
     # ── Columnas del 2.º formulario: se suman al esquema del módulo ─────────
     try:

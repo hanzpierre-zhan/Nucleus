@@ -3484,6 +3484,11 @@ let _rendCambiandoVista = false;
         'SUSTENTADO': { bg: '#28A745', fg: '#fff' },
         'RECHAZADO':  { bg: '#FF3B30', fg: '#fff' }
     };
+    // Columnas internas del flujo de Rendición: ocultas por defecto en todas las
+    // hojas (pueden revelarse solo si el admin las incluye en un layout guardado).
+    const REND_COLS_OCULTAS = new Set([
+        'RECHAZADO DESDE', 'VECES RECHAZADO', 'DEVUELTO POR', 'FECHA DEVOLUCION'
+    ]);
     // Definida aquí (bloque 1) porque los formatters de la tabla la usan al
     // construirse, antes de que se ejecute el 2.º bloque <script>.
     function rendEstadoDe(row) {
@@ -4569,6 +4574,13 @@ let _rendCambiandoVista = false;
         if (hasServerLayout && layoutVisibleMap.has(fieldName)) {
             colDef.visible = layoutVisibleMap.get(fieldName);
         }
+        // Rendición: las columnas internas (_SUSTENTO_MARCAS, rastros de la hoja
+        // de rechazo) quedan ocultas por defecto: no estorban el flujo.
+        if (IS_RENDICION && !layoutVisibleMap.has(fieldName)) {
+            if (String(fieldName).indexOf('_') === 0 || REND_COLS_OCULTAS.has(fieldName)) {
+                colDef.visible = false;
+            }
+        }
 
         // 2. KPI ALARM (Dilación - Frozen columns on the left)
         if (fieldName.startsWith("KPI_")) {
@@ -4877,9 +4889,23 @@ let _rendCambiandoVista = false;
                     };
                 }
             }
+            }
+        // Rendición: para corregir un pedido rechazado (hoja Rechazados), solo
+        // las filas RECHAZADO pueden editarse en línea. ESTADO y CODIGO DEPOSITO
+        // los gestiona el flujo: nunca editables a mano.
+        if (IS_RENDICION) {
+            const esSistema = (fieldName === 'CODIGO DEPOSITO' || fieldName === 'ESTADO');
+            if (esSistema) {
+                colDef.editor = false;
+                colDef.editable = false;
+            }
+            const prevEditable = colDef.editable;
+            colDef.editable = function (cell) {
+                const d = cell.getRow().getData() || {};
+                if (!esSistema && rendEstadoDe(d) === 'RECHAZADO') return true;
+                return typeof prevEditable === 'function' ? prevEditable(cell) : (prevEditable !== false);
+            };
         }
-
-        // Combustible: formateadores especiales
         const proyCombGen = ['combustible', 'generadores'].includes(currentProjectNombre.trim().toLowerCase());
         const isCombustibleProy = currentProjectNombre.trim().toLowerCase() === 'combustible';
         if (proyCombGen) {
@@ -5312,13 +5338,15 @@ let _rendCambiandoVista = false;
                     chk.title = 'Pendiente de sustentar en Google Sheet';
                     chk.innerHTML = '<i class="fa-solid fa-clock"></i>';
                     wrap.appendChild(chk);
+                    mk('rend-btn-no', '✕', 'Rechazar: vuelve a Depósitos para corregir',
+                       () => rendAbrirRechazo(key));
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Validado', () => rendRevertir(key));
                     }
                 } else if (est === 'CON SUSTENTO') {
                     mk('rend-btn-sus', '★', 'Subir fotos adicionales o cerrar la solicitud (Sustentar)',
                        () => rendAbrirSustento(key));
-                    mk('rend-btn-no', '✕', 'Rechazar con motivo',
+                    mk('rend-btn-no', '✕', 'Rechazar: la solicitud vuelve a Evidencia para revisión',
                        () => rendAbrirRechazo(key));
                     if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Depositado', () => rendRevertir(key));
@@ -5338,7 +5366,19 @@ let _rendCambiandoVista = false;
                     chk.title = 'Rechazado';
                     chk.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
                     wrap.appendChild(chk);
-                    if (puedeRev) {
+                    // Volver a la hoja anterior (según de dónde vino el rechazo)
+                    // para corregir el pedido y que el flujo avance.
+                    const fuente = String(row['RECHAZADO DESDE'] || '').trim().toUpperCase();
+                    const destLabel = {
+                        'VALIDADO': 'Validación',
+                        'DEPOSITADO': 'Depósitos',
+                        'CON SUSTENTO': 'Evidencia'
+                    }[fuente];
+                    if (destLabel) {
+                        mk('rend-btn-rev rend-btn-mini', '↩',
+                           'Devolver a ' + destLabel + ' para corregir (el rechazo en Validación es definitivo)',
+                           () => rendDevolver(key));
+                    } else if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
                     }
                 }
@@ -6217,7 +6257,10 @@ let _rendCambiandoVista = false;
 
         const field = cell.getField();
         const manualDef = manualColsConfig.find(mc => mc.nombre === field);
-        if (!manualDef) return; // Only manual cols can be updated via UI
+        // En Rendición, las filas RECHAZADO (hoja Rechazados) también se pueden
+        // editar inline: se corrige el pedido antes de devolverlo al flujo.
+        const esRendRechazado = IS_RENDICION && rendEstadoDe(cell.getRow().getData()) === 'RECHAZADO';
+        if (!manualDef && !esRendRechazado) return; // Only manual cols can be updated via UI
 
         const key = cell.getRow().getData()._key;
         let val = cell.getValue();
@@ -6340,6 +6383,12 @@ let _rendCambiandoVista = false;
         }
 
         const isWoExport = (typeof IS_WO_PROJECT !== 'undefined' && IS_WO_PROJECT);
+        const esRendicion = (typeof IS_RENDICION !== 'undefined' && IS_RENDICION);
+        const renombresRend = {
+            'CODIGO DEPOSITO': 'Código depósito',
+            'TIEMPO DE RESPUESTA': 'Tiempo de respuesta',
+            'OBSERVACIONES': 'Motivo (flujo)'
+        };
         let exportCols = [];
         let dataToExport = rawData;
 
@@ -6438,6 +6487,51 @@ let _rendCambiandoVista = false;
                 } catch (e) {}
             }
             if (!Array.isArray(dataToExport)) dataToExport = rawData;
+        } else if (esRendicion) {
+            // Rendición: columnas siguiendo el flujo (solicitud → validación → depósito
+            // → sustentos/evidencia → cierre/rechazos). Se descartan las internas y las
+            // redundantes (Nombre del proyecto, INTERACCION, _key, _SUSTENTO_MARCAS, etc.).
+            const tramoAccion = [
+                'Marca temporal', 'ESTADO', 'Tipo de presupuesto', 'Tipo de gasto',
+                'Tipo de Ticket', 'Nombre de site', 'Técnico beneficiario', 'Documento del beneficiario',
+                'Número CM / PM / PLM', 'Criticidad - Prioridad', 'Motivo de la solicitud',
+                'Monto total del depósito', 'Tipo de depósito a realizar', 'Tipo de billetera digital',
+                'Numero de Yape/Plin', 'Número de celular o CCI', 'Número de cuenta o CCI',
+                'Titular de la cuenta', 'Supervisor encargado', 'Responsable de la validación',
+                'Observaciones (Form)',
+                'TIEMPO DE RESPUESTA', 'FECHA VALIDACION', 'VALIDADO POR',
+                'CODIGO DEPOSITO', 'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'DEPOSITADO POR'
+            ];
+            const tramoEvidencia = ['FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'SUSTENTADO POR'];
+            const tramoCierre = [
+                'OBSERVACIONES', 'FECHA RECHAZO', 'RECHAZADO POR', 'RECHAZADO DESDE',
+                'VECES RECHAZADO', 'DEVUELTO POR', 'FECHA DEVOLUCION'
+            ];
+            const descartadosRend = {
+                'Nombre del proyecto': 1, 'INTERACCION': 1, 'EDITADO POR': 1,
+                'SUSTENTO_MARCA TEMPORAL': 1
+            };
+            const presentes = rawCols.filter(c => c && !String(c).startsWith('_')
+                && !String(c).toUpperCase().startsWith('KPI_'));
+            const enOrden = [];
+            tramoAccion.concat(tramoEvidencia, tramoCierre).forEach(n => {
+                if (presentes.indexOf(n) >= 0 && enOrden.indexOf(n) < 0) enOrden.push(n);
+            });
+            // Columnas del 2.º form (SUSTENTO_*): quedan en el tramo de evidencia,
+            // justo antes de FECHA SUSTENTO (o tras DEPOSITADO POR si el grupo no existe).
+            const sustNuevas = [];
+            presentes.forEach(c => {
+                if (c.startsWith('SUSTENTO_') && !descartadosRend[c]
+                    && enOrden.indexOf(c) < 0 && !sustNuevas.includes(c)) sustNuevas.push(c);
+            });
+            let idxEv = enOrden.indexOf('FECHA SUSTENTO');
+            if (idxEv < 0) idxEv = enOrden.indexOf('DEPOSITADO POR') + 1;
+            if (idxEv >= 0) enOrden.splice(idxEv, 0, ...sustNuevas);
+            else sustNuevas.forEach(c => enOrden.push(c));
+            // Columnas no listadas que no figuran en el descarte se agregan al final.
+            presentes.forEach(c => { if (!descartadosRend[c] && enOrden.indexOf(c) < 0) enOrden.push(c); });
+            exportCols = enOrden;
+            dataToExport = rawData;
         } else {
             // Otros proyectos: comportamiento original (todas las columnas reales, todas las filas)
             exportCols = rawCols.filter(c => {
@@ -6459,6 +6553,7 @@ let _rendCambiandoVista = false;
         const rows = [];
         const headers = exportCols.map(c => {
             if (c === '_key') return isWoExport ? 'Numero WO' : String(c).trim();
+            if (esRendicion && renombresRend && renombresRend[c]) return renombresRend[c];
             return String(c).trim();
         });
         rows.push(headers);
@@ -12754,7 +12849,9 @@ function rendRevertir(key) {
 
 // Columnas que no participan en el orden por hoja (fijas / KPI).
 function _rendEsColumnaDeVista(f) {
-    return !!f && f !== '_key' && f !== '_accion' && String(f).indexOf('KPI_') !== 0;
+    return !!f && f !== '_key' && f !== '_accion'
+        && String(f).indexOf('_') !== 0
+        && String(f).indexOf('KPI_') !== 0;
 }
 
 
@@ -12765,6 +12862,12 @@ function _rendSnapshot() {
     table.getColumns().forEach(c => {
         const f = c.getField();
         if (!f) return;
+        // Columnas internas del flujo (prefijo "_") y rastros de la hoja de
+        // rechazo: nunca se persisten en el layout, quedan ocultas por defecto.
+        if (String(f).indexOf('_') === 0 || REND_COLS_OCULTAS.has(f)) {
+            visibles[f] = false;
+            return;
+        }
         visibles[f] = c.isVisible();
         if (_rendEsColumnaDeVista(f)) orden.push(f);
     });
@@ -12776,6 +12879,8 @@ function _rendVisPorDefecto(f) {
     // Columnas del 2.º formulario (Sustento): ocultas por defecto, solo las
     // pestañas Evidencia y Rendición las muestran (showPrefijos).
     if (String(f).indexOf('SUSTENTO_') === 0) return false;
+    // Columnas internas del flujo y rastros de la hoja de rechazo: ocultas.
+    if (IS_RENDICION && (String(f).indexOf('_') === 0 || REND_COLS_OCULTAS.has(f))) return false;
     const lay = (typeof columnLayout !== 'undefined' && columnLayout) ? columnLayout : [];
     for (let i = 0; i < lay.length; i++) {
         if (lay[i] && lay[i].field === f) return lay[i].visible !== false;
@@ -12849,6 +12954,15 @@ function _rendInitEstados() {
                 });
             });
         }
+        // Rastros internos del flujo: ocultos siempre, aunque un layout viejo
+        // los tenga guardados como visibles.
+        Object.keys(est.visibles).forEach(f => {
+            if (String(f).indexOf('_') === 0 || REND_COLS_OCULTAS.has(f)) {
+                est.visibles[f] = false;
+                const i = est.orden.indexOf(f);
+                if (i >= 0) est.orden.splice(i, 1);
+            }
+        });
         _rendEstadoVistas[vista] = est;
     });
 }
@@ -12999,6 +13113,26 @@ function rendCerrarModal() {
     _rendModal = null;
 }
 
+// Devolver: la solicitud rechazada vuelve a la hoja anterior (según de dónde
+// vino) para que se corrijan los datos y el flujo avance.
+function rendDevolver(key) {
+    const row = (typeof rawData !== 'undefined' && Array.isArray(rawData) ? rawData : []).find(r => r._key === key) || {};
+    const fuente = String(row['RECHAZADO DESDE'] || '').trim().toUpperCase();
+    const dest = {
+        'VALIDADO': 'Validación (PENDIENTE)',
+        'DEPOSITADO': 'Depósitos (VALIDADO)',
+        'CON SUSTENTO': 'Evidencia (DEPOSITADO)'
+    }[fuente];
+    if (!dest) {
+        nucleusAlert('<b>Rechazo definitivo.</b> Este rechazo no puede devolverse al flujo.');
+        return;
+    }
+    _rendModal = { accion: 'devolver', key: key };
+    rendAbrirModal('Devolver a hoja anterior',
+                   'La solicitud volverá a ' + dest + ' para corregir los datos. El flujo continuará desde esa etapa.',
+                   'Devolver', null);
+}
+
 // Validar: muestra confirmación con el detalle completo de la solicitud
 // + selección de tiempo de respuesta (3 opciones) y observación.
 function rendValidar(key) {
@@ -13024,14 +13158,20 @@ function rendValidar(key) {
     );
 }
 
-// Rechazar: pide motivo obligatorio (lo guarda en OBSERVACIONES)
+// Rechazar: pide motivo obligatorio (lo guarda en OBSERVACIONES).
+// Desde Rendición (CON SUSTENTO) el rechazo NO va a la hoja de Rechazados:
+// devuelve la solicitud a Evidencia para que el gestor la revise.
 function rendAbrirRechazo(key) {
     _rendModal = { accion: 'rechazar', key: key };
+    const _rk = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+    const _desdeRend = rendEstadoDe(_rk) === 'CON SUSTENTO';
     document.getElementById('rend-motivo').value = '';
     rendMostrarResumen(key);
     rendAbrirModal(
         '✕ Rechazar solicitud',
-        'Escribe el motivo del rechazo — quedará guardado en OBSERVACIONES.',
+        _desdeRend
+            ? 'Escribe el motivo del rechazo — la solicitud volverá a Evidencia para que el gestor la revise.'
+            : 'Escribe el motivo del rechazo — quedará guardado en OBSERVACIONES.',
         'Confirmar Rechazo',
         'rend-motivo'
     );
@@ -13169,6 +13309,9 @@ function rendConfirmarModal() {
         
         if (accion === 'depositar' && j.newData && j.newData['CODIGO DEPOSITO']) {
             setTimeout(() => nucleusAlert('Depósito registrado con éxito.<br>Código de ticket: <b>' + j.newData['CODIGO DEPOSITO'] + '</b>'), 300);
+        }
+        if (accion === 'rechazar' && j.estado === 'DEPOSITADO') {
+            setTimeout(() => nucleusAlert('Solicitud devuelta a Evidencia para revisión.'), 300);
         }
         
         rendCerrarModal();
