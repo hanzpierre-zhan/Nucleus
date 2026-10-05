@@ -11912,19 +11912,22 @@ btnItem.onclick = () => cotRegAgregarFila();
                 // hay URL del servidor: en Render esa ruta nunca está montada y solo
                 // ensuciaba la pestaña con un aviso de carpeta inexistente + un campo editable
                 // que no lleva a ninguna parte. Ahí manda la URL del servidor de fotos.
+                const esSP = (j.modo === 'sharepoint');
                 const conUrl = !!(_autinBase || _autinFotosBase);
                 const conLocal = !conUrl && !!j.raiz_existe;
-                const fuente = conUrl ? (_autinBase || _autinFotosBase)
-                    : (conLocal ? (j.raiz || '') : '');
+                const fuente = esSP ? 'SharePoint · enlace compartido de fotos'
+                    : (conUrl ? (_autinBase || _autinFotosBase)
+                        : (conLocal ? (j.raiz || '') : ''));
                 const icono = j.sin_conexion ? 'fa-plug-circle-xmark'
-                    : (fuente ? 'fa-folder-open' : 'fa-folder-closed');
+                    : (esSP ? 'fa-cloud' : (fuente ? 'fa-folder-open' : 'fa-folder-closed'));
                 let html = '<i class="fa-solid ' + icono + '"></i>' +
                     '<span class="autin-ruta-txt" title="' + escapeHtml(fuente) + '">' +
                     escapeHtml(fuente || 'Sin URL del servidor de fotos') + '</span>';
                 html += '<span class="autin-badge ' + (j.sin_conexion || !fuente ? 'bad' : 'ok') + '">' +
                     (j.sin_conexion ? 'Servidor no disponible'
-                        : (conUrl ? 'Servidor de fotos activo'
-                            : (conLocal ? 'Carpeta accesible' : 'Sin URL configurada'))) + '</span>';
+                        : (esSP ? 'SharePoint activo'
+                            : (conUrl ? 'Servidor de fotos activo'
+                                : (conLocal ? 'Carpeta accesible' : 'Sin URL configurada')))) + '</span>';
                 if (j.carpeta) html += '<span class="autin-badge neutral">' + escapeHtml(j.carpeta) + '</span>';
                 if (conLocal) {
                     html += '<span class="autin-ruta-edit">' +
@@ -11934,7 +11937,7 @@ btnItem.onclick = () => cotRegAgregarFila();
                         '<i class="fa-solid fa-floppy-disk"></i> Guardar</button></span>';
                 }
                 // La URL del servidor cambia en cada reinicio del túnel: solo zeno la pega y guarda
-                if (_autinEsZeno()) {
+                if (_autinEsZeno() && !esSP) {
                     html += '<span class="autin-ruta-edit">' +
                         '<input type="text" id="autin-base-input" value="' + escapeHtml(_autinBase) + '" ' +
                         'placeholder="URL del servidor de fotos (cambia al reiniciar el túnel)">' +
