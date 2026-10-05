@@ -1,22 +1,47 @@
 # DOCUMENTACIÓN TÉCNICA — NUCLEUS
 
 > Referencia completa del sistema para modificar/agregar criterios, reglas y funcionalidad.
-> Última actualización: 20/08/2026.
+> Última actualización: 03/10/2026.
 
 ---
 
 ## 1. ARQUITECTURA GENERAL
 
+La app se refactorizó de **monolito (`app.py` de ~3900 líneas) a módulos**. `app.py` quedó
+como *factory* (`create_app()`): configura BD, compresión, migraciones, cachés y registra
+los blueprints. **Las rutas ya no están en `app.py`.**
+
 | Componente | Tecnología | Dónde |
 |---|---|---|
-| Backend | Flask + Flask-SQLAlchemy | `app.py` (3888 líneas) |
-| Frontend | Jinja2 + Tabulator (JS) | `templates/index.html` (5198 líneas), `dashboard.html`, etc. |
-| BD | PostgreSQL en producción (Render), SQLite local | env `DATABASE_URL` o `nucleus.db` |
-| Despliegue | Render (`https://nucleus-j2cv.onrender.com/`) | Procfile: `web: gunicorn app:app`, `runtime.txt: python-3.11.8` |
+| Factory / arranque | Flask + Flask-SQLAlchemy | `app.py` (`create_app()`, ~9.4 KB) |
+| Config / BD | `DATABASE_URL` o `nucleus.db` | `config.py`, `db.py`, `models.py` |
+| Rutas de páginas | `pages.py` | `blueprints/pages.py` — `/`, `/dashboard`→`/analytics`, `/analytics`, `/proyectos`, `/usuarios`, `/admin`, `/configuraciones`, `/mapa-site` |
+| Datos / filas | `rows.py` | `blueprints/rows.py` — update/add/delete/bulk_update/finalizar |
+| WO / AUTIN / sitios | `wo.py` | `blueprints/wo.py` — meta, historial, servicios, detalle/opciones, sites, wos_flm, **`/api/autin/*`** |
+| Evidencia | `evidencia.py` | `blueprints/evidencia.py` — subir/eliminar/foto/zip/reporte |
+| Cotizaciones | `cotizacion.py` | `blueprints/cotizacion.py` — estado, lista, registro, generar, PDF |
+| Rendición | `rendicion.py` | `blueprints/rendicion.py` — `/api/rendicion/accion|subir_foto|foto|avisos` |
+| Import / master | `imports.py`, `master.py` | preview/process, filtros, tablas, reglas, columnas, layout |
+| Admin / usuarios | `admin.py`, `auth.py` | proyectos, usuarios, permisos, sync, config |
+| Lógica compartida | `services/` | `apoyo.py` (reportes PEXT, cálculos), `utilidades.py` (decoradores), `__init__.py` re-exporta |
+| Frontend | Jinja2 + Tabulator/Chart/XLSX **locales** | `templates/index.html` (~13.7 k líneas), `analytics.html`, `base.html` |
+| Despliegue | Render | `Procfile` `web: gunicorn app:app`, `runtime.txt` python-3.11.8 |
 | Fotos/evidencia | Local `static/evidencia/` o Backblaze B2 (opcional) | envs `B2_*` |
-| Importación automática | Scripts Selenium (Chrome) en `scripts/` | Programador de tareas Windows |
+| Fotos AUTIN | Disco `C:\Evidencias\FLM - ENTEL` + túnel Cloudflare | `AppConfig autin_fotos_dir` y `autin_base_url`; ver §7.5 |
 
-**Stack datos:** `pandas`, `openpyxl`, `Pillow`, `reportlab`, `boto3`, `psycopg2-binary`.
+**Stack datos:** `pandas`, `openpyxl`, `Pillow` (+`pillow-heif` para HEIC), `reportlab`,
+`python-docx`, `boto3`, `psycopg2-binary`.
+
+> ⚠️ Los números de línea de este documento son orientativos: tras el refactor casi todos
+> cambiaron. Busca por **nombre de función/ruta**, no por línea.
+
+### 1.1 Assets estáticos (sin CDN)
+
+Todo el JS/CSS de terceros vive en `static/vendor/` y `static/js/` para eliminar ~1.9 s de
+bloqueo por CDNs (ver `?v=1` en `base.html`/`login.html`): `luxon`, `xlsx.full.min`,
+`chart.umd.min`, `tabulator.min` (+ CSS), `fontawesome.min.css` + `webfonts/`, `leaflet`
+(+ `css/images/`). **Si actualizas una librería, sube el `?v=`** para romper la caché.
+
 
 ---
 
@@ -209,6 +234,101 @@ IS_FLM = (nombre == 'flm'); IS_PEXT = (nombre == 'pext');
 ### 7.4 Dataper / Material / Site Name
 - Catálogos fuente. Dataper alimenta técnicos; Material alimenta materiales del modal WO; Site Name cruza DIRECCION/LAT/LONG a FLM por `Nombre de Site` (solo ESTADO=ACTIVO).
 
+### 7.5 Pestaña AUTIN (fotos de campo por WO)
+
+Dentro del modal WO hay una pestaña **AUTIN** que agrupa las fotos del WO por estado
+(Llegada / Completado / Salida / Suspendido / Otros).
+
+- **Clave:** el **número de WO** (`NucleusData.key_value`, p. ej. `CM-20260814-00000160`).
+- **Origen de las fotos:** `AppConfig autin_fotos_dir` (por defecto `C:\Evidencias\FLM - ENTEL`)
+  más la carpeta `<raíz>/<WO>`. La raíz local solo se muestra (y se edita con
+  `POST /api/autin/config`) si la carpeta existe de verdad en el servidor; en un contenedor
+  (Render) esa ruta no está montada, así que la pestaña solo muestra la URL del servidor
+  de fotos.
+- **Modo de entrega:** si `autin_base_url` (túnel Cloudflare) está configurado, el frontend
+  arma las URLs directamente (`fotos_base`) y las pide al túnel; si no, usa
+  `/api/autin/foto?wo=..&f=..` como proxy local. `zip_url` descarga todo el WO en ZIP.
+- **Endpoints:** `GET /api/autin/fotos` (config + grupos), `GET /api/autin/foto`,
+  `GET /api/autin/zip`, `GET|POST /api/autin/config`.
+- **Anti-traversal:** los nombres de archivo se validan contra la carpeta del WO (los intentos
+  de `..\..\` devuelven 404).
+- ⚠️ El túnel de Cloudflare cambia de URL en cada reinicio: hay que re-pegarla en el campo
+  "URL del servidor de fotos" (solo zeno). Si no hay túnel, las fotos se sirven por el backend
+  (más lento, ~1 img/seg vs ~1.6 s del túnel por imagen, pero sin depender de la URL).
+
+### 7.6 Analytics: dashboards
+
+`/analytics` (y `/dashboard`, que redirige a `/analytics`) tiene **8 vistas** en el selector
+superior, en dos grupos: **Métricas clave** (4 vistas nuevas, una por programa) y
+**Dashboards** (las 4 vistas originales, disponibles aparte). La vista elegida se recuerda
+**por proyecto** (`sessionStorage an-dash:<proyecto>`); sin elección previa cada programa
+abre su vista de métricas y el resto de proyectos, **Producción**.
+
+| Grupo | Vista | Cuándo se usa | Qué grafica |
+|---|---|---|---|
+| Métricas clave | **FLM KPIs** | Solo proyectos WO (`isPext`); por defecto en FLM - ENTEL | KPIs (WO totales, % cerradas, abiertas, suspendidas, críticas, antigüedad prom., VIP) + estado, departamentos, fault level, tipo de tarea, prioridad, evolución mensual y resumen por estado |
+| Métricas clave | **Combustible KPIs** | Solo proyecto Combustible; por defecto ahí | KPIs de galones (totales/ingresos/gastos/saldo, % con factura y foto) + galones por zona (suma), evolución, movimientos, top técnicos y resumen con galones |
+| Métricas clave | **Cotizaciones KPIs** | Solo proyecto Cotizaciones; por defecto ahí | KPIs (total, monto `SUB TOTAL + FEE`, ticket medio, validadas/rechazadas, con N° WO, peticiones) + estado, cliente, monto por supervisor, evolución y resumen con montos |
+| Métricas clave | **Rendición KPIs** | Solo proyecto Rendición; por defecto ahí | KPIs (solicitudes, monto solicitado/pagado, gestionadas, pendientes, rechazadas, con foto) + estado, monto por estado, presupuesto, proyecto, responsable, evolución diaria y resumen |
+| Dashboards | **Seguimiento** | Solo proyectos WO con `Operate Phase` (FLM/PEXT) | operación, backlog, prioridad, falla, departamento, tipo avería, sites |
+| Dashboards | **Producción** | WO — vista por defecto en proyectos sin dashboards propios | solo filas `Operate Phase = close`, evolución mensual, detalle |
+| Dashboards | **Rendición** | Proyecto 11 (también disponible en cualquier proyecto con columna `ESTADO`) | estado, responsable de validación, proyecto, criticidad, evolución mensual y tabla resumen con montos (`Monto total del depósito`) |
+| Dashboards | **Cotización** | Proyecto 8 (y cualquiera con `ESTADO COTIZACION`) | estado, cliente, supervisor, gestor, evolución mensual y tabla con `SUB TOTAL + FEE` |
+
+- Cada opción de **Métricas clave** solo se ofrece en su programa (`MK_OK` en
+  `templates/analytics.html`); el separador del grupo desaparece si el proyecto no tiene ninguna.
+- Las tarjetas KPI (`.an-kpis` / `.an-kpi`) se pintan con `renderKpiRow(...)` y los cálculos
+  son defensivos: columnas ausentes → 0 o tarjetas de gráfico ocultas, nunca errores.
+- `anSumBar` grafica **sumas** (galones por zona, S/ por estado) con los mismos clics/filtros
+  que las barras de conteo; `anLine` acepta `gran: 'day'` (evolución diaria de Rendición).
+
+- Los nombres de columna se resuelven con `keyNamed(...)`, así que si cambias el formulario
+  las tarjetas se reacomodan solas; si no hay columnas compatibles aparece un aviso en vez
+  de una pantalla vacía.
+- **Tarjetas automáticas** (`#an-gen-cards`, solo proyectos no-WO como Dataper, SITE,
+  Material, Combustible): se eligen hasta 6 columnas categóricas con datos reales y se
+  grafican solas (`gen:<columna>`). Si ninguna califica aparece `an-aviso-sin-tarjetas`.
+- Límite de filas: `_ANALYTICS_MAX = 20000` en `blueprints/pages.py`. Si el proyecto tiene
+  más, se muestra el aviso ámbar `an-aviso-limite` con el total real.
+- Clic en una barra → filtro de gráfico (`anState.chart`); el chip superior lo quita.
+
+**¿Por qué el dashboard puede verse distinto entre entornos/proyectos?** No es un bug:
+cada proyecto muestra las vistas que sus columnas permiten y sus propias tarjetas.
+
+- La opción **Seguimiento** solo aparece si `isPext && K_PHASE`
+  (`templates/analytics.html`), es decir: nombre de proyecto en `FLM - ENTEL / FLM /
+  PEXT / CLARO / FLM-INTEGRATEL` **y** que exista la columna `Operate Phase` en ese
+  proyecto. Si falta cualquiera de las dos, se oculta y se abre **FLM KPIs** (o
+  **Producción** si el proyecto no es WO).
+- Las tarjetas fijas (`Operate Phase`, `Backlog`, `Sites`, `Prioridad`, `Nivel de Falla`,
+  `Departamento`, `Tipo de Avería`) y los filtros WO (Tipo WO / Mes / Departamento /
+  Causa raíz) viven en `#an-view-seg` y solo se ven en esa vista.
+- Proyectos **no-WO** (Dataper, Material, SITE, Combustible…) usan las **tarjetas
+  automáticas** `#an-gen-cards` (tipo «112 registros · N valores · clic para filtrar»),
+  que se generan a partir de sus propias columnas: es normal que no se parezcan a las de
+  FLM.
+- La vista elegida se recuerda por proyecto (`sessionStorage an-dash:<proyecto>`) y los
+  contadores reflejan los filtros activos (p. ej. `MES 2026-09`), por lo que los totales
+  cambian aunque la BD sea la misma.
+
+### 7.7 Avisos legales y cookies
+
+- **3 rutas públicas** (sin login) en `blueprints/pages.py`: `/privacidad`, `/terminos`
+  y `/cookies`. Las tres renderizan la misma plantilla `templates/legal.html` con el
+  parámetro `seccion`; cada página tiene pestañas para ir a las otras dos.
+- **Banner de consentimiento**: `templates/cookie_banner.html`, incluido con
+  `{% include %}` en `login.html` y `base.html` (todas las páginas de la app). Se muestra
+  solo si no existe `localStorage['nucleus-consent']`; el botón *Entendido* lo guarda y
+  lo oculta. El contenido se documenta en `/cookies`.
+- **Enlaces legales**: pie del login (`.vl-footer`) y fila `.sidebar-legal` en
+  `base.html` (Privacidad · Términos · Cookies).
+- **Cookies en uso**: solo la cookie de sesión de Flask (técnica, no requiere
+  consentimiento) + `localStorage` (`nucleus-theme`, `nucleus-consent`, orden y
+  visibilidad de columnas). **No hay analítica ni píxeles de terceros**: si se añade uno,
+  debe pedirse consentimiento previo instalando el mismo aviso.
+- Prueba: `Temp\opencode\legal_test.py` (rutas 200 sin sesión, banner visible → acepta →
+  no vuelve a aparecer, enlaces en login y sidebar).
+
 ---
 
 ## 8. PERMISOS POR ROL
@@ -235,6 +355,9 @@ Roles: **admin** · **supervisor** (antes editor) · **gestor** · **demo** (sol
 
 ## 9. SCRIPTS DE AUTOMATIZACIÓN (`scripts/`)
 
+> ⚠️ La carpeta `scripts/` **ya no existe en este repo** (no forma parte del deploy).
+> Estos scripts viven en la máquina que hace la descarga programada:
+
 | Archivo | Función |
 |---|---|
 | `WOs_descargar_FLM_PEXT.bat` | Orquestador: corre FLM y luego PEXT (cada uno con su sesión Chrome), log en `WOs_run.log` |
@@ -254,9 +377,13 @@ Roles: **admin** · **supervisor** (antes editor) · **gestor** · **demo** (sol
 **Import:** `POST /api/import/preview|process` · `GET /api/import/manual_template` · `POST /api/master/bulk_import/<tipo>`
 **Reglas:** `GET|POST|DELETE /api/master/filtros|tablas|reglas_manuales|manual_columns` · `POST /api/master/reprocess` · `GET /api/master/all_columns` · `GET /api/master/template/<tipo>`
 **Config:** `POST /api/columns/layout` · `/api/master/dashboard_charts|kpis|filters` · `/api/config/consolidation` · `/api/config/cotizacion_margen` · `/api/config/init_manual`
-**WO:** `GET /api/wo/meta|historial` · `POST /api/wo/servicios`
-**Evidencia:** `POST /api/evidencia/subir|eliminar` · `GET /api/evidencia/foto/<pid>/<key>/<nombre>`
-**Cotizaciones:** `GET /api/cotizacion/estado|lista` · `POST /api/cotizacion/desbloquear|eliminar|generar`
+**WO:** `GET /api/wo/meta|historial|resolver` · `POST /api/wo/servicios|enviar_aprobacion`
+**Sitios/WO:** `GET /api/sites|site/detalle|wos_flm|detalle/opciones`
+**AUTIN:** `GET /api/autin/fotos|foto|zip|config` · `POST /api/autin/config`
+**Evidencia:** `POST /api/evidencia/subir|eliminar` · `GET /api/evidencia/foto/<pid>/<key>/<nombre>|zip|reporte_config|reporte_xlsx/<pid>/<key>`
+**Rendición:** `POST /api/rendicion/accion` · `POST /api/rendicion/subir_foto` · `GET /api/rendicion/foto/<pid>/<key>/<nombre>|avisos` · `POST /api/rendicion/avisos/leer`
+**Sincronizaciones:** `GET|POST /api/rendicion/sync` · `POST /api/rendicion/sync_sustentos`
+**Cotizaciones:** `GET /api/cotizacion/estado|lista` · `POST /api/cotizacion/desbloquear|eliminar|generar|previsualizar|registro_generar|descargar_registro|descargar_lote`
 **Admin:** `/api/admin/proyecto|usuario|permisos|columnas|column_values` · `/api/tecnicos` · `/api/clean`
 **Auth:** `/login` `/logout` `/switch_project/<pid>`
 **Health:** `/healthz`
@@ -286,3 +413,75 @@ Roles: **admin** · **supervisor** (antes editor) · **gestor** · **demo** (sol
 - La BD de producción es PostgreSQL v18 (Neon Launch, AWS us-east-2). Local es SQLite.
 - Migraciones automáticas al arranque: multi-proyecto, cotizaciones sin unique, backfill de historial, admin default.
 - **Fault Level de PEXT** es inmutable (no aparece en columnas manuales): es dato de origen.
+
+---
+
+## 13. LISTA DE VERIFICACIÓN ANTES DEL DEPLOY
+
+1. `requirements.txt` completo — incluye `pillow-heif` (fotos HEIC de iPhone) y `psycopg2-binary`.
+2. **Plantilla PEXT:** `REPORTE FOTOGRAFICO _ CORRECTIVOS.xlsx` en la raíz del proyecto.
+   Sin ella, `GET /api/evidencia/reporte_config` responde **503** con mensaje limpio y
+   `reporte_xlsx` **500** (la UI usa los slots por defecto y sigue funcionando).
+3. `DATABASE_URL` apuntando a PostgreSQL; si no existe usa `nucleus.db`.
+4. **AUTIN:** `AppConfig autin_fotos_dir` (ruta real de fotos) y `autin_base_url` (túnel) se
+   configuran desde la pestaña AUTIN, no en código.
+5. Assets locales en `static/vendor/` y `static/js/` — el deploy debe subirlos **tal cual**
+   (si faltan, la app queda sin Tabulator/Chart/FontAwesome).
+6. Después de un deploy con cachés en cliente: pedir **Ctrl+F5** (los assets llevan `?v=`).
+
+---
+
+## 14. RENDIMIENTO (medido 03/10/2026)
+
+| Métrica | Valor |
+|---|---|
+| `GET /` FLM - ENTEL (servidor) | ~305 ms · 3.87 MB (≈550 KB con gzip) |
+| `GET /` Rendición (servidor) | ~19 ms · 679 KB |
+| `GET /analytics` FLM (servidor) | ~155 ms · 3.03 MB |
+| Tabla FLM visible (cliente) | ~1.1 s — 1866 filas × 61 columnas |
+| Redibujado completo de la tabla | ~378 ms |
+| Modal WO | ~38 ms |
+| `/api/detalle/opciones` | ~84 ms (caché 120 s; era 471 ms) |
+| `/api/sites` | ~230 ms · 2.3 MB (**on demand**, no bloquea la carga) |
+| Assets estáticos locales | 0–15 ms (antes 400–500 ms por CDN) |
+
+**Cuellos de botella conocidos:**
+- El HTML de FLM pesa 3.9 MB porque `rawData` va **inline** (3.1 MB de JSON: 1866 × 59
+  columnas). Es el coste principal del parseo en cliente.
+- Las fotos de AUTIN/Evidencia pasan por el túnel de Cloudflare (~1.6 s por imagen).
+- Cachés con TTL 120 s (`_opciones_cache` en `wo.py`, `_site_map_cache` en `pages.py`):
+  la primera petición de cada 2 minutos es más lenta. Se invalidan en cada commit
+  (`app.py:_register_opciones_cache_invalidation`).
+
+---
+
+## 15. PRUEBAS
+
+No hay framework de tests: son scripts sueltos fuera del repo (temp) que usan
+`Flask.test_client()` o Selenium headless contra `python app.py` (puerto **5001**):
+
+| Script | Qué cubre | Estado |
+|---|---|---|
+| `smoke2.py` | 13 endpoints crudos | 13/13 |
+| `test_render.py` | render `/` por rol/proyecto | 5/5 |
+| `test_coti_rend.py` | flujo Cotizaciones + Rendición | 19/19 |
+| `test_analytics.py` / `test_an_cdn.py` | filtros Analytics y modo sin Chart.js | OK |
+| `test_dashes.py` | 4 vistas Métricas clave + selector + columna Evidencia | 31/31 |
+| `mob_check.py` | maquetación móvil (390 px) | 11/11 |
+| `shot_autin.py` | pestaña AUTIN + lightbox | 0 fallos |
+| `test_sync_cols.py` | sync de sustentos | **17/19** — ver §16 |
+
+---
+
+## 16. FALLOS CONOCIDOS / DECISIONES PENDIENTES
+
+1. **`test_sync_cols.py` → 2 fallos** sobre columnas `SUSTENTO_*`: el test espera que *no*
+   aparezcan en el schema/columnas y que se eliminen solas tras un sync; hoy sí se añaden.
+   Hay que decidir el comportamiento (¿visibles en la tabla o solo internas?) y alinear test.
+2. **Plantilla PEXT ausente** (ver §13.2): `reporte_config`/`reporte_xlsx` responden 503/500
+   con mensaje limpio. Falta colocar el `.xlsx` del cliente.
+3. **`/dashboard` redirige a `/analytics`** (decisión intencional: módulo sustituido).
+4. `fotos_autin/` en la raíz es una **fixture de pruebas** que ya no usa el código de
+   producción (la ruta real es `C:\Evidencias\FLM - ENTEL`); candidata a borrarse.
+5. `nucleus.db.bak_biaticos_20260922_121659` (19.5 MB) y `backups/` son copias locales
+   que no deben subir al deploy.

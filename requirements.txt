@@ -6,6 +6,7 @@ Werkzeug
 gunicorn
 psycopg2-binary
 Pillow
+pillow-heif
 boto3
 python-docx
 reportlab

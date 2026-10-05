@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
+import urllib.request, urllib.parse
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
 from collections import Counter
@@ -487,6 +488,8 @@ def api_wo_resolver():
 import unicodedata
 
 AUTIN_CLAVE = 'autin_fotos_dir'
+AUTIN_BASE_CLAVE = 'autin_fotos_base_url'   # URL del servidor de fotos de la PC (24/7)
+AUTIN_TOKEN_CLAVE = 'autin_fotos_token'     # token opcional (?k=) del servidor de fotos
 _AUTIN_IMG_EXT = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.heic', '.avif')
 _AUTIN_ESTADOS = ('llegada', 'completado', 'salida', 'suspendido', 'otros')
 _AUTIN_LABEL = {'llegada': 'Llegada', 'completado': 'Completado', 'salida': 'Salida',
@@ -542,6 +545,212 @@ def _autin_raiz(pid):
         p = os.path.join(BASE_DIR, 'fotos_autin')
         origen = 'defecto'
     return p, origen
+
+
+def _autin_base_url(pid):
+    """URL pública del servidor de fotos (la PC que deja de estar 24/7).
+       Vacío = se leen las fotos del disco local (modo actual)."""
+    p = (os.environ.get('AUTIN_FOTOS_BASE_URL') or '').strip().strip('"').rstrip('/')
+    if not p and pid:
+        cfg = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_BASE_CLAVE).first()
+        if cfg and (cfg.valor or '').strip():
+            p = cfg.valor.strip().rstrip('/')
+    if not p:
+        cfg = AppConfig.query.filter_by(clave=AUTIN_BASE_CLAVE).first()
+        if cfg and (cfg.valor or '').strip():
+            p = cfg.valor.strip().rstrip('/')
+    return p
+
+
+def _autin_token(pid):
+    """Token opcional que exige el servidor de fotos (?k=...)."""
+    p = (os.environ.get('AUTIN_FOTOS_TOKEN') or '').strip()
+    if not p and pid:
+        cfg = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_TOKEN_CLAVE).first()
+        if cfg and (cfg.valor or '').strip():
+            p = cfg.valor.strip()
+    if not p:
+        cfg = AppConfig.query.filter_by(clave=AUTIN_TOKEN_CLAVE).first()
+        if cfg and (cfg.valor or '').strip():
+            p = cfg.valor.strip()
+    return p
+
+
+def _autin_url(base, ruta, token='', qs=''):
+    """Arma una URL del servidor de fotos: <base>/<ruta>[?k=...&qs]"""
+    u = str(base or '').rstrip('/') + '/' + str(ruta or '').lstrip('/')
+    pares = []
+    if token:
+        pares.append('k=' + urllib.parse.quote(str(token)))
+    if qs:
+        pares.append(str(qs))
+    return u + (('?' + '&'.join(pares)) if pares else '')
+
+
+def _autin_ping(base, token='', timeout=2.0):
+    """¿Responde el servidor de fotos? (si la PC está apagada, False)."""
+    try:
+        req = urllib.request.Request(_autin_url(base, 'healthz', token),
+                                     headers={'User-Agent': 'Nucleus'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return 200 <= getattr(resp, 'status', 200) < 300
+    except Exception:
+        return False
+
+
+def _autin_remota(base, token, wo, timeout=6.0):
+    """Lee el listado de fotos del WO desde el servidor de la PC.
+       Devuelve el dict del servidor o None si no responde."""
+    try:
+        qs = 'wo=' + urllib.parse.quote(str(wo))
+        req = urllib.request.Request(_autin_url(base, 'api/fotos', token, qs),
+                                     headers={'User-Agent': 'Nucleus'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode('utf-8'))
+    except Exception:
+        return None
+
+
+_AUTIN_HREF_RE = re.compile(r'<a\s+href="([^"]*)"[^>]*>(.*?)</a>', re.I | re.S)
+_AUTIN_PREFIJO_CACHE = {}   # (base, raiz) -> (ts, prefijo)
+
+
+def _autin_enc(ruta):
+    """Codifica cada segmento de una ruta relativa conservando los '/'."""
+    return '/'.join(urllib.parse.quote(str(p)) for p in str(ruta or '').split('/'))
+
+
+def _autin_http_get(url, timeout=8.0):
+    """GET en texto plano. None si no responde o el estado no es 2xx."""
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Nucleus'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if not (200 <= getattr(resp, 'status', 200) < 300):
+                return None
+            return resp.read().decode('utf-8', 'replace')
+    except Exception:
+        return None
+
+
+def _autin_listado(url, timeout=8.0):
+    """Lee un listado HTML de directorios (python -m http.server, nginx).
+       Devuelve [(nombre, es_dir)] o None si la página no es un listado."""
+    doc = _autin_http_get(url, timeout)
+    if doc is None:
+        return None
+    baja = doc.lower()
+    if 'directory listing for' not in baja and 'index of ' not in baja and \
+       'parent directory' not in baja and '../' not in doc:
+        return None
+    entradas = []
+    for href, _texto in _AUTIN_HREF_RE.findall(doc):
+        h = href.strip()
+        if not h or h.startswith(('#', '?', 'http://', 'https://')):
+            continue
+        nombre = urllib.parse.unquote(h).lstrip('/')
+        if nombre.startswith('..') or '/' in nombre.rstrip('/'):
+            continue
+        nombre = nombre.rstrip('/')
+        if nombre:
+            entradas.append((nombre, h.endswith('/')))
+    return entradas
+
+
+def _autin_modo(base, token='', timeout=8.0):
+    """Cómo entrega las fotos la URL guardada:
+       'api' = servidor_api (con /healthz) · 'estatico' = python -m http.server · '' = sin servidor."""
+    if not base:
+        return ''
+    if _autin_ping(base, token, timeout=2.5):
+        return 'api'
+    raices = _autin_listado(_autin_url(base, '', token), timeout)
+    if raices and any(d for _n, d in raices):
+        return 'estatico'
+    return ''
+
+
+def _autin_prefijo_estatico(base, raiz, token='', timeout=8.0):
+    """Carpeta dentro del servidor que contiene la raíz de fotos ('' = ya es la raíz del servidor)."""
+    clave = (base, str(raiz or ''))
+    hit = _AUTIN_PREFIJO_CACHE.get(clave)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    valor = None
+    nombre = os.path.basename(str(raiz or '').rstrip('\\/'))
+    if nombre and _autin_listado(_autin_url(base, _autin_enc(nombre), token), timeout) is not None:
+        valor = nombre
+    elif _autin_listado(_autin_url(base, '', token), timeout) is not None:
+        valor = ''
+    if valor is not None:
+        _AUTIN_PREFIJO_CACHE[clave] = (time.time(), valor)
+    return valor
+
+
+def _autin_carpeta_estatica(base, prefijo, wo, token='', timeout=8.0):
+    """Carpeta del WO dentro del servidor (misma lógica que _autin_carpeta pero sobre el listado)."""
+    wo_l = _autin_norm(wo)
+    if not wo_l:
+        return None
+    ruta = _autin_enc(prefijo) + '/' if prefijo else ''
+    entradas = _autin_listado(_autin_url(base, ruta, token), timeout)
+    if entradas is None:
+        return None
+    carpetas = [n for n, d in entradas if d]
+    for nivel in (0, 1, 2):
+        for n in carpetas:
+            nn = _autin_norm(n)
+            if (nivel == 0 and nn == wo_l) or (nivel == 1 and nn.startswith(wo_l)) or \
+               (nivel == 2 and wo_l in nn):
+                return n
+    return None
+
+
+def _autin_listar_estatico(base, carpeta_rel, token='', timeout=8.0):
+    """Imágenes del WO recorriendo los listados HTML (equivalente remoto de _autin_listar)."""
+    encontrados = []
+    pendientes = [(_autin_enc(carpeta_rel), '', 0)]
+    while pendientes and len(encontrados) < _AUTIN_MAX_FOTOS:
+        u, rel, prof = pendientes.pop(0)
+        entradas = _autin_listado(_autin_url(base, u + '/', token), timeout)
+        if entradas is None:
+            continue
+        for nombre, es_dir in entradas:
+            if len(encontrados) >= _AUTIN_MAX_FOTOS:
+                break
+            if es_dir:
+                if prof < _AUTIN_MAX_PROF:
+                    pendientes.append((u + '/' + _autin_enc(nombre), rel + nombre + '/', prof + 1))
+                continue
+            if os.path.splitext(nombre)[1].lower() in _AUTIN_IMG_EXT:
+                encontrados.append(rel + nombre)
+    encontrados.sort(key=lambda s: s.lower())
+    return encontrados
+
+
+def _autin_remota_estatica(base, raiz, wo, token='', timeout=8.0):
+    """Fotos del WO leídas de un servidor de archivos estático.
+       Devuelve {'estado': 'ok'|'sin_carpeta'|'sin_servidor', ...}"""
+    prefijo = _autin_prefijo_estatico(base, raiz, token, timeout)
+    if prefijo is None:
+        return {'estado': 'sin_servidor'}
+    carpeta = _autin_carpeta_estatica(base, prefijo, wo, token, timeout)
+    if not carpeta:
+        return {'estado': 'sin_carpeta'}
+    carpeta_rel = (prefijo + '/' + carpeta) if prefijo else carpeta
+    return {'estado': 'ok', 'carpeta': carpeta, 'carpeta_rel': carpeta_rel,
+            'rels': _autin_listar_estatico(base, carpeta_rel, token, timeout)}
+
+
+def _autin_get_bytes(url, timeout=45.0):
+    """Descarga binaria de un archivo del servidor remoto. None si no está."""
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Nucleus'})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if not (200 <= getattr(resp, 'status', 200) < 300):
+                return None
+            return resp.read()
+    except Exception:
+        return None
 
 
 def _autin_proyecto_del_wo(wo):
@@ -612,10 +821,68 @@ def api_autin_fotos():
     if not wo:
         return jsonify({'success': False, 'error': 'Falta el número de WO'}), 400
     raiz, origen = _autin_raiz(pid)
+    base_url = _autin_base_url(pid)
+    token = _autin_token(pid)
     es_admin = user_rol in ('zeno', 'suport')
     base = {'success': True, 'wo': wo, 'raiz': raiz if es_admin else '', 'origen': origen if es_admin else '',
             'raiz_existe': os.path.isdir(raiz), 'carpeta': None, 'total': 0,
+            'base_url': base_url if user_rol == 'zeno' else '',
+            'modo': 'local' if not base_url else '', 'fotos_base': '', 'fotos_qs': '',
+            'zip_url': '',
             'grupos': {e: [] for e in _AUTIN_ESTADOS}}
+
+    # ── Modo servidor: las fotos viven en la PC 24/7, se piden a su URL ──────
+    # (la 'raiz' local se conserva igual: es el respaldo si se vacía la URL)
+    if base_url:
+        qs = ('?k=' + urllib.parse.quote(token)) if token else ''
+        modo = _autin_modo(base_url, token)
+        base['modo'] = modo
+
+        if modo == 'api':  # servidor_api (/healthz + /api/fotos + /zip)
+            base['fotos_base'] = base_url + '/f/' + urllib.parse.quote(wo)
+            base['fotos_qs'] = qs
+            base['zip_url'] = _autin_url(base_url, 'zip', token, 'wo=' + urllib.parse.quote(wo))
+            info = _autin_remota(base_url, token, wo)
+            if info is None:
+                base['modo'] = ''
+                base['raiz_existe'] = False
+                base['sin_conexion'] = True
+                base['mensaje'] = 'Servidor de fotos no disponible (la PC está apagada o sin internet).'
+                return jsonify(base)
+            base['raiz_existe'] = True
+            base['sin_conexion'] = False
+            base['carpeta'] = info.get('carpeta') or None
+            base['grupos'] = info.get('grupos') or {e: [] for e in _AUTIN_ESTADOS}
+            base['total'] = info.get('total') or sum(len(v) for v in base['grupos'].values())
+            base['mensaje'] = info.get('mensaje') or ''
+            return jsonify(base)
+
+        if modo == 'estatico':  # python -m http.server (listados de directorio)
+            info = _autin_remota_estatica(base_url, raiz, wo, token)
+            if info.get('estado') == 'ok':
+                base['raiz_existe'] = True
+                base['sin_conexion'] = False
+                base['carpeta'] = info.get('carpeta')
+                base['fotos_base'] = base_url + '/' + _autin_enc(info['carpeta_rel'])
+                base['fotos_qs'] = qs
+                for rel in info.get('rels') or []:
+                    base['grupos'][_autin_estado(rel)].append(rel)
+                base['total'] = sum(len(v) for v in base['grupos'].values())
+                if not base['total']:
+                    base['mensaje'] = 'La carpeta del WO no contiene imágenes.'
+                return jsonify(base)
+            if info.get('estado') == 'sin_carpeta':
+                base['raiz_existe'] = True
+                base['sin_conexion'] = False
+                base['mensaje'] = 'Sin carpeta de fotos para este WO.'
+                return jsonify(base)
+
+        base['modo'] = ''
+        base['raiz_existe'] = False
+        base['sin_conexion'] = True
+        base['mensaje'] = 'Servidor de fotos no disponible (la PC está apagada o sin internet).'
+        return jsonify(base)
+
     if not base['raiz_existe']:
         base['mensaje'] = 'No se encuentra la carpeta de fotos Autin.'
         return jsonify(base)
@@ -671,6 +938,43 @@ def api_autin_zip():
         return jsonify({'error': 'Falta el número de WO'}), 400
     _, _, pid_sesion = get_session_info()
     pid = _autin_proyecto_del_wo(wo) or pid_sesion
+    base_url = _autin_base_url(pid)
+    if base_url:
+        token = _autin_token(pid)
+        modo = _autin_modo(base_url, token)
+        if modo == 'api':
+            # Las fotos están en la PC remota: el ZIP lo genera su servidor.
+            return jsonify({'error': 'Las fotos están en el servidor remoto.',
+                            'zip_url': _autin_url(base_url, 'zip', token,
+                                                  'wo=' + urllib.parse.quote(wo))}), 409
+        if modo != 'estatico':
+            return jsonify({'error': 'Servidor de fotos no disponible.'}), 503
+        # Servidor de archivos estático (sin /zip): Render baja las fotos y arma el ZIP.
+        raiz, _ = _autin_raiz(pid)
+        info = _autin_remota_estatica(base_url, raiz, wo, token)
+        if info.get('estado') != 'ok':
+            return jsonify({'error': 'No se encontraron las fotos de este WO en el servidor.'}), 404
+        qs = ('?k=' + urllib.parse.quote(token)) if token else ''
+        fotos_base = base_url + '/' + _autin_enc(info['carpeta_rel'])
+        buf = io.BytesIO()
+        total = 0
+        count = 0
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_STORED) as zf:
+            for rel in info.get('rels') or []:
+                data = _autin_get_bytes(fotos_base + '/' + _autin_enc(rel) + qs)
+                if data is None:
+                    continue
+                total += len(data)
+                if total > _AUTIN_ZIP_MAX:
+                    return jsonify({'error': 'Las fotos superan el límite de descarga (400 MB).'}), 413
+                zf.writestr(rel, data)
+                count += 1
+        if not count:
+            return jsonify({'error': 'La carpeta del WO no contiene imágenes.'}), 404
+        buf.seek(0)
+        nombre = secure_filename(str(wo)) or 'wo'
+        return send_file(buf, mimetype='application/zip', as_attachment=True,
+                         download_name='autin_%s.zip' % nombre)
     raiz, _ = _autin_raiz(pid)
     if not os.path.isdir(raiz):
         return jsonify({'error': 'No se encuentra la carpeta de fotos Autin.'}), 404
@@ -705,21 +1009,62 @@ def api_autin_zip():
 @bp.route('/api/autin/config', methods=['GET', 'POST'])
 @login_required
 def api_autin_config():
-    """Consulta/guarda la raíz de fotos AUTIN (guardar: solo zeno/suport)."""
-    user_id, user_rol, pid = get_session_info()
+    """Consulta/guarda la raíz de fotos AUTIN (ruta: zeno/suport · URL del servidor: solo zeno).
+       El guardado se hace sobre el proyecto del WO (todo el módulo), no por sesión."""
+    user_id, user_rol, pid_sesion = get_session_info()
+    es_admin = user_rol in ('zeno', 'suport')
+
     if request.method == 'POST':
-        if user_rol not in ('zeno', 'suport'):
+        if not es_admin:
             return jsonify({'success': False, 'error': 'Sin permisos'}), 403
-        ruta = (request.form.get('ruta') or (request.get_json(silent=True) or {}).get('ruta') or '').strip()
+        form = request.form
+        js = request.get_json(silent=True) or {}
+
+        def _campo(k):
+            if k in form:
+                return form.get(k, '')
+            if k in js:
+                return js.get(k) or ''
+            return None   # no se envió: no se modifica
+
+        ruta = _campo('ruta')
+        base_enviada = _campo('base_url')
+        wo = (_campo('wo') or '').strip()
+
+        if base_enviada is not None and user_rol != 'zeno':
+            return jsonify({'success': False,
+                            'error': 'La URL del servidor de fotos solo puede cambiarla zeno.'}), 403
+
+        base_url = None
+        if base_enviada is not None:
+            base_url = str(base_enviada).strip().rstrip('/')
+            if base_url and not re.match(r'^https?://', base_url):
+                return jsonify({'success': False,
+                                'error': 'La URL del servidor debe empezar con http:// o https://'}), 400
+        if ruta is None and base_url is None:
+            return jsonify({'success': False, 'error': 'Nada que guardar.'}), 400
+
+        pid = _autin_proyecto_del_wo(wo) or pid_sesion
         if not pid:
             return jsonify({'success': False, 'error': 'Sin proyecto activo'}), 400
-        cfg = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_CLAVE).first()
-        if cfg:
-            cfg.valor = ruta
-        else:
-            db.session.add(AppConfig(proyecto_id=pid, clave=AUTIN_CLAVE, valor=ruta))
+
+        if ruta is not None:
+            cfg = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_CLAVE).first()
+            if cfg:
+                cfg.valor = str(ruta).strip()
+            else:
+                db.session.add(AppConfig(proyecto_id=pid, clave=AUTIN_CLAVE, valor=str(ruta).strip()))
+        if base_enviada is not None:
+            cfgb = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_BASE_CLAVE).first()
+            if cfgb:
+                cfgb.valor = base_url
+            else:
+                db.session.add(AppConfig(proyecto_id=pid, clave=AUTIN_BASE_CLAVE, valor=base_url))
         db.session.commit()
+
+    pid = pid_sesion
     raiz, origen = _autin_raiz(pid)
-    es_admin = user_rol in ('zeno', 'suport')
+    base_url = _autin_base_url(pid)
     return jsonify({'success': True, 'raiz': raiz if es_admin else '', 'origen': origen if es_admin else '',
-                    'existe': os.path.isdir(raiz), 'editable': es_admin})
+                    'base_url': base_url if user_rol == 'zeno' else '',
+                    'existe': os.path.isdir(raiz) or bool(base_url), 'editable': es_admin})

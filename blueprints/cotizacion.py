@@ -547,3 +547,256 @@ def api_cotizacion_generar():
     resp.headers['Content-Type'] = 'application/pdf'
     resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
     return resp
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Flujo de Peticiones (hojas Peticiones / Cotizaciones / Validación)
+# ─────────────────────────────────────────────────────────────────────────────
+# ESTADO es una columna interna: la gestiona el flujo, no se edita a mano.
+#   - Pendiente            -> hoja Peticiones Y hoja Cotizaciones (duplicada)
+#   - Pendiente Validacion -> hoja Validación
+#   - Validado / Cerrado   -> fuera del flujo (ya no aparecen en las hojas)
+# Cada petición genera un código interno COB-YYYY-MM-NNNNN (año-mes-consecutivo).
+COTI_EST_PENDIENTE = 'Pendiente'
+COTI_EST_VALIDACION = 'Pendiente Validacion'
+COTI_EST_VALIDADO = 'Validado'
+COTI_EST_CERRADO = 'Cerrado'
+COTI_PROYECTOS = ('Claro Enterprise', 'Integratel')
+COTI_TICKETS = ('CM', 'PM', 'PLM')
+COTI_RESPONSABLES = ('LUCIANO', 'ROCIO', 'RICARDO')
+COTI_TIPOS_PAGO = ('Refacturable', 'Fijo')
+COTI_EXT_CORREO = ('.pdf', '.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif',
+                   '.eml', '.msg', '.docx', '.doc', '.xlsx', '.xls')
+
+
+def _proy_coti():
+    return Proyecto.query.filter_by(nombre='Cotizaciones').first()
+
+
+def _estado_peticion(d):
+    return str(d.get('ESTADO', '') or '').strip() or COTI_EST_PENDIENTE
+
+
+def _es_peticion(d):
+    """Fila creada por el flujo de peticiones (tiene CODIGO INTERNO)."""
+    return bool(str(d.get('CODIGO INTERNO') or '').strip())
+
+
+def _codigo_interno_siguiente(proy_id, clave_seq):
+    """Devuelve (consecutivo, codigo COB-YYYY-MM-NNNNN). El consecutivo es por mes."""
+    cfg = AppConfig.query.filter_by(proyecto_id=proy_id, clave=clave_seq).first()
+    try:
+        prox = int(cfg.valor) if cfg and cfg.valor else 1
+    except (ValueError, TypeError):
+        prox = 1
+    ano = clave_seq[-6:][:4]
+    mes = clave_seq[-2:]
+    return prox, 'COB-%s-%s-%05d' % (ano, mes, prox)
+
+
+def _folder_coti(pid, key):
+    return os.path.join(BASE_DIR, 'static', 'evidencia', str(pid),
+                        secure_filename(str(key)))
+
+
+@bp.route('/api/cotizacion/peticion/crear', methods=['POST'])
+@login_required
+def api_cotizacion_peticion_crear():
+    """Registra una petición: genera el código interno COB-YYYY-MM-NNNNN y la
+    deja en estado Pendiente (aparece en las hojas Peticiones y Cotizaciones)."""
+    if not _puede_cotizaciones():
+        return jsonify({'error': 'No tienes el módulo Cotizaciones en tu perfil.'}), 403
+    proy = _proy_coti()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    nombre_proyecto = str(data.get('nombre_proyecto') or '').strip()
+    tipo_ticket = str(data.get('tipo_ticket') or '').strip().upper()
+    responsable = str(data.get('responsable_presupuesto') or '').strip().upper()
+    if not nombre_proyecto:
+        return jsonify({'error': 'Ingresa el nombre de proyecto.'}), 400
+    if tipo_ticket not in COTI_TICKETS:
+        return jsonify({'error': 'Selecciona el tipo de ticket (CM/PM/PLM).'}), 400
+    if responsable not in COTI_RESPONSABLES:
+        return jsonify({'error': 'Selecciona el responsable del presupuesto.'}), 400
+
+    usuario = db.session.get(Usuario, session.get('user_id'))
+    nombre_gestor = (usuario.nombre or usuario.username) if usuario else (session.get('username') or '')
+
+    fecha_sto = str(data.get('fecha_solicitud') or '').strip().replace('T', ' ')
+    if not fecha_sto:
+        fecha_sto = ahora_peru().strftime('%Y-%m-%d %H:%M:%S')
+
+    now = ahora_peru()
+    clave_seq = 'coti_peticion_seq_%04d%02d' % (now.year, now.month)
+    prox, codigo = _codigo_interno_siguiente(proy.id, clave_seq)
+
+    row = {
+        'CODIGO INTERNO': codigo,
+        'ESTADO': COTI_EST_PENDIENTE,
+        'NOMBRE DE PROYECTO': nombre_proyecto,
+        'NOMBRE DE GESTOR': nombre_gestor,
+        'FECHA Y HORA DE SOLICITUD': fecha_sto,
+        'TIPO DE TICKET': tipo_ticket,
+        'RESPONSABLE DEL PRESUPUESTO': responsable,
+        'SUPERVISOR RESPONSABLE': str(data.get('supervisor_responsable') or '').strip(),
+        'TECNICO ASIGNADO': str(data.get('tecnico_asignado') or '').strip(),
+        'TIPO DE PAGO': str(data.get('tipo_pago') or '').strip(),
+        'LPU': str(data.get('lpu') or '').strip(),
+        'NUMERO WO': str(data.get('numero_wo') or '').strip(),
+        'INTERACCION': nombre_gestor,
+    }
+
+    cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave=clave_seq).first()
+    if cfg:
+        cfg.valor = str(prox + 1)
+    else:
+        db.session.add(AppConfig(proyecto_id=proy.id, clave=clave_seq, valor=str(prox + 1)))
+    fila = NucleusData(proyecto_id=proy.id, key_value=codigo,
+                       data_json=json.dumps(row, ensure_ascii=False))
+    db.session.add(fila)
+    db.session.commit()
+
+    return jsonify({'success': True, 'codigo': codigo, 'newData': row})
+
+
+@bp.route('/api/cotizacion/accion', methods=['POST'])
+@login_required
+def api_cotizacion_accion():
+    """Mueve la petición por el flujo: enviar_validacion, adjuntar_correo,
+    validar, cerrar (y revertir solo admin)."""
+    if not _puede_cotizaciones():
+        return jsonify({'error': 'No tienes el módulo Cotizaciones en tu perfil.'}), 403
+    proy = _proy_coti()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    key = str(data.get('key') or '').strip()
+    accion = str(data.get('accion') or '').strip().lower()
+    if not key or accion not in ('enviar_validacion', 'adjuntar_correo', 'validar', 'cerrar', 'revertir'):
+        return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
+
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
+        return jsonify({'error': 'La petición no existe.'}), 404
+    try:
+        row = json.loads(fila.data_json or '{}')
+    except Exception:
+        row = {}
+    if not _es_peticion(row):
+        return jsonify({'error': 'Este registro no pertenece al flujo de peticiones.'}), 409
+
+    estado = _estado_peticion(row)
+    usuario_actual = session.get('username') or 'Desconocido'
+    now = ahora_peru().strftime('%Y-%m-%d %H:%M:%S')
+    row['INTERACCION'] = usuario_actual
+
+    if accion == 'enviar_validacion':
+        if estado != COTI_EST_PENDIENTE:
+            return jsonify({'error': 'Solo se envía a Validación desde estado Pendiente.'}), 409
+        coti_num = str(row.get('N° COTIZACION') or '').strip()
+        if not coti_num:
+            return jsonify({'error': 'Crea la cotización y anota su N° antes de enviar a Validación.'}), 400
+        row['ESTADO'] = COTI_EST_VALIDACION
+        row['ENVIADO POR'] = usuario_actual
+        row['FECHA ENVIO VALIDACION'] = now
+
+    elif accion == 'adjuntar_correo':
+        if estado != COTI_EST_VALIDACION:
+            return jsonify({'error': 'Esta petición no está en Validación.'}), 409
+        correo = str(data.get('correo') or '').strip()
+        if not correo:
+            return jsonify({'error': 'Adjunta primero el correo de validación.'}), 400
+        row['CORREO DE VALIDACION'] = correo
+        fval = str(data.get('fecha_validacion') or '').strip().replace('T', ' ')
+        if fval:
+            row['FECHA DE VALIDACION'] = fval
+        if str(data.get('comentarios') or '').strip():
+            row['COMENTARIOS VALIDACION'] = str(data.get('comentarios') or '').strip()
+
+    elif accion in ('validar', 'cerrar'):
+        if estado != COTI_EST_VALIDACION:
+            return jsonify({'error': 'Esta petición no está en Validación.'}), 409
+        correo = str(data.get('correo') or row.get('CORREO DE VALIDACION') or '').strip()
+        fecha_val = str(data.get('fecha_validacion') or row.get('FECHA DE VALIDACION') or '').strip().replace('T', ' ')
+        if not correo:
+            return jsonify({'error': 'Adjunta el correo de validación del cliente.'}), 400
+        if not fecha_val:
+            return jsonify({'error': 'Ingresa la fecha y hora de validación.'}), 400
+        row['CORREO DE VALIDACION'] = correo
+        row['FECHA DE VALIDACION'] = fecha_val
+        coment = str(data.get('comentarios') or '').strip()
+        if coment:
+            row['COMENTARIOS VALIDACION'] = coment
+        row['ESTADO'] = COTI_EST_VALIDADO if accion == 'validar' else COTI_EST_CERRADO
+        if accion == 'validar':
+            row['VALIDADO POR'] = usuario_actual
+        else:
+            row['CERRADO POR'] = usuario_actual
+
+    elif accion == 'revertir':
+        if (session.get('rol') or '').strip().lower() not in ('zeno', 'suport', 'admin'):
+            return jsonify({'error': 'No tienes permisos para revertir estados.'}), 403
+        if estado == COTI_EST_VALIDACION:
+            row['ESTADO'] = COTI_EST_PENDIENTE
+        elif estado == COTI_EST_VALIDADO:
+            row['ESTADO'] = COTI_EST_VALIDACION
+        elif estado == COTI_EST_CERRADO:
+            row['ESTADO'] = COTI_EST_VALIDACION
+        else:
+            return jsonify({'error': 'No se puede revertir desde este estado.'}), 400
+
+    fila.data_json = json.dumps(row, ensure_ascii=False)
+    fila.key_value = key
+    db.session.commit()
+    return jsonify({'success': True, 'estado': row['ESTADO'], 'newData': row})
+
+
+@bp.route('/api/cotizacion/subir_correo', methods=['POST'])
+@login_required
+def api_cotizacion_subir_correo():
+    """Guarda el correo de validación del cliente (adjunto de la hoja Validación)."""
+    if not _puede_cotizaciones():
+        return jsonify({'error': 'No tienes el módulo Cotizaciones en tu perfil.'}), 403
+    proy = _proy_coti()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+
+    key = (request.form.get('key') or '').strip()
+    file = request.files.get('correo')
+    if not key or not file:
+        return jsonify({'error': 'Falta la petición o el archivo.'}), 400
+    ext = os.path.splitext(file.filename or '')[1].lower()
+    if ext not in COTI_EXT_CORREO:
+        return jsonify({'error': 'Tipo de archivo no permitido (%s).' % (ext or 'sin extensión')}), 400
+
+    nombre = 'correo_validacion' + ext
+    ruta = os.path.join(_folder_coti(proy.id, key), secure_filename(nombre))
+    try:
+        os.makedirs(os.path.dirname(ruta), exist_ok=True)
+    except Exception:
+        return jsonify({'error': 'No se pudo guardar el archivo.'}), 500
+    try:
+        file.save(ruta)
+    except Exception:
+        return jsonify({'error': 'No se pudo guardar el archivo.'}), 500
+
+    return jsonify({'success': True,
+                    'url': '/api/cotizacion/correo/%d/%s/%s?v=%d'
+                           % (proy.id, key, secure_filename(nombre), int(time.time()))})
+
+
+@bp.route('/api/cotizacion/correo/<int:pid>/<path:key>/<path:nombre>')
+@login_required
+def api_cotizacion_correo(pid, key, nombre):
+    """Sirve el archivo del correo de validación adjuntado."""
+    proy = db.session.get(Proyecto, pid)
+    if not proy or (proy.nombre or '').strip() != 'Cotizaciones':
+        abort(404)
+    carpeta = _folder_coti(pid, key)
+    ruta = os.path.join(carpeta, secure_filename(nombre))
+    if not os.path.isfile(ruta):
+        abort(404)
+    return send_from_directory(os.path.dirname(ruta), os.path.basename(ruta))

@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="/static/vendor/css/fontawesome.min.css?v=1">
     <link rel="stylesheet" href="/static/css/style.css?v=3.0">
     <link rel="stylesheet" href="/static/css/themes.css?v=5">
-    <link rel="stylesheet" href="/static/css/mobile.css?v=1">
+    <link rel="stylesheet" href="/static/css/mobile.css?v=2">
     <!-- Librerías servidas en LOCAL: eliminar el bloqueo de ~1,9 s de 4 CDNs en la primera carga -->
     <script src="/static/js/luxon.min.js?v=1"></script>
     <script src="/static/js/xlsx.full.min.js?v=1"></script>
@@ -86,6 +86,13 @@
                         <div style="font-size: 13px; font-weight: 700; color: var(--ios-label, #1C1C1E);">{{ session.get('username') }}</div>
                         <div style="font-size: 10px; color: var(--ios-gray-1, #8E8E93); text-transform: uppercase; letter-spacing: 0.4px;">{{ session.get('rol') }}</div>
                     </div>
+                </div>
+                <div class="sidebar-legal" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;padding:6px 4px 4px;font-size:9.5px;letter-spacing:.2px;">
+                    <a href="/privacidad" style="color:#8E8E93;text-decoration:none;">Privacidad</a>
+                    <span style="color:#48484A;">·</span>
+                    <a href="/terminos" style="color:#8E8E93;text-decoration:none;">Términos</a>
+                    <span style="color:#48484A;">·</span>
+                    <a href="/cookies" style="color:#8E8E93;text-decoration:none;">Cookies</a>
                 </div>
                 <div class="sidebar-actions">
                     <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
@@ -338,5 +345,6 @@
     })();
     </script>
     <script>document.addEventListener('DOMContentLoaded',function(){var o=document.getElementById('nucleus-dialog'),m=document.getElementById('nucleus-dialog-message');if(o&&m&&!m.textContent.trim()){o.classList.remove('show');o.style.display='none'}});</script>
+    {% include 'cookie_banner.html' %}
 </body>
 </html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if seccion == 'terminos' %}Términos y condiciones{% elif seccion == 'cookies' %}Política de cookies{% else %}Política de privacidad{% endif %} — Nucleus</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23fff'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="/static/vendor/css/fontawesome.min.css?v=1">
+    <style>
+        *{box-sizing:border-box}
+        html,body{margin:0;padding:0;font-family:'Geist Sans','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1A1A1A;color:#F8FAFC;-webkit-font-smoothing:antialiased;line-height:1.6}
+        .lg-wrap{max-width:840px;margin:0 auto;padding:0 20px 80px}
+        .lg-top{height:56px;display:flex;align-items:center;justify-content:space-between}
+        .lg-logo{color:#F8FAFC;display:flex;align-items:center;gap:8px;text-decoration:none}
+        .lg-logo svg{color:#6C63FF}
+        .lg-back{color:#94A3B8;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+        .lg-back:hover{color:#F8FAFC}
+        .lg-title{font-size:26px;font-weight:600;margin:24px 0 6px;letter-spacing:-0.4px}
+        .lg-updated{font-size:12px;color:#64748B;margin-bottom:24px}
+        .lg-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;border-bottom:1px solid #2A2A2A;padding-bottom:14px}
+        .lg-tab{font-size:13px;font-weight:500;color:#94A3B8;text-decoration:none;border:1px solid #333;background:#222;padding:7px 14px;border-radius:999px;transition:all .15s}
+        .lg-tab:hover{color:#F8FAFC;border-color:#6C63FF}
+        .lg-tab.on{background:#6C63FF;border-color:#6C63FF;color:#FFF}
+        .lg-card{background:#222222;border:1px solid #333333;border-radius:10px;padding:22px 24px;margin-bottom:18px}
+        .lg-card h2{font-size:16px;margin:0 0 4px;font-weight:600}
+        .lg-card h3{font-size:14px;margin:20px 0 6px;font-weight:600;color:#E2E8F0}
+        .lg-card h3:first-of-type{margin-top:14px}
+        .lg-card p,.lg-card li{font-size:13.5px;color:#CBD5E1;margin:8px 0}
+        .lg-card ul{padding-left:20px;margin:8px 0}
+        .lg-card li{margin:5px 0}
+        .lg-lead{font-size:13.5px;color:#94A3B8}
+        .lg-note{border-left:3px solid #6C63FF;padding:10px 14px;background:#1F1F2B;border-radius:0 8px 8px 0;font-size:13px;color:#CBD5E1;margin-top:14px}
+        .lg-note b{color:#F8FAFC}
+        .lg-foot{font-size:11px;color:#64748B;text-align:center;margin-top:32px}
+        .lg-foot a{color:#94A3B8}
+        body.light{background:#F0F5F7 !important;color:#162623 !important}
+        body.light .lg-card{background:#FFFFFF !important;border-color:#CFDCDC !important}
+        body.light .lg-card p,body.light .lg-card li,body.light .lg-lead{color:#3A4A4A !important}
+        body.light .lg-card h3{color:#162623 !important}
+        body.light .lg-title{color:#162623 !important}
+        body.light .lg-tab{background:#FFFFFF;border-color:#CFDCDC;color:#577877 !important}
+        body.light .lg-tab.on{background:#295255;border-color:#295255;color:#FFF !important}
+        body.light .lg-back,body.light .lg-updated,body.light .lg-foot{color:#577877 !important}
+        body.light .lg-logo{color:#162623 !important}
+        body.light .lg-logo svg{color:#295255 !important}
+        body.light .lg-note{background:#EAF2F1 !important;color:#3A4A4A !important}
+    </style>
+</head>
+<body>
+<div class="lg-wrap">
+    <div class="lg-top">
+        <a href="/" class="lg-logo">
+            <svg width="26" height="26" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="4" fill="currentColor"/></svg>
+            <span style="font-size:14px;font-weight:700;letter-spacing:1px;">NUCLEUS</span>
+        </a>
+        {% if session.get('user_id') %}
+        <a class="lg-back" href="/"><i class="fa-solid fa-arrow-left"></i> Volver a la aplicación</a>
+        {% else %}
+        <a class="lg-back" href="/login"><i class="fa-solid fa-arrow-right-to-bracket"></i> Iniciar sesión</a>
+        {% endif %}
+    </div>
+
+    <h1 class="lg-title">
+        {% if seccion == 'terminos' %}Términos y condiciones
+        {% elif seccion == 'cookies' %}Política de cookies
+        {% else %}Política de privacidad
+        {% endif %}
+    </h1>
+    <div class="lg-updated">Última actualización: 04 de octubre de 2026 · Nucleus (HPVR)</div>
+
+    <nav class="lg-tabs">
+        <a class="lg-tab {% if seccion == 'privacidad' %}on{% endif %}" href="/privacidad">Política de privacidad</a>
+        <a class="lg-tab {% if seccion == 'terminos' %}on{% endif %}" href="/terminos">Términos y condiciones</a>
+        <a class="lg-tab {% if seccion == 'cookies' %}on{% endif %}" href="/cookies">Política de cookies</a>
+    </nav>
+
+    {% if seccion == 'privacidad' %}
+    <section class="lg-card">
+        <h2>Política de privacidad</h2>
+        <p class="lg-lead">Esta política explica qué información personal se trata en Nucleus, con qué finalidad, quién puede acceder a ella y cómo ejercer tus derechos.</p>
+
+        <h3>1. Responsable del tratamiento</h3>
+        <p><b>Nucleus</b>, plataforma interna operada por <b>HPVR</b>. Para cualquier consulta sobre tus datos puedes contactar al administrador de la plataforma desde tu perfil de usuario o a través del canal interno de soporte.</p>
+
+        <h3>2. Qué datos tratamos</h3>
+        <ul>
+            <li><b>Datos de la cuenta:</b> nombre de usuario, nombre completo, rol y proyecto asignado.</li>
+            <li><b>Información cargada en los módulos:</b> los datos que el equipo ingresa en formularios y hojas (nombres, cargos, empresas/contratas, teléfonos, correos, montos, fechas, estados, ubicaciones de trabajo).</li>
+            <li><b>Evidencia fotográfica:</b> imágenes y documentos que se adjuntan a las solicitudes, órdenes y rendiciones, junto con su fecha y autor.</li>
+            <li><b>Registro de actividad:</b> historial de cambios, accesos a proyectos y auditorías internas, con el fin de poder trazar quién modificó qué y cuándo.</li>
+        </ul>
+
+        <h3>3. Finalidad</h3>
+        <p>Los datos se usan exclusivamente para <b>operar la plataforma</b>: autenticarte, mostrarte únicamente los proyectos a los que tienes acceso, gestionar solicitudes/órdenes/evidencias, validar rendiciones, generar reportes y mantener la trazabilidad interna.</p>
+
+        <h3>4. Con quién se comparte</h3>
+        <p><b>No se ceden ni se venden datos a terceros.</b> El acceso está limitado a los usuarios autenticados de Nucleus y, dentro de ellos, a los proyectos que les fueron asignados por un administrador. El personal con rol de soporte/administración puede ver toda la información para dar mantenimiento.</p>
+
+        <h3>5. Conservación</h3>
+        <p>La información se conserva mientras el proyecto y la relación de colaboración estén vigentes. Si necesitas que un registro sea corregido o eliminado, solicítalo al administrador.</p>
+
+        <h3>6. Tus derechos</h3>
+        <p>Puedes solicitar en cualquier momento el <b>acceso</b>, la <b>rectificación</b>, la <b>eliminación</b> o la <b>oposición</b> al tratamiento de tus datos personales. Escríbenos al canal de soporte indicando tu usuario y el dato afectado.</p>
+
+        <h3>7. Seguridad de los datos</h3>
+        <ul>
+            <li>Las contraseñas se guardan cifradas (hash) y nunca en texto plano.</li>
+            <li>La sesión se mantiene con una cookie técnica firmada; al cerrar sesión deja de ser válida.</li>
+            <li>La aplicación no instala scripts de terceros ni comparte la información de los formularios con servicios externos.</li>
+            <li>Solo los usuarios con permiso pueden ver la información de contacto de terceros (correos, teléfonos y direcciones) incluida en los formularios; si detectas un dato expuesto indebidamente, repórtalo para corregirlo o eliminarlo.</li>
+        </ul>
+        <div class="lg-note"><b>Importante:</b> los datos personales de técnicos, colaboradores y clientes visibles en Nucleus pertenecen a sus titulares. Utilízalos solo para el trabajo asignado y no los copies, exportes ni reenvíes fuera de la plataforma.</div>
+    </section>
+
+    {% elif seccion == 'terminos' %}
+    <section class="lg-card">
+        <h2>Términos y condiciones de uso</h2>
+        <p class="lg-lead">Al crear una cuenta o iniciar sesión en Nucleus aceptas estas condiciones de uso.</p>
+
+        <h3>1. Objeto y alcance</h3>
+        <p>Nucleus es una <b>herramienta de uso interno</b> para la gestión de proyectos, solicitudes, órdenes de trabajo, evidencias, cotizaciones y rendiciones. No está destinada al público general ni ofrece servicios a terceros ajenos a la organización.</p>
+
+        <h3>2. Cuenta y credenciales</h3>
+        <ul>
+            <li>Las cuentas son <b>personales e intransferibles</b>: no compartas tu usuario ni tu contraseña.</li>
+            <li>Eres responsable de toda la actividad realizada con tus credenciales.</li>
+            <li>Debes notificar de inmediato cualquier acceso no autorizado.</li>
+            <li>El administrador puede restablecer o desactivar cuentas ante inactividad, rotación de personal o incumplimiento de estas condiciones.</li>
+        </ul>
+
+        <h3>3. Uso aceptable</h3>
+        <p>Te comprometes a:</p>
+        <ul>
+            <li>Usar la plataforma solo para fines laborales legítimos y dentro de los proyectos a los que tienes acceso.</li>
+            <li>No intentar acceder a datos de proyectos no asignados, ni intentar vulnerar la seguridad de la aplicación.</li>
+            <li>No introducir información falsa, ofensiva, ilegal o que vulnere derechos de terceros.</li>
+            <li>No reproducir, revender ni extraer masivamente el contenido o el código de la aplicación.</li>
+        </ul>
+
+        <h3>4. Contenido cargado por el usuario</h3>
+        <p>La información, archivos y fotografías que cargas son de tu responsabilidad. Debes contar con el derecho para tratarlos. La plataforma conserva el historial de cambios para auditoría interna.</p>
+
+        <h3>5. Disponibilidad</h3>
+        <p>El servicio se presta <b>tal cual</b> y puede haber interrupciones por mantenimiento, actualizaciones o incidencias del proveedor de hosting. Se procurará avisar con antelación cuando sea posible.</p>
+
+        <h3>6. Cambios</h3>
+        <p>Estos términos pueden actualizarse conforme evoluciona la plataforma. El uso continuado tras una modificación implica su aceptación.</p>
+
+        <h3>7. Responsabilidad</h3>
+        <p>La organización no se responsabiliza de decisiones tomadas a partir de información introducida incorrectamente por los usuarios, ni del uso indebido de las credenciales. Las funciones pueden cambiar o retirarse sin previo aviso.</p>
+        <div class="lg-note"><b>Rol de administración:</b> los usuarios con rol de soporte o administración pueden gestionar cuentas, permisos y proyectos. Este rol implica confianza y obliga a tratar la información con reserva.</div>
+    </section>
+
+    {% else %}
+    <section class="lg-card">
+        <h2>Política de cookies</h2>
+        <p class="lg-lead">Nucleus utiliza un número mínimo de cookies y tecnologías de almacenamiento, todas ellas técnicas y necesarias para el funcionamiento de la aplicación.</p>
+
+        <h3>1. Cookies estrictamente necesarias</h3>
+        <ul>
+            <li><b>Cookie de sesión (<code>session</code>)</b>: se genera al iniciar sesión para recordar que estás autenticado. Caduca automáticamente y se elimina al cerrar sesión. <b>No requiere consentimiento</b> porque es imprescindible para prestar el servicio.</li>
+        </ul>
+
+        <h3>2. Almacenamiento local del navegador</h3>
+        <ul>
+            <li><b><code>nucleus-theme</code></b>: guarda si prefieres el tema claro u oscuro.</li>
+            <li><b><code>nucleus-consent</code></b>: guarda que has leído y aceptado este aviso de cookies, para no mostrártelo en cada visita.</li>
+            <li><b>Preferencias de columnas y vistas</b>: recuerdan el orden y la visibilidad de las columnas en tus tablas.</li>
+        </ul>
+        <p class="lg-lead">El almacenamiento local no es una cookie: se guarda solo en tu navegador, no viaja por la red ni permite identificarte fuera de la aplicación.</p>
+
+        <h3>3. Cookies de terceros y analítica</h3>
+        <div class="lg-note"><b>Hoy Nucleus no instala cookies de terceros:</b> no hay Google Analytics, Meta Pixel, publicidad ni rastreo de ningún proveedor externo.</div>
+        <p>Si en el futuro se incorporara una herramienta de analítica o medición de terceros, se instalará <b>únicamente después de pedirte tu consentimiento expreso</b> mediante un aviso como el de esta página, y podrás rechazarla sin que eso afecte el uso de la aplicación.</p>
+
+        <h3>4. Cómo gestionar o borrar las cookies</h3>
+        <ul>
+            <li>Puedes borrar las cookies y el almacenamiento local desde la configuración de tu navegador (Historial → Borrar datos de navegación → Cookies y datos de sitios).</li>
+            <li>También puedes bloquearlas en la configuración de privacidad del navegador, aunque <b>si bloqueas la cookie de sesión no podrás iniciar sesión</b>.</li>
+            <li>Para eliminar solo el consentimiento guardado, borra el elemento <code>nucleus-consent</code> del almacenamiento local y el aviso volverá a aparecer.</li>
+        </ul>
+
+        <h3>5. Aceptación</h3>
+        <p>Al pulsar <b>«Entendido»</b> en el aviso guardamos tu decisión en tu navegador para no volver a molestarte. Puedes revocarla borrando los datos del sitio desde tu navegador en cualquier momento.</p>
+    </section>
+    {% endif %}
+
+    <div class="lg-foot">
+        © 2026 Nucleus — HPVR ·
+        <a href="/privacidad">Privacidad</a> ·
+        <a href="/terminos">Términos</a> ·
+        <a href="/cookies">Cookies</a>
+    </div>
+</div>
+{% include 'cookie_banner.html' %}
+<script>
+    (function(){try{if(localStorage.getItem('nucleus-theme')==='light')document.body.classList.add('light')}catch(e){}})();
+</script>
+</body>
+</html>

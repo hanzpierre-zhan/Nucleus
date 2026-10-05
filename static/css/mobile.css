@@ -281,3 +281,141 @@
     /* Botones de acción ajustados para la fila horizontal */
     .rend-btn { padding: 7px 2px !important; font-size: 10.5px !important; }
 }
+
+/* ============================================================
+   MÓDULOS QUE ANTES NO ESTABAN CUBIERTOS POR EL LAYER MÓVIL
+   (WO · Analytics · Usuarios · Proyectos · Dashboard · Mapa · Login)
+   ============================================================ */
+
+@media (max-width: 768px) {
+
+    /* ── 1. MODAL WO: las 9 pestañas no caben → scroll horizontal ──────── */
+    .wo-header {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    .wo-head-left {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+    }
+    .wo-head-actions {
+        margin-left: auto !important;
+        flex: 0 0 auto !important;
+    }
+    .wo-tabs {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        overscroll-behavior-x: contain;
+        border-radius: 10px !important;
+        /* indicio visual de que hay más pestañas a la derecha */
+        -webkit-mask-image: linear-gradient(to right, #000 84%, transparent 100%);
+        mask-image: linear-gradient(to right, #000 84%, transparent 100%);
+    }
+    .wo-tabs::-webkit-scrollbar { display: none; }
+    .wo-tab {
+        flex: 0 0 auto !important;
+        white-space: nowrap !important;
+        font-size: 12px !important;
+        padding: 7px 11px !important;
+    }
+    .wo-section { padding: 14px !important; }
+    .wo-section-title { flex-wrap: wrap !important; gap: 6px !important; font-size: 13px !important; }
+    .wo-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    .wo-field { margin-bottom: 12px !important; }
+    .wo-field input, .wo-field select, .wo-field textarea {
+        font-size: 16px !important;
+        padding: 10px 12px !important;
+    }
+    .wo-aprobacion-barra { flex-wrap: wrap !important; }
+
+    /* ── 2. WIZARD / TARJETAS DE ADMIN: apilar columnas ───────────────── */
+    .wizard-container { padding: 12px !important; max-width: 100% !important; }
+    .wizard-card { padding: 16px !important; border-radius: 16px !important; }
+    .wizard-title { font-size: 18px !important; margin-bottom: 14px !important; }
+    /* grid de 2 columnas declarado inline en templates → !important lo gana */
+    .pj-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
+    .nucleus-form-row {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    .nucleus-form-row > input[type="text"],
+    .nucleus-form-row > input[type="password"],
+    .nucleus-form-row > input[type="number"] { min-width: 180px !important; }
+    .nucleus-control { font-size: 16px !important; }
+
+    /* ── 3. TABLAS SECUNDARIAS: scroll táctil horizontal ───────────────── */
+    .up-list, .an-sitelist, .an-table-card, .ios-table {
+        -webkit-overflow-scrolling: touch;
+    }
+    .up-list, .an-sitelist {
+        overflow-x: auto !important;
+        scrollbar-width: thin;
+    }
+    .up-list .ios-table.up-table, .an-sitelist .an-tbl { min-width: 440px; }
+
+    /* ── 4. ANALYTICS / DASHBOARD ──────────────────────────────────────── */
+    .an-head {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+    }
+    .an-card { padding: 14px !important; border-radius: 16px !important; }
+    .an-wrap-inner { padding: 12px !important; }
+    .an-grid, .chart-grid { grid-template-columns: 1fr !important; }
+    .kpi-card { padding: 12px !important; }
+    .an-sel-row { flex-wrap: wrap !important; gap: 8px !important; }
+    .filter-card { padding: 12px !important; }
+
+    /* ── 5. MAPA DE SITES: el mapa quedaba en 178px ────────────────────── */
+    .mapa-layout { grid-template-columns: 1fr !important; }
+    #map { height: 45vh !important; min-height: 300px !important; }
+    .mapa-panel { padding: 12px !important; }
+    .mapa-panel .site-detail-header { flex-wrap: wrap !important; }
+    .mapa-layout .legend, .mapa-layout .legend-prios {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* ── 6. LOGIN ──────────────────────────────────────────────────────── */
+    .vl-panel { max-width: 100% !important; padding: 16px !important; }
+    .vl-top { padding: 0 14px !important; }
+
+    /* ── 7. PÁGINAS DE CONTENIDO: texto y cabeceras ────────────────────── */
+    h1.wizard-title i + *, h2 { line-height: 1.3; }
+    .up-header { flex-wrap: wrap !important; gap: 10px !important; }
+    .up-header-text { min-width: 0 !important; }
+    .role-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+    /* ── 8. GRID AUTIN dentro del WO ───────────────────────────────────── */
+    .autin-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)) !important; gap: 8px !important; }
+    .autin-thumb img { height: 84px !important; }
+    .autin-ruta-txt { max-width: 100% !important; white-space: normal !important; }
+    .wo-autin-ruta { font-size: 11.5px; }
+
+    /* ── 9. FORMULARIOS GLOBALES: evitar el zoom automático de iOS ───────
+          Restringido a los contenedores de formularios para NO tocar las
+          celdas editables de Tabulator. */
+    .wizard-container input, .wizard-container select, .wizard-container textarea,
+    .up-page input, .up-page select, .up-page textarea,
+    .mar-modal input, .mar-modal select, .mar-modal textarea,
+    .vl-panel input, .vl-panel select, .vl-panel textarea,
+    .mapa-panel input, .mapa-panel select, .mapa-panel textarea,
+    .an-wrap input, .an-wrap select, .an-wrap textarea,
+    .filter-card input, .filter-card select {
+        font-size: 16px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .wo-tab { font-size: 11.5px !important; padding: 6px 9px !important; }
+    .wizard-card { padding: 14px !important; }
+    .role-cards-grid { grid-template-columns: 1fr !important; }
+    .up-list .ios-table.up-table, .an-sitelist .an-tbl { min-width: 400px; }
+    .autin-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)) !important; }
+}
