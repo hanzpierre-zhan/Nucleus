@@ -4,7 +4,7 @@
 
 {% block content %}
 {% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
-<div class="topbar-row{% if proy_nombre_flow in ['rendicion', 'cotizaciones'] %} topbar-row-rend{% endif %}"
+<div class="topbar-row{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}"
     style="display: flex; align-items: center; gap: 8px; padding: 4px 14px; min-height: 40px;">
     <span id="status-record-count" class="topbar-badge" title="Total de registros en la vista actual"
         style="margin-left:0;">
@@ -34,19 +34,6 @@
         </button>
         <button type="button" class="rend-tab" data-vista="cerrado" onclick="rendCambiarVista('cerrado')">
             <i class="fa-solid fa-check-double"></i> Cerrado <span class="rend-badge" id="rend-cnt-cerrado">0</span>
-        </button>
-    </div>
-    {% elif proy_nombre_flow == 'cotizaciones' %}
-    <!-- Pestañas del flujo de Peticiones de Cotizaciones -->
-    <div class="rend-tabs coti-tabs" id="coti-tabs">
-        <button type="button" class="rend-tab coti-tab active" data-vista="peticiones" onclick="cotiCambiarVista('peticiones')">
-            <i class="fa-solid fa-file-pen"></i> Peticiones <span class="rend-badge" id="coti-cnt-peticiones">0</span>
-        </button>
-        <button type="button" class="rend-tab coti-tab" data-vista="cotizaciones" onclick="cotiCambiarVista('cotizaciones')">
-            <i class="fa-solid fa-file-invoice-dollar"></i> Cotizaciones <span class="rend-badge" id="coti-cnt-cotizaciones">0</span>
-        </button>
-        <button type="button" class="rend-tab coti-tab" data-vista="validacion" onclick="cotiCambiarVista('validacion')">
-            <i class="fa-solid fa-clipboard-check"></i> Validación <span class="rend-badge" id="coti-cnt-validacion">0</span>
         </button>
     </div>
     {% else %}
@@ -124,11 +111,12 @@
     </div>
     {% endif %}
     {% if proy_nombre == 'cotizaciones' %}
-    <!-- Botón PDFs (Teal): abre la ventanita con el rango de fechas y la descarga -->
-    <button type="button" class="action-pill pill-teal" onclick="cotiAbrirLote()"
-        title="Descargar ZIP con los PDFs de las cotizaciones generadas en un rango de fechas">
-        <i class="fa-solid fa-file-arrow-down"></i><span class="pill-txt"> PDFs</span>
-    </button>
+    <div id="coti-lote-top" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        <span style="font-size:12px; font-weight:600; color:var(--ios-secondary); white-space:nowrap;">PDFs generadas:</span>
+        <input type="date" id="coti-lote-desde" title="Desde" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
+        <input type="date" id="coti-lote-hasta" title="Hasta" style="height:32px; border:1px solid var(--ios-hairline); border-radius:6px; padding:0 8px; font-size:13px; box-sizing:border-box; background:var(--ios-card-bg); color:var(--ios-label);">
+        <button type="button" id="btn-coti-lote" class="action-pill pill-teal" onclick="descargarCotizacionesLote()" title="Descargar ZIP con los PDFs de las cotizaciones generadas en el rango"><i class="fa-solid fa-file-arrow-down"></i> PDFs</button>
+    </div>
     {% endif %}
     <!-- Botón Excel (Verde). En Rendicion solo para quienes tienen el módulo. -->
     {% if proy_nombre != 'rendicion' or puede_rendicion %}
@@ -161,17 +149,10 @@
     </div>
 {% endif %}
 
-    {% if proy_nombre == 'cotizaciones' %}
-    <!-- Botón Nueva Petición (flujo de cotizaciones): acción principal del módulo -->
-    <button onclick="cotiAbrirNuevaPeticion()" class="action-pill pill-blue" title="Registrar una petición de cotización (genera el código COB)">
-        <i class="fa-solid fa-file-circle-plus"></i><span class="pill-txt"> Petición</span>
-    </button>
-    {% endif %}
-
     {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
     <!-- Botón Añadir Registro (Azul) -->
     <button onclick="aniadirRegistro()" class="action-pill pill-blue" title="Añadir nuevo registro">
-        <i class="fa-solid fa-plus"></i><span class="pill-txt"> Añadir</span>
+        <i class="fa-solid fa-plus"></i> Añadir
     </button>
     {% endif %}
 
@@ -212,31 +193,23 @@
        pestañas encogen y se desplazan solas si no cabe el ancho).
        OJO: sin overflow hidden, para no cortar los menús desplegables. */
     .topbar-row-rend { flex-wrap: nowrap; }
-    .rend-tabs,
-    .coti-tabs {
+    .rend-tabs {
         display: flex; align-items: center; gap: 5px; flex: 1 1 auto; min-width: 0;
         padding: 0 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
     }
-    .rend-tabs::-webkit-scrollbar,
-    .coti-tabs::-webkit-scrollbar { display: none; }
+    .rend-tabs::-webkit-scrollbar { display: none; }
     /* Con las pestañas presentes la paginación no se centra con auto-margins:
        se queda pegada a los botones y las pestañas toman el espacio libre. */
-    .rend-tabs ~ #pagination-container,
-    .coti-tabs ~ #pagination-container { margin: 0 4px; flex: 0 0 auto; }
+    .rend-tabs ~ #pagination-container { margin: 0 4px; flex: 0 0 auto; }
     /* La barra va en una línea: botones de acción solo icono (el título del
        navegador hace de etiqueta al pasar el mouse) y el contador de registros
        sin la palabra "Registros" (queda solo el icono con los números). */
     .rend-tabs ~ .pill-txt,
-    .rend-tabs ~ * .pill-txt,
-    .coti-tabs ~ .pill-txt,
-    .coti-tabs ~ * .pill-txt { display: none; }
+    .rend-tabs ~ * .pill-txt { display: none; }
     .rend-tabs ~ .action-pill,
-    .rend-tabs ~ * .action-pill,
-    .coti-tabs ~ .action-pill,
-    .coti-tabs ~ * .action-pill { padding: 0 10px; }
+    .rend-tabs ~ * .action-pill { padding: 0 10px; }
     .topbar-row-rend .reg-txt { display: none; }
-    .rend-tabs ~ #pagination-container .tabulator-page,
-    .coti-tabs ~ #pagination-container .tabulator-page { padding: 3px 7px; font-size: 11.5px; }
+    .rend-tabs ~ #pagination-container .tabulator-page { padding: 3px 7px; font-size: 11.5px; }
     .rend-tab {
         display: inline-flex; align-items: center; gap: 6px;
         padding: 6px 12px; border-radius: 8px; cursor: pointer;
@@ -253,10 +226,6 @@
     .rend-tab[data-vista="rendicion"]  { --tab-c: #AF52DE; --tab-bg: #F6EBFC; }
     .rend-tab[data-vista="rechazados"] { --tab-c: #FF3B30; --tab-bg: #FFECEB; }
     .rend-tab[data-vista="cerrado"]    { --tab-c: #8E8E93; --tab-bg: #F0F0F3; }
-    /* Cotizaciones (flujo de peticiones) */
-    .coti-tab[data-vista="peticiones"]   { --tab-c: #34C759; --tab-bg: #E8F8EE; }
-    .coti-tab[data-vista="cotizaciones"] { --tab-c: #007AFF; --tab-bg: #E8F1FF; }
-    .coti-tab[data-vista="validacion"]   { --tab-c: #FF9500; --tab-bg: #FFF3E0; }
     /* Tema oscuro: los tintes claros no se leen, van translúcidos sobre el fondo */
     body.dark-mode .rend-tab[data-vista="validacion"] { --tab-bg: rgba(52,199,89,.20); }
     body.dark-mode .rend-tab[data-vista="depositos"]  { --tab-bg: rgba(0,122,255,.24); }
@@ -3446,163 +3415,6 @@
         </div>
     </div>
 </div>
-
-<!-- Modal Nueva Petición (flujo de Cotizaciones) -->
-<div id="modal-coti-peticion" class="mar-overlay" style="display:none;">
-    <div class="mar-modal" style="max-width:560px; width:92vw;">
-        <div class="mar-header">
-            <div>
-                <h3><i class="fa-solid fa-file-circle-plus"></i> Nueva Petición</h3>
-                <p>Se generará el código interno automáticamente (COB-AAAA-MM-00000).</p>
-            </div>
-            <div class="mar-head-actions">
-                <button type="button" onclick="cotiCerrarNuevaPeticion()" class="mar-close" title="Cerrar"><i
-                        class="fa-solid fa-xmark"></i></button>
-            </div>
-        </div>
-        <div class="mar-body"
-            style="grid-template-columns: 1fr 1fr; display: grid; gap: 14px 18px; max-height: 60vh; overflow: auto;">
-            <div class="mar-field full">
-                <label><i class="fa-solid fa-briefcase"></i> Proyecto <em>*</em></label>
-                <select id="coti-pet-proyecto">
-                    <option>Claro Enterprise</option>
-                    <option>Integratel</option>
-                </select>
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-user"></i> Gestor / Solicitante</label>
-                <input type="text" id="coti-pet-gestor" readonly>
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-calendar-day"></i> Fecha y hora de la solicitud</label>
-                <input type="datetime-local" id="coti-pet-fecha">
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-tag"></i> Tipo de ticket <em>*</em></label>
-                <select id="coti-pet-ticket">
-                    <option>CM</option>
-                    <option>PM</option>
-                    <option>PLM</option>
-                </select>
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-coins"></i> Responsable del presupuesto <em>*</em></label>
-                <select id="coti-pet-responsable">
-                    <option>LUCIANO</option>
-                    <option>ROCIO</option>
-                    <option>RICARDO</option>
-                </select>
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-user-shield"></i> Supervisor responsable</label>
-                <input type="text" id="coti-pet-supervisor" autocomplete="off">
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-user-gear"></i> Técnico asignado</label>
-                <input type="text" id="coti-pet-tecnico" autocomplete="off">
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-wallet"></i> Tipo de pago</label>
-                <select id="coti-pet-pago">
-                    <option>Refacturable</option>
-                    <option>Fijo</option>
-                </select>
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-sack-dollar"></i> LPU</label>
-                <input type="text" id="coti-pet-lpu" inputmode="decimal" autocomplete="off">
-            </div>
-            <div class="mar-field full">
-                <label><i class="fa-solid fa-hashtag"></i> N° de WO</label>
-                <input type="text" id="coti-pet-wo" autocomplete="off">
-            </div>
-        </div>
-        <div class="mar-footer">
-            <button onclick="cotiCerrarNuevaPeticion()" class="mar-btn-ghost">Cancelar</button>
-            <button id="coti-pet-guardar" onclick="cotiGuardarNuevaPeticion()" class="mar-btn-primary"><i
-                    class="fa-solid fa-floppy-disk"></i> Guardar petición</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Validación de petición (flujo de Cotizaciones) -->
-<div id="modal-coti-val" class="mar-overlay" style="display:none;">
-    <div class="mar-modal" style="max-width:560px; width:92vw;">
-        <div class="mar-header">
-            <div>
-                <h3><i class="fa-solid fa-clipboard-check"></i> Validación de petición</h3>
-                <p id="coti-val-sub">Adjunta el correo de validación del cliente.</p>
-            </div>
-            <div class="mar-head-actions">
-                <button type="button" onclick="cotiCerrarVal()" class="mar-close" title="Cerrar"><i
-                        class="fa-solid fa-xmark"></i></button>
-            </div>
-        </div>
-        <div class="mar-body"
-            style="grid-template-columns: 1fr; display: block; max-height: 58vh; overflow: auto;">
-            <div class="mar-field full">
-                <label><i class="fa-solid fa-paperclip"></i> Correo de validación del cliente (PDF o imagen)</label>
-                <div class="dropzone" style="padding: 10px 12px;">
-                    <i class="fa-solid fa-envelope-circle-check"></i>
-                    <div style="flex:1; min-width:0; text-align:left;">
-                        <div class="dz-title" style="font-size:12.5px;">Elegir archivo</div>
-                        <div class="dz-sub" id="coti-val-archivo-nombre">Ningún archivo seleccionado</div>
-                    </div>
-                    <span class="dz-btn">Seleccionar archivo</span>
-                    <input type="file" id="coti-val-archivo" style="display:none;" onchange="cotiValArchivoNombre()"
-                        accept=".pdf,.png,.jpg,.jpeg,.webp,.eml,.msg,application/pdf,image/*">
-                </div>
-                <div id="coti-val-correo-link" style="margin-top:6px; font-size:12px; display:none;"></div>
-            </div>
-            <div class="mar-field full">
-                <label><i class="fa-solid fa-calendar-check"></i> Fecha y hora de validación</label>
-                <input type="datetime-local" id="coti-val-fecha">
-            </div>
-            <div class="mar-field full">
-                <label><i class="fa-solid fa-comment"></i> Comentarios</label>
-                <textarea id="coti-val-comentarios" rows="3"
-                    style="width:100%; resize:vertical; border:1px solid var(--excel-border); border-radius:10px; padding:10px 12px; font-size:13px; background:var(--excel-bg); color:var(--ios-label); outline:none; box-sizing:border-box; font-family:inherit;"></textarea>
-            </div>
-        </div>
-        <div class="mar-footer">
-            <button onclick="cotiCerrarVal()" class="mar-btn-ghost">Cancelar</button>
-            <button id="coti-val-ok" onclick="cotiGuardarVal()" class="mar-btn-primary"><i
-                    class="fa-solid fa-check"></i> Validar</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal PDFs generadas: rango de fechas + exportar ZIP (flujo de Cotizaciones) -->
-<div id="modal-coti-lote" class="mar-overlay" style="display:none;">
-    <div class="mar-modal" style="max-width:460px; width:92vw;">
-        <div class="mar-header">
-            <div>
-                <h3><i class="fa-solid fa-file-arrow-down"></i> PDFs generadas</h3>
-                <p>Elige el rango de fechas y exporta el ZIP con los PDFs de ese periodo.</p>
-            </div>
-            <div class="mar-head-actions">
-                <button type="button" onclick="cotiCerrarLote()" class="mar-close" title="Cerrar"><i
-                        class="fa-solid fa-xmark"></i></button>
-            </div>
-        </div>
-        <div class="mar-body" style="grid-template-columns:1fr 1fr; display:grid; gap:14px 18px;">
-            <div class="mar-field">
-                <label><i class="fa-solid fa-calendar-day"></i> Desde</label>
-                <input type="date" id="coti-lote-desde" title="Desde">
-            </div>
-            <div class="mar-field">
-                <label><i class="fa-solid fa-calendar-day"></i> Hasta</label>
-                <input type="date" id="coti-lote-hasta" title="Hasta">
-            </div>
-        </div>
-        <div class="mar-footer">
-            <button onclick="cotiCerrarLote()" class="mar-btn-ghost">Cancelar</button>
-            <button type="button" id="btn-coti-lote" onclick="descargarCotizacionesLote()" class="mar-btn-primary"
-                title="Descargar ZIP con los PDFs del rango seleccionado"><i class="fa-solid fa-file-zipper"></i>
-                Exportar</button>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -3730,44 +3542,6 @@ let _rendCambiandoVista = false;
         rechazados:  { estados: ['RECHAZADO'],
                        cols: null,
                        showCols: ['OBSERVACIONES', 'FECHA RECHAZO', 'ESTADO', '_accion'] }
-    };
-
-    // ── Cotizaciones: flujo de peticiones (hojas Peticiones/Cotizaciones/Validación) ──
-    const IS_COTI = _projNorm === 'cotizaciones';
-    const COTI_ESTADO_COLORS = {
-        'Pendiente':            { bg: '#8E8E93', fg: '#fff' },
-        'Pendiente Validacion': { bg: '#FF9500', fg: '#fff' },
-        'Validado':             { bg: '#28A745', fg: '#fff' },
-        'Cerrado':              { bg: '#5856D6', fg: '#fff' }
-    };
-    // Campos internos del flujo: solo los mueve el flujo, no se editan a mano.
-    const COTI_CAMPOS_FLUJO = new Set([
-        'CODIGO INTERNO', 'ESTADO', 'NOMBRE DE GESTOR',
-        'ENVIADO POR', 'FECHA ENVIO VALIDACION', 'VALIDADOR', 'VALIDADO POR', 'CERRADO POR'
-    ]);
-    function cotiEstadoDe(row) {
-        const v = String((row && row.ESTADO) || '').trim();
-        return v || 'Pendiente';
-    }
-    function cotiEsPeticion(row) {
-        return !!(row && String(row['CODIGO INTERNO'] || '').trim());
-    }
-    // Columnas visibles por hoja. 'cotizaciones' sin lista: respeta el layout del módulo.
-    const COTI_VISTAS = {
-        peticiones: { whitelist: [
-            'N° ORDEN', 'FECHA', 'CODIGO INTERNO', 'ESTADO', 'NOMBRE DE PROYECTO', 'NOMBRE DE GESTOR',
-            'GESTOR', 'FECHA Y HORA DE SOLICITUD', 'TIPO DE TICKET', 'RESPONSABLE DEL PRESUPUESTO',
-            'SUPERVISOR RESPONSABLE', 'TECNICO ASIGNADO', 'TIPO DE PAGO', 'LPU', 'NUMERO WO',
-            'N° COTIZACION', 'MOTIVO', '_accion'
-        ] },
-        cotizaciones: { whitelist: null },
-        validacion: { whitelist: [
-            'N° ORDEN', 'FECHA', 'CODIGO INTERNO', 'ESTADO', 'NOMBRE DE PROYECTO', 'NOMBRE DE GESTOR',
-            'GESTOR', 'FECHA Y HORA DE SOLICITUD', 'TIPO DE TICKET', 'RESPONSABLE DEL PRESUPUESTO',
-            'SUPERVISOR RESPONSABLE', 'TECNICO ASIGNADO', 'TIPO DE PAGO', 'LPU', 'NUMERO WO',
-            'N° COTIZACION', 'CORREO DE VALIDACION', 'FECHA DE VALIDACION', 'COMENTARIOS VALIDACION',
-            'MOTIVO', '_accion'
-        ] }
     };
 
     const FAULT_COLORS = IS_FLM ? {
@@ -5007,16 +4781,6 @@ let _rendCambiandoVista = false;
                     return `<span style="background:${c.bg};color:${c.fg};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">${est}</span>`;
                 };
             }
-            // Cotizaciones: ESTADO del flujo de peticiones muestra un badge de color.
-            if (IS_COTI && fieldName === 'ESTADO') {
-                colDef.editor = false;
-                colDef.headerFilter = listaHeaderFilter(['Pendiente', 'Pendiente Validacion', 'Validado', 'Cerrado']);
-                colDef.formatter = function (cell) {
-                    const est = cotiEstadoDe({ ESTADO: cell.getValue() });
-                    const c = COTI_ESTADO_COLORS[est] || COTI_ESTADO_COLORS['Pendiente'];
-                    return `<span style="background:${c.bg};color:${c.fg};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">${est}</span>`;
-                };
-            }
             if (IS_RENDICION && (fieldName === 'FOTO PAGO' || fieldName === 'FOTOS SUSTENTO')) {
                 const esSustento = fieldName === 'FOTOS SUSTENTO';
                 colDef.editor = false;
@@ -5087,21 +4851,11 @@ let _rendCambiandoVista = false;
                         return escapeHtml(v);
                     };
                 }
-                // Flujo de peticiones: el correo de validación es un enlace al archivo.
-                if (IS_COTI && fieldName === 'CORREO DE VALIDACION') {
-                    colDef.formatter = function (cell) {
-                        const v = String(cell.getValue() || '').trim();
-                        if (!v) return '';
-                        return `<a href="${escapeHtml(v.split('?')[0])}" target="_blank" rel="noopener" style="color:var(--ios-blue); text-decoration:underline; font-weight:600;"><i class="fa-solid fa-paperclip"></i> Ver correo</a>`;
-                    };
-                }
                 colDef.editable = function (cell) {
                     const d = cell.getRow().getData() || {};
                     // La aprobación (ESTADO COTIZACION) se mueve siempre: el
                     // bloqueo por GENERADA aplica al resto de los campos.
                     if (fieldName === 'ESTADO COTIZACION') return true;
-                    // Flujo de peticiones: los campos internos solo los mueve el flujo.
-                    if (cotiEsPeticion(d) && COTI_CAMPOS_FLUJO.has(fieldName)) return false;
                     const generada = String(d['GENERADA'] || '') === '1';
                     if (generada && !isAdminUser) {
                         // Liberada (Observado/Rechazado): editable de nuevo,
@@ -5626,70 +5380,6 @@ let _rendCambiandoVista = false;
                            () => rendDevolver(key));
                     } else if (puedeRev) {
                         mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
-                    }
-                }
-                return wrap;
-            },
-            cellClick: function (e, cell) { }
-        });
-    }
-
-    // Cotizaciones: columna de acciones del flujo de peticiones. Cada petición
-    // muestra el botón según su estado: Enviar a Validación, o Adjuntar/Validar/
-    // Cerrar en la hoja de Validación. Las cotizaciones legacy (sin CODIGO INTERNO)
-    // muestran un ícono informativo, sin acciones.
-    if (IS_COTI) {
-        tableColumns.push({
-            title: "Flujo",
-            field: "_accion",
-            minWidth: 130,
-            maxWidth: 300,
-            frozen: true,
-            headerSort: false,
-            hozAlign: "left",
-            formatter: function (cell) {
-                const row = cell.getRow().getData();
-                const wrap = document.createElement('div');
-                wrap.className = 'rend-acciones';
-                const key = row._key;
-                const est = cotiEstadoDe(row);
-                const puedeRev = ['zeno', 'admin', 'suport'].includes(String(USER_ROLE || '').trim().toLowerCase());
-
-                function mk(clase, texto, titulo, fn) {
-                    const b = document.createElement('button');
-                    b.type = 'button';
-                    b.className = 'rend-btn ' + clase;
-                    if (String(texto).trim().charAt(0) === '<') b.innerHTML = texto;
-                    else b.textContent = texto;
-                    b.title = titulo;
-                    b.onclick = (e) => { e.stopPropagation(); fn(); };
-                    wrap.appendChild(b);
-                }
-
-                if (!cotiEsPeticion(row)) {
-                    const chk = document.createElement('span');
-                    chk.className = 'rend-btn-done rend-pill rend-pill-sus';
-                    chk.title = 'Cotización del módulo (sin flujo de petición)';
-                    chk.innerHTML = '<i class="fa-solid fa-file-invoice"></i>';
-                    wrap.appendChild(chk);
-                    return wrap;
-                }
-
-                if (est === 'Pendiente') {
-                    mk('rend-btn-dep', 'Enviar a Validación',
-                       'Envía la petición a la hoja Validación (requiere el N° de Cotización en la fila)',
-                       () => cotiEnviarValidacion(key));
-                } else if (est === 'Pendiente Validacion') {
-                    mk('rend-btn-sus', '<i class="fa-solid fa-paperclip"></i>',
-                       'Adjuntar el correo de validación del cliente (no cambia el estado)',
-                       () => cotiAbrirValidacion(key, 'adjuntar'));
-                    mk('rend-btn-ok', 'Validar', 'Validar la cotización → estado Validado',
-                       () => cotiAbrirValidacion(key, 'validar'));
-                    mk('rend-btn-no', 'Cerrar', 'Cerrar la petición sin validar → estado Cerrado',
-                       () => cotiAbrirValidacion(key, 'cerrar'));
-                    if (puedeRev) {
-                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Peticiones (Pendiente)',
-                           () => cotiRevertir(key));
                     }
                 }
                 return wrap;
@@ -6694,7 +6384,6 @@ let _rendCambiandoVista = false;
 
         const isWoExport = (typeof IS_WO_PROJECT !== 'undefined' && IS_WO_PROJECT);
         const esRendicion = (typeof IS_RENDICION !== 'undefined' && IS_RENDICION);
-        const esCoti = (typeof IS_COTI !== 'undefined' && IS_COTI);
         const renombresRend = {
             'CODIGO DEPOSITO': 'Código depósito',
             'TIEMPO DE RESPUESTA': 'Tiempo de respuesta',
@@ -6843,40 +6532,6 @@ let _rendCambiandoVista = false;
             presentes.forEach(c => { if (!descartadosRend[c] && enOrden.indexOf(c) < 0) enOrden.push(c); });
             exportCols = enOrden;
             dataToExport = rawData;
-        } else if (esCoti) {
-            // Cotizaciones: el export refleja la hoja actual (columnas visibles
-            // y filas filtradas por estado), igual a lo que se ve en pantalla.
-            const visSet = new Set();
-            try {
-                if (typeof table !== 'undefined' && table && typeof table.getColumns === 'function') {
-                    table.getColumns().forEach(col => {
-                        try {
-                            if (!col.isVisible()) return;
-                            const f = col.getField();
-                            const s = String(f || '').trim();
-                            if (!s || s.startsWith('_') || s.toUpperCase().startsWith('KPI_')) return;
-                            visSet.add(s);
-                        } catch (e) { }
-                    });
-                }
-            } catch (e) { }
-            // Fallback si la tabla aún no está lista: columnas reales no internas.
-            if (visSet.size === 0) {
-                rawCols.forEach(c => {
-                    const s = String(c || '').trim();
-                    if (s && !s.startsWith('_') && !s.toUpperCase().startsWith('KPI_')) visSet.add(s);
-                });
-            }
-            exportCols = rawCols.filter(c => visSet.has(c));
-            rawCols.forEach(c => {
-                const s = String(c || '').trim();
-                if (s && visSet.has(s) && exportCols.indexOf(c) < 0) exportCols.push(c);
-            });
-            try {
-                const act = table && typeof table.getData === 'function' ? table.getData('active') : null;
-                if (Array.isArray(act)) dataToExport = act;
-            } catch (e) { }
-            if (!Array.isArray(dataToExport) || (!dataToExport.length && rawData.length)) dataToExport = rawData;
         } else {
             // Otros proyectos: comportamiento original (todas las columnas reales, todas las filas)
             exportCols = rawCols.filter(c => {
@@ -8153,7 +7808,6 @@ btnItem.onclick = () => cotRegAgregarFila();
             a.click();
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 60000);
-            cotiCerrarLote();   // la ventanita se cierra al iniciar la descarga
         } catch (err) { alert(err.message || 'Error de red'); }
         finally { if (btn) { btn.disabled = false; btn.innerHTML = old; } }
     }
@@ -14181,287 +13835,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => rendAvisosCargar(true), 600);   // silencioso: sin toasts históricos
         setInterval(() => rendAvisosCargar(false), 30000); // revisa avisos nuevos cada 30 s
     }
-});
-
-/* ── Flujo de Peticiones de Cotizaciones (tabs, filtros y acciones) ── */
-let _cotiHoja = 'peticiones';
-let _cotiValKey = null;
-let _cotiValAccion = 'validar';
-
-function cotiVisPorDefecto(f) {
-    const lay = (typeof columnLayout !== 'undefined' && columnLayout) ? columnLayout : [];
-    for (let i = 0; i < lay.length; i++) {
-        if (lay[i] && lay[i].field === f) return lay[i].visible !== false;
-    }
-    return true;
-}
-
-function cotiCambiarVista(vista) {
-    if (!IS_COTI || !COTI_VISTAS[vista]) return;
-    _cotiHoja = vista;
-    document.querySelectorAll('#coti-tabs .coti-tab').forEach(b => {
-        b.classList.toggle('active', b.getAttribute('data-vista') === vista);
-    });
-    const cfg = COTI_VISTAS[vista];
-    if (!table) return;
-    table.getColumns().forEach(c => {
-        const f = c.getField();
-        if (!f) return;
-        const vis = cfg.whitelist ? cfg.whitelist.indexOf(f) >= 0 : cotiVisPorDefecto(f);
-        if (vis && !c.isVisible()) c.show();
-        if (!vis && c.isVisible()) c.hide();
-    });
-    cotiAplicarFiltro();
-    cotiActualizarContadores();
-}
-
-// Filtro de la hoja: Peticiones y Cotizaciones ven 'Pendiente'; Validación ve
-// 'Pendiente Validacion'. Las cotizaciones legacy (sin CODIGO INTERNO) siempre
-// se ven en la hoja Cotizaciones.
-function cotiAplicarFiltro() {
-    if (!IS_COTI || !table) return;
-    table.clearFilter(true);
-    const fn = (rowData) => {
-        const es = cotiEsPeticion(rowData);
-        const est = cotiEstadoDe(rowData);
-        if (_cotiHoja === 'peticiones') return es && est === 'Pendiente';
-        if (_cotiHoja === 'cotizaciones') return !es || est === 'Pendiente';
-        if (_cotiHoja === 'validacion') return es && est === 'Pendiente Validacion';
-        return true;
-    };
-    table.setFilter(fn);
-}
-
-function cotiActualizarContadores() {
-    if (!IS_COTI) return;
-    const c = { peticiones: 0, cotizaciones: 0, validacion: 0 };
-    (typeof rawData !== 'undefined' && Array.isArray(rawData) ? rawData : []).forEach(r => {
-        const es = cotiEsPeticion(r);
-        const est = cotiEstadoDe(r);
-        if (es && est === 'Pendiente') { c.peticiones++; c.cotizaciones++; }
-        else if (es && est === 'Pendiente Validacion') c.validacion++;
-        else if (!es) c.cotizaciones++;
-    });
-    Object.keys(c).forEach(k => {
-        const el = document.getElementById('coti-cnt-' + k);
-        if (el) el.textContent = c[k];
-    });
-}
-
-function cotiAccion(key, accion, extra) {
-    return fetch('/api/cotizacion/accion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ key: key, accion: accion }, extra || {}))
-    })
-        .then(r => r.json().then(j => ({ ok: r.ok, j })))
-        .then(({ ok, j }) => {
-            if (!ok || j.error) { nucleusAlert(j.error || 'No se pudo completar la acción.'); return null; }
-            cotiTrasAccion(j, key);
-            return j;
-        })
-        .catch(() => { nucleusAlert('Error de conexión.'); return null; });
-}
-
-// Tras la acción la fila puede cambiar de hoja: se actualiza en memoria y se re-filtra.
-function cotiTrasAccion(j, key) {
-    if (j && j.newData) {
-        const i = (typeof rawData !== 'undefined' && Array.isArray(rawData) ? rawData : []).findIndex(r => r._key === key);
-        if (i > -1) rawData[i] = Object.assign({}, rawData[i], j.newData);
-        const row = table ? table.getRows().find(r => r.getData()._key === key) : null;
-        if (row && j.newData) {
-            row.update(j.newData);
-            if (typeof row.reformat === 'function') row.reformat();
-        }
-    }
-    cotiAplicarFiltro();
-    cotiActualizarContadores();
-}
-
-function cotiEnviarValidacion(key) {
-    const row = (typeof rawData !== 'undefined' && Array.isArray(rawData) ? rawData : []).find(r => r._key === key) || {};
-    if (!String(row['N° COTIZACION'] || '').trim()) {
-        nucleusAlert('Primero crea la cotización con el botón Añadir y anota su N° en la columna "N° COTIZACION" de esta petición.');
-        return;
-    }
-    if (!confirm('¿Enviar a Validación la petición ' + (row['CODIGO INTERNO'] || key) + '?')) return;
-    cotiAccion(key, 'enviar_validacion', {});
-}
-
-function cotiRevertir(key) {
-    if (!confirm('¿Regresar la petición a la hoja anterior?')) return;
-    cotiAccion(key, 'revertir', {});
-}
-
-/* ── Modal Nueva Petición ── */
-function _cotiFmtLocal(d) {
-    const p = (n) => String(n).padStart(2, '0');
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
-        + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
-}
-
-function cotiAbrirNuevaPeticion() {
-    if (!IS_COTI) return;
-    const g = document.getElementById('coti-pet-gestor');
-    if (g) g.value = "{{ session.get('nombre')|e or session.get('username')|e or '' }}";
-    const f = document.getElementById('coti-pet-fecha');
-    if (f) f.value = _cotiFmtLocal(new Date());
-    ['coti-pet-wo', 'coti-pet-lpu', 'coti-pet-supervisor', 'coti-pet-tecnico'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.value = '';
-    });
-    ['coti-pet-proyecto', 'coti-pet-ticket', 'coti-pet-responsable', 'coti-pet-pago'].forEach(id => {
-        const el = document.getElementById(id); if (el) el.selectedIndex = 0;
-    });
-    document.getElementById('modal-coti-peticion').style.display = 'flex';
-    const first = document.querySelector('#modal-coti-peticion input, #modal-coti-peticion select');
-    if (first) setTimeout(() => first.focus(), 60);
-}
-
-function cotiCerrarNuevaPeticion() {
-    document.getElementById('modal-coti-peticion').style.display = 'none';
-}
-
-async function cotiGuardarNuevaPeticion() {
-    const v = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
-    const body = {
-        nombre_proyecto: v('coti-pet-proyecto'),
-        tipo_ticket: v('coti-pet-ticket'),
-        responsable_presupuesto: v('coti-pet-responsable'),
-        supervisor_responsable: v('coti-pet-supervisor'),
-        tecnico_asignado: v('coti-pet-tecnico'),
-        tipo_pago: v('coti-pet-pago'),
-        lpu: v('coti-pet-lpu'),
-        numero_wo: v('coti-pet-wo')
-    };
-    const fecha = v('coti-pet-fecha');
-    if (fecha) body.fecha_solicitud = fecha;
-    const btn = document.getElementById('coti-pet-guardar');
-    btn.disabled = true;
-    try {
-        const r = await fetch('/api/cotizacion/peticion/crear', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-        const j = await r.json();
-        if (!r.ok || j.error) { nucleusAlert(j.error || 'No se pudo registrar la petición.'); return; }
-        const nd = Object.assign({}, j.newData || {});
-        nd._key = j.codigo || nd['CODIGO INTERNO'];
-        if (typeof rawData !== 'undefined' && Array.isArray(rawData)) rawData.push(nd);
-        cotiCerrarNuevaPeticion();
-        if (typeof table !== 'undefined' && table) table.setData(rawData);
-        cotiCambiarVista('peticiones');
-        nucleusAlert('Petición registrada: <b>' + escapeHtml(nd._key || '') + '</b>');
-    } catch (e) {
-        nucleusAlert('Error de conexión.');
-    } finally {
-        btn.disabled = false;
-    }
-}
-
-/* ── Modal Validación ── */
-function cotiAbrirValidacion(key, accion) {
-    _cotiValKey = key;
-    _cotiValAccion = accion;
-    const row = (typeof rawData !== 'undefined' && Array.isArray(rawData) ? rawData : []).find(r => r._key === key) || {};
-    const sub = document.getElementById('coti-val-sub');
-    if (sub) {
-        sub.textContent = (row['CODIGO INTERNO'] || key) + ' — ' +
-            (accion === 'cerrar' ? 'La petición quedará con estado Cerrado.' :
-             accion === 'adjuntar' ? 'El adjunto se guarda sin cambiar el estado.' :
-             'La petición quedará con estado Validado.');
-    }
-    const okBtn = document.getElementById('coti-val-ok');
-    if (okBtn) {
-        okBtn.innerHTML = accion === 'cerrar' ? '<i class="fa-solid fa-check-double"></i> Cerrar'
-            : accion === 'adjuntar' ? '<i class="fa-solid fa-paperclip"></i> Guardar adjunto'
-            : '<i class="fa-solid fa-check"></i> Validar';
-    }
-    const fec = document.getElementById('coti-val-fecha');
-    if (fec) fec.value = row['FECHA DE VALIDACION'] ? String(row['FECHA DE VALIDACION']).replace(' ', 'T') : _cotiFmtLocal(new Date());
-    const com = document.getElementById('coti-val-comentarios');
-    if (com) com.value = row['COMENTARIOS VALIDACION'] || '';
-    const arch = document.getElementById('coti-val-archivo');
-    if (arch) arch.value = '';
-    cotiValArchivoNombre();
-    const link = document.getElementById('coti-val-correo-link');
-    const corr = String(row['CORREO DE VALIDACION'] || '').trim();
-    if (link) {
-        if (corr) {
-            link.style.display = 'block';
-            link.innerHTML = 'Adjunto actual: <a href="' + escapeHtml(corr.split('?')[0])
-                + '" target="_blank" rel="noopener"><span style="color:var(--ios-green);font-weight:700;"><i class="fa-solid fa-circle-check"></i> Ver correo</span></a>';
-        } else {
-            link.style.display = 'none';
-            link.innerHTML = '';
-        }
-    }
-    document.getElementById('modal-coti-val').style.display = 'flex';
-}
-
-function cotiValArchivoNombre() {
-    const f = document.getElementById('coti-val-archivo');
-    const t = document.getElementById('coti-val-archivo-nombre');
-    if (t) t.textContent = f && f.files && f.files[0] ? f.files[0].name : 'Ningún archivo seleccionado';
-}
-
-function cotiCerrarVal() {
-    document.getElementById('modal-coti-val').style.display = 'none';
-}
-
-/* ── Modal PDFs (rango de fechas + exportar) ── */
-function cotiAbrirLote() {
-    if (!IS_COTI) return;
-    const p = (n) => String(n).padStart(2, '0');
-    const hoy = new Date();
-    const d = document.getElementById('coti-lote-desde');
-    const h = document.getElementById('coti-lote-hasta');
-    if (d && !d.value) d.value = hoy.getFullYear() + '-' + p(hoy.getMonth() + 1) + '-01';
-    if (h && !h.value) h.value = hoy.getFullYear() + '-' + p(hoy.getMonth() + 1) + '-' + p(hoy.getDate());
-    document.getElementById('modal-coti-lote').style.display = 'flex';
-}
-
-function cotiCerrarLote() {
-    const m = document.getElementById('modal-coti-lote');
-    if (m) m.style.display = 'none';
-}
-
-async function cotiGuardarVal() {
-    const key = _cotiValKey;
-    if (!key) return;
-    const fecha = document.getElementById('coti-val-fecha').value;
-    if (!fecha) { nucleusAlert('Selecciona la fecha y hora de validación.'); return; }
-    const comentarios = document.getElementById('coti-val-comentarios').value;
-    let correo = '';
-    const f = document.getElementById('coti-val-archivo').files && document.getElementById('coti-val-archivo').files[0];
-    if (f) {
-        try {
-            const fd = new FormData();
-            fd.append('key', key);
-            fd.append('correo', f);
-            const r = await fetch('/api/cotizacion/subir_correo', { method: 'POST', body: fd });
-            const j = await r.json();
-            if (!r.ok || !j.url) throw new Error(j.error || 'No se pudo subir el correo');
-            correo = j.url;
-        } catch (e) {
-            nucleusAlert(e.message || 'Error al subir el correo');
-            return;
-        }
-    } else {
-        const row = (typeof rawData !== 'undefined' && Array.isArray(rawData) ? rawData : []).find(r => r._key === key) || {};
-        correo = String(row['CORREO DE VALIDACION'] || '').trim();
-    }
-    const accion = _cotiValAccion === 'adjuntar' ? 'adjuntar_correo' : _cotiValAccion;
-    const extra = { fecha_validacion: String(fecha).replace('T', ' '), comentarios: comentarios };
-    if (correo) extra.correo = correo;
-    const j = await cotiAccion(key, accion, extra);
-    if (j) cotiCerrarVal();
-}
-
-// Al abrir el módulo, arranca en la hoja Peticiones con el filtro aplicado.
-document.addEventListener('DOMContentLoaded', () => {
-    if (!IS_COTI || !document.getElementById('coti-tabs')) return;
-    setTimeout(() => cotiCambiarVista('peticiones'), 0);
 });
 </script>
 {% endblock %}
