@@ -6616,9 +6616,9 @@ let _rendCambiandoVista = false;
         } else if (esRendicion) {
             // Rendición: columnas siguiendo el flujo (solicitud → validación → depósito
             // → sustentos/evidencia → cierre/rechazos). Se descartan las internas y las
-            // redundantes (Nombre del proyecto, INTERACCION, _key, _SUSTENTO_MARCAS, etc.).
+            // redundantes (INTERACCION, _key, _SUSTENTO_MARCAS, etc.).
             const tramoAccion = [
-                'Marca temporal', 'ESTADO', 'Tipo de presupuesto', 'Tipo de gasto',
+                'Marca temporal', 'Nombre del proyecto', 'ESTADO', 'Tipo de presupuesto', 'Tipo de gasto',
                 'Tipo de Ticket', 'Nombre de site', 'Técnico beneficiario', 'Documento del beneficiario',
                 'Número CM / PM / PLM', 'Criticidad - Prioridad', 'Motivo de la solicitud',
                 'Monto total del depósito', 'Tipo de depósito a realizar', 'Tipo de billetera digital',
@@ -6634,7 +6634,7 @@ let _rendCambiandoVista = false;
                 'VECES RECHAZADO', 'DEVUELTO POR', 'FECHA DEVOLUCION'
             ];
             const descartadosRend = {
-                'Nombre del proyecto': 1, 'INTERACCION': 1, 'EDITADO POR': 1,
+                'INTERACCION': 1, 'EDITADO POR': 1,
                 'SUSTENTO_MARCA TEMPORAL': 1
             };
             const presentes = rawCols.filter(c => c && !String(c).startsWith('_')
