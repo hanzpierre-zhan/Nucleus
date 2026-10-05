@@ -166,8 +166,12 @@
         title="Descargar plantilla Excel para importar">
         <i class="fa-solid fa-download"></i><span class="pill-txt"> Plantilla</span>
     </a>
+    {% endif %}
 
-    <!-- Botón Eliminar (Rojo - aparece al seleccionar filas) - solo admin -->
+    {% if session.get('rol') in ['zeno', 'suport'] %}
+    <!-- Botón Eliminar (Rojo - aparece al seleccionar filas) - solo admin.
+         Va en su propio bloque: Rendición no muestra Importar/Plantilla pero
+         sí necesita poder borrar registros seleccionados. -->
     <button id="btn-delete-rows" onclick="eliminarRegistros()" class="action-pill pill-red" style="display:none;"
         title="Eliminar Registros Seleccionados">
         <i class="fa-solid fa-trash-can"></i><span class="pill-txt"> Eliminar</span>
@@ -6637,8 +6641,19 @@ let _rendCambiandoVista = false;
                 'INTERACCION': 1, 'EDITADO POR': 1,
                 'SUSTENTO_MARCA TEMPORAL': 1
             };
-            const presentes = rawCols.filter(c => c && !String(c).startsWith('_')
-                && !String(c).toUpperCase().startsWith('KPI_'));
+            // rawCols es el esquema del servidor y quedó corto: le faltan columnas
+            // que sí existen en los datos (celular, criticidad, SUSTENTO_*, el
+            // tramo de rechazo…). Se completa con las claves reales de las filas.
+            const presentesSet = new Set(rawCols.filter(c => c && !String(c).startsWith('_')
+                && !String(c).toUpperCase().startsWith('KPI_')));
+            (rawData || []).forEach(d => {
+                Object.keys(d || {}).forEach(k => {
+                    if (k.startsWith('_') || k.toUpperCase().startsWith('KPI_')) return;
+                    if (descartadosRend[k]) return;
+                    presentesSet.add(k);
+                });
+            });
+            const presentes = [...presentesSet];
             const enOrden = [];
             tramoAccion.concat(tramoEvidencia, tramoCierre).forEach(n => {
                 if (presentes.indexOf(n) >= 0 && enOrden.indexOf(n) < 0) enOrden.push(n);
@@ -6676,6 +6691,36 @@ let _rendCambiandoVista = false;
             exportCols.unshift('_key');
             if (!hasKey && !rawCols.includes('_key')) exportCols.unshift('_key');
         }
+        // Celdas de dinero/precios: tienen que salir como NÚMERO (no texto) para
+        // que en Excel se pueda sumar. Solo columnas cuyo nombre lo indica:
+        // DNI, celular, cuenta, CM/PM/PLM y similares se quedan en texto aunque
+        // sean puramente digitales (pierden ceros a la izquierda y se malforman).
+        function valorNumerico(v) {
+            if (typeof v === 'number') return isFinite(v) ? v : '';
+            if (v === null || v === undefined) return '';
+            const s0 = String(v).trim();
+            if (!s0) return '';
+            // Quita monetización conocida: "S/ 434,78", "80.00 soles", "$90".
+            let s = s0.replace(/soles?/gi, '').replace(/[Ss]\s*\/\s*/g, '')
+                .replace(/\b(?:PEN|USD|EUR)\b/gi, '').replace(/[$]/g, '').trim();
+            if (/[A-Za-zÀ-ÿ]/.test(s)) return s0;   // siguen letras: se deja igual
+            s = s.replace(/[^0-9,.\-]/g, '');        // espacios y demás símbolos
+            if (!s || s === '-' || s === '.' || s === ',') return s0;
+            const c = s.lastIndexOf(','), p = s.lastIndexOf('.');
+            if (c >= 0 && p >= 0) {
+                // el separador que viene después es el decimal
+                s = (c > p) ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+            } else if (c >= 0) {
+                const partes = s.split(',');
+                // "1,234" (3 dígitos) = miles; "434,78" = decimal
+                s = (partes.length === 2 && partes[1].length !== 3) ? partes[0] + '.' + partes[1]
+                    : s.replace(/,/g, '');
+            }
+            if (!/^-?\d+(\.\d+)?$/.test(s)) return s0;
+            const n = Number(s);
+            return isFinite(n) ? n : s0;
+        }
+
         const rows = [];
         const headers = exportCols.map(c => {
             if (c === '_key') return isWoExport ? 'Numero WO' : String(c).trim();
@@ -6702,6 +6747,9 @@ let _rendCambiandoVista = false;
                     const info = computarSlaData(r);
                     const lim = getSlaThresholdData(r);
                     v = slaCumplimientoEstado(info, lim).texto;
+                } else if (/MONTO|PRECIO|IMPORTE|TOTAL/.test(up)) {
+                    // Montos/precios: a número para poder sumarlos en Excel.
+                    v = valorNumerico(v);
                 }
                 line.push(v === null || v === undefined ? '' : v);
             });
