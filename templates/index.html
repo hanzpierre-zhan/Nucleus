@@ -1704,7 +1704,7 @@
     .autin-lightbox {
         position: fixed;
         inset: 0;
-        z-index: 4000;
+        z-index: 30000;
         background: rgba(0, 0, 0, .86);
         display: none;
         flex-direction: column;
@@ -11936,13 +11936,17 @@ btnItem.onclick = () => cotRegAgregarFila();
                         '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
                         '<i class="fa-solid fa-floppy-disk"></i> Guardar</button></span>';
                 }
-                // La URL del servidor cambia en cada reinicio del túnel: solo zeno la pega y guarda
-                if (_autinEsZeno() && !esSP) {
+                // La URL del servidor cambia en cada reinicio del túnel: solo zeno la pega y guarda.
+                // En modo SharePoint es editable igual (es el enlace compartido que usa la pestaña).
+                if (_autinEsZeno()) {
                     html += '<span class="autin-ruta-edit">' +
                         '<input type="text" id="autin-base-input" value="' + escapeHtml(_autinBase) + '" ' +
-                        'placeholder="URL del servidor de fotos (cambia al reiniciar el túnel)">' +
+                        'placeholder="' + (esSP
+                            ? 'Enlace compartido de SharePoint de las fotos'
+                            : 'URL del servidor de fotos (cambia al reiniciar el túnel)') + '">' +
                         '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
-                        '<i class="fa-solid fa-floppy-disk"></i> Guardar URL</button>' +
+                        '<i class="fa-solid fa-floppy-disk"></i> ' +
+                        (esSP ? 'Guardar enlace' : 'Guardar URL') + '</button>' +
                         '</span>';
                 }
                 rutaEl.innerHTML = html;
