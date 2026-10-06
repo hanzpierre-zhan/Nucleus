@@ -258,15 +258,29 @@ Dentro del modal WO hay una pestaña **AUTIN** que agrupa las fotos del WO por e
 
 ### 7.6 Analytics: dashboards
 
-`/analytics` (y `/dashboard`, que redirige a `/analytics`) tiene **4 vistas** en el selector
-superior. La vista elegida se recuerda **por proyecto** (`sessionStorage an-dash:<proyecto>`):
+`/analytics` (y `/dashboard`, que redirige a `/analytics`) tiene **8 vistas** en el selector
+superior, en dos grupos: **Métricas clave** (4 vistas nuevas, una por programa) y
+**Dashboards** (las 4 vistas originales, disponibles aparte). La vista elegida se recuerda
+**por proyecto** (`sessionStorage an-dash:<proyecto>`); sin elección previa cada programa
+abre su vista de métricas y el resto de proyectos, **Producción**.
 
-| Vista | Cuándo se usa | Qué grafica |
-|---|---|---|
-| **Seguimiento** | Solo proyectos WO con `Operate Phase` (FLM/PEXT) | operación, backlog, prioridad, falla, departamento, tipo avería, sites |
-| **Producción** | WO — es la vista por defecto fuera de FLM | solo filas `Operate Phase = close`, evolución mensual, detalle |
-| **Rendición** | Proyecto 11 (también disponible en cualquier proyecto con columna `ESTADO`) | estado, responsable de validación, proyecto, criticidad, evolución mensual y tabla resumen con montos (`Monto total del depósito`) |
-| **Cotización** | Proyecto 8 (y cualquiera con `ESTADO COTIZACION`) | estado, cliente, supervisor, gestor, evolución mensual y tabla con `SUB TOTAL + FEE` |
+| Grupo | Vista | Cuándo se usa | Qué grafica |
+|---|---|---|---|
+| Métricas clave | **FLM KPIs** | Solo proyectos WO (`isPext`); por defecto en FLM - ENTEL | KPIs (WO totales, % cerradas, abiertas, suspendidas, críticas, antigüedad prom., VIP) + estado, departamentos, fault level, tipo de tarea, prioridad, evolución mensual y resumen por estado |
+| Métricas clave | **Combustible KPIs** | Solo proyecto Combustible; por defecto ahí | KPIs de galones (totales/ingresos/gastos/saldo, % con factura y foto) + galones por zona (suma), evolución, movimientos, top técnicos y resumen con galones |
+| Métricas clave | **Cotizaciones KPIs** | Solo proyecto Cotizaciones; por defecto ahí | KPIs (total, monto `SUB TOTAL + FEE`, ticket medio, validadas/rechazadas, con N° WO, peticiones) + estado, cliente, monto por supervisor, evolución y resumen con montos |
+| Métricas clave | **Rendición KPIs** | Solo proyecto Rendición; por defecto ahí | KPIs (solicitudes, monto solicitado/pagado, gestionadas, pendientes, rechazadas, con foto) + estado, monto por estado, presupuesto, proyecto, responsable, evolución diaria y resumen |
+| Dashboards | **Seguimiento** | Solo proyectos WO con `Operate Phase` (FLM/PEXT) | operación, backlog, prioridad, falla, departamento, tipo avería, sites |
+| Dashboards | **Producción** | WO — vista por defecto en proyectos sin dashboards propios | solo filas `Operate Phase = close`, evolución mensual, detalle |
+| Dashboards | **Rendición** | Proyecto 11 (también disponible en cualquier proyecto con columna `ESTADO`) | estado, responsable de validación, proyecto, criticidad, evolución mensual y tabla resumen con montos (`Monto total del depósito`) |
+| Dashboards | **Cotización** | Proyecto 8 (y cualquiera con `ESTADO COTIZACION`) | estado, cliente, supervisor, gestor, evolución mensual y tabla con `SUB TOTAL + FEE` |
+
+- Cada opción de **Métricas clave** solo se ofrece en su programa (`MK_OK` en
+  `templates/analytics.html`); el separador del grupo desaparece si el proyecto no tiene ninguna.
+- Las tarjetas KPI (`.an-kpis` / `.an-kpi`) se pintan con `renderKpiRow(...)` y los cálculos
+  son defensivos: columnas ausentes → 0 o tarjetas de gráfico ocultas, nunca errores.
+- `anSumBar` grafica **sumas** (galones por zona, S/ por estado) con los mismos clics/filtros
+  que las barras de conteo; `anLine` acepta `gran: 'day'` (evolución diaria de Rendición).
 
 - Los nombres de columna se resuelven con `keyNamed(...)`, así que si cambias el formulario
   las tarjetas se reacomodan solas; si no hay columnas compatibles aparece un aviso en vez
@@ -284,7 +298,8 @@ cada proyecto muestra las vistas que sus columnas permiten y sus propias tarjeta
 - La opción **Seguimiento** solo aparece si `isPext && K_PHASE`
   (`templates/analytics.html`), es decir: nombre de proyecto en `FLM - ENTEL / FLM /
   PEXT / CLARO / FLM-INTEGRATEL` **y** que exista la columna `Operate Phase` en ese
-  proyecto. Si falta cualquiera de las dos, se oculta y se abre **Producción**.
+  proyecto. Si falta cualquiera de las dos, se oculta y se abre **FLM KPIs** (o
+  **Producción** si el proyecto no es WO).
 - Las tarjetas fijas (`Operate Phase`, `Backlog`, `Sites`, `Prioridad`, `Nivel de Falla`,
   `Departamento`, `Tipo de Avería`) y los filtros WO (Tipo WO / Mes / Departamento /
   Causa raíz) viven en `#an-view-seg` y solo se ven en esa vista.
@@ -451,7 +466,7 @@ No hay framework de tests: son scripts sueltos fuera del repo (temp) que usan
 | `test_render.py` | render `/` por rol/proyecto | 5/5 |
 | `test_coti_rend.py` | flujo Cotizaciones + Rendición | 19/19 |
 | `test_analytics.py` / `test_an_cdn.py` | filtros Analytics y modo sin Chart.js | OK |
-| `test_dashes.py` | dashboards Rendición/Cotización + columna Evidencia | 15/15 |
+| `test_dashes.py` | 4 vistas Métricas clave + selector + columna Evidencia | 31/31 |
 | `mob_check.py` | maquetación móvil (390 px) | 11/11 |
 | `shot_autin.py` | pestaña AUTIN + lightbox | 0 fallos |
 | `test_sync_cols.py` | sync de sustentos | **17/19** — ver §16 |

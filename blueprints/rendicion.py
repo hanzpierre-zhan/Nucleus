@@ -9,7 +9,8 @@
    - SUSTENTADO    -> hoja Evidencia (completado)
    - RECHAZADO     -> hoja Rechazados
 """
-import os, json, time, tempfile, mimetypes, urllib.request
+import os, json, time, re, tempfile, mimetypes, unicodedata, urllib.request
+from urllib.parse import quote
 from datetime import datetime
 
 from flask import (Blueprint, request, jsonify, session, current_app,
@@ -74,6 +75,109 @@ def _motivo_de(row):
         if v:
             return v
     return ''
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Aviso de depósito por WhatsApp: enlace wa.me (gratis, sin API ni cuenta de
+# Meta). WhatsApp abre con el mensaje YA ESCRITO y el gestor solo aprieta el
+# botón verde de enviar. No se manda solo porque WhatsApp no da envío gratis
+# automático: eso exigiría la API de Meta (de pago) o una sesión automatizada
+# (que puede hacer que bloqueen el número).
+# ─────────────────────────────────────────────────────────────────────────────
+def _campo(row, patron):
+    """Busca un campo por nombre "normalizado" (sin acentos ni símbolos), para
+    no depender de si el dato trae 'N°' o 'Nº' o 'Número'."""
+    def norm(s):
+        s = unicodedata.normalize('NFKD', str(s or '').lower())
+        return re.sub(r'[^a-z0-9]', '', s)
+    p = norm(patron)
+    for k, v in row.items():
+        if norm(k) == p:
+            return str(v or '').strip()
+    return ''
+
+
+def _wa_celular(row):
+    """Celular válido para WhatsApp, o '' si no hay.
+
+    Primero 'Numero de Yape/Plin' (siempre 9 dígitos) y, si falta, el campo
+    'Número de celular o CCI' SOLO cuando trae 9 dígitos: en ese campo también
+    llegan CCI bancarios de 20 dígitos, que no sirven como número."""
+    for patron in ('numerodeyapeplin', 'numerodecelularocci'):
+        d = re.sub(r'\D', '', _campo(row, patron))
+        if len(d) == 11 and d.startswith('51'):
+            d = d[2:]
+        if len(d) == 9 and d.startswith('9'):
+            return d
+    return ''
+
+
+def _wa_fecha(v):
+    """'2026-10-05T14:30' -> '05/10/2026 14:30'."""
+    s = str(v or '').strip()
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?', s)
+    if not m:
+        return s
+    a, mes, dia, hh, mm = m.groups()
+    txt = '%s/%s/%s' % (dia, mes, a)
+    if hh:
+        txt += ' %s:%s' % (hh, mm)
+    return txt
+
+
+def _wa_monto(v):
+    """1500.5 -> 'S/ 1,500.50'; '80.00 soles' -> 'S/ 80,00' (formato Perú)."""
+    s = str(v or '').strip()
+    m = re.search(r'-?\d[\d,]*(?:\.\d+)?', s)
+    if not m:
+        return s
+    try:
+        n = float(m.group(0).replace(',', ''))
+    except ValueError:
+        return s
+    txt = '{:,.2f}'.format(n).replace(',', '\x00').replace('.', ',').replace('\x00', '.')
+    return 'S/ ' + txt
+
+
+def _wa_deposito(row):
+    """Resumen del depósito como enlace wa.me, o None si no hay celular válido."""
+    num = _wa_celular(row)
+    if not num:
+        return None
+
+    nombre = _campo(row, 'Tecnico beneficiario')
+    codigo = str(row.get('CODIGO DEPOSITO') or '').strip()
+    motivo = _motivo_de(row)
+    if len(motivo) > 140:
+        motivo = motivo[:137].rstrip() + '...'
+    monto = _wa_monto(row.get('MONTO PAGO') or _monto_de(row))
+    fecha = _wa_fecha(row.get('FECHA PAGO'))
+    site = _site_de(row)
+    ticket = _campo(row, 'N CM PM PLM')
+
+    lineas = ['Hola %s 👋' % (nombre or 'buenos días'),
+              'Tu depósito en Rendición fue registrado ✅',
+              '',
+              'Código: %s' % (codigo or '-')]
+    if motivo:
+        lineas.append('Motivo: %s' % motivo)
+    if monto:
+        lineas.append('Monto: %s' % monto)
+    if fecha:
+        lineas.append('Fecha: %s' % fecha)
+    if site:
+        lineas.append('Sitio: %s' % site)
+    if ticket:
+        lineas.append('N° de ticket: %s' % ticket)
+    lineas += ['',
+               '📌 Recuerda sustentar la solicitud en las próximas 24 horas.',
+               'Cualquier consulta, comunícate con tu gestor; este medio no es para responder.',
+               '',
+               'Gracias.']
+    texto = '\n'.join(lineas)
+
+    return {'numero': '51' + num, 'texto': texto,
+            'url': 'https://wa.me/51%s?text=%s' % (num, quote(texto, safe=''))}
 
 
 def _crear_aviso(proy_id, tipo, texto, color, autor):
@@ -291,6 +395,9 @@ def api_rendicion_accion():
     # Siempre actualizamos quién fue el último en interactuar
     row['INTERACCION'] = usuario_actual
 
+    # Datos del aviso por WhatsApp (solo se llenan al depositar).
+    wa_deposito = None
+
     if accion == 'validar':
         # El modal exige elegir una de las 3 opciones de tiempo de respuesta.
         tiempo = str(data.get('tiempo') or '').strip()
@@ -360,6 +467,8 @@ def api_rendicion_accion():
         row['MONTO PAGO'] = monto
         row['FOTO PAGO'] = foto
         row['DEPOSITADO POR'] = usuario_actual
+        # Datos del aviso por WhatsApp (celular + mensaje con el código).
+        wa_deposito = _wa_deposito(row)
 
     elif accion == 'sustentar':
         fotos = data.get('fotos') or []
@@ -420,7 +529,10 @@ def api_rendicion_accion():
     # Aviso para todos los que tengan el módulo ("Jessica depositó S/ 100 ...")
     _aviso = 'rebote' if (accion == 'rechazar' and row.get('ESTADO') == 'DEPOSITADO') else accion
     _avisar_flujo(proy.id, _aviso, row, usuario_actual)
-    return jsonify({'success': True, 'estado': row['ESTADO'], 'newData': row})
+    respuesta = {'success': True, 'estado': row['ESTADO'], 'newData': row}
+    if wa_deposito:
+        respuesta['wa'] = wa_deposito
+    return jsonify(respuesta)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

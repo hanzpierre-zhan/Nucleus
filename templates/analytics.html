@@ -130,6 +130,33 @@
     .an-tbl .t-total { font-weight: 800; color: #0A84FF; }
     .an-tbl .an-tfoot td { font-weight: 800; color: var(--ios-label, #E7E0ED);
         border-top: 1px solid rgba(255,255,255,0.1); background: rgba(10,132,255,0.07); }
+    /* Rejilla de las vistas "Métricas clave": celdas uniformes (sin columnas
+       especiales) para mezclar KPIs, gráficos y tablas sin huecos. */
+    .an-grid-mk { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        align-items: start; margin-bottom: 14px; }
+    .an-grid-mk .an-kpis { grid-column: 1 / -1; }
+    /* Fila de tarjetas KPI (números grandes) */
+    .an-kpis { display: grid; gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .an-kpi { background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0) 45%),
+        var(--ios-card-bg, #1C1C1E);
+        border: 1px solid var(--ios-hairline, rgba(255,255,255,0.09));
+        border-radius: 14px; padding: 13px 15px 11px; min-width: 0;
+        box-shadow: var(--shadow-soft, 0 4px 16px rgba(0,0,0,0.25)); }
+    .an-kpi b { display: block; font-size: 23px; font-weight: 800; letter-spacing: -0.02em;
+        color: #0A84FF; font-family: 'IBM Plex Mono', monospace;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .an-kpi span { display: block; margin-top: 2px; font-size: 11px; font-weight: 800;
+        text-transform: uppercase; letter-spacing: .05em; color: var(--ios-gray, #8E8E93); }
+    .an-kpi em { display: block; margin-top: 3px; font-style: normal; font-size: 11px;
+        color: var(--ios-gray, #8E8E93); opacity: .85;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .an-kpi-ok b { color: #34C759; }
+    .an-kpi-warn b { color: #FF9F0A; }
+    .an-kpi-bad b { color: #FF453A; }
+    /* Separadores del selector de dashboard (Métricas clave / Dashboards) */
+    .an-dashsep { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+        color: var(--ios-gray, #8E8E93); padding: 8px 10px 3px; }
 </style>
 <div class="an-wrap"><div class="an-wrap-inner">
     <div class="an-head">
@@ -140,6 +167,12 @@
                 <i class="fa-solid fa-chevron-down"></i>
             </button>
             <div class="an-sel-panel" id="an-dashpanel">
+                <div class="an-dashsep an-mk-sep">Métricas clave</div>
+                <button type="button" class="an-dashopt" data-d="flm"><i class="fa-solid fa-chart-line"></i>FLM KPIs</button>
+                <button type="button" class="an-dashopt" data-d="comb"><i class="fa-solid fa-gas-pump"></i>Combustible KPIs</button>
+                <button type="button" class="an-dashopt" data-d="cotikpi"><i class="fa-solid fa-sack-dollar"></i>Cotizaciones KPIs</button>
+                <button type="button" class="an-dashopt" data-d="rendkpi"><i class="fa-solid fa-vault"></i>Rendición KPIs</button>
+                <div class="an-dashsep">Dashboards</div>
                 <button type="button" class="an-dashopt on" data-d="seg"><i class="fa-solid fa-magnifying-glass-chart"></i>Seguimiento</button>
                 <button type="button" class="an-dashopt" data-d="prod"><i class="fa-solid fa-industry"></i>Producción</button>
                 <button type="button" class="an-dashopt" data-d="rend"><i class="fa-solid fa-money-bill-transfer"></i>Rendición</button>
@@ -282,11 +315,17 @@
     </div>
     <!-- ── Dashboard Rendición ─────────────────────────────────────────────── -->
     <div id="an-view-rend" style="display:none;">
+        <div class="an-kpis" id="an-rendval" style="margin-bottom:14px;"></div>
         <div class="an-grid">
             <div class="an-card" id="an-card-rendest">
                 <h4>Estado</h4>
                 <div class="an-sub" id="an-rendest-sub"></div>
                 <div class="an-cv"><canvas id="an-rendest"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rendmon" style="display:none;">
+                <h4>Monto por proyecto</h4>
+                <div class="an-sub" id="an-rendmon-sub"></div>
+                <div class="an-cv"><canvas id="an-rendmon"></canvas></div>
             </div>
             <div class="an-card" id="an-card-rendresp" style="display:none;">
                 <h4>Responsable de validación</h4>
@@ -347,6 +386,155 @@
                 <h4>Resumen por estado</h4>
                 <div class="an-sub" id="an-cotitab-sub"></div>
                 <div id="an-cotitab"></div>
+            </div>
+        </div>
+    </div>
+    <!-- ── Métricas clave: FLM - ENTEL ──────────────────────────────────────── -->
+    <div id="an-view-flm" style="display:none;">
+        <div class="an-grid-mk">
+            <div class="an-kpis" id="an-flmkpi"></div>
+            <div class="an-card" id="an-card-flmest">
+                <h4>WO por estado</h4>
+                <div class="an-sub" id="an-flmest-sub"></div>
+                <div class="an-cv"><canvas id="an-flmest"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-flmdept">
+                <h4>Top departamentos</h4>
+                <div class="an-sub" id="an-flmdept-sub"></div>
+                <div class="an-cv"><canvas id="an-flmdept"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-flmfault">
+                <h4>Fault Level</h4>
+                <div class="an-sub" id="an-flmfault-sub"></div>
+                <div class="an-cv"><canvas id="an-flmfault"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-flmtipo">
+                <h4>Top tipo de tarea</h4>
+                <div class="an-sub" id="an-flmtipo-sub"></div>
+                <div class="an-cv"><canvas id="an-flmtipo"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-flmprio">
+                <h4>Prioridad del site</h4>
+                <div class="an-sub" id="an-flmprio-sub"></div>
+                <div class="an-cv"><canvas id="an-flmprio"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-flmline">
+                <h4>EVOLUCIÓN DE WO</h4>
+                <div class="an-sub" id="an-flmline-sub"></div>
+                <div class="an-cv-prod"><canvas id="an-flmline"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-flmtab">
+                <h4>Resumen por estado</h4>
+                <div class="an-sub" id="an-flmtab-sub"></div>
+                <div id="an-flmtab"></div>
+            </div>
+        </div>
+    </div>
+    <!-- ── Métricas clave: Combustible ──────────────────────────────────────── -->
+    <div id="an-view-comb" style="display:none;">
+        <div class="an-grid-mk">
+            <div class="an-kpis" id="an-combkpi"></div>
+            <div class="an-card" id="an-card-cbzona">
+                <h4>Galones por zona</h4>
+                <div class="an-sub" id="an-cbzona-sub"></div>
+                <div class="an-cv"><canvas id="an-cbzona"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cbgal" style="display:none;">
+                <h4>Galones por gestor</h4>
+                <div class="an-sub" id="an-cbgal-sub"></div>
+                <div class="an-cv"><canvas id="an-cbgal"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cbline">
+                <h4>EVOLUCIÓN MENSUAL</h4>
+                <div class="an-sub" id="an-cbline-sub"></div>
+                <div class="an-cv-prod"><canvas id="an-cbline"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cbmov">
+                <h4>Movimientos</h4>
+                <div class="an-sub" id="an-cbmov-sub"></div>
+                <div class="an-cv"><canvas id="an-cbmov"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cbtec">
+                <h4>Top técnicos</h4>
+                <div class="an-sub" id="an-cbtec-sub"></div>
+                <div class="an-cv"><canvas id="an-cbtec"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cbtab">
+                <h4>Resumen por movimiento</h4>
+                <div class="an-sub" id="an-cbtab-sub"></div>
+                <div id="an-cbtab"></div>
+            </div>
+        </div>
+    </div>
+    <!-- ── Métricas clave: Cotizaciones ─────────────────────────────────────── -->
+    <div id="an-view-cotikpi" style="display:none;">
+        <div class="an-grid-mk">
+            <div class="an-kpis" id="an-ckkpi"></div>
+            <div class="an-card" id="an-card-ckest">
+                <h4>Estado cotización</h4>
+                <div class="an-sub" id="an-ckest-sub"></div>
+                <div class="an-cv"><canvas id="an-ckest"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-ckcli">
+                <h4>Cliente</h4>
+                <div class="an-sub" id="an-ckcli-sub"></div>
+                <div class="an-cv"><canvas id="an-ckcli"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cksup">
+                <h4>Monto por supervisor</h4>
+                <div class="an-sub" id="an-cksup-sub"></div>
+                <div class="an-cv"><canvas id="an-cksup"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-ckline">
+                <h4>EVOLUCIÓN MENSUAL</h4>
+                <div class="an-sub" id="an-ckline-sub"></div>
+                <div class="an-cv-prod"><canvas id="an-ckline"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-cktab">
+                <h4>Resumen por estado</h4>
+                <div class="an-sub" id="an-cktab-sub"></div>
+                <div id="an-cktab"></div>
+            </div>
+        </div>
+    </div>
+    <!-- ── Métricas clave: Rendición ────────────────────────────────────────── -->
+    <div id="an-view-rendkpi" style="display:none;">
+        <div class="an-grid-mk">
+            <div class="an-kpis" id="an-rkkpi"></div>
+            <div class="an-card" id="an-card-rkest">
+                <h4>Estado</h4>
+                <div class="an-sub" id="an-rkest-sub"></div>
+                <div class="an-cv"><canvas id="an-rkest"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rkmon">
+                <h4>Monto por estado</h4>
+                <div class="an-sub" id="an-rkmon-sub"></div>
+                <div class="an-cv"><canvas id="an-rkmon"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rkpres">
+                <h4>Tipo de presupuesto</h4>
+                <div class="an-sub" id="an-rkpres-sub"></div>
+                <div class="an-cv"><canvas id="an-rkpres"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rkprov">
+                <h4>Proyecto</h4>
+                <div class="an-sub" id="an-rkprov-sub"></div>
+                <div class="an-cv"><canvas id="an-rkprov"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rkresp">
+                <h4>Responsable de validación</h4>
+                <div class="an-sub" id="an-rkresp-sub"></div>
+                <div class="an-cv"><canvas id="an-rkresp"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rkline">
+                <h4>SOLICITUDES POR DÍA</h4>
+                <div class="an-sub" id="an-rkline-sub"></div>
+                <div class="an-cv-prod"><canvas id="an-rkline"></canvas></div>
+            </div>
+            <div class="an-card" id="an-card-rktab">
+                <h4>Resumen por estado</h4>
+                <div class="an-sub" id="an-rktab-sub"></div>
+                <div id="an-rktab"></div>
             </div>
         </div>
     </div>
@@ -607,6 +795,9 @@
     function toggleChart(field, value, label) {
         if (anState.chart && anState.chart.field === field && anState.chart.value === value) anState.chart = null;
         else anState.chart = { field, value, label };
+        // Nota: renderAll destruye y recrea los gráficos; si el clic viene del
+        // propio Chart.js, su despacho de eventos puede tirar un SEVERE benigno
+        // ("...reading 'handleEvent'") sin afectar el filtrado (preexistente).
         renderAll();
     }
     function renderChartChip() {
@@ -1371,14 +1562,25 @@
                 sub: o.sub, top });
         } catch (e) { anHideCard(o.cardId); }
     }
-    // Línea de evolución mensual.
+    // Línea de evolución (granularidad 'month' por defecto, 'day' = por día).
     function anLine(o) {
         const el = document.getElementById(o.cardId);
         killChart(o.chartKeyC);
         try {
             if (!o.key || !(o.rows || []).length) { anHideCard(o.cardId); return; }
+            const gran = o.gran || 'month';
             const agg = {};
-            o.rows.forEach(r => { const ym = parseYmAny(r[o.key]); if (ym) agg[ym] = (agg[ym] || 0) + 1; });
+            o.rows.forEach(r => {
+                const s = String(r[o.key] == null ? '' : r[o.key]).trim();
+                let lab = null;
+                if (gran === 'day') {
+                    const m1 = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+                    const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                    if (m1) lab = m1[1] + '-' + String(m1[2]).padStart(2, '0') + '-' + String(m1[3]).padStart(2, '0');
+                    else if (m2) lab = m2[3] + '-' + String(m2[2]).padStart(2, '0') + '-' + String(m2[1]).padStart(2, '0');
+                } else lab = parseYmAny(s);
+                if (lab) agg[lab] = (agg[lab] || 0) + 1;
+            });
             const months = Object.keys(agg).sort();
             if (months.length < 2) { anHideCard(o.cardId); return; }
             anShowCard(o.cardId);
@@ -1414,19 +1616,20 @@
             if (!list.length) { anHideCard(o.cardId); return; }
             anShowCard(o.cardId);
             document.getElementById(o.subEl).textContent = o.sub;
+            const fmt = o.fmt || fmtMoney;
             const tot = list.reduce((s, [, d]) => s + d.n, 0);
             const totMonto = list.reduce((s, [, d]) => s + d.monto, 0);
             const head = '<tr><th>#</th><th>' + esc(o.stateTitle || 'Estado') + '</th>' +
                 '<th class="num">Registros</th><th class="num">%</th>' +
-                (o.montoKey ? '<th class="num">Monto</th>' : '') + '</tr>';
+                (o.montoKey ? '<th class="num">' + esc(o.montoTitle || 'Monto') + '</th>' : '') + '</tr>';
             const body = list.map(([est, d], i) =>
                 '<tr><td>' + (i + 1) + '</td><td title="' + esc(est) + '">' + esc(est) + '</td>' +
                 '<td class="num">' + fmtN(d.n) + '</td>' +
                 '<td class="num">' + (tot ? (d.n * 100 / tot).toFixed(1) : '0.0') + '%</td>' +
-                (o.montoKey ? '<td class="num">' + fmtMoney(d.monto) + '</td>' : '') + '</tr>').join('');
+                (o.montoKey ? '<td class="num">' + fmt(d.monto) + '</td>' : '') + '</tr>').join('');
             const foot = '<tr class="an-tfoot"><td></td><td>TOTAL</td>' +
                 '<td class="num">' + fmtN(tot) + '</td><td class="num">100%</td>' +
-                (o.montoKey ? '<td class="num t-total">' + fmtMoney(totMonto) + '</td>' : '') + '</tr>';
+                (o.montoKey ? '<td class="num t-total">' + fmt(totMonto) + '</td>' : '') + '</tr>';
             cont.innerHTML = '<div class="an-sitelist"><table class="an-tbl">' +
                 '<thead>' + head + '</thead><tbody>' + body + '</tbody>' + foot + '</table></div>';
         } catch (e) { anHideCard(o.cardId); }
@@ -1438,9 +1641,33 @@
         const kPrio = keyNamed('criticidad - prioridad', 'criticidad', 'prioridad');
         const kFech = keyNamed('marca temporal', 'fecha de creacion', 'fecha');
         const kMonto = keyNamed('monto total del deposito', 'monto', 'total');
+        const kPag = keyNamed('monto pago');
+        const n = rows.length;
+        let monto = 0, pagado = 0, conMon = 0;
+        rows.forEach(r => {
+            const m = anNum(r[kMonto]);
+            monto += m;
+            if (m) conMon++;
+            if (kPag) pagado += anNum(r[kPag]);
+        });
+        const saldo = monto - pagado;
+        // Sin columna de monto (p. ej. proyectos que no son de Rendición) la fila
+        // de valores se oculta y manda el aviso genérico de "sin tarjetas".
+        if (kMonto && (monto || pagado)) renderKpiRow('an-rendval', [
+            { v: fmtMoney(monto), l: 'Monto solicitado', s: 'monto total del depósito' },
+            { v: fmtMoney(pagado), l: 'Monto pagado', s: 'suma MONTO PAGO', tone: 'ok' },
+            { v: fmtMoney(saldo), l: 'Saldo por pagar', s: 'solicitado − pagado', tone: saldo > 0 ? 'warn' : 'ok' },
+            { v: fmtMoney(n ? monto / n : 0), l: 'Promedio', s: 'por solicitud' },
+            { v: pctC(conMon, n), l: 'Con monto', s: fmtN(conMon) + ' de ' + fmtN(n) },
+            { v: fmtN(n), l: 'Solicitudes', s: 'en el rango actual' }
+        ]);
+        else { const el = document.getElementById('an-rendval'); if (el) el.style.display = 'none'; }
         safeRender(() => anHbar({ chartKeyC: 'rendest', cardId: 'an-card-rendest',
             canvasId: 'an-rendest', subEl: 'an-rendest-sub', key: kEst, rows,
             sub: 'Solicitudes por estado · ' + fmtN(rows.length) + ' registros' }), 'rend-est');
+        safeRender(() => anSumBar({ chartKeyC: 'rendmon', cardId: 'an-card-rendmon',
+            canvasId: 'an-rendmon', subEl: 'an-rendmon-sub', key: kProv, numKey: kMonto, rows,
+            sub: 'S/ por proyecto (suma) · clic para filtrar' }), 'rend-mon');
         safeRender(() => anHbar({ chartKeyC: 'rendresp', cardId: 'an-card-rendresp',
             canvasId: 'an-rendresp', subEl: 'an-rendresp-sub', key: kResp, rows, max: 10,
             sub: 'Quién valida / deposita · clic para filtrar' }), 'rend-resp');
@@ -1487,6 +1714,241 @@
                 ' cotizaciones · ' + filterLabel() }), 'coti-tab');
         anSinTarjetasGeneric('#an-view-coti .an-card');
     }
+    /* ── Métricas clave (FLM · Combustible · Cotizaciones · Rendición) ───────
+       Vistas de KPIs del programa: fila de tarjetas numéricas + gráficos de
+       distribución/suma. Todas las columnas se resuelven con keyNamed y los
+       cálculos son defensivos (0 filas o columnas ausentes → tarjetas en 0 o
+       gráficos ocultos, nunca errores). */
+    const pctC = (a, b) => b ? (Math.round(a * 1000 / b) / 10).toFixed(1) + '%' : '0%';
+    const fmtGal = n => (Math.round(Number(n || 0) * 100) / 100).toLocaleString('es-PE') + ' gal';
+    const nonEmpty = (r, k) => k ? String(r[k] == null ? '' : r[k]).trim() !== '' : false;
+    // Fila de tarjetas KPI: tiles = [{v, l, s?, tone?: 'ok'|'warn'|'bad'}]
+    function renderKpiRow(elId, tiles) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        el.style.display = (tiles || []).length ? '' : 'none';
+        el.innerHTML = tiles.map(t =>
+            '<div class="an-kpi' + (t.tone ? ' an-kpi-' + t.tone : '') + '">' +
+            '<b title="' + esc(t.v) + '">' + esc(t.v) + '</b>' +
+            '<span>' + esc(t.l) + '</span>' +
+            (t.s ? '<em>' + esc(t.s) + '</em>' : '') + '</div>').join('');
+    }
+    // Barra horizontal con SUMA de una columna numérica por categoría
+    // (galones por zona, S/ por estado…): mismos clics/filtros que anHbar.
+    function anSumBar(o) {
+        try {
+            if (!o.key || !o.numKey || !(o.rows || []).length) { anHideCard(o.cardId); return; }
+            const map = new Map();
+            o.rows.forEach(r => {
+                if (!nonEmpty(r, o.key)) return;
+                const lbl = cellLbl(r, o.key), v = norm(lbl);
+                if (!map.has(v)) map.set(v, { labels: {}, s: 0 });
+                const m = map.get(v);
+                m.labels[lbl] = (m.labels[lbl] || 0) + 1;
+                m.s += anNum(r[o.numKey]);
+            });
+            const top = Array.from(map.values())
+                .map(m => [Object.entries(m.labels).sort((a, b) => b[1] - a[1])[0][0], m.s])
+                .sort((a, b) => b[1] - a[1]).slice(0, o.max || 8);
+            if (!top.length) { anHideCard(o.cardId); return; }
+            hbar({ chartKey: o.chartKeyC, cardId: o.cardId, canvasId: o.canvasId,
+                titleEl: null, subEl: o.subEl, field: 'an:' + o.key, key: o.key,
+                sub: o.sub, top });
+        } catch (e) { anHideCard(o.cardId); }
+    }
+    function renderAllFlm(rows) {
+        const kEst = keyNamed('estado de la tarea');
+        const kSus = keyNamed('estado suspendido');
+        const kVip = keyNamed('es vip');
+        const kFault = keyNamed('fault level');
+        const kAnt = keyNamed('antiguedad');
+        const n = rows.length;
+        const cerr = kEst ? rows.filter(r => norm(r[kEst]) === 'closed').length : 0;
+        const curso = kEst ? rows.filter(r =>
+            ['inprocess', 'dispatched', 'accepted'].indexOf(norm(r[kEst])) >= 0).length : 0;
+        const susp = kSus ? rows.filter(r => norm(r[kSus]) === 'yes').length : 0;
+        const vip = kVip ? rows.filter(r => norm(r[kVip]) === 'si').length : 0;
+        const crit = kFault ? rows.filter(r =>
+            ['alta', 'critical', 'critica', 'major'].indexOf(norm(r[kFault])) >= 0).length : 0;
+        const ants = (kAnt ? rows : [])
+            .map(r => nonEmpty(r, kAnt) ? anNum(r[kAnt]) : null)
+            .filter(v => v != null && v >= 0 && v <= 3650);
+        const antAvg = ants.length
+            ? Math.round(ants.reduce((a, b) => a + b, 0) / ants.length * 10) / 10 : 0;
+        renderKpiRow('an-flmkpi', [
+            { v: fmtN(n), l: 'WO totales', s: 'en el rango actual' },
+            { v: pctC(cerr, n), l: 'Cerradas', s: fmtN(cerr) + ' de ' + fmtN(n), tone: 'ok' },
+            { v: fmtN(n - cerr), l: 'Abiertas', s: fmtN(curso) + ' en curso', tone: n - cerr ? 'warn' : 'ok' },
+            { v: pctC(susp, n), l: 'Suspendidas', s: fmtN(susp) + ' WO' },
+            { v: fmtN(crit), l: 'Críticas / Alta+', s: 'Fault Level alto', tone: crit ? 'warn' : 'ok' },
+            { v: ants.length ? String(antAvg) : '–', l: 'Antigüedad prom.', s: 'días' },
+            { v: fmtN(vip), l: 'VIP', s: 'sites priorizados' }
+        ]);
+        safeRender(() => anHbar({ chartKeyC: 'flmest', cardId: 'an-card-flmest',
+            canvasId: 'an-flmest', subEl: 'an-flmest-sub', key: kEst, rows,
+            sub: 'WO por estado · ' + fmtN(n) + ' registros · clic para filtrar' }), 'flm-est');
+        safeRender(() => anHbar({ chartKeyC: 'flmdept', cardId: 'an-card-flmdept',
+            canvasId: 'an-flmdept', subEl: 'an-flmdept-sub', key: K_DEPT, rows, max: 8,
+            sub: 'WO por departamento' }), 'flm-dept');
+        safeRender(() => anHbar({ chartKeyC: 'flmfault', cardId: 'an-card-flmfault',
+            canvasId: 'an-flmfault', subEl: 'an-flmfault-sub', key: kFault, rows,
+            sub: 'WO por criticidad de falla' }), 'flm-fault');
+        safeRender(() => anHbar({ chartKeyC: 'flmtipo', cardId: 'an-card-flmtipo',
+            canvasId: 'an-flmtipo', subEl: 'an-flmtipo-sub', key: K_TIPOAV, rows, max: 8,
+            sub: 'Top tipo de tarea' }), 'flm-tipo');
+        safeRender(() => anHbar({ chartKeyC: 'flmprio', cardId: 'an-card-flmprio',
+            canvasId: 'an-flmprio', subEl: 'an-flmprio-sub', key: K_PRIO, rows,
+            sub: 'WO por prioridad del site' }), 'flm-prio');
+        safeRender(() => anLine({ chartKeyC: 'flmline', cardId: 'an-card-flmline',
+            canvasId: 'an-flmline', subEl: 'an-flmline-sub', key: K_CRE,
+            // Igual que la línea de Producción: sin filtro de mes, para que al
+            // filtrar un mes la evolución siga mostrando todos los meses.
+            rows: baseFilteredRows(),
+            label: 'WO', sub: 'WO creadas por mes · todos los meses' }), 'flm-line');
+        safeRender(() => anResumen({ cardId: 'an-card-flmtab', tabId: 'an-flmtab',
+            subEl: 'an-flmtab-sub', stateKey: kEst, rows, stateTitle: 'Estado',
+            sub: 'Distribución de ' + fmtN(n) + ' WO · ' + filterLabel() }), 'flm-tab');
+        anSinTarjetasGeneric('#an-view-flm .an-card');
+    }
+    function renderAllComb(rows) {
+        const kZona = keyNamed('zona');
+        const kGal = keyNamed('galones');
+        const kMov = keyNamed('movimiento');
+        const kFech = keyNamed('fecha', 'fecha de creacion', 'marca temporal');
+        const kTec = keyNamed('tecnico asignado');
+        const kGes = keyNamed('gestor');
+        const kFoto = keyNamed('foto');
+        const kFact = keyNamed('numero factura');
+        let ing = 0, gas = 0, gIng = 0, gGas = 0;
+        rows.forEach(r => {
+            const g = anNum(r[kGal]);
+            const m = norm(r[kMov]);
+            if (m === 'ingreso') { ing += g; gIng++; }
+            else if (m === 'gasto') { gas += g; gGas++; }
+        });
+        const conFoto = kFoto ? rows.filter(r => nonEmpty(r, kFoto)).length : 0;
+        const conFact = kFact ? rows.filter(r => nonEmpty(r, kFact)).length : 0;
+        const saldo = ing - gas;
+        renderKpiRow('an-combkpi', [
+            { v: fmtGal(ing + gas), l: 'Galones totales', s: fmtN(rows.length) + ' movimientos' },
+            { v: fmtGal(ing), l: 'Ingresos', s: fmtN(gIng) + ' movimientos', tone: 'ok' },
+            { v: fmtGal(gas), l: 'Gastos', s: fmtN(gGas) + ' movimientos', tone: 'bad' },
+            { v: fmtGal(saldo), l: 'Saldo', s: 'ingresos − gastos', tone: saldo >= 0 ? 'ok' : 'bad' },
+            { v: pctC(conFact, rows.length), l: 'Con factura', s: fmtN(conFact) + ' de ' + fmtN(rows.length) },
+            { v: pctC(conFoto, rows.length), l: 'Con foto', s: fmtN(conFoto) + ' de ' + fmtN(rows.length) }
+        ]);
+        safeRender(() => anSumBar({ chartKeyC: 'cbzona', cardId: 'an-card-cbzona',
+            canvasId: 'an-cbzona', subEl: 'an-cbzona-sub', key: kZona, numKey: kGal, rows,
+            sub: 'Galones por zona (suma) · clic para filtrar' }), 'cb-zona');
+        safeRender(() => anSumBar({ chartKeyC: 'cbgal', cardId: 'an-card-cbgal',
+            canvasId: 'an-cbgal', subEl: 'an-cbgal-sub', key: kGes, numKey: kGal, rows,
+            sub: 'Galones por gestor (suma) · clic para filtrar' }), 'cb-gal');
+        safeRender(() => anLine({ chartKeyC: 'cbline', cardId: 'an-card-cbline',
+            canvasId: 'an-cbline', subEl: 'an-cbline-sub', key: kFech, rows,
+            label: 'Movimientos', sub: 'Movimientos por mes · ' + filterLabel() }), 'cb-line');
+        safeRender(() => anHbar({ chartKeyC: 'cbmov', cardId: 'an-card-cbmov',
+            canvasId: 'an-cbmov', subEl: 'an-cbmov-sub', key: kMov, rows,
+            sub: 'Movimientos por tipo' }), 'cb-mov');
+        safeRender(() => anHbar({ chartKeyC: 'cbtec', cardId: 'an-card-cbtec',
+            canvasId: 'an-cbtec', subEl: 'an-cbtec-sub', key: kTec, rows, max: 8,
+            sub: 'Top técnicos · movimientos' }), 'cb-tec');
+        safeRender(() => anResumen({ cardId: 'an-card-cbtab', tabId: 'an-cbtab',
+            subEl: 'an-cbtab-sub', stateKey: kMov, montoKey: kGal, fmt: fmtGal,
+            montoTitle: 'Galones', rows, stateTitle: 'Movimiento',
+            sub: 'Galones por movimiento · ' + fmtN(rows.length) + ' registros' }), 'cb-tab');
+        anSinTarjetasGeneric('#an-view-comb .an-card');
+    }
+    function renderAllCotiK(rows) {
+        const kEst = keyNamed('estado cotizacion', 'estado');
+        const kMonto = keyNamed('sub total + fee', 'monto total', 'total', 'monto');
+        const kFech = keyNamed('fecha', 'fecha de creacion', 'marca temporal');
+        const kWo = keyNamed('numero wo', 'numero wo');
+        const kCod = keyNamed('codigo interno');
+        const kCli = keyNamed('cliente');
+        const kSup = keyNamed('supervisor');
+        const n = rows.length;
+        let monto = 0;
+        rows.forEach(r => { monto += anNum(r[kMonto]); });
+        const val = kEst ? rows.filter(r => norm(r[kEst]) === 'validado').length : 0;
+        const rech = kEst ? rows.filter(r => norm(r[kEst]) === 'rechazado').length : 0;
+        const conWo = kWo ? rows.filter(r => nonEmpty(r, kWo)).length : 0;
+        const pets = kCod ? rows.filter(r => nonEmpty(r, kCod)).length : 0;
+        renderKpiRow('an-ckkpi', [
+            { v: fmtN(n), l: 'Cotizaciones', s: 'registradas' },
+            { v: fmtMoney(monto), l: 'Monto total', s: 'SUB TOTAL + FEE' },
+            { v: fmtMoney(n ? monto / n : 0), l: 'Ticket medio', s: 'por cotización' },
+            { v: pctC(val, n), l: 'Validadas', s: fmtN(val) + ' de ' + fmtN(n), tone: 'ok' },
+            { v: fmtN(rech), l: 'Rechazadas', s: 'estado rechazado', tone: rech ? 'bad' : 'ok' },
+            { v: pctC(conWo, n), l: 'Con N° WO', s: fmtN(conWo) + ' de ' + fmtN(n) },
+            { v: fmtN(pets), l: 'Peticiones', s: 'con código interno' }
+        ]);
+        safeRender(() => anHbar({ chartKeyC: 'ckest', cardId: 'an-card-ckest',
+            canvasId: 'an-ckest', subEl: 'an-ckest-sub', key: kEst, rows,
+            sub: 'Cotizaciones por estado · ' + fmtN(n) + ' registros' }), 'ck-est');
+        safeRender(() => anHbar({ chartKeyC: 'ckcli', cardId: 'an-card-ckcli',
+            canvasId: 'an-ckcli', subEl: 'an-ckcli-sub', key: kCli, rows,
+            sub: 'Cotizaciones por cliente' }), 'ck-cli');
+        safeRender(() => anSumBar({ chartKeyC: 'cksup', cardId: 'an-card-cksup',
+            canvasId: 'an-cksup', subEl: 'an-cksup-sub', key: kSup, numKey: kMonto, rows,
+            sub: 'S/ por supervisor (suma) · clic para filtrar' }), 'ck-sup');
+        safeRender(() => anLine({ chartKeyC: 'ckline', cardId: 'an-card-ckline',
+            canvasId: 'an-ckline', subEl: 'an-ckline-sub', key: kFech, rows,
+            label: 'Cotizaciones', sub: 'Cotizaciones por mes · ' + filterLabel() }), 'ck-line');
+        safeRender(() => anResumen({ cardId: 'an-card-cktab', tabId: 'an-cktab',
+            subEl: 'an-cktab-sub', stateKey: kEst, montoKey: kMonto, rows,
+            stateTitle: 'Estado', sub: 'Distribución de ' + fmtN(n) +
+                ' cotizaciones · ' + filterLabel() }), 'ck-tab');
+        anSinTarjetasGeneric('#an-view-cotikpi .an-card');
+    }
+    function renderAllRendK(rows) {
+        const kEst = keyNamed('estado');
+        const kMonto = keyNamed('monto total del deposito', 'monto', 'total');
+        const kPag = keyNamed('monto pago');
+        const kFech = keyNamed('marca temporal', 'fecha de creacion', 'fecha');
+        const kFoto = keyNamed('foto pago');
+        const kPres = keyNamed('tipo de presupuesto');
+        const kProv = keyNamed('nombre del proyecto', 'proyecto');
+        const kResp = keyNamed('responsable de la validacion', 'validado por', 'depositado por');
+        const n = rows.length;
+        let monto = 0, pagado = 0;
+        rows.forEach(r => { monto += anNum(r[kMonto]); pagado += anNum(r[kPag]); });
+        const conEst = kEst ? rows.filter(r => nonEmpty(r, kEst)).length : 0;
+        const pend = kEst ? rows.filter(r => norm(r[kEst]) === 'pendiente').length : 0;
+        const rech = kEst ? rows.filter(r => norm(r[kEst]) === 'rechazado').length : 0;
+        const conFoto = kFoto ? rows.filter(r => nonEmpty(r, kFoto)).length : 0;
+        renderKpiRow('an-rkkpi', [
+            { v: fmtN(n), l: 'Solicitudes', s: 'registradas' },
+            { v: fmtMoney(monto), l: 'Monto solicitado', s: 'monto total del depósito' },
+            { v: fmtMoney(pagado), l: 'Monto pagado', s: 'suma MONTO PAGO', tone: 'ok' },
+            { v: pctC(conEst, n), l: 'Gestionadas', s: fmtN(conEst) + ' con estado' },
+            { v: fmtN(pend), l: 'Pendientes', s: 'en validación', tone: pend ? 'warn' : 'ok' },
+            { v: fmtN(rech), l: 'Rechazadas', s: 'estado rechazado', tone: rech ? 'bad' : 'ok' },
+            { v: pctC(conFoto, n), l: 'Con foto de pago', s: fmtN(conFoto) + ' evidencias' }
+        ]);
+        safeRender(() => anHbar({ chartKeyC: 'rkest', cardId: 'an-card-rkest',
+            canvasId: 'an-rkest', subEl: 'an-rkest-sub', key: kEst, rows,
+            sub: 'Solicitudes por estado · ' + fmtN(n) + ' registros · clic para filtrar' }), 'rk-est');
+        safeRender(() => anSumBar({ chartKeyC: 'rkmon', cardId: 'an-card-rkmon',
+            canvasId: 'an-rkmon', subEl: 'an-rkmon-sub', key: kEst, numKey: kMonto, rows,
+            sub: 'S/ por estado (suma)' }), 'rk-mon');
+        safeRender(() => anHbar({ chartKeyC: 'rkpres', cardId: 'an-card-rkpres',
+            canvasId: 'an-rkpres', subEl: 'an-rkpres-sub', key: kPres, rows,
+            sub: 'Solicitudes por tipo de presupuesto' }), 'rk-pres');
+        safeRender(() => anHbar({ chartKeyC: 'rkprov', cardId: 'an-card-rkprov',
+            canvasId: 'an-rkprov', subEl: 'an-rkprov-sub', key: kProv, rows,
+            sub: 'Solicitudes por proyecto' }), 'rk-prov');
+        safeRender(() => anHbar({ chartKeyC: 'rkresp', cardId: 'an-card-rkresp',
+            canvasId: 'an-rkresp', subEl: 'an-rkresp-sub', key: kResp, rows, max: 8,
+            sub: 'Top responsable de validación' }), 'rk-resp');
+        safeRender(() => anLine({ chartKeyC: 'rkline', cardId: 'an-card-rkline',
+            canvasId: 'an-rkline', subEl: 'an-rkline-sub', key: kFech, rows, gran: 'day',
+            label: 'Solicitudes', sub: 'Solicitudes por día · ' + filterLabel() }), 'rk-line');
+        safeRender(() => anResumen({ cardId: 'an-card-rktab', tabId: 'an-rktab',
+            subEl: 'an-rktab-sub', stateKey: kEst, montoKey: kMonto, rows,
+            stateTitle: 'Estado', sub: 'Distribución de ' + fmtN(n) +
+                ' solicitudes · ' + filterLabel() }), 'rk-tab');
+        anSinTarjetasGeneric('#an-view-rendkpi .an-card');
+    }
     // Aviso cuando la vista no encontró ni una columna que graficar.
     function anSinTarjetasGeneric(sel) {
         const vis = Array.prototype.slice.call(document.querySelectorAll(sel))
@@ -1525,6 +1987,22 @@
             safeRender(() => renderTotal(rows), 'total');
             safeRender(() => renderAllCoti(rows), 'cotizacion');
             anEstadoVacio(rows.length, rows.length);
+        } else if (anDash === 'flm') {
+            safeRender(() => renderTotal(rows), 'total');
+            safeRender(() => renderAllFlm(rows), 'flm-kpis');
+            anEstadoVacio(rows.length, rows.length);
+        } else if (anDash === 'comb') {
+            safeRender(() => renderTotal(rows), 'total');
+            safeRender(() => renderAllComb(rows), 'comb-kpis');
+            anEstadoVacio(rows.length, rows.length);
+        } else if (anDash === 'cotikpi') {
+            safeRender(() => renderTotal(rows), 'total');
+            safeRender(() => renderAllCotiK(rows), 'cotikpi');
+            anEstadoVacio(rows.length, rows.length);
+        } else if (anDash === 'rendkpi') {
+            safeRender(() => renderTotal(rows), 'total');
+            safeRender(() => renderAllRendK(rows), 'rendkpi');
+            anEstadoVacio(rows.length, rows.length);
         } else {
             safeRender(() => renderTotal(rows), 'total');
             renderAllSeg(rows);
@@ -1532,6 +2010,39 @@
             anQuitarAviso('an-aviso-sin-tarjetas');
         }
         resizeCharts();
+        healBlankCharts();
+        // Segunda pasada tras la animación (~900ms): cubre el caso de canvas
+        // que se pinta bien al crear y queda en blanco durante/tras el render.
+        clearTimeout(anHealT);
+        anHealT = setTimeout(healBlankCharts, 1400);
+    }
+    let anHealT = null;
+    /* Auto-reparación: tras cada render se comprueba que los gráficos visibles
+       tengan píxeles. Si algún canvas quedó en blanco (creado mientras la vista
+       estaba oculta, resize a 0 o animación interrumpida) se fuerza el repintado
+       sin animación. Sin esto, en algunas máquinas las tarjetas quedaban vacías
+       mientras títulos/KPIs/tabla sí se actualizaban. */
+    function healBlankCharts() {
+        try {
+            Object.keys(charts).forEach(k => {
+                const ch = charts[k];
+                if (!ch || !ch.canvas || !ch.canvas.isConnected) return;
+                const cv = ch.canvas;
+                const r = cv.getBoundingClientRect();
+                if (!r.width || !r.height) return;              // oculto: lo repintará RO al mostrar
+                if (!cv.width || !cv.height) {
+                    try { ch.resize(); ch.update('none'); } catch (e) {}
+                    return;
+                }
+                try {
+                    const w = Math.min(cv.width, 48), h = Math.min(cv.height, 48);
+                    const d = cv.getContext('2d').getImageData(0, 0, w, h).data;
+                    let n = 0;
+                    for (let i = 3; i < d.length; i += 40) { if (d[i] > 0) { n = 1; break; } }
+                    if (!n) ch.update('none');
+                } catch (e) {}
+            });
+        } catch (e) {}
     }
     /* Si tras filtrar no queda nada visible, se avisa en vez de dejar la pantalla
        en blanco (antes cada tarjeta se ocultaba con display:none y no había aviso). */
@@ -1548,25 +2059,37 @@
             Object.keys(charts).forEach(k => { try { if (charts[k]) charts[k].resize(); } catch (e) {} });
         } catch (e) {}
     }
-    /* Selector de dashboard: Seguimiento / Producción / Rendición / Cotización.
+    /* Selector de dashboard: Métricas clave (FLM / Combustible / Cotizaciones /
+       Rendición) + Dashboards (Seguimiento / Producción / Rendición / Cotización).
        Abre en Seguimiento al iniciar sesión o abrir el navegador de nuevo
        (sesiónStorage se limpia al cerrar la pestaña); dentro de la misma
        sesión se recuerda la vista elegida POR PROYECTO, para que al pasar de
        Rendición a FLM no se herede una vista que no aplica. */
     const DASH_NAMES = { seg: 'Seguimiento', prod: 'Producción',
-        rend: 'Rendición', coti: 'Cotización' };
-    // Rendición / Cotización son proyectos con su propio formulario.
+        rend: 'Rendición', coti: 'Cotización',
+        flm: 'FLM KPIs', comb: 'Combustible KPIs',
+        cotikpi: 'Cotizaciones KPIs', rendkpi: 'Rendición KPIs' };
+    // Rendición / Cotización / Combustible son proyectos con su propio formulario.
     const isRendProy = _pn === 'rendicion' || _pn.indexOf('rendicion') === 0;
     const isCotiProy = _pn === 'cotizaciones' || _pn.indexOf('cotizacion') === 0;
+    const isCombProy = _pn === 'combustible' || _pn.indexOf('combust') === 0;
+    // Cada vista "Métricas clave" solo existe en su programa (opción y vista).
+    const MK_OK = { flm: isPext, comb: isCombProy,
+        cotikpi: isCotiProy, rendkpi: isRendProy };
     const DASH_STORE = 'an-dash:' + proyName;
     let anDash = null;
     try { anDash = sessionStorage.getItem(DASH_STORE); } catch (e) {}
     if (!DASH_NAMES[anDash]) anDash = null;
     // Seguimiento solo tiene datos en proyectos WO con Operate Phase.
     if (anDash === 'seg' && !(isPext && K_PHASE)) anDash = null;
-    // Sin elección previa, abrir la vista que corresponde a este proyecto.
-    if (!anDash) anDash = isRendProy ? 'rend'
-        : (isCotiProy ? 'coti' : ((isPext && K_PHASE) ? 'seg' : 'prod'));
+    // Las vistas Métricas clave solo aplican a su programa.
+    if (anDash && MK_OK[anDash] !== undefined && !MK_OK[anDash]) anDash = null;
+    // Sin elección previa, abrir la vista que corresponde a este proyecto
+    // (los KPIs del programa son la vista por defecto de cada uno).
+    if (!anDash) anDash = isRendProy ? 'rendkpi'
+        : (isCotiProy ? 'cotikpi'
+        : (isCombProy ? 'comb'
+        : (isPext ? 'flm' : 'prod')));
     function applyDashUI() {
         document.getElementById('an-dashname').textContent = DASH_NAMES[anDash] || 'Analytics';
         document.querySelectorAll('.an-dashopt').forEach(b =>
@@ -1576,9 +2099,22 @@
         const conSeg = isPext && !!K_PHASE;
         const segOpt = document.querySelector('.an-dashopt[data-d="seg"]');
         if (segOpt) segOpt.style.display = conSeg ? '' : 'none';
+        // Métricas clave: cada opción solo se ofrece en su programa (y el
+        // separador se oculta si el proyecto no ofrece ninguna).
+        let mkVis = 0;
+        document.querySelectorAll('.an-dashopt').forEach(b => {
+            const d = b.dataset.d;
+            if (MK_OK[d] === undefined) return;
+            const ok = !!MK_OK[d];
+            b.style.display = ok ? '' : 'none';
+            if (ok) mkVis++;
+        });
+        document.querySelectorAll('.an-mk-sep').forEach(el => { el.style.display = mkVis ? '' : 'none'; });
         const show = { prod: anDash === 'prod', seg: anDash === 'seg',
-            rend: anDash === 'rend', coti: anDash === 'coti' };
-        ['prod', 'seg', 'rend', 'coti'].forEach(d => {
+            rend: anDash === 'rend', coti: anDash === 'coti',
+            flm: anDash === 'flm', comb: anDash === 'comb',
+            cotikpi: anDash === 'cotikpi', rendkpi: anDash === 'rendkpi' };
+        ['prod', 'seg', 'rend', 'coti', 'flm', 'comb', 'cotikpi', 'rendkpi'].forEach(d => {
             const v = document.getElementById('an-view-' + d);
             if (v) v.style.display = show[d] ? '' : 'none';
         });
@@ -1592,6 +2128,7 @@
     function setDash(d) {
         if (!DASH_NAMES[d] || d === anDash) { closeAllSels(); return; }
         if (d === 'seg' && !(isPext && K_PHASE)) { closeAllSels(); return; }
+        if (MK_OK[d] !== undefined && !MK_OK[d]) { closeAllSels(); return; }
         anDash = d;
         try { sessionStorage.setItem(DASH_STORE, d); } catch (e) {}
         applyDashUI();
