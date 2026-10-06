@@ -7789,7 +7789,11 @@ btnItem.onclick = () => cotRegAgregarFila();
         row.appendChild(del);
 
         cont.appendChild(row);
-        cotRegReordenar();
+        if (datos.correlativo != null && String(datos.correlativo).trim() !== '') {
+            itemInp.value = datos.correlativo;
+        } else {
+            cotRegReordenar();
+        }
         recalc();
     }
 
@@ -11310,7 +11314,11 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
 
         cont.appendChild(row);
-        reordenarItemsCobra();
+        if (datos.correlativo != null && String(datos.correlativo).trim() !== '') {
+            itemInp.value = datos.correlativo;
+        } else {
+            reordenarItemsCobra();
+        }
         recalc();
     }
 

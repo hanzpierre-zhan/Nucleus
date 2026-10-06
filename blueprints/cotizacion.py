@@ -554,17 +554,19 @@ def api_cotizacion_generar():
 def api_cotizacion_items_template():
     """Genera y descarga una plantilla Excel con las columnas de items de cotización formato Cobra."""
     import io as _io
-    # Columnas: TIPO | TEXTO EXPLICATIVO | UND | CANTIDAD | VALOR UNITARIO | FEE % | COMENTARIOS
-    cols = ['TIPO', 'TEXTO EXPLICATIVO', 'UND', 'CANTIDAD', 'VALOR UNITARIO', 'FEE %', 'COMENTARIOS']
+    # Columnas exactas solicitadas
+    cols = ['CORRELATIVO', 'TIPO', 'TEXTO EXPLICATIVO', 'UND', 'CANTIDAD', 'VALOR UNITARIO', 'FEE %', 'VALOR TOTAL', 'COMENTARIOS']
     tipos_validos = ['REEMBOLSABLE', 'LPU']
     und_validos = ['Glb', 'Und', 'm', 'm2', 'Hr', 'Día', 'Mes', 'Viaje', 'Km']
     ejemplo = {
+        'CORRELATIVO': 1,
         'TIPO': 'LPU',
         'TEXTO EXPLICATIVO': 'Descripción del trabajo realizado',
         'UND': 'Glb',
         'CANTIDAD': 1,
         'VALOR UNITARIO': 100.00,
-        'FEE %': 5,
+        'FEE %': 0,
+        'VALOR TOTAL': 100.00,
         'COMENTARIOS': 'Comentario opcional',
     }
     buf = _io.BytesIO()
@@ -585,18 +587,18 @@ def api_cotizacion_items_template():
                 cell.fill = hdr_fill
                 cell.font = hdr_font
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-            # Validación de TIPO (col A)
+            # Validación de TIPO (col B)
             dv_tipo = DataValidation(type='list', formula1='"' + ','.join(tipos_validos) + '"', allow_blank=True, showErrorMessage=True)
             dv_tipo.error = 'Elige REEMBOLSABLE o LPU'
             dv_tipo.errorTitle = 'Tipo inválido'
             ws.add_data_validation(dv_tipo)
-            dv_tipo.add('A2:A1000')
-            # Validación de UND (col C)
+            dv_tipo.add('B2:B1000')
+            # Validación de UND (col D)
             dv_und = DataValidation(type='list', formula1='"' + ','.join(und_validos) + '"', allow_blank=True, showErrorMessage=False)
             ws.add_data_validation(dv_und)
-            dv_und.add('C2:C1000')
-            # Ancho de columnas: TIPO | TEXTO EXPLICATIVO | UND | CANTIDAD | VALOR UNITARIO | FEE % | COMENTARIOS
-            anchos = [16, 48, 12, 12, 18, 10, 36]
+            dv_und.add('D2:D1000')
+            # Ancho de columnas: CORRELATIVO | TIPO | TEXTO EXPLICATIVO | UND | CANTIDAD | VALOR UNITARIO | FEE % | VALOR TOTAL | COMENTARIOS
+            anchos = [14, 16, 48, 12, 12, 18, 10, 16, 36]
             for idx, ancho in enumerate(anchos, 1):
                 ws.column_dimensions[get_column_letter(idx)].width = ancho
         except Exception:
@@ -640,6 +642,7 @@ def api_cotizacion_items_import():
 
     # Mapas de sinónimos de columnas
     MAP = {
+        'correlativo': ['CORRELATIVO', 'CORR', 'N° ITEM', 'N°ITEM', 'ITEM'],
         'TIPO': ['TIPO'],
         'texto': ['TEXTO EXPLICATIVO', 'TEXTO', 'DESCRIPCION', 'DESCRIPCIÓN', 'DETALLE'],
         'und': ['UND', 'UNIDAD', 'UNID'],
@@ -655,6 +658,7 @@ def api_cotizacion_items_import():
                 return s.upper()
         return None
 
+    col_corr = _col(MAP['correlativo'])
     col_tipo = _col(MAP['TIPO'])
     col_texto = _col(MAP['texto'])
     col_und = _col(MAP['und'])
@@ -694,7 +698,9 @@ def api_cotizacion_items_import():
         vt = None
         if cant is not None and vu is not None:
             vt = round(cant * vu * (1 + fee / 100), 2)
+        corr_raw = str(row[col_corr] if col_corr else '').strip()
         item = {
+            'correlativo': corr_raw,
             'tipo': tipo,
             'texto': texto,
             'und': und,
