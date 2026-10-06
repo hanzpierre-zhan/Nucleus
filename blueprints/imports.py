@@ -185,6 +185,23 @@ def api_import_process():
             df = pd.read_excel(file, dtype=str)
             
         df.columns = [str(c).strip() for c in df.columns]
+        # Columna canónica: si el esquema ya tiene "Category" y el archivo trae
+        # "CATEGORY" (distinta solo en mayúsculas), se renombra AQUÍ, antes de que
+        # se escriba ningún registro, para que el dato entre en la columna
+        # existente y no nazca una columna duplicada residuo.
+        try:
+            _sch_canon = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+            _cols_canon = {str(c).casefold(): str(c)
+                           for c in (json.loads(_sch_canon.valor) if _sch_canon and _sch_canon.valor else [])}
+            _ren_canon = {c: _cols_canon[str(c).casefold()]
+                          for c in list(df.columns)
+                          if _cols_canon.get(str(c).casefold()) and _cols_canon[str(c).casefold()] not in df.columns
+                          and _cols_canon[str(c).casefold()] != c}
+            if _ren_canon:
+                df = df.rename(columns=_ren_canon)
+                df.columns = [str(x).strip() for x in df.columns]
+        except Exception:
+            pass
         # Tabulator no soporta '.' en nombres de campo (acceso anidado). Se sanean
         # las columnas aquí para que TODO lo que se importa quede guardado limpio.
         df = df.rename(columns=_sane_data_key)
@@ -605,7 +622,30 @@ def api_import_process():
         
         config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
         schema_cols = set(json.loads(config_schema.valor)) if config_schema else set()
-        new_schema = schema_cols.union(set(df.columns)).union(dynamic_cols)
+        # Nunca meter en app_schema las columnas manuales (ya se listan aparte) ni
+        # variantes de mayúsculas de una columna que ya existe (CATEGORY vs Category):
+        # eso dejaba residuos acumulativos que ni el menú "Columnas" limpiaba.
+        _manuales_imp = set()
+        try:
+            _mc_imp = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+            if _mc_imp and _mc_imp.valor:
+                _manuales_imp = {str(x.get('nombre', '')).strip() for x in json.loads(_mc_imp.valor) if x.get('nombre')}
+        except Exception:
+            _manuales_imp = set()
+        _bajo_imp = {str(c).casefold(): str(c) for c in schema_cols}
+        _manuales_bajo = {str(m).casefold() for m in _manuales_imp}
+        _nuevas_imp = set()
+        _nuevas_bajo = set()
+        for c in list(df.columns) + sorted(dynamic_cols):
+            s = str(c).strip()
+            if not s:
+                continue
+            b = s.casefold()
+            if b in _bajo_imp or b in _manuales_bajo or b in _nuevas_bajo:
+                continue
+            _nuevas_bajo.add(b)
+            _nuevas_imp.add(s)
+        new_schema = schema_cols.union(_nuevas_imp)
         if new_schema != schema_cols:
             if config_schema:
                 config_schema.valor = safe_json_dumps(list(new_schema))
