@@ -554,7 +554,8 @@ def api_cotizacion_generar():
 def api_cotizacion_items_template():
     """Genera y descarga una plantilla Excel con las columnas de items de cotización formato Cobra."""
     import io as _io
-    cols = ['TIPO', 'TEXTO EXPLICATIVO', 'UND', 'CANTIDAD', 'VALOR UNITARIO', 'COMENTARIOS']
+    # Columnas: TIPO | TEXTO EXPLICATIVO | UND | CANTIDAD | VALOR UNITARIO | FEE % | COMENTARIOS
+    cols = ['TIPO', 'TEXTO EXPLICATIVO', 'UND', 'CANTIDAD', 'VALOR UNITARIO', 'FEE %', 'COMENTARIOS']
     tipos_validos = ['REEMBOLSABLE', 'LPU']
     und_validos = ['Glb', 'Und', 'm', 'm2', 'Hr', 'Día', 'Mes', 'Viaje', 'Km']
     ejemplo = {
@@ -563,6 +564,7 @@ def api_cotizacion_items_template():
         'UND': 'Glb',
         'CANTIDAD': 1,
         'VALOR UNITARIO': 100.00,
+        'FEE %': 5,
         'COMENTARIOS': 'Comentario opcional',
     }
     buf = _io.BytesIO()
@@ -583,18 +585,18 @@ def api_cotizacion_items_template():
                 cell.fill = hdr_fill
                 cell.font = hdr_font
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-            # Validación de TIPO
+            # Validación de TIPO (col A)
             dv_tipo = DataValidation(type='list', formula1='"' + ','.join(tipos_validos) + '"', allow_blank=True, showErrorMessage=True)
             dv_tipo.error = 'Elige REEMBOLSABLE o LPU'
             dv_tipo.errorTitle = 'Tipo inválido'
             ws.add_data_validation(dv_tipo)
-            dv_tipo.add(f'A2:A1000')
-            # Validación de UND
+            dv_tipo.add('A2:A1000')
+            # Validación de UND (col C)
             dv_und = DataValidation(type='list', formula1='"' + ','.join(und_validos) + '"', allow_blank=True, showErrorMessage=False)
             ws.add_data_validation(dv_und)
-            dv_und.add(f'C2:C1000')
-            # Ancho de columnas
-            anchos = [16, 48, 12, 12, 18, 36]
+            dv_und.add('C2:C1000')
+            # Ancho de columnas: TIPO | TEXTO EXPLICATIVO | UND | CANTIDAD | VALOR UNITARIO | FEE % | COMENTARIOS
+            anchos = [16, 48, 12, 12, 18, 10, 36]
             for idx, ancho in enumerate(anchos, 1):
                 ws.column_dimensions[get_column_letter(idx)].width = ancho
         except Exception:
@@ -643,6 +645,7 @@ def api_cotizacion_items_import():
         'und': ['UND', 'UNIDAD', 'UNID'],
         'cantidad': ['CANTIDAD', 'CANT'],
         'valor_unitario': ['VALOR UNITARIO', 'VALOR_UNITARIO', 'V. UNITARIO', 'PRECIO', 'PRECIO UNITARIO'],
+        'fee': ['FEE %', 'FEE', 'FEE%', 'FEE PORCENTAJE'],
         'comentarios': ['COMENTARIOS', 'COMENTARIO', 'NOTAS', 'NOTA'],
     }
 
@@ -657,6 +660,7 @@ def api_cotizacion_items_import():
     col_und = _col(MAP['und'])
     col_cant = _col(MAP['cantidad'])
     col_vu = _col(MAP['valor_unitario'])
+    col_fee = _col(MAP['fee'])
     col_com = _col(MAP['comentarios'])
 
     items = []
@@ -679,8 +683,14 @@ def api_cotizacion_items_import():
             vu = float(vu_raw.replace(',', '.')) if vu_raw else None
         except (ValueError, TypeError):
             vu = None
-        # FEE auto según tipo
-        fee = 5 if tipo == 'REEMBOLSABLE' else 0
+        # FEE: leer desde columna si existe; fallback automático por tipo
+        fee_raw = str(row[col_fee] if col_fee else '').strip() if col_fee else ''
+        try:
+            fee = float(fee_raw.replace(',', '.').replace('%', '')) if fee_raw else None
+        except (ValueError, TypeError):
+            fee = None
+        if fee is None:
+            fee = 5 if tipo == 'REEMBOLSABLE' else 0
         vt = None
         if cant is not None and vu is not None:
             vt = round(cant * vu * (1 + fee / 100), 2)
@@ -690,6 +700,7 @@ def api_cotizacion_items_import():
             'und': und,
             'cantidad': str(cant) if cant is not None else '',
             'valor_unitario': str(vu) if vu is not None else '',
+            'fee': str(int(fee)) if fee == int(fee) else str(fee),
             'valor_total': str(vt) if vt is not None else '',
             'comentarios': comentarios,
         }

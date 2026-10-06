@@ -2835,7 +2835,7 @@
                     title="Descargar plantilla Excel para carga masiva"><i class="fa-solid fa-file-arrow-down"></i></a>
                 <button type="button" id="btn-mar-importar-coti" onclick="cerrarModalRegistro(); abrirModalImportar()"
                     class="mar-btn-generar" style="background: linear-gradient(135deg, #30B0C7, #1a7f8f);"
-                    title="Importar cotizaciones masivamente"><i class="fa-solid fa-file-import"></i></button>
+                    title="Importar items masivamente"><i class="fa-solid fa-file-import"></i></button>
                 {% endif %}
                 <button type="button" id="btn-mar-preview-coti" onclick="previsualizarCotizacion()"
                     class="mar-btn-generar" style="display:none; background: linear-gradient(135deg, #6B7280, #4B5563);" title="Previsualizar PDF (no consume correlativo)"><i class="fa-solid fa-eye"></i></button>
@@ -7726,6 +7726,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         feeInp.type = 'text';
         feeInp.className = 'wo-cobra-fee wo-coti-auto';
         feeInp.readOnly = true;
+        // Si viene del import, inicializar con el fee recibido
+        if (datos.fee != null && datos.fee !== '') feeInp.value = datos.fee + '%';
         row.appendChild(feeInp);
 
         const vtInp = document.createElement('input');
@@ -7757,7 +7759,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const recalc = () => {
             const tipo = (selTipo.value || '').toUpperCase();
-            const fee = tipo === 'REEMBOLSABLE' ? 5 : 0;
+            // Usar FEE del import si existe; de lo contrario calcular por tipo
+            const feeActual = parseFloat(String(feeInp.value).replace('%', ''));
+            const fee = isNaN(feeActual) ? (tipo === 'REEMBOLSABLE' ? 5 : 0) : feeActual;
             feeInp.value = selTipo.value ? (fee + '%') : '';
             const cant = parseFloat(cantInp.value);
             const vu = parseFloat(vuInp.value);
@@ -11241,7 +11245,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (datos.valor_unitario != null) vuInp.value = datos.valor_unitario;
         row.appendChild(vuInp);
 
-        // FEE % (auto segun TIPO)
+        // FEE % (auto segun TIPO; si viene del import se usa datos.fee)
         const feeInp = document.createElement('input');
         feeInp.type = 'text';
         feeInp.className = 'wo-cobra-fee wo-coti-auto';
@@ -11270,7 +11274,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const recalc = () => {
             const tipo = (selTipo.value || '').toUpperCase();
-            const fee = tipo === 'REEMBOLSABLE' ? 5 : 0;
+            // Usar FEE del import si existe; de lo contrario calcular por tipo
+            const feeActual = parseFloat(String(feeInp.value).replace('%', ''));
+            const fee = isNaN(feeActual) ? (tipo === 'REEMBOLSABLE' ? 5 : 0) : feeActual;
             feeInp.value = selTipo.value ? (fee + '%') : '';
             const cant = parseFloat(cantInp.value);
             const vu = parseFloat(vuInp.value);
