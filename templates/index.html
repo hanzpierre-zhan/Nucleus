@@ -1705,6 +1705,13 @@
 
 
 
+    /* ── NUMERO WO tag-input multi-chip ── */
+    .wo-tag-wrap:focus-within {
+        border-color: var(--ios-blue, #007AFF) !important;
+        box-shadow: 0 0 0 3px rgba(0,122,255,0.15) !important;
+    }
+    .wo-chip-val button:hover { opacity: 1 !important; }
+
     /* ── Botones de icono en filas de tabla (Cotizaciones / WOs) ── */
     .tabulator .tabulator-cell button[style*="border-radius"][style*="cursor:pointer"]:hover,
     .tabulator-row button[style*="border-radius"][style*="cursor:pointer"]:hover {
@@ -15903,7 +15910,7 @@ let _rendCambiandoVista = false;
 
         const campos = document.querySelectorAll(
 
-            '#mar-fields .mar-field input[data-field],' +
+            '#mar-fields .mar-field input[data-field]:not([type=hidden]),' +
 
             '#mar-fields .mar-field select[data-field],' +
 
@@ -15922,6 +15929,12 @@ let _rendCambiandoVista = false;
             if (v !== '') data[f] = v;
 
         });
+
+        // Collect hidden inputs (e.g. NUMERO WO multi-chip tag input)
+
+        document.querySelectorAll('#mar-fields .mar-field input[type=hidden][data-field]')
+
+            .forEach(function(el) { if (el.dataset.field && el.value) data[el.dataset.field] = el.value; });
 
 
 
@@ -15971,13 +15984,21 @@ let _rendCambiandoVista = false;
 
         })
 
-            .then(r => r.json())
+            .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j })))
 
-            .then(res => {
+            .then(({ ok, status, j }) => {
 
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Solicitar Cotización'; }
 
-                if (!res.success) { nucleusAlert(res.error || 'No se pudo registrar la solicitud.'); return; }
+                if (!ok || !j.success) {
+
+                    const msg = j.error || j.message || ('Error ' + status + ' al guardar la solicitud.');
+
+                    nucleusAlert(msg);
+
+                    return;
+
+                }
 
                 // Se queda en la pestaña 1 (Registro)
 
@@ -15989,11 +16010,13 @@ let _rendCambiandoVista = false;
 
             })
 
-            .catch(() => {
+            .catch(err => {
 
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Solicitar Cotización'; }
 
-                nucleusAlert('Error de conexión al guardar la solicitud.');
+                console.error('[solicitarCotizacion] catch:', err);
+
+                nucleusAlert('Error al guardar: ' + (err && err.message ? err.message : 'Revisa la consola del navegador (F12).'));
 
             });
 
@@ -16216,89 +16239,99 @@ let _rendCambiandoVista = false;
 
 
 
-        // NUMERO WO: en modo edición muestra los WOs del registro; en nuevo es texto libre con datalist
+        // NUMERO WO — tag-input multi-chip: soporta varios WOs a la vez
+        // El valor real se guarda en el hidden input (data-field="NUMERO WO")
         const _woValActual = (cotiEditMode && cotiEditData) ? String(cotiEditData['NUMERO WO'] || '').trim() : '';
 
-        let inpNumeroWO;
+        const _woTagWrap = document.createElement('div');
+        _woTagWrap.className = 'wo-tag-wrap';
+        _woTagWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:36px;padding:4px 8px;border:1px solid var(--ios-hairline,#C7C7CC);border-radius:10px;background:var(--excel-bg);cursor:text;';
 
-        if (_woValActual) {
+        const _woHidden = document.createElement('input');
+        _woHidden.type = 'hidden';
+        _woHidden.setAttribute('data-field', 'NUMERO WO');
+        _woTagWrap.appendChild(_woHidden);
 
-            // Edición: mostrar WOs existentes como select editable (combobox)
-            inpNumeroWO = document.createElement('input');
-
-            inpNumeroWO.type = 'text';
-
-            inpNumeroWO.value = _woValActual;
-
-            inpNumeroWO.placeholder = 'N° de WO (separar con coma si hay varios)...';
-
-            // Badge visual de los WOs cargados
-            const _wosArr = _woValActual.split(/[,;\n|]+/).map(w => w.trim()).filter(Boolean);
-
-            if (_wosArr.length > 1) {
-
-                inpNumeroWO.title = 'WOs: ' + _wosArr.join(', ');
-
-            }
-
-        } else {
-
-            // Nuevo registro: texto libre con datalist de WOs de FLM
-            inpNumeroWO = document.createElement('input');
-
-            inpNumeroWO.type = 'text';
-
-            inpNumeroWO.setAttribute('list', 'wo-list-datalist');
-
-            inpNumeroWO.placeholder = 'N° de WO (opcional; separar con coma si son varios)...';
-
-            if (!document.getElementById('wo-list-datalist')) {
-
-                const dlWo = document.createElement('datalist');
-
-                dlWo.id = 'wo-list-datalist';
-
-                document.body.appendChild(dlWo);
-
-                if (window.woNamesCache && window.woNamesCache.length) {
-
-                    window.woNamesCache.forEach(nm => {
-
-                        const opt = document.createElement('option');
-
-                        opt.value = nm;
-
-                        dlWo.appendChild(opt);
-
-                    });
-
-                } else {
-
-                    fetch('/api/wos_flm').then(r => r.json()).then(data => {
-
-                        const wos = (data || []).filter(Boolean).sort((a, b) => a.localeCompare(b));
-
-                        window.woNamesCache = wos;
-
-                        wos.forEach(nm => {
-
-                            const opt = document.createElement('option');
-
-                            opt.value = nm;
-
-                            dlWo.appendChild(opt);
-
-                        });
-
-                    }).catch(() => { });
-
-                }
-
-            }
-
+        // Helper: refresca el hidden con los tags actuales
+        function _woSyncHidden() {
+            const tags = Array.from(_woTagWrap.querySelectorAll('.wo-chip-val'));
+            _woHidden.value = tags.map(t => t.dataset.wo).filter(Boolean).join(', ');
         }
 
-        mkField('NUMERO WO', inpNumeroWO, 'NUMERO WO');
+        // Helper: agrega un chip
+        function _woAddChip(text) {
+            const val = text.trim();
+            if (!val) return;
+            // Evitar duplicados
+            const existing = Array.from(_woTagWrap.querySelectorAll('.wo-chip-val')).map(t => t.dataset.wo.toLowerCase());
+            if (existing.includes(val.toLowerCase())) return;
+
+            const chip = document.createElement('span');
+            chip.className = 'wo-chip-val';
+            chip.dataset.wo = val;
+            chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 10px;background:var(--ios-blue,#007AFF);color:#fff;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;';
+            chip.innerHTML = '<span>' + val.replace(/</g,'&lt;') + '</span><button type="button" style="background:none;border:none;color:#fff;cursor:pointer;font-size:12px;padding:0;line-height:1;opacity:0.75;" title="Quitar">&times;</button>';
+            chip.querySelector('button').onclick = function(e) {
+                e.stopPropagation();
+                chip.remove();
+                _woSyncHidden();
+            };
+            // Insert before the text input
+            const textInp = _woTagWrap.querySelector('input[type=text]');
+            _woTagWrap.insertBefore(chip, textInp);
+            _woSyncHidden();
+        }
+
+        // Cargar chips iniciales si hay valor previo
+        const _woInitArr = _woValActual.split(/[,;\n|]+/).map(w => w.trim()).filter(Boolean);
+        _woInitArr.forEach(w => _woAddChip(w));
+
+        // Input de texto con datalist para sugerencias
+        const _woTextInp = document.createElement('input');
+        _woTextInp.type = 'text';
+        _woTextInp.setAttribute('list', 'wo-list-datalist');
+        _woTextInp.placeholder = _woInitArr.length ? 'Agregar otro WO...' : 'N° de WO (Enter o coma para agregar)...';
+        _woTextInp.style.cssText = 'border:none;outline:none;background:transparent;flex:1;min-width:120px;font-size:13px;color:var(--ios-label);padding:2px 0;';
+
+        _woTextInp.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
+                e.preventDefault();
+                const val = _woTextInp.value.replace(/[,;]+$/, '').trim();
+                if (val) { _woAddChip(val); _woTextInp.value = ''; _woTextInp.placeholder = 'Agregar otro WO...'; }
+            } else if (e.key === 'Backspace' && !_woTextInp.value) {
+                // Remove last chip on backspace
+                const chips = _woTagWrap.querySelectorAll('.wo-chip-val');
+                if (chips.length) { chips[chips.length-1].remove(); _woSyncHidden(); }
+            }
+        });
+        _woTextInp.addEventListener('blur', function() {
+            const val = _woTextInp.value.replace(/[,;]+$/, '').trim();
+            if (val) { _woAddChip(val); _woTextInp.value = ''; }
+        });
+
+        _woTagWrap.appendChild(_woTextInp);
+        _woTagWrap.addEventListener('click', () => _woTextInp.focus());
+
+        // Datalist de WOs desde FLM
+        if (!document.getElementById('wo-list-datalist')) {
+            const dlWo = document.createElement('datalist');
+            dlWo.id = 'wo-list-datalist';
+            document.body.appendChild(dlWo);
+            const _loadWoList = () => {
+                if (window.woNamesCache && window.woNamesCache.length) {
+                    window.woNamesCache.forEach(nm => { const o = document.createElement('option'); o.value = nm; dlWo.appendChild(o); });
+                } else {
+                    fetch('/api/wos_flm').then(r => r.json()).then(data => {
+                        const wos = (data || []).filter(Boolean).sort((a, b) => a.localeCompare(b));
+                        window.woNamesCache = wos;
+                        wos.forEach(nm => { const o = document.createElement('option'); o.value = nm; dlWo.appendChild(o); });
+                    }).catch(() => {});
+                }
+            };
+            _loadWoList();
+        }
+
+        mkField('NUMERO WO', _woTagWrap, 'NUMERO WO');
 
 
 
