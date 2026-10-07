@@ -7566,19 +7566,27 @@ let _rendCambiandoVista = false;
 
     const COT_ESTADO_COLORS = {
 
-        'Pdt. Cotización': { bg: '#8E8E93', fg: '#fff' },
+        'Pdt. Cotización': { bg: '#8E8E93', fg: '#fff' },   /* gris neutral   */
 
-        'Cotizado':        { bg: '#007AFF', fg: '#fff' },
+        'Cotizado':        { bg: '#5AC8FA', fg: '#fff' },   /* azul cielo     */
 
-        'En Aprobación':   { bg: '#FF9500', fg: '#fff' },
+        'En Aprobación':   { bg: '#FF9500', fg: '#fff' },   /* naranja        */
 
-        'Atendido':        { bg: '#28A745', fg: '#fff' },
+        'En proceso':      { bg: '#AF52DE', fg: '#fff' },   /* violeta        */
 
-        'Cancelado':       { bg: '#6B7280', fg: '#fff' },
+        'Observado':       { bg: '#FF6B00', fg: '#fff' },   /* naranja quemado*/
 
-        'Anulado':         { bg: '#6B7280', fg: '#fff' },
+        'Rechazado':       { bg: '#FF3B30', fg: '#fff' },   /* rojo           */
 
-        'Anulada':         { bg: '#6B7280', fg: '#fff' }
+        'Atendido':        { bg: '#34C759', fg: '#fff' },   /* verde          */
+
+        'Validado':        { bg: '#30D158', fg: '#fff' },   /* verde esmeralda*/
+
+        'Cancelado':       { bg: '#6B7280', fg: '#fff' },   /* gris oscuro    */
+
+        'Anulado':         { bg: '#3C3C3E', fg: '#fff' },   /* casi negro     */
+
+        'Anulada':         { bg: '#3C3C3E', fg: '#fff' }    /* casi negro     */
 
     };
 
@@ -27600,7 +27608,7 @@ btnItem.onclick = () => cotRegAgregarFila();
   var _ADMIN_ROL="{{session.get('rol')}}";
   window._ADMIN_ES_ADMIN=['zeno','suport'].includes(_ADMIN_ROL);
   var _ESTADOS=['Pdt. Cotización','En Aprobación','Atendido','Cancelado','Cotizado','En proceso','Observado','Rechazado','Validado'];
-  var _BADGES={'Pdt. Cotización':'#FF9500','En Aprobación':'#007AFF','Atendido':'#34C759','Cancelado':'#6B7280','Cotizado':'#5AC8FA','En proceso':'#AF52DE','Observado':'#FF6B00','Rechazado':'#FF3B30','Validado':'#30D158'};
+  var _BADGES={'Pdt. Cotización':'#8E8E93','En Aprobación':'#FF9500','Atendido':'#34C759','Cancelado':'#6B7280','Cotizado':'#5AC8FA','En proceso':'#AF52DE','Observado':'#FF6B00','Rechazado':'#FF3B30','Validado':'#30D158'};
   window.adminCotAbrir=function(){
     if(!window._ADMIN_ES_ADMIN)return;
     var m=document.getElementById('admin-cot-modal');
