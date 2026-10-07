@@ -36,6 +36,19 @@ def _puede_cotizaciones():
     )
 
 
+def _split_wos(valor):
+    """NUMERO WO admite 0, 1 o varios WO declarados.
+
+    Se guardan en una sola cadena separados por coma (también se aceptan
+    punto y coma, '|' o salto de línea al pegar varios de golpe).
+    Devuelve la lista normalizada, vacía si no hay ninguno.
+    """
+    texto = str(valor or '').strip()
+    if not texto:
+        return []
+    return [w.strip() for w in re.split(r'[,;\n\r|]+', texto) if w.strip()]
+
+
 
 @bp.route('/api/cotizacion/estado', methods=['GET'])
 @login_required
@@ -113,8 +126,11 @@ def api_cotizacion_registro():
             d = json.loads(r.data_json)
         except Exception:
             continue
-        wo = str(d.get('NUMERO WO', '') or '').strip()
-        if not wo or wo.lower() != klow:
+        # Un registro puede declarar varios WO: se asocia a CADA uno de ellos,
+        # para que la misma cotización (una sola) se vea en la pestaña Cotización
+        # de todos los WO que cubre.
+        wos = _split_wos(d.get('NUMERO WO', ''))
+        if klow not in [w.lower() for w in wos]:
             continue
         try:
             items = json.loads(d.get('ITEMS_JSON') or '[]')
@@ -132,6 +148,8 @@ def api_cotizacion_registro():
             'gestor': str(d.get('GESTOR', '') or ''),
             'generada': str(d.get('GENERADA', '') or ''),
             'sub_total': str(d.get('SUB TOTAL + FEE', '') or ''),
+            # Todos los WO declarados por la cotización (no solo el coincidente)
+            'wos': ', '.join(wos),
             'items': items,
         })
     return jsonify({'lista': lista})
@@ -236,7 +254,13 @@ def api_cotizacion_descargar_lote():
                 except Exception:
                     items = []
                 numero = str(d.get('N° COTIZACION', '') or rec.key_value or '').strip() or ('registro_%d' % rec.id)
-                numero_wo = str(d.get('NUMERO WO', '') or '').strip()
+                # El registro puede declarar varios WO: el PDF los lista. Si la
+                # cadena es larga se muestra el primero con el conteo para no
+                # desbordar el campo "ticket".
+                _wos_pdf = _split_wos(d.get('NUMERO WO', ''))
+                numero_wo = ', '.join(_wos_pdf)
+                if len(numero_wo) > 60 and len(_wos_pdf) > 1:
+                    numero_wo = f'{_wos_pdf[0]} (+{len(_wos_pdf) - 1} WOs)'
                 pdf_bytes = _generar_pdf_cotizacion_cobra(
                     numero=numero,
                     site=str(d.get('SITE', '') or d.get('NOMBRE SITE', '') or ''),
@@ -713,4 +737,279 @@ def api_cotizacion_items_import():
         items.append(item)
     if not items:
         return jsonify({'error': 'No se encontraron filas con datos. Usa la plantilla descargable como referencia.'}), 400
-    return jsonify({'items': items, 'total': len(items)})
+    return jsonify({'items': items, 'total': len(items)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Flujo de estados del módulo Cotizaciones (4 pestañas):
+#   1. Registro (Pdt. Cotización) -> al "Generar" viaja a ->
+#   2. Cliente (En Aprobación) -> Aprobado -> 3. Atendido
+#                              -> Rechazado (con motivo) -> vuelve a 1. Registro
+#                              -> Cancelado (con motivo) -> 4. Cancelado/Anulada
+#   Desde 1. Registro también se puede Rechazar (queda en Registro con motivo)
+#   o Cancelar de plano (-> 4).
+# El estado vive en la columna ESTADO COTIZACION (misma que se edita en línea).
+# ─────────────────────────────────────────────────────────────────────────────
+ESTADO_NUEVO = 'Pdt. Cotización'
+ESTADO_COTIZADO = 'Cotizado'
+ESTADO_APROBACION = 'En Aprobación'
+ESTADO_ATENDIDO = 'Atendido'
+ESTADO_CANCELADO = 'Cancelado'
+ESTADOS_FLUJO = (ESTADO_NUEVO, ESTADO_COTIZADO, ESTADO_APROBACION, ESTADO_ATENDIDO)
+
+# Estados viejos que la columna ya usa (siguen siendo válidos para no romper
+# filas existentes ni la edición en línea validada por rows.py).
+ESTADOS_LEGADO = ('En proceso', 'Observado', 'Rechazado', 'Validado', 'Cancelado')
+
+# A qué pestaña cae cada valor guardado. Lo que no esté listado cae en la
+# pestaña 1 (Registro) para que ninguna fila desaparezca de la vista.
+#   - 'Validado' (viejo) -> Atendido
+#   - 'Observado'/'Rechazado'/'En proceso' -> Registro
+MAPA_PESTANIA = {
+    ESTADO_ATENDIDO.lower(): 'atendido',
+    'validado': 'atendido',
+    # La pestaña intermedia "Cotización" se eliminó: lo generado (incluso el
+    # estado legado 'Cotizado') se muestra directamente en la pestaña Cliente.
+    ESTADO_COTIZADO.lower(): 'cliente',
+    ESTADO_APROBACION.lower(): 'cliente',
+    'en aprobacion': 'cliente',
+    ESTADO_CANCELADO.lower(): 'cancelado',
+    'anulado': 'cancelado',
+    'anulada': 'cancelado',
+}
+
+
+def _cot_estado_guardado(row):
+    """Valor crudo guardado en la columna ESTADO COTIZACION."""
+    return str((row or {}).get('ESTADO COTIZACION') or '').strip()
+
+
+def _cot_pestania(row):
+    """Pestaña (1..4) a la que pertenece la fila según su estado."""
+    v = _cot_estado_guardado(row).lower()
+    return MAPA_PESTANIA.get(v, 'registro')
+
+
+def _cot_proyecto():
+    return Proyecto.query.filter_by(nombre='Cotizaciones').first()
+
+
+def _cot_puede_gestionar():
+    return _puede_cotizaciones()
+
+
+def _cot_folder(pid, key):
+    BASE = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    return os.path.join(BASE, 'static', 'evidencia', str(pid),
+                        secure_filename(str(key)))
+
+
+EXT_CORREO_OK = ('.pdf', '.msg', '.eml', '.doc', '.docx',
+                 '.jpg', '.jpeg', '.png', '.webp')
+
+
+@bp.route('/api/cotizacion/accion', methods=['POST'])
+@login_required
+def api_cotizacion_accion():
+    """Mueve la cotización por el flujo de 4 pestañas.
+
+    acciones:
+      generar              Pdt. Cotización -> En Aprobación (viaja a Cliente)
+      conformar_aprobacion En Aprobación   -> Atendido (fecha + correo .msg + comentario)
+      rechazar             Cliente/Registro -> Pdt. Cotización (fecha + motivo)
+      cancelar             Cliente/Registro -> Cancelado (fecha + motivo)
+      revertir             un paso atrás (solo admin)
+    """
+    if not _cot_puede_gestionar():
+        return jsonify({'error': 'No tienes permisos para gestionar cotizaciones.'}), 403
+    proy = _cot_proyecto()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+
+    data = request.get_json(silent=True) or {}
+    key = str(data.get('key') or '').strip()
+    accion = str(data.get('accion') or '').strip().lower()
+    if accion == 'rechazar_registro':  # alias legado del frontend
+        accion = 'rechazar'
+    if accion == 'aprobar':
+        accion = 'conformar_aprobacion'
+    if not key or accion not in ('generar', 'enviar', 'conformar_aprobacion',
+                                 'revertir', 'rechazar', 'cancelar'):
+        return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
+
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
+        return jsonify({'error': 'La cotización no existe.'}), 404
+    try:
+        row = json.loads(fila.data_json or '{}')
+    except Exception:
+        row = {}
+
+    pestania = _cot_pestania(row)
+    ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    usuario = session.get('username') or 'Desconocido'
+
+    if accion == 'generar':
+        # Se genera la cotización (PDF) y viaja DIRECTO a la pestaña Cliente
+        # (queda a la espera de la conformidad del cliente). Idempotente: si ya
+        # está en Cliente con cotización generada, no falla.
+        if pestania == 'cliente':
+            return jsonify({'success': True,
+                            'estado': row.get('ESTADO COTIZACION'),
+                            'pestania': 'cliente',
+                            'newData': row})
+        if pestania != 'registro':
+            return jsonify({'error': 'Solo se puede generar una cotización que esté en "Pdt. Cotización".'}), 409
+        row['ESTADO COTIZACION'] = ESTADO_APROBACION
+        row['FECHA COTIZADO'] = ahora
+        row['COTIZADO POR'] = usuario
+        row['FECHA ENVIO CLIENTE'] = ahora
+        row['ENVIADO POR'] = usuario
+
+    elif accion == 'enviar':
+        # Compatibilidad: si la fila quedó en estado legado 'Cotizado', enviarla
+        # la lleva a Cliente igual que "generar".
+        if pestania == 'cliente':
+            return jsonify({'success': True,
+                            'estado': row.get('ESTADO COTIZACION'),
+                            'pestania': 'cliente',
+                            'newData': row})
+        return jsonify({'error': 'Ya no hay "Enviar": al generar, la cotización viaja directo a Cliente.'}), 409
+
+    elif accion == 'conformar_aprobacion':
+        if pestania != 'cliente':
+            return jsonify({'error': 'La aprobación solo aplica a una cotización "En Aprobación" (pestaña Cliente).'}), 409
+        row['ESTADO COTIZACION'] = ESTADO_ATENDIDO
+        row['FECHA APROBACION'] = str(data.get('fecha_aprobacion') or '').strip() or ahora
+        row['APROBADO POR'] = usuario
+        row['COMENTARIO APROBACION'] = str(data.get('comentario') or '').strip()
+        adj = str(data.get('adjunto_correo') or '').strip()
+        if adj:
+            row['ADJUNTO CORREO CLIENTE'] = adj
+
+    elif accion == 'rechazar':
+        # El cliente observa/rechaza y la solicitud regresa a Pdt. Cotización
+        # (pestaña 1) para que quien la pidió la corrija y reenvíe. También
+        # sirve en Registro: el pedido queda rechazado con su motivo.
+        if pestania not in ('registro', 'cliente'):
+            return jsonify({'error': 'Solo se puede rechazar desde Registro o Cliente.'}), 409
+        motivo = str(data.get('motivo') or data.get('motivo_rechazo') or '').strip()
+        if not motivo:
+            return jsonify({'error': 'El motivo del rechazo es obligatorio.'}), 400
+        row['ESTADO COTIZACION'] = ESTADO_NUEVO
+        row['FECHA RECHAZO'] = str(data.get('fecha_rechazo') or '').strip() or ahora
+        row['RECHAZADO POR'] = usuario
+        row['MOTIVO RECHAZO'] = motivo
+        # Deja registrada la última decisión del cliente sin necesidad de columna
+        comentarios = str(row.get('OBSERVACIONES', '') or '').strip()
+        nota = '[Rechazo %s · %s] %s' % (row['FECHA RECHAZO'], usuario, motivo)
+        row['OBSERVACIONES'] = (nota if not comentarios else (comentarios + '\n' + nota))[:2000]
+
+    elif accion == 'cancelar':
+        # Cancelado de plano: ya no sigue el flujo, va a la pestaña
+        # Cancelado/Anulada (historial).
+        if pestania in ('cancelado', 'atendido'):
+            return jsonify({'error': 'No se puede cancelar una cotización atendida o ya cancelada.'}), 409
+        motivo = str(data.get('motivo') or data.get('motivo_cancel') or '').strip()
+        if not motivo:
+            return jsonify({'error': 'El motivo de la cancelación es obligatorio.'}), 400
+        row['ESTADO COTIZACION'] = ESTADO_CANCELADO
+        row['FECHA CANCELACION'] = str(data.get('fecha_cancelacion') or '').strip() or ahora
+        row['CANCELADO POR'] = usuario
+        row['MOTIVO CANCELACION'] = motivo
+        comentarios = str(row.get('OBSERVACIONES', '') or '').strip()
+        nota = '[Cancelación %s · %s] %s' % (row['FECHA CANCELACION'], usuario, motivo)
+        row['OBSERVACIONES'] = (nota if not comentarios else (comentarios + '\n' + nota))[:2000]
+
+    elif accion == 'revertir':
+        rol = str(session.get('rol') or '').strip().lower()
+        if rol not in ('zeno', 'suport', 'admin'):
+            return jsonify({'error': 'No tienes permisos para revertir estados.'}), 403
+        if pestania == 'cliente':
+            row['ESTADO COTIZACION'] = ESTADO_NUEVO
+        elif pestania == 'atendido':
+            row['ESTADO COTIZACION'] = ESTADO_APROBACION
+        elif pestania == 'cancelado':
+            row['ESTADO COTIZACION'] = ESTADO_NUEVO
+        else:
+            return jsonify({'error': 'No se puede revertir desde "Pdt. Cotización".'}), 400
+
+    fila.data_json = safe_json_dumps(row)
+    db.session.commit()
+    return jsonify({'success': True,
+                    'estado': row.get('ESTADO COTIZACION'),
+                    'pestania': _cot_pestania(row),
+                    'newData': row})
+
+
+@bp.route('/api/cotizacion/subir_correo', methods=['POST'])
+@login_required
+def api_cotizacion_subir_correo():
+    """Sube la evidencia del correo del cliente (.msg/.pdf/captura) y devuelve su URL."""
+    if not _cot_puede_gestionar():
+        return jsonify({'error': 'No tienes permisos para subir adjuntos.'}), 403
+    proy = _cot_proyecto()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+
+    key = (request.form.get('key') or '').strip()
+    file = request.files.get('adjunto')
+    if not key:
+        return jsonify({'error': 'Falta la clave del registro.'}), 400
+    if file is None or not file.filename:
+        return jsonify({'error': 'No se recibió ningún archivo.'}), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in EXT_CORREO_OK:
+        return jsonify({'error': 'Formato no permitido. Usa .msg, .pdf, .doc, JPG, PNG o WEBP.'}), 400
+
+    key = secure_filename(key)
+    nombre = 'correo_aprob_%d%s' % (int(time.time()), ext)
+    fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
+    os.close(fd)
+    try:
+        file.save(ruta_tmp)
+        if evidencia_usa_b2():
+            b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'],
+                                     '%s/%s' % (key, nombre))
+        else:
+            folder = _cot_folder(proy.id, key)
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, nombre), 'wb') as fh, \
+                 open(ruta_tmp, 'rb') as src:
+                fh.write(src.read())
+        url = '/api/cotizacion/correo/%d/%s/%s?v=%d' % (
+            proy.id, key, nombre, int(time.time()))
+        return jsonify({'success': True, 'url': url})
+    finally:
+        if os.path.exists(ruta_tmp):
+            try:
+                os.remove(ruta_tmp)
+            except Exception:
+                pass
+
+
+@bp.route('/api/cotizacion/correo/<int:pid>/<path:key>/<path:nombre>')
+@login_required
+def api_cotizacion_correo(pid, key, nombre):
+    """Sirve la evidencia del correo del cliente."""
+    if not _cot_puede_gestionar():
+        return jsonify({'error': 'No autorizado.'}), 403
+    proy = _cot_proyecto()
+    if not proy or int(pid) != int(proy.id):
+        return jsonify({'error': 'No encontrado'}), 404
+    nombre = os.path.basename(secure_filename(nombre))
+    if evidencia_usa_b2():
+        try:
+            obj = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'],
+                                          Key='%s/%s' % (key, nombre))
+            resp = Response(obj['Body'].read(),
+                            mimetype=mimetypes.guess_type(nombre)[0] or 'application/octet-stream')
+            resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
+            return resp
+        except Exception:
+            return jsonify({'error': 'No encontrado'}), 404
+    folder = _cot_folder(pid, key)
+    ruta = os.path.join(folder, nombre)
+    if not os.path.exists(ruta):
+        return jsonify({'error': 'No encontrado'}), 404
+    return send_from_directory(folder, nombre, max_age=604800)

@@ -567,20 +567,53 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
             {'nombre': 'OBJETIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'SUB TOTAL + FEE', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'ESTADO COTIZACION', 'tipo': 'lista',
-             'opciones': ['En proceso', 'Observado', 'Rechazado', 'Validado', 'Cancelado']},
+             'opciones': ['Pdt. Cotización', 'Cotizado', 'En Aprobación', 'Atendido',
+                          'En proceso', 'Observado', 'Rechazado', 'Validado', 'Cancelado']},
             {'nombre': 'MOTIVO', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'GESTOR', 'tipo': 'texto', 'opciones': []},
+            # Pestaña 1 — Solicitud del gestor
+            {'nombre': 'DEPARTAMENTO', 'tipo': 'texto', 'opciones': []},
+            {'nombre': 'REGION', 'tipo': 'lista', 'opciones': ['Sur', 'Norte', 'Centro']},
+            {'nombre': 'TIPO DE COTIZACION', 'tipo': 'lista',
+             'opciones': ['Acarreo', 'Suministros', 'Servicio', 'Alquileres', 'Otros']},
         ]
+        # FUSIÓN, nunca sobrescritura: el admin puede haber añadido columnas y
+        # opciones propias (las 4 pestañas del flujo incluidas). Antes este bloque
+        # volvía a escribir `cot_cols` en cada arranque y borraba esa configuración.
+        COT_FLOW_ESTADOS = ['Pdt. Cotización', 'Cotizado', 'En Aprobación', 'Atendido']
         mc = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='manual_columns').first()
         if mc:
             try:
                 existing = json.loads(mc.valor)
-                if not any(c.get('nombre') == 'N° ORDEN' for c in existing):
-                    existing = [{'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []}] + existing
-                    mc.valor = json.dumps(existing, ensure_ascii=False)
-                else:
-                    mc.valor = json.dumps(cot_cols, ensure_ascii=False)
+                if not isinstance(existing, list):
+                    raise ValueError('manual_columns no es una lista')
+                existing = [c for c in existing if isinstance(c, dict) and str(c.get('nombre', '')).strip()]
+                # N° ORDEN primero, si falta
+                if not any(str(c.get('nombre', '')).strip() == 'N° ORDEN' for c in existing):
+                    existing.insert(0, {'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []})
+                # Añade solo las columnas por defecto que falten (no borra las propias)
+                _nombres = {str(c.get('nombre', '')).strip().lower() for c in existing}
+                for _col in cot_cols:
+                    if str(_col['nombre']).strip().lower() not in _nombres:
+                        existing.append(_col)
+                # ESTADO COTIZACION: garantiza las opciones por defecto y deja las propias
+                for _c in existing:
+                    if str(_c.get('nombre', '')).strip() != 'ESTADO COTIZACION':
+                        continue
+                    _ops = _c.get('opciones')
+                    if not isinstance(_ops, list):
+                        _ops = []
+                    _baj = {str(o).strip().lower(): o for o in _ops}
+                    for _op in ['En proceso', 'Observado', 'Rechazado', 'Validado', 'Cancelado'] + COT_FLOW_ESTADOS:
+                        if _op.lower() not in _baj:
+                            _ops.append(_op)
+                            _baj[_op.lower()] = _op
+                    # Las 4 pestañas del flujo se muestran primero
+                    _prim = [_baj[o.lower()] for o in COT_FLOW_ESTADOS if o.lower() in _baj]
+                    _c['opciones'] = _prim + [o for o in _ops if o not in _prim]
+                mc.valor = json.dumps(existing, ensure_ascii=False)
             except Exception:
+                # Solo se reconstruye si el valor guardado es ilegible
                 mc.valor = json.dumps(cot_cols, ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='manual_columns',
