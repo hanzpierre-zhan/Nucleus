@@ -24,7 +24,7 @@ def api_cotizacion_migrar_antiguos():
                 est_b = est.lower()
                 
                 # Excluir los estados que YA están mapeados a otras pestañas correctamente:
-                # Pdt. Cotización (1), Atendido/Validado (3), Cancelado/Anulado (4), y los que ya están en 2.
+                # Pdt. Cotización (1), Atendido/Validado (3), Anulado (4), y los que ya están en 2.
                 if est_b not in ('pdt. cotización', 'pdt. cotizacion', 'atendido', 'validado', 
                                'cancelado', 'anulado', 'en aprobación', 'en aprobacion', 'cotizado'):
                     d['ESTADO COTIZACION'] = 'En Aprobación'

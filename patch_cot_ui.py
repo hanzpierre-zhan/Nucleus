@@ -144,8 +144,8 @@ html = html.replace(
     "mk('cot-btn-rev', '<i class=\"fa-solid fa-rotate-left\"></i>',\n                       'Rechazar - regresa a Pdt. Cotizacion',"
 )
 html = html.replace(
-    "mk('rend-btn rend-btn-mini', '<i class=\"fa-solid fa-ban\"></i>',\n                       'Cancelar - pasa a Cancelado/Anulada',",
-    "mk('cot-btn-cancel', '<i class=\"fa-solid fa-ban\"></i>',\n                       'Cancelar - pasa a Cancelado/Anulada',"
+    "mk('rend-btn rend-btn-mini', '<i class=\"fa-solid fa-ban\"></i>',\n                       'Cancelar - pasa a Anulado',",
+    "mk('cot-btn-cancel', '<i class=\"fa-solid fa-ban\"></i>',\n                       'Cancelar - pasa a Anulado',"
 )
 
 # Verificar tambien posibles botones del estado atendido

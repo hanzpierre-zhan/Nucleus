@@ -745,7 +745,7 @@ def api_cotizacion_items_import():
 #   1. Registro (Pdt. Cotización) -> al "Generar" viaja a ->
 #   2. Cliente (En Aprobación) -> Aprobado -> 3. Atendido
 #                              -> Rechazado (con motivo) -> vuelve a 1. Registro
-#                              -> Cancelado (con motivo) -> 4. Cancelado/Anulada
+#                              -> Cancelado (con motivo) -> 4. Anulado
 #   Desde 1. Registro también se puede Rechazar (queda en Registro con motivo)
 #   o Cancelar de plano (-> 4).
 # El estado vive en la columna ESTADO COTIZACION (misma que se edita en línea).
@@ -907,7 +907,7 @@ def api_cotizacion_accion():
 
     elif accion == 'cancelar':
         # Cancelado de plano: ya no sigue el flujo, va a la pestaña
-        # Cancelado/Anulada (historial).
+        # Anulado (historial).
         if pestania in ('cancelado', 'atendido'):
             return jsonify({'error': 'No se puede cancelar una cotización atendida o ya cancelada.'}), 409
         motivo = str(data.get('motivo') or data.get('motivo_cancel') or '').strip()
@@ -1033,7 +1033,7 @@ def api_cotizacion_migrar_antiguos():
                 est_b = est.lower()
                 
                 # Excluir los estados que YA están mapeados a otras pestañas correctamente:
-                # Pdt. Cotización (1), Atendido/Validado (3), Cancelado/Anulado (4), y los que ya están en 2.
+                # Pdt. Cotización (1), Atendido/Validado (3), Anulado (4), y los que ya están en 2.
                 if est_b not in ('pdt. cotización', 'pdt. cotizacion', 'atendido', 'validado', 
                                'cancelado', 'anulado', 'en aprobación', 'en aprobacion', 'cotizado'):
                     d['ESTADO COTIZACION'] = 'En Aprobación'
