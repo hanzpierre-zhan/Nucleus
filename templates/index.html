@@ -7494,21 +7494,20 @@ let _rendCambiandoVista = false;
     // pertenece la fila. Todo lo no listado va a 'registro' (fallback).
 
     function cotPestaniaDe(row) {
-
         if (!IS_COTIZACIONES) return '';
-
         const v = String((row && row['ESTADO COTIZACION']) || '').trim().toLowerCase();
-
-        if (v === 'cotizado' || v === 'en cotización' || v === 'en cotizacion') return 'cliente'; // pasa directo a cliente tras generar
-
-        if (v === 'en aprobación' || v === 'en aprobacion') return 'cliente';
-
-        if (v === 'atendido' || v === 'validado') return 'atendido';
-
+        
+        // 4. Cancelado
         if (v === 'cancelado' || v === 'anulado' || v === 'anulada') return 'cancelado';
-
-        return 'registro';
-
+        
+        // 3. Atendido
+        if (v === 'atendido' || v === 'validado') return 'atendido';
+        
+        // 1. Registro (SOLO Pdt. Cotización)
+        if (v === 'pdt. cotización' || v === 'pdt. cotizacion') return 'registro';
+        
+        // 2. Cliente (Cualquier otro estado antiguo como "En proceso", o nuevos como "Cotizado", "En Aprobación")
+        return 'cliente';
     }
 
     // Etiqueta visible del estado, normalizada a los 4 del flujo.
