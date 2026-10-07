@@ -2829,6 +2829,14 @@
                 <p>Completa los campos para añadir el registro a {{ session.get('current_proyecto_nombre', '') }}.</p>
             </div>
             <div class="mar-head-actions">
+                {% if proy_nombre == 'cotizaciones' and session.get('rol') != 'demo' %}
+                <a id="btn-mar-plantilla-coti" href="/api/import/manual_template" download
+                    class="mar-btn-generar" style="background: linear-gradient(135deg, #28A745, #1e7e34); text-decoration: none; display: flex; align-items: center; justify-content: center;"
+                    title="Descargar plantilla Excel para carga masiva"><i class="fa-solid fa-file-arrow-down"></i></a>
+                <button type="button" id="btn-mar-importar-coti" onclick="cerrarModalRegistro(); abrirModalImportar()"
+                    class="mar-btn-generar" style="background: linear-gradient(135deg, #30B0C7, #1a7f8f);"
+                    title="Importar items masivamente"><i class="fa-solid fa-file-import"></i></button>
+                {% endif %}
                 <button type="button" id="btn-mar-preview-coti" onclick="previsualizarCotizacion()"
                     class="mar-btn-generar" style="display:none; background: linear-gradient(135deg, #6B7280, #4B5563);" title="Previsualizar PDF (no consume correlativo)"><i class="fa-solid fa-eye"></i></button>
                 <button type="button" id="btn-mar-generar-coti" onclick="guardarModalRegistro('generar')"
@@ -3283,9 +3291,21 @@
                             <span id="wo-subtotal-fee" class="wo-subtotal-val">0.00</span>
                             <span></span>
                         </div>
-<button type="button" id="btn-wo-agregar-item" class="mar-btn-primary"
-                            onclick="agregarFilaCoti()" style="margin-top: 12px;"><i class="fa-solid fa-plus"></i>
-                            Agregar item</button>
+<input type="file" id="coti-items-import-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="procesarImportItemsCoti(this)">
+<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+    <button type="button" id="btn-wo-agregar-item" class="mar-btn-primary"
+        onclick="agregarFilaCobra()"><i class="fa-solid fa-plus"></i> Agregar item</button>
+    <button type="button" id="btn-wo-plantilla-coti" class="mar-btn-ghost"
+        onclick="descargarPlantillaCotiItems()"
+        title="Descargar plantilla Excel para carga masiva de items"
+        style="background:linear-gradient(135deg,#28A745,#1e7e34);color:#fff;border:none;border-radius:10px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        <i class="fa-solid fa-file-arrow-down"></i> Plantilla</button>
+    <button type="button" id="btn-wo-importar-coti" class="mar-btn-ghost"
+        onclick="document.getElementById('coti-items-import-file').value=''; document.getElementById('coti-items-import-file').click()"
+        title="Importar items masivamente desde Excel"
+        style="background:linear-gradient(135deg,#30B0C7,#1a7f8f);color:#fff;border:none;border-radius:10px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+        <i class="fa-solid fa-file-import"></i> Importar</button>
+</div>
                     </div>
                     {% else %}
                     <!-- ===== FORMATO ANTERIOR (PEXT y otros) ===== -->
@@ -7706,6 +7726,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         feeInp.type = 'text';
         feeInp.className = 'wo-cobra-fee wo-coti-auto';
         feeInp.readOnly = true;
+        // Si viene del import, inicializar con el fee recibido
+        if (datos.fee != null && datos.fee !== '') feeInp.value = datos.fee + '%';
         row.appendChild(feeInp);
 
         const vtInp = document.createElement('input');
@@ -7737,7 +7759,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const recalc = () => {
             const tipo = (selTipo.value || '').toUpperCase();
-            const fee = tipo === 'REEMBOLSABLE' ? 5 : 0;
+            // Usar FEE del import si existe; de lo contrario calcular por tipo
+            const feeActual = parseFloat(String(feeInp.value).replace('%', ''));
+            const fee = isNaN(feeActual) ? (tipo === 'REEMBOLSABLE' ? 5 : 0) : feeActual;
             feeInp.value = selTipo.value ? (fee + '%') : '';
             const cant = parseFloat(cantInp.value);
             const vu = parseFloat(vuInp.value);
@@ -7765,7 +7789,11 @@ btnItem.onclick = () => cotRegAgregarFila();
         row.appendChild(del);
 
         cont.appendChild(row);
-        cotRegReordenar();
+        if (datos.correlativo != null && String(datos.correlativo).trim() !== '') {
+            itemInp.value = datos.correlativo;
+        } else {
+            cotRegReordenar();
+        }
         recalc();
     }
 
@@ -11221,7 +11249,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (datos.valor_unitario != null) vuInp.value = datos.valor_unitario;
         row.appendChild(vuInp);
 
-        // FEE % (auto segun TIPO)
+        // FEE % (auto segun TIPO; si viene del import se usa datos.fee)
         const feeInp = document.createElement('input');
         feeInp.type = 'text';
         feeInp.className = 'wo-cobra-fee wo-coti-auto';
@@ -11250,7 +11278,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const recalc = () => {
             const tipo = (selTipo.value || '').toUpperCase();
-            const fee = tipo === 'REEMBOLSABLE' ? 5 : 0;
+            // Usar FEE del import si existe; de lo contrario calcular por tipo
+            const feeActual = parseFloat(String(feeInp.value).replace('%', ''));
+            const fee = isNaN(feeActual) ? (tipo === 'REEMBOLSABLE' ? 5 : 0) : feeActual;
             feeInp.value = selTipo.value ? (fee + '%') : '';
             const cant = parseFloat(cantInp.value);
             const vu = parseFloat(vuInp.value);
@@ -11284,7 +11314,11 @@ btnItem.onclick = () => cotRegAgregarFila();
         }
 
         cont.appendChild(row);
-        reordenarItemsCobra();
+        if (datos.correlativo != null && String(datos.correlativo).trim() !== '') {
+            itemInp.value = datos.correlativo;
+        } else {
+            reordenarItemsCobra();
+        }
         recalc();
     }
 
@@ -11936,13 +11970,17 @@ btnItem.onclick = () => cotRegAgregarFila();
                         '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
                         '<i class="fa-solid fa-floppy-disk"></i> Guardar</button></span>';
                 }
-                // La URL del servidor cambia en cada reinicio del túnel: solo zeno la pega y guarda
-                if (_autinEsZeno() && !esSP) {
+                // La URL del servidor cambia en cada reinicio del túnel: solo zeno la pega y guarda.
+                // En modo SharePoint es editable igual (es el enlace compartido que usa la pestaña).
+                if (_autinEsZeno()) {
                     html += '<span class="autin-ruta-edit">' +
                         '<input type="text" id="autin-base-input" value="' + escapeHtml(_autinBase) + '" ' +
-                        'placeholder="URL del servidor de fotos (cambia al reiniciar el túnel)">' +
+                        'placeholder="' + (esSP
+                            ? 'Enlace compartido de SharePoint de las fotos'
+                            : 'URL del servidor de fotos (cambia al reiniciar el túnel)') + '">' +
                         '<button type="button" class="wo-zip-btn" onclick="autinGuardarRuta()">' +
-                        '<i class="fa-solid fa-floppy-disk"></i> Guardar URL</button>' +
+                        '<i class="fa-solid fa-floppy-disk"></i> ' +
+                        (esSP ? 'Guardar enlace' : 'Guardar URL') + '</button>' +
                         '</span>';
                 }
                 rutaEl.innerHTML = html;
@@ -12277,7 +12315,18 @@ btnItem.onclick = () => cotRegAgregarFila();
     let _cotiRegistrosLista = [];
 
     function _aplicarEstadoCotizacion(bloqueada) {
-        _cotiIsBloqueada = bloqueada;
+        // Si la cotización está bloqueada pero el WO está en estado liberada
+        // (Observado/Rechazado), se permite editar y volver a generar.
+        let _esLiberada = false;
+        if (bloqueada && typeof woRow !== 'undefined' && woRow) {
+            try {
+                const _woD = woRow.getData();
+                const _estWo = String(_woD['ESTADO COTIZACION'] || '').trim();
+                _esLiberada = _estWo === 'Observado' || _estWo === 'Rechazado';
+            } catch (e) { }
+        }
+        const bloqueadaEfectiva = bloqueada && !_esLiberada;
+        _cotiIsBloqueada = bloqueadaEfectiva;
         const badge = document.getElementById('badge-coti-bloqueada');
         const btnDesbloquear = document.getElementById('btn-coti-desbloquear');
         const btnGenerar = document.getElementById('btn-wo-generar-coti');
@@ -12285,8 +12334,11 @@ btnItem.onclick = () => cotRegAgregarFila();
         const notaEl = document.getElementById('wo-coti-nota');
         const btnAgGasto = document.getElementById('btn-wo-agregar-gasto');
         const btnAgMo = document.getElementById('btn-wo-agregar-mo');
+        const btnAgItem = document.getElementById('btn-wo-agregar-item');
+        const btnPlantilla = document.getElementById('btn-wo-plantilla-coti');
+        const btnImportar = document.getElementById('btn-wo-importar-coti');
 
-        if (bloqueada) {
+        if (bloqueadaEfectiva) {
             if (badge) { badge.style.display = 'inline-flex'; badge.style.alignItems = 'center'; badge.style.justifyContent = 'center'; }
             if (btnDesbloquear) btnDesbloquear.style.display = '';
             if (btnGenerar) btnGenerar.style.display = 'none';
@@ -12294,8 +12346,11 @@ btnItem.onclick = () => cotRegAgregarFila();
             if (notaEl) notaEl.disabled = true;
             if (btnAgGasto) btnAgGasto.style.display = 'none';
             if (btnAgMo) btnAgMo.style.display = 'none';
+            if (btnAgItem) btnAgItem.style.display = 'none';
+            if (btnPlantilla) btnPlantilla.style.display = 'none';
+            if (btnImportar) btnImportar.style.display = 'none';
             // Deshabilitar inputs dentro de las tablas de cotización
-            ['wo-gastos-list', 'wo-mo-list'].forEach(id => {
+            ['wo-gastos-list', 'wo-mo-list', 'wo-items-list'].forEach(id => {
                 const cont = document.getElementById(id);
                 if (cont) cont.querySelectorAll('input, select, button').forEach(el => {
                     el.disabled = true;
@@ -12303,14 +12358,31 @@ btnItem.onclick = () => cotRegAgregarFila();
                 });
             });
         } else {
-            if (badge) badge.style.display = 'none';
+            // Desbloqueada o liberada por estado Rechazado/Observado
+            if (badge) {
+                if (_esLiberada && bloqueada) {
+                    // Mostrar badge amarillo indicando que es editable por rechazo
+                    badge.style.display = 'inline-flex';
+                    badge.style.alignItems = 'center';
+                    badge.style.justifyContent = 'center';
+                    badge.style.background = '#FF9500';
+                    badge.title = 'Cotización liberada para re-generación (estado: Rechazado/Observado)';
+                } else {
+                    badge.style.display = 'none';
+                    badge.style.background = '';
+                    badge.title = 'Cotización bloqueada';
+                }
+            }
             if (btnDesbloquear) btnDesbloquear.style.display = 'none';
             if (btnGenerar) btnGenerar.style.display = '';
-            if (btnRedownload) btnRedownload.style.display = 'none';
+            if (btnRedownload) btnRedownload.style.display = _esLiberada && bloqueada ? '' : 'none';
             if (notaEl) notaEl.disabled = false;
             if (woEditable && btnAgGasto) btnAgGasto.style.display = '';
             if (woEditable && btnAgMo) btnAgMo.style.display = '';
-            ['wo-gastos-list', 'wo-mo-list'].forEach(id => {
+            if (woEditable && btnAgItem) btnAgItem.style.display = '';
+            if (woEditable && btnPlantilla) btnPlantilla.style.display = '';
+            if (woEditable && btnImportar) btnImportar.style.display = '';
+            ['wo-gastos-list', 'wo-mo-list', 'wo-items-list'].forEach(id => {
                 const cont = document.getElementById(id);
                 if (cont && woEditable) cont.querySelectorAll('input, select, button').forEach(el => {
                     el.disabled = false;
@@ -12724,6 +12796,63 @@ btnItem.onclick = () => cotRegAgregarFila();
                 }
             })
             .catch(() => alert('Error de red'));
+    }
+
+    // ---- Cotización: Plantilla Excel de items + Importar masivo ----
+    async function descargarPlantillaCotiItems() {
+        const btn = document.getElementById('btn-wo-plantilla-coti');
+        const oldHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+        try {
+            const r = await fetch('/api/cotizacion/items_template');
+            if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Error al generar plantilla'); }
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'Plantilla_Items_Cotizacion.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 30000);
+        } catch (e) {
+            alert(e.message || 'Error al descargar plantilla');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+        }
+    }
+
+    async function procesarImportItemsCoti(input) {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const btn = document.getElementById('btn-wo-importar-coti');
+        const oldHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...'; }
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const r = await fetch('/api/cotizacion/items_import', { method: 'POST', body: formData });
+            const res = await r.json();
+            if (res.error) { alert('Error: ' + res.error); return; }
+            const items = res.items || [];
+            if (!items.length) { alert('No se encontraron items en el archivo. Verifica que uses la plantilla correcta.'); return; }
+            // Limpiar lista actual y poblar con los importados
+            // FLM usa agregarFilaCobra; otros proyectos usan agregarFilaCoti
+            const listItems = document.getElementById('wo-items-list');
+            if (listItems) {
+                listItems.innerHTML = '';
+                const fnAgregar = (typeof ES_FLM !== 'undefined' && ES_FLM) ? agregarFilaCobra : agregarFilaCoti;
+                items.forEach(it => fnAgregar(it));
+                if (typeof calcularTotalCobra === 'function') calcularTotalCobra();
+            }
+            // Mostrar resumen
+            try { nucleusAlert('\u2705 ' + items.length + ' item(s) importados correctamente.'); } catch (_) { alert(items.length + ' item(s) importados.'); }
+        } catch (e) {
+            alert('Error al importar: ' + (e.message || e));
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+            input.value = '';
+        }
     }
 
     function copiarPlantillaWO() {

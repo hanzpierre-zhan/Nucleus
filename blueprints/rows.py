@@ -143,6 +143,14 @@ def api_rows_update():
                             return jsonify({'error': 'Estado de cotización inválido: ' + _val_est}), 400
                 except Exception:
                     pass
+                # Sale de la corrección (Observado/Rechazado -> otro estado): la
+                # cotización se REABRE. Si no, al cambiar el estado primero (el
+                # modal lo envía primero), todos los demás campos de ese mismo
+                # guardado caían en el bloqueo por GENERADA y no se podía guardar
+                # ni regenerar. Se vuelve a bloquear al volver a generar el PDF.
+                _nuevo_est = str(value if value is not None else '').strip()
+                if _liberada and _nuevo_est != _est_cot:
+                    row_dict['GENERADA'] = ''
             elif (session.get('rol') not in ('zeno', 'suport')
                     and str(row_dict.get('GENERADA', '') or '') == '1'
                     and not _liberada and not _valor_igual):
@@ -491,9 +499,21 @@ def api_rows_add():
                 schema_cols = set(json.loads(schema_cfg.valor) if schema_cfg and schema_cfg.valor else [])
             except Exception:
                 schema_cols = set()
+            # Solo al esquema: columnas de origen importado. Las manuales ya se
+            # listan por manual_columns y las variantes de mayúsculas (CATEGORY vs
+            # Category) no deben re-entrar como residuo en cada WO manual.
+            _manuales_cols = set()
+            try:
+                _mc_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+                if _mc_cfg and _mc_cfg.valor:
+                    _manuales_cols = {str(x.get('nombre', '')).strip() for x in json.loads(_mc_cfg.valor) if x.get('nombre')}
+            except Exception:
+                _manuales_cols = set()
+            _schema_bajo = {str(c).casefold() for c in schema_cols}
             nuevas = {k for k in row_data.keys()
                       if k and not str(k).startswith('_') and not str(k).startswith('KPI_')
-                      and not str(k).startswith('COTIZACION_') and k != 'MATERIALES'}
+                      and not str(k).startswith('COTIZACION_') and k != 'MATERIALES'
+                      and k not in _manuales_cols and str(k).casefold() not in _schema_bajo}
             if not nuevas.issubset(schema_cols):
                 merged = schema_cols.union(nuevas)
                 if schema_cfg:

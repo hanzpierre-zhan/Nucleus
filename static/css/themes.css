@@ -9,10 +9,10 @@ body.theme-vercel {
   --ios-card-bg: #FFFFFF;
   --ios-fill: #E3EAE9;
   --ios-label: #162623;
-  --ios-secondary: #577877;
-  --ios-gray-1: #89A3A2;
+  --ios-secondary: #4F6E6D;
+  --ios-gray-1: #6E8B8A;
   --ios-gray-2: #A8BFBE;
-  --ios-hairline: #CFDCDC;
+  --ios-hairline: #D3DDDC;
   --ios-blue: #295255;
   --ios-blue-dark: #1E3F41;
   --ios-blue-light: #D5E1E1;
@@ -26,11 +26,11 @@ body.theme-vercel {
   --excel-cell-border: #E3EAE9;
   --excel-text: #162623;
   --excel-selection: #D5E1E1;
-  --shadow-card: 0 1px 3px rgba(22,38,35,0.06), 0 4px 12px rgba(22,38,35,0.04);
+  --shadow-card: 0 1px 3px rgba(22,38,35,0.05), 0 12px 32px rgba(22,38,35,0.06);
   --shadow-soft: 0 4px 24px rgba(22,38,35,0.06);
-  --radius: 8px;
-  --radius-lg: 12px;
-  --radius-pill: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
   font-family: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
   background: #F0F5F7 !important;
   color: #162623 !important;
@@ -38,28 +38,31 @@ body.theme-vercel {
 
 /* ---------- VERCEL DARK ---------- */
 body.theme-vercel.dark-mode {
-  --ios-bg: #1A1A1A;
+  --ios-bg: #14151A;
   --ios-card-bg: #222222;
   --ios-fill: #2C2C2C;
   --ios-label: #F8FAFC;
   --ios-secondary: #94A3B8;
-  --ios-gray-1: #64748B;
+  --ios-gray-1: #556582;
   --ios-gray-2: #475569;
-  --ios-hairline: #2E384D;
-  --ios-blue: #6C63FF;
-  --ios-blue-dark: #564ED6;
+  --ios-hairline: #262730;
+  --ios-blue: #7C6BFF;
+  --ios-blue-dark: #5E52F0;
   --ios-blue-light: #1F223D;
-  --ios-accent: #6C63FF;
-  --ios-accent-rgb: 108, 99, 255;
+  --ios-accent: #7C6BFF;
+  --ios-accent-rgb: 124, 107, 255;
   --ios-teal: #2EC4B6;
   --ios-teal-bg: rgba(46, 196, 182, 0.15);
-  --excel-bg: #1A1A1A;
+  --excel-bg: #14151A;
   --excel-border: #333333;
   --excel-cell-border: #2C2C2C;
   --excel-text: #F8FAFC;
   --excel-selection: #1F223D;
-  --shadow-card: none;
-  --shadow-soft: none;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.15), 0 12px 32px rgba(0,0,0,0.18);
+  --shadow-soft: 0 4px 24px rgba(0,0,0,0.25);
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
   background: #1A1A1A !important;
   color: #F8FAFC !important;
 }
@@ -78,7 +81,7 @@ body.theme-vercel .sidebar-link:hover { background: var(--ios-fill) !important; 
 body.theme-vercel .sidebar-link:hover i { color: var(--ios-label) !important; }
 body.theme-vercel:not(.dark-mode) .sidebar-link.active { background: var(--ios-blue, #295255) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(41, 82, 85, 0.25) !important; font-weight: 600 !important; }
 body.theme-vercel:not(.dark-mode) .sidebar-link.active i { color: #FFFFFF !important; }
-body.theme-vercel.dark-mode .sidebar-link.active { background: var(--ios-blue, #6C63FF) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(108, 99, 255, 0.25) !important; font-weight: 600 !important; }
+body.theme-vercel.dark-mode .sidebar-link.active { background: var(--ios-blue, #7C6BFF) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(124, 107, 255, 0.25) !important; font-weight: 600 !important; }
 body.theme-vercel.dark-mode .sidebar-link.active i { color: #FFFFFF !important; }
 body.theme-vercel .sidebar-link.active:hover { background: var(--ios-blue-dark) !important; color: #FFFFFF !important; }
 body.theme-vercel .sidebar-link.active:hover i { color: #FFFFFF !important; }

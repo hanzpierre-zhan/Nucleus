@@ -547,3 +547,170 @@ def api_cotizacion_generar():
     resp.headers['Content-Type'] = 'application/pdf'
     resp.headers['Content-Disposition'] = f'attachment; filename=Cotizacion_{safe_num}.pdf'
     return resp
+
+
+@bp.route('/api/cotizacion/items_template', methods=['GET'])
+@login_required
+def api_cotizacion_items_template():
+    """Genera y descarga una plantilla Excel con las columnas de items de cotización formato Cobra."""
+    import io as _io
+    # Columnas exactas solicitadas
+    cols = ['CORRELATIVO', 'TIPO', 'TEXTO EXPLICATIVO', 'UND', 'CANTIDAD', 'VALOR UNITARIO', 'FEE %', 'VALOR TOTAL', 'COMENTARIOS']
+    tipos_validos = ['REEMBOLSABLE', 'LPU']
+    und_validos = ['Glb', 'Und', 'm', 'm2', 'Hr', 'Día', 'Mes', 'Viaje', 'Km']
+    ejemplo = {
+        'CORRELATIVO': 1,
+        'TIPO': 'LPU',
+        'TEXTO EXPLICATIVO': 'Descripción del trabajo realizado',
+        'UND': 'Glb',
+        'CANTIDAD': 1,
+        'VALOR UNITARIO': 100.00,
+        'FEE %': 0,
+        'VALOR TOTAL': 100.00,
+        'COMENTARIOS': 'Comentario opcional',
+    }
+    buf = _io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df = pd.DataFrame([ejemplo], columns=cols)
+        df.to_excel(writer, index=False, sheet_name='Items')
+        ws = writer.sheets['Items']
+        ws.freeze_panes = 'A2'
+        ws.auto_filter.ref = ws.dimensions
+        try:
+            from openpyxl.styles import PatternFill, Font, Alignment
+            from openpyxl.utils import get_column_letter
+            from openpyxl.worksheet.datavalidation import DataValidation
+            hdr_fill = PatternFill(start_color='1A73E8', end_color='1A73E8', fill_type='solid')
+            hdr_font = Font(bold=True, color='FFFFFF', size=10)
+            for idx, col_name in enumerate(cols, 1):
+                cell = ws.cell(row=1, column=idx)
+                cell.fill = hdr_fill
+                cell.font = hdr_font
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            # Validación de TIPO (col B)
+            dv_tipo = DataValidation(type='list', formula1='"' + ','.join(tipos_validos) + '"', allow_blank=True, showErrorMessage=True)
+            dv_tipo.error = 'Elige REEMBOLSABLE o LPU'
+            dv_tipo.errorTitle = 'Tipo inválido'
+            ws.add_data_validation(dv_tipo)
+            dv_tipo.add('B2:B1000')
+            # Validación de UND (col D)
+            dv_und = DataValidation(type='list', formula1='"' + ','.join(und_validos) + '"', allow_blank=True, showErrorMessage=False)
+            ws.add_data_validation(dv_und)
+            dv_und.add('D2:D1000')
+            # Ancho de columnas: CORRELATIVO | TIPO | TEXTO EXPLICATIVO | UND | CANTIDAD | VALOR UNITARIO | FEE % | VALOR TOTAL | COMENTARIOS
+            anchos = [14, 16, 48, 12, 12, 18, 10, 16, 36]
+            for idx, ancho in enumerate(anchos, 1):
+                ws.column_dimensions[get_column_letter(idx)].width = ancho
+        except Exception:
+            pass
+    buf.seek(0)
+    resp = make_response(buf.read())
+    resp.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    resp.headers['Content-Disposition'] = 'attachment; filename=Plantilla_Items_Cotizacion.xlsx'
+    return resp
+
+
+@bp.route('/api/cotizacion/items_import', methods=['POST'])
+@login_required
+def api_cotizacion_items_import():
+    """Recibe un Excel con items de cotización y devuelve la lista parseada como JSON."""
+    f = request.files.get('file')
+    if not f:
+        return jsonify({'error': 'No se recibió archivo'}), 400
+    fname = (f.filename or '').lower()
+    try:
+        if fname.endswith('.csv'):
+            import io as _io
+            raw = f.read()
+            # Intentar UTF-8 primero, luego latin-1 como fallback
+            for enc in ('utf-8-sig', 'utf-8', 'latin-1', 'cp1252'):
+                try:
+                    df = pd.read_csv(_io.BytesIO(raw), encoding=enc, dtype=str)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                df = pd.read_csv(_io.BytesIO(raw), encoding='latin-1', dtype=str)
+        else:
+            import io as _io
+            df = pd.read_excel(_io.BytesIO(f.read()), dtype=str)
+    except Exception as e:
+        return jsonify({'error': f'No se pudo leer el archivo: {str(e)}'}), 400
+
+    df.columns = [str(c).strip().upper() for c in df.columns]
+    df = df.where(pd.notna(df), '')
+
+    # Mapas de sinónimos de columnas
+    MAP = {
+        'correlativo': ['CORRELATIVO', 'CORR', 'N° ITEM', 'N°ITEM', 'ITEM'],
+        'TIPO': ['TIPO'],
+        'texto': ['TEXTO EXPLICATIVO', 'TEXTO', 'DESCRIPCION', 'DESCRIPCIÓN', 'DETALLE'],
+        'und': ['UND', 'UNIDAD', 'UNID'],
+        'cantidad': ['CANTIDAD', 'CANT'],
+        'valor_unitario': ['VALOR UNITARIO', 'VALOR_UNITARIO', 'V. UNITARIO', 'PRECIO', 'PRECIO UNITARIO'],
+        'fee': ['FEE %', 'FEE', 'FEE%', 'FEE PORCENTAJE'],
+        'comentarios': ['COMENTARIOS', 'COMENTARIO', 'NOTAS', 'NOTA'],
+    }
+
+    def _col(synonyms):
+        for s in synonyms:
+            if s.upper() in df.columns:
+                return s.upper()
+        return None
+
+    col_corr = _col(MAP['correlativo'])
+    col_tipo = _col(MAP['TIPO'])
+    col_texto = _col(MAP['texto'])
+    col_und = _col(MAP['und'])
+    col_cant = _col(MAP['cantidad'])
+    col_vu = _col(MAP['valor_unitario'])
+    col_fee = _col(MAP['fee'])
+    col_com = _col(MAP['comentarios'])
+
+    items = []
+    for _, row in df.iterrows():
+        texto = str(row[col_texto] if col_texto else '').strip()
+        cant_raw = str(row[col_cant] if col_cant else '').strip()
+        vu_raw = str(row[col_vu] if col_vu else '').strip()
+        # Saltar filas completamente vacías
+        if not texto and not cant_raw and not vu_raw:
+            continue
+        tipo_raw = str(row[col_tipo] if col_tipo else '').strip().upper()
+        tipo = tipo_raw if tipo_raw in ('REEMBOLSABLE', 'LPU') else ''
+        und = str(row[col_und] if col_und else '').strip()
+        comentarios = str(row[col_com] if col_com else '').strip()
+        try:
+            cant = float(cant_raw.replace(',', '.')) if cant_raw else None
+        except (ValueError, TypeError):
+            cant = None
+        try:
+            vu = float(vu_raw.replace(',', '.')) if vu_raw else None
+        except (ValueError, TypeError):
+            vu = None
+        # FEE: leer desde columna si existe; fallback automático por tipo
+        fee_raw = str(row[col_fee] if col_fee else '').strip() if col_fee else ''
+        try:
+            fee = float(fee_raw.replace(',', '.').replace('%', '')) if fee_raw else None
+        except (ValueError, TypeError):
+            fee = None
+        if fee is None:
+            fee = 5 if tipo == 'REEMBOLSABLE' else 0
+        vt = None
+        if cant is not None and vu is not None:
+            vt = round(cant * vu * (1 + fee / 100), 2)
+        corr_raw = str(row[col_corr] if col_corr else '').strip()
+        item = {
+            'correlativo': corr_raw,
+            'tipo': tipo,
+            'texto': texto,
+            'und': und,
+            'cantidad': str(cant) if cant is not None else '',
+            'valor_unitario': str(vu) if vu is not None else '',
+            'fee': str(int(fee)) if fee == int(fee) else str(fee),
+            'valor_total': str(vt) if vt is not None else '',
+            'comentarios': comentarios,
+        }
+        items.append(item)
+    if not items:
+        return jsonify({'error': 'No se encontraron filas con datos. Usa la plantilla descargable como referencia.'}), 400
+    return jsonify({'items': items, 'total': len(items)})

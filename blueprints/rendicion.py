@@ -171,7 +171,9 @@ def _wa_deposito(row):
         lineas.append('N° de ticket: %s' % ticket)
     lineas += ['',
                '📌 Recuerda sustentar la solicitud en las próximas 24 horas.',
-               'Cualquier consulta, comunícate con tu gestor; este medio no es para responder.',
+               'IMPORTANTE: La rendición SOLO se valida con BOLETA o FACTURA.',
+               '🚫 ESTE MENSAJE ES SOLO PARA INFORMACIÓN — NO RESPONDAS AQUÍ.',
+               '⚠️ NO intentes comunicarte por este chat. Cualquier consulta, comunícate ÚNICAMENTE con tu gestor a través del canal oficial.',
                '',
                'Gracias.']
     texto = '\n'.join(lineas)

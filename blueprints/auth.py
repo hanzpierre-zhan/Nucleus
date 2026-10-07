@@ -43,17 +43,18 @@ def login():
             session['username'] = user.username
             session['rol'] = str(user.rol).strip().lower()
             
-            # Default to first project with access if none active
-            if 'current_proyecto_id' not in session:
-                if user.rol in ['zeno', 'suport']:
-                    proj = Proyecto.query.first()
-                else:
-                    acceso = AccesoProyecto.query.filter_by(usuario_id=user.id).first()
-                    proj = db.session.get(Proyecto, acceso.proyecto_id) if acceso else None
-                
-                if proj:
-                    session['current_proyecto_id'] = int(proj.id)
-                    session['current_proyecto_nombre'] = proj.nombre
+            # Limpiar proyecto previo SIEMPRE al iniciar sesión (session leak C3)
+            session.pop('current_proyecto_id', None)
+            session.pop('current_proyecto_nombre', None)
+            # Asignar primer proyecto autorizado
+            if user.rol in ['zeno', 'suport']:
+                proj = Proyecto.query.first()
+            else:
+                acceso = AccesoProyecto.query.filter_by(usuario_id=user.id).first()
+                proj = db.session.get(Proyecto, acceso.proyecto_id) if acceso else None
+            if proj:
+                session['current_proyecto_id'] = int(proj.id)
+                session['current_proyecto_nombre'] = proj.nombre
                     
             return redirect(url_for('pages.analytics'))
         return render_template('login.html', error="Credenciales inválidas")
@@ -187,5 +188,11 @@ def switch_project(pid):
         session['current_proyecto_nombre'] = proj.nombre
     
     # Redirect back to specified page, referrer, or index
+    from urllib.parse import urlparse
     target = request.args.get('next') or request.referrer or url_for('pages.index')
+    # Validar open redirect (A1): solo permitir rutas internas
+    parsed = urlparse(target)
+    if parsed.scheme in ('http', 'https') and parsed.netloc:
+        # evitar externa
+        target = url_for('pages.index')
     return redirect(target)

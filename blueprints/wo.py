@@ -780,8 +780,17 @@ def _autin_sp_pool():
     return _AUTIN_SP_POOL
 
 
+def _autin_es_enlace_sp(u):
+    """¿Es esto un enlace compartido de SharePoint/OneDrive?"""
+    u = str(u or '').lower()
+    return ('sharepoint.com' in u or 'sharepoint.' in u or '1drv.ms' in u
+            or 'onedrive.live' in u or 'my.sharepoint' in u)
+
+
 def _autin_sp_link(pid):
-    """Enlace compartido de la carpeta de fotos. Vacío = este modo está apagado."""
+    """Enlace compartido de la carpeta de fotos. Vacío = este modo está apagado.
+       Vale en AUTIN_SP_LINK (env), en la fila autin_sp_link y también si el usuario
+       lo pegó directamente en el campo de 'URL del servidor de fotos'."""
     p = (os.environ.get('AUTIN_SP_LINK') or '').strip().strip('"')
     if not p and pid:
         cfg = AppConfig.query.filter_by(proyecto_id=pid, clave=AUTIN_SP_CLAVE).first()
@@ -798,6 +807,12 @@ def _autin_sp_link(pid):
             if cfg and (cfg.valor or '').strip():
                 p = cfg.valor.strip()
                 break
+    if not p:
+        # si el usuario pegó el enlace en el campo de 'URL del servidor de fotos',
+        # ahí vale igual (es donde siempre estaba el enlace a la PC/túnel)
+        b = _autin_base_url(pid)
+        if _autin_es_enlace_sp(b):
+            p = b
     return p if re.match(r'^https?://', p) else ''
 
 
@@ -1067,7 +1082,9 @@ def _autin_sp_responde(pid, wo, base):
     if info.get('estado') not in ('ok', 'sin_carpeta'):
         return False
     base['modo'] = 'sharepoint'
-    base['base_url'] = ''    # no hay servidor de fotos que configurar
+    # se devuelve el enlace que está en uso para que zeno lo vea y lo cambie
+    # (si lo pegó en el campo de 'URL del servidor de fotos' también sirve)
+    base['base_url'] = _autin_sp_link(pid)
     base['fotos_base'] = ''  # vacío = el front pide cada foto a /api/autin/foto
     base['zip_url'] = ''
     base['raiz_existe'] = True
@@ -1168,6 +1185,19 @@ def api_autin_fotos():
     if _autin_sp_link(pid) and _autin_sp_responde(pid, wo, base):
         return jsonify(base)
 
+    # Si hay enlace pero no respondió, se para aquí: el enlace NO es un servidor
+    # de fotos, así que probarlo abajo solo daría el aviso engañoso de "PC apagada".
+    if _autin_sp_link(pid):
+        base['modo'] = 'sharepoint'
+        base['base_url'] = _autin_sp_link(pid)
+        base['fotos_base'] = ''
+        base['raiz_existe'] = False
+        base['sin_conexion'] = True
+        base['mensaje'] = ('No se pudo leer el enlace compartido de SharePoint: '
+                           'revisa que el enlace siga vigente y que la carpeta '
+                           'comparta lectura pública.')
+        return jsonify(base)
+
     # ── Modo servidor: las fotos viven en la PC 24/7, se piden a su URL ──────
     # (la 'raiz' local se conserva igual: es el respaldo si se vacía la URL)
     if base_url:
@@ -1214,8 +1244,7 @@ def api_autin_fotos():
                 base['mensaje'] = 'Sin carpeta de fotos para este WO.'
                 return jsonify(base)
 
-        # SharePoint ya se intentó antes y es la fuente principal: aquí solo se
-        # avisa que no hay servidor de fotos.
+        # (si hay enlace de SharePoint ya se cortó arriba: aquí solo hay servidor de PC)
         base['modo'] = ''
         base['raiz_existe'] = False
         base['sin_conexion'] = True

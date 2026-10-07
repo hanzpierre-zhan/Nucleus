@@ -36,9 +36,17 @@ class Config:
     """Configuración base — válida para todos los entornos."""
     TESTING = False
     DEBUG = False
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'nucleus_dev_key_change_me')
+    _sk = os.environ.get('SECRET_KEY')
+    if not _sk:
+        # Generar una clave aleatoria para evitar el default inseguro
+        import secrets
+        _sk = secrets.token_urlsafe(64)
+        # No la persistimos en disco; en producción debe definirse SECRET_KEY
+    SECRET_KEY = _sk
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
-    EVIDENCIA_DIR = os.path.join(BASE_DIR, 'static', 'evidencia')
+    _INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
+    os.makedirs(_INSTANCE_DIR, exist_ok=True)
+    EVIDENCIA_DIR = os.path.join(_INSTANCE_DIR, 'evidencia')
     EVIDENCIA_MAX_LADO = int(os.environ.get('EVIDENCIA_MAX_LADO', 1280))
     EVIDENCIA_CALIDAD = int(os.environ.get('EVIDENCIA_CALIDAD', 80))
     # Backblaze B2
