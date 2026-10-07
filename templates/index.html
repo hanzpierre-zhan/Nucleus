@@ -1705,6 +1705,17 @@
 
 
 
+    /* ── Botones de icono en filas de tabla (Cotizaciones / WOs) ── */
+    .tabulator .tabulator-cell button[style*="border-radius"][style*="cursor:pointer"]:hover,
+    .tabulator-row button[style*="border-radius"][style*="cursor:pointer"]:hover {
+        filter: brightness(1.25) !important;
+        transform: scale(1.08) !important;
+    }
+    .tabulator .tabulator-cell button[style*="border-radius"][style*="cursor:pointer"]:active,
+    .tabulator-row button[style*="border-radius"][style*="cursor:pointer"]:active {
+        transform: scale(0.95) !important;
+    }
+
     /* Pestanas de accion en el modal de Cotizaciones */
     .cot-accion-tab {
         flex: 1;
@@ -6460,7 +6471,7 @@
 
                             title="Nueva cotización"
 
-                            style="background:var(--ios-blue); color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1; flex-shrink:0;"><i
+                            style="background:var(--ios-blue); color:#fff; border:none; border-radius:50%; width:36px; height:36px; font-size:15px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; transition:opacity .15s;"><i
 
                                 class="fa-solid fa-plus"></i></button>
 
@@ -6476,7 +6487,7 @@
 
                             title="Desbloquear cotización"
 
-                            style="display:none; background:#FF9500; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i
+                            style="display:none; background:#FF9500; color:#fff; border:none; border-radius:50%; width:36px; height:36px; font-size:15px; cursor:pointer; display:none; align-items:center; justify-content:center; flex-shrink:0; transition:opacity .15s;"><i
 
                                 class="fa-solid fa-lock-open"></i></button>
 
@@ -6484,7 +6495,7 @@
 
                             title="Eliminar cotización"
 
-                            style="display:none; background:#FF3B30; color:#fff; border:none; border-radius:50%; width:30px; height:30px; font-size:13px; cursor:pointer; line-height:1;"><i
+                            style="display:none; background:#FF3B30; color:#fff; border:none; border-radius:50%; width:36px; height:36px; font-size:15px; cursor:pointer; display:none; align-items:center; justify-content:center; flex-shrink:0; transition:opacity .15s;"><i
 
                                 class="fa-solid fa-trash-can"></i></button>
 
@@ -10450,7 +10461,7 @@ let _rendCambiandoVista = false;
 
                     const camBtn = (USER_IS_ADMIN || !url)
 
-                        ? `<button type="button" title="Subir/cambiar foto" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.10);color:var(--ios-blue);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); combSubirFoto('${rowKey}', this)"><i class="fa-solid fa-camera"></i></button>`
+                        ? `<button type="button" title="Subir/cambiar foto" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.18);color:var(--ios-blue);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:background .15s;" onclick="event.stopPropagation(); combSubirFoto('${rowKey}', this)"><i class="fa-solid fa-camera"></i></button>`
 
                         : '';
 
@@ -11580,7 +11591,7 @@ let _rendCambiandoVista = false;
 
                         <span style="color:#34C759; font-weight:600; font-size:11px;">PDF generado</span>
 
-                        <button type="button" title="Descargar cotización" style="border:none;background:rgba(52,199,89,0.12);color:#34C759;border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); descargarCotizacionRegistroKey('${rowKey}')"><i class="fa-solid fa-download"></i></button>
+                        <button type="button" title="Descargar cotización" style="border:none;background:rgba(52,199,89,0.18);color:#34C759;border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:background .15s;" onclick="event.stopPropagation(); descargarCotizacionRegistroKey('${rowKey}')"><i class="fa-solid fa-download"></i></button>
 
                     </div>`;
 
@@ -11590,7 +11601,7 @@ let _rendCambiandoVista = false;
 
                     <span style="color:var(--ios-gray-2); font-size:11px;">Sin PDF</span>
 
-                    <button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.12);color:var(--ios-blue);border-radius:6px;width:24px;height:24px;cursor:pointer;font-size:11px;" onclick="event.stopPropagation(); generarCotizacionExistente('${rowKey}')"><i class="fa-solid fa-file-circle-plus"></i></button>
+                    <button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.18);color:var(--ios-blue);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:background .15s;" onclick="event.stopPropagation(); generarCotizacionExistente('${rowKey}')"><i class="fa-solid fa-file-circle-plus"></i></button>
 
                 </div>`;
 
@@ -26313,9 +26324,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                     const dl = generada
 
-                        ? `<button type="button" title="Descargar PDF" style="border:none;background:rgba(52,199,89,0.12);color:#34C759;border-radius:6px;width:28px;height:28px;cursor:pointer;" onclick="event.stopPropagation(); _descargarCotiAsociada('${c.id}')"><i class="fa-solid fa-download"></i></button>`
+                        ? `<button type="button" title="Descargar PDF" style="border:none;background:rgba(52,199,89,0.18);color:#34C759;border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:background .15s;" onclick="event.stopPropagation(); _descargarCotiAsociada('${c.id}')"><i class="fa-solid fa-download"></i></button>`
 
-                        : `<button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.12);color:var(--ios-blue);border-radius:6px;width:28px;height:28px;cursor:pointer;" onclick="event.stopPropagation(); generarCotiAsociada('${c.id}')"><i class="fa-solid fa-file-circle-plus"></i></button>`;
+                        : `<button type="button" title="Generar cotización (bloqueará edición)" style="border:none;background:rgba(var(--ios-blue-rgb, 0, 122, 255),0.18);color:var(--ios-blue);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:background .15s;" onclick="event.stopPropagation(); generarCotiAsociada('${c.id}')"><i class="fa-solid fa-file-circle-plus"></i></button>`;
 
                     return `<tr style="cursor:pointer;" onclick="_cargarCotizacionRegistro(${parseInt(String(c.id).slice(1), 10)})">
 
@@ -28722,9 +28733,13 @@ function rendElegirFoto(slot) {
 
         if (!f) return;
 
-        if (!String(f.name || '').toLowerCase().endsWith('.msg')) {
+        const _extImg = String(f.name || '').toLowerCase();
 
-            try { nucleusAlert('Solo se admite correo en formato .msg de Outlook'); } catch (e) { alert('Solo se admite correo en formato .msg de Outlook'); }
+        const _extOk = ['.jpg','.jpeg','.png','.webp','.heic','.heif','.bmp'].some(e => _extImg.endsWith(e));
+
+        if (!_extOk && !f.type.startsWith('image/')) {
+
+            try { nucleusAlert('Solo se admiten imágenes (JPG, PNG, WEBP, HEIC).'); } catch (e) { alert('Solo se admiten imágenes.'); }
 
             return;
 
