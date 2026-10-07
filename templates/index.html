@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}Nucleus{% endblock %}
 
@@ -121,6 +121,10 @@
     <button type="button" id="btn-sync-rendicion" onclick="sincronizarTodo()" class="action-pill pill-teal"
         title="Sincronizar solicitudes del formulario y sustentos del archivo">
         <i class="fa-solid fa-rotate"></i><span class="pill-txt"> Sincronizar</span>
+    </button>
+    <button type="button" id="btn-copiar-rendicion" onclick="copiarRendicionTSV()" class="action-pill pill-blue"
+        title="Copiar al portapapeles (compatible con Google Sheets)">
+        <i class="fa-solid fa-copy"></i><span class="pill-txt"> Copiar</span>
     </button>
 
     <!-- Campanita: avisos del flujo (quién validó, depositó, rechazó...) -->
@@ -6526,6 +6530,104 @@ let _rendCambiandoVista = false;
             });
     }
 
+    function copiarRendicionTSV() {
+        const isWoExport = (typeof IS_WO_PROJECT !== 'undefined' && IS_WO_PROJECT);
+        const esRendicion = (typeof IS_RENDICION !== 'undefined' && IS_RENDICION);
+        let exportCols = [];
+        let dataToExport = rawData;
+        if (esRendicion) {
+            const tramoAccion = [
+                'Marca temporal', 'Nombre del proyecto', 'ESTADO', 'Tipo de presupuesto', 'Tipo de gasto',
+                'Tipo de Ticket', 'Nombre de site', 'Técnico beneficiario', 'Documento del beneficiario',
+                'Número CM / PM / PLM', 'Criticidad - Prioridad', 'Motivo de la solicitud',
+                'Monto total del depósito', 'Tipo de depósito a realizar', 'Tipo de billetera digital',
+                'Numero de Yape/Plin', 'Número de celular o CCI', 'Número de cuenta o CCI',
+                'Titular de la cuenta', 'Supervisor encargado', 'Responsable de la validación',
+                'Observaciones (Form)',
+                'TIEMPO DE RESPUESTA', 'FECHA VALIDACION', 'VALIDADO POR',
+                'CODIGO DEPOSITO', 'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'DEPOSITADO POR'
+            ];
+            const tramoEvidencia = ['FOTOS SUSTENTO', 'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'SUSTENTADO POR'];
+            const tramoCierre = [
+                'OBSERVACIONES', 'FECHA RECHAZO', 'RECHAZADO POR', 'RECHAZADO DESDE',
+                'VECES RECHAZADO', 'DEVUELTO POR', 'FECHA DEVOLUCION'
+            ];
+            const descartadosRend = { 'INTERACCION': 1, 'EDITADO POR': 1, 'SUSTENTO_MARCA TEMPORAL': 1 };
+            const presentesSet = new Set((rawCols || []).filter(c => c && !String(c).startsWith('_') && !String(c).toUpperCase().startsWith('KPI_')));
+            (rawData || []).forEach(d => {
+                Object.keys(d || {}).forEach(k => {
+                    if (k.startsWith('_') || k.toUpperCase().startsWith('KPI_')) return;
+                    if (descartadosRend[k]) return;
+                    presentesSet.add(k);
+                });
+            });
+            const presentes = [...presentesSet];
+            const enOrden = [];
+            tramoAccion.concat(tramoEvidencia, tramoCierre).forEach(n => {
+                if (presentes.indexOf(n) >= 0 && enOrden.indexOf(n) < 0) enOrden.push(n);
+            });
+            const sustNuevas = [];
+            presentes.forEach(c => {
+                if (c.startsWith('SUSTENTO_') && !descartadosRend[c] && enOrden.indexOf(c) < 0 && !sustNuevas.includes(c)) sustNuevas.push(c);
+            });
+            let idxEv = enOrden.indexOf('FECHA SUSTENTO');
+            if (idxEv < 0) idxEv = enOrden.indexOf('DEPOSITADO POR') + 1;
+            if (idxEv >= 0) enOrden.splice(idxEv, 0, ...sustNuevas);
+            else sustNuevas.forEach(c => enOrden.push(c));
+            presentes.forEach(c => { if (!descartadosRend[c] && enOrden.indexOf(c) < 0) enOrden.push(c); });
+            exportCols = enOrden;
+            dataToExport = rawData;
+        } else if (isWoExport) {
+            exportCols = (rawCols || []).filter(c => c && !String(c).toUpperCase().startsWith('KPI_') && !String(c).startsWith('_'));
+            dataToExport = rawData;
+        } else {
+            exportCols = (rawCols || []).filter(c => c && !String(c).toUpperCase().startsWith('KPI_'));
+            dataToExport = rawData;
+        }
+        function esc(v) {
+            if (v === null || v === undefined) return '';
+            let s = String(v);
+            if (s.indexOf('\t') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0 || s.indexOf('"') >= 0) {
+                s = '"' + s.replace(/"/g, '""') + '"';
+            }
+            return s;
+        }
+        const rowsTsv = [];
+        rowsTsv.push(exportCols.map(esc).join('\t'));
+        (Array.isArray(dataToExport) ? dataToExport : []).forEach(r => {
+            rowsTsv.push(exportCols.map(c => {
+                let val = r[c];
+                if (val === null || val === undefined) return '';
+                if (val instanceof Date) {
+                    const d = val;
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const min = String(d.getMinutes()).padStart(2, '0');
+                    const ss = String(d.getSeconds()).padStart(2, '0');
+                    return `${d.getFullYear()}-${mm}-${dd} ${hh}:${min}:${ss}`;
+                }
+                return String(val);
+            }).map(esc).join('\t'));
+        });
+        const tsv = rowsTsv.join('\r\n');
+        const btn = document.getElementById('btn-copiar-rendicion');
+        const orig = btn ? btn.innerHTML : '';
+        const done = () => { if (btn) { btn.disabled = false; btn.innerHTML = orig; } };
+        if (navigator.clipboard && window.isSecureContext) {
+            btn && (btn.disabled = true) && (btn.innerHTML = '<i class="fa-solid fa-check"></i> Copiado');
+            navigator.clipboard.writeText(tsv).then(done).catch(() => {
+                const ta = document.createElement('textarea');
+                ta.value = tsv; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                done();
+            });
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = tsv; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+            btn && (btn.disabled = true) && (btn.innerHTML = '<i class="fa-solid fa-check"></i> Copiado');
+            setTimeout(done, 800);
+        }
+    }
     function descargarExcel() {
         if (typeof XLSX === 'undefined') {
             alert("Librería de exportación no disponible.");
