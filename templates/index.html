@@ -5733,7 +5733,49 @@
 
     }
 
-</style>
+
+    /* ── Cotizaciones: colores por pestaña ─────────────── */
+    #cot-tabs .rend-tab[data-vista="registro"]  { --tab-c: #8E8E93; }
+    #cot-tabs .rend-tab[data-vista="cliente"]   { --tab-c: #FF9500; }
+    #cot-tabs .rend-tab[data-vista="atendido"]  { --tab-c: #28A745; }
+    #cot-tabs .rend-tab[data-vista="cancelado"] { --tab-c: #6B7280; }
+
+    #cot-tabs .rend-tab[data-vista="registro"]:not(.active)  { color:#8E8E93; border-color:#8E8E9355; }
+    #cot-tabs .rend-tab[data-vista="cliente"]:not(.active)   { color:#FF9500; border-color:#FF950055; }
+    #cot-tabs .rend-tab[data-vista="atendido"]:not(.active)  { color:#28A745; border-color:#28A74555; }
+    #cot-tabs .rend-tab[data-vista="cancelado"]:not(.active) { color:#6B7280; border-color:#6B728055; }
+
+    /* ── Badge: ESTADO COTIZACION ───────────────────────── */
+    .cot-est-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 20px;
+        font-size: 10.5px;
+        font-weight: 700;
+        white-space: nowrap;
+        letter-spacing: 0.2px;
+    }
+
+    /* ── Botones FLUJO Cotizaciones: tamaño ajustado ────── */
+    .rend-acciones { display: flex; align-items: center; gap: 4px; padding: 0; }
+    .cot-btn {
+        border: none; border-radius: 7px; cursor: pointer;
+        font-size: 13px; padding: 4px 7px; color: #fff;
+        transition: filter .15s, transform .1s;
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        line-height: 1;
+    }
+    .cot-btn:hover  { filter: brightness(1.15); transform: translateY(-1px); }
+    .cot-btn:active { filter: brightness(0.9);  transform: scale(0.95); }
+    .cot-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .cot-btn-gen    { background: linear-gradient(135deg,#007AFF,#005ecb); }
+    .cot-btn-ok     { background: linear-gradient(135deg,#28A745,#1e8a38); }
+    .cot-btn-rev    { background: linear-gradient(135deg,#FF9500,#e07f00); }
+    .cot-btn-cancel { background: linear-gradient(135deg,#6B7280,#4b5563); }
+    .cot-btn-done   { background: linear-gradient(135deg,#28A745,#1e8a38); font-size:16px; padding: 3px 6px; }
+    .cot-btn-atend  { background: linear-gradient(135deg,#AF52DE,#8e3ab8); }
+
+    </style>
 
 
 
@@ -10004,6 +10046,26 @@ let _rendCambiandoVista = false;
 
 
 
+
+            // Cotizaciones: ESTADO COTIZACION → badge de color
+            if (IS_COTIZACIONES && fieldName === 'ESTADO COTIZACION') {
+                colDef.editor = false;
+                colDef.headerFilter = listaHeaderFilter(manualDef ? manualDef.opciones : [
+                    'Pdt. Cotización','En proceso','Cotizado','En Aprobación','Observado','Rechazado','Atendido','Cancelado','Anulada'
+                ]);
+                colDef.formatter = function (cell) {
+                    const rawEst = String(cell.getValue() || '').trim();
+                    const est    = cotEstadoDe({ 'ESTADO COTIZACION': rawEst });
+                    const c = COT_ESTADO_COLORS[est] || COT_ESTADO_COLORS[rawEst] || { bg: '#8E8E93', fg: '#fff' };
+                    const span = document.createElement('span');
+                    span.className = 'cot-est-badge';
+                    span.textContent = rawEst || est;
+                    span.style.background = c.bg;
+                    span.style.color      = c.fg;
+                    return span;
+                };
+            }
+
             // Rendicion: ESTADO muestra un badge con el color de su estado dentro
 
             // del flujo, y las fotos (pago / sustento) se abren al hacer clic.
@@ -11180,7 +11242,7 @@ let _rendCambiandoVista = false;
 
                     const chk = document.createElement('span');
 
-                    chk.className = 'rend-btn-done rend-pill rend-pill-sus';
+                    chk.className = 'cot-btn cot-btn-done';
 
                     chk.title = 'Completado - Sustentado';
 
@@ -11473,32 +11535,20 @@ let _rendCambiandoVista = false;
 
 
                 function mk(clase, texto, titulo, fn) {
-
                     const b = document.createElement('button');
-
                     b.type = 'button';
-
-                    b.className = 'rend-btn ' + clase;
-
+                    b.className = 'cot-btn ' + clase;
                     if (String(texto).trim().charAt(0) === '<') b.innerHTML = texto;
-
                     else b.textContent = texto;
-
                     b.title = titulo;
-
                     b.disabled = !puede;
-
                     b.onclick = (e) => { e.stopPropagation(); fn(); };
-
                     wrap.appendChild(b);
-
                 }
-
-
 
                 if (pest === 'registro') {
                     // Boton principal: Generar cotizacion
-                    mk('rend-btn-ok', '<i class="fa-solid fa-file-circle-plus"></i>',
+                    mk('cot-btn-gen', '<i class="fa-solid fa-file-circle-plus"></i>',
                        'Generar cotizacion: abre el desglose de partidas',
                        () => {
                            if (typeof abrirCotiDetalle === 'function') {
@@ -11517,20 +11567,20 @@ let _rendCambiandoVista = false;
                        () => cotAbrirModal(key, 'registro', 'cancelado'));
                 } else if (pest === 'cliente') {
                     // 3 botones: Aprobado / Rechazado / Cancelado
-                    mk('rend-btn-sus', '<i class="fa-solid fa-circle-check"></i>',
+                    mk('cot-btn-ok', '<i class="fa-solid fa-circle-check"></i>',
                        'Aprobar - requiere fecha + correo .msg del cliente',
                        () => cotAbrirModal(key, 'cliente', 'aprobado'));
-                    mk('rend-btn-rev rend-btn-mini', '<i class="fa-solid fa-rotate-left"></i>',
+                    mk('cot-btn-rev', '<i class="fa-solid fa-rotate-left"></i>',
                        'Rechazar - regresa a Pdt. Cotizacion',
                        () => cotAbrirModal(key, 'cliente', 'rechazado'));
-                    mk('rend-btn rend-btn-mini', '<i class="fa-solid fa-ban"></i>',
+                    mk('cot-btn-cancel', '<i class="fa-solid fa-ban"></i>',
                        'Cancelar - pasa a Cancelado/Anulada',
                        () => cotAbrirModal(key, 'cliente', 'cancelado'));
                 } else if (pest === 'atendido') {
 
                     const chk = document.createElement('span');
 
-                    chk.className = 'rend-btn-done rend-pill rend-pill-sus';
+                    chk.className = 'cot-btn cot-btn-done';
 
                     chk.title = 'Atendido — flujo completado';
 
@@ -30009,7 +30059,7 @@ function cotActualizarContadores() {
 
     if (!IS_COTIZACIONES || typeof rawData === 'undefined') return;
 
-    const c = { registro: 0, cotizado: 0, cliente: 0, atendido: 0 };
+    const c = { registro: 0, cliente: 0, atendido: 0, cancelado: 0 };
 
     rawData.forEach(r => { const p = cotPestaniaDe(r); if (c[p] !== undefined) c[p]++; });
 
@@ -30077,13 +30127,13 @@ function cotAccionKey(key, accion, extra) {
 
 // Tras pulsar "Generar Cotización" en el modal, el registro pasa a Cotizado
 
-// y viaja a la pestaña 2. Se recuerda la pestaña destino para que, al
+// y viaja a la pestaña 2 (Cliente). Se recuerda la pestaña destino para que, al
 
 // recargar, el usuario lo encuentre ahí y no tenga que buscarlo.
 
 function cotMarcarCotizado(key) {
 
-    try { sessionStorage.setItem('cot_vista_tras', 'cotizado'); } catch (e) { }
+    try { sessionStorage.setItem('cot_vista_tras', 'cliente'); } catch (e) { }
 
     return fetch('/api/cotizacion/accion', {
 
