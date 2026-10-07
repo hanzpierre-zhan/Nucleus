@@ -565,37 +565,40 @@ def api_rendicion_subir_foto():
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
     os.close(fd)
     try:
-        file.save(ruta_tmp)
         try:
-            evidencia_comprimir(ruta_tmp)
-        except Exception:
-            pass
-        if evidencia_usa_b2():
-            # borra la versión anterior del mismo slot
+            file.save(ruta_tmp)
             try:
-                pref = f'{key}/rendicion_{slot}'
-                b2 = b2_cliente()
-                for obj in b2.list_objects_v2(Bucket=current_app.config['B2_BUCKET'],
-                                              Prefix=pref).get('Contents', []):
-                    b2.delete_object(Bucket=current_app.config['B2_BUCKET'], Key=obj['Key'])
+                evidencia_comprimir(ruta_tmp)
             except Exception:
                 pass
-            b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'],
-                                     f'{key}/{nombre}')
-        else:
-            folder = _folder(pid, key)
-            os.makedirs(folder, exist_ok=True)
-            for viejo in os.listdir(folder):
-                if viejo.startswith('rendicion_%s.' % slot):
-                    try:
-                        os.remove(os.path.join(folder, viejo))
-                    except Exception:
-                        pass
-            with open(os.path.join(folder, nombre), 'wb') as fh:
-                with open(ruta_tmp, 'rb') as src:
-                    fh.write(src.read())
-        url = '/api/rendicion/foto/%d/%s/%s?v=%d' % (pid, key, nombre, int(time.time()))
-        return jsonify({'success': True, 'url': url})
+            if evidencia_usa_b2():
+                # borra la versión anterior del mismo slot
+                try:
+                    pref = f'{key}/rendicion_{slot}'
+                    b2 = b2_cliente()
+                    for obj in b2.list_objects_v2(Bucket=current_app.config['B2_BUCKET'],
+                                                  Prefix=pref).get('Contents', []):
+                        b2.delete_object(Bucket=current_app.config['B2_BUCKET'], Key=obj['Key'])
+                except Exception:
+                    pass
+                b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'],
+                                         f'{key}/{nombre}')
+            else:
+                folder = _folder(pid, key)
+                os.makedirs(folder, exist_ok=True)
+                for viejo in os.listdir(folder):
+                    if viejo.startswith('rendicion_%s.' % slot):
+                        try:
+                            os.remove(os.path.join(folder, viejo))
+                        except Exception:
+                            pass
+                with open(os.path.join(folder, nombre), 'wb') as fh:
+                    with open(ruta_tmp, 'rb') as src:
+                        fh.write(src.read())
+            url = '/api/rendicion/foto/%d/%s/%s?v=%d' % (pid, key, nombre, int(time.time()))
+            return jsonify({'success': True, 'url': url})
+        except Exception as e:
+            return jsonify({'error': f'Error procesando foto: {str(e)}'}), 500
     finally:
         if os.path.exists(ruta_tmp):
             try:
