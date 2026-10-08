@@ -807,6 +807,7 @@ def _cot_folder(pid, key):
 EXT_CORREO_OK = ('.pdf', '.msg', '.eml', '.doc', '.docx',
                  '.jpg', '.jpeg', '.png', '.webp')
 
+<<<<<<< HEAD
 # Formato libre: solo se bloquean tipos que podrían ejecutarse/interpretarse
 # al servirse desde el servidor (HTML/SVG/JS = XSS same-origin; binarios = RCE).
 EXT_CORREO_BLOQUEADAS = ('.html', '.htm', '.shtml', '.svg', '.js', '.jse',
@@ -821,6 +822,8 @@ def _cot_error_413(e):
     frontend pueda mostrar el motivo real en vez de 'Error de red al subir.'."""
     return jsonify({'error': 'El archivo supera el tamaño máximo permitido (50 MB).'}), 413
 
+=======
+>>>>>>> 9d0aadc289981134d41e14f6d0fac0ecf729c6c5
 
 @bp.route('/api/cotizacion/accion', methods=['POST'])
 @login_required
@@ -973,14 +976,20 @@ def api_cotizacion_subir_correo():
     if file is None or not file.filename:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
     ext = os.path.splitext(file.filename)[1].lower()
+<<<<<<< HEAD
     if ext in EXT_CORREO_BLOQUEADAS:
         return jsonify({'error': 'Formato no permitido (%s). Usa .msg, .pdf, .doc, JPG, PNG o WEBP.' % ext}), 400
+=======
+    if ext not in EXT_CORREO_OK:
+        return jsonify({'error': 'Formato no permitido. Usa .msg, .pdf, .doc, JPG, PNG o WEBP.'}), 400
+>>>>>>> 9d0aadc289981134d41e14f6d0fac0ecf729c6c5
 
     key = secure_filename(key)
     nombre = 'correo_aprob_%d%s' % (int(time.time()), ext)
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
     os.close(fd)
     try:
+<<<<<<< HEAD
         try:
             file.save(ruta_tmp)
             if evidencia_usa_b2():
@@ -995,6 +1004,18 @@ def api_cotizacion_subir_correo():
         except Exception as e:
             current_app.logger.exception('subir_correo: fallo al guardar el adjunto')
             return jsonify({'error': 'No se pudo subir el archivo: %s' % e}), 500
+=======
+        file.save(ruta_tmp)
+        if evidencia_usa_b2():
+            b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'],
+                                     '%s/%s' % (key, nombre))
+        else:
+            folder = _cot_folder(proy.id, key)
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, nombre), 'wb') as fh, \
+                 open(ruta_tmp, 'rb') as src:
+                fh.write(src.read())
+>>>>>>> 9d0aadc289981134d41e14f6d0fac0ecf729c6c5
         url = '/api/cotizacion/correo/%d/%s/%s?v=%d' % (
             proy.id, key, nombre, int(time.time()))
         return jsonify({'success': True, 'url': url})
