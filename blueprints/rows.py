@@ -307,10 +307,13 @@ def api_rows_edit_key():
 @login_required
 def api_rows_add():
     pid = session.get('current_proyecto_id')
-    if session.get('rol') == 'contrata':
-        return jsonify({'error': 'El rol Contrata no puede añadir nuevos registros.'}), 403
     _proy_chk = db.session.get(Proyecto, pid)
-    if _proy_chk and _proy_chk.nombre.strip() == 'SITE' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+    proy_nombre_chk = _proy_chk.nombre.strip() if _proy_chk and _proy_chk.nombre else ''
+
+    if session.get('rol') == 'contrata' and proy_nombre_chk != 'Cotizaciones':
+        return jsonify({'error': 'El rol Contrata no puede añadir nuevos registros.'}), 403
+    
+    if proy_nombre_chk == 'SITE' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
         return jsonify({'error': 'Solo supervisor o admin puede añadir sites.'}), 403
     try:
         data = request.json

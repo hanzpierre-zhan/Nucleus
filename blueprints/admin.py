@@ -842,3 +842,121 @@ def api_rendicion_sync_sustentos():
         'columnas_nuevas': faltantes,
         'segundos': round(time.time() - t0, 2)
     })
+
+
+# ── Admin: forzar estado de una cotización (módulo Cotizaciones) ───────────────
+ESTADOS_COT_VALIDOS = (
+    'Pdt. Cotización', 'En Aprobación', 'Atendido', 'Cancelado',
+    'Cotizado', 'En proceso', 'Observado', 'Rechazado', 'Validado',
+)
+
+
+@bp.route('/api/admin/cotizacion/forzar_estado', methods=['POST'])
+@login_required
+def api_admin_cotizacion_forzar_estado():
+    """Fuerza el ESTADO COTIZACION de un registro del módulo Cotizaciones.
+    Solo para admin (zeno / suport). Registra el cambio en historial."""
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'Solo administradores pueden forzar estados.'}), 403
+
+    data  = request.get_json(silent=True) or {}
+    key   = str(data.get('key') or '').strip()
+    nuevo = str(data.get('estado') or '').strip()
+
+    if not key:
+        return jsonify({'error': 'Falta la clave del registro (key).'}), 400
+    if nuevo not in ESTADOS_COT_VALIDOS:
+        return jsonify({'error': 'Estado inválido. Opciones: ' + ', '.join(ESTADOS_COT_VALIDOS)}), 400
+
+    proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
+        return jsonify({'error': 'Registro "' + key + '" no encontrado en Cotizaciones.'}), 404
+
+    try:
+        row = json.loads(fila.data_json or '{}')
+    except Exception:
+        row = {}
+
+    anterior = str(row.get('ESTADO COTIZACION') or '').strip()
+    usuario  = session.get('username') or 'admin'
+    ahora    = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+    row['ESTADO COTIZACION']  = nuevo
+    row['_ADMIN_FORZADO_POR'] = usuario
+    row['_ADMIN_FORZADO_EN']  = ahora
+    row['_ADMIN_ESTADO_PREV'] = anterior
+
+    fila.data_json = json.dumps(row, ensure_ascii=False)
+
+    db.session.add(HistorialCambios(
+        proyecto_id=proy.id,
+        usuario_id=session.get('user_id'),
+        username=usuario,
+        key_value=key,
+        campo_modificado='ESTADO COTIZACION',
+        valor_anterior=anterior,
+        valor_nuevo=nuevo,
+        fecha=datetime.utcnow(),
+    ))
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'key': key,
+        'estado_anterior': anterior,
+        'estado_nuevo': nuevo,
+    })
+
+
+@bp.route('/api/admin/cotizacion/lista', methods=['GET'])
+@login_required
+def api_admin_cotizacion_lista():
+    """Lista cotizaciones del módulo Cotizaciones filtradas por estado/texto.
+    Solo para admin (zeno / suport)."""
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'No autorizado.'}), 403
+
+    proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not proy:
+        return jsonify({'registros': [], 'total': 0})
+
+    filtro_estado = str(request.args.get('estado') or '').strip()
+    filtro_q      = str(request.args.get('q') or '').strip().lower()
+
+    filas = NucleusData.query.filter_by(proyecto_id=proy.id).order_by(NucleusData.id.desc()).all()
+    resultado = []
+    for f in filas:
+        try:
+            d = json.loads(f.data_json or '{}')
+        except Exception:
+            d = {}
+        estado = str(d.get('ESTADO COTIZACION') or '').strip()
+        if filtro_estado and estado != filtro_estado:
+            continue
+        if filtro_q:
+            haystack = ' '.join([
+                f.key_value, estado,
+                str(d.get('N° COTIZACION') or ''),
+                str(d.get('CLIENTE') or ''),
+                str(d.get('NUMERO WO') or ''),
+                str(d.get('NOMBRE SITE') or ''),
+                str(d.get('OBJETIVO') or ''),
+            ]).lower()
+            if filtro_q not in haystack:
+                continue
+        resultado.append({
+            'key':     f.key_value,
+            'codigo':  str(d.get('N° COTIZACION') or f.key_value),
+            'estado':  estado,
+            'cliente': str(d.get('CLIENTE') or ''),
+            'wo':      str(d.get('NUMERO WO') or ''),
+            'site':    str(d.get('NOMBRE SITE') or ''),
+            'fecha':   str(d.get('FECHA') or ''),
+            'objetivo': str(d.get('OBJETIVO') or '')[:80],
+        })
+
+    return jsonify({'registros': resultado, 'total': len(resultado)})

@@ -231,6 +231,20 @@ IS_FLM = (nombre == 'flm'); IS_PEXT = (nombre == 'pext');
 - Número de cotización: prefijo `HW-` + año. Guarda en `nucleus_data` columnas `COTIZACION_*`.
 - Desbloquear/eliminar solo admin; gestor no toca bloqueadas.
 
+#### Flujo de 4 pestañas (columna `ESTADO COTIZACION`)
+| # | Pestaña | Estados que la alimentan | Acción de la columna *Flujo* |
+|---|---------|--------------------------|------------------------------|
+| 1 | Registro | `Pdt. Cotización` + estados sin mapear (`En proceso`, `Observado`, `Rechazado`, `Cancelado`, vacío) | **Generar cotización** → abre el desglose; al generar se pasa a `Cotizado` |
+| 2 | Cotización | `Cotizado` | **Enviar a cliente** → `En Aprobación` |
+| 3 | Cliente | `En Aprobación` | **Conformar aprobación** (modal: fecha/hora auto, correo del cliente, comentario) → `Atendido` |
+| 4 | Atendido | `Atendido` / `Validado` | Historial / auditoría |
+
+- **Alta en la pestaña 1:** el botón *Añadir nuevo registro* abre el formulario de **solicitud** (Código Interno autogenerado `COB-{AÑO}-{MES}-{SECUENCIAL}`, N° de WO, Proyecto, Departamento, Site, Región, Tipo de Cotización, Motivo de Cotización y Supervisor). `GESTOR` **no se muestra**: lo asigna el servidor en `POST /api/rows/add`. El botón **Solicitar Cotización** guarda con estado `Pdt. Cotización` y la fila permanece en la pestaña 1. El desglose de partidas/PDF no se llena aquí: lo hace la pestaña 2.
+- **Varios WO por cotización:** `NUMERO WO` admite **0, 1 o varios** valores mediante chips (Enter para añadir, × para quitar; Backspace vacío quita el último). También se aceptan varios pegados de golpe separados por `,` `;` `|` o salto de línea. Se guardan en una sola cadena separados por coma.
+  La cotización es **una sola** y `GET /api/cotizacion/registro?key=<WO>` la devuelve para **cada** WO declarado (helper `_split_wos`), de modo que se refleja en la pestaña Cotización de todos los WO que cubre; esa tabla incluye la columna **WOs DECLARADOS**. En la tabla principal, cada WO es un enlace independiente al detalle FLM/PEXT.
+- Las columnas que soportan la pestaña 1 (`DEPARTAMENTO`, `REGION`, `TIPO DE COTIZACION`) y las 9 opciones de estado se crean/fusionan en `migrations.run_migrations()`; esa migración **solo añade** lo que falte y nunca sobrescribe columnas u opciones propias del proyecto.
+- `POST /api/cotizacion/accion` es **idempotente**: `generar` sobre una cotización ya `Cotizado` devuelve éxito sin error.
+
 ### 7.4 Dataper / Material / Site Name
 - Catálogos fuente. Dataper alimenta técnicos; Material alimenta materiales del modal WO; Site Name cruza DIRECCION/LAT/LONG a FLM por `Nombre de Site` (solo ESTADO=ACTIVO).
 
@@ -384,6 +398,7 @@ Roles: **admin** · **supervisor** (antes editor) · **gestor** · **demo** (sol
 **Rendición:** `POST /api/rendicion/accion` · `POST /api/rendicion/subir_foto` · `GET /api/rendicion/foto/<pid>/<key>/<nombre>|avisos` · `POST /api/rendicion/avisos/leer`
 **Sincronizaciones:** `GET|POST /api/rendicion/sync` · `POST /api/rendicion/sync_sustentos`
 **Cotizaciones:** `GET /api/cotizacion/estado|lista` · `POST /api/cotizacion/desbloquear|eliminar|generar|previsualizar|registro_generar|descargar_registro|descargar_lote`
+**Cotizaciones (flujo 4 pestañas):** `POST /api/cotizacion/accion` (`generar`·`enviar`·`conformar_aprobacion`·`revertir`) · `POST /api/cotizacion/subir_correo` · `GET /api/cotizacion/correo/<pid>/<key>/<nombre>`
 **Admin:** `/api/admin/proyecto|usuario|permisos|columnas|column_values` · `/api/tecnicos` · `/api/clean`
 **Auth:** `/login` `/logout` `/switch_project/<pid>`
 **Health:** `/healthz`
@@ -412,6 +427,7 @@ Roles: **admin** · **supervisor** (antes editor) · **gestor** · **demo** (sol
 - ⚠️ `.gitignore` NO excluye `nucleus.db` actualmente (la BD se sube al repo).
 - La BD de producción es PostgreSQL v18 (Neon Launch, AWS us-east-2). Local es SQLite.
 - Migraciones automáticas al arranque: multi-proyecto, cotizaciones sin unique, backfill de historial, admin default.
+- **Las migraciones solo añaden, nunca sobrescriben** la configuración del proyecto (`app_config`). Antes, el bloque de Cotizaciones reescribía `manual_columns` con la lista por defecto en cada arranque y borraba las columnas u opciones que el admin hubiera añadido; ahora fusiona lo que falte y conserva lo existente.
 - **Fault Level de PEXT** es inmutable (no aparece en columnas manuales): es dato de origen.
 
 ---

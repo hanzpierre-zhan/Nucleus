@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
 import urllib.request, urllib.parse, urllib.error, http.cookiejar
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -470,7 +470,7 @@ def api_wo_resolver():
     wo = (request.args.get('wo') or request.args.get('key') or '').strip()
     if not wo:
         return jsonify({'found': False, 'error': 'Falta WO'}), 400
-    for nombre in ['FLM - ENTEL', 'FLM', 'PEXT']:
+    for nombre in ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM', 'PEXT']:
         proy = Proyecto.query.filter_by(nombre=nombre).first()
         if not proy:
             continue
@@ -1498,3 +1498,4 @@ def api_autin_config():
                     'sp_activo': bool(sp_link),
                     'existe': os.path.isdir(raiz) or bool(base_url) or bool(sp_link),
                     'editable': es_admin})
+
