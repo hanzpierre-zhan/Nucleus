@@ -67,8 +67,8 @@
                 {% endfor %}
                 {% endfor %}
 
-                <a href="/refacturable/" class="sidebar-link {% if request.path.startswith('/refacturable') %}active{% endif %}" data-nav="/refacturable/">
-                    <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Refacturable</span>
+                <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/">
+                    <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
                 {% if (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
                 <a href="/mapa-site" class="sidebar-link {% if request.path == '/mapa-site' or request.path == '/mapa' %}active{% endif %}" data-nav="/mapa-site">
@@ -181,7 +181,7 @@
         })();
 
     </script>
-    <script src="{{ url_for('static', filename='js/api-response.js') }}?v=1"></script>
+    <script src="{{ url_for('static', filename='js/api-response.js') }}?v=2"></script>
     {% block scripts %}{% endblock %}
 
     <!-- Bottom Nav Bar para móvil: se construye a partir del sidebar existente -->
@@ -337,7 +337,13 @@
             if(e.key==='Enter' && _type!=='prompt'){ e.preventDefault(); if(_type==='confirm') close(true); else close(true); }
         });
 
-        window.nucleusAlert = (message, title='Aviso') => show({type:'alert', title, message: String(message), okText:'Entendido', icon:'fa-circle-info'});
+        window.nucleusAlert = (message, title='Aviso') => {
+            if (String(message).includes('Tu sesión venció.')) {
+                window.location.assign('/login');
+                return Promise.resolve();
+            }
+            return show({type:'alert', title, message: String(message), okText:'Entendido', icon:'fa-circle-info'});
+        };
         window.nucleusConfirm = (message, title='Confirmar') => show({type:'confirm', title, message: String(message), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-circle-question'});
         window.nucleusPrompt = (message, defaultValue='', title='Ingresar', inputType='text') => show({type:'prompt', title, message: String(message), defaultValue: String(defaultValue||''), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-pen-to-square', inputType});
         window._originalAlert = window.alert;

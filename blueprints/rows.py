@@ -109,6 +109,8 @@ def api_rows_update():
         # Cotizaciones: GESTOR y la llave (N° COTIZACION) no se editan; una vez
         # GENERADA, solo el admin puede corregir, salvo NUMERO WO cuando está en CM-PENDIENTE.
         if proy_nombre == 'Cotizaciones':
+            if field == 'SOLICITADO POR':
+                return jsonify({'error': 'El solicitante es el usuario que creó la cotización y no se puede editar.'}), 400
             if field == 'GESTOR':
                 valor_gestor = str(row_dict.get('GESTOR', '') or '').strip()
                 if valor_gestor and str(value).strip() != valor_gestor and session.get('rol') not in ('zeno', 'suport'):
@@ -387,6 +389,7 @@ def api_rows_add():
 
         # Cotizaciones: GESTOR automático y N° COTIZACION maleable (solo se fija al generar)
         if proy_nombre == 'Cotizaciones':
+            row_data['SOLICITADO POR'] = session.get('username', '')
             import re
             from datetime import datetime as _dt
             row_data['GESTOR'] = session.get('username', '')

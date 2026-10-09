@@ -214,11 +214,16 @@ def run_migrations(app, database_url=''):
             db.session.rollback()
 
         # ── Proyectos fijos ───────────────────────────────────────────────
+        legado_liquidaciones = Proyecto.query.filter_by(nombre='Refacturable').first()
+        if legado_liquidaciones and not Proyecto.query.filter_by(nombre='Liquidaciones').first():
+            legado_liquidaciones.nombre = 'Liquidaciones'
+            legado_liquidaciones.descripcion = 'Seguimiento de liquidaciones de obras'
+            db.session.commit()
         fixed = [
             ('FLM - ENTEL', 'FLM – Proyecto Entel'),
             ('FLM - INTEGRATEL', 'FLM – Proyecto Integratel'),
             ('FLM - CLARO', 'FLM – Proyecto Claro'),
-            ('Refacturable', 'Módulo Refacturable'),
+            ('Liquidaciones', 'Seguimiento de liquidaciones de obras'),
             ('Rendicion', 'Solicitudes de Técnicos (Google Form)'),
             ('Dataper', 'DataPer S.A.C.'),
             ('Material', 'Materiales Disponibles'),

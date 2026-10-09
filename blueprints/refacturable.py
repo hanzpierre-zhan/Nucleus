@@ -21,10 +21,62 @@ def _aprobada(datos):
         bool(datos.get('FECHA APROBACION')) and estado not in ('cancelado', 'rechazado'))
 
 
+def _ingresada(datos):
+    return bool(datos.get('_LIQUIDACION_INGRESO')) or _aprobada(datos)
+
+
+
+def _documentos(datos, obras):
+    from blueprints.cotizacion import _split_wos, _leer_evidencia_wo
+    fotos = {fase: [] for fase in ('inicio', 'proceso', 'cierre')}
+    comentarios = {fase: str(datos.get('_BITACORA_' + fase.upper()) or '') for fase in fotos}
+    for fase in fotos:
+        valor = datos.get('_EVIDENCIA_' + fase.upper()) or []
+        try:
+            valor = json.loads(valor) if isinstance(valor, str) else valor
+        except (ValueError, TypeError):
+            valor = []
+        fotos[fase] = [url for url in valor if isinstance(url, str)] if isinstance(valor, list) else []
+    proyectos, estados = set(), []
+    for wo in _split_wos(datos.get('NUMERO WO')):
+        resultado = obras.get(str(wo).strip().lower())
+        if not resultado:
+            continue
+        proyecto, fila = resultado
+        for nombre in ('ENTEL', 'CLARO', 'INTEGRATEL'):
+            if nombre in proyecto.nombre.upper():
+                proyectos.add(nombre)
+        try:
+            origen = json.loads(fila.data_json or '{}')
+        except (ValueError, TypeError):
+            origen = {}
+        estado = str(origen.get('ESTADO DE EJECUCION') or origen.get('ESTADO EJECUCION') or 'Pendiente').strip()
+        estados.append(estado if estado in ESTATUS else 'Pendiente')
+        f, b = _leer_evidencia_wo(fila)
+        for fase in fotos:
+            fotos[fase] = list(dict.fromkeys(fotos[fase] + f[fase]))
+            if b[fase] and b[fase] not in comentarios[fase]:
+                comentarios[fase] += ('\n' if comentarios[fase] else '') + b[fase]
+    proyecto = ', '.join(sorted(proyectos)) or str(datos.get('CLIENTE') or datos.get('PROYECTO') or '').upper()
+    estado = 'Pendiente' if not estados or 'Pendiente' in estados else ('Stand by' if 'Stand by' in estados else 'Culminado')
+    return fotos, comentarios, proyecto, estado
+
+
+def _url_documento(valor):
+    url = str(valor or '').strip()
+    return url if url.startswith('/api/cotizacion/correo/') else ''
+
+
 def _registros():
     proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
     if not proyecto:
         return []
+    from blueprints.cotizacion import _PROYECTOS_WO_SUSTENTO
+    obras = {}
+    proyectos_obra = {p.id: p for p in Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()}
+    if proyectos_obra:
+        for fila in NucleusData.query.filter(NucleusData.proyecto_id.in_(proyectos_obra)).all():
+            obras.setdefault(str(fila.key_value).strip().lower(), (proyectos_obra[fila.proyecto_id], fila))
     detalles = {d.origen_id: json.loads(d.data_json or '{}') for d in RefacturableDetalle.query.all()}
     registros = []
     for registro in NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id.desc()).all():
@@ -32,18 +84,42 @@ def _registros():
             datos = json.loads(registro.data_json)
         except (ValueError, TypeError):
             continue
-        if not _aprobada(datos):
+        if not _ingresada(datos):
             continue
         seguimiento = detalles.get(registro.id, {})
         monto_hw = _monto(datos.get('SUB TOTAL + FEE'))
         monto_cobra = _monto(seguimiento.get('monto_cobra'))
         margen = monto_cobra - monto_hw if monto_cobra is not None and monto_hw is not None else None
+        fotos, comentarios, nombre_proyecto, ejecucion = _documentos(datos, obras)
+        respaldo = {
+            'sustento': any(fotos.values()) and (bool(datos.get('_SUSTENTO_VALIDADO')) or str(datos.get('ESTADO COTIZACION') or '').lower() == 'atendido'),
+            'factura': bool(_url_documento(datos.get('ADJUNTO FACTURA PROVEEDOR'))),
+            'correo': bool(_url_documento(datos.get('ADJUNTO CORREO CLIENTE'))),
+            'cotizacion': str(datos.get('GENERADA') or '') == '1',
+        }
+        documentos = {nombre: ('No aplica' if seguimiento.get('no_aplica_' + nombre) == '1' else ('Completo' if completo else 'Pendiente')) for nombre, completo in respaldo.items()}
+        aplicables = [estado for estado in documentos.values() if estado != 'No aplica']
+        avance = round(100 * sum(estado == 'Completo' for estado in aplicables) / len(aplicables)) if aplicables else 100
         registros.append({
             **seguimiento,
             'id': registro.id,
             'cotizacion': datos.get('N° COTIZACION') or registro.key_value,
             'estado_cotizacion': datos.get('ESTADO COTIZACION') or '',
-            'gestor': datos.get('GESTOR') or '',
+            'gestor': datos.get('SOLICITADO POR') or datos.get('GESTOR') or '',
+            'correlativo': registro.id,
+            'fecha_inicio': datos.get('FECHA INICIO OBRA') or '',
+            'fecha_fin': datos.get('FECHA FIN OBRA') or '',
+            'estatus': ejecucion,
+            'nombre_proyecto': nombre_proyecto,
+            'factura_proveedor': _url_documento(datos.get('ADJUNTO FACTURA PROVEEDOR')),
+            'correo_cliente': _url_documento(datos.get('ADJUNTO CORREO CLIENTE')),
+            'cotizacion_generada': respaldo['cotizacion'],
+            'documentos': documentos,
+            'avance': avance,
+            'fotos': fotos,
+            'comentarios': comentarios,
+            'monto_factura_proveedor': _importe(_monto(datos.get('SUBTOTAL FACTURA PROVEEDOR'))),
+            'estado_liquidacion': seguimiento.get('estado_liquidacion') or seguimiento.get('estado_expense') or 'Pendiente',
             'numero_wo': datos.get('NUMERO WO') or '',
             'monto_hw': _importe(monto_hw),
             'monto_cobra': _importe(monto_cobra),
@@ -68,8 +144,9 @@ def registros():
 
 
 CAMPOS_MANUALES = {
-    'monto_cobra', 'fecha_fin', 'estatus', 'numero_expense',
-    'estado_expense', 'observacion', 'mes_cierre', 'numero_po',
+    'monto_cobra', 'numero_expense',
+    'estado_expense', 'observacion', 'mes_cierre', 'numero_po', 'codigo_ajb_ejb', 'estado_liquidacion',
+    'no_aplica_sustento', 'no_aplica_factura', 'no_aplica_correo', 'no_aplica_cotizacion',
 }
 ESTATUS = ('Pendiente', 'Stand by', 'Culminado')
 ESTADOS_EXPENSE = ('En borrador', 'En revisión', 'Observado', 'Rechazado', 'Aprobado', 'Pendiente', 'Con PO')
@@ -104,11 +181,11 @@ def guardar(origen_id):
     proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
     if not origen or not proyecto or origen.proyecto_id != proyecto.id:
         return jsonify({'error': 'Cotización no encontrada.'}), 404
-    if not _aprobada(json.loads(origen.data_json)):
+    if not _ingresada(json.loads(origen.data_json)):
         return jsonify({'error': 'La cotización debe estar aprobada.'}), 409
     cambios = request.get_json(silent=True)
     if not isinstance(cambios, dict) or not cambios or set(cambios) - CAMPOS_MANUALES:
-        return jsonify({'error': 'Solo puedes editar los campos manuales de Refacturable.'}), 400
+        return jsonify({'error': 'Solo puedes editar los campos manuales de Liquidaciones.'}), 400
     nuevos = {}
     for campo, valor in cambios.items():
         if not isinstance(valor, (str, int, float)) and valor is not None:
@@ -123,7 +200,7 @@ def guardar(origen_id):
             valor = _importe(numero)
         if campo == 'estatus' and valor and valor not in ESTATUS:
             return jsonify({'error': 'Estatus inválido.'}), 400
-        if campo == 'estado_expense' and valor and valor not in ESTADOS_EXPENSE:
+        if campo in ('estado_expense', 'estado_liquidacion') and valor and valor not in ESTADOS_EXPENSE:
             return jsonify({'error': 'Estado Expense inválido.'}), 400
         if campo in ('fecha_fin', 'mes_cierre') and valor:
             formato = '%Y-%m-%d' if campo == 'fecha_fin' else '%Y-%m'
@@ -131,6 +208,8 @@ def guardar(origen_id):
                 datetime.strptime(valor, formato)
             except ValueError:
                 return jsonify({'error': 'Fecha inválida.'}), 400
+        if campo.startswith('no_aplica_') and valor not in ('', '0', '1'):
+            return jsonify({'error': 'La opción No aplica es inválida.'}), 400
         nuevos[campo] = valor
     detalle = db.session.get(RefacturableDetalle, origen_id)
     if not detalle:
@@ -143,3 +222,17 @@ def guardar(origen_id):
     detalle.actualizado_en = datetime.utcnow()
     db.session.commit()
     return jsonify({'registro': next(r for r in _registros() if r['id'] == origen_id)})
+
+@bp.route('/api/registros/<int:origen_id>/pdf')
+@login_required
+def descargar_pdf(origen_id):
+    _autorizar()
+    origen = db.session.get(NucleusData, origen_id)
+    proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not origen or not proyecto or origen.proyecto_id != proyecto.id:
+        abort(404)
+    datos = json.loads(origen.data_json or '{}')
+    if not _ingresada(datos) or str(datos.get('GENERADA') or '') != '1':
+        abort(409)
+    from blueprints.cotizacion import _cotizacion_registro_pdf_response
+    return _cotizacion_registro_pdf_response(origen)

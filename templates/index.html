@@ -22313,6 +22313,8 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
     function abrirWoModal(row) {
+        document.getElementById('cot-fechas-obra')?.remove();
+        document.getElementById('cot-btn-guardar-sustento')?.remove();
         const pendingButton = document.getElementById('wo-asignar-pendiente');
         if (pendingButton) pendingButton.style.display = row.getData()._WO_PENDIENTE ? 'inline-flex' : 'none';
 
@@ -27859,6 +27861,10 @@ btnItem.onclick = () => cotRegAgregarFila();
               <label for="cot-oc-numero">Número de OC <span class="cot-required">*</span></label>
               <input type="text" id="cot-oc-numero" placeholder="Ej.: OC-000456">
             </div>
+            <div class="cot-form-field">
+              <label for="cot-factura-subtotal">Subtotal de la factura (S/) <span class="cot-required">*</span></label>
+              <input type="number" id="cot-factura-subtotal" min="0" step="0.01" placeholder="0.00">
+            </div>
             <div class="cot-form-field cot-provider-attachment">
               <label for="cot-factura-elegir">Factura del proveedor <span class="cot-required">*</span></label>
               <button type="button" class="cot-upload" id="cot-factura-elegir" onclick="document.getElementById('cot-factura-archivo').click()">
@@ -30531,13 +30537,24 @@ function cotAbrirModalSustento(key) {
             tabEv.click(); // Forzar cambio al tab de Evidencia
         }
         
-        // Agregar el botón "Guardar Sustento y Atender" al final
-        let btn = document.getElementById('cot-btn-guardar-sustento');
+        let fechasObra = document.getElementById('cot-fechas-obra');
+        if (!fechasObra) {
+            fechasObra = document.createElement('div');
+            fechasObra.id = 'cot-fechas-obra';
+            fechasObra.className = 'cot-provider-fields';
+            fechasObra.innerHTML = '<div class="cot-form-field"><label for="cot-obra-inicio">Fecha de inicio de la obra</label><input type="date" id="cot-obra-inicio"></div><div class="cot-form-field"><label for="cot-obra-fin">Fecha de fin de la obra</label><input type="date" id="cot-obra-fin"></div>';
+            document.getElementById('evidencia-inicio-proceso-cierre').appendChild(fechasObra);
+        }
+        document.getElementById('cot-obra-inicio').value = wo_data['FECHA INICIO OBRA'] || '';
+        document.getElementById('cot-obra-fin').value = wo_data['FECHA FIN OBRA'] || '';
+        // Agregar el botón "Validar sustento" al final
+        document.getElementById('cot-btn-guardar-sustento')?.remove();
+        let btn = null;
         if (!btn) {
             btn = document.createElement('button');
             btn.id = 'cot-btn-guardar-sustento';
             btn.className = 'mar-btn-primary';
-            btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Guardar Sustento y Atender';
+            btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Validar sustento';
             btn.style.marginTop = '15px';
             btn.style.width = '100%';
             btn.onclick = () => {
@@ -30551,10 +30568,10 @@ function cotAbrirModalSustento(key) {
                 fetch('/api/cotizacion/sustento/guardar', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: key, bitacoras: bit })
+                    body: JSON.stringify({ key: key, bitacoras: bit, fecha_inicio: document.getElementById('cot-obra-inicio').value, fecha_fin: document.getElementById('cot-obra-fin').value })
                 }).then(r => r.json()).then(resGuardar => {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Guardar Sustento y Atender';
+                    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Validar sustento';
                     if (resGuardar.error) {
                         nucleusAlert(resGuardar.error);
                     } else {
@@ -30564,7 +30581,7 @@ function cotAbrirModalSustento(key) {
                     }
                 }).catch(e => {
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Guardar Sustento y Atender';
+                    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Validar sustento';
                     nucleusAlert('Error de conexión');
                 });
             };
@@ -30826,6 +30843,7 @@ function cotAbrirProveedor(key) {
     _cotProveedorModal = {key, url: row['ADJUNTO FACTURA PROVEEDOR'] || '', subiendo: false};
     document.getElementById('cot-proveedor-sub').textContent = 'Cotización: ' + key;
     document.getElementById('cot-factura-numero').value = row['NUMERO FACTURA PROVEEDOR'] || '';
+    document.getElementById('cot-factura-subtotal').value = row['SUBTOTAL FACTURA PROVEEDOR'] ?? '';
     document.getElementById('cot-oc-numero').value = row['NUMERO OC PROVEEDOR'] || '';
     const input = document.getElementById('cot-factura-archivo'); input.value = ''; input.disabled = false;
     document.getElementById('cot-factura-elegir').disabled = false;
@@ -30866,10 +30884,12 @@ async function cotGuardarProveedor() {
     if (modal.subiendo) {nucleusAlert('Espera a que termine de subir la factura.'); return;}
     const numero = document.getElementById('cot-factura-numero').value.trim();
     const oc = document.getElementById('cot-oc-numero').value.trim();
+    const subtotal = document.getElementById('cot-factura-subtotal').value;
+    if (subtotal === '' || !Number.isFinite(Number(subtotal)) || Number(subtotal) < 0) {nucleusAlert('Ingresa el subtotal de la factura.'); return;}
     if (!numero || !oc || !modal.url) {nucleusAlert('Completa el número de factura, el número de OC y adjunta la factura.'); return;}
     const boton = document.getElementById('cot-proveedor-guardar'); boton.disabled = true; boton.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Guardando…';
     try {
-        const r = await fetch('/api/cotizacion/proveedor', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:modal.key,numero_factura:numero,numero_oc:oc,factura_proveedor:modal.url})});
+        const r = await fetch('/api/cotizacion/proveedor', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:modal.key,numero_factura:numero,numero_oc:oc,factura_proveedor:modal.url,subtotal_factura:subtotal})});
         const j = await r.json(); if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo guardar.');
         cotTrasAccion(j, modal.key); if (_cotProveedorModal === modal) cotCerrarProveedor();
     } catch(e) {nucleusAlert(e.message);} finally {if (_cotProveedorModal === modal) {boton.disabled = false; boton.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Guardar documentos';}}

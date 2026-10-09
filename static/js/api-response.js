@@ -1,7 +1,9 @@
 /* Respuestas de API: no confundir errores HTTP o sesión vencida con fallos de red. */
 window.nucleusLeerRespuestaJSON = async function(response) {
     if (response.status === 401 || (response.redirected && /\/login(?:[/?#]|$)/.test(response.url))) {
-        throw new Error('Tu sesión venció. Vuelve a iniciar sesión y reintenta.');
+        // Recuperar el acceso directamente, sin abrir avisos repetidos.
+        window.location.assign('/login');
+        return new Promise(() => {});
     }
     const text = await response.text();
     try {

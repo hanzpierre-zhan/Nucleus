@@ -1,0 +1,1 @@
+document.addEventListener('DOMContentLoaded',function(){var o=document.getElementById('nucleus-dialog'),m=document.getElementById('nucleus-dialog-message');if(o&&m&&!m.textContent.trim()){o.classList.remove('show');o.style.display='none'}});

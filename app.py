@@ -143,6 +143,7 @@ def _register_blueprints(app):
     for _bp in (auth_bp, pages_bp, admin_bp, imports_bp, master_bp,
                 rows_bp, wo_bp, evidencia_bp, rendicion_bp, cotizacion_bp, refacturable_bp):
         app.register_blueprint(_bp)
+    app.register_blueprint(refacturable_bp, url_prefix="/liquidaciones", name="liquidaciones")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

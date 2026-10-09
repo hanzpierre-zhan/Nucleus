@@ -931,6 +931,16 @@ def api_cotizacion_accion():
         adj = str(data.get('adjunto_correo') or '').strip()
         if adj:
             row['ADJUNTO CORREO CLIENTE'] = adj
+        # La aprobación registra el ingreso a Liquidaciones en la misma transacción.
+        # Se conserva para seguir el caso aunque después se revierta o cancele.
+        row.setdefault('_LIQUIDACION_INGRESO', ahora)
+        from models import RefacturableDetalle
+        detalle = db.session.get(RefacturableDetalle, fila.id)
+        if detalle is None:
+            detalle = RefacturableDetalle(origen_id=fila.id,
+                data_json=safe_json_dumps({'estado_liquidacion': 'Pendiente'}),
+                actualizado_por=usuario, actualizado_en=datetime.utcnow())
+            db.session.add(detalle)
 
     elif accion == 'pasar_atendido':
         if pestania != 'sustentar':
@@ -1021,6 +1031,15 @@ def api_cotizacion_proveedor():
     prefijo = '/api/cotizacion/correo/%d/%s/factura_proveedor_' % (proy.id, secure_filename(key))
     if not adjunto.startswith(prefijo) or any(c in adjunto for c in ('<', '>', '"', "'", '\\')):
         return jsonify({'error': 'La factura no corresponde a esta cotización.'}), 400
+    subtotal = data.get('subtotal_factura', row.get('SUBTOTAL FACTURA PROVEEDOR'))
+    if subtotal is None or str(subtotal).strip() == '':
+        return jsonify({'error': 'Ingresa el subtotal de la factura del proveedor.'}), 400
+    if subtotal is not None:
+        from blueprints.refacturable import _monto, _importe
+        importe = _monto(subtotal)
+        if importe is None or importe < 0:
+            return jsonify({'error': 'Ingresa un subtotal de factura válido, mayor o igual a cero.'}), 400
+        row['SUBTOTAL FACTURA PROVEEDOR'] = _importe(importe)
     row.update({'NUMERO FACTURA PROVEEDOR': numero, 'NUMERO OC PROVEEDOR': oc,
                 'ADJUNTO FACTURA PROVEEDOR': adjunto, '_PROVEEDOR_PARALELO': True})
     fila.data_json = safe_json_dumps(row)
@@ -1259,11 +1278,25 @@ def api_cotizacion_sustento_guardar():
     except Exception:
         d = {}
 
+    fechas = {}
+    for campo, nombre in (('fecha_inicio', 'FECHA INICIO OBRA'), ('fecha_fin', 'FECHA FIN OBRA')):
+        valor = str(data.get(campo, d.get(nombre, '')) or '').strip()
+        if valor:
+            try:
+                datetime.strptime(valor, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'error': 'La fecha de obra debe ser válida.'}), 400
+        fechas[nombre] = valor
+    if fechas['FECHA INICIO OBRA'] and fechas['FECHA FIN OBRA'] and fechas['FECHA FIN OBRA'] < fechas['FECHA INICIO OBRA']:
+        return jsonify({'error': 'La fecha de fin no puede ser anterior al inicio.'}), 400
+    d.update(fechas)
+
     # Guardar bitácoras en Cotización
     for t in ('inicio', 'proceso', 'cierre'):
         if t in bit:
             d['_BITACORA_' + t.upper()] = str(bit.get(t) or '').strip()
             
+    d['_SUSTENTO_VALIDADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     # Cambiar estado a Atendido
     estado_anterior = _cot_estado_guardado(d)
     d['ESTADO COTIZACION'] = 'Atendido'

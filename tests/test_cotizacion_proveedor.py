@@ -4,7 +4,7 @@ import json
 import pytest
 
 from db import db
-from models import Proyecto, NucleusData
+from models import Proyecto, NucleusData, RefacturableDetalle
 from blueprints.cotizacion import _cot_en_proveedor
 
 def test_aviso_cambio_estado_y_lectura(app, auth_client, cotizacion):
@@ -41,6 +41,9 @@ def cotizacion(app, monkeypatch, tmp_path):
         db.session.commit()
     yield pid, 'TEST-PROVEEDOR'
     with app.app_context():
+        fila = NucleusData.query.filter_by(proyecto_id=pid, key_value='TEST-PROVEEDOR').first()
+        if fila:
+            RefacturableDetalle.query.filter_by(origen_id=fila.id).delete()
         NucleusData.query.filter_by(proyecto_id=pid, key_value='TEST-PROVEEDOR').delete()
         db.session.commit()
 
@@ -117,13 +120,14 @@ def test_proveedor_paralelo_no_cambia_sustento(app, auth_client, cotizacion):
     assert factura.status_code == 200
     assert auth_client.get(factura.json['url']).status_code == 200
     guardado = auth_client.post('/api/cotizacion/proveedor', json={
-        'key': key, 'numero_factura': 'F001-123', 'numero_oc': 'OC-456',
+        'key': key, 'numero_factura': 'F001-123', 'numero_oc': 'OC-456', 'subtotal_factura': '90.25',
         'factura_proveedor': factura.json['url'],
     })
     assert guardado.status_code == 200
     assert guardado.json['newData']['ESTADO COTIZACION'] == 'Aprobado'
     assert guardado.json['newData']['NUMERO FACTURA PROVEEDOR'] == 'F001-123'
     assert guardado.json['newData']['NUMERO OC PROVEEDOR'] == 'OC-456'
+    assert guardado.json['newData']['SUBTOTAL FACTURA PROVEEDOR'] == '90.25'
     atendido = auth_client.post('/api/cotizacion/accion', json={
         'key': key, 'accion': 'pasar_atendido',
     })
@@ -137,7 +141,7 @@ def test_proveedor_paralelo_no_cambia_sustento(app, auth_client, cotizacion):
 def test_factura_no_se_guarda_antes_de_aprobar(auth_client, cotizacion):
     _, key = cotizacion
     respuesta = auth_client.post('/api/cotizacion/proveedor', json={
-        'key': key, 'numero_factura': 'F-1', 'numero_oc': 'OC-1',
+        'key': key, 'numero_factura': 'F-1', 'numero_oc': 'OC-1', 'subtotal_factura': '100',
         'factura_proveedor': '/archivo.pdf',
     })
     assert respuesta.status_code == 409
@@ -147,7 +151,7 @@ def test_proveedor_exige_los_tres_datos(auth_client, cotizacion):
     _, key = cotizacion
     auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'aprobar'})
     assert auth_client.post('/api/cotizacion/proveedor', json={
-        'key': key, 'numero_factura': 'F-1', 'numero_oc': 'OC-1',
+        'key': key, 'numero_factura': 'F-1', 'numero_oc': 'OC-1', 'subtotal_factura': '100',
     }).status_code == 400
 
 
@@ -155,7 +159,30 @@ def test_proveedor_rechaza_factura_de_otro_registro(auth_client, cotizacion):
     pid, key = cotizacion
     auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'aprobar'})
     respuesta = auth_client.post('/api/cotizacion/proveedor', json={
-        'key': key, 'numero_factura': 'F-1', 'numero_oc': 'OC-1',
+        'key': key, 'numero_factura': 'F-1', 'numero_oc': 'OC-1', 'subtotal_factura': '100',
         'factura_proveedor': '/api/cotizacion/correo/%d/OTRA/factura_proveedor_test.pdf' % pid,
     })
     assert respuesta.status_code == 400
+
+
+def test_aprobacion_gatilla_liquidacion_y_conserva_caso(app, auth_client, cotizacion):
+    pid, key = cotizacion
+    def registros():
+        return [r for r in auth_client.get('/liquidaciones/api/registros').json['registros'] if r['cotizacion']==key]
+    assert registros()==[]
+    assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion'}).status_code==200
+    assert len(registros())==1
+    origen_id=registros()[0]['id']
+    with app.app_context():
+        detalle=db.session.get(RefacturableDetalle,origen_id)
+        assert detalle is not None
+        assert json.loads(detalle.data_json)['estado_liquidacion']=='Pendiente'
+    assert auth_client.patch('/liquidaciones/api/registros/%s'%origen_id,json={'observacion':'Caso en seguimiento'}).status_code==200
+    assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'revertir'}).status_code==200
+    assert len(registros())==1
+    assert registros()[0]['estado_cotizacion']=='En Aprobación'
+    assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion'}).status_code==200
+    assert len(registros())==1 and registros()[0]['observacion']=='Caso en seguimiento'
+    assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'revertir'}).status_code==200
+    assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'cancelar','motivo':'Caso cancelado'}).status_code==200
+    assert len(registros())==1 and registros()[0]['estado_cotizacion']=='Cancelado'

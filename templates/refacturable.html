@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Refacturable · Nucleus{% endblock %}
+{% block title %}Liquidaciones · Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/refacturable.css') }}?v=2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/refacturable.css') }}?v=3">
 <div class="ref-toolbar">
     <span id="ref-count" class="topbar-badge" title="Registros visibles / total">0 / 0</span>
     <div id="ref-pagination" aria-label="Paginación"></div>
-    <span class="ref-module-title"><i class="fa-solid fa-file-invoice"></i> Refacturable</span>
+    <span class="ref-module-title"><i class="fa-solid fa-file-invoice"></i> Liquidaciones</span>
     <div class="ref-settings-wrap">
         <button type="button" id="ref-settings-toggle" class="action-pill pill-neutral" aria-expanded="false"><i class="fa-solid fa-gear"></i> Configuración</button>
         <div id="ref-settings" class="col-visibility-menu">
@@ -17,26 +17,27 @@
 <div id="ref-grid" class="excel-grid"></div>
 <dialog id="ref-editor" aria-labelledby="ref-editor-title">
     <form id="ref-form">
-        <header class="ref-modal-header"><div><h2 id="ref-editor-title">Seguimiento refacturable</h2><p id="ref-cotizacion"></p></div><button type="button" class="ref-close" aria-label="Cerrar">×</button></header>
+        <header class="ref-modal-header"><div><h2 id="ref-editor-title">Seguimiento de liquidación</h2><p id="ref-cotizacion"></p></div><button type="button" class="ref-close" aria-label="Cerrar">×</button></header>
         <div class="ref-modal-body">
-            <section class="ref-section"><h3>Montos</h3><div class="ref-form-grid ref-money-grid">
-                <label>Monto Cobra<input name="monto_cobra" inputmode="decimal" placeholder="Ingrese el importe"><small>Ingreso manual</small></label>
-                <label>Monto HW<input id="ref-hw" readonly><small>Total de la cotización aprobada</small></label>
-                <label>Margen<output id="ref-margin">—</output><small>Monto Cobra − Monto HW</small></label>
-            </div></section>
-            <section class="ref-section"><h3>Seguimiento y cierre</h3><div class="ref-form-grid">
-                <label>Fecha de fin<input name="fecha_fin" type="date"></label>
-                <label>Estatus<select name="estatus"><option value="">Seleccione</option><option>Pendiente</option><option>Stand by</option><option>Culminado</option></select></label>
+            <section class="ref-section"><h3>Datos de la liquidación</h3><div class="ref-form-grid">
+                <label>Código AJB / EJB<input name="codigo_ajb_ejb" maxlength="200"></label>
                 <label>Número Expense<input name="numero_expense" maxlength="200"></label>
-                <label>Estado Expense<select name="estado_expense"><option value="">Seleccione</option><option>En borrador</option><option>En revisión</option><option>Observado</option><option>Rechazado</option><option>Aprobado</option><option>Pendiente</option><option>Con PO</option></select></label>
+                <label>Estado de liquidación<select name="estado_liquidacion"><option>En borrador</option><option>En revisión</option><option>Observado</option><option>Rechazado</option><option>Aprobado</option><option>Pendiente</option><option>Con PO</option></select></label>
                 <label>Mes de cierre<input name="mes_cierre" type="month"></label>
                 <label>Número de PO<input name="numero_po" maxlength="200"></label>
                 <label class="ref-full-width">Observación<textarea name="observacion" rows="3" maxlength="4000"></textarea></label>
+            </div></section>
+            <section class="ref-section"><h3>Respaldos que no aplican</h3><p>Marca únicamente los respaldos que no correspondan a esta obra. Se excluirán del cálculo del avance.</p><div class="ref-form-grid">
+                <label>Sustento de obra<select name="no_aplica_sustento"><option value="0">Aplica</option><option value="1">No aplica</option></select></label>
+                <label>Factura del proveedor<select name="no_aplica_factura"><option value="0">Aplica</option><option value="1">No aplica</option></select></label>
+                <label>Correo del cliente<select name="no_aplica_correo"><option value="0">Aplica</option><option value="1">No aplica</option></select></label>
+                <label>Cotización generada<select name="no_aplica_cotizacion"><option value="0">Aplica</option><option value="1">No aplica</option></select></label>
             </div></section>
             <p id="ref-form-error" role="alert"></p>
         </div>
         <footer class="ref-modal-footer"><button type="button" class="action-pill pill-neutral ref-close">Cancelar</button><button type="submit" id="ref-save" class="action-pill pill-teal"><i class="fa-solid fa-check"></i> Guardar cambios</button></footer>
     </form>
 </dialog>
+<dialog id="liq-sustento" aria-labelledby="liq-sustento-title"><header class="ref-modal-header"><h2 id="liq-sustento-title">Sustento de obra</h2><button type="button" id="liq-sustento-close" class="action-pill" aria-label="Cerrar">×</button></header><div id="liq-sustento-body" class="ref-modal-body"></div></dialog>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/refacturable.js') }}?v=2"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/refacturable.js') }}?v=3"></script>{% endblock %}

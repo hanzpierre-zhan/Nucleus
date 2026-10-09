@@ -87,7 +87,7 @@ def test_refacturable_impide_guardar_si_aprobacion_se_retiro(app, auth_client, c
 def test_refacturable_renderiza_montos_y_controles(auth_client):
     respuesta = auth_client.get('/refacturable/')
     assert respuesta.status_code == 200
-    assert b'name="monto_cobra"' in respuesta.data
-    assert b'id="ref-margin"' in respuesta.data
+    assert b'name="codigo_ajb_ejb"' in respuesta.data
+    assert b'name="estado_liquidacion"' in respuesta.data
     assert b'id="ref-pagination"' in respuesta.data
     assert b'actualmente en construcci' not in respuesta.data
