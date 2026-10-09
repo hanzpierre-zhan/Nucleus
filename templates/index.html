@@ -9735,7 +9735,7 @@ let _rendCambiandoVista = false;
             colDef.editor = false;
             colDef.formatter = cell => `<span class="wo-link">${escapeHtml(cell.getValue() || '')}</span>`;
             colDef.cellClick = (event, cell) => abrirWoModal(cell.getRow());
-            tableColumns.push(colDef);
+            restColumns.push(colDef);
             return;
         }
 
