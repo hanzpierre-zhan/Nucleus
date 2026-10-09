@@ -74,3 +74,10 @@ body.dark-mode .ref-status-danger{color:#f87171}
 .ref-modal-footer #ref-save{background:var(--ios-accent,var(--ios-blue));color:#fff;border-color:transparent;font-weight:600}
 .ref-modal-footer #ref-save:disabled{opacity:.55}
 #ref-grid .action-pill.pill-blue{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:5px 10px;border:1px solid var(--ios-blue);border-radius:7px;color:var(--ios-blue);background:var(--ios-fill);text-decoration:none;font-size:12px;cursor:pointer}
+
+/* El grid ocupa el espacio restante; la barra no queda fuera de la pantalla. */
+#ref-grid{flex:1 1 0;min-width:0;min-height:0}
+#ref-grid .tabulator-tableholder{overflow:auto!important;scrollbar-width:auto;scrollbar-color:var(--ios-secondary) var(--ios-fill)}
+#ref-grid .tabulator-tableholder::-webkit-scrollbar{width:12px;height:12px;display:block}
+#ref-grid .tabulator-tableholder::-webkit-scrollbar-thumb{background:var(--ios-secondary);border:3px solid var(--ios-fill);border-radius:8px}
+#ref-grid .tabulator-tableholder::-webkit-scrollbar-track{background:var(--ios-fill)}

@@ -69,14 +69,23 @@
     }
     document.getElementById('liq-sustento-close').addEventListener('click', () => document.getElementById('liq-sustento').close());
     const table = new Tabulator('#ref-grid', {
-        height: '100%', layout: 'fitData', rowHeight: 44,
+        layout: 'fitData', rowHeight: 44,
+        movableColumns: true,
+        persistence: {columns: true}, persistenceMode: 'local',
+        persistenceID: 'liquidaciones-' + document.getElementById('ref-grid').dataset.user,
         pagination: true, paginationMode: 'local', paginationSize: 200,
         paginationSizeSelector: [100, 200, 500, 1000], paginationButtonCount: 1,
         paginationElement: document.getElementById('ref-pagination'),
         placeholder: 'No hay cotizaciones aprobadas para mostrar.',
         columnDefaults: {vertAlign: 'middle'},
         columns: [
-            column('N', 'correlativo', {frozen: true, width: 85, minWidth: 65}),
+            column('N', 'correlativo', {width: 85, minWidth: 65}),
+            {title: 'EDITAR', field: '_editar', width: 150, headerSort: false, formatter: () => {
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = 'action-pill pill-blue';
+                button.textContent = 'Datos manuales'; button.title = 'Editar liquidación';
+                return button;
+            }, cellClick: (event, cell) => openEditor(cell.getRow().getData())},
             column('N° COTIZACIÓN', 'cotizacion', {width: 185}),
             column('ESTADO DE COTIZACIÓN', 'estado_cotizacion', {width: 185, formatter: statusFormatter}),
             column('GESTOR OPERATIVO', 'gestor'),
@@ -105,12 +114,7 @@
             }}),
             column('NÚMERO DE PO', 'numero_po'),
             column('NOMBRE DEL PROYECTO', 'nombre_proyecto', {width: 185}),
-            {title: 'ACCIONES', width: 110, headerSort: false, formatter: () => {
-                const button = document.createElement('button');
-                button.type = 'button'; button.className = 'action-pill pill-blue';
-                button.textContent = 'Editar'; button.title = 'Editar liquidación';
-                return button;
-            }, cellClick: (event, cell) => openEditor(cell.getRow().getData())}
+
         ]
     });
     function updateCount() {

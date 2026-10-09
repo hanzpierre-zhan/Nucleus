@@ -28965,7 +28965,8 @@ function rendValidar(key) {
     const campoGasto = Object.keys(row).find(campo => ['tipodegasto', 'tipogasto'].includes(normalizarPresupuesto(campo)));
     const gastos = String(row[campoGasto] || '').split(/[,;/|+\n]+/).map(normalizarPresupuesto);
     const exentosCorreo = new Set(['viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes']);
-    const refacturable = presupuesto === 'refacturable' || (presupuesto === 'gastocobra' && gastos.some(gasto => !exentosCorreo.has(gasto)));
+    const soloViaticos = gastos.length > 0 && gastos.every(gasto => ['viatico', 'viaticos'].includes(gasto));
+    const refacturable = !soloViaticos && (presupuesto === 'refacturable' || (presupuesto === 'gastocobra' && gastos.some(gasto => !exentosCorreo.has(gasto))));
     _rendModal.refacturable = refacturable;
     _rendModal.correo = row['ADJUNTO CORREO VALIDACION'] || '';
     document.getElementById('rend-val-correo-wrap').hidden = !refacturable;

@@ -5,8 +5,11 @@ from db import db
 from models import Proyecto, NucleusData
 
 @pytest.mark.parametrize('presupuesto,gasto,requiere', [
-    ('Refacturable', 'Viáticos', True),
+    ('Refacturable', 'Viáticos', False),
     ('Gasto Cobra', 'VIÁTICOS', False),
+    ('Refacturable', 'Viático', False),
+    ('Refacturable', 'Peaje', True),
+    ('Gasto Cobra', 'Acarreo de ge ducati', True),
     ('Gasto Cobra', 'Peaje', False),
     ('Gasto Cobra', 'Hospedaje', False),
     ('Gasto Cobra', 'VIATICOS, PEAJE', False),

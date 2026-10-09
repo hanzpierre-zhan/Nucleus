@@ -721,12 +721,14 @@ def _requiere_correo_validacion(row):
         return re.sub(r'[^a-z0-9]', '', ''.join(c for c in texto.lower() if not unicodedata.combining(c)))
     campos = {normalizar(campo): valor for campo, valor in row.items()}
     presupuesto = normalizar(campos.get('tipodepresupuesto', campos.get('tipopresupuesto')))
+    gasto = str(campos.get('tipodegasto', campos.get('tipogasto')) or '')
+    tipos = [normalizar(tipo) for tipo in re.split(r'[,;/|+\n]+', gasto)]
+    if tipos and all(tipo in ('viatico', 'viaticos') for tipo in tipos):
+        return False
     if presupuesto == 'refacturable':
         return True
     if presupuesto != 'gastocobra':
         return False
-    gasto = str(campos.get('tipodegasto', campos.get('tipogasto')) or '')
-    tipos = [normalizar(tipo) for tipo in re.split(r'[,;/|+\n]+', gasto)]
     exentos = {'viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes'}
     return not tipos or any(tipo not in exentos for tipo in tipos)
 
