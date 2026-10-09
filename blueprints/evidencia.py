@@ -33,11 +33,40 @@ bp = Blueprint('evidencia', __name__)
 def api_evidencia_subir():
     if session.get('rol') == 'demo':
         return jsonify({'error': 'Rol DEMO no tiene permisos para subir evidencia.'}), 403
-    pid = session.get('current_proyecto_id')
+    pid_form = request.form.get('proyecto_id') or request.args.get('proyecto_id')
+    try:
+        pid = int(pid_form) if pid_form is not None and str(pid_form).strip() else session.get('current_proyecto_id')
+    except (TypeError, ValueError):
+        pid = session.get('current_proyecto_id')
+    cur = session.get('current_proyecto_id')
+    rol = session.get('rol')
+    permitido = (pid == cur)
+    if not permitido and rol in ('zeno', 'suport'):
+        permitido = True
+    if not permitido:
+        try:
+            her = _flm_hermano_id(cur)
+            if her == pid:
+                permitido = True
+        except Exception:
+            pass
+    if not permitido:
+        try:
+            from models import AccesoProyecto
+            if AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first():
+                permitido = True
+        except Exception:
+            pass
+    if not permitido and rol not in ('zeno', 'suport'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
     key = (request.form.get('key') or '').strip()
     tipo = (request.form.get('tipo') or '').strip().lower()
-    if _evidencia_aprobacion_bloquea(pid, key):
-        return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
+    try:
+        if _evidencia_aprobacion_bloquea(pid, key):
+            return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
+    except Exception:
+        pass
     try:
         indice = int(request.form.get('indice'))
     except (TypeError, ValueError):
@@ -114,12 +143,40 @@ def api_evidencia_subir():
 def api_evidencia_eliminar():
     if session.get('rol') == 'demo':
         return jsonify({'error': 'Rol DEMO no tiene permisos.'}), 403
-    pid = session.get('current_proyecto_id')
+    pid_form = request.form.get('proyecto_id') or request.args.get('proyecto_id')
+    try:
+        pid = int(pid_form) if pid_form is not None and str(pid_form).strip() else session.get('current_proyecto_id')
+    except (TypeError, ValueError):
+        pid = session.get('current_proyecto_id')
+    cur = session.get('current_proyecto_id')
+    rol = session.get('rol')
+    permitido = (pid == cur)
+    if not permitido and rol in ('zeno', 'suport'):
+        permitido = True
+    if not permitido:
+        try:
+            if _flm_hermano_id(cur) == pid:
+                permitido = True
+        except Exception:
+            pass
+    if not permitido:
+        try:
+            from models import AccesoProyecto
+            if AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first():
+                permitido = True
+        except Exception:
+            pass
+    if not permitido and rol not in ('zeno', 'suport'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+
     data = request.json or {}
     key = (data.get('key') or '').strip()
     tipo = (data.get('tipo') or '').strip().lower()
-    if _evidencia_aprobacion_bloquea(pid, key):
-        return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
+    try:
+        if _evidencia_aprobacion_bloquea(pid, key):
+            return jsonify({'error': 'Este WO ya fue enviado a aprobación. Solo el personal administrativo puede cambiar su evidencia.'}), 403
+    except Exception:
+        pass
     try:
         indice = int(data.get('indice'))
     except (TypeError, ValueError):
@@ -158,6 +215,15 @@ def api_evidencia_foto(pid, key, nombre):
     cur = session.get('current_proyecto_id')
     # FLM <-> FLM - ENTEL: las fotos subidas desde uno son accesibles desde el otro.
     permitido = (pid == cur) or (_flm_hermano_id(cur) == pid)
+    if not permitido and session.get('rol') in ('zeno', 'suport'):
+        permitido = True
+    if not permitido:
+        try:
+            from models import AccesoProyecto
+            if AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first():
+                permitido = True
+        except Exception:
+            pass
     if not permitido:
         return jsonify({'error': 'Acceso denegado'}), 403
     nombre = os.path.basename(nombre)

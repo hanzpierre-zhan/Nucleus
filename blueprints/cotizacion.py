@@ -753,9 +753,10 @@ def api_cotizacion_items_import():
 ESTADO_NUEVO = 'Pdt. Cotización'
 ESTADO_COTIZADO = 'Cotizado'
 ESTADO_APROBACION = 'En Aprobación'
+ESTADO_SUSTENTO = 'Aprobado'
 ESTADO_ATENDIDO = 'Atendido'
 ESTADO_CANCELADO = 'Cancelado'
-ESTADOS_FLUJO = (ESTADO_NUEVO, ESTADO_COTIZADO, ESTADO_APROBACION, ESTADO_ATENDIDO)
+ESTADOS_FLUJO = (ESTADO_NUEVO, ESTADO_COTIZADO, ESTADO_APROBACION, ESTADO_SUSTENTO, ESTADO_ATENDIDO)
 
 # Estados viejos que la columna ya usa (siguen siendo válidos para no romper
 # filas existentes ni la edición en línea validada por rows.py).
@@ -773,6 +774,8 @@ MAPA_PESTANIA = {
     ESTADO_COTIZADO.lower(): 'cliente',
     ESTADO_APROBACION.lower(): 'cliente',
     'en aprobacion': 'cliente',
+    ESTADO_SUSTENTO.lower(): 'sustentar',
+    'aprobado': 'sustentar',
     ESTADO_CANCELADO.lower(): 'cancelado',
     'anulado': 'cancelado',
     'anulada': 'cancelado',
@@ -794,6 +797,11 @@ def _cot_proyecto():
     return Proyecto.query.filter_by(nombre='Cotizaciones').first()
 
 
+def _cot_en_proveedor(row):
+    return bool(row.get('_PROVEEDOR_PARALELO') or row.get('FECHA APROBACION')
+                or _cot_pestania(row) in ('sustentar', 'atendido'))
+
+
 def _cot_puede_gestionar():
     return _puede_cotizaciones()
 
@@ -807,7 +815,6 @@ def _cot_folder(pid, key):
 EXT_CORREO_OK = ('.pdf', '.msg', '.eml', '.doc', '.docx',
                  '.jpg', '.jpeg', '.png', '.webp')
 
-<<<<<<< HEAD
 # Formato libre: solo se bloquean tipos que podrían ejecutarse/interpretarse
 # al servirse desde el servidor (HTML/SVG/JS = XSS same-origin; binarios = RCE).
 EXT_CORREO_BLOQUEADAS = ('.html', '.htm', '.shtml', '.svg', '.js', '.jse',
@@ -821,9 +828,6 @@ def _cot_error_413(e):
     """MAX_CONTENT_LENGTH superado: responde JSON (no HTML) para que el
     frontend pueda mostrar el motivo real en vez de 'Error de red al subir.'."""
     return jsonify({'error': 'El archivo supera el tamaño máximo permitido (50 MB).'}), 413
-
-=======
->>>>>>> 9d0aadc289981134d41e14f6d0fac0ecf729c6c5
 
 @bp.route('/api/cotizacion/accion', methods=['POST'])
 @login_required
@@ -851,7 +855,7 @@ def api_cotizacion_accion():
     if accion == 'aprobar':
         accion = 'conformar_aprobacion'
     if not key or accion not in ('generar', 'enviar', 'conformar_aprobacion',
-                                 'revertir', 'rechazar', 'cancelar'):
+                                 'pasar_atendido', 'revertir', 'rechazar', 'cancelar'):
         return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
 
     fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
@@ -896,13 +900,28 @@ def api_cotizacion_accion():
     elif accion == 'conformar_aprobacion':
         if pestania != 'cliente':
             return jsonify({'error': 'La aprobación solo aplica a una cotización "En Aprobación" (pestaña Cliente).'}), 409
-        row['ESTADO COTIZACION'] = ESTADO_ATENDIDO
+        row['ESTADO COTIZACION'] = ESTADO_SUSTENTO
+        row['_PROVEEDOR_PARALELO'] = True
         row['FECHA APROBACION'] = str(data.get('fecha_aprobacion') or '').strip() or ahora
         row['APROBADO POR'] = usuario
         row['COMENTARIO APROBACION'] = str(data.get('comentario') or '').strip()
+        row['NOMBRE DE PROVEEDOR'] = str(data.get('nombre_proveedor', row.get('NOMBRE DE PROVEEDOR')) or '').strip()
+        proveedor_adjunto = str(data.get('adjunto_cotizacion_proveedor') or '').strip()
+        if proveedor_adjunto:
+            prefijo = '/api/cotizacion/correo/%d/%s/cotizacion_proveedor_' % (proy.id, secure_filename(key))
+            if not proveedor_adjunto.startswith(prefijo) or any(c in proveedor_adjunto for c in ('<', '>', '"', "'", '\\')):
+                return jsonify({'error': 'El adjunto del proveedor no corresponde a esta cotización.'}), 400
+            row['ADJUNTO COTIZACION PROVEEDOR'] = proveedor_adjunto
         adj = str(data.get('adjunto_correo') or '').strip()
         if adj:
             row['ADJUNTO CORREO CLIENTE'] = adj
+
+    elif accion == 'pasar_atendido':
+        if pestania != 'sustentar':
+            return jsonify({'error': 'Solo se puede pasar a Atendido desde la pestaña Sustentar.'}), 409
+        row['ESTADO COTIZACION'] = ESTADO_ATENDIDO
+        row['FECHA ATENCION'] = ahora
+        row['ATENDIDO POR'] = usuario
 
     elif accion == 'rechazar':
         # El cliente observa/rechaza y la solicitud regresa a Pdt. Cotización
@@ -945,6 +964,8 @@ def api_cotizacion_accion():
         if pestania == 'cliente':
             row['ESTADO COTIZACION'] = ESTADO_NUEVO
         elif pestania == 'atendido':
+            row['ESTADO COTIZACION'] = ESTADO_SUSTENTO
+        elif pestania == 'sustentar':
             row['ESTADO COTIZACION'] = ESTADO_APROBACION
         elif pestania == 'cancelado':
             row['ESTADO COTIZACION'] = ESTADO_NUEVO
@@ -959,7 +980,40 @@ def api_cotizacion_accion():
                     'newData': row})
 
 
+@bp.route('/api/cotizacion/proveedor', methods=['POST'])
+@login_required
+def api_cotizacion_proveedor():
+    if not _cot_puede_gestionar():
+        return jsonify({'error': 'No tienes permisos para gestionar cotizaciones.'}), 403
+    proy = _cot_proyecto()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+    data = request.get_json(silent=True) or {}
+    key = str(data.get('key') or '').strip()
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
+        return jsonify({'error': 'La cotización no existe.'}), 404
+    row = json.loads(fila.data_json or '{}')
+    if not _cot_en_proveedor(row):
+        return jsonify({'error': 'La cotización debe estar aprobada por el cliente.'}), 409
+    numero = str(data.get('numero_factura') or '').strip()
+    oc = str(data.get('numero_oc') or '').strip()
+    adjunto = str(data.get('factura_proveedor') or '').strip()
+    if not numero or not oc or not adjunto:
+        return jsonify({'error': 'Adjunta la factura e ingresa el número de factura y el número de OC.'}), 400
+    prefijo = '/api/cotizacion/correo/%d/%s/factura_proveedor_' % (proy.id, secure_filename(key))
+    if not adjunto.startswith(prefijo) or any(c in adjunto for c in ('<', '>', '"', "'", '\\')):
+        return jsonify({'error': 'La factura no corresponde a esta cotización.'}), 400
+    row.update({'NUMERO FACTURA PROVEEDOR': numero, 'NUMERO OC PROVEEDOR': oc,
+                'ADJUNTO FACTURA PROVEEDOR': adjunto, '_PROVEEDOR_PARALELO': True})
+    fila.data_json = safe_json_dumps(row)
+    db.session.commit()
+    return jsonify({'success': True, 'newData': row})
+
+
 @bp.route('/api/cotizacion/subir_correo', methods=['POST'])
+@bp.route('/api/cotizacion/subir_cotizacion_proveedor', methods=['POST'])
+@bp.route('/api/cotizacion/subir_factura_proveedor', methods=['POST'])
 @login_required
 def api_cotizacion_subir_correo():
     """Sube la evidencia del correo del cliente (.msg/.pdf/captura) y devuelve su URL."""
@@ -976,20 +1030,21 @@ def api_cotizacion_subir_correo():
     if file is None or not file.filename:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
     ext = os.path.splitext(file.filename)[1].lower()
-<<<<<<< HEAD
+    es_factura = request.path.endswith('/subir_factura_proveedor')
+    es_proveedor = es_factura or request.path.endswith('/subir_cotizacion_proveedor')
+    if es_proveedor and ext not in ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'):
+        return jsonify({'error': 'Adjunta un PDF, documento Word, Excel o imagen.'}), 400
     if ext in EXT_CORREO_BLOQUEADAS:
         return jsonify({'error': 'Formato no permitido (%s). Usa .msg, .pdf, .doc, JPG, PNG o WEBP.' % ext}), 400
-=======
-    if ext not in EXT_CORREO_OK:
-        return jsonify({'error': 'Formato no permitido. Usa .msg, .pdf, .doc, JPG, PNG o WEBP.'}), 400
->>>>>>> 9d0aadc289981134d41e14f6d0fac0ecf729c6c5
 
     key = secure_filename(key)
-    nombre = 'correo_aprob_%d%s' % (int(time.time()), ext)
+    if not NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first():
+        return jsonify({'error': 'La cotización no existe.'}), 404
+    import uuid
+    nombre = '%s_%s%s' % ('factura_proveedor' if es_factura else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
     os.close(fd)
     try:
-<<<<<<< HEAD
         try:
             file.save(ruta_tmp)
             if evidencia_usa_b2():
@@ -1004,18 +1059,6 @@ def api_cotizacion_subir_correo():
         except Exception as e:
             current_app.logger.exception('subir_correo: fallo al guardar el adjunto')
             return jsonify({'error': 'No se pudo subir el archivo: %s' % e}), 500
-=======
-        file.save(ruta_tmp)
-        if evidencia_usa_b2():
-            b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'],
-                                     '%s/%s' % (key, nombre))
-        else:
-            folder = _cot_folder(proy.id, key)
-            os.makedirs(folder, exist_ok=True)
-            with open(os.path.join(folder, nombre), 'wb') as fh, \
-                 open(ruta_tmp, 'rb') as src:
-                fh.write(src.read())
->>>>>>> 9d0aadc289981134d41e14f6d0fac0ecf729c6c5
         url = '/api/cotizacion/correo/%d/%s/%s?v=%d' % (
             proy.id, key, nombre, int(time.time()))
         return jsonify({'success': True, 'url': url})
@@ -1051,7 +1094,8 @@ def api_cotizacion_correo(pid, key, nombre):
     ruta = os.path.join(folder, nombre)
     if not os.path.exists(ruta):
         return jsonify({'error': 'No encontrado'}), 404
-    return send_from_directory(folder, nombre, max_age=604800)
+    return send_from_directory(folder, nombre, max_age=604800)
+
 @bp.route('/api/cotizacion/migrar_antiguos', methods=['POST'])
 @login_required
 def api_cotizacion_migrar_antiguos():
@@ -1085,3 +1129,183 @@ def api_cotizacion_migrar_antiguos():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Sustento (evidencia fotográfica ligada a la fila de Cotización → su WO)
+# ---------------------------------------------------------------------------
+
+_PROYECTOS_WO_SUSTENTO = ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - INTEGRATEL', 'FLM - CLARO')
+
+
+def _resolver_wo_sustento(wo):
+    """Busca la fila de un WO en los proyectos tipo WO. Devuelve (Proyecto, fila) o None."""
+    wo = str(wo or '').strip()
+    if not wo:
+        return None
+    proys = Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()
+    for p in proys:
+        fila = NucleusData.query.filter_by(proyecto_id=p.id, key_value=wo).first()
+        if fila:
+            return p, fila
+    return None
+
+
+def _leer_evidencia_wo(fila):
+    """Devuelve (fotos, bitacoras) con claves inicio/proceso/cierre desde la fila del WO."""
+    try:
+        d = json.loads(fila.data_json)
+    except Exception:
+        d = {}
+    fotos, bit = {}, {}
+    for t in ('INICIO', 'PROCESO', 'CIERRE'):
+        try:
+            arr = json.loads(d.get('_EVIDENCIA_' + t) or '[]')
+        except Exception:
+            arr = []
+        fotos[t.lower()] = [u for u in arr if u] if isinstance(arr, list) else []
+        bit[t.lower()] = str(d.get('_BITACORA_' + t) or '')
+    return fotos, bit
+
+
+@bp.route('/api/cotizacion/sustento', methods=['GET'])
+@login_required
+def api_cotizacion_sustento():
+    """Estado del sustento: WO resuelto, fotos por tipo y bitácoras del WO."""
+    if not _puede_cotizaciones():
+        return jsonify({'error': 'No tienes permisos para ver el sustento.'}), 403
+    key = (request.args.get('key') or '').strip()
+    if not key:
+        return jsonify({'error': 'Falta la clave del registro.'}), 400
+    proy = _cot_proyecto()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
+        return jsonify({'error': 'Registro no encontrado.'}), 404
+    try:
+        d = json.loads(fila.data_json)
+    except Exception:
+        d = {}
+    wos = _split_wos(d.get('NUMERO WO'))
+    info, total = [], 0
+    for wo in wos:
+        r = _resolver_wo_sustento(wo)
+        if not r:
+            info.append({'wo': wo, 'encontrado': False})
+            continue
+        p, wf = r
+        fotos, bit = _leer_evidencia_wo(wf)
+        n = sum(len(v) for v in fotos.values())
+        total += n
+        try:
+            bloqueado = bool(_evidencia_aprobacion_bloquea(p.id, wo))
+        except Exception:
+            bloqueado = False
+        try:
+            wf_data = json.loads(wf.data_json)
+            wf_data['_key'] = wo
+        except Exception:
+            wf_data = {'_key': wo}
+        info.append({
+            'wo': wo, 'encontrado': True,
+            'proyecto_id': p.id, 'proyecto_nombre': p.nombre,
+            'fotos': {k: len(v) for k, v in fotos.items()},
+            'fotos_urls': fotos, 'bitacoras': bit,
+            'bloqueado': bloqueado,
+            'wo_data': wf_data
+        })
+    return jsonify({'success': True, 'wos': info, 'total_fotos': total,
+                    'estado': d.get('ESTADO COTIZACION'), 'pestania': _cot_pestania(d),
+                    'sin_wo': not wos, 'cotizacion_data': d})
+
+
+@bp.route('/api/cotizacion/sustento/guardar', methods=['POST'])
+@login_required
+def api_cotizacion_sustento_guardar():
+    """Guarda las bitácoras y marca como Atendido, sincronizando con los WOs."""
+    if not _puede_cotizaciones():
+        return jsonify({'error': 'No tienes permisos para guardar el sustento.'}), 403
+    proy = _cot_proyecto()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+    data = request.get_json(silent=True) or {}
+    key = str(data.get('key') or '').strip()
+    bit = data.get('bitacoras') or {}
+    if not key:
+        return jsonify({'error': 'Falta la clave del registro.'}), 400
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
+        return jsonify({'error': 'Registro no encontrado.'}), 404
+    try:
+        d = json.loads(fila.data_json)
+    except Exception:
+        d = {}
+
+    # Guardar bitácoras en Cotización
+    for t in ('inicio', 'proceso', 'cierre'):
+        if t in bit:
+            d['_BITACORA_' + t.upper()] = str(bit.get(t) or '').strip()
+            
+    # Cambiar estado a Atendido
+    d['ESTADO COTIZACION'] = 'Atendido'
+    fila.data_json = safe_json_dumps(d)
+
+    # Sincronizar con los WOs
+    wos = _split_wos(d.get('NUMERO WO'))
+    rol = str(session.get('rol') or '').strip().lower()
+    uid = session.get('user_id')
+    guardados, errores = 0, []
+    
+    for wo in wos:
+        r = _resolver_wo_sustento(wo)
+        if not r:
+            errores.append(wo)
+            continue
+        p, wf = r
+        permitido = (p.id == session.get('current_proyecto_id')
+                     or rol in ('zeno', 'suport')
+                     or (uid and AccesoProyecto.query.filter_by(
+                         usuario_id=uid, proyecto_id=p.id).first()))
+        if not permitido:
+            errores.append(wo)
+            continue
+        try:
+            bloqueado = bool(_evidencia_aprobacion_bloquea(p.id, wo))
+        except Exception:
+            bloqueado = False
+        if bloqueado:
+            errores.append(wo)
+            continue
+        try:
+            wd = json.loads(wf.data_json)
+        except Exception:
+            wd = {}
+            
+        # Copiar bitácoras y fotos desde la Cotización al WO
+        for t in ('inicio', 'proceso', 'cierre'):
+            if t in bit:
+                wd['_BITACORA_' + t.upper()] = str(bit.get(t) or '').strip()
+            # Sincronizar fotos bidireccional (juntar las de Cotización con las del WO)
+            cot_fotos_str = d.get('_EVIDENCIA_' + t.upper()) or '[]'
+            wo_fotos_str = wd.get('_EVIDENCIA_' + t.upper()) or '[]'
+            try:
+                cot_f = json.loads(cot_fotos_str)
+                wo_f = json.loads(wo_fotos_str)
+                if not isinstance(cot_f, list): cot_f = []
+                if not isinstance(wo_f, list): wo_f = []
+                merged = list(set(cot_f + wo_f))
+                wd['_EVIDENCIA_' + t.upper()] = json.dumps(merged)
+            except:
+                pass
+                
+        wf.data_json = safe_json_dumps(wd)
+        guardados += 1
+        
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'No se pudo guardar: %s' % e}), 500
+    
+    return jsonify({'success': True, 'guardados': guardados, 'errores': errores})

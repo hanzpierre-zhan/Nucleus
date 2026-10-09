@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log in — Nucleus</title>
+    <title>Iniciar sesión — Nucleus</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23fff'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="/static/vendor/css/fontawesome.min.css?v=1">
     <style>
@@ -62,7 +62,7 @@
         .vl-logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);margin-bottom:28px}
         .vl-logo svg{color:var(--brand)}
         .vl-logo span{font-size:15px;font-weight:700;letter-spacing:2.5px}
-        .vl-box{width:360px;max-width:100%;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 28px 26px;box-shadow:var(--shadow-card)}
+        .vl-box{width:440px;max-width:100%;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px 26px;box-shadow:var(--shadow-card)}
         .vl-box::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;border-radius:16px 16px 0 0;background:linear-gradient(90deg,transparent,var(--brand),transparent);opacity:.7}
         .vl-title{font-size:21px;font-weight:700;letter-spacing:-.3px;margin:0;text-align:center}
         .vl-sub{margin:6px 0 24px;font-size:13px;color:var(--text-dim);text-align:center}
@@ -102,6 +102,21 @@
         input:focus-visible{outline:none}
         .spinner-ring{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:6px}
         @keyframes spin{to{transform:rotate(360deg)}}
+        .vl-policy{margin:22px 0 18px;padding:18px;border:1px solid var(--border);border-radius:14px;background:var(--surface-2)}
+        .vl-policy-heading{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+        .vl-policy-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--ring);color:var(--brand-strong);flex-shrink:0}
+        .vl-policy h2{font-size:14px;line-height:1.4;margin:0;color:var(--text);font-weight:650}
+        .vl-policy p{font-size:12px;line-height:1.65;margin:0;color:var(--text-dim)}
+        .vl-policy-links{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0}
+        .vl-policy-links a{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:7px 10px;border:1px solid var(--border-strong);border-radius:8px;color:var(--text);background:var(--surface);font-size:12px;text-decoration:none}
+        .vl-policy-links a:hover{border-color:var(--brand);color:var(--brand-strong)}
+        .vl-consent{display:flex;align-items:flex-start;gap:11px;border-top:1px solid var(--border);padding-top:14px;font-size:12px;line-height:1.65;color:var(--text);cursor:pointer}
+        .vl-consent input{width:18px;height:18px;margin:2px 0 0;flex-shrink:0;accent-color:var(--brand);cursor:pointer}
+        .vl-consent-help{font-size:11px;line-height:1.5;color:var(--text-dim);margin:10px 0 0;min-height:17px}
+        .vl-btn:disabled{box-shadow:none}
+        .vl-footer{color:var(--text-dim)}
+        .vl-footer a{color:var(--text-dim);display:inline-block;padding:6px 4px}
+        @media(max-width:480px){.vl-box{padding:25px 20px}.vl-policy{padding:14px}.vl-center{padding-top:24px}.vl-policy-links{gap:6px}.vl-policy-links a{flex:1;justify-content:center}}
         @media (prefers-reduced-motion:reduce){
             *{transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
             .vl-glow{filter:none}
@@ -115,24 +130,45 @@
         <div class="vl-center">
             <a href="/" class="vl-logo" aria-label="Nucleus inicio"><svg width="30" height="30" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="4" fill="currentColor"/></svg><span>NUCLEUS</span></a>
             <div class="vl-box">
-                <h1 class="vl-title">Inicia sesión</h1>
-                <p class="vl-sub">Accede a la plataforma con tu cuenta</p>
+                <h1 class="vl-title">{{ "Bienvenido a Nucleus" if consent_required else "Inicia sesión" }}</h1>
+                <p class="vl-sub">{{ "Confirma tu conformidad para completar el primer acceso" if consent_required else "Accede a la plataforma con tu cuenta" }}</p>
                 {% if error %}
-                <div class="vl-error"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>
+                <div class="vl-error" role="alert"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>
                 {% endif %}
                 <form method="POST" id="login-form">
+                    {% if not consent_required %}
                     <div class="vl-field">
                         <i class="fa-solid fa-user"></i>
-                        <input type="text" name="username" placeholder="Usuario" required autocomplete="username" class="has-icon">
+                        <input type="text" name="username" placeholder="Usuario" aria-label="Usuario" value="{{ username | default('') }}" required autocomplete="username" class="has-icon">
                     </div>
                     <div class="vl-field">
                         <i class="fa-solid fa-lock"></i>
-                        <input type="password" name="password" id="password" placeholder="Contraseña" required autocomplete="current-password" class="has-icon">
+                        <input type="password" name="password" id="password" placeholder="Contraseña" aria-label="Contraseña" required autocomplete="current-password" class="has-icon">
                         <button type="button" class="vl-eye" onclick="togglePassword()" title="Mostrar"><i class="fa-solid fa-eye" id="eye-icon"></i></button>
                     </div>
-                    <button type="submit" class="vl-btn" id="login-btn">Ingresar</button>
+                    {% else %}
+                    <input type="hidden" name="consent_step" value="1">
+                    <section class="vl-policy" aria-labelledby="policy-heading">
+                        <div class="vl-policy-heading">
+                            <span class="vl-policy-icon" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></span>
+                            <h2 id="policy-heading">Antes de ingresar</h2>
+                        </div>
+                        <p>Revisa las condiciones de uso y cómo se trata tu información en Nucleus.</p>
+                        <nav class="vl-policy-links" aria-label="Documentos de uso y privacidad">
+                            <a href="/terminos" target="_blank" rel="noopener" aria-label="Términos, abre en otra pestaña">Términos <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+                            <a href="/privacidad" target="_blank" rel="noopener" aria-label="Privacidad, abre en otra pestaña">Privacidad <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+                            <a href="/cookies" target="_blank" rel="noopener" aria-label="Cookies, abre en otra pestaña">Cookies <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+                        </nav>
+                        <label class="vl-consent" for="legal-accept">
+                            <input type="checkbox" id="legal-accept" name="legal_accept" value="1" required aria-describedby="consent-help" {% if legal_accepted %}checked{% endif %}>
+                            <span>Acepto los términos y condiciones y confirmo que he leído las políticas de privacidad y cookies.</span>
+                        </label>
+                    </section>
+                    {% endif %}
+                    <button type="submit" class="vl-btn" id="login-btn">{{ "Aceptar e ingresar" if consent_required else "Ingresar a Nucleus" }}</button>
+                    {% if consent_required %}<p class="vl-consent-help" id="consent-help" aria-live="polite">Marca la casilla de conformidad para continuar.</p>{% endif %}
                 </form>
-                <div class="vl-divider">¿Necesitas ayuda?</div>
+                {% if not consent_required %}<div class="vl-divider">¿Necesitas ayuda?</div>
                 <button type="button" class="vl-link" onclick="toggleCambiar()">Cambiar contraseña</button>
                 <div id="panel-cambiar" class="vl-panel">
                     <input type="text" id="cp-user" placeholder="Usuario">
@@ -141,6 +177,7 @@
                     <button type="button" class="vl-btn-secondary" onclick="cambiarDesdeLogin()" id="btn-cp">Actualizar contraseña</button>
                     <div id="cp-msg" class="vl-msg"></div>
                 </div>
+                {% else %}<a class="vl-link" href="/logout">Usar otra cuenta</a>{% endif %}
             </div>
             <div class="vl-footer">© 2026 Nucleus — HPVR<br><a href="/privacidad">Privacidad</a> · <a href="/terminos">Términos</a> · <a href="/cookies">Cookies</a></div>
         </div>
@@ -149,7 +186,10 @@
     <script>
         (function(){const b=document.getElementById('login-theme-toggle');if(!b)return;const ic=b.querySelector('i');const apply=()=>{const light=document.body.classList.contains('light');ic.className=light?'fa-solid fa-moon':'fa-solid fa-sun'};try{if(localStorage.getItem('nucleus-theme')==='light')document.body.classList.add('light')}catch(e){}apply();b.addEventListener('click',()=>{document.body.classList.toggle('light');const light=document.body.classList.contains('light');try{localStorage.setItem('nucleus-theme',light?'light':'dark')}catch(e){}apply()})})();
         function togglePassword(){const p=document.getElementById('password'),i=document.getElementById('eye-icon'),m=p.type==='password';p.type=m?'text':'password';i.className=m?'fa-solid fa-eye-slash':'fa-solid fa-eye'}
-        document.getElementById('login-form').addEventListener('submit',function(){const b=document.getElementById('login-btn');b.disabled=true;b.innerHTML='<span class="spinner-ring"></span> Ingresar'});
+        const consentBox=document.getElementById('legal-accept'),loginButton=document.getElementById('login-btn');
+        function updateConsent(){if(!consentBox)return;loginButton.disabled=!consentBox.checked;document.getElementById('consent-help').textContent=consentBox.checked?'Conformidad confirmada. Ya puedes ingresar.':'Marca la casilla de conformidad para continuar.'}
+        if(consentBox)consentBox.addEventListener('change',updateConsent);window.addEventListener('pageshow',updateConsent);updateConsent();
+        document.getElementById('login-form').addEventListener('submit',function(e){if(consentBox&&!consentBox.checked){e.preventDefault();consentBox.focus();return}loginButton.disabled=true;loginButton.innerHTML='<span class="spinner-ring"></span> Ingresando…'});
         function toggleCambiar(){const p=document.getElementById('panel-cambiar');p.style.display=p.style.display==='none'||!p.style.display?'block':'none'}
         async function cambiarDesdeLogin(){
             const u=document.getElementById('cp-user').value.trim(),a=document.getElementById('cp-actual').value,n=document.getElementById('cp-nueva').value,msg=document.getElementById('cp-msg'),btn=document.getElementById('btn-cp');
@@ -161,6 +201,5 @@
             btn.disabled=false;btn.textContent='Actualizar contraseña';
         }
     </script>
-    {% include 'cookie_banner.html' %}
 </body>
 </html>

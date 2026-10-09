@@ -1,0 +1,65 @@
+.ref-toolbar{display:flex;align-items:center;gap:8px;padding:6px 12px;min-height:44px;border-bottom:1px solid var(--ios-hairline);flex-wrap:wrap}
+.ref-toolbar .topbar-badge{font-size:11px;height:28px;display:inline-flex;align-items:center;padding:0 8px;white-space:nowrap}
+.ref-module-title{font-size:13px;font-weight:650;margin-left:8px;color:var(--ios-label)}
+.ref-module-title i{color:var(--ios-purple,#8064ff);margin-right:5px}
+.ref-settings-wrap{position:relative;margin-left:auto}
+#ref-settings{right:0;min-width:240px;padding:8px}
+.ref-menu-item{display:flex;align-items:center;gap:10px;background:transparent;color:var(--ios-label);border:0;border-radius:6px;padding:10px;width:100%;text-align:left;cursor:pointer}
+.ref-menu-item:hover{background:var(--ios-fill)}
+#ref-pagination,#ref-pagination .tabulator-paginator,#ref-pagination .tabulator-pages{display:flex;align-items:center;gap:3px}
+#ref-pagination .tabulator-page{min-width:25px;height:28px;padding:0 5px;margin:0;font-size:12px;border-radius:6px}
+#ref-pagination .tabulator-page-size{width:57px;height:28px;margin:0 3px 0 0;padding:0 4px;font-size:11px}
+#ref-pagination label{display:none}
+#ref-grid{flex:1;min-height:0;width:100%}
+#ref-message{font-size:12px;color:var(--ios-secondary);padding:0 12px}
+#ref-message:not(:empty){padding-top:8px;padding-bottom:8px}
+#ref-editor{width:min(780px,calc(100vw - 32px));max-height:calc(100vh - 40px);padding:0;border:1px solid var(--ios-hairline);border-radius:16px;background:var(--ios-card-bg,#fff);color:var(--ios-label);box-shadow:0 24px 80px #0004}
+#ref-editor::backdrop{background:#0008;backdrop-filter:blur(3px)}
+#ref-form{display:flex;flex-direction:column;max-height:calc(100vh - 40px)}
+.ref-modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--ios-hairline)}
+.ref-modal-header h2{font-size:16px;margin:0 0 6px}
+.ref-modal-header p{font-size:12px;color:var(--ios-secondary);margin:0}
+.ref-modal-header .ref-close{border:1px solid var(--ios-hairline);border-radius:8px;width:32px;height:32px;background:var(--ios-fill);color:var(--ios-label);font-size:21px;cursor:pointer}
+.ref-modal-body{padding:24px;overflow:auto}
+.ref-section{border:1px solid var(--ios-hairline);border-radius:12px;padding:18px;margin-bottom:16px}
+.ref-section h3{margin:0 0 16px;font-size:13px}
+.ref-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.ref-money-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ref-form-grid label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:600;color:var(--ios-secondary)}
+.ref-form-grid input,.ref-form-grid select,.ref-form-grid textarea,.ref-form-grid output{box-sizing:border-box;min-width:0;width:100%;padding:10px 12px;min-height:40px;background:var(--ios-input-bg,var(--ios-fill));color:var(--ios-label);border:1px solid var(--ios-hairline);border-radius:8px;font:inherit}
+.ref-form-grid input:focus,.ref-form-grid select:focus,.ref-form-grid textarea:focus{outline:2px solid var(--ios-purple,#8064ff);outline-offset:1px}
+.ref-form-grid small{font-size:10px;font-weight:400}
+.ref-full-width{grid-column:1/-1}
+.ref-modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--ios-hairline);background:var(--ios-fill)}
+#ref-form-error{color:var(--ios-red,#ff3b30);margin:0;font-size:12px}
+@media(max-width:600px){.ref-form-grid,.ref-money-grid{grid-template-columns:1fr}.ref-modal-body{padding:14px}.ref-modal-header,.ref-modal-footer{padding:16px}.ref-module-title{order:3;flex-basis:100%}}
+
+/* Tabla y paginación alineadas con el resto de módulos. */
+#ref-pagination{flex-shrink:0;gap:4px}
+#ref-pagination .tabulator-paginator{gap:4px;flex-wrap:nowrap;padding:0;margin:0}
+#ref-pagination .tabulator-page-size{box-sizing:border-box;width:68px!important;min-width:68px;height:28px!important;padding:0 7px!important;border:1px solid var(--ios-hairline)!important;border-radius:6px!important;background:var(--ios-card-bg)!important;color:var(--ios-label)!important;font-size:12px!important;cursor:pointer;outline:none}
+#ref-pagination .tabulator-page{height:28px!important;min-width:28px!important;padding:0 7px!important;margin:0!important;border:1px solid var(--ios-hairline)!important;border-radius:6px!important;background:var(--ios-card-bg)!important;color:var(--ios-label)!important;box-shadow:none;font-size:12px!important;cursor:pointer;display:inline-flex;justify-content:center;align-items:center}
+#ref-pagination .tabulator-page.active{background:var(--ios-blue,#8064ff)!important;border-color:var(--ios-blue,#8064ff)!important;color:#fff!important;font-weight:700;box-shadow:0 2px 8px rgba(128,100,255,.22)}
+#ref-pagination .tabulator-page:disabled{opacity:.35;cursor:default}
+#ref-pagination .tabulator-page:hover:not(:disabled):not(.active){background:var(--ios-fill)!important}
+#ref-pagination .tabulator-page:focus-visible,#ref-pagination .tabulator-page-size:focus-visible{outline:2px solid var(--ios-blue);outline-offset:2px}
+#ref-grid .tabulator-col-content{min-height:104px;box-sizing:border-box;padding:10px 8px}
+#ref-grid .tabulator-col-title-holder{min-height:34px;display:flex;align-items:center}
+#ref-grid .tabulator-col-title{white-space:normal!important;line-height:1.25;overflow:visible}
+.ref-column-title{display:inline-flex;align-items:center;justify-content:center;gap:5px;width:100%;padding-right:10px;box-sizing:border-box}
+.ref-column-title>span{min-width:0;overflow-wrap:normal}
+.ref-filter-icon{border:0;background:transparent;padding:2px;color:var(--ios-blue);font-size:10px;line-height:1;cursor:pointer;flex-shrink:0}
+.ref-filter-icon:focus-visible{outline:2px solid var(--ios-blue);outline-offset:2px;border-radius:3px}
+.ref-edit-icon{color:var(--ios-blue);font-size:10px;opacity:.8;flex-shrink:0}
+#ref-grid .tabulator-cell{padding:8px 12px;line-height:1.4}
+#ref-grid .tabulator-row:hover{background:var(--ios-fill)!important}
+#ref-grid .tabulator-cell[tabulator-field="cotizacion"]{color:var(--ios-blue);font-weight:600}
+#ref-grid .tabulator-cell[tabulator-field="monto_cobra"],#ref-grid .tabulator-cell[tabulator-field="monto_hw"],#ref-grid .tabulator-cell[tabulator-field="margen"]{font-variant-numeric:tabular-nums}
+.ref-status{display:inline-flex;align-items:center;min-height:23px;padding:2px 9px;border-radius:6px;font-size:11px;font-weight:600;line-height:1.25;box-sizing:border-box}
+.ref-status-success{color:#15803d;background:rgba(34,197,94,.13)}
+.ref-status-warning{color:#a16207;background:rgba(245,158,11,.13)}
+.ref-status-danger{color:#dc2626;background:rgba(239,68,68,.13)}
+.ref-status-neutral{color:var(--ios-secondary);background:var(--ios-fill)}
+body.dark-mode .ref-status-success{color:#4ade80}
+body.dark-mode .ref-status-warning{color:#fbbf24}
+body.dark-mode .ref-status-danger{color:#f87171}

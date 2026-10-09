@@ -73,6 +73,16 @@ def index():
     is_admin = user_rol == 'zeno'
     is_privileged = user_rol in ['zeno', 'suport']
 
+    if session.get('current_proyecto_nombre') == 'FLM - CLARO y INTEGRATEL':
+        proyectos_activos = get_menu_proyectos(user_id, user_rol)
+        if proyectos_activos:
+            proyecto_activo = proyectos_activos[0]
+            session['current_proyecto_id'] = proyecto_activo.id
+            session['current_proyecto_nombre'] = proyecto_activo.nombre
+            return redirect(url_for('pages.index'))
+        session.clear()
+        return redirect(url_for('auth.login'))
+
     if not pid:
         # Emergency fallback or find first allowed
         if is_privileged:
@@ -102,7 +112,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -113,7 +123,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
                         allowed = True
                         break
                 if not allowed:
@@ -124,7 +134,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
                         allowed = True
                         break
                 if not allowed:
@@ -135,7 +145,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
                         allowed = True
                         break
                 if not allowed:
@@ -146,7 +156,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT'):
                         allowed = True
                         break
                 if not allowed:

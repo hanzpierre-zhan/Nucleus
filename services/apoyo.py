@@ -303,7 +303,7 @@ def _evidencia_aprobacion_bloquea(pid, key):
     if str(session.get('rol') or '').strip().lower() != 'contrata':
         return False
     proy = db.session.get(Proyecto, pid) if pid else None
-    if not proy or (proy.nombre or '').strip() not in ('FLM', 'FLM - ENTEL', 'PEXT'):
+    if not proy or (proy.nombre or '').strip() not in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - CLARO y INTEGRATEL', 'PEXT'):
         return False
     rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key or '')).first()
     if not rec:

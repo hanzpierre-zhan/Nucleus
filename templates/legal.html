@@ -44,6 +44,18 @@
         body.light .lg-logo{color:#162623 !important}
         body.light .lg-logo svg{color:#295255 !important}
         body.light .lg-note{background:#EAF2F1 !important;color:#3A4A4A !important}
+        .lg-wrap{max-width:900px;padding:0 24px 64px}
+        .lg-top{height:76px;border-bottom:1px solid #2A313D}
+        .lg-title{font-size:clamp(26px,4vw,36px);margin-top:36px;letter-spacing:-.8px}
+        .lg-updated{color:#97A2B3;line-height:1.6}
+        .lg-tabs{gap:10px;padding-bottom:20px;border-color:#2A313D}
+        .lg-tab{padding:10px 16px;border-radius:10px;min-height:44px}
+        .lg-card{border-radius:18px;padding:30px;background:#171B22;border-color:#2A313D;box-shadow:0 16px 50px rgba(0,0,0,.15)}
+        .lg-card p,.lg-card li{font-size:14px;line-height:1.85}
+        .lg-card h2{font-size:20px}.lg-card h3{margin-top:28px;font-size:15px}
+        .lg-foot{color:#97A2B3}.lg-back{font-size:13px;min-height:44px}
+        a:focus-visible{outline:2px solid #8B7CFF;outline-offset:4px}
+        @media(max-width:480px){.lg-wrap{padding:0 16px 40px}.lg-card{padding:22px 18px}.lg-top{gap:12px}.lg-back{font-size:12px}.lg-tabs{gap:8px}.lg-tab{flex:1;text-align:center;font-size:12px}}
     </style>
 </head>
 <body>
@@ -66,7 +78,7 @@
         {% else %}Política de privacidad
         {% endif %}
     </h1>
-    <div class="lg-updated">Última actualización: 04 de octubre de 2026 · Nucleus (HPVR)</div>
+    <div class="lg-updated">Última actualización: 09 de octubre de 2026 · Nucleus (HPVR)</div>
 
     <nav class="lg-tabs">
         <a class="lg-tab {% if seccion == 'privacidad' %}on{% endif %}" href="/privacidad">Política de privacidad</a>
@@ -115,7 +127,7 @@
     {% elif seccion == 'terminos' %}
     <section class="lg-card">
         <h2>Términos y condiciones de uso</h2>
-        <p class="lg-lead">Al crear una cuenta o iniciar sesión en Nucleus aceptas estas condiciones de uso.</p>
+        <p class="lg-lead">Antes de iniciar sesión, debes aceptar estas condiciones y confirmar la lectura de las políticas de privacidad y cookies.</p>
 
         <h3>1. Objeto y alcance</h3>
         <p>Nucleus es una <b>herramienta de uso interno</b> para la gestión de proyectos, solicitudes, órdenes de trabajo, evidencias, cotizaciones y rendiciones. No está destinada al público general ni ofrece servicios a terceros ajenos a la organización.</p>
@@ -144,7 +156,7 @@
         <p>El servicio se presta <b>tal cual</b> y puede haber interrupciones por mantenimiento, actualizaciones o incidencias del proveedor de hosting. Se procurará avisar con antelación cuando sea posible.</p>
 
         <h3>6. Cambios</h3>
-        <p>Estos términos pueden actualizarse conforme evoluciona la plataforma. El uso continuado tras una modificación implica su aceptación.</p>
+        <p>Estos términos pueden actualizarse conforme evoluciona la plataforma. La pantalla de inicio de sesión solicita tu conformidad en el primer acceso de cada usuario.</p>
 
         <h3>7. Responsabilidad</h3>
         <p>La organización no se responsabiliza de decisiones tomadas a partir de información introducida incorrectamente por los usuarios, ni del uso indebido de las credenciales. Las funciones pueden cambiar o retirarse sin previo aviso.</p>
@@ -164,7 +176,7 @@
         <h3>2. Almacenamiento local del navegador</h3>
         <ul>
             <li><b><code>nucleus-theme</code></b>: guarda si prefieres el tema claro u oscuro.</li>
-            <li><b><code>nucleus-consent</code></b>: guarda que has leído y aceptado este aviso de cookies, para no mostrártelo en cada visita.</li>
+            <li><b><code>nucleus-consent</code></b>: guarda que has leído el aviso informativo de cookies, para no mostrártelo en cada visita.</li>
             <li><b>Preferencias de columnas y vistas</b>: recuerdan el orden y la visibilidad de las columnas en tus tablas.</li>
         </ul>
         <p class="lg-lead">El almacenamiento local no es una cookie: se guarda solo en tu navegador, no viaja por la red ni permite identificarte fuera de la aplicación.</p>
@@ -180,8 +192,8 @@
             <li>Para eliminar solo el consentimiento guardado, borra el elemento <code>nucleus-consent</code> del almacenamiento local y el aviso volverá a aparecer.</li>
         </ul>
 
-        <h3>5. Aceptación</h3>
-        <p>Al pulsar <b>«Entendido»</b> en el aviso guardamos tu decisión en tu navegador para no volver a molestarte. Puedes revocarla borrando los datos del sitio desde tu navegador en cualquier momento.</p>
+        <h3>5. Conformidad antes de ingresar</h3>
+        <p>En el primer acceso, la plataforma te pide aceptar los términos y confirmar que has leído las políticas de privacidad y cookies. La versión y la fecha de esta conformidad se guardan en tu cuenta. El aviso informativo de cookies guarda únicamente que lo has leído en este navegador; no sustituye la conformidad del inicio de sesión.</p>
     </section>
     {% endif %}
 

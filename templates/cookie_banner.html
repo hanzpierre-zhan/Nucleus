@@ -1,26 +1,43 @@
-<!-- Aviso de cookies (público): se incluye en login.html y base.html -->
-<div id="cookie-banner" style="display:none;position:fixed;left:16px;right:16px;bottom:16px;z-index:9999;max-width:760px;margin:0 auto;background:#222222;border:1px solid #333333;border-radius:10px;padding:14px 16px;box-shadow:0 12px 32px rgba(0,0,0,.45);font-family:'Geist Sans','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-        <i class="fa-solid fa-cookie-bite" style="color:#6C63FF;font-size:18px;flex-shrink:0;"></i>
-        <div style="flex:1;min-width:220px;font-size:12.5px;line-height:1.5;color:#CBD5E1;">
-            Usamos <b style="color:#F8FAFC;">cookies técnicas</b> (sesión) y almacenamiento local para que la aplicación funcione.
-            No instalamos analítica ni publicidad de terceros. <a href="/cookies" style="color:#8FA4FF;">Ver política de cookies</a>
+{% if not session.get('legal_acceptance') %}
+<style>
+    .cookie-notice{position:fixed;left:20px;right:20px;bottom:20px;z-index:9999;max-width:680px;margin:auto;padding:20px;background:#171B22;color:#F2F5FA;border:1px solid #3A4352;border-radius:16px;box-shadow:0 16px 50px rgba(0,0,0,.3);font-family:system-ui,sans-serif}
+    .cookie-notice[hidden]{display:none}
+    .cookie-notice-content{display:flex;align-items:flex-start;gap:14px}
+    .cookie-notice-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:rgba(108,99,255,.15);color:#A69FFF;flex-shrink:0}
+    .cookie-notice h2{font-size:14px;margin:0 0 6px;font-weight:650}
+    .cookie-notice p{font-size:12px;line-height:1.7;color:#B4BFCE;margin:0}
+    .cookie-notice-actions{display:flex;justify-content:flex-end;align-items:center;gap:16px;margin-top:14px}
+    .cookie-notice a{font-size:12px;color:#B2ABFF;text-underline-offset:3px}
+    .cookie-notice button{min-height:38px;padding:8px 16px;border:0;border-radius:9px;background:#6C63FF;color:white;font-size:12px;font-weight:600;cursor:pointer}
+    .cookie-notice :focus-visible{outline:2px solid #B2ABFF;outline-offset:3px}
+    body.light .cookie-notice{background:white;color:#162623;border-color:#CFDCDC}
+    body.light .cookie-notice p{color:#3A4A4A}body.light .cookie-notice a{color:#295255}
+    body.light .cookie-notice button{background:#295255}body.light .cookie-notice-icon{color:#295255;background:#EAF2F1}
+    @media(max-width:480px){.cookie-notice{left:12px;right:12px;bottom:12px;padding:16px}.cookie-notice-actions{justify-content:space-between;gap:10px}}
+</style>
+<aside id="cookie-banner" class="cookie-notice" aria-label="Información sobre cookies" hidden>
+    <div class="cookie-notice-content">
+        <span class="cookie-notice-icon" aria-hidden="true"><i class="fa-solid fa-cookie-bite"></i></span>
+        <div>
+            <h2>Cookies y almacenamiento local</h2>
+            <p>Usamos cookies de sesión y preferencias locales para que Nucleus funcione. No instalamos cookies de publicidad ni analítica de terceros.</p>
         </div>
-        <button type="button" id="cookie-accept" style="flex-shrink:0;height:34px;padding:0 18px;border-radius:6px;border:1px solid #6C63FF;background:#6C63FF;color:#FFF;font-size:13px;font-weight:600;cursor:pointer;">Entendido</button>
     </div>
-</div>
+    <div class="cookie-notice-actions">
+        <a href="/cookies">Consultar política de cookies</a>
+        <button type="button" id="cookie-accept">Entendido</button>
+    </div>
+</aside>
 <script>
 (function(){
-    var KEY='nucleus-consent';
-    var b=document.getElementById('cookie-banner');
-    if(!b)return;
-    var ok=false;
-    try{ok=!!localStorage.getItem(KEY)}catch(e){ok=false}
-    if(ok)return;
-    b.style.display='block';
+    var banner=document.getElementById('cookie-banner');
+    if(!banner)return;
+    try{if(localStorage.getItem('nucleus-consent'))return}catch(e){}
+    banner.hidden=false;
     document.getElementById('cookie-accept').addEventListener('click',function(){
-        try{localStorage.setItem(KEY,'ok')}catch(e){}
-        b.style.display='none';
+        try{localStorage.setItem('nucleus-consent','ok')}catch(e){}
+        banner.hidden=true;
     });
 })();
 </script>
+{% endif %}

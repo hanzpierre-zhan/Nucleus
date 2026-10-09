@@ -43,7 +43,7 @@ class Config:
         _sk = secrets.token_urlsafe(64)
         # No la persistimos en disco; en producción debe definirse SECRET_KEY
     SECRET_KEY = _sk
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100 MB
     _INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
     os.makedirs(_INSTANCE_DIR, exist_ok=True)
     EVIDENCIA_DIR = os.path.join(_INSTANCE_DIR, 'evidencia')

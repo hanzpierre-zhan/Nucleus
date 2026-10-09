@@ -18,7 +18,7 @@ Estructura del proyecto:
 import os
 import gzip
 import mimetypes
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, current_app
 from werkzeug.exceptions import HTTPException
 
 from db import db
@@ -32,12 +32,43 @@ mimetypes.add_type('font/ttf', '.ttf')
 # ─────────────────────────────────────────────────────────────────────────────
 # Registro de error handlers
 # ─────────────────────────────────────────────────────────────────────────────
+def _pagina_error_http(titulo, mensaje, codigo):
+    """Página HTML mínima para errores que llegan al usuario de la UI web
+    (404 de navegación, etc.). No depende de plantillas para no romper nada."""
+    html = (
+        '<!DOCTYPE html>\n<html lang="es">\n<head>\n'
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        '<title>%s - Nucleus</title>\n'
+        '<style>body{font-family:system-ui,Arial,sans-serif;background:#f5f5f7;'
+        'display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}'
+        '.card{background:#fff;padding:2.5rem 3rem;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.08);'
+        'text-align:center;max-width:420px;}h1{margin:0 0 .5rem;font-size:2.4rem;}'
+        'p{color:#555;margin:0 0 1.2rem;}</style>\n'
+        '</head>\n<body>\n<div class="card">\n'
+        '<h1>%s</h1>\n<p>%s</p>\n'
+        '<a href="#" onclick="history.back();return false;">Volver</a> | '
+        '<a href="/">Ir al inicio</a>\n'
+        '</div>\n</body>\n</html>\n'
+    ) % (codigo, codigo, mensaje)
+    return Response(html, status=codigo, mimetype='text/html')
+
+
 def _register_error_handlers(app):
     @app.errorhandler(Exception)
     def handle_exception(e):
         if isinstance(e, HTTPException):
+            # Las APIs (prefijo /api) mantienen el contrato JSON actual.
+            # La navegación web recibe una página HTML amigable.
+            if e.code == 404 and not request.path.startswith('/api'):
+                return _pagina_error_http(
+                    'Página no encontrada',
+                    'La página o el recurso que buscas no existe.',
+                    404)
             return jsonify(error=e.description), e.code
-        return jsonify(error=str(e)), 500
+        # Errores 500: loguear el traceback y NO filtrar str(e) al cliente.
+        current_app.logger.exception('Error no controlado en %s', request.path)
+        return jsonify(error='Error interno del servidor'), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -107,9 +138,10 @@ def _register_blueprints(app):
     from blueprints.evidencia import bp as evidencia_bp
     from blueprints.rendicion import bp as rendicion_bp
     from blueprints.cotizacion import bp as cotizacion_bp
+    from blueprints.refacturable import bp as refacturable_bp
 
     for _bp in (auth_bp, pages_bp, admin_bp, imports_bp, master_bp,
-                rows_bp, wo_bp, evidencia_bp, rendicion_bp, cotizacion_bp):
+                rows_bp, wo_bp, evidencia_bp, rendicion_bp, cotizacion_bp, refacturable_bp):
         app.register_blueprint(_bp)
 
 
@@ -156,7 +188,7 @@ def create_app(config_object=None):
         _opts = dict(app.config.get('SQLALCHEMY_ENGINE_OPTIONS') or {})
         _opts.pop('connect_args', None)
         app.config['SQLALCHEMY_ENGINE_OPTIONS'] = _opts
-
+    
     os.makedirs(app.config['EVIDENCIA_DIR'], exist_ok=True)
 
     _register_error_handlers(app)

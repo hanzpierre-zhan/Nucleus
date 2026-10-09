@@ -10,6 +10,7 @@
    - RECHAZADO     -> hoja Rechazados
 """
 import os, json, time, re, tempfile, mimetypes, unicodedata, urllib.request
+from uuid import uuid4
 from urllib.parse import quote
 from datetime import datetime
 
@@ -405,6 +406,12 @@ def api_rendicion_accion():
         tiempo = str(data.get('tiempo') or '').strip()
         if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica'):
             return jsonify({'error': 'Selecciona una opción de tiempo de respuesta.'}), 400
+        if _es_refacturable(row):
+            correo = str(row.get('ADJUNTO CORREO VALIDACION') or '')
+            prefijo = '/api/rendicion/correo/%s/' % fila.id
+            nombre = correo[len(prefijo):] if correo.startswith(prefijo) else ''
+            if not nombre or secure_filename(nombre) != nombre or not os.path.isfile(os.path.join(_correo_folder(fila.id), nombre)):
+                return jsonify({'error': 'Adjunta el correo .msg para validar una solicitud refacturable.'}), 400
         row['ESTADO'] = 'VALIDADO'
         row['TIEMPO DE RESPUESTA'] = tiempo
         row['FECHA VALIDACION'] = ahora
@@ -699,3 +706,65 @@ def api_rendicion_avisos_leer():
         db.session.rollback()
         return jsonify({'error': 'No se pudo marcar como leído.'}), 500
     return jsonify({'success': True})
+
+
+
+def _es_refacturable(row):
+    tipo = str(row.get('TIPO DE PRESUPUESTO') or '').strip().upper()
+    return tipo == 'REFACTURABLE'
+
+
+def _correo_folder(origen_id):
+    return os.path.join(current_app.config.get('EVIDENCIA_DIR') or os.path.join(BASE_DIR, 'static', 'evidencia'), 'rendicion_correos', str(origen_id))
+
+
+@bp.route('/api/rendicion/subir_correo', methods=['POST'])
+@login_required
+def subir_correo_validacion():
+    if not _puede_gestionar():
+        return jsonify({'error': 'No tienes permisos para gestionar las rendiciones.'}), 403
+    proy = _proy()
+    key = str(request.form.get('key') or '').strip()
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first() if proy else None
+    if not fila:
+        return jsonify({'error': 'Solicitud no encontrada.'}), 404
+    row = json.loads(fila.data_json or '{}')
+    if _estado_de(row) != 'PENDIENTE' or not _es_refacturable(row):
+        return jsonify({'error': 'Este correo corresponde a la validación de una solicitud refacturable pendiente.'}), 409
+    archivo = request.files.get('correo')
+    if not archivo or not archivo.filename or os.path.splitext(archivo.filename)[1].lower() != '.msg':
+        return jsonify({'error': 'Selecciona un correo de Outlook en formato .msg.'}), 400
+    contenido = archivo.read(20 * 1024 * 1024 + 1)
+    if not contenido or len(contenido) > 20 * 1024 * 1024:
+        return jsonify({'error': 'El correo debe tener contenido y pesar como máximo 20 MB.'}), 400
+    carpeta = _correo_folder(fila.id)
+    os.makedirs(carpeta, exist_ok=True)
+    nombre = uuid4().hex + '.msg'
+    ruta = os.path.join(carpeta, nombre)
+    with open(ruta, 'wb') as destino:
+        destino.write(contenido)
+    row['ADJUNTO CORREO VALIDACION'] = '/api/rendicion/correo/%s/%s' % (fila.id, nombre)
+    row['NOMBRE CORREO VALIDACION'] = secure_filename(archivo.filename)
+    fila.data_json = json.dumps(row, ensure_ascii=False)
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        os.remove(ruta)
+        raise
+    return jsonify({'url': row['ADJUNTO CORREO VALIDACION'], 'nombre': row['NOMBRE CORREO VALIDACION']})
+
+
+@bp.route('/api/rendicion/correo/<int:origen_id>/<nombre>')
+@login_required
+def descargar_correo_validacion(origen_id, nombre):
+    if not _puede_gestionar():
+        return jsonify({'error': 'No tienes permisos.'}), 403
+    proy = _proy()
+    fila = NucleusData.query.filter_by(id=origen_id, proyecto_id=proy.id).first() if proy else None
+    if not fila or secure_filename(nombre) != nombre:
+        return jsonify({'error': 'Correo no encontrado.'}), 404
+    row = json.loads(fila.data_json or '{}')
+    if row.get('ADJUNTO CORREO VALIDACION') != '/api/rendicion/correo/%s/%s' % (origen_id, nombre):
+        return jsonify({'error': 'Correo no encontrado.'}), 404
+    return send_from_directory(_correo_folder(origen_id), nombre, as_attachment=True, download_name=row.get('NOMBRE CORREO VALIDACION') or nombre)

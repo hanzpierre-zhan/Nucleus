@@ -217,6 +217,8 @@ def run_migrations(app, database_url=''):
         fixed = [
             ('FLM - ENTEL', 'FLM – Proyecto Entel'),
             ('FLM - INTEGRATEL', 'FLM – Proyecto Integratel'),
+            ('FLM - CLARO', 'FLM – Proyecto Claro'),
+            ('Refacturable', 'Módulo Refacturable'),
             ('Rendicion', 'Solicitudes de Técnicos (Google Form)'),
             ('Dataper', 'DataPer S.A.C.'),
             ('Material', 'Materiales Disponibles'),
@@ -283,8 +285,8 @@ def run_migrations(app, database_url=''):
         # ── Configurar proyectos de apoyo (Dataper, Material, SITE, etc.) ─
         _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, TablaMaestra)
 
-        # ── PK de FLM - ENTEL ───────────────────────────────────────────────
-        for _flm_nombre, _flm_pk in (('FLM - ENTEL', 'Número de WO'),):
+        # ── PK de FLM - ENTEL, FLM - INTEGRATEL, FLM - CLARO ──
+        for _flm_nombre, _flm_pk in (('FLM - ENTEL', 'Número de WO'), ('FLM - INTEGRATEL', 'Número de WO'), ('FLM - CLARO', 'Número de WO')):
             _fp = Proyecto.query.filter_by(nombre=_flm_nombre).first()
             if not _fp:
                 continue
@@ -295,9 +297,9 @@ def run_migrations(app, database_url=''):
                 _pk_cfg.valor = _flm_pk
         db.session.commit()
 
-        # ── GESTOR y EDITADO POR en FLM - ENTEL ────────────────────────────
+        # ── GESTOR y EDITADO POR en FLM - ENTEL, FLM - INTEGRATEL, FLM - CLARO ──
         try:
-            for proy_g in ('FLM - ENTEL',):
+            for proy_g in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
                 proy_g_obj = Proyecto.query.filter_by(nombre=proy_g).first()
                 if not proy_g_obj:
                     continue

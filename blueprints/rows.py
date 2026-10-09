@@ -2,6 +2,7 @@
 import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
+from uuid import uuid4
 from collections import Counter
 from flask import (Blueprint, request, jsonify, session, redirect, url_for,
                    render_template, current_app, make_response,
@@ -58,6 +59,9 @@ def api_rows_update():
             return jsonify({'error': 'Este WO est\u00e1 finalizado y no puede editarse. Contacta al supervisor o administrador.'}), 403
 
         
+        if field == 'CODIGO INTERNO' and row_dict.get(field):
+            return jsonify({'error': 'El código interno es permanente y no se puede cambiar.'}), 400
+
         # N° ORDEN correlativo: no editable una vez asignado
         if field == 'N° ORDEN':
             cur_ord = str(row_dict.get('N° ORDEN', '') or '').strip()
@@ -246,8 +250,7 @@ def api_rows_update():
 @bp.route('/api/rows/edit_key', methods=['POST'])
 @login_required
 def api_rows_edit_key():
-    if session.get('rol') != 'zeno':
-        return jsonify({'error': 'Solo Zeno puede editar la clave principal (código/WO) de un registro.'}), 403
+
     
     pid = session.get('current_proyecto_id')
     data = request.json
@@ -265,14 +268,22 @@ def api_rows_edit_key():
         if not rec:
             return jsonify({'error': 'Registro no encontrado.'}), 404
             
+        detalle_actual = json.loads(rec.data_json or '{}')
+        proyecto_actual = db.session.get(Proyecto, pid)
+        asignar_pendiente = bool(proyecto_actual and proyecto_actual.nombre in ('FLM - CLARO', 'FLM - INTEGRATEL') and detalle_actual.get('_WO_PENDIENTE'))
+        if session.get('rol') != 'zeno' and not (asignar_pendiente and session.get('rol') in ('suport', 'admin', 'supervisor', 'gestor')):
+            return jsonify({'error': 'No tienes permisos para cambiar este WO.'}), 403
         rec.key_value = new_key
         
-        import json
         d = json.loads(rec.data_json)
         # Actualizar dentro del JSON si la clave vieja coincide
         for k, v in d.items():
-            if str(v).strip() == old_key:
+            if k != 'CODIGO INTERNO' and str(v).strip() == old_key:
                 d[k] = new_key
+        if asignar_pendiente:
+            cfg_pk = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+            d[cfg_pk.valor if cfg_pk and cfg_pk.valor else 'Número de WO'] = new_key
+            d['_WO_PENDIENTE'] = False
         rec.data_json = json.dumps(d, ensure_ascii=False)
         
         NucleusHistory.query.filter_by(proyecto_id=pid, key_value=old_key).update({'key_value': new_key})
@@ -318,6 +329,11 @@ def api_rows_add():
     try:
         data = request.json
         key_val = str(data.get('key', '')).strip()
+        wo_solicitado = key_val
+        permite_pendiente = proy_nombre_chk in ('FLM - CLARO', 'FLM - INTEGRATEL')
+        wo_pendiente = permite_pendiente and not key_val
+        if wo_pendiente:
+            key_val = 'WO-TEMP-' + uuid4().hex
         
         # Auto-generate key if none provided (proyecto sin clave primaria definida)
         if not key_val:
@@ -342,7 +358,7 @@ def api_rows_add():
         # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
         proy_obj = db.session.get(Proyecto, pid)
         proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
-        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
             return jsonify({'error': 'El rol Contrata no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
         if proy_nombre == 'Combustible':
             row_data['GESTOR'] = session.get('username', '')
@@ -455,11 +471,11 @@ def api_rows_add():
         # Alta manual de WO (FLM/PEXT) por el gestor: exige el CM, fija CATEGORY,
         # aplica TablaMaestra (ej: Hrs Respuesta según Fault Level) y deja rastro
         # en historial + esquema para que el WO se consolide en tabla/KPIs.
-        if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
             if not key_val:
                 return jsonify({'error': 'Ingrese el Número de WO (ej: CM-20260719-00000014).'}), 400
             if not str(row_data.get('CATEGORY', '') or '').strip():
-                row_data['CATEGORY'] = 'O&M CRM' if proy_nombre in ('FLM', 'FLM - ENTEL') else 'O&M PEXT'
+                row_data['CATEGORY'] = 'O&M CRM' if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL') else 'O&M PEXT'
             pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
             pk_col = str(pk_cfg.valor or '').strip() if pk_cfg else ''
             if pk_col:
@@ -468,7 +484,7 @@ def api_rows_add():
             row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             row_data['EDITADO POR'] = session.get('username', '')
             # FLM/PEXT: GESTOR = quien registra/edita; el admin no cuenta.
-            if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+            if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
                 row_data['GESTOR'] = session.get('username', '')
             for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
                 t_cols = [c.strip() for c in t.columna_criterio.split(',')]
@@ -479,7 +495,7 @@ def api_rows_add():
         # Proyectos manuales (Material, Dataper, SITE, Generadores, etc.): la PK debe quedar
         # también dentro del JSON, no solo como key_value. /api/wo/meta y otros lectores
         # hacen d.get('COD_MATERIAL') — si no está, el desplegable sale sin [código].
-        if proy_nombre not in ('FLM', 'FLM - ENTEL', 'PEXT'):
+        if proy_nombre not in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
             try:
                 _pk_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
                 _pk_col2 = str(_pk_cfg2.valor or '').strip() if _pk_cfg2 else ''
@@ -490,9 +506,22 @@ def api_rows_add():
 
         new_record = NucleusData(proyecto_id=pid, key_value=key_val, data_json=json.dumps(row_data))
         db.session.add(new_record)
+        if permite_pendiente:
+            db.session.flush()
+            prefijo = 'CL' if proy_nombre == 'FLM - CLARO' else 'IN'
+            codigo = 'CI-%s-%s-%07d' % (prefijo, ahora_peru().year, new_record.id)
+            row_data['CODIGO INTERNO'] = codigo
+            if wo_pendiente:
+                key_val = codigo
+                new_record.key_value = codigo
+                pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+                pk_wo = (pk_cfg.valor if pk_cfg and pk_cfg.valor else 'Número de WO')
+                row_data[pk_wo] = ''
+                row_data['_WO_PENDIENTE'] = True
+            new_record.data_json = json.dumps(row_data)
         db.session.commit()
 
-        if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
             db.session.add(HistorialCambios(
                 proyecto_id=pid, usuario_id=session.get('user_id'), username=session.get('username'),
                 key_value=key_val, campo_modificado='CREACIÓN',

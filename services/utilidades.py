@@ -17,8 +17,8 @@ from models import (Proyecto, AppConfig, NucleusData, KpiConfig,
                     AccesoProyecto, HistorialCambios)
 
 # ── Proyectos que no pueden borrarse ni accederse externamente ─────────────
-PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'PEXT', 'Dataper', 'Material'})
-PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel'})
+PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT', 'Dataper', 'Material'})
+PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL', 'FLM - CLARO y INTEGRATEL'})
 
 
 # ── Auth decorator ─────────────────────────────────────────────────────────
@@ -59,25 +59,25 @@ def get_menu_proyectos(user_id, user_rol):
     if user_rol in ('gestor', 'contrata'):
         accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
         pids = [a.proyecto_id for a in accesos]
-        return Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
+        return Proyecto.query.filter(Proyecto.id.in_(pids), Proyecto.nombre.notin_(PROYECTOS_REMOVIDOS)).order_by(Proyecto.id).all()
 
     if user_rol in ('zeno', 'suport'):
-        return Proyecto.query.order_by(Proyecto.id).all()
+        return Proyecto.query.filter(Proyecto.nombre.notin_(PROYECTOS_REMOVIDOS)).order_by(Proyecto.id).all()
 
     accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
     pids = [a.proyecto_id for a in accesos]
-    proyectos = Proyecto.query.filter(Proyecto.id.in_(pids)).order_by(Proyecto.id).all()
+    proyectos = Proyecto.query.filter(Proyecto.id.in_(pids), Proyecto.nombre.notin_(PROYECTOS_REMOVIDOS)).order_by(Proyecto.id).all()
     nombres = {p.nombre for p in proyectos}
     ids_set = {p.id for p in proyectos}
 
-    if any(n in nombres for n in ('FLM - ENTEL', 'PEXT', 'Claro', 'Integratel')):
+    if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT', 'Claro', 'Integratel')):
         for extra_name in ('Dataper', 'Material'):
             e = Proyecto.query.filter_by(nombre=extra_name).first()
             if e and e.id not in ids_set:
                 proyectos.append(e)
                 ids_set.add(e.id)
 
-    if any(n in nombres for n in ('FLM - ENTEL', 'Claro', 'Integratel')):
+    if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'Claro', 'Integratel')):
         for extra_name in ('Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE'):
             e = Proyecto.query.filter_by(nombre=extra_name).first()
             if e and e.id not in ids_set:
@@ -112,7 +112,7 @@ def puede_cotizaciones(user_id, user_rol, proy_nombre):
     try:
         for a in AccesoProyecto.query.filter_by(usuario_id=user_id).all():
             ap = db.session.get(Proyecto, a.proyecto_id)
-            if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+            if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT'):
                 return True
     except Exception:
         pass

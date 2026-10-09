@@ -298,7 +298,7 @@ body.theme-vercel .mar-btn-ghost{height:32px !important; font-size:13px !importa
 body.theme-vercel .tabulator{font-size:13px !important}
 body.theme-vercel .tabulator-col-title{font-size:11px !important; font-weight:500 !important}
 body.theme-vercel .tabulator-cell{padding:6px 8px !important; font-size:12.5px !important; line-height:1.3 !important}
-body.theme-vercel .tabulator-row{height:32px !important}
+body.theme-vercel .tabulator-row{height:44px !important}
 body.theme-vercel .data-stat, body.theme-vercel .kpi-card{padding:12px !important; border-radius:8px !important}
 body.theme-vercel .data-stat b, body.theme-vercel .kpi-card b{font-size:15px !important}
 body.theme-vercel .data-stat span, body.theme-vercel .kpi-card span{font-size:10px !important}
@@ -363,3 +363,98 @@ body.dark-mode .tabulator-cell { color: var(--excel-text, #F2F2F7) !important; }
 .theme-option-name { font-size:13px; font-weight:700; color:var(--ios-label); line-height:1.2; }
 .theme-option-desc { font-size:11px; color:var(--ios-gray-1); line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .theme-option-check { color: var(--ios-blue); font-size:12px; }
+
+/* Acabado compartido: formularios, ventanas y acciones de todos los módulos. */
+body .mar-overlay .mar-modal{max-height:92dvh;overflow:hidden;border-radius:16px!important;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+body .mar-overlay .mar-header{padding:20px 24px!important;gap:16px!important;flex-shrink:0;border-bottom:1px solid var(--ios-hairline)}
+body .mar-overlay .mar-header h3{font-size:16px!important;line-height:1.4;letter-spacing:-.2px!important}
+body .mar-overlay .mar-header p{margin-top:5px;font-size:12px!important;line-height:1.6!important;color:var(--ios-secondary)}
+body .mar-overlay .mar-body{padding:22px 24px!important;gap:18px!important;min-height:0;overflow-y:auto}
+body .mar-overlay .mar-footer{display:flex;flex-direction:row;align-items:center;justify-content:flex-end;gap:10px;padding:16px 24px;flex-shrink:0;border-top:1px solid var(--ios-hairline)}
+body .mar-overlay .mar-footer button{min-height:40px!important;border-radius:9px!important;font-family:inherit;font-size:12px!important;padding:9px 16px!important;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+body .mar-overlay .mar-field label,body .mar-overlay .wo-field label{font-size:12px!important;font-weight:500!important;letter-spacing:0!important;text-transform:none!important;color:var(--ios-secondary)!important;margin-bottom:8px!important}
+body .mar-overlay .mar-body input[type=text],body .mar-overlay .mar-body input[type=number],body .mar-overlay .mar-body input[type=date],body .mar-overlay .mar-body input[type=datetime-local],body .mar-overlay .mar-body select{min-height:40px;border-radius:9px!important;line-height:1.4!important;padding:9px 12px!important;box-sizing:border-box}
+body .mar-overlay .mar-body textarea{border-radius:9px!important;line-height:1.6!important;padding:10px 12px!important;min-height:76px}
+body .mar-overlay .mar-body .wo-cobra-row textarea{min-height:32px}
+body .mar-overlay .mar-close{min-height:34px;min-width:34px;border-radius:9px!important}
+body .mar-overlay :focus-visible{outline:2px solid var(--ios-blue);outline-offset:3px}
+body #rend-modal .mar-modal{width:min(640px,94vw);max-width:640px!important;display:flex;flex-direction:column}
+#rend-modal .rend-record-summary{border:1px solid var(--ios-hairline);border-radius:12px;margin-bottom:20px;overflow:hidden}
+#rend-modal .rend-record-summary summary{display:flex;align-items:center;justify-content:space-between;gap:14px;list-style:none;padding:14px 16px;cursor:pointer;font-size:12px;font-weight:600;color:var(--ios-label)}
+#rend-modal .rend-record-summary summary::-webkit-details-marker{display:none}
+#rend-modal .rend-record-summary summary>span:first-child{display:flex;align-items:center;gap:8px}
+#rend-modal .rend-record-summary summary>span:last-child{font-size:11px;font-weight:400;color:var(--ios-secondary)}
+#rend-modal details[open] summary .fa-chevron-down{transform:rotate(180deg)}
+#rend-modal #rend-resumen-grid{max-height:28vh;overflow-y:auto;border-top:1px solid var(--ios-hairline)}
+#rend-modal .rend-form-card{border:1px solid var(--ios-hairline);border-radius:14px;padding:18px}
+#rend-modal .rend-form-card h4{display:flex;align-items:center;gap:9px;margin:0 0 18px;color:var(--ios-label);font-size:13px;font-weight:650}
+#rend-modal .rend-form-card h4 i{color:var(--ios-blue)}
+#rend-modal .rend-modal-body label{font-size:12px;font-weight:500;color:var(--ios-secondary);margin:18px 0 8px}
+#rend-modal .rend-modal-body input:not([type=radio]),#rend-modal .rend-modal-body textarea{width:100%;box-sizing:border-box;background:var(--ios-fill)!important;color:var(--ios-label)!important;border:1px solid var(--ios-hairline)!important;box-shadow:none!important;font-size:13px!important;font-weight:400!important;text-align:left!important;letter-spacing:0!important}
+#rend-modal .rend-opciones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#rend-modal label.rend-op{margin:0;min-width:0;display:flex;align-items:center;gap:8px;min-height:48px;padding:10px;border-radius:9px;background:var(--ios-fill);border:1px solid var(--ios-hairline);font-size:11px;color:var(--ios-label)}
+#rend-modal label.rend-op:has(input:checked){border-color:var(--ios-blue);background:rgba(108,99,255,.1)}
+#rend-modal .rend-slot{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:80px;border:1px dashed var(--ios-hairline);border-radius:10px;padding:16px;background:transparent;color:var(--ios-blue);font-family:inherit;font-size:12px;cursor:pointer}
+#rend-modal .rend-slot.filled{color:#28A745;border-color:#28A745}
+#rend-modal[data-accion="rend-motivo"] #rend-modal-ok{background:#DC3545!important;border-color:#DC3545!important}
+#data-grid .rend-btn-ok{background:rgba(40,167,69,.16);color:#35C66A;border:1px solid rgba(40,167,69,.45);box-shadow:none}
+#data-grid .rend-btn-no{background:rgba(255,59,48,.14);color:#FF6B61;border:1px solid rgba(255,59,48,.4);box-shadow:none}
+#data-grid .rend-btn-dep{background:rgba(59,130,246,.15);color:#60A5FA;border:1px solid rgba(59,130,246,.4);box-shadow:none}
+#data-grid .rend-btn-sus{background:rgba(139,92,246,.16);color:#B49AFF;border:1px solid rgba(139,92,246,.4);box-shadow:none}
+body.light #data-grid .rend-btn-ok{color:#15803D}body.light #data-grid .rend-btn-no{color:#C62828}body.light #data-grid .rend-btn-dep{color:#2563EB}body.light #data-grid .rend-btn-sus{color:#7C3AED}
+@media(max-width:640px){body .mar-overlay .mar-header,body .mar-overlay .mar-body,body .mar-overlay .mar-footer{padding:16px!important}#rend-modal .rend-form-card{padding:16px}#rend-modal .rend-opciones{grid-template-columns:1fr}}
+
+/* Rendición: opciones de validación como un único control, sin doble marco. */
+#rend-modal #rend-val-ops{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#rend-modal #rend-val-ops .rend-op{display:block;min-height:0;padding:0;margin:0;border:0;background:transparent;position:relative}
+#rend-modal #rend-val-ops .rend-op span{display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;width:100%;min-height:44px;padding:10px 8px;border:1px solid var(--ios-hairline);border-radius:8px;background:var(--ios-input-bg,var(--ios-fill));font-size:12px;font-weight:600;box-shadow:none}
+#rend-modal #rend-val-ops .rend-op input:checked+span{color:var(--ios-purple,#8064ff);border-color:var(--ios-purple,#8064ff);background:rgba(128,100,255,.12);box-shadow:inset 0 0 0 1px var(--ios-purple,#8064ff)}
+#rend-modal #rend-val-ops .rend-op:hover span{border-color:var(--ios-purple,#8064ff)}
+#rend-modal .mar-footer{display:flex;justify-content:flex-end;align-items:center;gap:10px}
+#rend-modal .mar-footer button{height:40px;padding:0 18px;min-width:105px;border-radius:8px;font-size:12px;font-weight:600}
+#rend-modal #rend-val-correo-wrap{margin:18px 0}
+#rend-modal #rend-val-correo-wrap[hidden]{display:none}
+#rend-modal .rend-correo-upload{display:flex;align-items:center;gap:12px;padding:16px;border:1px dashed var(--ios-hairline);border-radius:10px;cursor:pointer;background:var(--ios-input-bg,var(--ios-fill))}
+#rend-modal .rend-correo-upload>i{color:var(--ios-purple,#8064ff);font-size:17px}
+#rend-modal .rend-correo-upload>i:last-child{margin-left:auto;font-size:14px}
+#rend-modal .rend-correo-upload span{display:flex;flex-direction:column;gap:5px}
+#rend-modal .rend-correo-upload strong{color:var(--ios-label);font-size:12px}
+#rend-modal .rend-correo-upload small,#rend-val-correo-status,#rend-val-correo-link{font-size:11px}
+#rend-modal .rend-correo-upload:focus-within,#rend-modal .rend-correo-upload:hover{border-color:var(--ios-purple,#8064ff)}
+@media(max-width:560px){#rend-modal #rend-val-ops{grid-template-columns:1fr}}
+
+/* Evidencias: diálogos proporcionados y documentos sin recortes. */
+body.theme-vercel .mar-modal.ev-modal{width:min(1080px,calc(100vw - 48px));max-width:1080px!important;max-height:88dvh;border-radius:14px}
+.ev-modal .mar-header{align-items:flex-start;gap:16px}
+.ev-modal .mar-title{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:15px}
+.ev-modal .ev-hint{flex-basis:100%;margin:0;padding-left:22px;font-weight:400;font-size:12px}
+.ev-modal .ev-stats{padding:12px 20px;gap:8px}
+.ev-modal .ev-chip{height:32px;padding:0 12px;font-size:11px;border-radius:8px;font-weight:600}
+.ev-modal .ev-body{display:block;padding:20px!important;min-height:0}
+.ev-modal #evidencia-contenedor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:stretch}
+.ev-modal .ev-card{padding:18px;border-radius:12px;box-shadow:none;display:flex;flex-direction:column}
+.ev-modal .ev-card:last-child:nth-child(odd){grid-column:1/-1}
+.ev-modal .ev-card-h{font-size:12px;font-weight:650;margin-bottom:16px;padding-bottom:12px}
+.ev-modal .ev-textos{grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:10px;margin-bottom:16px}
+.ev-modal .ev-t{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:6px;padding:10px 12px;border-radius:8px}
+.ev-modal .ev-t>span:first-child{font-size:10px;font-weight:500;line-height:1.35}
+.ev-modal .ev-t>span:last-child{font-size:12px;font-weight:600;max-width:100%;text-align:left;line-height:1.4;overflow-wrap:anywhere}
+.ev-modal .ev-fotos{grid-template-columns:repeat(auto-fill,minmax(165px,200px));gap:12px}
+.ev-modal .ev-f{aspect-ratio:auto;border-radius:9px;background:var(--ios-bg);display:flex;flex-direction:column}
+.ev-modal .ev-f img{height:180px;width:100%;object-fit:contain;opacity:1;padding:8px;box-sizing:border-box}
+.ev-modal .ev-f:hover img{transform:none}
+.ev-modal .ev-f-cap{position:static;background:var(--ios-fill);color:var(--ios-label);font-size:10px;font-weight:500;padding:8px 10px;white-space:normal;text-align:left;width:100%;box-sizing:border-box;min-height:30px}
+.ev-modal .ev-f-go{top:8px;right:8px;width:26px;height:26px}
+body.theme-vercel #rend-fotos .rend-photo-dialog{width:min(760px,calc(100vw - 40px));max-width:760px!important;max-height:88dvh;border-radius:14px;display:flex;flex-direction:column}
+#rend-fotos .mar-header h3{font-size:15px;margin:0 0 5px}
+#rend-fotos .mar-header p{font-size:12px;color:var(--ios-secondary);margin:0}
+#rend-fotos .mar-body{overflow:auto;min-height:0;padding:20px!important}
+#rend-fotos-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#rend-fotos-grid.single-photo{grid-template-columns:1fr}
+.rend-photo-card{display:flex;flex-direction:column;min-width:0;text-decoration:none;background:var(--ios-bg);border:1px solid var(--ios-hairline);border-radius:10px;overflow:hidden}
+.rend-photo-card img{display:block;width:100%;height:250px;object-fit:contain;padding:12px;box-sizing:border-box}
+#rend-fotos-grid.single-photo img{height:auto;min-height:180px;max-height:60dvh;object-fit:contain}
+.rend-photo-card span{padding:11px 14px;background:var(--ios-fill);color:var(--ios-blue);font-size:11px;font-weight:500}
+.rend-photo-card:hover,.rend-photo-card:focus-visible{border-color:var(--ios-blue);outline:none}
+.rend-photo-empty{color:var(--ios-secondary);font-size:13px;grid-column:1/-1;margin:20px 0;text-align:center}
+@media(max-width:700px){body.theme-vercel .mar-modal.ev-modal{width:calc(100vw - 24px);max-height:92dvh}.ev-modal #evidencia-contenedor{grid-template-columns:1fr}.ev-modal .ev-card:last-child:nth-child(odd){grid-column:auto}.ev-modal .ev-textos{grid-template-columns:1fr}#rend-fotos-grid{grid-template-columns:1fr}.ev-modal .ev-fotos{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}

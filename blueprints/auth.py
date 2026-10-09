@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 from db import db
-from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
+from models import (ConformidadUsuario, Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
@@ -28,37 +28,85 @@ bp = Blueprint('auth', __name__)
 
 
 
+def _es_ruta_interna(target):
+    """Verdadero SOLO para rutas locales tipo '/ruta'.
+
+    Bloquea URL absolutas (http://dominio), protocol-relative (//dominio),
+    esquemas raros (javascript:) y barras invertidas, cerrando el open redirect.
+    """
+    try:
+        if not isinstance(target, str):
+            return False
+        if not target.startswith('/'):
+            return False
+        if target.startswith('//') or '\\' in target:
+            return False
+        from urllib.parse import urlparse
+        parsed = urlparse(target)
+        return not (parsed.scheme or parsed.netloc)
+    except Exception:
+        return False
+
+
+
+LEGAL_VERSION = '2026-10-09'
+
+
+def _iniciar_sesion(user, conformidad):
+    session.clear()
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['rol'] = str(user.rol).strip().lower()
+    session['legal_acceptance'] = {
+        'version': conformidad.version,
+        'accepted_at': conformidad.aceptado_en.isoformat(timespec='seconds') + 'Z',
+    }
+    proyectos = get_menu_proyectos(user.id, session['rol'])
+    if proyectos:
+        session['current_proyecto_id'] = proyectos[0].id
+        session['current_proyecto_nombre'] = proyectos[0].nombre
+    return redirect(url_for('pages.analytics'))
+
+
 @bp.route('/login', methods=['GET', 'POST'])
 def login():
+    pendiente = session.get('legal_pending') or {}
+    vigente = (isinstance(pendiente, dict)
+               and time.time() - pendiente.get('verified_at', 0) < 300)
+    if pendiente and not vigente:
+        session.pop('legal_pending', None)
     if request.method == 'POST':
+        if request.form.get('consent_step') == '1':
+            user = db.session.get(Usuario, pendiente.get('user_id')) if vigente else None
+            if not user:
+                return render_template('login.html', error='La verificación expiró. Inicia sesión de nuevo.'), 400
+            if request.form.get('legal_accept') != '1':
+                return render_template('login.html', consent_required=True,
+                                       error='Confirma tu conformidad para continuar.'), 400
+            conformidad = db.session.get(ConformidadUsuario, user.id)
+            if conformidad is None:
+                conformidad = ConformidadUsuario(usuario_id=user.id, version=LEGAL_VERSION)
+                db.session.add(conformidad)
+            conformidad.version = LEGAL_VERSION
+            conformidad.aceptado_en = datetime.utcnow()
+            db.session.commit()
+            return _iniciar_sesion(user, conformidad)
+
         username = (request.form.get('username') or '').strip()
-        password = request.form.get('password')
-        from sqlalchemy import func
+        password = request.form.get('password') or ''
         user = Usuario.query.filter(func.lower(Usuario.username) == username.lower()).first()
         if not user:
-            # Tolerancia: también permitir entrar con el nombre visible (campo "nombre").
             user = Usuario.query.filter(func.lower(Usuario.nombre) == username.lower()).first()
-        if user and check_password_hash(user.password_hash, password):
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['rol'] = str(user.rol).strip().lower()
-            
-            # Limpiar proyecto previo SIEMPRE al iniciar sesión (session leak C3)
-            session.pop('current_proyecto_id', None)
-            session.pop('current_proyecto_nombre', None)
-            # Asignar primer proyecto autorizado
-            if user.rol in ['zeno', 'suport']:
-                proj = Proyecto.query.first()
-            else:
-                acceso = AccesoProyecto.query.filter_by(usuario_id=user.id).first()
-                proj = db.session.get(Proyecto, acceso.proyecto_id) if acceso else None
-            if proj:
-                session['current_proyecto_id'] = int(proj.id)
-                session['current_proyecto_nombre'] = proj.nombre
-                    
-            return redirect(url_for('pages.analytics'))
-        return render_template('login.html', error="Credenciales inválidas")
-    return render_template('login.html')
+        if not user or not check_password_hash(user.password_hash, password):
+            session.pop('legal_pending', None)
+            return render_template('login.html', error='Credenciales inválidas', username=username)
+        conformidad = db.session.get(ConformidadUsuario, user.id)
+        if conformidad and conformidad.version == LEGAL_VERSION:
+            return _iniciar_sesion(user, conformidad)
+        session.clear()
+        session['legal_pending'] = {'user_id': user.id, 'verified_at': time.time()}
+        return render_template('login.html', consent_required=True)
+    return render_template('login.html', consent_required=bool(pendiente and vigente))
 
 
 @bp.route('/logout')
@@ -182,17 +230,13 @@ def switch_project(pid):
                 return redirect(url_for('pages.index'))
             
     proj = db.session.get(Proyecto, pid)
-    proj = db.session.get(Proyecto, pid)
     if proj:
         session['current_proyecto_id'] = int(proj.id)
         session['current_proyecto_nombre'] = proj.nombre
     
     # Redirect back to specified page, referrer, or index
-    from urllib.parse import urlparse
     target = request.args.get('next') or request.referrer or url_for('pages.index')
     # Validar open redirect (A1): solo permitir rutas internas
-    parsed = urlparse(target)
-    if parsed.scheme in ('http', 'https') and parsed.netloc:
-        # evitar externa
+    if not _es_ruta_interna(target):
         target = url_for('pages.index')
     return redirect(target)

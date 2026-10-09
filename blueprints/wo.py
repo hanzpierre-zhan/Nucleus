@@ -1,5 +1,5 @@
-﻿# -*- coding: utf-8 -*-
-import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
+# -*- coding: utf-8 -*-
+import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile, unicodedata
 import urllib.request, urllib.parse, urllib.error, http.cookiejar
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
@@ -180,6 +180,20 @@ def invalidar_opciones_cache():
     _opciones_cache['data'] = None
 
 
+DEPARTAMENTOS_PERU = (
+    'Amazonas', 'Áncash', 'Apurímac', 'Arequipa', 'Ayacucho', 'Cajamarca',
+    'Callao', 'Cusco', 'Huancavelica', 'Huánuco', 'Ica', 'Junín',
+    'La Libertad', 'Lambayeque', 'Lima', 'Loreto', 'Madre de Dios',
+    'Moquegua', 'Pasco', 'Piura', 'Puno', 'San Martín', 'Tacna',
+    'Tumbes', 'Ucayali',
+)
+
+
+def _sin_tildes(s):
+    return ''.join(ch for ch in unicodedata.normalize('NFD', str(s))
+                   if unicodedata.category(ch) != 'Mn')
+
+
 @bp.route('/api/detalle/opciones', methods=['GET'])
 @login_required
 def api_detalle_opciones():
@@ -201,7 +215,8 @@ def api_detalle_opciones():
         site_geo_map = {}
         def add_norm(s): return str(s or '').strip()
         # SITE maestro (id 9) y Site Name (id 5) + FLM/PEXT como respaldo
-        for nombre_proy in ('SITE', 'Site Name', 'FLM', 'FLM - ENTEL', 'PEXT'):
+        for nombre_proy in ('SITE', 'Site Name', 'FLM', 'FLM - ENTEL', 'PEXT',
+                            'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - CLARO y INTEGRATEL'):
             proy = Proyecto.query.filter_by(nombre=nombre_proy).first()
             if not proy:
                 continue
@@ -236,7 +251,8 @@ def api_detalle_opciones():
                     elif v and k == 'codigo site' and nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT'):
                         # No usar código como nombre, solo como fallback si falta nombre
                         pass
-                if nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT'):
+                if nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT',
+                                   'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - CLARO y INTEGRATEL'):
                     for k in ('departamento', 'provincia', 'distrito', 'prioridad del site'):
                         v = add_norm(low_map.get(k))
                         if not v:
@@ -253,12 +269,24 @@ def api_detalle_opciones():
                         dept_prov_map.setdefault(dept, set()).add(prov)
                     if prov and dist:
                         prov_dist_map.setdefault(prov, set()).add(dist)
-        # Si aún hay pocos departamentos, completar con lista peruana conocida para no bloquear válidos nuevos
+        # Completar siempre con la lista oficial de los 25 departamentos del Perú
+        # para que el desplegable/autocomplete no dependa de lo que haya en la BD.
+        dept_set.update(DEPARTAMENTOS_PERU)
+        # Canonizar: si el valor de la BD es el mismo depto en otra forma
+        # (MAYÚSCULAS / sin acentos), se reemplaza por la forma oficial.
+        _oficiales = {_sin_tildes(d).lower(): d for d in DEPARTAMENTOS_PERU}
+        dept_set = {_oficiales.get(_sin_tildes(d).lower(), d) for d in dept_set}
         # Prioridad siempre restringida a P0,P0+,P1-P4
         if not prio_set:
             prio_set = {'P0', 'P0+', 'P1', 'P2', 'P3', 'P4'}
-        # Convertir sets a listas ordenadas
-        def s2l(s): return sorted(s, key=lambda x: x.lower())
+        # Convertir sets a listas ordenadas (sin duplicados por acentos/mayúsculas)
+        def s2l(s):
+            elegidos = {}
+            for x in sorted(s, key=lambda t: t.lower()):
+                k = _sin_tildes(x).lower().strip()
+                if k not in elegidos:
+                    elegidos[k] = x
+            return list(elegidos.values())
         payload = {'success': True,
                    'nombres': s2l(nombres_set),
                    'departamentos': s2l(dept_set),

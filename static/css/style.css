@@ -1263,6 +1263,32 @@ body.sidebar-collapsed .sidebar-collapse-btn {
     color: #fff;
 }
 
+.sidebar-legal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 10px 0;
+    justify-content: center;
+}
+
+.sidebar-legal a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 5px 8px;
+    border-radius: 7px;
+    color: var(--ios-secondary, #97A2B3);
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.sidebar-legal a:hover {
+    background: var(--ios-fill, rgba(108, 99, 255, .12));
+    color: var(--ios-label, #F2F5FA);
+}
+
+body.sidebar-collapsed .sidebar-legal { display: none; }
+
 .sidebar-footer {
     border-top: 1px solid var(--ios-hairline);
     padding: 12px 6px 0;
@@ -2934,3 +2960,13 @@ body.sidebar-collapsed .sidebar-user {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+
+/* Dimensiones compartidas de los registros y sus acciones en todos los módulos. */
+#data-grid .tabulator-row{min-height:44px!important}
+#data-grid .tabulator-row .tabulator-cell{padding:6px 8px!important;line-height:30px}
+#data-grid .tabulator-cell .rend-acciones{display:flex;flex-direction:row;align-items:center;flex-wrap:nowrap;gap:8px;min-height:32px;width:max-content;line-height:normal}
+#data-grid .tabulator-cell button{box-sizing:border-box;min-width:32px;min-height:32px;margin:0;border-radius:8px;line-height:1;vertical-align:middle}
+#data-grid .tabulator-cell .cot-btn,#data-grid .tabulator-cell .rend-btn,#data-grid .tabulator-cell .rend-btn-mini,#data-grid .tabulator-cell .btn-marcar-no-atendido{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;min-height:32px;padding:6px 9px;flex-shrink:0;line-height:1;font-size:12px}
+#data-grid .tabulator-cell .rend-pill{display:inline-flex;align-items:center;min-height:30px;line-height:1.2;white-space:nowrap}
+#data-grid .tabulator-cell button:hover{transform:none!important}
+#data-grid .tabulator-cell button:focus-visible{outline:2px solid var(--ios-blue);outline-offset:2px}

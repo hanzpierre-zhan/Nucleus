@@ -14,6 +14,13 @@ class Usuario(db.Model):
     rol = db.Column(db.String(20), default='supervisor')
 
 
+class ConformidadUsuario(db.Model):
+    __tablename__ = 'conformidad_usuario'
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), primary_key=True)
+    version = db.Column(db.String(30), nullable=False)
+    aceptado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Proyecto(db.Model):
     __tablename__ = 'proyectos'
     id = db.Column(db.Integer, primary_key=True)
@@ -162,3 +169,12 @@ class Notificacion(db.Model):
     autor = db.Column(db.String(80), default='')     # usuario que hizo clic
     creada_en = db.Column(db.String(19), default='')
     leida_por = db.Column(db.Text, default='')       # ids de usuario, separados por coma
+
+
+class RefacturableDetalle(db.Model):
+    """Seguimiento independiente de una cotización aprobada, sin duplicarla."""
+    __tablename__ = 'refacturable_detalle'
+    origen_id = db.Column(db.Integer, db.ForeignKey('nucleus_data.id'), primary_key=True)
+    data_json = db.Column(db.Text, nullable=False, default='{}')
+    actualizado_por = db.Column(db.String(100), default='')
+    actualizado_en = db.Column(db.DateTime, default=datetime.utcnow)
