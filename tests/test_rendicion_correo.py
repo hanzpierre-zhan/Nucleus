@@ -44,3 +44,33 @@ def test_no_refacturable_no_exige_correo(app, auth_client, solicitud):
         fila.data_json = json.dumps({'ESTADO': 'PENDIENTE', 'TIPO DE PRESUPUESTO': 'NO REFACTURABLE'})
         db.session.commit()
     assert auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'}).status_code == 200
+
+
+@pytest.mark.parametrize('campo', ['Tipo de presupuesto', 'TIPO DE PRESUPUESTO ', 'Tipo de Presupuesto\n', 'TIPO PRESUPUESTO'])
+def test_refacturable_detecta_encabezados_importados(app, auth_client, solicitud, campo):
+    with app.app_context():
+        fila = db.session.get(NucleusData, solicitud)
+        fila.data_json = json.dumps({'ESTADO': '', campo: ' Refacturable '})
+        db.session.commit()
+    resultado = auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
+    assert resultado.status_code == 400
+    assert '.msg' in resultado.json['error']
+
+
+def test_validacion_sin_simular_notificaciones(app, auth_client, solicitud, monkeypatch):
+    import blueprints.rendicion as modulo
+    monkeypatch.undo()
+    with app.app_context():
+        fila = db.session.get(NucleusData, solicitud)
+        fila.data_json = json.dumps({'ESTADO': '', 'Tipo de presupuesto': 'No refacturable', 'Nombre de site': 'Prueba validación'})
+        db.session.commit()
+    resultado = auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica', 'observaciones': 'Prueba'})
+    assert resultado.status_code == 200, resultado.json
+    assert resultado.json['newData']['ESTADO'] == 'VALIDADO'
+
+
+@pytest.mark.parametrize('ruta', ['/api/rendicion/accion', '/api/rendicion/subir_correo', '/api/cotizacion/accion', '/api/rows/add'])
+def test_sesion_vencida_devuelve_json_sin_pagina_login(client, ruta):
+    resultado = client.post(ruta, json={})
+    assert resultado.status_code == 401
+    assert resultado.json['login_required'] is True

@@ -13510,7 +13510,7 @@ let _rendCambiandoVista = false;
 
         fetch('/api/rendicion/sync', { credentials: 'same-origin' })
 
-            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
 
             .then(({ ok, j }) => {
 
@@ -13532,7 +13532,7 @@ let _rendCambiandoVista = false;
 
             })
 
-            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
 
             .then(({ ok, j }) => {
 
@@ -28792,7 +28792,7 @@ function rendAccion(key, accion, extra) {
 
     })
 
-        .then(r => r.json().then(j => ({ ok: r.ok, j })))
+        .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
 
         .then(({ ok, j }) => {
 
@@ -28802,7 +28802,7 @@ function rendAccion(key, accion, extra) {
 
         })
 
-        .catch(() => { alert('Error de conexión.'); return null; });
+        .catch(error => { alert(nucleusErrorSolicitud(error)); return null; });
 
 }
 
@@ -28924,7 +28924,9 @@ function rendValidar(key) {
 
     const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
 
-    const refacturable = String(row['TIPO DE PRESUPUESTO'] || '').trim().toUpperCase() === 'REFACTURABLE';
+    const normalizarPresupuesto = valor => String(valor || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const campoPresupuesto = Object.keys(row).find(campo => ['tipodepresupuesto', 'tipopresupuesto'].includes(normalizarPresupuesto(campo)));
+    const refacturable = normalizarPresupuesto(row[campoPresupuesto]) === 'refacturable';
     _rendModal.refacturable = refacturable;
     _rendModal.correo = row['ADJUNTO CORREO VALIDACION'] || '';
     document.getElementById('rend-val-correo-wrap').hidden = !refacturable;
@@ -29170,7 +29172,7 @@ function rendElegirFoto(slot) {
 
         fetch('/api/rendicion/subir_foto', { method: 'POST', body: fd })
 
-            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
 
             .then(({ ok, j }) => {
 
@@ -29184,7 +29186,7 @@ function rendElegirFoto(slot) {
 
             })
 
-            .catch(() => { rendPintarSlot(slot, null); alert('Error de red al subir la foto.'); });
+            .catch(error => { rendPintarSlot(slot, null); alert(nucleusErrorSolicitud(error)); });
 
     };
 
@@ -29208,7 +29210,7 @@ async function rendSubirCorreoValidacion(input) {
     try {
         const body = new FormData(); body.append('key', modal.key); body.append('correo', file);
         const response = await fetch('/api/rendicion/subir_correo', {method: 'POST', body});
-        const data = await response.json();
+        const data = await nucleusLeerRespuestaJSON(response);
         if (!response.ok) throw new Error(data.error || 'No se pudo adjuntar el correo.');
         modal.correo = data.url;
         const row = rawData.find(row => row._key === modal.key);
@@ -30556,7 +30558,7 @@ function cotAccionKey(key, accion, extra) {
 
     })
 
-        .then(r => r.json().then(j => ({ ok: r.ok, j })))
+        .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
 
         .then(({ ok, j }) => {
 
@@ -30568,7 +30570,7 @@ function cotAccionKey(key, accion, extra) {
 
         })
 
-        .catch(() => { alert('Error de conexión.'); return null; });
+        .catch(error => { alert(nucleusErrorSolicitud(error)); return null; });
 
 }
 
@@ -30763,7 +30765,7 @@ function cotElegirAdjunto() {
         if (ok) { ok.style.display = 'block'; ok.style.color = 'var(--ios-gray-1)';
                   ok.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Subiendo...'; }
         fetch('/api/cotizacion/subir_correo', { method: 'POST', body: fd })
-            .then(r => r.json().then(j => ({ ok: r.ok, j })))
+            .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
             .then(({ ok: o, j }) => {
                 if (!o || j.error) {
                     if (ok) { ok.style.display = 'block'; ok.style.color = '#FF3B30';

@@ -88,7 +88,7 @@
         message.textContent = 'Cargando cotizaciones aprobadas…';
         try {
             const response = await fetch('/refacturable/api/registros');
-            const data = await response.json();
+            const data = await nucleusLeerRespuestaJSON(response);
             if (!response.ok) throw new Error(data.error || 'No se pudieron cargar las cotizaciones.');
             total = data.registros.length;
             await table.replaceData(data.registros);
@@ -126,7 +126,7 @@
         try {
             const changes = Object.fromEntries(new FormData(form));
             const response = await fetch(`/refacturable/api/registros/${editing.id}`, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(changes)});
-            const data = await response.json();
+            const data = await nucleusLeerRespuestaJSON(response);
             if (!response.ok) throw new Error(data.error || 'No se pudieron guardar los cambios.');
             await table.updateData([data.registro]);
             dialog.close(); message.textContent = 'Cambios guardados.';

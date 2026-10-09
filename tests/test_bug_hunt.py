@@ -38,10 +38,10 @@ def test_login_credenciales_malas_no_redirige(client):
     assert r.status_code == 200
 
 
-def test_endpoint_protegido_redirige_a_login(client):
+def test_api_protegida_responde_json_si_sesion_vencio(client):
     r = client.get('/api/cotizacion/sustento')
-    assert r.status_code in (301, 302)
-    assert '/login' in r.headers.get('Location', '')
+    assert r.status_code == 401
+    assert r.json['login_required'] is True
 
 
 # ═══════════════════════════════════════════════════════════════════════════

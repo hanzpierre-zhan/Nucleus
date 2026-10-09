@@ -710,8 +710,13 @@ def api_rendicion_avisos_leer():
 
 
 def _es_refacturable(row):
-    tipo = str(row.get('TIPO DE PRESUPUESTO') or '').strip().upper()
-    return tipo == 'REFACTURABLE'
+    def normalizar(valor):
+        texto = unicodedata.normalize('NFKD', str(valor or ''))
+        return re.sub(r'[^a-z0-9]', '', ''.join(c for c in texto.lower() if not unicodedata.combining(c)))
+    for campo, valor in row.items():
+        if normalizar(campo) in ('tipodepresupuesto', 'tipopresupuesto'):
+            return normalizar(valor) == 'refacturable'
+    return False
 
 
 def _correo_folder(origen_id):

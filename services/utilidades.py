@@ -10,7 +10,7 @@ from collections import Counter
 from functools import wraps
 
 import pandas as pd
-from flask import session, redirect, url_for
+from flask import session, redirect, url_for, request, jsonify
 
 from db import db
 from models import (Proyecto, AppConfig, NucleusData, KpiConfig,
@@ -35,6 +35,8 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
+            if request.path.startswith('/api/') or '/api/' in request.path:
+                return jsonify({'error': 'Tu sesión venció. Vuelve a iniciar sesión y reintenta.', 'login_required': True}), 401
             return redirect(url_for('auth.login'))
         return f(*args, **kwargs)
     return decorated_function
