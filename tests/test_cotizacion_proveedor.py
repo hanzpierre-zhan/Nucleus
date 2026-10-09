@@ -7,6 +7,26 @@ from db import db
 from models import Proyecto, NucleusData
 from blueprints.cotizacion import _cot_en_proveedor
 
+def test_aviso_cambio_estado_y_lectura(app, auth_client, cotizacion):
+    from models import Notificacion
+    pid, key = cotizacion
+    auth_client.get('/switch_project/%s' % pid)
+    respuesta = auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'conformar_aprobacion'})
+    assert respuesta.status_code == 200, respuesta.json
+    with app.app_context():
+        aviso = Notificacion.query.filter_by(proyecto_id=pid, tipo='cotizacion_estado').order_by(Notificacion.id.desc()).first()
+        assert aviso is not None
+        assert key in aviso.texto and 'En Aprobación a Aprobado' in aviso.texto
+        aviso_id = aviso.id
+    listado = auth_client.get('/api/cotizacion/avisos')
+    assert listado.status_code == 200
+    assert any(a['id'] == aviso_id and not a['leida'] for a in listado.json['avisos'])
+    assert auth_client.post('/api/cotizacion/avisos/leer', json={'ids': [aviso_id]}).status_code == 200
+    assert any(a['id'] == aviso_id and a['leida'] for a in auth_client.get('/api/cotizacion/avisos').json['avisos'])
+    auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'conformar_aprobacion'})
+    with app.app_context():
+        assert Notificacion.query.filter_by(proyecto_id=pid, tipo='cotizacion_estado').filter(Notificacion.texto.contains(key)).count() == 1
+
 
 @pytest.fixture
 def cotizacion(app, monkeypatch, tmp_path):

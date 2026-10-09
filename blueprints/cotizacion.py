@@ -756,6 +756,21 @@ ESTADO_APROBACION = 'En Aprobación'
 ESTADO_SUSTENTO = 'Aprobado'
 ESTADO_ATENDIDO = 'Atendido'
 ESTADO_CANCELADO = 'Cancelado'
+
+def _avisar_cambio_estado(proyecto_id, key, anterior, row, usuario):
+    nuevo = _cot_estado_guardado(row)
+    if nuevo == anterior:
+        return
+    from blueprints.rendicion import _crear_aviso
+    colores = {'En Aprobación': '#FF9500', 'Aprobado': '#007AFF',
+               'Atendido': '#34C759', 'Cancelado': '#FF3B30'}
+    site = str(row.get('NOMBRE SITE') or '').strip()
+    texto = '%s cambió la cotización %s de %s a %s%s' % (
+        usuario, key, anterior or 'Registro', nuevo,
+        (' — ' + site) if site else '')
+    _crear_aviso(proyecto_id, 'cotizacion_estado', texto,
+                 colores.get(nuevo, '#AF52DE'), usuario)
+
 ESTADOS_FLUJO = (ESTADO_NUEVO, ESTADO_COTIZADO, ESTADO_APROBACION, ESTADO_SUSTENTO, ESTADO_ATENDIDO)
 
 # Estados viejos que la columna ya usa (siguen siendo válidos para no romper
@@ -867,6 +882,7 @@ def api_cotizacion_accion():
         row = {}
 
     pestania = _cot_pestania(row)
+    estado_anterior = _cot_estado_guardado(row)
     ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     usuario = session.get('username') or 'Desconocido'
 
@@ -974,6 +990,7 @@ def api_cotizacion_accion():
 
     fila.data_json = safe_json_dumps(row)
     db.session.commit()
+    _avisar_cambio_estado(proy.id, key, estado_anterior, row, usuario)
     return jsonify({'success': True,
                     'estado': row.get('ESTADO COTIZACION'),
                     'pestania': _cot_pestania(row),
@@ -1248,6 +1265,7 @@ def api_cotizacion_sustento_guardar():
             d['_BITACORA_' + t.upper()] = str(bit.get(t) or '').strip()
             
     # Cambiar estado a Atendido
+    estado_anterior = _cot_estado_guardado(d)
     d['ESTADO COTIZACION'] = 'Atendido'
     fila.data_json = safe_json_dumps(d)
 
@@ -1308,4 +1326,5 @@ def api_cotizacion_sustento_guardar():
         db.session.rollback()
         return jsonify({'error': 'No se pudo guardar: %s' % e}), 500
     
+    _avisar_cambio_estado(proy.id, key, estado_anterior, d, session.get('username') or 'Desconocido')
     return jsonify({'success': True, 'guardados': guardados, 'errores': errores})

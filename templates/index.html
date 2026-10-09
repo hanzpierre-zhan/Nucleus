@@ -296,13 +296,15 @@
 
 
 
-    <!-- Campanita: avisos del flujo (quién validó, depositó, rechazó...) -->
+{% endif %}
+{% if (proy_nombre == 'rendicion' and puede_rendicion) or (proy_nombre == 'cotizaciones' and puede_cotizaciones) %}
+    <!-- Campanita compartida para los avisos del módulo actual. -->
 
     <div id="rend-avisos-wrap" style="position:relative;">
 
         <button type="button" id="btn-rend-avisos" class="action-pill" onclick="rendAvisosToggle()"
 
-            title="Avisos del flujo de Rendicion" style="position:relative;">
+            title="Avisos del flujo" style="position:relative;">
 
             <i class="fa-solid fa-bell"></i><span class="pill-txt"> Avisos del flujo</span>
 
@@ -11974,7 +11976,9 @@ let _rendCambiandoVista = false;
 
         container.style.boxShadow = "var(--shadow-soft)";
 
-        container.style.minWidth = "240px";
+        container.style.width = "280px";
+        container.style.maxWidth = "calc(100vw - 32px)";
+        container.style.boxSizing = "border-box";
 
         container.style.maxHeight = "400px";
 
@@ -12060,7 +12064,12 @@ let _rendCambiandoVista = false;
 
             ex.preventDefault();
 
-            container.querySelectorAll("input[type='checkbox']").forEach(i => i.checked = false);
+            const grid = column.getTable();
+            grid.getFilters().forEach(f => {
+                if (f.field === column.getField() && f.type === 'in') grid.removeFilter(f.field, f.type, f.value);
+            });
+            grid.setHeaderFilterValue(column.getField(), '');
+            document.body.click();
 
         };
 
@@ -12089,6 +12098,7 @@ let _rendCambiandoVista = false;
         });
 
         var unique = [...new Set(vals)];
+        var originalValues = new Map(unique.map(value => [String(value), value]));
 
         unique.sort();
 
@@ -12104,9 +12114,9 @@ let _rendCambiandoVista = false;
 
         function runApply() {
 
-            var allChecked = Array.from(listContainer.querySelectorAll("input[type='checkbox']:checked")).map(i => i.value);
+            var allChecked = listContainer ? Array.from(listContainer.querySelectorAll("input[type='checkbox']:checked")).map(i => originalValues.get(i.value)) : [];
 
-            var totalCheckboxes = listContainer.querySelectorAll("input[type='checkbox']").length;
+            var totalCheckboxes = listContainer ? listContainer.querySelectorAll("input[type='checkbox']").length : 0;
 
 
 
@@ -12124,7 +12134,7 @@ let _rendCambiandoVista = false;
 
 
 
-            if (allChecked.length > 0 && allChecked.length < totalCheckboxes) {
+            if (totalCheckboxes > 0 && allChecked.length < totalCheckboxes) {
 
                 column.getTable().addFilter(column.getField(), "in", allChecked);
 
@@ -12192,7 +12202,9 @@ let _rendCambiandoVista = false;
 
             lbl.style.flex = "1";
 
-            lbl.style.whiteSpace = "nowrap";
+            lbl.style.whiteSpace = "normal";
+            lbl.style.overflowWrap = "anywhere";
+            lbl.style.minWidth = "0";
 
             lbl.appendChild(document.createTextNode(val));
 
@@ -27701,7 +27713,7 @@ btnItem.onclick = () => cotRegAgregarFila();
           </div>
 
           <div id="rend-val-correo-wrap" hidden>
-            <label for="rend-val-correo">Correo de aprobación para refacturable *</label>
+            <label for="rend-val-correo">Correo de aprobación (.msg) *</label>
             <label class="rend-correo-upload" for="rend-val-correo"><i class="fa-solid fa-envelope-open-text"></i><span><strong>Adjuntar correo de Outlook</strong><small>Archivo .msg · máximo 20 MB</small></span><i class="fa-solid fa-arrow-up-from-bracket"></i></label>
             <input type="file" id="rend-val-correo" accept=".msg" hidden onchange="rendSubirCorreoValidacion(this)">
             <p id="rend-val-correo-status" role="status" aria-live="polite"></p>
@@ -28943,7 +28955,11 @@ function rendValidar(key) {
 
     const normalizarPresupuesto = valor => String(valor || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const campoPresupuesto = Object.keys(row).find(campo => ['tipodepresupuesto', 'tipopresupuesto'].includes(normalizarPresupuesto(campo)));
-    const refacturable = normalizarPresupuesto(row[campoPresupuesto]) === 'refacturable';
+    const presupuesto = normalizarPresupuesto(row[campoPresupuesto]);
+    const campoGasto = Object.keys(row).find(campo => ['tipodegasto', 'tipogasto'].includes(normalizarPresupuesto(campo)));
+    const gastos = String(row[campoGasto] || '').split(/[,;/|+\n]+/).map(normalizarPresupuesto);
+    const exentosCorreo = new Set(['viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes']);
+    const refacturable = presupuesto === 'refacturable' || (presupuesto === 'gastocobra' && gastos.some(gasto => !exentosCorreo.has(gasto)));
     _rendModal.refacturable = refacturable;
     _rendModal.correo = row['ADJUNTO CORREO VALIDACION'] || '';
     document.getElementById('rend-val-correo-wrap').hidden = !refacturable;
@@ -29763,7 +29779,7 @@ function rendAvisosCargar(silencioso) {
 
     if (!btn) return Promise.resolve();
 
-    return fetch('/api/rendicion/avisos')
+    return fetch(IS_COTIZACIONES ? '/api/cotizacion/avisos' : '/api/rendicion/avisos')
 
         .then(r => (r && r.ok) ? r.json() : null)
 
@@ -29825,7 +29841,7 @@ function rendAvisosToggle() {
 
     // Al abrir, todo queda como leído para este usuario
 
-    fetch('/api/rendicion/avisos/leer', {
+    fetch(IS_COTIZACIONES ? '/api/cotizacion/avisos/leer' : '/api/rendicion/avisos/leer', {
 
         method: 'POST',
 

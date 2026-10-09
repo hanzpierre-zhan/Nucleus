@@ -406,12 +406,12 @@ def api_rendicion_accion():
         tiempo = str(data.get('tiempo') or '').strip()
         if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica'):
             return jsonify({'error': 'Selecciona una opción de tiempo de respuesta.'}), 400
-        if _es_refacturable(row):
+        if _requiere_correo_validacion(row):
             correo = str(row.get('ADJUNTO CORREO VALIDACION') or '')
             prefijo = '/api/rendicion/correo/%s/' % fila.id
             nombre = correo[len(prefijo):] if correo.startswith(prefijo) else ''
             if not nombre or secure_filename(nombre) != nombre or not os.path.isfile(os.path.join(_correo_folder(fila.id), nombre)):
-                return jsonify({'error': 'Adjunta el correo .msg para validar una solicitud refacturable.'}), 400
+                return jsonify({'error': 'Adjunta el correo .msg para validar esta solicitud.'}), 400
         row['ESTADO'] = 'VALIDADO'
         row['TIEMPO DE RESPUESTA'] = tiempo
         row['FECHA VALIDACION'] = ahora
@@ -642,12 +642,15 @@ def api_rendicion_foto(pid, key, nombre):
 
 # ─────────────────────────────────────────────────────────────────────────────
 @bp.route('/api/rendicion/avisos')
+@bp.route('/api/cotizacion/avisos')
 @login_required
 def api_rendicion_avisos():
     """Últimos avisos del flujo. Solo para quien tenga el módulo Rendicion."""
-    if not _puede_gestionar():
+    from blueprints.cotizacion import _cot_puede_gestionar, _cot_proyecto
+    cotizacion = request.path.startswith('/api/cotizacion/')
+    if not (_cot_puede_gestionar() if cotizacion else _puede_gestionar()):
         return jsonify({'error': 'No autorizado.'}), 403
-    proy = _proy()
+    proy = _cot_proyecto() if cotizacion else _proy()
     if not proy:
         return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
     uid = int(session.get('user_id') or 0)
@@ -675,12 +678,15 @@ def api_rendicion_avisos():
 
 
 @bp.route('/api/rendicion/avisos/leer', methods=['POST'])
+@bp.route('/api/cotizacion/avisos/leer', methods=['POST'])
 @login_required
 def api_rendicion_avisos_leer():
     """Marca como leídos los avisos (todos o solo los indicados)."""
-    if not _puede_gestionar():
+    from blueprints.cotizacion import _cot_puede_gestionar, _cot_proyecto
+    cotizacion = request.path.startswith('/api/cotizacion/')
+    if not (_cot_puede_gestionar() if cotizacion else _puede_gestionar()):
         return jsonify({'error': 'No autorizado.'}), 403
-    proy = _proy()
+    proy = _cot_proyecto() if cotizacion else _proy()
     if not proy:
         return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
     uid = int(session.get('user_id') or 0)
@@ -709,14 +715,20 @@ def api_rendicion_avisos_leer():
 
 
 
-def _es_refacturable(row):
+def _requiere_correo_validacion(row):
     def normalizar(valor):
         texto = unicodedata.normalize('NFKD', str(valor or ''))
         return re.sub(r'[^a-z0-9]', '', ''.join(c for c in texto.lower() if not unicodedata.combining(c)))
-    for campo, valor in row.items():
-        if normalizar(campo) in ('tipodepresupuesto', 'tipopresupuesto'):
-            return normalizar(valor) == 'refacturable'
-    return False
+    campos = {normalizar(campo): valor for campo, valor in row.items()}
+    presupuesto = normalizar(campos.get('tipodepresupuesto', campos.get('tipopresupuesto')))
+    if presupuesto == 'refacturable':
+        return True
+    if presupuesto != 'gastocobra':
+        return False
+    gasto = str(campos.get('tipodegasto', campos.get('tipogasto')) or '')
+    tipos = [normalizar(tipo) for tipo in re.split(r'[,;/|+\n]+', gasto)]
+    exentos = {'viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes'}
+    return not tipos or any(tipo not in exentos for tipo in tipos)
 
 
 def _correo_folder(origen_id):
@@ -734,8 +746,8 @@ def subir_correo_validacion():
     if not fila:
         return jsonify({'error': 'Solicitud no encontrada.'}), 404
     row = json.loads(fila.data_json or '{}')
-    if _estado_de(row) != 'PENDIENTE' or not _es_refacturable(row):
-        return jsonify({'error': 'Este correo corresponde a la validación de una solicitud refacturable pendiente.'}), 409
+    if _estado_de(row) != 'PENDIENTE' or not _requiere_correo_validacion(row):
+        return jsonify({'error': 'Este correo corresponde a una solicitud pendiente que requiere correo de validación.'}), 409
     archivo = request.files.get('correo')
     if not archivo or not archivo.filename or os.path.splitext(archivo.filename)[1].lower() != '.msg':
         return jsonify({'error': 'Selecciona un correo de Outlook en formato .msg.'}), 400

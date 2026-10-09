@@ -4,6 +4,28 @@ import pytest
 from db import db
 from models import Proyecto, NucleusData
 
+@pytest.mark.parametrize('presupuesto,gasto,requiere', [
+    ('Refacturable', 'Viáticos', True),
+    ('Gasto Cobra', 'VIÁTICOS', False),
+    ('Gasto Cobra', 'Peaje', False),
+    ('Gasto Cobra', 'Hospedaje', False),
+    ('Gasto Cobra', 'VIATICOS, PEAJE', False),
+    ('Gasto Cobra', 'Material', True),
+    ('Gasto Cobra', 'Peaje, Material', True),
+    ('Gasto Cobra', '', True),
+])
+def test_correo_segun_presupuesto_y_gasto(app, auth_client, solicitud, presupuesto, gasto, requiere):
+    with app.app_context():
+        fila = db.session.get(NucleusData, solicitud)
+        fila.data_json = json.dumps({'ESTADO': 'PENDIENTE', 'Tipo de presupuesto': presupuesto, 'Tipo de gasto': gasto})
+        db.session.commit()
+    resultado = auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
+    assert resultado.status_code == (400 if requiere else 200)
+    if requiere:
+        carga = auth_client.post('/api/rendicion/subir_correo', data={'key': 'REND-CORREO-TEST', 'correo': (io.BytesIO(b'correo prueba'), 'aprobacion.msg')})
+        assert carga.status_code == 200
+        assert auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'}).status_code == 200
+
 @pytest.fixture
 def solicitud(app, auth_client, monkeypatch):
     import blueprints.rendicion as modulo
