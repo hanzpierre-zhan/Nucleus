@@ -7624,7 +7624,8 @@ let _rendCambiandoVista = false;
 
                        cols: ['_key', 'CODIGO DEPOSITO', 'Nombre de site', 'Técnico beneficiario',
 
-                              'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'ESTADO', '_accion'] },
+                              'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'ADJUNTO CORREO VALIDACION', 'ESTADO', '_accion'],
+                       showCols: ['ADJUNTO CORREO VALIDACION'] },
 
         // Evidencia: (ahora solo DEPOSITADO, sin boton de accion)
 
@@ -9074,7 +9075,7 @@ let _rendCambiandoVista = false;
 
         ['CODIGO DEPOSITO', 'ESTADO', 'FECHA VALIDACION', 'VALIDADO POR',
 
-         'TIEMPO DE RESPUESTA',
+         'TIEMPO DE RESPUESTA', 'ADJUNTO CORREO VALIDACION',
 
          'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'DEPOSITADO POR',
 
@@ -9735,6 +9736,22 @@ let _rendCambiandoVista = false;
             colDef.editor = false;
             colDef.formatter = cell => `<span class="wo-link">${escapeHtml(cell.getValue() || '')}</span>`;
             colDef.cellClick = (event, cell) => abrirWoModal(cell.getRow());
+            restColumns.push(colDef);
+            return;
+        }
+
+        if (IS_RENDICION && fieldName === 'ADJUNTO CORREO VALIDACION') {
+            colDef.title = 'CORREO DE VALIDACIÓN';
+            colDef.width = 170;
+            colDef.editor = false;
+            colDef.editable = false;
+            colDef.headerFilter = false;
+            colDef.formatter = cell => {
+                const row = cell.getRow().getData();
+                const url = String(cell.getValue() || '');
+                if (!/^\/api\/rendicion\/correo\/\d+\/[a-zA-Z0-9_.-]+$/.test(url)) return '—';
+                return `<a class="btn btn-sm" href="${escapeHtml(url)}" download title="${escapeHtml(row['NOMBRE CORREO VALIDACION'] || 'Descargar correo .msg')}"><i class="fa-solid fa-download"></i> Descargar .msg</a>`;
+            };
             restColumns.push(colDef);
             return;
         }
