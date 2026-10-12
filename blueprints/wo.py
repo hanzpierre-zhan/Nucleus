@@ -23,6 +23,7 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
 from services import *
+from services.recursos_flm import familia
 
 
 bp = Blueprint('wo', __name__)
@@ -125,6 +126,8 @@ def api_wo_meta():
                 # Excluir solo si el campo existe Y tiene un valor distinto a ACTIVO
                 if est and est != 'ACTIVO':
                     continue
+                if familia(proy_nombre) and familia(d.get('PROYECTO')) != familia(proy_nombre):
+                    continue
                 _add_tec(d.get('TECNICO'), d.get('CONTRATA'))
                 _incluidos += 1
             _log.warning(f'[WO-META] técnicos incluidos desde Dataper={_incluidos}, total_map={len(_tec_map)}')
@@ -145,12 +148,8 @@ def api_wo_meta():
                 # FLM/PEXT/FLM - ENTEL se tratan como el mismo mundo: si el
                 # proyecto actual es FLM - ENTEL, acepta material etiquetado
                 # 'FLM' o 'PEXT' (filas migradas) y viceversa.
-                if proy_nombre:
-                    de_mismo_mundo = set()
-                    if proy_nombre.upper() in ('FLM', 'FLM - ENTEL', 'PEXT'):
-                        de_mismo_mundo = {'FLM', 'FLM - ENTEL', 'PEXT'}
-                    if pr and pr.upper() not in de_mismo_mundo and pr.upper() != proy_nombre.upper():
-                        continue
+                if familia(proy_nombre) and familia(pr) != familia(proy_nombre):
+                    continue
                 desc = str(d.get('DESCRIPCION_MATERIAL') or '').strip()
                 if not desc or desc in seen:
                     continue

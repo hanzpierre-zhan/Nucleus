@@ -3,6 +3,7 @@ import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
 from collections import Counter
+from types import SimpleNamespace
 from flask import (Blueprint, request, jsonify, session, redirect, url_for,
                    render_template, current_app, make_response,
                    send_from_directory, send_file, Response, abort)
@@ -22,6 +23,7 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
 from services import *
+from services.recursos_flm import contexto_recursos, filtrar_catalogo, FLM_NOMBRES
 
 
 bp = Blueprint('pages', __name__)
@@ -103,6 +105,8 @@ def index():
     res_obj = {}
     if not is_privileged:
         acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
+        if not acc and contexto_recursos() and any(p.id == pid for p in get_menu_proyectos(user_id, user_rol)):
+            acc = SimpleNamespace(restricciones='{}')
         if not acc:
             # Dataper/Material: permitir si el usuario tiene FLM o PEXT asignado.
             # Site Name: permitir solo si el usuario tiene FLM asignado.
@@ -275,19 +279,12 @@ def index():
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM/PEXT/Claro/Integratel
     # según los proyectos asignados al usuario (si tiene varios, muestra todos). Comparación case-insensitive.
     if proy_actual_nombre in ('Dataper', 'Material'):
-        _wo_proys = {'FLM', 'FLM - ENTEL', 'PEXT', 'Claro', 'Integratel'}
-        _wo_upper = {p.upper() for p in _wo_proys}
-        if is_privileged:
-            allowed_proy = set(_wo_proys)
-        else:
-            accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
-            allowed_proy = set()
-            for a in accs:
-                ap = db.session.get(Proyecto, a.proyecto_id)
-                if ap and ap.nombre in _wo_proys:
-                    allowed_proy.add(ap.nombre)
-        _allowed_upper = {p.upper() for p in allowed_proy}
-        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper]
+        raw_data = filtrar_catalogo(raw_data)
+        contexto = contexto_recursos()
+        if contexto:
+            for columna in manual_cols_data:
+                if columna.get('nombre') == 'PROYECTO':
+                    columna['opciones'] = [contexto['flm_nombre']]
 
     # Cruce dinámico: Site Name → FLM. Se agregan a cada fila de FLM las columnas
     # DIRECCION, LATITUD, LONGITUD tomadas del proyecto "Site Name" cruzando por
@@ -502,6 +499,8 @@ def analytics():
 
     if not is_privileged:
         acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
+        if not acc and contexto_recursos() and any(p.id == pid for p in get_menu_proyectos(user_id, user_rol)):
+            acc = SimpleNamespace(restricciones='{}')
         if not acc:
             proy_check = db.session.get(Proyecto, pid)
             if proy_check and proy_check.nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible'):
@@ -546,18 +545,7 @@ def analytics():
             if not d.get('GESTOR'):
                 d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
     if proy_actual_nombre in ('Dataper', 'Material'):
-        _wo_proys_an = {'FLM', 'FLM - ENTEL', 'PEXT', 'Claro', 'Integratel'}
-        if is_privileged:
-            allowed_proy = set(_wo_proys_an)
-        else:
-            accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
-            allowed_proy = set()
-            for a in accs:
-                ap = db.session.get(Proyecto, a.proyecto_id)
-                if ap and ap.nombre in _wo_proys_an:
-                    allowed_proy.add(ap.nombre)
-        _allowed_upper_an = {p.upper() for p in allowed_proy}
-        raw_data = [d for d in raw_data if str(d.get('PROYECTO', '')).strip().upper() in _allowed_upper_an]
+        raw_data = filtrar_catalogo(raw_data)
 
     data = apply_data_restrictions(raw_data, res_obj)
 
@@ -637,14 +625,7 @@ def mapa_site():
         abort(404)
     if user_rol not in ('zeno', 'suport'):
         # Debe tener FLM para ver el mapa de sites
-        flm = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
-        if not flm:
-            flm = Proyecto.query.filter_by(nombre='FLM').first()
-        has_flm = False
-        if flm:
-            has_flm = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=flm.id).first() is not None
-        if not has_flm:
-            has_flm = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy_site.id).first() is not None
+        has_flm = any(p.nombre in FLM_NOMBRES or p.id == proy_site.id for p in get_menu_proyectos(user_id, user_rol))
         if not has_flm:
             from flask import redirect, url_for
             return redirect(url_for('pages.index'))

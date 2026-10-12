@@ -22,6 +22,8 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
 from services import *
+from services.sustento import cambio_bloqueado
+from services.recursos_flm import contexto_recursos, validar_fila_catalogo, familia
 
 
 bp = Blueprint('imports', __name__)
@@ -50,6 +52,8 @@ def api_import_manual_template():
 
     # Fetch all existing primary key values
     rows = NucleusData.query.filter_by(proyecto_id=pid).all()
+    if contexto_recursos() and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
+        rows = [fila for fila in rows if validar_fila_catalogo(json.loads(fila.data_json or '{}'))]
 
     proy = db.session.get(Proyecto, pid)
     proy_nombre = proy.nombre if proy else ''
@@ -185,6 +189,14 @@ def api_import_process():
             df = pd.read_excel(file, dtype=str)
             
         df.columns = [str(c).strip() for c in df.columns]
+        contexto = contexto_recursos()
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
+            if 'PROYECTO' in df.columns:
+                for valor in df['PROYECTO'].fillna('').tolist():
+                    if str(valor).strip() and familia(valor) != contexto['familia']:
+                        return jsonify({'error': 'El archivo contiene registros de otro FLM. Importa solo el proyecto seleccionado.'}), 400
+            df['PROYECTO'] = contexto['flm_nombre']
+
         # Columna canónica: si el esquema ya tiene "Category" y el archivo trae
         # "CATEGORY" (distinta solo en mayúsculas), se renombra AQUÍ, antes de que
         # se escriba ningún registro, para que el dato entre en la columna
@@ -363,6 +375,10 @@ def api_import_process():
                     existing_records[r.key_value] = r
         
         # Consolidation Config
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
+            for registro in existing_records.values():
+                if not validar_fila_catalogo(json.loads(registro.data_json or '{}')):
+                    return jsonify({'error': 'Una clave del archivo ya pertenece a otro FLM. No se modificaron sus registros.'}), 409
         cons_cfg_row = AppConfig.query.filter_by(proyecto_id=pid, clave='consolidation_config').first()
         cons_cfg = json.loads(cons_cfg_row.valor) if cons_cfg_row else {}
         consolidate_on_fail = cons_cfg.get('consolidate_on_filter_fail', False)
@@ -385,6 +401,7 @@ def api_import_process():
         protected_fields = set(manual_columns_list)
         protected_fields.update([
             'SERVICIO', 'CIUDAD', 'TECNICO', 'CONTRATA',
+            'INICIO EJECUCION', 'FIN EJECUCION',
             'MOTIVO DE AVERÍA', 'MOTIVO DE AVERIA', 'SOLUCIÓN', 'SOLUCION',
             'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'SE INSTALO MUFAS',
             'LATITUD MUFAS', 'LATITUD Mufas', 'LONGITUD MUFAS', 'LONGITUD Mufas',
@@ -438,6 +455,9 @@ def api_import_process():
             if key_val in existing_records:
                 record = existing_records[key_val]
                 current_data = json.loads(record.data_json)
+                if cambio_bloqueado(current_data,row_dict):
+                    db.session.rollback()
+                    return jsonify({'error':'El archivo intenta modificar un sustento aprobado.'}),403
                 old_state = str(current_data.get(WO_STATE_COL, '')).strip()
                 if import_type == 'manual_cols':
                     current_data.update(row_dict)
@@ -612,6 +632,8 @@ def api_import_process():
                 for rec in NucleusData.query.filter(
                         NucleusData.proyecto_id == pid,
                         NucleusData.key_value.in_(_chunk)).all():
+                    if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material') and not validar_fila_catalogo(json.loads(rec.data_json or '{}')):
+                        continue
                     new_hist = NucleusHistory(proyecto_id=pid, key_value=rec.key_value, data_json=rec.data_json)
                     db.session.add(new_hist)
                     db.session.delete(rec)

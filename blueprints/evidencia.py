@@ -22,6 +22,7 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
 from services import *
+from services.sustento import acceso_desde_cotizacion, actualizar_slot, preparar_wo_desde_cotizacion
 
 
 bp = Blueprint('evidencia', __name__)
@@ -40,7 +41,12 @@ def api_evidencia_subir():
         pid = session.get('current_proyecto_id')
     cur = session.get('current_proyecto_id')
     rol = session.get('rol')
-    permitido = (pid == cur)
+    cot_key = (request.form.get('cotizacion_key') or request.args.get('cotizacion_key') or '').strip()
+    if request.is_json:
+        cot_key = str((request.get_json(silent=True) or {}).get('cotizacion_key') or cot_key)
+    wo_clave = str(request.form.get('key') or ((request.get_json(silent=True) or {}).get('key') if request.is_json else '') or '').strip()
+    permiso_cot = acceso_desde_cotizacion(pid, wo_clave, cot_key)
+    permitido = (pid == cur) or permiso_cot
     if not permitido and rol in ('zeno', 'suport'):
         permitido = True
     if not permitido:
@@ -88,6 +94,7 @@ def api_evidencia_subir():
     if ext not in EVIDENCIA_EXT_ALLOWED:
         return jsonify({'error': f'Formato no permitido: {ext}. Usa {", ".join(sorted(EVIDENCIA_EXT_ALLOWED))}'}), 400
 
+    preparar_wo_desde_cotizacion(pid,key,cot_key)
     # Guardar a un archivo temporal, comprimir y luego mover/subir.
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
     os.close(fd)
@@ -129,6 +136,8 @@ def api_evidencia_subir():
             current_app.logger.warning('OD backup fallo: %s', e)
 
         url = f'/api/evidencia/foto/{pid}/{secure_filename(str(key))}/{nombre}?v={int(time.time())}'
+        actualizar_slot(pid,key,tipo,indice,url)
+        db.session.commit()
         return jsonify({'success': True, 'url': url})
     finally:
         if os.path.exists(ruta_tmp):
@@ -143,14 +152,19 @@ def api_evidencia_subir():
 def api_evidencia_eliminar():
     if session.get('rol') == 'demo':
         return jsonify({'error': 'Rol DEMO no tiene permisos.'}), 403
-    pid_form = request.form.get('proyecto_id') or request.args.get('proyecto_id')
+    pid_form = (request.get_json(silent=True) or {}).get('proyecto_id') or request.form.get('proyecto_id') or request.args.get('proyecto_id')
     try:
         pid = int(pid_form) if pid_form is not None and str(pid_form).strip() else session.get('current_proyecto_id')
     except (TypeError, ValueError):
         pid = session.get('current_proyecto_id')
     cur = session.get('current_proyecto_id')
     rol = session.get('rol')
-    permitido = (pid == cur)
+    cot_key = (request.form.get('cotizacion_key') or request.args.get('cotizacion_key') or '').strip()
+    if request.is_json:
+        cot_key = str((request.get_json(silent=True) or {}).get('cotizacion_key') or cot_key)
+    wo_clave = str(request.form.get('key') or ((request.get_json(silent=True) or {}).get('key') if request.is_json else '') or '').strip()
+    permiso_cot = acceso_desde_cotizacion(pid, wo_clave, cot_key)
+    permitido = (pid == cur) or permiso_cot
     if not permitido and rol in ('zeno', 'suport'):
         permitido = True
     if not permitido:
@@ -194,6 +208,7 @@ def api_evidencia_eliminar():
     # Solo admin puede borrar foto de Combustible
     if tipo == 'comb' and session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo el administrador puede eliminar la foto.'}), 403
+    preparar_wo_desde_cotizacion(pid,key,cot_key)
     if evidencia_usa_b2():
         evidencia_eliminar_b2(key, tipo, indice)
     else:
@@ -206,6 +221,8 @@ def api_evidencia_eliminar():
         onedrive_eliminar(key, tipo, indice)
     except Exception as e:
         current_app.logger.warning('OD delete fallo: %s', e)
+    actualizar_slot(pid,key,tipo,indice,'')
+    db.session.commit()
     return jsonify({'success': True})
 
 
@@ -215,6 +232,17 @@ def api_evidencia_foto(pid, key, nombre):
     cur = session.get('current_proyecto_id')
     # FLM <-> FLM - ENTEL: las fotos subidas desde uno son accesibles desde el otro.
     permitido = (pid == cur) or (_flm_hermano_id(cur) == pid)
+    if not permitido:
+        from blueprints.cotizacion import _split_wos, _resolver_wo_sustento
+        if puede_cotizaciones(session.get('user_id'),session.get('rol'),session.get('current_proyecto_nombre')):
+            cp=Proyecto.query.filter_by(nombre='Cotizaciones').first()
+            if cp:
+                for cf in NucleusData.query.filter_by(proyecto_id=cp.id).all():
+                    cd=json.loads(cf.data_json or '{}')
+                    if key.casefold() in [w.casefold() for w in _split_wos(cd.get('NUMERO WO'))]:
+                        origen=_resolver_wo_sustento(key,cd.get('CLIENTE'))
+                        if origen and origen[0].id==pid:permitido=True;break
+
     if not permitido and session.get('rol') in ('zeno', 'suport'):
         permitido = True
     if not permitido:

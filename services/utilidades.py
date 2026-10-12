@@ -58,11 +58,6 @@ def get_session_info():
 
 def get_menu_proyectos(user_id, user_rol):
     """Proyectos visibles en el menú lateral según rol."""
-    if user_rol in ('gestor', 'contrata'):
-        accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
-        pids = [a.proyecto_id for a in accesos]
-        return Proyecto.query.filter(Proyecto.id.in_(pids), Proyecto.nombre.notin_(PROYECTOS_REMOVIDOS)).order_by(Proyecto.id).all()
-
     if user_rol in ('zeno', 'suport'):
         return Proyecto.query.filter(Proyecto.nombre.notin_(PROYECTOS_REMOVIDOS)).order_by(Proyecto.id).all()
 
@@ -80,7 +75,8 @@ def get_menu_proyectos(user_id, user_rol):
                 ids_set.add(e.id)
 
     if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'Claro', 'Integratel')):
-        for extra_name in ('Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE'):
+        extras = ('SITE', 'Generadores') if user_rol in ('gestor', 'contrata') else ('Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE')
+        for extra_name in extras:
             e = Proyecto.query.filter_by(nombre=extra_name).first()
             if e and e.id not in ids_set:
                 proyectos.append(e)
@@ -432,6 +428,7 @@ def _flm_hermano_id(pid):
 CAMPOS_TRABAJO_FLM = frozenset({
     'SERVICIO', 'CIUDAD', 'TECNICO ASIGNADO', 'CONTRATA', 'MOTIVO DE AVERÍA',
     'SISTEMAS', 'MATERIALES', 'INICIO DE PARADA', 'FIN DE PARADA', 'BITACORA',
+    'INICIO EJECUCION', 'FIN EJECUCION',
     'SOLUCIÓN', 'LATITUD', 'LONGITUD', 'SE INSTALÓ MUFAS', 'LATITUD MUFAS',
     'LONGITUD MUFAS', 'COTIZACION_ITEMS', 'COTIZACION_NOTA', 'COTIZACION_NUMERO',
     'REQUIERE CORRECTIVO FINAL', 'DETALLE CORRECTIVO', 'GESTOR', 'EDITADO POR',

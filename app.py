@@ -139,11 +139,17 @@ def _register_blueprints(app):
     from blueprints.rendicion import bp as rendicion_bp
     from blueprints.cotizacion import bp as cotizacion_bp
     from blueprints.refacturable import bp as refacturable_bp
+    from blueprints.recursos import bp as recursos_bp
 
     for _bp in (auth_bp, pages_bp, admin_bp, imports_bp, master_bp,
-                rows_bp, wo_bp, evidencia_bp, rendicion_bp, cotizacion_bp, refacturable_bp):
+                rows_bp, wo_bp, evidencia_bp, rendicion_bp, cotizacion_bp, refacturable_bp, recursos_bp):
         app.register_blueprint(_bp)
     app.register_blueprint(refacturable_bp, url_prefix="/liquidaciones", name="liquidaciones")
+    @app.context_processor
+    def recursos_contexto_template():
+        from services.recursos_flm import contexto_recursos
+        return {'flm_resource_context': contexto_recursos()}
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

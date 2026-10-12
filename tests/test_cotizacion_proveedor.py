@@ -186,3 +186,18 @@ def test_aprobacion_gatilla_liquidacion_y_conserva_caso(app, auth_client, cotiza
     assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'revertir'}).status_code==200
     assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'cancelar','motivo':'Caso cancelado'}).status_code==200
     assert len(registros())==1 and registros()[0]['estado_cotizacion']=='Cancelado'
+
+
+@pytest.mark.parametrize('tipo',['Caja chica','Proveedor'])
+def test_tipo_gasto_en_aprobacion(auth_client,cotizacion,tipo):
+    pid,key=cotizacion
+    r=auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion','tipo_gasto_aprobacion':tipo})
+    assert r.status_code==200
+    assert r.json['newData']['TIPO GASTO APROBACION']==tipo
+    registros=auth_client.get('/liquidaciones/api/registros').json['registros']
+    assert next(fila for fila in registros if fila['cotizacion']==key)['tipo_gasto']==tipo
+
+
+def test_tipo_gasto_aprobacion_invalido(auth_client,cotizacion):
+    pid,key=cotizacion
+    assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion','tipo_gasto_aprobacion':'Otro'}).status_code==400

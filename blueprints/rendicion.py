@@ -723,13 +723,13 @@ def _requiere_correo_validacion(row):
     presupuesto = normalizar(campos.get('tipodepresupuesto', campos.get('tipopresupuesto')))
     gasto = str(campos.get('tipodegasto', campos.get('tipogasto')) or '')
     tipos = [normalizar(tipo) for tipo in re.split(r'[,;/|+\n]+', gasto)]
-    if tipos and all(tipo in ('viatico', 'viaticos') for tipo in tipos):
+    exentos = {'viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes'}
+    if tipos and all(tipo in exentos for tipo in tipos):
         return False
     if presupuesto == 'refacturable':
         return True
     if presupuesto != 'gastocobra':
         return False
-    exentos = {'viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes'}
     return not tipos or any(tipo not in exentos for tipo in tipos)
 
 
@@ -787,3 +787,37 @@ def descargar_correo_validacion(origen_id, nombre):
     if row.get('ADJUNTO CORREO VALIDACION') != '/api/rendicion/correo/%s/%s' % (origen_id, nombre):
         return jsonify({'error': 'Correo no encontrado.'}), 404
     return send_from_directory(_correo_folder(origen_id), nombre, as_attachment=True, download_name=row.get('NOMBRE CORREO VALIDACION') or nombre)
+
+
+@bp.route('/api/rendicion/por_wo')
+@login_required
+def rendiciones_por_wo():
+    key = str(request.args.get('key') or '').strip()
+    pid = request.args.get('proyecto_id', type=int)
+    proyectos = get_menu_proyectos(session.get('user_id'), session.get('rol'))
+    if not pid or not any(p.id == pid and p.nombre in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO') for p in proyectos):
+        return jsonify({'error': 'No tienes acceso a este WO.'}), 403
+    if not key or not NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first():
+        return jsonify({'error': 'WO no encontrado.'}), 404
+    proyecto = _proy()
+    if not proyecto:
+        return jsonify({'lista': []})
+    def normalizar(texto):
+        return re.sub(r'[^a-z0-9]', '', ''.join(c for c in unicodedata.normalize('NFKD', str(texto or '')).lower() if not unicodedata.combining(c)))
+    campos_wo = {'numerocmpmplm', 'numerocm', 'numerowo', 'numerodewo', 'numerocmpm', 'numeropmplm'}
+    lista = []
+    for fila in NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id.desc()).all():
+        try:
+            datos = json.loads(fila.data_json or '{}')
+        except (ValueError, TypeError):
+            continue
+        campos = {normalizar(c): v for c, v in datos.items()}
+        valores = [v for c,v in campos.items() if c in campos_wo]
+        codigos = [str(c).strip().casefold() for v in valores for c in (v if isinstance(v,list) else re.split(r'[,;|\n]+',str(v or '')))]
+        if key.casefold() not in codigos:
+            continue
+        lista.append({'id': fila.id, 'codigo': datos.get('CODIGO DEPOSITO') or fila.key_value,
+            'estado': _estado_de(datos), 'tecnico': campos.get('tecnicobeneficiario') or '',
+            'motivo': _motivo_de(datos), 'monto': _monto_de(datos),
+            'fecha': campos.get('marcatemporal') or datos.get('FECHA VALIDACION') or ''})
+    return jsonify({'lista': lista})

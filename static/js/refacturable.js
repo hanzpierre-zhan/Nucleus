@@ -88,6 +88,7 @@
             }, cellClick: (event, cell) => openEditor(cell.getRow().getData())},
             column('N° COTIZACIÓN', 'cotizacion', {width: 185}),
             column('ESTADO DE COTIZACIÓN', 'estado_cotizacion', {width: 185, formatter: statusFormatter}),
+            column('TIPO DE GASTO', 'tipo_gasto', {width: 160}),
             column('GESTOR OPERATIVO', 'gestor'),
             column('FECHA INICIO DE OBRA', 'fecha_inicio', {width: 155}),
             column('FECHA FIN DE OBRA', 'fecha_fin', {width: 155}),

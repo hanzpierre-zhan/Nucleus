@@ -22,6 +22,7 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
 from services import *
+from services.sustento import bloqueado, efectivos, CAMPOS
 
 
 bp = Blueprint('cotizacion', __name__)
@@ -870,7 +871,7 @@ def api_cotizacion_accion():
     if accion == 'aprobar':
         accion = 'conformar_aprobacion'
     if not key or accion not in ('generar', 'enviar', 'conformar_aprobacion',
-                                 'pasar_atendido', 'revertir', 'rechazar', 'cancelar'):
+                                 'pasar_atendido', 'revertir', 'rechazar', 'cancelar', 'aprobar_sustento', 'rechazar_sustento'):
         return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
 
     fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
@@ -881,6 +882,8 @@ def api_cotizacion_accion():
     except Exception:
         row = {}
 
+    if bloqueado(row):
+        return jsonify({'error':'El sustento ya fue aprobado y no puede devolverse ni modificarse.'}),403
     pestania = _cot_pestania(row)
     estado_anterior = _cot_estado_guardado(row)
     ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -916,6 +919,10 @@ def api_cotizacion_accion():
     elif accion == 'conformar_aprobacion':
         if pestania != 'cliente':
             return jsonify({'error': 'La aprobación solo aplica a una cotización "En Aprobación" (pestaña Cliente).'}), 409
+        tipo_gasto = str(data.get('tipo_gasto_aprobacion', row.get('TIPO GASTO APROBACION')) or '').strip()
+        if tipo_gasto and tipo_gasto not in ('Caja chica', 'Proveedor'):
+            return jsonify({'error': 'El tipo de gasto debe ser Caja chica o Proveedor.'}), 400
+        row['TIPO GASTO APROBACION'] = tipo_gasto
         row['ESTADO COTIZACION'] = ESTADO_SUSTENTO
         row['_PROVEEDOR_PARALELO'] = True
         row['FECHA APROBACION'] = str(data.get('fecha_aprobacion') or '').strip() or ahora
@@ -941,6 +948,31 @@ def api_cotizacion_accion():
                 data_json=safe_json_dumps({'estado_liquidacion': 'Pendiente'}),
                 actualizado_por=usuario, actualizado_en=datetime.utcnow())
             db.session.add(detalle)
+
+    elif accion in ('aprobar_sustento','rechazar_sustento'):
+        if pestania != 'atendido':
+            return jsonify({'error':'La revisión del sustento solo aplica en Atendido.'}),409
+        if accion == 'aprobar_sustento':
+            destinos=[]
+            for wo in _split_wos(row.get('NUMERO WO')):
+                destino=_resolver_sustento_cot(fila,wo,row)
+                if not destino:return jsonify({'error':'No se encontró el WO '+wo}),409
+                destinos.append(destino)
+            row['_SUSTENTO_APROBADO']='1'
+            row['SUSTENTO APROBADO POR']=usuario
+            row['FECHA APROBACION SUSTENTO']=ahora
+            for proyecto, registro in destinos:
+                detalle=json.loads(registro.data_json or '{}')
+                detalle['_SUSTENTO_APROBADO_COT']=str(fila.id)
+                registro.data_json=safe_json_dumps(detalle)
+            adicionales=json.loads(fila.data_json or '{}').get('_SUSTENTOS_ADICIONALES')
+            if adicionales:row['_SUSTENTOS_ADICIONALES']=adicionales
+        else:
+            row['ESTADO COTIZACION']=ESTADO_SUSTENTO
+            row['OBSERVACION SUSTENTO']=str(data.get('motivo') or '').strip()
+            row['SUSTENTO RECHAZADO POR']=usuario
+            row['FECHA RECHAZO SUSTENTO']=ahora
+            row.pop('_SUSTENTO_VALIDADO',None)
 
     elif accion == 'pasar_atendido':
         if pestania != 'sustentar':
@@ -1174,14 +1206,17 @@ def api_cotizacion_migrar_antiguos():
 _PROYECTOS_WO_SUSTENTO = ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - INTEGRATEL', 'FLM - CLARO')
 
 
-def _resolver_wo_sustento(wo):
+def _resolver_wo_sustento(wo, cliente=None):
     """Busca la fila de un WO en los proyectos tipo WO. Devuelve (Proyecto, fila) o None."""
     wo = str(wo or '').strip()
     if not wo:
         return None
     proys = Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()
+    from services.recursos_flm import familia
     for p in proys:
-        fila = NucleusData.query.filter_by(proyecto_id=p.id, key_value=wo).first()
+        if familia(cliente) and familia(p.nombre) != familia(cliente):
+            continue
+        fila = NucleusData.query.filter(NucleusData.proyecto_id == p.id, func.lower(NucleusData.key_value) == wo.lower()).first()
         if fila:
             return p, fila
     return None
@@ -1202,6 +1237,15 @@ def _leer_evidencia_wo(fila):
         fotos[t.lower()] = [u for u in arr if u] if isinstance(arr, list) else []
         bit[t.lower()] = str(d.get('_BITACORA_' + t) or '')
     return fotos, bit
+
+
+def _resolver_sustento_cot(cot,wo,datos):
+    from services.sustento import SustentoAdicional
+    # Si ya se sustentó como adicional, conserva esa fuente al aparecer luego en FLM.
+    if wo.strip().casefold() not in datos.get('_SUSTENTOS_ADICIONALES',{}):
+        origen=_resolver_wo_sustento(wo,datos.get('CLIENTE'))
+        if origen:return origen
+    return _cot_proyecto(),SustentoAdicional(cot,wo)
 
 
 @bp.route('/api/cotizacion/sustento', methods=['GET'])
@@ -1226,7 +1270,7 @@ def api_cotizacion_sustento():
     wos = _split_wos(d.get('NUMERO WO'))
     info, total = [], 0
     for wo in wos:
-        r = _resolver_wo_sustento(wo)
+        r = _resolver_sustento_cot(fila,wo,d)
         if not r:
             info.append({'wo': wo, 'encontrado': False})
             continue
@@ -1235,129 +1279,106 @@ def api_cotizacion_sustento():
         n = sum(len(v) for v in fotos.values())
         total += n
         try:
-            bloqueado = bool(_evidencia_aprobacion_bloquea(p.id, wo))
+            bloqueado = bool(_evidencia_aprobacion_bloquea(p.id, wf.key_value))
         except Exception:
             bloqueado = False
         try:
             wf_data = json.loads(wf.data_json)
-            wf_data['_key'] = wo
+            wf_data = efectivos(d,wf_data,len(wos)==1)
+            wf_data['_key'] = wf.key_value
+            fotos = {t.lower(): json.loads(wf_data.get('_EVIDENCIA_'+t) or '[]') for t in ('INICIO','PROCESO','CIERRE')}
+            bit = {t.lower(): str(wf_data.get('_BITACORA_'+t) or '') for t in ('INICIO','PROCESO','CIERRE')}
+            total += sum(sum(bool(u) for u in arr) for arr in fotos.values()) - n
+            bloqueado = bloqueado or str(d.get('_SUSTENTO_APROBADO') or '') == '1'
         except Exception:
             wf_data = {'_key': wo}
         info.append({
             'wo': wo, 'encontrado': True,
             'proyecto_id': p.id, 'proyecto_nombre': p.nombre,
-            'fotos': {k: len(v) for k, v in fotos.items()},
+            'fotos': {k: sum(bool(u) for u in v) for k, v in fotos.items()},
             'fotos_urls': fotos, 'bitacoras': bit,
             'bloqueado': bloqueado,
             'wo_data': wf_data
         })
     return jsonify({'success': True, 'wos': info, 'total_fotos': total,
                     'estado': d.get('ESTADO COTIZACION'), 'pestania': _cot_pestania(d),
-                    'sin_wo': not wos, 'cotizacion_data': d})
+                    'sin_wo': not wos, 'cotizacion_data': d, 'sustento_aprobado': str(d.get('_SUSTENTO_APROBADO') or '') == '1'})
 
 
-@bp.route('/api/cotizacion/sustento/guardar', methods=['POST'])
+def _guardar_sustento(datos, finalizar=False):
+    if not _puede_cotizaciones():
+        return jsonify({'error':'No tienes permisos para guardar el sustento.'}),403
+    p=_cot_proyecto()
+    key=str(datos.get('key') or '').strip()
+    cot=NucleusData.query.filter_by(proyecto_id=p.id,key_value=key).first() if p else None
+    if not cot:return jsonify({'error':'Cotización no encontrada.'}),404
+    d=json.loads(cot.data_json or '{}')
+    if bloqueado(d):return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
+    if _cot_pestania(d) not in ('sustentar','atendido'):
+        return jsonify({'error':'La cotización debe estar en Sustentar o Atendido.'}),409
+    claves=_split_wos(d.get('NUMERO WO'))
+    wo=str(datos.get('wo') or '').strip()
+    if not wo and len(claves)==1:wo=claves[0]
+    if claves and not wo:return jsonify({'error':'Selecciona el WO cuyo sustento deseas guardar.'}),400
+    if wo and wo.casefold() not in [c.casefold() for c in claves]:
+        return jsonify({'error':'El WO no pertenece a esta cotización.'}),400
+    resultado=_resolver_sustento_cot(cot,wo,d) if wo else (p,cot)
+    if not resultado:return jsonify({'error':'Primero registra este WO en el FLM correspondiente.'}),409
+    proyecto,fila=resultado
+    actual=json.loads(fila.data_json or '{}')
+    if bloqueado(actual) or _evidencia_aprobacion_bloquea(proyecto.id,fila.key_value):return jsonify({'error':'El sustento de este WO ya fue aprobado o está bloqueado para tu rol.'}),403
+    nuevo=efectivos(d,actual,len(claves)==1)
+    cambios=datos.get('evidencia') or {}
+    if not isinstance(cambios,dict) or set(cambios)-set(CAMPOS):
+        return jsonify({'error':'Solo se pueden guardar fotos, bitácoras y fechas del sustento.'}),400
+    for campo,valor in cambios.items():
+        if campo.startswith('_EVIDENCIA_'):
+            try: arr=json.loads(valor) if isinstance(valor,str) and valor else (valor or [])
+            except (ValueError,TypeError):return jsonify({'error':'Fotos inválidas.'}),400
+            if not isinstance(arr,list) or len(arr)>5 or any(not isinstance(u,str) for u in arr):
+                return jsonify({'error':'Fotos inválidas.'}),400
+            anteriores=json.loads(nuevo.get(campo) or '[]')
+            prefijo='/api/evidencia/foto/%s/%s/'%(proyecto.id,secure_filename(fila.key_value))
+            if any(u and not u.startswith(prefijo) and u not in anteriores for u in arr):
+                return jsonify({'error':'Una foto no corresponde a este WO.'}),400
+            nuevo[campo]=safe_json_dumps(arr)
+        else:nuevo[campo]=str(valor or '')
+    bit=datos.get('bitacoras') or {}
+    if not isinstance(bit,dict):return jsonify({'error':'Bitácoras inválidas.'}),400
+    for t in ('inicio','proceso','cierre'):
+        if t in bit:nuevo['_BITACORA_'+t.upper()]=str(bit[t] or '')
+    for entrada,campo in [('fecha_inicio','INICIO EJECUCION'),('fecha_fin','FIN EJECUCION')]:
+        if entrada in datos:nuevo[campo]=str(datos[entrada] or '')
+    from blueprints.rows import _error_fechas_ejecucion
+    error=_error_fechas_ejecucion(nuevo)
+    if error:return jsonify({'error':error}),400
+    nuevo['_COT_EVIDENCIA_MIGRADA']='1'
+    fila.data_json=safe_json_dumps(nuevo)
+    if wo and proyecto.id==p.id:
+        d=json.loads(cot.data_json or '{}')
+    anterior=_cot_estado_guardado(d)
+    if not wo:d=nuevo
+    if len(claves)<=1:
+        for campo in ('INICIO EJECUCION','FIN EJECUCION'):
+            nombre='FECHA INICIO OBRA' if campo.startswith('INICIO') else 'FECHA FIN OBRA'
+            d[nombre]=str(nuevo.get(campo) or '')[:10]
+    if finalizar:
+        d['ESTADO COTIZACION']='Atendido'
+        d['_SUSTENTO_VALIDADO']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        d['ATENDIDO POR']=session.get('username') or ''
+    cot.data_json=safe_json_dumps(d)
+    db.session.commit()
+    if finalizar:_avisar_cambio_estado(p.id,key,anterior,d,session.get('username') or '')
+    return jsonify({'success':True,'newData':d,'wo_data':nuevo,'estado':d.get('ESTADO COTIZACION'),'pestania':_cot_pestania(d),'guardados':1,'errores':[]})
+
+
+@bp.route('/api/cotizacion/sustento/wo',methods=['POST'])
+@login_required
+def api_sustento_wo_guardar():
+    return _guardar_sustento(request.get_json(silent=True) or {})
+
+
+@bp.route('/api/cotizacion/sustento/guardar',methods=['POST'])
 @login_required
 def api_cotizacion_sustento_guardar():
-    """Guarda las bitácoras y marca como Atendido, sincronizando con los WOs."""
-    if not _puede_cotizaciones():
-        return jsonify({'error': 'No tienes permisos para guardar el sustento.'}), 403
-    proy = _cot_proyecto()
-    if not proy:
-        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
-    data = request.get_json(silent=True) or {}
-    key = str(data.get('key') or '').strip()
-    bit = data.get('bitacoras') or {}
-    if not key:
-        return jsonify({'error': 'Falta la clave del registro.'}), 400
-    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
-    if not fila:
-        return jsonify({'error': 'Registro no encontrado.'}), 404
-    try:
-        d = json.loads(fila.data_json)
-    except Exception:
-        d = {}
-
-    fechas = {}
-    for campo, nombre in (('fecha_inicio', 'FECHA INICIO OBRA'), ('fecha_fin', 'FECHA FIN OBRA')):
-        valor = str(data.get(campo, d.get(nombre, '')) or '').strip()
-        if valor:
-            try:
-                datetime.strptime(valor, '%Y-%m-%d')
-            except ValueError:
-                return jsonify({'error': 'La fecha de obra debe ser válida.'}), 400
-        fechas[nombre] = valor
-    if fechas['FECHA INICIO OBRA'] and fechas['FECHA FIN OBRA'] and fechas['FECHA FIN OBRA'] < fechas['FECHA INICIO OBRA']:
-        return jsonify({'error': 'La fecha de fin no puede ser anterior al inicio.'}), 400
-    d.update(fechas)
-
-    # Guardar bitácoras en Cotización
-    for t in ('inicio', 'proceso', 'cierre'):
-        if t in bit:
-            d['_BITACORA_' + t.upper()] = str(bit.get(t) or '').strip()
-            
-    d['_SUSTENTO_VALIDADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    # Cambiar estado a Atendido
-    estado_anterior = _cot_estado_guardado(d)
-    d['ESTADO COTIZACION'] = 'Atendido'
-    fila.data_json = safe_json_dumps(d)
-
-    # Sincronizar con los WOs
-    wos = _split_wos(d.get('NUMERO WO'))
-    rol = str(session.get('rol') or '').strip().lower()
-    uid = session.get('user_id')
-    guardados, errores = 0, []
-    
-    for wo in wos:
-        r = _resolver_wo_sustento(wo)
-        if not r:
-            errores.append(wo)
-            continue
-        p, wf = r
-        permitido = (p.id == session.get('current_proyecto_id')
-                     or rol in ('zeno', 'suport')
-                     or (uid and AccesoProyecto.query.filter_by(
-                         usuario_id=uid, proyecto_id=p.id).first()))
-        if not permitido:
-            errores.append(wo)
-            continue
-        try:
-            bloqueado = bool(_evidencia_aprobacion_bloquea(p.id, wo))
-        except Exception:
-            bloqueado = False
-        if bloqueado:
-            errores.append(wo)
-            continue
-        try:
-            wd = json.loads(wf.data_json)
-        except Exception:
-            wd = {}
-            
-        # Copiar bitácoras y fotos desde la Cotización al WO
-        for t in ('inicio', 'proceso', 'cierre'):
-            if t in bit:
-                wd['_BITACORA_' + t.upper()] = str(bit.get(t) or '').strip()
-            # Sincronizar fotos bidireccional (juntar las de Cotización con las del WO)
-            cot_fotos_str = d.get('_EVIDENCIA_' + t.upper()) or '[]'
-            wo_fotos_str = wd.get('_EVIDENCIA_' + t.upper()) or '[]'
-            try:
-                cot_f = json.loads(cot_fotos_str)
-                wo_f = json.loads(wo_fotos_str)
-                if not isinstance(cot_f, list): cot_f = []
-                if not isinstance(wo_f, list): wo_f = []
-                merged = list(set(cot_f + wo_f))
-                wd['_EVIDENCIA_' + t.upper()] = json.dumps(merged)
-            except:
-                pass
-                
-        wf.data_json = safe_json_dumps(wd)
-        guardados += 1
-        
-    try:
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': 'No se pudo guardar: %s' % e}), 500
-    
-    _avisar_cambio_estado(proy.id, key, estado_anterior, d, session.get('username') or 'Desconocido')
-    return jsonify({'success': True, 'guardados': guardados, 'errores': errores})
+    return _guardar_sustento(request.get_json(silent=True) or {},finalizar=True)

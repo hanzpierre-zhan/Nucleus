@@ -1,0 +1,42 @@
+<section class="rend-formularios" aria-label="Formularios de Rendición">
+    {% for titulo, icono, enlace in [
+        ('Solicitud de viáticos · FLM', 'fa-wallet', 'https://docs.google.com/forms/d/e/1FAIpQLSezPz4lHQiwqTxHmATCGFPr28_eL2PiS8wvYsU7cmkHmH8m2g/viewform?usp=header'),
+        ('Rendición de caja chica · FLM', 'fa-receipt', 'https://docs.google.com/forms/d/e/1FAIpQLSf_lskHsHkdBbcIbJOIZ5wOZDZTBM7vGxHguqmZ6ir2RRnTYA/viewform?usp=header')
+    ] %}
+    <article class="rend-formulario">
+        <i class="fa-solid {{ icono }} rend-formulario-icon" aria-hidden="true"></i>
+        <div class="rend-formulario-info"><strong>{{ titulo }}</strong><span>Completa o comparte el formulario</span></div>
+        <div class="rend-formulario-acciones">
+            <a href="{{ enlace }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir formulario: {{ titulo }}">Abrir <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+            <button type="button" data-formulario-enlace="{{ enlace }}" aria-label="Copiar enlace: {{ titulo }}"><i class="fa-regular fa-copy" aria-hidden="true"></i> <span>Copiar enlace</span></button>
+        </div>
+    </article>
+    {% endfor %}
+    <span class="rend-formularios-status" role="status" aria-live="polite"></span>
+</section>
+<style>
+.rend-formularios{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 14px 12px;background:var(--ios-bg)}
+.rend-formulario{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--ios-hairline);border-radius:10px;background:var(--ios-card-bg);color:var(--ios-label);min-width:0}
+.rend-formulario-icon{color:var(--ios-accent);font-size:17px;flex-shrink:0}
+.rend-formulario-info{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}.rend-formulario-info strong{font-size:12px;font-weight:600}.rend-formulario-info>span{font-size:11px;color:var(--ios-secondary)}
+.rend-formulario-acciones{display:flex;align-items:center;gap:6px;flex-shrink:0}.rend-formulario-acciones a,.rend-formulario-acciones button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--ios-hairline);border-radius:7px;background:var(--ios-fill);color:var(--ios-label);font:500 11px/1.3 inherit;font-family:inherit;font-size:11px;text-decoration:none;cursor:pointer;white-space:nowrap}
+.rend-formulario-acciones a:hover,.rend-formulario-acciones button:hover{border-color:var(--ios-accent)}.rend-formulario-acciones a:focus-visible,.rend-formulario-acciones button:focus-visible{outline:2px solid var(--ios-accent);outline-offset:2px}
+.rend-formularios-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@media(max-width:1100px){.rend-formulario{flex-wrap:wrap}.rend-formulario-acciones{margin-left:29px}}
+@media(max-width:650px){.rend-formularios{grid-template-columns:1fr}.rend-formulario-acciones{margin-left:0}.rend-formulario-info{flex-basis:calc(100% - 32px)}}
+</style>
+<script>
+(()=>{
+ const contenedor=document.querySelector('.rend-formularios');if(!contenedor)return;
+ contenedor.querySelectorAll('[data-formulario-enlace]').forEach(boton=>boton.addEventListener('click',async()=>{
+   const enlace=boton.dataset.formularioEnlace;const texto=boton.querySelector('span');const estado=contenedor.querySelector('[role="status"]');
+   try{
+     let copiado=false;
+     if(navigator.clipboard&&window.isSecureContext){try{await navigator.clipboard.writeText(enlace);copiado=true;}catch(error){}}
+     if(!copiado){const campo=document.createElement('textarea');campo.value=enlace;campo.setAttribute('readonly','');campo.style.cssText='position:fixed;left:-9999px';document.body.appendChild(campo);campo.select();try{copiado=document.execCommand('copy');}finally{campo.remove();boton.focus();}}
+     if(!copiado)throw new Error('No se pudo copiar');
+     texto.textContent='Copiado';estado.textContent='Enlace copiado. Ya puedes compartirlo.';setTimeout(()=>{texto.textContent='Copiar enlace';},2000);
+   }catch(error){texto.textContent='Reintentar';estado.textContent='No se pudo copiar el enlace. Inténtalo nuevamente.';}
+ }));
+})();
+</script>

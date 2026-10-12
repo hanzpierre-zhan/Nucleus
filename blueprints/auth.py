@@ -156,6 +156,7 @@ def cambiar_password_public():
 @bp.route('/switch_project/<int:pid>')
 @login_required
 def switch_project(pid):
+    session.pop('flm_resource_context',None)
     # Check permission
     if session.get('rol') not in ['zeno', 'suport']:
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()

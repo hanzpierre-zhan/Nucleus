@@ -56,11 +56,12 @@
                 {% endif %}
 
                 <div class="sidebar-section-label">Módulos</div>
+                {% set _flm_asignados = proyectos_list | selectattr('nombre', 'in', ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO']) | list %}
                 {% set _orden_modulos = ['FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE', 'Rendicion'] %}
                 {% for _nombre_mod in _orden_modulos %}
                 {% for p in proyectos_list %}
-                {% if p.nombre == _nombre_mod %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" data-nav="/">
+                {% if p.nombre == _nombre_mod and not (_flm_asignados and p.nombre in ['Dataper', 'Material', 'SITE', 'Generadores']) %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and (p.id == session.get('current_proyecto_id') or (flm_resource_context and p.id == flm_resource_context.flm_id)) %}active{% endif %}" data-nav="/">
                     <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
                 </a>
                 {% endif %}
@@ -70,7 +71,7 @@
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
-                {% if (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
+                {% if not _flm_asignados and (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
                 <a href="/mapa-site" class="sidebar-link {% if request.path == '/mapa-site' or request.path == '/mapa' %}active{% endif %}" data-nav="/mapa-site">
                     <i class="fa-solid fa-map-location-dot"></i> <span class="sidebar-link-text">Mapa Sites</span>
                 </a>
@@ -79,6 +80,9 @@
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
                     <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
+                </a>
+                <a href="/salud" class="sidebar-link {% if request.path == '/salud' %}active{% endif %}" data-nav="/salud">
+                    <i class="fa-solid fa-heart-pulse"></i> <span class="sidebar-link-text">Resources</span>
                 </a>
                 {% endif %}
             </nav>
@@ -106,9 +110,10 @@
         </aside>
         {% endif %}
 
-        <div class="app-main">
+        <div class="app-main" data-flm-resource="{{ flm_resource_context.flm_nombre if flm_resource_context and flm_resource_context.recurso in ['personal','material'] else '' }}" data-proyecto-id="{{ session.get('current_proyecto_id', '') }}" data-flm-origin="{{ flm_resource_context.flm_id if flm_resource_context else (session.get('current_proyecto_id') if session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'] else '') }}">
             <!-- Main Content Grid -->
             <main class="excel-main">
+                {% if request.path not in ['/', '/salud'] %}{% include '_flm_recursos.html' %}{% endif %}
                 {% block content %}{% endblock %}
             </main>
 
@@ -182,6 +187,7 @@
 
     </script>
     <script src="{{ url_for('static', filename='js/api-response.js') }}?v=2"></script>
+    <script src="{{ url_for('static', filename='js/catalogos-autocomplete.js') }}?v=1"></script>
     {% block scripts %}{% endblock %}
 
     <!-- Bottom Nav Bar para móvil: se construye a partir del sidebar existente -->

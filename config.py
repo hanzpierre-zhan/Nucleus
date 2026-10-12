@@ -19,6 +19,8 @@ def _normalizar_db_url(url):
     if not url:
         return url
     u = url.strip()
+    if u.startswith('sqlite:'):
+        return u
     # Normalizar esquemas antiguos y forzar driver psycopg2
     if u.startswith('postgres://'):
         u = 'postgresql+psycopg2://' + u[len('postgres://'):]

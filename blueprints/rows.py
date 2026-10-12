@@ -23,9 +23,29 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
 from services import *
+from services.sustento import cambio_bloqueado
+from services.recursos_flm import contexto_recursos, validar_fila_catalogo, familia
 
 
 bp = Blueprint('rows', __name__)
+
+
+def _error_fechas_ejecucion(datos):
+    fechas = []
+    for campo in ('INICIO EJECUCION', 'FIN EJECUCION'):
+        valor = str(datos.get(campo) or '').strip()
+        try:
+            fechas.append(datetime.fromisoformat(valor) if valor else None)
+        except ValueError:
+            return 'La fecha de ejecución no es válida.'
+    if all(fechas):
+        try:
+            if fechas[1] < fechas[0]:
+                return 'El fin de ejecución no puede ser anterior al inicio.'
+        except TypeError:
+            return 'Las fechas deben utilizar el mismo formato horario.'
+    return None
+
 
 
 
@@ -44,10 +64,23 @@ def api_rows_update():
         key_val = data.get('key')
         field = data.get('field')
         value = data.get('value')
+        contexto = contexto_recursos()
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material') and field == 'PROYECTO' and familia(value) != contexto['familia']:
+            return jsonify({'error': 'El proyecto se asigna desde el FLM de origen.'}), 400
         if not all([key_val, field]): return jsonify({'error': 'Missing data'}), 400
         record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
         if not record: return jsonify({'error': 'Record not found'}), 404
         row_dict = json.loads(record.data_json)
+        if cambio_bloqueado(row_dict,{field:value}):
+            return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
+        if field in ('INICIO EJECUCION', 'FIN EJECUCION'):
+            error_fechas = _error_fechas_ejecucion({**row_dict, field: value})
+            if error_fechas: return jsonify({'error': error_fechas}), 400
+        contexto = contexto_recursos()
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
+            if not validar_fila_catalogo(row_dict):
+                return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
+
 
         # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
         _proy_upd = db.session.get(Proyecto, pid)
@@ -271,6 +304,8 @@ def api_rows_edit_key():
             return jsonify({'error': 'Registro no encontrado.'}), 404
             
         detalle_actual = json.loads(rec.data_json or '{}')
+        if contexto_recursos() and session.get('current_proyecto_nombre') in ('Dataper', 'Material') and not validar_fila_catalogo(detalle_actual):
+            return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
         proyecto_actual = db.session.get(Proyecto, pid)
         asignar_pendiente = bool(proyecto_actual and proyecto_actual.nombre in ('FLM - CLARO', 'FLM - INTEGRATEL') and detalle_actual.get('_WO_PENDIENTE'))
         if session.get('rol') != 'zeno' and not (asignar_pendiente and session.get('rol') in ('suport', 'admin', 'supervisor', 'gestor')):
@@ -356,6 +391,9 @@ def api_rows_add():
         row_data = data.get('data') or {}
         if not isinstance(row_data, dict):
             row_data = {}
+        contexto = contexto_recursos()
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
+            row_data['PROYECTO'] = contexto['flm_nombre']
 
         # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
         proy_obj = db.session.get(Proyecto, pid)
@@ -610,6 +648,11 @@ def api_rows_delete():
                         f"{_info.get('saldo', 0):g} galones. "
                         'Elimine primero los GASTOS posteriores que dependen de él.')}), 400
 
+        contexto = contexto_recursos()
+        if contexto and proy_nombre in ('Dataper', 'Material'):
+            for registro in NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).all():
+                if not validar_fila_catalogo(json.loads(registro.data_json or '{}')):
+                    return jsonify({'error': 'No se pueden eliminar registros de otro FLM.'}), 403
         # Delete records
         NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).delete(synchronize_session=False)
         db.session.commit()
@@ -630,11 +673,24 @@ def api_rows_bulk_update():
         data = request.json
         key_val = data.get('key')
         updates = data.get('data')
+        contexto = contexto_recursos()
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material') and isinstance(updates, dict) and 'PROYECTO' in updates and familia(updates['PROYECTO']) != contexto['familia']:
+            return jsonify({'error': 'El proyecto se asigna desde el FLM de origen.'}), 400
         if not key_val or not isinstance(updates, dict):
             return jsonify({'error': 'Datos incompletos'}), 400
         record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
         if not record: return jsonify({'error': 'Registro no encontrado'}), 404
         row_dict = json.loads(record.data_json)
+        if cambio_bloqueado(row_dict,updates):
+            return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
+        if any(campo in updates for campo in ('INICIO EJECUCION', 'FIN EJECUCION')):
+            error_fechas = _error_fechas_ejecucion({**row_dict, **updates})
+            if error_fechas: return jsonify({'error': error_fechas}), 400
+        contexto = contexto_recursos()
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
+            if not validar_fila_catalogo(row_dict):
+                return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
+
         old_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
 
         # Combustible: la edición masiva tampoco puede dejar saldos negativos.
@@ -816,6 +872,11 @@ def api_rows_finalizar():
             return jsonify({'error': 'Registro no encontrado.'}), 404
 
         row_dict = json.loads(record.data_json)
+        contexto = contexto_recursos()
+        if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
+            if not validar_fila_catalogo(row_dict):
+                return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
+
         nuevo_estado = '1' if finalizado else '0'
         estado_anterior = str(row_dict.get('_FINALIZADO', '0')).strip()
 

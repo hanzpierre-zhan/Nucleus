@@ -960,3 +960,25 @@ def api_admin_cotizacion_lista():
         })
 
     return jsonify({'registros': resultado, 'total': len(resultado)})
+
+
+# Infraestructura: panel compacto, restringido a administración.
+@bp.route('/salud')
+@login_required
+def salud_panel():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return redirect(url_for('pages.index'))
+    from services.utilidades import get_menu_proyectos
+    return render_template('resources.html', proyectos_list=get_menu_proyectos(
+        session.get('user_id'), session.get('rol')))
+
+
+@bp.route('/api/salud')
+@login_required
+def api_salud():
+    if session.get('rol') not in ('zeno', 'suport'):
+        return jsonify({'error': 'No autorizado'}), 403
+    from services.resources import snapshot
+    response = jsonify(snapshot())
+    response.headers['Cache-Control'] = 'no-store'
+    return response

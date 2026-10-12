@@ -300,6 +300,13 @@ def onedrive_eliminar(key, tipo, indice):
 
 def _evidencia_aprobacion_bloquea(pid, key):
     """El rol Contrata no puede subir/quitar evidencia en WOs (PEXT/FLM) ya enviados a aprobación."""
+    from services.sustento import bloqueado, registro_evidencia
+    registro=registro_evidencia(pid,str(key or ''))
+    if registro and bloqueado(json.loads(registro.data_json or '{}')):
+        return True
+    if registro and hasattr(registro,'cot') and bloqueado(json.loads(registro.cot.data_json or '{}')):
+        return True
+
     if str(session.get('rol') or '').strip().lower() != 'contrata':
         return False
     proy = db.session.get(Proyecto, pid) if pid else None

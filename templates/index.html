@@ -10,7 +10,7 @@
 
 {% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
 
-<div class="topbar-row topbar-row-compact{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}{% if proy_nombre_flow == 'cotizaciones' %} topbar-row-coti{% endif %}"
+<div class="topbar-row topbar-row-compact{% if flm_resource_context or session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'] %} topbar-row-flm-resources{% endif %}{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}{% if proy_nombre_flow == 'cotizaciones' %} topbar-row-coti{% endif %}"
 
     style="display: flex; align-items: center; gap: 8px; padding: 4px 14px; min-height: 40px;">
 
@@ -508,6 +508,7 @@
 
     {% endif %}
 
+    {% with flm_inline=true %}{% include '_flm_recursos.html' %}{% endwith %}
     {% if proy_nombre != 'cotizaciones' %}
     <div class="col-visibility-wrap" id="module-settings-wrap">
         <button type="button" class="action-pill pill-neutral" id="btn-module-settings" aria-expanded="false" onclick="moduleSettingsToggle()"><i class="fa-solid fa-gear"></i> Configuración</button>
@@ -528,6 +529,8 @@
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 
 
+
+{% if proy_nombre_flow == 'rendicion' %}{% include '_rendicion_formularios.html' %}{% endif %}
 
 <style>
 
@@ -588,7 +591,15 @@
     .topbar-row-compact #col-wrap > .action-pill,
     .topbar-row-compact #order-wrap > .action-pill { display: none !important; }
     .topbar-row-compact #module-settings-wrap { margin-left: auto; }
+    .cot-wo-sustento-tabs {display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--ios-hairline);}
+    .cot-wo-sustento-tabs button[aria-pressed="true"] {background:var(--ios-accent);color:white;}
     #module-settings-menu { width: 260px; padding: 8px; }
+    .topbar-row-flm-resources .coti-new-record { margin-left: auto; }
+    .topbar-row-flm-resources .flm-resource-menu { margin-left: 0; flex-shrink: 0; }
+    .topbar-row-flm-resources #module-settings-wrap { margin-left: 0; flex-shrink: 0; }
+    .topbar-row-flm-resources .flm-resource-current { white-space: nowrap; flex-shrink: 0; }
+    .topbar-row-flm-resources .flm-resource-menu summary { height: 32px; box-sizing: border-box; }
+
     #module-settings-actions { display: flex; flex-direction: column; gap: 3px; }
     #module-settings-actions > .action-pill,
     #module-settings-actions > #rend-avisos-wrap > .action-pill {
@@ -6107,15 +6118,20 @@
 
                     <button type="button" class="wo-tab" id="wo-tab-gastos" onclick="cambiarWoTab('gastos')"><i
 
-                            class="fa-solid fa-gas-pump"></i> Gastos</button>
+                            class="fa-solid fa-gas-pump"></i> Combustible</button>
 
                     <button type="button" class="wo-tab" id="wo-tab-cotizacion" onclick="cambiarWoTab('cotizacion')"><i
 
                             class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
 
+                    {% if proy_nombre in ['flm - entel', 'flm - integratel', 'flm - claro'] %}
+                    <button type="button" class="wo-tab" id="wo-tab-rendicion" onclick="cambiarWoTab('rendicion')"><i class="fa-solid fa-wallet"></i> Rendición</button>
+                    {% else %}
                     <button type="button" class="wo-tab" id="wo-tab-resguardo" onclick="cambiarWoTab('resguardo')"><i
 
                             class="fa-solid fa-shield-halved"></i> Resguardo</button>
+
+                    {% endif %}
 
                     <button type="button" class="wo-tab" id="wo-tab-evidencia" onclick="cambiarWoTab('evidencia')"><i
 
@@ -6129,7 +6145,7 @@
 
                         onclick="cambiarWoTab('bitacora')"><i class="fa-solid fa-book"></i> Bitácora</button>
 
-                    {% if session.get('rol') in ('zeno', 'suport') %}
+                    {% if session.get('rol') in ('zeno', 'suport') and proy_nombre not in ['flm - entel', 'flm - integratel', 'flm - claro'] %}
 
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i
 
@@ -6672,6 +6688,10 @@
 
             </div>
 
+            <div id="wo-panel-rendicion" style="display:none;">
+                <div class="wo-section-title"><i class="fa-solid fa-wallet"></i> Rendiciones vinculadas a este WO</div>
+                <div id="wo-rendicion-lista" role="status" style="padding:16px;overflow-x:auto;"></div>
+            </div>
             <div id="wo-panel-cotizacion" style="display:none;">
 
                 <!-- Selector de cotizaciones (oculto: el listado de asociadas se muestra en la tabla de abajo) -->
@@ -7152,7 +7172,6 @@
 
                     <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Evidencia fotográfica
 
-                        <button type="button" id="btn-evidencia-zip" class="wo-zip-btn" onclick="descargarEvidenciaZip()" title="Descargar todas las fotos en ZIP"><i class="fa-solid fa-file-zipper"></i> Descargar ZIP</button>
 
                         <button type="button" id="btn-evidencia-xlsx" class="wo-zip-btn" onclick="descargarReporteFotografico()" title="Descargar el reporte fotográfico en Excel con las fotos en su sitio" style="display:none;"><i class="fa-solid fa-file-excel"></i> Descargar Excel</button>
 
@@ -11185,6 +11204,9 @@ let _rendCambiandoVista = false;
 
 
 
+        if (window.nucleusTipoCatalogo(fieldName) && colDef.editor !== false) {
+            colDef.editor = window.nucleusCatalogEditor;
+        }
         restColumns.push(colDef);
 
     });
@@ -11782,14 +11804,13 @@ let _rendCambiandoVista = false;
                        'Sustentar - Subir fotos y pasar a Atendido',
                        () => cotAbrirModalSustento(key));
                 } else if (pest === 'atendido') {
-                    mk('cot-btn-sus-atendido', '<i class="fa-solid fa-camera"></i>',
-                       'Sustentar - Modificar evidencias',
-                       () => cotAbrirModalSustento(key));
-                    const chk = document.createElement('span');
-                    chk.className = 'cot-btn cot-btn-done';
-                    chk.title = 'Atendido — flujo completado';
-                    chk.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-                    wrap.appendChild(chk);
+                    mk('cot-btn-sus-atendido','<i class="fa-solid fa-camera"></i>','Ver sustento por WO',()=>cotAbrirModalSustento(key));
+                    if(String(row['_SUSTENTO_APROBADO']||'')==='1'){
+                        const done=document.createElement('span');done.className='cot-btn cot-btn-done';done.textContent='Aprobado';wrap.appendChild(done);
+                    }else{
+                        mk('cot-btn-ok','<i class="fa-solid fa-check"></i>','Aprobar y bloquear el sustento',()=>cotRevisarSustento(key,true));
+                        mk('cot-btn-cancel','<i class="fa-solid fa-xmark"></i>','Rechazar y devolver a Sustentar',()=>cotRevisarSustento(key,false));
+                    }
                 } else if (pest === 'cancelado') {
 
                     const chk = document.createElement('span');
@@ -18726,6 +18747,7 @@ btnItem.onclick = () => cotRegAgregarFila();
     let woMateriales = [];
 
     let woEditable = true;
+    let woSustentoBloqueado = false;
 
     let serviciosEditorOpen = false;
 
@@ -19334,7 +19356,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (!grid || !evidenciaState || !evidenciaState.reporte) return;
 
-        const editable = woEditable;
+        const editable = woEditable && !woSustentoBloqueado;
 
         const st = evidenciaState.reporte;
 
@@ -19698,7 +19720,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const st = evidenciaState[tipo];
 
-        const editable = woEditable;
+        const editable = woEditable && !woSustentoBloqueado;
 
         cont.innerHTML = '';
 
@@ -20471,6 +20493,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         const fd = new FormData();
 
         fd.append('key', woKey);
+        const cotCtx=_cotSustentoContext;
+        if(cotCtx){cotCtx.uploads++;fd.append('proyecto_id',String(cotCtx.lista[cotCtx.index].proyecto_id));fd.append('cotizacion_key',cotCtx.key);}
 
         fd.append('tipo', tipo);
 
@@ -20501,6 +20525,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             .catch(() => alert('Error de red al subir la foto.'))
 
             .finally(() => {
+                if(cotCtx)cotCtx.uploads--;
 
                 if (tipo === 'pex') renderEvidenciaReporte();
 
@@ -20520,13 +20545,14 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (!evidenciaState || !st) return;
 
+        const cotCtx=_cotSustentoContext;if(cotCtx)cotCtx.uploads++;
         fetch('/api/evidencia/eliminar', {
 
             method: 'POST',
 
             headers: { 'Content-Type': 'application/json' },
 
-            body: JSON.stringify({ key: woKey, tipo: tipo, indice: indice })
+            body: JSON.stringify({ key: woKey, tipo: tipo, indice: indice, proyecto_id:_cotSustentoContext?.lista[_cotSustentoContext.index].proyecto_id||currentProjectId,cotizacion_key:_cotSustentoContext?.key||'' })
 
         })
 
@@ -20549,6 +20575,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             .catch(() => alert('Error de red al eliminar la foto.'))
 
             .finally(() => {
+                if(cotCtx)cotCtx.uploads--;
 
                 if (tipo === 'pex') renderEvidenciaReporte();
 
@@ -21958,9 +21985,12 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         let allowed = null;
 
-        if (nk === normDetalle('NOMBRE DE SITE')) allowed = detalleOpciones.nombres;
+        if (nk === normDetalle('NOMBRE DE SITE')) {
+            inp.style.borderColor = 'rgba(var(--ios-blue-rgb,0,122,255),0.35)';
+            return true; // El maestro sugiere; un site nuevo también es válido.
+        }
 
-        else if (nk === normDetalle('DEPARTAMENTO')) allowed = detalleOpciones.departamentos;
+        else if (nk === normDetalle('DEPARTAMENTO')) allowed = window.nucleusDepartamentos || detalleOpciones.departamentos;
 
         else if (nk === normDetalle('PRIORIDAD DEL SITE')) allowed = detalleOpciones.prioridades;
 
@@ -22351,6 +22381,18 @@ btnItem.onclick = () => cotRegAgregarFila();
         renderWoSummary(data);
 
         hacerDetalleEditable(data);
+        let ejecucion = document.getElementById('wo-ejecucion-fechas');
+        if (!ejecucion) {
+            ejecucion = document.createElement('div'); ejecucion.id = 'wo-ejecucion-fechas';
+            ejecucion.className = 'wo-form';
+            ejecucion.style.cssText = 'grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 0;';
+            ejecucion.innerHTML = '<div class="wo-field"><label for="wo-inicio-ejecucion">Inicio de ejecución</label><input type="datetime-local" id="wo-inicio-ejecucion"></div><div class="wo-field"><label for="wo-fin-ejecucion">Fin de ejecución</label><input type="datetime-local" id="wo-fin-ejecucion"></div>';
+            document.getElementById('evidencia-inicio-proceso-cierre').insertAdjacentElement('beforebegin', ejecucion);
+        }
+        ejecucion.style.display = ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'].includes(currentProjectNombre.trim()) ? 'grid' : 'none';
+        document.getElementById('wo-inicio-ejecucion').value = toDatetimeLocal(data['INICIO EJECUCION']);
+        document.getElementById('wo-fin-ejecucion').value = toDatetimeLocal(data['FIN EJECUCION']);
+
 
 
 
@@ -22599,6 +22641,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (fBitG) fBitG.style.display = woEsContrata ? 'none' : '';
 
         woEditable = editable;
+        woSustentoBloqueado = Boolean(data['_SUSTENTO_APROBADO_COT']) || String(data['_SUSTENTO_APROBADO']||'')==='1';
 
         renderWoGastosList(data);
 
@@ -22608,13 +22651,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (typeof renderResguardo === 'function') renderResguardo();
 
-        document.querySelectorAll('#wo-panel-detalle input, #wo-panel-detalle select, #wo-panel-detalle textarea').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-panel-detalle input, #wo-panel-detalle select, #wo-panel-detalle textarea').forEach(el => { el.disabled = !woEditable; });
 
-        document.querySelectorAll('#wo-coti-nota').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-coti-nota').forEach(el => { el.disabled = !woEditable; });
 
-        document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !woEditable; });
 
-        document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-panel-evidencia textarea, #wo-panel-evidencia input[type="datetime-local"]').forEach(el => { el.disabled = !woEditable || woSustentoBloqueado; });
 
         document.getElementById('btn-wo-save').style.display = editable ? '' : 'none';
 
@@ -22634,7 +22677,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (btnAgMat) btnAgMat.style.display = editable ? '' : 'none';
 
-        document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !editable; });
+        document.querySelectorAll('#wo-coti-margen').forEach(el => { el.disabled = !woEditable; });
 
 
 
@@ -22870,7 +22913,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             // --- DIAGNÓSTICO: si técnicos vienen vacíos, reintentar ---
 
-            if (woTecnicos.length === 0 && intento < MAX_REINTENTOS) {
+            if (!Array.isArray(res.tecnicos) && intento < MAX_REINTENTOS) {
 
                 console.warn(`[WO-META] Técnicos vacíos (intento ${intento}/${MAX_REINTENTOS}), reintentando en ${intento * 800}ms...`);
 
@@ -22886,7 +22929,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-            if (woTecnicos.length === 0) {
+            if (!Array.isArray(res.tecnicos)) {
 
                 console.error('[WO-META] No se pudieron cargar técnicos después de', MAX_REINTENTOS, 'intentos. Verifica Dataper.');
 
@@ -24857,6 +24900,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
     function guardarWoModal() {
+        if (_cotSustentoContext && IS_COTIZACIONES) {cotGuardarSustentoSeleccionado(false).then(()=>nucleusAlert('Sustento del WO guardado.')).catch(error=>nucleusAlert(error.message));return;}
 
         if (!woKey) return;
 
@@ -24887,6 +24931,14 @@ btnItem.onclick = () => cotRegAgregarFila();
             }
 
         };
+
+        if (['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'].includes(currentProjectNombre.trim())) {
+            const inicio = document.getElementById('wo-inicio-ejecucion').value;
+            const fin = document.getElementById('wo-fin-ejecucion').value;
+            if (inicio && fin && fin < inicio) { nucleusAlert('El fin de ejecución no puede ser anterior al inicio.'); return; }
+            payload.data['INICIO EJECUCION'] = fromDatetimeLocal(inicio);
+            payload.data['FIN EJECUCION'] = fromDatetimeLocal(fin);
+        }
 
         if (IS_FLM) {
 
@@ -25236,9 +25288,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         });
 
-        document.querySelectorAll('#wo-panel-evidencia textarea').forEach(el => {
+        document.querySelectorAll('#wo-panel-evidencia textarea, #wo-panel-evidencia input[type="datetime-local"]').forEach(el => {
 
-            el.disabled = bloqueado || !woEditable;
+            el.disabled = bloqueado || !woEditable || woSustentoBloqueado;
 
         });
 
@@ -25798,6 +25850,20 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
+    async function cargarRendicionesWo() {
+        const key = woKey;
+        const lista = document.getElementById('wo-rendicion-lista');
+        lista.textContent = 'Cargando rendiciones…';
+        try {
+            const respuesta = await fetch('/api/rendicion/por_wo?key=' + encodeURIComponent(key) + '&proyecto_id=' + currentProjectId);
+            const data = await nucleusLeerRespuestaJSON(respuesta);
+            if (woKey !== key) return;
+            if (!respuesta.ok) throw new Error(data.error || 'No se pudieron cargar las rendiciones.');
+            if (!data.lista.length) { lista.textContent = 'Este WO todavía no tiene solicitudes de rendición vinculadas.'; return; }
+            lista.innerHTML = '<table style="width:100%;border-collapse:collapse;"><thead><tr>' + ['Código / solicitud','Estado','Técnico','Motivo','Monto (S/)','Fecha'].map(t => '<th style="text-align:left;padding:10px;border-bottom:1px solid var(--ios-hairline);">' + t + '</th>').join('') + '</tr></thead><tbody>' + data.lista.map(r => '<tr>' + [r.codigo,r.estado,r.tecnico,r.motivo,r.monto,r.fecha].map(v => '<td style="padding:10px;border-bottom:1px solid var(--ios-hairline);">' + escapeHtml(String(v || '—')) + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+        } catch (error) { if (woKey === key) lista.textContent = error.message; }
+    }
+
     function cambiarWoTab(tab) {
 
         // Estado: solo administradores (zeno/suport); el rol 'admin' ya no existe
@@ -25816,7 +25882,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (tabMat) tabMat.classList.toggle('active', tab === 'materiales');
 
-        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-resguardo', 'wo-tab-evidencia', 'wo-tab-autin', 'wo-tab-estado', 'wo-tab-bitacora'].forEach(tid => {
+        ['wo-tab-gastos', 'wo-tab-cotizacion', 'wo-tab-rendicion', 'wo-tab-resguardo', 'wo-tab-evidencia', 'wo-tab-autin', 'wo-tab-estado', 'wo-tab-bitacora'].forEach(tid => {
 
             const _t = document.getElementById(tid);
 
@@ -25833,6 +25899,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         document.getElementById('wo-panel-gastos').style.display = tab === 'gastos' ? '' : 'none';
 
         document.getElementById('wo-panel-cotizacion').style.display = tab === 'cotizacion' ? '' : 'none';
+        document.getElementById('wo-panel-rendicion').style.display = tab === 'rendicion' ? '' : 'none';
 
         document.getElementById('wo-panel-resguardo').style.display = tab === 'resguardo' ? '' : 'none';
 
@@ -25846,7 +25913,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         document.getElementById('wo-panel-estado').style.display = tab === 'estado' ? '' : 'none';
 
-        if (tab === 'gastos') {
+        if (tab === 'rendicion') {
+            cargarRendicionesWo();
+        } else if (tab === 'gastos') {
 
             cargarGastosCombustible();
 
@@ -26073,6 +26142,8 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
     function cerrarWoModal() {
+        _cotSustentoContext = null;
+        document.getElementById('cot-sustento-wo-tabs')?.remove();
 
         document.getElementById('modal-wo').style.display = 'none';
 
@@ -27779,6 +27850,14 @@ btnItem.onclick = () => cotRegAgregarFila();
           <section class="cot-form-section" aria-labelledby="cot-client-heading">
             <h4 id="cot-client-heading"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> Aprobación del cliente</h4>
             <div class="cot-form-field">
+              <label for="cot-tipo-gasto-aprobacion">Tipo de gasto <span class="cot-required">*</span></label>
+              <select id="cot-tipo-gasto-aprobacion" required>
+                <option value="">Seleccione tipo de gasto</option>
+                <option value="Caja chica">Caja chica</option>
+                <option value="Proveedor">Proveedor</option>
+              </select>
+            </div>
+            <div class="cot-form-field">
               <label for="cot-fecha-aprob">Fecha y hora de aprobación <span class="cot-required">*</span></label>
               <input type="datetime-local" id="cot-fecha-aprob">
             </div>
@@ -28965,8 +29044,8 @@ function rendValidar(key) {
     const campoGasto = Object.keys(row).find(campo => ['tipodegasto', 'tipogasto'].includes(normalizarPresupuesto(campo)));
     const gastos = String(row[campoGasto] || '').split(/[,;/|+\n]+/).map(normalizarPresupuesto);
     const exentosCorreo = new Set(['viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes']);
-    const soloViaticos = gastos.length > 0 && gastos.every(gasto => ['viatico', 'viaticos'].includes(gasto));
-    const refacturable = !soloViaticos && (presupuesto === 'refacturable' || (presupuesto === 'gastocobra' && gastos.some(gasto => !exentosCorreo.has(gasto))));
+    const soloExentos = gastos.length > 0 && gastos.every(gasto => exentosCorreo.has(gasto));
+    const refacturable = !soloExentos && (presupuesto === 'refacturable' || (presupuesto === 'gastocobra' && gastos.some(gasto => !exentosCorreo.has(gasto))));
     _rendModal.refacturable = refacturable;
     _rendModal.correo = row['ADJUNTO CORREO VALIDACION'] || '';
     document.getElementById('rend-val-correo-wrap').hidden = !refacturable;
@@ -29470,7 +29549,7 @@ function rendCerrarFotos() { document.getElementById('rend-fotos').style.display
 
 // Al abrir el módulo, arranca en la hoja Validación con el filtro aplicado.
 
-if (IS_RENDICION && document.getElementById('rend-tabs')) {
+if ((IS_RENDICION || IS_COTIZACIONES) && document.getElementById('btn-rend-avisos')) {
 
     /* ── Avisos del flujo (campanita): quién validó / depositó / rechazó ── */
 
@@ -30496,102 +30575,67 @@ function cotCambiarVista(vista) {
 }
 
 // Llamada al backend para abrir interfaz de evidencia del WO
-function cotAbrirModalSustento(key) {
-    const data = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key);
-    if (!data) return;
-    
-    // Usar el backend que lee los WOs y formatea para la evidencia
-    fetch('/api/cotizacion/sustento?key=' + encodeURIComponent(key), {
-        method: 'GET'
-    }).then(r => r.json()).then(res => {
-        if (!res.success) { nucleusAlert(res.error || 'Error'); return; }
-        
-        let wo_data = res.cotizacion_data || { _key: key }; 
-        wo_data._key = key; // Force the key to be Cotizacion key so that uploads go to Cotizacion
-        
-        if (res.wos && res.wos.length > 0 && res.wos[0].encontrado) {
-            // Merge photos from FLM row into wo_data for display!
-            ['INICIO', 'PROCESO', 'CIERRE'].forEach(t => {
-                let f_coti = [], f_wo = [];
-                try { f_coti = JSON.parse(wo_data['_EVIDENCIA_' + t] || '[]'); } catch(e){}
-                try { f_wo = JSON.parse(res.wos[0].wo_data['_EVIDENCIA_' + t] || '[]'); } catch(e){}
-                if(!Array.isArray(f_coti)) f_coti = [f_coti];
-                if(!Array.isArray(f_wo)) f_wo = [f_wo];
-                wo_data['_EVIDENCIA_' + t] = JSON.stringify([...new Set([...f_coti, ...f_wo])]);
-            });
-            // Preferimos usar las bitácoras del WO si existen y la cotización no tiene
-            ['INICIO', 'PROCESO', 'CIERRE'].forEach(t => {
-                if (!wo_data['_BITACORA_' + t] && res.wos[0].wo_data['_BITACORA_' + t]) {
-                    wo_data['_BITACORA_' + t] = res.wos[0].wo_data['_BITACORA_' + t];
-                }
-            });
-        }
-        
-        // Simular que abrimos el WO detail panel
-        abrirWoModal({ getData: () => wo_data, getElement: () => null });
-        
-        // Esconder todos los tabs excepto Evidencia
-        document.querySelectorAll('.wo-tab').forEach(t => t.style.display = 'none');
-        const tabEv = document.getElementById('wo-tab-evidencia');
-        if (tabEv) {
-            tabEv.style.display = '';
-            tabEv.click(); // Forzar cambio al tab de Evidencia
-        }
-        
-        let fechasObra = document.getElementById('cot-fechas-obra');
-        if (!fechasObra) {
-            fechasObra = document.createElement('div');
-            fechasObra.id = 'cot-fechas-obra';
-            fechasObra.className = 'cot-provider-fields';
-            fechasObra.innerHTML = '<div class="cot-form-field"><label for="cot-obra-inicio">Fecha de inicio de la obra</label><input type="date" id="cot-obra-inicio"></div><div class="cot-form-field"><label for="cot-obra-fin">Fecha de fin de la obra</label><input type="date" id="cot-obra-fin"></div>';
-            document.getElementById('evidencia-inicio-proceso-cierre').appendChild(fechasObra);
-        }
-        document.getElementById('cot-obra-inicio').value = wo_data['FECHA INICIO OBRA'] || '';
-        document.getElementById('cot-obra-fin').value = wo_data['FECHA FIN OBRA'] || '';
-        // Agregar el botón "Validar sustento" al final
+let _cotSustentoContext = null;
+async function cotAbrirModalSustento(key) {
+    try {
+        const r=await fetch('/api/cotizacion/sustento?key='+encodeURIComponent(key));
+        const res=await nucleusLeerRespuestaJSON(r);if(!r.ok||!res.success)throw new Error(res.error||'No se pudo abrir el sustento.');
+        const lista=res.wos.length ? res.wos : [{wo:'',encontrado:true,proyecto_id:currentProjectId,wo_data:res.cotizacion_data,bloqueado:res.sustento_aprobado}];
+        if(res.wos.length>1 && ['INICIO','PROCESO','CIERRE'].some(t=>parseEvidenciaArr(res.cotizacion_data['_EVIDENCIA_'+t]).some(Boolean))) lista.push({wo:'Sustento anterior (sin WO asignado)',encontrado:true,proyecto_id:currentProjectId,wo_data:{...res.cotizacion_data,_key:key},bloqueado:true,legacy:true});
+        const index=lista.findIndex(w=>w.encontrado);if(index<0)throw new Error('Primero registra los WOs en el FLM correspondiente.');
+        _cotSustentoContext={key,lista,index:null,aprobado:res.sustento_aprobado,uploads:0};
+        await cotSeleccionarSustentoWo(index,false);
+    }catch(error){nucleusAlert(error.message);}
+}
+async function cotSeleccionarSustentoWo(index,guardar=true) {
+    const ctx=_cotSustentoContext;if(!ctx)return;
+    if(ctx.uploads){nucleusAlert('Espera a que termine la carga de fotos.');return;}
+    try {
+        if(guardar && ctx.index!==null)await cotGuardarSustentoSeleccionado(false);
+        const elegido=ctx.lista[index];if(!elegido.encontrado)return;
+        ctx.index=index;
+        const data={...elegido.wo_data,_key:elegido.wo_data._key||elegido.wo||ctx.key};
+        abrirWoModal({getData:()=>data,getElement:()=>null});
+        document.querySelectorAll('.wo-tab').forEach(t=>t.style.display='none');
+        document.getElementById('wo-tab-evidencia').style.display='';
+        woEditable=cotPuedeGestionar()&&!ctx.aprobado&&!elegido.bloqueado;
+        document.getElementById('wo-ejecucion-fechas').style.display='grid';
+        document.querySelectorAll('#wo-panel-evidencia textarea, #wo-panel-evidencia input[type="datetime-local"]').forEach(input=>input.disabled=!woEditable);
+        document.getElementById('btn-wo-save').style.display=woEditable?'':'none';
+        cambiarWoTab('evidencia');
+        document.getElementById('cot-sustento-wo-tabs')?.remove();
+        const tabs=document.createElement('div');tabs.id='cot-sustento-wo-tabs';tabs.className='cot-wo-sustento-tabs';tabs.setAttribute('aria-label','Sustento por WO');
+        ctx.lista.forEach((w,i)=>{
+            const b=document.createElement('button');b.type='button';b.className='action-pill'+(i===index?' pill-blue':'');
+            b.textContent=w.wo||'Sustento sin WO';b.disabled=!w.encontrado;b.setAttribute('aria-pressed',String(i===index));
+            b.title=w.encontrado?'Ver evidencia de este WO':'WO pendiente de registro en FLM';b.onclick=()=>cotSeleccionarSustentoWo(i);tabs.appendChild(b);
+        });
+        document.getElementById('wo-panel-evidencia').prepend(tabs);
         document.getElementById('cot-btn-guardar-sustento')?.remove();
-        let btn = null;
-        if (!btn) {
-            btn = document.createElement('button');
-            btn.id = 'cot-btn-guardar-sustento';
-            btn.className = 'mar-btn-primary';
-            btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Validar sustento';
-            btn.style.marginTop = '15px';
-            btn.style.width = '100%';
-            btn.onclick = () => {
-                const bit = {
-                    inicio: document.getElementById('evidencia-bitacora-inicio').value,
-                    proceso: document.getElementById('evidencia-bitacora-proceso').value,
-                    cierre: document.getElementById('evidencia-bitacora-cierre').value
-                };
-                btn.disabled = true;
-                btn.textContent = 'Guardando...';
-                fetch('/api/cotizacion/sustento/guardar', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key: key, bitacoras: bit, fecha_inicio: document.getElementById('cot-obra-inicio').value, fecha_fin: document.getElementById('cot-obra-fin').value })
-                }).then(r => r.json()).then(resGuardar => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Validar sustento';
-                    if (resGuardar.error) {
-                        nucleusAlert(resGuardar.error);
-                    } else {
-                        document.getElementById('modal-wo').style.display = 'none';
-                        if (typeof cargarListaCotizaciones === 'function') cargarListaCotizaciones();
-                        nucleusAlert('Sustento guardado y Cotización marcada como Atendida.');
-                    }
-                }).catch(e => {
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Validar sustento';
-                    nucleusAlert('Error de conexión');
-                });
-            };
-            const container = document.getElementById('evidencia-inicio-proceso-cierre');
-            if (container) container.appendChild(btn);
+        if(!ctx.aprobado && !elegido.legacy && cotPuedeGestionar()){
+            const button=document.createElement('button');button.id='cot-btn-guardar-sustento';button.className='mar-btn-primary';button.textContent='Validar sustento';button.style.cssText='margin-top:16px;width:100%;';
+            button.onclick=async()=>{button.disabled=true;try{await cotGuardarSustentoSeleccionado(true);cerrarWoModal();}catch(error){nucleusAlert(error.message);}finally{button.disabled=false;}};
+            document.getElementById('evidencia-inicio-proceso-cierre').appendChild(button);
         }
-    }).catch(e => {
-        nucleusAlert('Error de conexión');
-    });
+    }catch(error){nucleusAlert(error.message);}
+}
+async function cotGuardarSustentoSeleccionado(finalizar) {
+    const ctx=_cotSustentoContext;if(!ctx||ctx.index===null)return;
+    if(ctx.uploads)throw new Error('Espera a que termine la carga de fotos.');
+    const entry=ctx.lista[ctx.index];
+    if((ctx.aprobado||entry.bloqueado)&&!finalizar)return;
+    const evidencia={};
+    ['inicio','proceso','cierre'].forEach(fase=>{evidencia['_EVIDENCIA_'+fase.toUpperCase()]=JSON.stringify(evidenciaState?.[fase]?.fotos||[]);evidencia['_BITACORA_'+fase.toUpperCase()]=document.getElementById('evidencia-bitacora-'+fase).value;});
+    evidencia['INICIO EJECUCION']=fromDatetimeLocal(document.getElementById('wo-inicio-ejecucion').value);
+    evidencia['FIN EJECUCION']=fromDatetimeLocal(document.getElementById('wo-fin-ejecucion').value);
+    const r=await fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia})});
+    const j=await nucleusLeerRespuestaJSON(r);if(!r.ok||!j.success)throw new Error(j.error||'No se pudo guardar.');
+    entry.wo_data={...j.wo_data,_key:woKey};cotTrasAccion(j,ctx.key);return j;
+}
+async function cotRevisarSustento(key,aprobar) {
+    if(aprobar){if(!await nucleusConfirm('¿Aprobar el sustento? Sus evidencias quedarán bloqueadas para edición.'))return;}
+    let motivo='';if(!aprobar){motivo=prompt('Motivo del rechazo del sustento:');if(motivo===null)return;}
+    const j=await cotAccionKey(key,aprobar?'aprobar_sustento':'rechazar_sustento',{motivo});if(j)cotTrasAccion(j,key);
 }
 
 // Llamada al backend y refresco de la fila.
@@ -30721,6 +30765,7 @@ function cotAbrirModal(key, pestania, accionDef) {
     document.getElementById('cot-proveedor-archivo').value = '';
     cotMostrarProveedorAdjunto();
     _cotAdjuntoUrl = String(row['ADJUNTO CORREO CLIENTE'] || '').trim();
+    document.getElementById('cot-tipo-gasto-aprobacion').value = row['TIPO GASTO APROBACION'] || '';
     cotResumen(row);
 
     // Mostrar / ocultar boton Aprobado segun pestana origen
@@ -30952,8 +30997,11 @@ function cotConfirmarModal() {
     if (_cotAccionActual === 'aprobado') {
         const dt = document.getElementById('cot-fecha-aprob');
         const cm = document.getElementById('cot-comentario');
+        const tipoGasto = document.getElementById('cot-tipo-gasto-aprobacion').value;
+        if (!tipoGasto) { nucleusAlert('Selecciona Caja chica o Proveedor.'); restore(); return; }
         if (!dt || !dt.value) { nucleusAlert('La fecha y hora de aprobacion es obligatoria.'); restore(); return; }
         const extra = {
+            tipo_gasto_aprobacion: tipoGasto,
             fecha_aprobacion: dt.value.replace('T', ' '),
             comentario: cm ? cm.value.trim() : '',
             nombre_proveedor: document.getElementById('cot-nombre-proveedor').value.trim(),

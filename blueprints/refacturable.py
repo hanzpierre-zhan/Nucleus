@@ -28,6 +28,9 @@ def _ingresada(datos):
 
 def _documentos(datos, obras):
     from blueprints.cotizacion import _split_wos, _leer_evidencia_wo
+    wos=_split_wos(datos.get('NUMERO WO'))
+    if wos and any(json.loads(obras[w.lower()][1].data_json or '{}').get('_COT_EVIDENCIA_MIGRADA') for w in wos if w.lower() in obras):
+        datos={c:v for c,v in datos.items() if not c.startswith(('_EVIDENCIA_','_BITACORA_'))}
     fotos = {fase: [] for fase in ('inicio', 'proceso', 'cierre')}
     comentarios = {fase: str(datos.get('_BITACORA_' + fase.upper()) or '') for fase in fotos}
     for fase in fotos:
@@ -87,10 +90,17 @@ def _registros():
         if not _ingresada(datos):
             continue
         seguimiento = detalles.get(registro.id, {})
+        from blueprints.cotizacion import _split_wos,_resolver_sustento_cot
+        obras_registro=dict(obras)
+        for wo in _split_wos(datos.get('NUMERO WO')):
+            obras_registro[wo.lower()]=_resolver_sustento_cot(registro,wo,datos)
+        trabajos=[json.loads(obras_registro[w.lower()][1].data_json or '{}') for w in _split_wos(datos.get('NUMERO WO'))]
+        inicios=[str(w.get('INICIO EJECUCION'))[:10] for w in trabajos if w.get('INICIO EJECUCION')]
+        finales=[str(w.get('FIN EJECUCION'))[:10] for w in trabajos if w.get('FIN EJECUCION')]
         monto_hw = _monto(datos.get('SUB TOTAL + FEE'))
         monto_cobra = _monto(seguimiento.get('monto_cobra'))
         margen = monto_cobra - monto_hw if monto_cobra is not None and monto_hw is not None else None
-        fotos, comentarios, nombre_proyecto, ejecucion = _documentos(datos, obras)
+        fotos, comentarios, nombre_proyecto, ejecucion = _documentos(datos, obras_registro)
         respaldo = {
             'sustento': any(fotos.values()) and (bool(datos.get('_SUSTENTO_VALIDADO')) or str(datos.get('ESTADO COTIZACION') or '').lower() == 'atendido'),
             'factura': bool(_url_documento(datos.get('ADJUNTO FACTURA PROVEEDOR'))),
@@ -105,10 +115,11 @@ def _registros():
             'id': registro.id,
             'cotizacion': datos.get('N° COTIZACION') or registro.key_value,
             'estado_cotizacion': datos.get('ESTADO COTIZACION') or '',
+            'tipo_gasto': datos.get('TIPO GASTO APROBACION') or '',
             'gestor': datos.get('SOLICITADO POR') or datos.get('GESTOR') or '',
             'correlativo': registro.id,
-            'fecha_inicio': datos.get('FECHA INICIO OBRA') or '',
-            'fecha_fin': datos.get('FECHA FIN OBRA') or '',
+            'fecha_inicio': min(inicios) if inicios else (datos.get('FECHA INICIO OBRA') or ''),
+            'fecha_fin': max(finales) if finales else (datos.get('FECHA FIN OBRA') or ''),
             'estatus': ejecucion,
             'nombre_proyecto': nombre_proyecto,
             'factura_proveedor': _url_documento(datos.get('ADJUNTO FACTURA PROVEEDOR')),
