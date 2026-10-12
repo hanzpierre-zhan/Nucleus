@@ -180,6 +180,9 @@ def index():
     
     manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
     manual_cols_data = json.loads(manual_cfg.valor) if manual_cfg else []
+    from services.legacy_columns import retired
+    manual_cols_data=[c for c in manual_cols_data if not retired(c.get('nombre'))]
+    columns_set={c for c in columns_set if not retired(c)}
     for mc in manual_cols_data:
         columns_set.add(mc['nombre'])
 

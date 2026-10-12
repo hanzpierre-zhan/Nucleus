@@ -68,7 +68,9 @@
         input.addEventListener('blur',finish);input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();finish();}else if(event.key==='Escape'){finished=true;cancel();}});
         onRendered(()=>{input.focus();input.select();});return input;
     };
-    const start=()=>{bind(document);new MutationObserver(records=>{for(const record of records) for(const node of record.addedNodes) if(node.nodeType===1) bind(node);}).observe(document.body,{childList:true,subtree:true});};
+    // Los editores de la grilla se enlazan al recibir foco. Recorrer cada celda
+    // añadida por Tabulator repetía búsquedas DOM durante cada cambio de pestaña.
+    const start=()=>{bind(document);new MutationObserver(records=>{for(const record of records) for(const node of record.addedNodes) if(node.nodeType===1 && !node.closest('.tabulator')) bind(node);}).observe(document.body,{childList:true,subtree:true});};
     document.addEventListener('focusin',event=>{window.nucleusAplicarAutocompletado(event.target);contextualProject(event.target);});
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
     document.addEventListener('click',event=>{document.querySelectorAll('.flm-resource-menu[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;});});

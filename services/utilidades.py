@@ -57,6 +57,16 @@ def get_session_info():
 
 
 def get_menu_proyectos(user_id, user_rol):
+    """Reutiliza permisos solo dentro de la solicitud actual, nunca entre usuarios."""
+    from flask import request,has_request_context
+    if not has_request_context():return _get_menu_proyectos(user_id,user_rol)
+    cache=request.environ.setdefault('nucleus.menu_proyectos_cache',{})
+    key=(user_id,user_rol)
+    if key not in cache:cache[key]=_get_menu_proyectos(user_id,user_rol)
+    return list(cache[key])
+
+
+def _get_menu_proyectos(user_id, user_rol):
     """Proyectos visibles en el menú lateral según rol."""
     if user_rol in ('zeno', 'suport'):
         return Proyecto.query.filter(Proyecto.nombre.notin_(PROYECTOS_REMOVIDOS)).order_by(Proyecto.id).all()

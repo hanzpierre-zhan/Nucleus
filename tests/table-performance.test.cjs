@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict');
+const batch=require('../static/js/table-performance.js');
+let blocked=0,restored=0;
+const table={blockRedraw(){blocked++},restoreRedraw(){restored++}};
+assert.throws(()=>batch(table,()=>batch(table,()=>{throw Error('failure')})),/failure/);
+assert.equal(blocked,1);assert.equal(restored,1);
+assert.equal(batch(table,()=>42),42);assert.equal(restored,2);
+let fields=['select','a','b','c','d'];let moves=0;
+const columns={getColumns(){return fields.map(f=>({getField:()=>f}))},getColumn(f){return {move(target){moves++;fields.splice(fields.indexOf(f),1);fields.splice(fields.indexOf(target),0,f)}}}};
+batch.reorder(columns,['d','a','b','c','deleted','a']);
+assert.deepEqual(fields,['select','d','a','b','c']);assert.equal(moves,1);
+batch.reorder(columns,['d','a','b','c','deleted']);assert.equal(moves,1);
+console.log('Agrupación y orden de columnas: correctos');

@@ -524,13 +524,14 @@
     {% endif %}
 </div>
 
+{% if proy_nombre_flow == 'rendicion' %}{% include '_rendicion_formularios.html' %}{% endif %}
+
 <div id="data-stats" class="data-stats"></div>
 
 <div id="data-grid" class="excel-grid" style="flex: 1; min-height: 0; width: 100%;"></div>
 
 
 
-{% if proy_nombre_flow == 'rendicion' %}{% include '_rendicion_formularios.html' %}{% endif %}
 
 <style>
 
@@ -7425,7 +7426,7 @@
 
     const rawData = {{ data | safe }};
 
-    const rawCols = {{ columns | safe }};
+    const rawCols = ({{ columns | safe }}).filter(c => !['SLA','SLA CUMPLIMIENTO'].includes(String(c).trim().toUpperCase()));
 
     const manualColsConfig = {{ manual_cols | safe }};
 
@@ -8312,7 +8313,7 @@ let _rendCambiandoVista = false;
 
             container.querySelectorAll('.data-stat').forEach(d => {
 
-                const v = d.getAttribute('data-wo-state') || d.getAttribute('data-sla') ||
+                const v = d.getAttribute('data-wo-state') ||
 
                           d.getAttribute('data-wo') || d.getAttribute('data-zona');
 
@@ -8348,7 +8349,7 @@ let _rendCambiandoVista = false;
 
         const proy = (typeof currentProjectNombre !== 'undefined' ? currentProjectNombre : '').trim().toLowerCase();
 
-        if (proy === 'combustible') return;
+        if (proy === 'combustible' || IS_RENDICION || IS_COTIZACIONES) return;
 
 
 
@@ -8363,6 +8364,7 @@ let _rendCambiandoVista = false;
             try {
 
                 _refrescandoTarjetas = true;
+                table.blockRedraw();
 
                 if (restantes.length) table.setFilter(restantes); else table.clearFilter();
 
@@ -8387,6 +8389,7 @@ let _rendCambiandoVista = false;
                 } catch (e2) { /* sin filtro de tarjeta: la grilla queda sin él */ }
 
                 _refrescandoTarjetas = false;
+                table.restoreRedraw();
 
             }
 
@@ -8410,7 +8413,6 @@ let _rendCambiandoVista = false;
 
     // 'wo-state' -> filtra por estado WO (dispatch, accept, depart, arrive, complete, leave, close).
 
-    // 'sla'      -> filtra por semáforo SLA.
 
     // 'zona'     -> filtra por zona (Combustible).
 
@@ -8426,7 +8428,7 @@ let _rendCambiandoVista = false;
 
         const tipo = el.getAttribute('data-tipo');
 
-        const valor = el.getAttribute('data-wo-state') || el.getAttribute('data-sla') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
+        const valor = el.getAttribute('data-wo-state') || el.getAttribute('data-wo') || el.getAttribute('data-zona');
 
         if (!table) return;
 
@@ -8489,16 +8491,6 @@ let _rendCambiandoVista = false;
                 const tipoWo = norm(val(rowData, 'tipo wo') || '');
 
                 return tipoWo === valor || tipoWo.startsWith(valor);
-
-            };
-
-        } else if (tipo === 'sla') {
-
-            fn = (rowData) => {
-
-                const st = slaCumplimientoEstado(computarSlaData(rowData), getSlaThresholdData(rowData), esCanceladoOM(rowData));
-
-                return st.texto === valor;
 
             };
 
@@ -8676,415 +8668,7 @@ let _rendCambiandoVista = false;
 
 
 
-    const getRowVal = (row, partialKey) => {
-
-        const data = row.getData();
-
-        const targetKey = Object.keys(data).find(k => k.toLowerCase().includes(partialKey.toLowerCase()));
-
-        return targetKey ? data[targetKey] : null;
-
-    };
-
-
-
-    const parseDate = (val) => {
-
-        if (!val) return null;
-
-        const str = String(val).trim();
-
-        if (!str) return null;
-
-        const d = new Date(str.replace(/-/g, "/"));
-
-        return isNaN(d.getTime()) ? null : d;
-
-    };
-
-
-
-    const getSlaThreshold = (row) => {
-
-        const val = getRowVal(row, "SLA");
-
-        if (val !== null && val !== undefined) {
-
-            const str = String(val).trim();
-
-            if (/^\d+$/.test(str)) {
-
-                return parseInt(str, 10);
-
-            }
-
-            const hrsMatch = str.match(/(\d+)\s*HRS/i);
-
-            if (hrsMatch) {
-
-                return parseInt(hrsMatch[1], 10) * 60;
-
-            }
-
-        }
-
-
-
-        // Fallback based on Fault Level
-
-        const faultLevel = String(getRowVal(row, "Fault Level") || '').trim().toLowerCase();
-
-        if (IS_FLM) {
-
-            if (faultLevel === 'critical') return 240;
-
-            if (faultLevel === 'alta') return 300;
-
-            if (faultLevel === 'media') return 720;
-
-            if (faultLevel === 'baja') return 2880;
-
-        } else {
-
-            if (faultLevel === 'critical') return 480;
-
-            if (faultLevel === 'alta') return 600;
-
-            if (faultLevel === 'media') return 2880;
-
-            if (faultLevel === 'baja') return 4320;
-
-        }
-
-
-
-        return 360; // default 6 hours
-
-    };
-
-
-
-    const getDispatchedDate = (row) => {
-
-        const data = row.getData();
-
-        let d = parseDate(data['_fecha_dispatched']);
-
-        if (d) return d;
-
-        const key = Object.keys(data).find(k => /dispatch|despacho/i.test(k));
-
-        if (key) { d = parseDate(data[key]); if (d) return d; }
-
-        return null;
-
-    };
-
-
-
-    const getSuspensionMs = (row) => {
-
-        const coment = String(getRowVal(row, "Comentarios Suspend") || '');
-
-        const re = /Type:\s*(PAUSE|RESUME)[\s\S]*?Operation time:\s*([\d-]+[ T][\d:]+)/gi;
-
-        let m, pauseDate = null, total = 0;
-
-        while ((m = re.exec(coment)) !== null) {
-
-            const type = m[1].trim().toUpperCase();
-
-            const t = parseDate(m[2].trim());
-
-            if (!t) continue;
-
-            if (type === 'PAUSE') pauseDate = t;
-
-            else if (type === 'RESUME' && pauseDate) {
-
-                total += Math.max(0, t.getTime() - pauseDate.getTime());
-
-                pauseDate = null;
-
-            }
-
-        }
-
-        return total;
-
-    };
-
-
-
-    const computarSla = (row) => {
-
-        const creation = parseDate(getRowVal(row, "Fecha de creación (WO Creation date)") || getRowVal(row, "creation date") || getRowVal(row, "fecha_ticket"));
-
-        if (!creation) return null;
-
-        const stateVal = String(getRowVal(row, "wo state") || getRowVal(row, "estado") || '').trim().toLowerCase();
-
-        let endDate = null;
-
-        if (stateVal === 'closed') {
-
-            endDate = parseDate(getRowVal(row, "Fecha closed") || getRowVal(row, "Fecha de closed") || getRowVal(row, "close") || getRowVal(row, "cierre"));
-
-        } else if (stateVal === 'canceled' || stateVal === 'rejected') {
-
-            endDate = parseDate(getRowVal(row, "Fecha cancelación WO") || getRowVal(row, "Fecha cancelacion WO") || getRowVal(row, "cancel"));
-
-            if (!endDate) {
-
-                endDate = parseDate(row.getData()['_fecha_cancel_reject']);
-
-            }
-
-        } else {
-
-            endDate = new Date();
-
-        }
-
-        if (!endDate) return null;
-
-        const diffMs = Math.max(0, endDate.getTime() - creation.getTime());
-
-        return {
-
-            stateVal: stateVal,
-
-            diffMs: diffMs,
-
-            mins: Math.floor(diffMs / 60000),
-
-            isActive: !['closed', 'canceled', 'rejected'].includes(stateVal)
-
-        };
-
-    };
-
-
-
-    const getDataVal = (data, partialKey) => {
-
-        const targetKey = Object.keys(data).find(k => k.toLowerCase().includes(partialKey.toLowerCase()));
-
-        return targetKey ? data[targetKey] : null;
-
-    };
-
-
-
-    const computarSlaData = (data) => {
-
-        const creation = parseDate(getDataVal(data, "Fecha de creación (WO Creation date)") || getDataVal(data, "creation date") || getDataVal(data, "fecha_ticket"));
-
-        if (!creation) return null;
-
-        const stateVal = String(getDataVal(data, "wo state") || getDataVal(data, "estado") || '').trim().toLowerCase();
-
-        let endDate = null;
-
-        if (stateVal === 'closed') {
-
-            endDate = parseDate(getDataVal(data, "Fecha closed") || getDataVal(data, "Fecha de closed") || getDataVal(data, "close") || getDataVal(data, "cierre"));
-
-        } else if (stateVal === 'canceled' || stateVal === 'rejected') {
-
-            endDate = parseDate(getDataVal(data, "Fecha cancelación WO") || getDataVal(data, "Fecha cancelacion WO") || getDataVal(data, "cancel"));
-
-            if (!endDate) endDate = parseDate(data['_fecha_cancel_reject']);
-
-        } else {
-
-            endDate = new Date();
-
-        }
-
-        if (!endDate) return null;
-
-        const diffMs = Math.max(0, endDate.getTime() - creation.getTime());
-
-        return {
-
-            stateVal: stateVal,
-
-            diffMs: diffMs,
-
-            mins: Math.floor(diffMs / 60000),
-
-            isActive: !['closed', 'canceled', 'rejected'].includes(stateVal)
-
-        };
-
-    };
-
-
-
-    const getSlaThresholdData = (data) => {
-
-        const val = getDataVal(data, "SLA");
-
-        if (val !== null && val !== undefined) {
-
-            const str = String(val).trim();
-
-            if (/^\d+$/.test(str)) return parseInt(str, 10);
-
-            const hrsMatch = str.match(/(\d+)\s*HRS/i);
-
-            if (hrsMatch) return parseInt(hrsMatch[1], 10) * 60;
-
-        }
-
-        const faultLevel = String(getDataVal(data, "Fault Level") || '').trim().toLowerCase();
-
-        if (IS_FLM) {
-
-            if (faultLevel === 'critical') return 240;
-
-            if (faultLevel === 'alta') return 300;
-
-            if (faultLevel === 'media') return 720;
-
-            if (faultLevel === 'baja') return 2880;
-
-        } else {
-
-            if (faultLevel === 'critical') return 480;
-
-            if (faultLevel === 'alta') return 600;
-
-            if (faultLevel === 'media') return 2880;
-
-            if (faultLevel === 'baja') return 4320;
-
-        }
-
-        return 360;
-
-    };
-
-
-
-    const formatHoursMins = (mins) => {
-
-        if (mins === null || mins === undefined || isNaN(mins)) return "";
-
-        const hrs = Math.floor(mins / 60);
-
-        const m = mins % 60;
-
-        if (hrs > 0) {
-
-            return m > 0 ? `${hrs}h ${m}m` : `${hrs}h`;
-
-        }
-
-        return `${m}m`;
-
-    };
-
-
-
-    // Estado del semáforo de SLA Cumplimiento según el avance del tiempo.
-
-    const esCanceladoOM = (data) =>
-
-        String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SÍ' ||
-
-        String(data['CANCELADO O&M'] || '').trim().toUpperCase() === 'SI';
-
-    const slaCumplimientoEstado = (info, slaLimit, canceladoOM) => {
-
-        if (canceladoOM) return { texto: 'NO APLICA', color: '#8E8E93', fg: '#fff', rank: 2 };
-
-        if (!info || slaLimit <= 0) return { texto: '', color: '', fg: '', rank: 3 };
-
-        if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
-
-            return { texto: 'NO APLICA', color: '#8E8E93', fg: '#fff', rank: 2 };
-
-        }
-
-        if (info.stateVal === 'closed') {
-
-            const cumplio = info.mins <= slaLimit;
-
-            if (cumplio) return { texto: 'SLA CUMPLIDO', color: '#28A745', fg: '#fff', rank: 0 };
-
-            return { texto: 'SLA VENCIDO', color: '#8B0000', fg: '#fff', rank: 1 };
-
-        }
-
-        const pct = (info.mins / slaLimit) * 100;
-
-        if (pct < 50) return { texto: 'SLA DENTRO DE PLAZO', color: '#28A745', fg: '#fff', rank: 0 };
-
-        if (pct < 80) return { texto: 'SLA DEBE ATENDERSE', color: '#FFC107', fg: '#212529', rank: 0 };
-
-        if (pct < 100) return { texto: 'SLA POR VENCER', color: '#dc3545', fg: '#fff', rank: 1 };
-
-        return { texto: 'SLA VENCIDO', color: '#8B0000', fg: '#fff', rank: 1 };
-
-    };
-
-
-
     buildDataStats();
-
-
-
-    const formatHoursMinsSecs = (ms) => {
-
-        if (ms === null || ms === undefined || isNaN(ms)) return "";
-
-        const totalSecs = Math.floor(ms / 1000);
-
-        const hrs = Math.floor(totalSecs / 3600);
-
-        const mins = Math.floor((totalSecs % 3600) / 60);
-
-        const secs = totalSecs % 60;
-
-
-
-        let parts = [];
-
-        if (hrs > 0) parts.push(`${hrs}h`);
-
-        if (mins > 0 || hrs > 0) parts.push(`${mins}m`);
-
-        parts.push(`${secs}s`);
-
-
-
-        return parts.join(' ');
-
-    };
-
-
-
-    // Ensure SLA columns exist in rawCols dynamically, except for Dataper, Material and Site Name
-
-    const noSla = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones', 'site', 'flm - entel', 'rendicion', 'flm - integratel', 'flm - claro y integratel'];
-
-    if (!noSla.includes(currentProjectNombre.trim().toLowerCase())) {
-
-        ["SLA", "SLA Cumplimiento"].forEach(slaName => {
-
-            if (!rawCols.some(col => col.trim().toUpperCase() === slaName.toUpperCase())) {
-
-                rawCols.push(slaName);
-
-            }
-
-        });
-
-    }
-
-    
 
     // Rendicion: el CSV del form NO trae las columnas que escribe el flujo del
 
@@ -11038,172 +10622,6 @@ let _rendCambiandoVista = false;
 
 
 
-        // SLA: creación -> closed. Si está canceled/rejected, usa la fecha de cancelación WO.
-
-        if (fieldName && fieldName.trim() === "SLA") {
-
-            colDef.width = 130;
-
-            colDef.sorter = function (a, b, aRow, bRow, column, dir, sorterParams) {
-
-                const ia = computarSlaData(aRow.getData());
-
-                const ib = computarSlaData(bRow.getData());
-
-                const va = ia ? ia.mins : -1;
-
-                const vb = ib ? ib.mins : -1;
-
-                return va - vb;
-
-            };
-
-            colDef.headerFilterFunc = function (headerValue, rowValue, rowData, filterParams) {
-
-                const q = String(headerValue || '').trim().toLowerCase();
-
-                if (!q) return true;
-
-                const info = computarSlaData(rowData);
-
-                if (!info) return false;
-
-                const txt = info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins);
-
-                return txt.toLowerCase().indexOf(q) !== -1;
-
-            };
-
-            colDef.formatter = function (cell) {
-
-                const row = cell.getRow();
-
-                const info = computarSla(row);
-
-                if (!info) return "";
-
-
-
-                const txt = info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins);
-
-                const slaLimit = getSlaThreshold(row);
-
-                const pct = slaLimit > 0 ? (info.mins / slaLimit) * 100 : 0;
-
-
-
-                if (info.stateVal === 'closed') {
-
-                    const cumplio = slaLimit > 0 && info.mins <= slaLimit;
-
-                    cell.getElement().style.background = cumplio ? "#28A745" : "#8B0000";
-
-                    cell.getElement().style.color = "#FFFFFF";
-
-                    cell.getElement().style.fontWeight = "800";
-
-                    cell.getElement().setAttribute("title", `SLA: ${txt} (Límite SLA: ${formatHoursMins(slaLimit)})`);
-
-                } else if (info.stateVal === 'canceled' || info.stateVal === 'rejected') {
-
-                    // Informativo, en gris (NO APLICA)
-
-                    cell.getElement().style.background = "#8E8E93";
-
-                    cell.getElement().style.color = "#FFFFFF";
-
-                    cell.getElement().style.fontWeight = "800";
-
-                    cell.getElement().setAttribute("title", `Cancelado (creación -> ${info.stateVal}): ${txt}`);
-
-                } else {
-
-                    let bg, fg;
-
-                    if (pct < 50) { bg = "#28A745"; fg = "#FFFFFF"; }
-
-                    else if (pct < 80) { bg = "#FFC107"; fg = "#212529"; }
-
-                    else if (pct < 100) { bg = "#DC3545"; fg = "#FFFFFF"; }
-
-                    else { bg = "#8B0000"; fg = "#FFFFFF"; }
-
-                    cell.getElement().style.background = bg;
-
-                    cell.getElement().style.color = fg;
-
-                    cell.getElement().style.fontWeight = "800";
-
-                    cell.getElement().setAttribute("title", `SLA: ${txt} (${pct.toFixed(0)}% del objetivo ${formatHoursMins(slaLimit)})`);
-
-                }
-
-                return txt;
-
-            };
-
-        }
-
-
-
-        // SLA Cumplimiento: semáforo según el avance del tiempo (DENTRO DE PLAZO / DEBE ATENDERSE / POR VENCER / VENCIDO / CUMPLIDO / NO APLICA).
-
-        if (fieldName && fieldName.trim() === "SLA Cumplimiento") {
-
-            colDef.width = 150;
-
-            colDef.sorter = function (a, b, aRow, bRow, column, dir, sorterParams) {
-
-                const rank = (row) => {
-
-                    const info = computarSlaData(row.getData());
-
-                    const slaLimit = getSlaThresholdData(row.getData());
-
-                    return slaCumplimientoEstado(info, slaLimit, esCanceladoOM(row.getData())).rank;
-
-                };
-
-                return rank(aRow) - rank(bRow);
-
-            };
-
-            colDef.headerFilterFunc = function (headerValue, rowValue, rowData, filterParams) {
-
-                const q = String(headerValue || '').trim().toLowerCase();
-
-                if (!q) return true;
-
-                const info = computarSlaData(rowData);
-
-                const slaLimit = getSlaThresholdData(rowData);
-
-                const txt = slaCumplimientoEstado(info, slaLimit, esCanceladoOM(rowData)).texto;
-
-                return txt.toLowerCase().indexOf(q) !== -1;
-
-            };
-
-            colDef.formatter = function (cell) {
-
-                const row = cell.getRow();
-
-                const info = computarSla(row);
-
-                const slaLimit = getSlaThreshold(row);
-
-                const st = slaCumplimientoEstado(info, slaLimit, esCanceladoOM(row.getData()));
-
-                if (!st.texto) return "";
-
-                return `<span style="background:${st.color}; color:${st.fg}; padding:3px 10px; border-radius:12px; font-weight:800; font-size:11px; display:inline-block;">${st.texto}</span>`;
-
-            };
-
-        }
-
-
-
         if (window.nucleusTipoCatalogo(fieldName) && colDef.editor !== false) {
             colDef.editor = window.nucleusCatalogEditor;
         }
@@ -12294,6 +11712,7 @@ let _rendCambiandoVista = false;
         data: rawData,
 
         layout: "fitData",
+        renderHorizontal: "virtual",
 
         columns: tableColumns,
 
@@ -14359,20 +13778,6 @@ let _rendCambiandoVista = false;
                     // Fecha real (no texto): en Excel se puede filtrar y ordenar.
 
                     v = valorFecha(v);
-
-                } else if (up === 'SLA') {
-
-                    const info = computarSlaData(r);
-
-                    v = info ? (info.isActive ? formatHoursMinsSecs(info.diffMs) : formatHoursMins(info.mins)) : '';
-
-                } else if (up === 'SLA CUMPLIMIENTO') {
-
-                    const info = computarSlaData(r);
-
-                    const lim = getSlaThresholdData(r);
-
-                    v = slaCumplimientoEstado(info, lim).texto;
 
                 } else if (/MONTO|PRECIO|IMPORTE|TOTAL/.test(up)) {
 
@@ -27557,42 +26962,6 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-    // Real-time SLA update every second
-
-    setInterval(() => {
-
-        if (document.hidden) return;
-
-        if (typeof table !== 'undefined' && table) {
-
-            ["SLA", "SLA Cumplimiento"].forEach(slaName => {
-
-                const slaCol = table.getColumn(slaName);
-
-                if (slaCol) {
-
-                    slaCol.getCells().forEach(cell => {
-
-                        const row = cell.getRow();
-
-                        const stateVal = String(getRowVal(row, "wo state") || getRowVal(row, "estado") || '').trim().toLowerCase();
-
-                        if (['unscheduled', 'dispatched', 'accepted', 'inprocess', 'running'].includes(stateVal)) {
-
-                            cell.refresh();
-
-                        }
-
-                    });
-
-                }
-
-            });
-
-        }
-
-    }, 1000);
-
 </script>
 
 <!-- Modal N Detalle (Cotizaciones) -->
@@ -28699,30 +28068,8 @@ function _rendInitEstados() {
 // column.move(destino, false) = colocarlo ANTES del destino (Tabulator 5.x).
 
 function _rendAplicarOrden(orden) {
-
-    if (!orden || orden.length < 2) return;
-
-    const actual = table.getColumns().map(c => c.getField())
-
-        .filter(f => f && orden.indexOf(f) >= 0);
-
-    if (actual.join('|') === orden.join('|')) return;
-
-    for (let i = orden.length - 2; i >= 0; i--) {
-
-        if (orden[i] === orden[i + 1]) continue;
-
-        const a = table.getColumn(orden[i]);
-
-        const b = table.getColumn(orden[i + 1]);
-
-        if (a && b && typeof a.move === 'function') a.move(orden[i + 1], false);
-
-    }
-
+    nucleusReorderColumns(table, orden);
 }
-
-
 
 // Aplica la vista (visibilidad + orden) de una hoja sin guardar el layout.
 
@@ -28814,11 +28161,13 @@ function rendCambiarVista(vista) {
 
 
 
+    nucleusBatchTable(table, () => {
     _rendAplicarEstado(_rendEstadoVistas[vista]);
 
 
 
     rendAplicarFiltro();
+    });
 
     rendActualizarContadores();
 
@@ -28840,7 +28189,7 @@ function rendAplicarFiltro() {
 
     // Necesario al cambiar de pestaña para que no queden filtros residuales de otra vista.
 
-    table.clearFilter(true);
+            table.clearFilter(true);
 
     const fn = (rowData) => cfg.estados.includes(rendEstadoDe(rowData));
 
@@ -30565,12 +29914,13 @@ function cotCambiarVista(vista) {
 
     });
 
+    nucleusBatchTable(table, () => {
     cotAplicarFiltro();
+    if (table) table.getRows('active').forEach(row => row.reformat());
+    });
 
     cotActualizarContadores();
 
-    if (table) table.getRows().forEach(row => row.reformat());
-    if (table && typeof table.redraw === 'function') table.redraw(true);
 
 }
 

@@ -156,6 +156,8 @@ def _register_blueprints(app):
 # Invalidación del cache de "opciones del Detalle" (ver blueprints/wo.py)
 # ─────────────────────────────────────────────────────────────────────────────
 def _on_commit(*_args, **_kwargs):
+    from flask import request,has_request_context
+    if has_request_context():request.environ.pop('nucleus.menu_proyectos_cache',None)
     try:
         from blueprints.wo import invalidar_opciones_cache
         invalidar_opciones_cache()
@@ -205,11 +207,14 @@ def create_app(config_object=None):
     db.init_app(app)
     _register_opciones_cache_invalidation()
     _register_blueprints(app)
+    from services.legacy_columns import install,clean_existing_config
+    install()
 
     # Migraciones de base de datos (idempotentes)
     from migrations import run_migrations
     database_url = os.environ.get('DATABASE_URL', '')
     run_migrations(app, database_url)
+    with app.app_context():clean_existing_config()
 
     return app
 
