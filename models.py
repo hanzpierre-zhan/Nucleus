@@ -178,3 +178,11 @@ class RefacturableDetalle(db.Model):
     data_json = db.Column(db.Text, nullable=False, default='{}')
     actualizado_por = db.Column(db.String(100), default='')
     actualizado_en = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class LiquidacionNumero(db.Model):
+    """Numeración permanente; no depende del orden ni del filtro de la tabla."""
+    __tablename__ = 'liquidacion_numero'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    origen_id = db.Column(db.Integer, nullable=False, unique=True)
+    __table_args__ = {'sqlite_autoincrement': True}

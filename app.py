@@ -214,7 +214,10 @@ def create_app(config_object=None):
     from migrations import run_migrations
     database_url = os.environ.get('DATABASE_URL', '')
     run_migrations(app, database_url)
-    with app.app_context():clean_existing_config()
+    with app.app_context():
+        clean_existing_config()
+        from services.liquidacion_numero import numerar_historicos
+        numerar_historicos()
 
     return app
 

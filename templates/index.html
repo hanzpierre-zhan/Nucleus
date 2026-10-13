@@ -7173,6 +7173,8 @@
 
                     <div class="wo-section-title"><i class="fa-solid fa-camera"></i> Evidencia fotográfica
 
+                        <button type="button" id="btn-evidencia-zip" class="action-pill pill-neutral evidencia-download" onclick="descargarEvidenciaZip()" title="Descargar las fotos de inicio, proceso y cierre de esta WO"><i class="fa-solid fa-download"></i> Descargar fotos</button>
+
 
                         <button type="button" id="btn-evidencia-xlsx" class="wo-zip-btn" onclick="descargarReporteFotografico()" title="Descargar el reporte fotográfico en Excel con las fotos en su sitio" style="display:none;"><i class="fa-solid fa-file-excel"></i> Descargar Excel</button>
 
@@ -9149,6 +9151,10 @@ let _rendCambiandoVista = false;
             ex.preventDefault();
 
             list.querySelectorAll("input[type='checkbox']").forEach(k => k.checked = false);
+            const old = dateFilterRegistry[field];
+            if (old) { table.removeFilter(old); delete dateFilterRegistry[field]; }
+            table.setHeaderFilterValue(field, '');
+            document.body.click();
 
         };
 
@@ -9365,7 +9371,7 @@ let _rendCambiandoVista = false;
 
         if (fieldName === "_key") {
 
-            colDef.frozen = true;
+            colDef.frozen = false;
 
             colDef.title = "<i class='fa-solid fa-key' style='color:var(--ios-blue); font-size:10px; opacity:0.8;'></i> {{ pk }}";
 
@@ -9478,7 +9484,7 @@ let _rendCambiandoVista = false;
 
             colDef.hozAlign = "center";
 
-            colDef.frozen = true;
+            colDef.frozen = false;
 
             kpiColumns.push(colDef);
 
@@ -10651,11 +10657,11 @@ let _rendCambiandoVista = false;
 
         minWidth: 40,
 
-        maxWidth: 40,
 
-        resizable: false,
 
-        frozen: true,
+        resizable: true,
+
+        frozen: false,
 
         headerHozAlign: "center",
 
@@ -10689,11 +10695,11 @@ let _rendCambiandoVista = false;
 
             minWidth: 56,
 
-            maxWidth: 56,
 
-            resizable: false,
 
-            frozen: true,
+            resizable: true,
+
+            frozen: false,
 
             headerSort: false,
 
@@ -11148,9 +11154,9 @@ let _rendCambiandoVista = false;
 
             minWidth: 152,
 
-            maxWidth: 230,
 
-            frozen: true,
+
+            frozen: false,
 
             headerSort: false,
 
@@ -11271,9 +11277,9 @@ let _rendCambiandoVista = false;
 
             minWidth: 130,
 
-            maxWidth: 170,
 
-            resizable: false,
+
+            resizable: true,
 
             headerSort: false,
 
@@ -11404,6 +11410,27 @@ let _rendCambiandoVista = false;
 
 
         var container = document.createElement("div");
+        const manual = manualColsConfig.find(c => c.nombre === column.getField() && c.tipo === 'lista');
+        if (manual && ['supervisor', 'suport', 'zeno'].includes(USER_ROLE)) {
+            const manage = document.createElement('button');
+            manage.type = 'button'; manage.className = 'action-pill pill-blue';
+            manage.textContent = 'Administrar opciones';
+            manage.addEventListener('click', async () => {
+                const value = await nucleusOptionsDialog('Opciones de ' + manual.nombre, manual.opciones || []);
+                if (value === null) return;
+                try {
+                    const response = await fetch('/api/master/manual_columns/options', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre:manual.nombre, opciones:value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean)})});
+                    const result = await nucleusLeerRespuestaJSON(response);
+                    if (!response.ok) throw new Error(result.error || 'No se pudieron guardar las opciones.');
+                    manual.opciones = result.opciones;
+                    const definition = column.getDefinition();
+                    await column.updateDefinition({editorParams:{...definition.editorParams, values:result.opciones}, headerFilter:listaHeaderFilter(result.opciones), headerFilterParams:{...definition.headerFilterParams, values:result.opciones}});
+                    document.body.click();
+                } catch(error) { nucleusAlert(error.message); }
+            });
+            container.appendChild(manage);
+        }
+
 
         container.style.padding = "15px";
 
@@ -11707,6 +11734,16 @@ let _rendCambiandoVista = false;
 
 
 
+    // El orden guardado también incluye identidad, Flujo y Evidencia.
+    // Ordenar la definición completa evita que vuelvan a una posición fija al recargar.
+    if (hasServerLayout) {
+        const initialOrder = new Map(tableColumns.map((c,i) => [c,i]));
+        tableColumns.sort((a,b) => {
+            if (!a.field) return -1;
+            if (!b.field) return 1;
+            return (layoutOrderMap.get(a.field) ?? Infinity) - (layoutOrderMap.get(b.field) ?? Infinity) || initialOrder.get(a) - initialOrder.get(b);
+        });
+    }
     const table = new Tabulator("#data-grid", {
 
         data: rawData,
@@ -11772,7 +11809,7 @@ let _rendCambiandoVista = false;
 
         history: true,
 
-        movableColumns: isAdmin,
+        movableColumns: true,
 
         persistence: { columns: ["width"] },
 
@@ -11847,7 +11884,7 @@ let _rendCambiandoVista = false;
 
     let orderApplying = false;
 
-    {% if session.get('rol') == 'zeno' %}
+    {% if session.get('rol') in ['zeno', 'suport'] %}
 
     let orderMenuCols = [];
 
@@ -11879,9 +11916,9 @@ let _rendCambiandoVista = false;
 
             const def = col.getDefinition();
 
-            if (!def.field || def.field === '_key' || (def.field === '_accion' && !IS_RENDICION)) return null;
+            if (!def.field) return null;
 
-            if (String(def.field).startsWith('KPI_')) return null;
+
 
             return { field: def.field, title: orderItemText(def) };
 
@@ -12637,7 +12674,7 @@ let _rendCambiandoVista = false;
 
             const def = c.getDefinition();
 
-            if (!def.field || def.field === '_key' || (def.field === '_accion' && !IS_RENDICION) || def.field.startsWith('KPI_')) return null;
+            if (!def.field) return null;
 
             return { field: def.field, visible: c.isVisible() };
 
@@ -18749,6 +18786,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (btnX) btnX.style.display = 'none';
 
+        const downloadButton = document.getElementById('btn-evidencia-zip');
+        if (downloadButton) downloadButton.style.display = '';
+
         EVIDENCIA_TIPOS.forEach(t => renderEvidenciaGrupo(t));
 
     }
@@ -20074,9 +20114,10 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generando...'; }
 
-        const pid = (typeof currentProjectId !== 'undefined' && currentProjectId) ? currentProjectId : 0;
+        const pid = _cotSustentoContext?.lista[_cotSustentoContext.index]?.proyecto_id || currentProjectId;
+        const cotKey = _cotSustentoContext?.key || '';
 
-        fetch('/api/evidencia/zip/' + pid + '/' + encodeURIComponent(woKey))
+        fetch('/api/evidencia/zip/' + pid + '/' + encodeURIComponent(woKey) + '?solo_fotos=1&cotizacion_key=' + encodeURIComponent(cotKey))
 
             .then(async r => {
 
@@ -22313,6 +22354,10 @@ btnItem.onclick = () => cotRegAgregarFila();
             woTecnicos = res.tecnicos || [];
 
             woMateriales = res.materiales || [];
+            document.querySelectorAll('#wo-material-list datalist').forEach(list => {
+                list.replaceChildren();
+                woMateriales.forEach(m => list.appendChild(new Option(m.descripcion, m.codigo ? m.codigo + ' | ' + m.descripcion : m.descripcion)));
+            });
 
 
 
@@ -22596,7 +22641,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (!Array.isArray(saved)) saved = [];
 
-        saved.forEach(m => agregarFilaMaterial(m.descripcion || m.codigo || '', m.unidad || m.und || 'UN', m.guia !== undefined && m.guia !== '' ? m.guia : (m.cantidad || ''), m.gastado || ''));
+        saved.forEach(m => agregarFilaMaterial(m.descripcion || m.codigo || '', m.unidad || m.und || 'UN', m.guia ?? '', m.gastado !== undefined && m.gastado !== '' ? m.gastado : (m.cantidad ?? ''), m));
 
         if (!saved.length) {
 
@@ -22608,7 +22653,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-    function agregarFilaMaterial(descripcion, unidad, guia, gastado) {
+    function agregarFilaMaterial(descripcion, unidad, guia, gastado, original = {}) {
 
         const cont = document.getElementById('wo-material-list');
 
@@ -22623,6 +22668,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         const row = document.createElement('div');
 
         row.className = 'wo-material-row';
+        row.dataset.materialOriginal = JSON.stringify(original);
 
         row.style.cssText = 'display: flex; align-items: center; gap: 8px; width: 100%; flex-wrap: nowrap; margin-bottom: 6px;';
 
@@ -22632,85 +22678,27 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         let descEl;
 
-        if (IS_PEXT) {
-
-            descEl = document.createElement('select');
-
-            descEl.className = 'wo-mat-desc';
-
-            descEl.style.cssText = 'flex: 1; min-width: 160px; height: 34px; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; font-weight: 500; outline: none;';
-
-            const opt = document.createElement('option');
-
-            opt.value = '';
-
-            opt.textContent = '— Seleccionar material —';
-
-            descEl.appendChild(opt);
-
-            (woMateriales || []).forEach(m => {
-
-                const o = document.createElement('option');
-
-                o.value = m.codigo ? (m.codigo + ' | ' + m.descripcion) : m.descripcion;
-
-                o.textContent = (m.codigo ? '[' + m.codigo + '] ' : '') + m.descripcion;
-
-                descEl.appendChild(o);
-
-            });
-
-            if (descripcion) {
-
-                let found = Array.from(descEl.options).some(o => o.value === descripcion);
-
-                if (found) {
-
-                    descEl.value = descripcion;
-
-                } else {
-
-                    let partial = Array.from(descEl.options).find(o => o.value !== '' && (o.value.includes(descripcion) || descripcion.includes(o.value)));
-
-                    if (partial) {
-
-                        descEl.value = partial.value;
-
-                    } else {
-
-                        const unknownOpt = document.createElement('option');
-
-                        unknownOpt.value = descripcion;
-
-                        unknownOpt.textContent = descripcion + ' (No en catálogo)';
-
-                        descEl.appendChild(unknownOpt);
-
-                        descEl.value = descripcion;
-
-                    }
-
-                }
-
+        descEl = document.createElement('input');
+        descEl.type = 'text'; descEl.className = 'wo-mat-desc';
+        descEl.placeholder = 'Selecciona material o escribe uno provisional';
+        descEl.value = descripcion || ''; descEl.setAttribute('aria-label', 'Material');
+        descEl.style.cssText = 'flex:1;min-width:160px;height:34px;padding:0 10px;border:1px solid var(--ios-hairline);border-radius:6px;background:var(--ios-card-bg);color:var(--ios-label)';
+        const catalog = document.createElement('datalist');
+        catalog.id = 'wo-material-catalog-' + Math.random().toString(36).slice(2);
+        (woMateriales || []).forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.codigo ? m.codigo + ' | ' + m.descripcion : m.descripcion;
+            catalog.appendChild(option);
+        });
+        descEl.setAttribute('list', catalog.id); row.appendChild(catalog);
+        descEl.addEventListener('change', () => {
+            const material = (woMateriales || []).find(m => descEl.value === m.descripcion || descEl.value === m.codigo + ' | ' + m.descripcion);
+            row.dataset.selectedMaterialCode = material ? material.codigo || '' : '';
+            if (material && material.um) {
+                if (!Array.from(undSel.options).some(o => o.value === material.um)) undSel.add(new Option(material.um, material.um));
+                undSel.value = material.um;
             }
-
-        } else {
-
-            descEl = document.createElement('input');
-
-            descEl.type = 'text';
-
-            descEl.className = 'wo-mat-desc';
-
-            descEl.placeholder = 'Descripción del material...';
-
-            descEl.autocomplete = 'off';
-
-            descEl.style.cssText = 'flex: 1; min-width: 160px; height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; outline: none;';
-
-            descEl.value = descripcion || '';
-
-        }
+        });
 
         row.appendChild(descEl);
 
@@ -22720,11 +22708,11 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const undSel = document.createElement('select');
 
-        undSel.className = 'wo-mat-und';
+        undSel.className = 'wo-mat-und'; undSel.setAttribute('aria-label', 'Unidad de medida');
 
         undSel.style.cssText = 'width: 85px; height: 34px; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; font-weight: 500; cursor: pointer; flex-shrink: 0; outline: none;';
 
-        const unidades = ['UN', 'MT', 'KG', 'GLN', 'CJA', 'PZA', 'ST', 'ROL', 'PAQ', 'Global'];
+        const unidades = Array.from(new Set(['UN', 'MT', 'KG', 'GLN', 'CJA', 'PZA', 'ST', 'ROL', 'PAQ', 'Global', ...(woMateriales || []).map(m => m.um).filter(Boolean)]));
 
         unidades.forEach(u => {
 
@@ -22738,7 +22726,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         });
 
-        if (unidad) undSel.value = unidad;
+        if (unidad) { if (!unidades.includes(unidad)) undSel.add(new Option(unidad, unidad)); undSel.value = unidad; }
 
         row.appendChild(undSel);
 
@@ -22750,85 +22738,21 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         guiaInp.type = 'number';
 
-        guiaInp.className = 'wo-mat-guia';
+        guiaInp.className = 'wo-mat-guia wo-mat-gastado';
 
         guiaInp.min = '0';
 
         guiaInp.step = '0.01';
 
-        guiaInp.placeholder = 'Guía';
+        guiaInp.placeholder = 'Cantidad';
 
-        guiaInp.title = 'Total en la guía';
+        guiaInp.title = 'Cantidad utilizada'; guiaInp.setAttribute('aria-label', 'Cantidad utilizada');
 
-        guiaInp.style.cssText = 'width: 70px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none;';
+        guiaInp.style.cssText = 'width: 110px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none;';
 
-        guiaInp.value = (guia !== undefined && guia !== null && guia !== '') ? guia : '';
+        guiaInp.value = gastado !== undefined && gastado !== null && gastado !== '' ? gastado : '';
 
         row.appendChild(guiaInp);
-
-
-
-        // 4. Campo de Gastado
-
-        const gastadoInp = document.createElement('input');
-
-        gastadoInp.type = 'number';
-
-        gastadoInp.className = 'wo-mat-gastado';
-
-        gastadoInp.min = '0';
-
-        gastadoInp.step = '0.01';
-
-        gastadoInp.placeholder = 'Gastado';
-
-        gastadoInp.title = 'Material gastado/utilizado';
-
-        gastadoInp.style.cssText = 'width: 75px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-card-bg); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none;';
-
-        gastadoInp.value = (gastado !== undefined && gastado !== null && gastado !== '') ? gastado : '';
-
-        row.appendChild(gastadoInp);
-
-
-
-        // 5. Campo de Devolución
-
-        const devInp = document.createElement('input');
-
-        devInp.type = 'number';
-
-        devInp.className = 'wo-mat-devolucion';
-
-        devInp.placeholder = 'Dev.';
-
-        devInp.title = 'Material a devolver (Guía - Gastado)';
-
-        devInp.readOnly = true;
-
-        devInp.style.cssText = 'width: 70px; height: 34px; text-align: center; border-radius: 6px; border: 1px solid var(--ios-hairline); background: rgba(0,0,0,0.05); color: var(--ios-label); font-size: 13px; flex-shrink: 0; outline: none; pointer-events: none;';
-
-        
-
-        function updateDevolucion() {
-
-            const g = parseFloat(guiaInp.value) || 0;
-
-            const s = parseFloat(gastadoInp.value) || 0;
-
-            const diff = g - s;
-
-            devInp.value = diff !== 0 ? diff : '';
-
-        }
-
-        guiaInp.addEventListener('input', updateDevolucion);
-
-        gastadoInp.addEventListener('input', updateDevolucion);
-
-        updateDevolucion();
-
-        row.appendChild(devInp);
 
 
 
@@ -23058,27 +22982,25 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             const undSel = row.querySelector('.wo-mat-und');
 
-            const guiaInp = row.querySelector('.wo-mat-guia');
 
             const gastadoInp = row.querySelector('.wo-mat-gastado');
 
-            const devInp = row.querySelector('.wo-mat-devolucion');
 
             const desc = descEl ? descEl.value.trim() : '';
 
             if (!desc) return;
 
             items.push({
+                ...JSON.parse(row.dataset.materialOriginal || '{}'),
+                ...(row.dataset.selectedMaterialCode !== undefined ? {codigo:row.dataset.selectedMaterialCode} : {}),
 
                 descripcion: desc,
 
                 unidad: undSel ? undSel.value : 'UN',
 
-                guia: (guiaInp && guiaInp.value !== '') ? parseFloat(guiaInp.value) : '',
 
                 gastado: (gastadoInp && gastadoInp.value !== '') ? parseFloat(gastadoInp.value) : '',
 
-                devolucion: (devInp && devInp.value !== '') ? parseFloat(devInp.value) : '',
 
                 cantidad: (gastadoInp && gastadoInp.value !== '') ? parseFloat(gastadoInp.value) : ''
 
@@ -24306,6 +24228,11 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function guardarWoModal() {
         if (_cotSustentoContext && IS_COTIZACIONES) {cotGuardarSustentoSeleccionado(false).then(()=>nucleusAlert('Sustento del WO guardado.')).catch(error=>nucleusAlert(error.message));return;}
+
+
+        const invalidMaterial = Array.from(document.querySelectorAll('#wo-material-list .wo-mat-guia')).find(input => input.value && (!Number.isFinite(Number(input.value)) || Number(input.value) < 0));
+        if (invalidMaterial) { invalidMaterial.focus(); nucleusAlert('La cantidad utilizada debe ser un número mayor o igual a cero.'); return; }
+
 
         if (!woKey) return;
 
@@ -27786,7 +27713,7 @@ function rendRevertir(key) {
 
 function _rendEsColumnaDeVista(f) {
 
-    if (f === '_accion') return true;
+    if (f === '_accion' || f === '_evidencia_btn') return true;
     return !!f && f !== '_key' && f !== '_evidencia_btn'
 
         && String(f).indexOf('_') !== 0
@@ -28081,21 +28008,23 @@ function _rendAplicarEstado(est) {
 
     try {
 
-        table.getColumns().forEach(c => {
-
-            const f = c.getField();
-
-            if (!f) return;
-
-            const vis = est.visibles[f] !== false;
-
-            if (vis && !c.isVisible()) c.show();
-
-            if (!vis && c.isVisible()) c.hide();
-
+        const columns = table.getColumns();
+        const byField = new Map(columns.map(c => [c.getField(), c]));
+        const desired = Array.from(new Set(est.orden || [])).filter(f => byField.has(f));
+        const included = new Set(desired);
+        const selection = columns.filter(c => !c.getField());
+        const rest = columns.filter(c => c.getField() && !included.has(c.getField()));
+        const ordered = [...selection, ...desired.map(f => byField.get(f)), ...rest];
+        if (ordered.every((c,i) => c === columns[i] && (!c.getField() || c.isVisible() === (est.visibles[c.getField()] !== false)))) return;
+        const definitions = ordered.map(c => {
+            const def = {...c.getDefinition()};
+            if (c.isVisible() && c.getWidth()) def.width = c.getWidth();
+            if (c.getField()) def.visible = est.visibles[c.getField()] !== false;
+            return def;
         });
-
-        _rendAplicarOrden(est.orden);
+        const sorters = table.getSorters().map(s => ({column:s.field, dir:s.dir}));
+        table.setColumns(definitions);
+        if (sorters.length) table.setSort(sorters);
 
     } finally {
 
@@ -28142,6 +28071,8 @@ function rendMostrarResumen(key) {
 function rendCambiarVista(vista) {
 
     if (!IS_RENDICION || !REND_VISTAS[vista]) return;
+    if (_rendVista === vista && _rendFiltroFn) return;
+    const switchStarted = performance.now();
 
     _rendInitEstados();
 
@@ -28161,15 +28092,9 @@ function rendCambiarVista(vista) {
 
 
 
-    nucleusBatchTable(table, () => {
+    nucleusBatchTable(table, () => rendAplicarFiltro());
     _rendAplicarEstado(_rendEstadoVistas[vista]);
-
-
-
-    rendAplicarFiltro();
-    });
-
-    rendActualizarContadores();
+    requestAnimationFrame(() => { document.getElementById('rend-tabs').dataset.renderMs = (performance.now() - switchStarted).toFixed(1); });
 
 }
 
@@ -28189,8 +28114,9 @@ function rendAplicarFiltro() {
 
     // Necesario al cambiar de pestaña para que no queden filtros residuales de otra vista.
 
-            table.clearFilter(true);
+            if (table.getHeaderFilters().length) table.clearHeaderFilter();
 
+    Object.keys(dateFilterRegistry).forEach(field => delete dateFilterRegistry[field]);
     const fn = (rowData) => cfg.estados.includes(rendEstadoDe(rowData));
 
     _rendFiltroFn = fn;
@@ -30387,7 +30313,7 @@ function cotConfirmarModal() {
 }
 document.addEventListener('DOMContentLoaded', () => {
 
-    setTimeout(() => rendCambiarVista('validacion'), 0);
+    setTimeout(() => { rendCambiarVista('validacion'); rendActualizarContadores(); }, 0);
 
     if (IS_COTIZACIONES) setTimeout(() => {
 

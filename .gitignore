@@ -74,3 +74,7 @@ clean_sla.py
 # Fixture de pruebas de la pestaña AUTIN (la ruta real es C:\Evidencias\FLM - ENTEL)
 /fotos_autin/
 
+
+# Copias y JavaScript temporales usados para verificar la interfaz
+/scratch/performance-*/
+/scratch/rendered-check-*.js

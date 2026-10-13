@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard {{ proyecto_nombre }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=2">
+<section class="di-page">
+  <header class="di-head"><div><span class="di-eyebrow">OPERACIÓN · {{ proyecto_nombre }}</span><h1>Producción y seguimiento</h1></div>
+    <a class="action-pill pill-neutral" href="/switch_project/{{ proyecto_id }}">Ver órdenes de trabajo</a></header>
+  <div class="di-filters">
+    <label>Mes de creación<select id="di-month"><option value="">Todos los meses</option></select></label>
+    <label>Departamento<select id="di-department"><option value="">Todos los departamentos</option></select></label>
+    <label>Tipo WO<select id="di-type"><option value="">Todos los tipos</option><option>CM</option><option>PM</option><option>PLM</option><option>Otros</option></select></label>
+    <button type="button" id="di-clear" class="action-pill pill-neutral">Limpiar filtros</button>
+  </div>
+  {% if data_total > data_limite %}<p role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros. Los indicadores corresponden a ese conjunto.</p>{% endif %}
+  {% if dashboard.sin_fecha %}<p role="status" class="di-data-notice">{{ dashboard.total }} WO registrados en {{ proyecto_nombre }}. {{ dashboard.sin_fecha }} sin fecha de creación: se cuentan en el total y se muestran en seguimiento, pero no pueden asignarse a un mes.</p>{% endif %}
+  <section class="di-story" aria-live="polite"><div><h2 id="di-story-title"></h2><p id="di-story-detail"></p></div><div class="di-progress" aria-label="Distribución de órdenes"><div id="di-progress-fill"></div></div></section>
+  <div class="di-kpis" aria-live="polite">
+    <article><span>Producción · close</span><strong id="di-production">0</strong><small>Órdenes cerradas</small></article>
+    <article><span>Backlog</span><strong id="di-backlog">0</strong><small>Abiertas de meses anteriores</small></article>
+    <article><span>En atención</span><strong id="di-current">0</strong><small>Abiertas de {{ dashboard.mes_actual }}</small></article>
+    <article><span>Órdenes visibles</span><strong id="di-total">0</strong><small id="di-quality"></small></article>
+  </div>
+  <div class="di-charts">
+    <article class="di-card di-wide di-month-card"><h2>Producción por mes</h2><p>WO cerrados, agrupados por su mes de creación</p><div id="di-months" class="di-month-bars"></div></article>
+    <article class="di-card di-department-card"><h2>Departamentos líderes · top 5</h2><div id="di-departments"></div></article>
+    <article class="di-card di-site-card"><h2>10 sites más intervenidos</h2><p>Cantidad de WO cerrados</p><div id="di-sites"></div></article>
+    <article class="di-card di-site-low-card"><h2>10 sites menos intervenidos</h2><p>Sites con WO en la selección · incluye 0 close</p><div id="di-sites-low"></div></article>
+    <article class="di-card di-type-card"><h2>Producción por tipo WO</h2><div id="di-types"></div></article>
+    <article class="di-card di-phase-card"><h2>¿Dónde está el pendiente?</h2><div id="di-phases"></div></article>
+  </div>
+  <details class="di-order-details"><summary>Ver detalle de las órdenes en seguimiento <span id="di-detail-count"></span></summary><article class="di-card"><div class="di-table-head"><div><h2>Órdenes en seguimiento</h2><p>El backlog conserva todas las fases distintas de close.</p></div><label>Grupo<select id="di-group"><option value="">Todos los casos abiertos</option><option>Backlog</option><option>En atención</option><option>Sin fecha</option><option>Fecha futura</option></select></label></div>
+    <div class="di-table-scroll"><table><thead><tr><th>WO</th><th>Tipo</th><th>Creación</th><th>Departamento</th><th>Site</th><th>Operate Phase</th><th>Grupo</th></tr></thead><tbody id="di-orders"></tbody></table></div>
+    <div class="di-pagination"><button type="button" id="di-prev" class="action-pill pill-neutral">Anterior</button><span id="di-page-count" aria-live="polite"></span><button type="button" id="di-next" class="action-pill pill-neutral">Siguiente</button></div>
+  </article></details>
+</section>
+<script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
+<script src="/static/js/dashboard-integratel.js?v=2"></script>
+{% endblock %}

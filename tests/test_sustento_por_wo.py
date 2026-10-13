@@ -56,6 +56,10 @@ def test_aprobacion_bloquea_todas_las_entradas_y_no_detalle(app,auth_client,caso
     assert auth_client.post('/api/cotizacion/sustento/guardar',json={'key':'COT-SUST-TEST','wo':'WO-SUST-1'}).status_code==200
     r=auth_client.post('/api/cotizacion/accion',json={'key':'COT-SUST-TEST','accion':'aprobar_sustento'});assert r.status_code==200,r.json
     assert r.json['newData']['_SUSTENTO_APROBADO']=='1'
+    # Read-only downloads remain available after approval; editing stays locked.
+    zip_url = f"/api/evidencia/zip/{caso['flm']}/WO-SUST-1?solo_fotos=1"
+    assert auth_client.get(zip_url).status_code == 403
+    assert auth_client.get(zip_url + '&cotizacion_key=COT-SUST-TEST').status_code == 200
     assert cargar(auth_client,caso).status_code==403
     assert auth_client.post('/api/evidencia/eliminar',json={'key':'WO-SUST-1','proyecto_id':caso['flm'],'tipo':'inicio','indice':0}).status_code==403
     assert auth_client.post('/api/cotizacion/sustento/wo',json={'key':'COT-SUST-TEST','wo':'WO-SUST-1','evidencia':{'_BITACORA_INICIO':'No'}}).status_code==403
@@ -89,6 +93,7 @@ def test_adicionales_sin_flm_guardan_por_codigo_y_se_aprueban(app,auth_client,ca
     carga=auth_client.post('/api/evidencia/subir',data={'key':key,'tipo':'inicio','indice':'0','proyecto_id':str(caso['cot']),'cotizacion_key':'COT-SUST-TEST','foto':(foto(),'foto.png')})
     assert carga.status_code==200,carga.json
     assert auth_client.get(carga.json['url']).status_code==200
+    assert auth_client.get(f"/api/evidencia/zip/{caso['cot']}/{key}?solo_fotos=1&cotizacion_key=COT-SUST-TEST").status_code == 200
     for codigo,comentario in [('ADICIONAL-1','Primero'),('ADICIONAL-2','Segundo')]:
         r=auth_client.post('/api/cotizacion/sustento/wo',json={'key':'COT-SUST-TEST','wo':codigo,'evidencia':{'_BITACORA_INICIO':comentario}})
         assert r.status_code==200,r.json

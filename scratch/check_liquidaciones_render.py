@@ -9,6 +9,6 @@ for id,nombre in proyectos:
  response=client.get('/');assert response.status_code==200
  for attrs,code in re.findall(r'<script\b([^>]*)>(.*?)</script>',response.text,re.S):
   if not code.strip() or 'application/json' in attrs:continue
-  p=Path('scratch/rendered-check.js');p.write_text(code,encoding='utf-8');r=subprocess.run([node,'--check',str(p)],capture_output=True,text=True);assert r.returncode==0,(nombre,r.stderr);total+=1
+  p=Path('scratch/rendered-check-'+str(os.getpid())+'.js');p.write_text(code,encoding='utf-8');r=subprocess.run([node,'--check',str(p)],capture_output=True,text=True);assert r.returncode==0,(nombre,r.stderr);total+=1
 assert client.get('/liquidaciones/').status_code==200
 print('JavaScript renderizado correcto:',len(proyectos),'módulos,',total,'bloques')

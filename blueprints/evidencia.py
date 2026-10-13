@@ -3,6 +3,7 @@ import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
 from collections import Counter
+from urllib.parse import urlsplit, unquote
 from flask import (Blueprint, request, jsonify, session, redirect, url_for,
                    render_template, current_app, make_response,
                    send_from_directory, send_file, Response, abort)
@@ -22,10 +23,50 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
 from services import *
-from services.sustento import acceso_desde_cotizacion, actualizar_slot, preparar_wo_desde_cotizacion
+from services.sustento import acceso_desde_cotizacion, actualizar_slot, preparar_wo_desde_cotizacion, registro_evidencia
 
 
 bp = Blueprint('evidencia', __name__)
+_ZIP_FOTO_EXTENSIONES = ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.heic')
+
+
+def _fotos_zip_referenciadas(registro, pid):
+    """Usar las fotos declaradas, incluso después de asignar el WO a un CI."""
+    try:
+        datos = json.loads(registro.data_json or '{}')
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(datos, dict):
+        return []
+    referencias = []
+    for tipo in EVIDENCIA_TIPOS:
+        fotos = datos.get('_EVIDENCIA_' + tipo.upper()) or []
+        if isinstance(fotos, str):
+            try:
+                fotos = json.loads(fotos)
+            except (ValueError, TypeError):
+                fotos = []
+        if not isinstance(fotos, list):
+            continue
+        for url in fotos:
+            if not isinstance(url, str):
+                continue
+            try:
+                path = unquote(urlsplit(url).path)
+            except ValueError:
+                continue
+            match = re.fullmatch(r'/api/evidencia/foto/(\d+)/([^/]+)/([^/]+)', path)
+            if not match or int(match[1]) != pid:
+                continue
+            origen, nombre = match[2], match[3]
+            if '..' in origen or '\\' in origen or '..' in nombre or '\\' in nombre:
+                continue
+            if os.path.splitext(nombre)[1].lower() not in _ZIP_FOTO_EXTENSIONES:
+                continue
+            item = (tipo, origen, nombre)
+            if item not in referencias:
+                referencias.append(item)
+    return referencias
 
 
 
@@ -279,7 +320,7 @@ def api_evidencia_foto(pid, key, nombre):
 @bp.route('/api/evidencia/zip/<int:pid>/<path:key>')
 @login_required
 def api_evidencia_zip(pid, key):
-    if pid != session.get('current_proyecto_id'):
+    if pid != session.get('current_proyecto_id') and not acceso_desde_cotizacion(pid, key, request.args.get('cotizacion_key', ''), lectura=True):
         return jsonify({'error': 'Acceso denegado'}), 403
     key = (key or '').strip()
     if not key:
@@ -287,10 +328,37 @@ def api_evidencia_zip(pid, key):
     # Sanitizar para evitar path traversal
     if '/' in key or '\\' in key or '..' in key:
         return jsonify({'error': 'Clave inválida'}), 400
+    solo_fotos = request.args.get('solo_fotos') == '1'
+    referencias = []
+    if solo_fotos:
+        registro = registro_evidencia(pid, key)
+        if not registro:
+            return jsonify({'error': 'WO no encontrada.'}), 404
+        referencias = _fotos_zip_referenciadas(registro, pid)
+    def incluir(nombre):
+        return not solo_fotos or (any(nombre.startswith(tipo + '_') for tipo in EVIDENCIA_TIPOS)
+                                  and os.path.splitext(nombre)[1].lower() in _ZIP_FOTO_EXTENSIONES)
     zip_buf = io.BytesIO()
     count = 0
     with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as zf:
-        if evidencia_usa_b2():
+        if solo_fotos and referencias:
+            contador_tipo = Counter()
+            try:
+                storage = b2_cliente() if evidencia_usa_b2() else None
+                for tipo, origen, nombre in referencias:
+                    if storage:
+                        data = storage.get_object(Bucket=current_app.config['B2_BUCKET'], Key=f'{origen}/{nombre}')['Body'].read()
+                    else:
+                        with open(os.path.join(evidencia_folder(pid, origen), nombre), 'rb') as archivo:
+                            data = archivo.read()
+                    contador_tipo[tipo] += 1
+                    extension = os.path.splitext(nombre)[1].lower()
+                    zf.writestr(f'{key}/{tipo}_{contador_tipo[tipo]:02d}{extension}', data)
+                    count += 1
+            except Exception:
+                current_app.logger.exception('No se pudieron recuperar todas las fotos del WO %s', key)
+                return jsonify({'error': 'No se pudieron recuperar todas las fotos. Revisa las evidencias y vuelve a intentar.'}), 502
+        elif evidencia_usa_b2():
             try:
                 client = b2_cliente()
                 bucket = current_app.config['B2_BUCKET']
@@ -300,6 +368,8 @@ def api_evidencia_zip(pid, key):
                     # solo archivos de evidencia de este ticket
                     fname = os.path.basename(k)
                     if not fname:
+                        continue
+                    if not incluir(fname):
                         continue
                     # opcional: filtrar por tipos conocidos
                     if not any(fname.startswith(t + '_') for t in EVIDENCIA_TIPOS) and not fname.startswith('comb_'):
@@ -322,6 +392,8 @@ def api_evidencia_zip(pid, key):
                     if not os.path.isfile(fp):
                         continue
                     fname = os.path.basename(fp)
+                    if not incluir(fname):
+                        continue
                     try:
                         with open(fp, 'rb') as f:
                             data = f.read()

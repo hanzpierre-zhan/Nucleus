@@ -315,6 +315,31 @@ def api_manual_columns():
         return jsonify({'success': True})
 
 
+@bp.route('/api/master/manual_columns/options', methods=['PATCH'])
+@login_required
+def manual_options():
+    if session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+        return jsonify({'error': 'No tienes permisos para administrar opciones.'}), 403
+    pid = session.get('current_proyecto_id')
+    if pid not in {p.id for p in get_menu_proyectos(session.get('user_id'), session.get('rol'))}:
+        return jsonify({'error': 'No tienes acceso al proyecto.'}), 403
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({'error': 'Solicitud inválida.'}), 400
+    options = payload.get('opciones')
+    if not isinstance(options, list) or len(options) > 500 or any(not isinstance(v, str) or not v.strip() or len(v) > 200 for v in options):
+        return jsonify({'error': 'Ingresa opciones válidas, de hasta 200 caracteres.'}), 400
+    config = AppConfig.query.filter_by(proyecto_id=session.get('current_proyecto_id'), clave='manual_columns').with_for_update().first()
+    columns = json.loads(config.valor) if config else []
+    column = next((c for c in columns if c.get('nombre') == payload.get('nombre') and c.get('tipo') == 'lista'), None)
+    if column is None:
+        return jsonify({'error': 'El campo no es una lista manual.'}), 404
+    column['opciones'] = list(dict.fromkeys(v.strip() for v in options))
+    config.valor = safe_json_dumps(columns)
+    db.session.commit()
+    return jsonify({'success': True, 'opciones': column['opciones']})
+
+
 # Clave de AppConfig donde se guarda el orden/visibilidad de columnas.
 # En Rendicion cada hoja guarda la suya: column_layout__depositos, etc.
 _PREFIJO_LAYOUT = 'column_layout'
@@ -354,7 +379,7 @@ def api_columns_layout():
         if not isinstance(c, dict):
             continue
         field = str(c.get('field', '')).strip()
-        if not field or field == '_key' or field.startswith('KPI_'):
+        if not field:
             continue
         cleaned.append({'field': field, 'visible': bool(c.get('visible', True))})
     if cleaned:

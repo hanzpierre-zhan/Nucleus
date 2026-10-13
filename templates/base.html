@@ -13,11 +13,14 @@
     <link rel="stylesheet" href="/static/css/style.css?v=3.0">
     <link rel="stylesheet" href="/static/css/themes.css?v=5">
     <link rel="stylesheet" href="/static/css/mobile.css?v=2">
+    <link rel="stylesheet" href="/static/css/platform-refinements.css?v=3">
     <!-- Librerías servidas en LOCAL: eliminar el bloqueo de ~1,9 s de 4 CDNs en la primera carga -->
     <script src="/static/js/luxon.min.js?v=1"></script>
     <script src="/static/js/xlsx.full.min.js?v=1"></script>
     <script src="/static/js/chart.umd.min.js?v=1"></script>
     <script src="/static/js/table-performance.js?v=1"></script>
+    <script src="/static/js/manual-options.js?v=1"></script>
+    <script defer src="/static/js/button-semantics.js?v=1"></script>
 </head>
 <body>
     <script>
@@ -114,7 +117,7 @@
         <div class="app-main" data-flm-resource="{{ flm_resource_context.flm_nombre if flm_resource_context and flm_resource_context.recurso in ['personal','material'] else '' }}" data-proyecto-id="{{ session.get('current_proyecto_id', '') }}" data-flm-origin="{{ flm_resource_context.flm_id if flm_resource_context else (session.get('current_proyecto_id') if session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'] else '') }}">
             <!-- Main Content Grid -->
             <main class="excel-main">
-                {% if request.path not in ['/', '/salud'] %}{% include '_flm_recursos.html' %}{% endif %}
+                {% if request.path not in ['/', '/salud', '/analytics'] %}{% include '_flm_recursos.html' %}{% endif %}
                 {% block content %}{% endblock %}
             </main>
 

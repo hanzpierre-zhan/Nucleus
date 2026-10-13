@@ -80,13 +80,26 @@ def _registros():
     if proyectos_obra:
         for fila in NucleusData.query.filter(NucleusData.proyecto_id.in_(proyectos_obra)).all():
             obras.setdefault(str(fila.key_value).strip().lower(), (proyectos_obra[fila.proyecto_id], fila))
+    from models import LiquidacionNumero
+    from services.liquidacion_numero import numero_liquidacion
     detalles = {d.origen_id: json.loads(d.data_json or '{}') for d in RefacturableDetalle.query.all()}
-    registros = []
-    for registro in NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id.desc()).all():
+    numeros = {n.origen_id: f'C-{n.id:08d}' for n in LiquidacionNumero.query.all()}
+    filas = NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id).all()
+    casos = []
+    nuevos = False
+    for registro in filas:
         try:
             datos = json.loads(registro.data_json)
         except (ValueError, TypeError):
             continue
+        if _ingresada(datos):
+            casos.append((registro, datos))
+            if registro.id not in numeros:
+                numeros[registro.id] = numero_liquidacion(registro.id)
+                nuevos = True
+    if nuevos: db.session.commit()
+    registros = []
+    for registro, datos in reversed(casos):
         if not _ingresada(datos):
             continue
         seguimiento = detalles.get(registro.id, {})
@@ -117,7 +130,7 @@ def _registros():
             'estado_cotizacion': datos.get('ESTADO COTIZACION') or '',
             'tipo_gasto': datos.get('TIPO GASTO APROBACION') or '',
             'gestor': datos.get('SOLICITADO POR') or datos.get('GESTOR') or '',
-            'correlativo': registro.id,
+            'correlativo': numeros[registro.id],
             'fecha_inicio': min(inicios) if inicios else (datos.get('FECHA INICIO OBRA') or ''),
             'fecha_fin': max(finales) if finales else (datos.get('FECHA FIN OBRA') or ''),
             'estatus': ejecucion,

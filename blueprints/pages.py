@@ -487,80 +487,44 @@ def dashboard():
 @bp.route('/analytics')
 @login_required
 def analytics():
-    """Módulo Analytics: KPIs y gráficos del proyecto actual (espejo de Anton)."""
+    """Dashboard operativo común, usando únicamente el FLM seleccionado."""
     user_id, user_rol, pid = get_session_info()
-
-    # Los roles Contrata y Gestor no ven analytics (igual que en Anton).
-    if user_rol in ('contrata', 'gestor'):
-        return redirect(url_for('pages.index'))
-
-    if not pid:
-        return redirect(url_for('pages.index'))
-
-    res_obj = {}
-    is_privileged = user_rol in ['zeno', 'suport']
-
-    if not is_privileged:
-        acc = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=pid).first()
-        if not acc and contexto_recursos() and any(p.id == pid for p in get_menu_proyectos(user_id, user_rol)):
-            acc = SimpleNamespace(restricciones='{}')
-        if not acc:
-            proy_check = db.session.get(Proyecto, pid)
-            if proy_check and proy_check.nombre in ('Dataper', 'Material', 'Site Name', 'Generadores', 'Combustible'):
-                accs = AccesoProyecto.query.filter_by(usuario_id=user_id).all()
-                allowed = False
-                for a in accs:
-                    ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
-                        allowed = True
-                        break
-                if not allowed:
-                    session.clear()
-                    return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
-            else:
-                session.clear()
-                return render_template('login.html', error="Acceso denegado a este proyecto. Por favor, solicite acceso al administrador.")
-        try:
-            res_obj = json.loads(acc.restricciones or '{}')
-        except:
-            res_obj = {}
-
-    # Límite de seguridad contra proyectos gigantes. Antes era 5000 y SITE (5583 filas)
-    # se quedaba SIN 583 filas en los KPIs, y sin ORDER BY se elegían filas al azar.
-    _ANALYTICS_MAX = 20000
-    _total_rows = NucleusData.query.filter_by(proyecto_id=pid).count()
-    rows = (NucleusData.query.filter_by(proyecto_id=pid)
-            .order_by(NucleusData.id).limit(_ANALYTICS_MAX).all())
-    raw_data = []
-    for r in rows:
-        try:
-            d = json.loads(r.data_json)
-        except Exception:
-            continue
-        d['_key'] = r.key_value
-        raw_data.append(d)
-
-    proy_actual = db.session.get(Proyecto, pid)
-    proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
-    # FLM/PEXT: GESTOR visible desde EDITADO POR/_ultimo_usuario_manual.
-    if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
-        for d in raw_data:
-            if not d.get('GESTOR'):
-                d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
-    if proy_actual_nombre in ('Dataper', 'Material'):
-        raw_data = filtrar_catalogo(raw_data)
-
-    data = apply_data_restrictions(raw_data, res_obj)
-
     proyectos = get_menu_proyectos(user_id, user_rol)
-
-    return render_template('analytics.html',
-                           data=json.dumps(data, ensure_ascii=False, separators=(',', ':')),
-                           proyectos_list=proyectos,
-                           proyecto_nombre=proy_actual_nombre,
-                           proyecto_id=pid,
-                           data_total=_total_rows,
-                           data_limite=_ANALYTICS_MAX)
+    flms = [p for p in proyectos if p.nombre.strip().upper() in
+            ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO')]
+    contexto = contexto_recursos()
+    origen_pid = contexto['flm_id'] if contexto else pid
+    proy = next((p for p in flms if p.id == origen_pid), None)
+    if proy is None:
+        proy = next((p for p in flms if p.nombre.strip().upper() == 'FLM - INTEGRATEL'), None)
+    if proy is None and flms:
+        proy = flms[0]
+    if user_rol in ('contrata', 'gestor') or proy is None:
+        return redirect(url_for('pages.index'))
+    restricciones = {}
+    if user_rol not in ('zeno', 'suport'):
+        acceso = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy.id).first()
+        if not acceso:
+            return redirect(url_for('pages.index'))
+        try:
+            restricciones = json.loads(acceso.restricciones or '{}')
+        except (ValueError, TypeError):
+            restricciones = {}
+    from services.dashboard_integratel import indicadores
+    def registros():
+        for fila in NucleusData.query.filter_by(proyecto_id=proy.id).order_by(NucleusData.id).yield_per(500):
+            try:
+                datos = json.loads(fila.data_json)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(datos, dict):
+                datos['_key'] = fila.key_value
+                if apply_data_restrictions([datos], restricciones):
+                    yield datos
+    dashboard = indicadores(registros())
+    return render_template('dashboard_integratel.html', dashboard=dashboard,
+                           proyectos_list=proyectos, proyecto_nombre=proy.nombre,
+                           proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
 
 
 @bp.route('/configuraciones')

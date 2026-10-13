@@ -941,6 +941,8 @@ def api_cotizacion_accion():
         # La aprobación registra el ingreso a Liquidaciones en la misma transacción.
         # Se conserva para seguir el caso aunque después se revierta o cancele.
         row.setdefault('_LIQUIDACION_INGRESO', ahora)
+        from services.liquidacion_numero import numero_liquidacion
+        numero_liquidacion(fila.id)
         from models import RefacturableDetalle
         detalle = db.session.get(RefacturableDetalle, fila.id)
         if detalle is None:

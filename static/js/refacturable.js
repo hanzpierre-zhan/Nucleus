@@ -25,7 +25,7 @@
         if (definition.headerFilter !== false) header.appendChild(filter);
         if (manualFields.has(definition.field)) {
             const edit = document.createElement('i'); edit.className = 'fa-solid fa-pen-to-square ref-edit-icon';
-            edit.title = 'Campo manual: editar desde Acciones'; header.appendChild(edit);
+            edit.title = 'Campo manual: editar desde N° COTIZACIÓN'; header.appendChild(edit);
         }
         const label = document.createElement('span'); label.textContent = definition.title; header.appendChild(label);
         return header;
@@ -79,14 +79,14 @@
         placeholder: 'No hay cotizaciones aprobadas para mostrar.',
         columnDefaults: {vertAlign: 'middle'},
         columns: [
-            column('N', 'correlativo', {width: 85, minWidth: 65}),
-            {title: 'EDITAR', field: '_editar', width: 150, headerSort: false, formatter: () => {
-                const button = document.createElement('button');
-                button.type = 'button'; button.className = 'action-pill pill-blue';
-                button.textContent = 'Datos manuales'; button.title = 'Editar liquidación';
-                return button;
-            }, cellClick: (event, cell) => openEditor(cell.getRow().getData())},
-            column('N° COTIZACIÓN', 'cotizacion', {width: 185}),
+            column('N', 'correlativo', {width: 140, minWidth: 130}),
+            column('N° COTIZACIÓN', 'cotizacion', {width:185, formatter: cell => {
+                const link = document.createElement('button'); link.type = 'button';
+                link.className = 'ref-quote-link'; link.textContent = cell.getValue();
+                link.title = 'Editar seguimiento de liquidación';
+                link.addEventListener('click', () => openEditor(cell.getRow().getData()));
+                return link;
+            }}),
             column('ESTADO DE COTIZACIÓN', 'estado_cotizacion', {width: 185, formatter: statusFormatter}),
             column('TIPO DE GASTO', 'tipo_gasto', {width: 160}),
             column('GESTOR OPERATIVO', 'gestor'),

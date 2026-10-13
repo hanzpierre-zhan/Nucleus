@@ -1,0 +1,48 @@
+/* Acciones consistentes con los colores de cada plataforma y tema. */
+.action-pill, .btn-primary, .mar-btn-primary {border-radius:8px; transition:background .15s,color .15s;}
+.action-pill.pill-neutral {background:color-mix(in srgb,var(--ios-accent,var(--ios-blue)) 10%,var(--ios-card-bg)) !important;color:var(--ios-accent,var(--ios-blue)) !important;border:1px solid color-mix(in srgb,var(--ios-accent,var(--ios-blue)) 25%,var(--ios-hairline)) !important;}
+body.theme-vercel .action-pill.pill-blue,body.theme-vercel .btn-primary,body.theme-vercel .mar-btn-primary,body.theme-vercel .wo-btn-primary,body.theme-vercel .up-btn-create {background:var(--ios-accent,var(--ios-blue)) !important;color:white !important;border-color:var(--ios-accent,var(--ios-blue)) !important;}
+button:focus-visible,a:focus-visible {outline:2px solid var(--ios-accent,var(--ios-blue));outline-offset:3px;}
+button:disabled {cursor:not-allowed;opacity:.55;}
+.ref-quote-link {border:0;background:transparent;color:var(--ios-accent,var(--ios-blue));text-decoration:underline;text-underline-offset:3px;font:inherit;cursor:pointer;padding:0;}
+.evidencia-download{margin-left:auto;padding:6px 10px;font-size:11px;font-weight:500;text-transform:none;letter-spacing:0;box-shadow:none}
+.manual-options-dialog{width:min(480px,90vw);padding:24px;border:1px solid var(--ios-hairline);border-radius:14px;background:var(--ios-card-bg);color:var(--ios-label)}
+.manual-options-dialog::backdrop{background:rgba(0,0,0,.45)}
+.manual-options-dialog h2{font-size:18px;margin-top:0}.manual-options-dialog p{font-size:13px;line-height:1.5;color:var(--ios-secondary)}
+.manual-options-dialog textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--ios-hairline);border-radius:8px;background:var(--ios-fill);color:var(--ios-label);resize:vertical}
+.manual-options-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+body .up-page {padding:24px;}
+body .up-header {padding:0 0 20px;border-bottom:1px solid var(--ios-hairline);margin-bottom:20px;}
+body .up-header-icon {background:var(--ios-accent,var(--ios-blue));box-shadow:none;border-radius:10px;}
+body.theme-vercel .up-header-text .wizard-title {font-size:26px !important;letter-spacing:-.6px;margin:0 0 7px !important;}
+body .up-stats {gap:16px;margin-bottom:22px;}
+body .up-stat {padding:18px 20px;box-shadow:none;}
+body .up-stat-meta b {font-size:26px;font-variant-numeric:tabular-nums;}
+body .up-card {box-shadow:none;border-radius:12px;padding:22px;}
+body .up-table thead th {font-size:11px;letter-spacing:.04em;padding:14px 16px;}
+body .up-table tbody td {padding:16px;}
+body .up-avatar {border-radius:10px;box-shadow:none;}
+@media(max-width:700px){body .up-page{padding:12px}body .up-stats{gap:8px}body .up-stat{padding:12px}body .up-card{padding:14px}}
+
+body .up-subtitle,body .up-stat-meta span{color:var(--ios-secondary)}
+/* Shared semantic actions: consistent geometry in light and dark themes. */
+body.theme-vercel [data-action] {
+  --action-color: var(--ios-accent, #7c5cff);
+  border-radius:8px !important; border:1px solid color-mix(in srgb,var(--action-color) 40%,var(--ios-hairline)) !important;
+  background:color-mix(in srgb,var(--action-color) 14%,var(--ios-card-bg)) !important;
+  color:var(--action-color) !important; box-shadow:none !important;
+  font-family:inherit !important; font-size:13px !important; font-weight:600 !important;
+  min-height:32px; line-height:1.2; padding:7px 12px; gap:6px;
+  transition:background .15s,border-color .15s;
+}
+body.theme-vercel [data-action="success"] {--action-color:#168a55}
+body.theme-vercel [data-action="danger"] {--action-color:#e14b51}
+body.theme-vercel [data-action="warning"] {--action-color:#ac740d}
+body.theme-vercel [data-action="download"] {--action-color:#397dde}
+body.theme-vercel [data-action="neutral"] {--action-color:var(--ios-secondary)}
+body.theme-vercel.dark-mode [data-action="success"] {--action-color:#4acb8c}
+body.theme-vercel.dark-mode [data-action="warning"] {--action-color:#e6b54d}
+body.theme-vercel [data-action]:hover:not(:disabled) {background:color-mix(in srgb,var(--action-color) 23%,var(--ios-card-bg)) !important;}
+body.theme-vercel [data-action].evidencia-download {font-size:12px !important;display:inline-flex;align-items:center;white-space:nowrap;}
+body.theme-vercel [data-action][data-action-icon] {min-height:0;padding:0;}
+.di-data-notice {padding:12px 16px;border:1px solid var(--ios-hairline);border-radius:8px;color:var(--ios-secondary);font-size:13px;line-height:1.5;}

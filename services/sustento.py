@@ -63,14 +63,14 @@ def cambio_bloqueado(datos,cambios):
         if anterior!=nuevo: return True
     return False
 
-def acceso_desde_cotizacion(pid,wo,cot_key):
+def acceso_desde_cotizacion(pid,wo,cot_key,lectura=False):
     if not cot_key or not puede_cotizaciones(session.get('user_id'),session.get('rol'),session.get('current_proyecto_nombre')): return False
     from blueprints.cotizacion import _split_wos,_resolver_sustento_cot
     p=Proyecto.query.filter_by(nombre='Cotizaciones').first()
     cot=NucleusData.query.filter_by(proyecto_id=p.id,key_value=cot_key).first() if p else None
     if not cot:return False
     d=json.loads(cot.data_json or '{}')
-    if bloqueado(d) or str(d.get('ESTADO COTIZACION') or '') not in ('Aprobado','Atendido','Validado'):return False
+    if (bloqueado(d) and not lectura) or str(d.get('ESTADO COTIZACION') or '') not in ('Aprobado','Atendido','Validado'):return False
     for codigo in _split_wos(d.get('NUMERO WO')):
         origen=_resolver_sustento_cot(cot,codigo,d)
         if origen[0].id==pid and origen[1].key_value.casefold()==wo.casefold():return True
