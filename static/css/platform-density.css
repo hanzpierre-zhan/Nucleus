@@ -1,3 +1,11 @@
+/* Keep the scroll holder inside its grid even when desktop CSS zoom is active.
+   Tabulator's pixel height calculation can otherwise place its bottom scrollbar
+   below the clipped grid, while its vertical scrollbar still remains visible. */
+.excel-grid.tabulator{display:flex;flex-direction:column;min-height:0;min-width:0}
+.excel-grid.tabulator>.tabulator-header{flex:0 0 auto}
+.excel-grid.tabulator>.tabulator-tableholder{flex:1 1 auto;min-height:0;height:auto!important;max-height:none!important;overflow:auto!important}
+.excel-grid.tabulator>.tabulator-footer{flex:0 0 auto}
+
 /* Shared desktop proportions, equivalent to the user's compact reference.
    Keep the full viewport available after scaling. Touch layouts remain full size. */
 @media (min-width:769px) and (pointer:fine) {
