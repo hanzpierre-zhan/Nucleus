@@ -1,0 +1,12 @@
+/* Shared desktop proportions, equivalent to the user's compact reference.
+   Keep the full viewport available after scaling. Touch layouts remain full size. */
+@media (min-width:769px) and (pointer:fine) {
+  body.theme-vercel {
+    --app-density:.75;
+    --app-viewport-height:calc(100dvh / var(--app-density));
+    zoom:var(--app-density);
+    height:var(--app-viewport-height);
+    min-height:var(--app-viewport-height);
+    flex-shrink:0;
+  }
+}

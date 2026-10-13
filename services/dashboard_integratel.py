@@ -61,7 +61,13 @@ def indicadores(rows, hoy=None):
             else: grupo = 'Fecha futura'; futuros += 1
         if month is None: sin_fecha += 1
         tipos[grupo][tipo] += 1
-        detalle.append({'wo':wo,'tipo':tipo,'mes':month or '', 'departamento':dept,'site':site,'fase':phase or 'Sin fase','grupo':grupo})
+        detalle.append({'wo':wo,'tipo':tipo,'mes':month or '',
+                        'fecha':creation.isoformat() if creation else '',
+                        'tarea':str(valor('Tipo tarea','TIPO DE TAREA','TIPO TAREA')).strip() or 'Sin tipo de tarea',
+                        'personal':str(valor('Nombre de personal FLM asignado','PERSONAL FLM ASIGNADO','FLM ASIGNADO','TECNICO ASIGNADO')).strip() or 'Sin personal asignado',
+                        'prioridad':str(valor('Prioridad del Site','PRIORIDAD SITE')).strip() or 'Sin prioridad',
+                        'fault':str(valor('Fault Level','NIVEL DE FALLA')).strip() or 'Sin Fault Level',
+                        'departamento':dept,'site':site,'fase':phase or 'Sin fase','grupo':grupo})
     return {'mes_actual':actual,'total':total,'produccion':produccion,'backlog':backlog,'en_atencion':abiertos_actual,
             'sin_fecha':sin_fecha,'futuros':futuros,'meses':dict(sorted(meses.items())),
             'departamentos':departamentos.most_common(),'sites':sites.most_common(),

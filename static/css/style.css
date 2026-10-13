@@ -9,13 +9,13 @@
     --ios-blue: var(--ios-accent);
     --ios-blue-dark: var(--ios-accent-dark);
     --ios-blue-light: #E9F2FF;
-    --ios-indigo: #5856D6;
+    --ios-indigo: #173E76;
     --ios-teal: #30B0C7;
     --ios-green: #34C759;
     --ios-red: #FF3B30;
     --ios-orange: #FF9500;
     --ios-yellow: #FFCC00;
-    --ios-purple: #AF52DE;
+    --ios-purple: #173E76;
     --ios-pink: #FF2D55;
     --ios-gray-1: #8E8E93;
     --ios-gray-2: #AEAEB2;
@@ -1253,7 +1253,7 @@ body.sidebar-collapsed .sidebar-collapse-btn {
 }
 
 .sidebar-link.active {
-    background: linear-gradient(135deg, var(--ios-blue, var(--ios-accent)), var(--ios-indigo, #5856D6));
+    background: linear-gradient(135deg, var(--ios-blue, var(--ios-accent)), var(--ios-indigo, #173E76));
     color: #fff !important;
     font-weight: 600;
     box-shadow: 0 4px 14px rgba(var(--ios-accent-rgb), 0.30);
@@ -1283,7 +1283,7 @@ body.sidebar-collapsed .sidebar-collapse-btn {
 }
 
 .sidebar-legal a:hover {
-    background: var(--ios-fill, rgba(108, 99, 255, .12));
+    background: var(--ios-fill, rgba(23,62,118, .12));
     color: var(--ios-label, #F2F5FA);
 }
 
@@ -1903,7 +1903,7 @@ body.sidebar-collapsed .sidebar-user {
 }
 
 .border-[#8e44ad] {
-    border-color: #AF52DE;
+    border-color: #173E76;
 }
 
 .border-[#e67e22] {
@@ -1951,7 +1951,7 @@ body.sidebar-collapsed .sidebar-user {
 }
 
 .bg-[#8e44ad] {
-    background-color: #AF52DE;
+    background-color: #173E76;
 }
 
 .bg-[#e67e22] {
@@ -1963,7 +1963,7 @@ body.sidebar-collapsed .sidebar-user {
 }
 
 .text-[#8e44ad] {
-    color: #AF52DE;
+    color: #173E76;
 }
 
 .text-[#e67e22] {
@@ -2172,7 +2172,7 @@ body.sidebar-collapsed .sidebar-user {
 
 .role-badge.supervisor {
     background: rgba(88, 86, 214, 0.14);
-    color: var(--ios-indigo, #5856D6);
+    color: var(--ios-indigo, #173E76);
 }
 
 .role-badge.gestor {
@@ -2512,7 +2512,7 @@ body.sidebar-collapsed .sidebar-user {
     width: 44px;
     height: 44px;
     border-radius: 12px;
-    background: linear-gradient(135deg, #5856D6, var(--ios-accent));
+    background: linear-gradient(135deg, #173E76, var(--ios-accent));
     color: #fff;
     display: flex;
     align-items: center;

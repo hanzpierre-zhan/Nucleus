@@ -55,6 +55,21 @@ def test_fecha_sin_cero_inicial_con_hora():
     assert result['meses']=={'2026-10':1}
 
 
+def test_dimensiones_operativas_y_fecha_diaria_usan_columnas_reales():
+    result = indicadores([{
+        '_key':'CM-DIMENSIONES','Operate Phase':'close',
+        'Fecha de creación (WO Creation date)':'13/10/2026 08:30',
+        'Tipo tarea':'ENERGIA_AUSENCIA', 'Nombre de personal FLM asignado':'TÉCNICO FLM',
+        'TECNICO ASIGNADO':'OTRO NOMBRE', 'O&M asignado':'GESTOR',
+        'Prioridad del Site':'P1','Fault Level':'Alta',
+    }], date(2026,10,13))
+    row = result['detalle'][0]
+    assert row['fecha'] == '2026-10-13'
+    assert row['personal'] == 'TÉCNICO FLM'
+    assert row['tarea'] == 'ENERGIA_AUSENCIA'
+    assert row['prioridad'] == 'P1' and row['fault'] == 'Alta'
+
+
 def test_dashboard_respeta_departamentos_permitidos(app,auth_client):
     import json
     import re

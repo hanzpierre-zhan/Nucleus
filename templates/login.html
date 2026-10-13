@@ -9,49 +9,49 @@
     <style>
         *{box-sizing:border-box}
         :root{
-            --bg:#0E1116;
-            --surface:#171B22;
-            --surface-2:#1E242E;
+            --bg:#181818;
+            --surface:#222222;
+            --surface-2:#292929;
             --border:#2A313D;
             --border-strong:#3A4352;
             --text:#F2F5FA;
             --text-dim:#97A2B3;
             --text-faint:#5F6B7C;
-            --brand:#6C63FF;
-            --brand-strong:#8B7CFF;
+            --brand:#173E76;
+            --brand-strong:#91B9F3;
             --brand-text:#FFFFFF;
-            --ring:rgba(108,99,255,.22);
+            --ring:rgba(23,62,118,.22);
             --shadow-card:0 24px 70px rgba(0,0,0,.45);
-            --shadow-btn:0 10px 24px rgba(108,99,255,.35);
+            --shadow-btn:0 10px 24px rgba(23,62,118,.35);
             --shadow-float:0 8px 24px rgba(0,0,0,.35);
             --error-bg:rgba(255,69,58,.1);
             --error-border:rgba(255,69,58,.35);
             --error-text:#FF6B61;
             --success:#30d158;
-            --glow-a:rgba(108,99,255,.30);
+            --glow-a:rgba(23,62,118,.30);
             --glow-b:rgba(64,150,255,.16);
         }
         body.light{
-            --bg:#EEF4F6;
+            --bg:#F5F7FA;
             --surface:#FFFFFF;
-            --surface-2:#F4F9FA;
-            --border:#D6E2E4;
-            --border-strong:#BCCBCE;
-            --text:#162623;
-            --text-dim:#577877;
-            --text-faint:#8AA09E;
-            --brand:#295255;
-            --brand-strong:#3A7073;
+            --surface-2:#EDF1F6;
+            --border:#D6DFEB;
+            --border-strong:#BAC8DC;
+            --text:#192B45;
+            --text-dim:#526783;
+            --text-faint:#788BA5;
+            --brand:#173E76;
+            --brand-strong:#214F8C;
             --brand-text:#FFFFFF;
-            --ring:rgba(41,82,85,.18);
+            --ring:rgba(23,62,118,.18);
             --shadow-card:0 24px 60px rgba(22,38,35,.12);
-            --shadow-btn:0 10px 22px rgba(41,82,85,.25);
+            --shadow-btn:0 10px 22px rgba(23,62,118,.25);
             --shadow-float:0 8px 24px rgba(22,38,35,.12);
             --error-bg:#FDECEB;
             --error-border:#F5C6C2;
             --error-text:#C0392B;
-            --glow-a:rgba(41,82,85,.20);
-            --glow-b:rgba(70,150,160,.14);
+            --glow-a:rgba(23,62,118,.20);
+            --glow-b:rgba(23,62,118,.14);
         }
         html,body{margin:0;padding:0;min-height:100%;font-family:'Geist Sans','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
         .vl-glow{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0}
@@ -77,9 +77,9 @@
         input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus{-webkit-text-fill-color:var(--text);-webkit-box-shadow:0 0 0 1000px var(--surface-2) inset;box-shadow:0 0 0 1000px var(--surface-2) inset;border-color:var(--border);transition:background-color 9999999s ease-out 0s}
         .vl-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:14px;border-radius:8px;transition:color .15s}
         .vl-eye:hover{color:var(--text)}
-        .vl-btn{width:100%;height:44px;border-radius:10px;border:1px solid transparent;background:linear-gradient(135deg,var(--brand),var(--brand-strong));color:var(--brand-text);font-size:14px;font-weight:600;cursor:pointer;margin-top:6px;box-shadow:var(--shadow-btn);transition:transform .15s,box-shadow .15s,filter .15s}
-        .vl-btn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 14px 30px rgba(108,99,255,.4)}
-        body.light .vl-btn:hover{box-shadow:0 14px 28px rgba(41,82,85,.3)}
+        .vl-btn{width:100%;height:44px;border-radius:10px;border:1px solid transparent;background:var(--brand);color:var(--brand-text);font-size:14px;font-weight:600;cursor:pointer;margin-top:6px;box-shadow:var(--shadow-btn);transition:transform .15s,box-shadow .15s,filter .15s}
+        .vl-btn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 14px 30px rgba(23,62,118,.4)}
+        body.light .vl-btn:hover{box-shadow:0 14px 28px rgba(23,62,118,.3)}
         .vl-btn:active{transform:translateY(1px);box-shadow:none}
         .vl-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:var(--shadow-btn);filter:none}
         .vl-divider{display:flex;align-items:center;gap:12px;margin:20px 0 2px;color:var(--text-faint);font-size:11px}
@@ -116,6 +116,10 @@
         .vl-btn:disabled{box-shadow:none}
         .vl-footer{color:var(--text-dim)}
         .vl-footer a{color:var(--text-dim);display:inline-block;padding:6px 4px}
+        @media(min-width:769px) and (pointer:fine){
+            body{zoom:.75}
+            .vl-page{min-height:calc(100dvh / .75)}
+        }
         @media(max-width:480px){.vl-box{padding:25px 20px}.vl-policy{padding:14px}.vl-center{padding-top:24px}.vl-policy-links{gap:6px}.vl-policy-links a{flex:1;justify-content:center}}
         @media (prefers-reduced-motion:reduce){
             *{transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}

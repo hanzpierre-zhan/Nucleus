@@ -68,6 +68,17 @@
         return button;
     }
     document.getElementById('liq-sustento-close').addEventListener('click', () => document.getElementById('liq-sustento').close());
+    function quoteFormatter(cell) {
+                const link = document.createElement('a'); link.href = '#ref-editor';
+                link.className = 'ref-quote-link'; link.textContent = cell.getValue();
+                link.title = 'Abrir datos manuales de esta cotización';
+                link.setAttribute('aria-label', `Datos manuales de la cotización ${cell.getValue()}`);
+                link.addEventListener('click', event => {
+                    event.preventDefault();
+                    openEditor(cell.getRow().getData());
+                });
+                return link;
+    }
     const table = new Tabulator('#ref-grid', {
         layout: 'fitData', rowHeight: 44,
         movableColumns: true,
@@ -80,13 +91,7 @@
         columnDefaults: {vertAlign: 'middle'},
         columns: [
             column('N', 'correlativo', {width: 140, minWidth: 130}),
-            column('N° COTIZACIÓN', 'cotizacion', {width:185, formatter: cell => {
-                const link = document.createElement('button'); link.type = 'button';
-                link.className = 'ref-quote-link'; link.textContent = cell.getValue();
-                link.title = 'Editar seguimiento de liquidación';
-                link.addEventListener('click', () => openEditor(cell.getRow().getData()));
-                return link;
-            }}),
+            column('N° COTIZACIÓN', 'cotizacion', {width:185, formatter: quoteFormatter}),
             column('ESTADO DE COTIZACIÓN', 'estado_cotizacion', {width: 185, formatter: statusFormatter}),
             column('TIPO DE GASTO', 'tipo_gasto', {width: 160}),
             column('GESTOR OPERATIVO', 'gestor'),
@@ -181,5 +186,8 @@
         XLSX.writeFile(book, 'Liquidaciones.xlsx');
     });
     table.on('dataFiltered', updateCount); table.on('pageLoaded', updateCount);
-    table.on('tableBuilt', load);
+    table.on('tableBuilt', async () => {
+        await table.getColumn('cotizacion').updateDefinition({formatter: quoteFormatter});
+        await load();
+    });
 })();

@@ -304,9 +304,9 @@
 
         <button type="button" id="btn-rend-avisos" class="action-pill" onclick="rendAvisosToggle()"
 
-            title="Avisos del flujo" style="position:relative;">
+            title="Avisos de {{ 'Cotizaciones' if proy_nombre == 'cotizaciones' else 'Rendición' }}" style="position:relative;">
 
-            <i class="fa-solid fa-bell"></i><span class="pill-txt"> Avisos del flujo</span>
+            <i class="fa-solid fa-bell"></i><span class="pill-txt"> Avisos de {{ 'Cotizaciones' if proy_nombre == 'cotizaciones' else 'Rendición' }}</span>
 
             <span id="rend-avisos-badge" style="display:none; position:absolute; top:-7px; right:-7px;
 
@@ -320,7 +320,7 @@
 
             width:370px; max-height:60vh; overflow-y:auto; z-index:9999;">
 
-            <div class="rend-aviso-head"><i class="fa-solid fa-bell"></i> Avisos del flujo</div>
+            <div class="rend-aviso-head"><i class="fa-solid fa-bell"></i> Avisos de {{ 'Cotizaciones' if proy_nombre == 'cotizaciones' else 'Rendición' }}</div>
 
             <div id="rend-avisos-lista"></div>
 
@@ -432,7 +432,7 @@
 
             <div id="admin-coti-next-top" class="coti-gear-next">
 
-                <div class="coti-gear-next-top">Próximo: HW-<span id="top-next-year"></span>-</div>
+                <div class="coti-gear-next-top">Próximo: EN / CL / IN-<span id="top-next-year"></span>-</div>
 
                 <div class="coti-gear-next-row">
 
@@ -784,7 +784,7 @@
 
     .rend-tab[data-vista="evidencia"]  { --tab-c: #FFCC00; --tab-bg: #FFF7DA; }
 
-    .rend-tab[data-vista="rendicion"]  { --tab-c: #AF52DE; --tab-bg: #F6EBFC; }
+    .rend-tab[data-vista="rendicion"]  { --tab-c: #173E76; --tab-bg: #F6EBFC; }
 
     .rend-tab[data-vista="rechazados"] { --tab-c: #FF3B30; --tab-bg: #FFECEB; }
 
@@ -798,7 +798,7 @@
 
     body.dark-mode .rend-tab[data-vista="evidencia"]  { --tab-bg: rgba(255,204,0,.20); }
 
-    body.dark-mode .rend-tab[data-vista="rendicion"]  { --tab-bg: rgba(175,82,222,.26); }
+    body.dark-mode .rend-tab[data-vista="rendicion"]  { --tab-bg: rgba(23,62,118,.26); }
 
     body.dark-mode .rend-tab[data-vista="rechazados"] { --tab-bg: rgba(255,59,48,.24); }
 
@@ -844,7 +844,7 @@
 
         display: inline-flex; align-items: center; gap: 5px;
 
-        background: #AF52DE; color: #fff; border: none; border-radius: 7px;
+        background: #173E76; color: #fff; border: none; border-radius: 7px;
 
         padding: 3px 9px; font-size: 11px; font-weight: 700; cursor: pointer;
 
@@ -1280,7 +1280,7 @@
 
     .rend-btn-dep { background: linear-gradient(135deg,#007AFF,#005ecb); }
 
-    .rend-btn-sus { background: linear-gradient(135deg,#AF52DE,#8e3ab8); }
+    .rend-btn-sus { background: linear-gradient(135deg,#173E76,#12305D); }
 
     .rend-btn-mini { font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 600; box-shadow: none; }
 
@@ -1811,7 +1811,7 @@
     #modal-add-registro .cot-items-mode .mar-field label{text-transform:none!important;letter-spacing:0!important;font-size:12px!important;color:var(--ios-secondary)!important}
     #modal-add-registro .cot-items-mode :focus-visible{outline:2px solid var(--ios-blue);outline-offset:3px}
     body.light #modal-add-registro .cot-items-mode #btn-mar-plantilla-coti{color:#2563EB!important}
-    body.light #modal-add-registro .cot-items-mode #btn-mar-importar-coti{color:#7C3AED!important}
+    body.light #modal-add-registro .cot-items-mode #btn-mar-importar-coti{color:#173E76!important}
     body.light #modal-add-registro .cot-items-mode #btn-mar-generar-coti{color:#A16207!important}
     @media(max-width:760px){ #modal-add-registro .cot-items-mode .mar-header{flex-wrap:wrap;gap:14px}.cot-items-editor{padding:12px}}
 
@@ -5094,7 +5094,7 @@
 
         margin-left: auto;
 
-        background: linear-gradient(135deg, var(--ios-blue), #5856D6);
+        background: linear-gradient(135deg, var(--ios-blue), #173E76);
 
         border: none;
 
@@ -5939,7 +5939,7 @@
     .cot-btn-rev    { background: linear-gradient(135deg,#FF9500,#e07f00); }
     .cot-btn-cancel { background: linear-gradient(135deg,#6B7280,#4b5563); }
     .cot-btn-done   { background: linear-gradient(135deg,#28A745,#1e8a38); font-size:16px; padding: 3px 6px; }
-    .cot-btn-atend  { background: linear-gradient(135deg,#AF52DE,#8e3ab8); }
+    .cot-btn-atend  { background: linear-gradient(135deg,#173E76,#12305D); }
     #cot-tabs .rend-tab{min-height:34px;border-radius:9px}
     .cot-btn{min-width:32px;min-height:30px;border-radius:8px;box-shadow:none;transition:background .15s,border-color .15s}
     .cot-btn-gen,.cot-btn-ok,.cot-btn-sus,.cot-btn-sus-atendido,.cot-btn-atend{background:var(--ios-fill);color:var(--ios-blue);border:1px solid var(--ios-hairline)}
@@ -6811,7 +6811,7 @@
 
                                 <div class="wo-coti-numero">
 
-                                    <span class="wo-coti-prefix">HW-</span>
+                                    <span class="wo-coti-prefix">EN-</span>
 
                                     <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits"
 
@@ -6977,7 +6977,7 @@
 
                                 <div class="wo-coti-numero">
 
-                                    <span class="wo-coti-prefix">HW-</span>
+                                    <span class="wo-coti-prefix">EN-</span>
 
                                     <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits"
 
@@ -7528,7 +7528,7 @@ let _rendCambiandoVista = false;
 
                     cotiNextSeqConfig=v;
 
-                    nucleusAlert('Próximo correlativo guardado: HW-'+new Date().getFullYear()+'-'+String(v).padStart(7,'0'));
+                    nucleusAlert('Próximo correlativo guardado: EN / CL / IN-'+new Date().getFullYear()+'-'+String(v).padStart(7,'0'));
 
                 }catch(e){ nucleusAlert(e.message||'Error'); }
 
@@ -7753,7 +7753,7 @@ let _rendCambiandoVista = false;
 
         'En Aprobación':   { bg: '#FF9500', fg: '#fff' },   /* naranja        */
 
-        'En proceso':      { bg: '#AF52DE', fg: '#fff' },   /* violeta        */
+        'En proceso':      { bg: '#173E76', fg: '#fff' },   /* violeta        */
 
         'Observado':       { bg: '#FF6B00', fg: '#fff' },   /* naranja quemado*/
 
@@ -7813,7 +7813,7 @@ let _rendCambiandoVista = false;
 
         'accepted':    { bg: "var(--ios-accent)", fg: "var(--ios-accent)", iconText: 'A' },
 
-        'dispatched':  { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'dispatched':  { bg: '#173E76', fg: '#173E76', iconText: 'D' },
 
         'inprocess':   { bg: '#FF9500', fg: '#FF9500', iconText: 'I' },
 
@@ -7831,7 +7831,7 @@ let _rendCambiandoVista = false;
 
     const OPERATE_PHASE_COLORS = {
 
-        'dispatch': { bg: '#AF52DE', fg: '#AF52DE', iconText: 'D' },
+        'dispatch': { bg: '#173E76', fg: '#173E76', iconText: 'D' },
 
         'accept':   { bg: '#007AFF', fg: '#007AFF', iconText: 'A' },
 
@@ -8017,7 +8017,7 @@ let _rendCambiandoVista = false;
 
         if (hasProyecto) {
 
-            cards.push(['#5856D6', 'fa-helmet-safety', 'FLM', flm]);
+            cards.push(['#173E76', 'fa-helmet-safety', 'FLM', flm]);
 
             cards.push(['#14B8A6', 'fa-satellite-dish', 'PEXT', pext]);
 
@@ -8131,7 +8131,7 @@ let _rendCambiandoVista = false;
 
         const cards = [];
 
-        cards.push(['#5856D6', 'fa-gas-pump', 'TOTAL', `${totalIngresado.toFixed(1)} gal`, 'GALONES REGISTRADOS']);
+        cards.push(['#173E76', 'fa-gas-pump', 'TOTAL', `${totalIngresado.toFixed(1)} gal`, 'GALONES REGISTRADOS']);
 
         cards.push(['#FF3B30', 'fa-fire', 'GASTADO', `${totalGastado.toFixed(1)} gal`, 'TOTAL GASTADO']);
 
@@ -8233,9 +8233,9 @@ let _rendCambiandoVista = false;
 
             { key: 'pm',       tipo: 'tipo-wo',  label: 'PM',       color: '#007AFF', icon: 'fa-screwdriver-wrench'  },
 
-            { key: 'plm',      tipo: 'tipo-wo',  label: 'PLM',      color: '#5856D6', icon: 'fa-bolt'                },
+            { key: 'plm',      tipo: 'tipo-wo',  label: 'PLM',      color: '#3266A8', icon: 'fa-bolt'                },
 
-            { key: 'dispatch', tipo: 'wo-state', label: 'Dispatch', color: '#AF52DE', icon: 'fa-paper-plane'         },
+            { key: 'dispatch', tipo: 'wo-state', label: 'Dispatch', color: '#5486C6', icon: 'fa-paper-plane'         },
 
             { key: 'accept',   tipo: 'wo-state', label: 'Accept',   color: '#007AFF', icon: 'fa-check-double'        },
 
@@ -8832,7 +8832,7 @@ let _rendCambiandoVista = false;
 
         expBtn.title = "Expandir/contraer todo";
 
-        expBtn.style.cssText = btnBase + "background:#5856d6;color:white;width:34px;";
+        expBtn.style.cssText = btnBase + "background:#173E76;color:white;width:34px;";
 
         headerActions.appendChild(applyBtn);
 
@@ -9920,7 +9920,7 @@ let _rendCambiandoVista = false;
 
                     if (!n) return '';
 
-                    return `<span style="color:#AF52DE;font-weight:700;cursor:pointer;" title="Ver foto(s)">
+                    return `<span style="color:#173E76;font-weight:700;cursor:pointer;" title="Ver foto(s)">
 
                         <i class="fa-solid fa-camera"></i> ${n}</span>`;
 
@@ -11411,7 +11411,7 @@ let _rendCambiandoVista = false;
 
         var container = document.createElement("div");
         const manual = manualColsConfig.find(c => c.nombre === column.getField() && c.tipo === 'lista');
-        if (manual && ['supervisor', 'suport', 'zeno'].includes(USER_ROLE)) {
+        if (manual && ['supervisor', 'suport', 'zeno'].includes(USER_ROLE) && (!window.nucleusCanManageOptions || window.nucleusCanManageOptions(manual.nombre))) {
             const manage = document.createElement('button');
             manage.type = 'button'; manage.className = 'action-pill pill-blue';
             manage.textContent = 'Administrar opciones';
@@ -11423,6 +11423,7 @@ let _rendCambiandoVista = false;
                     const result = await nucleusLeerRespuestaJSON(response);
                     if (!response.ok) throw new Error(result.error || 'No se pudieron guardar las opciones.');
                     manual.opciones = result.opciones;
+                    window.dispatchEvent(new CustomEvent('nucleus:options-updated',{detail:{nombre:manual.nombre,opciones:result.opciones}}));
                     const definition = column.getDefinition();
                     await column.updateDefinition({editorParams:{...definition.editorParams, values:result.opciones}, headerFilter:listaHeaderFilter(result.opciones), headerFilterParams:{...definition.headerFilterParams, values:result.opciones}});
                     document.body.click();
@@ -15583,7 +15584,8 @@ let _rendCambiandoVista = false;
 
         // 9. Supervisor responsable
 
-        mkTxt('SUPERVISOR RESPONSABLE', 'SUPERVISOR', 'Nombre del supervisor');
+        const supervisorConfig = (manualColsConfig || []).find(c => c.nombre === 'SUPERVISOR' && c.tipo === 'lista');
+        mkSel('SUPERVISOR RESPONSABLE', 'SUPERVISOR', supervisorConfig?.opciones || [], '— Seleccionar supervisor —');
 
 
 
@@ -15878,7 +15880,7 @@ let _rendCambiandoVista = false;
 
         inpCoti.type = 'text';
 
-        const _fullSug = 'HW-' + new Date().getFullYear() + '-' + _sugerirCorrelativoCotiReg();
+        const _fullSug = prefijoCotizacion(selClienteCoti.value) + _sugerirCorrelativoCotiReg();
 
         let _curCoti = _fullSug;
 
@@ -15886,7 +15888,8 @@ let _rendCambiandoVista = false;
 
         inpCoti.value = _curCoti;
 
-        inpCoti.placeholder = 'HW-2026-0000000';
+        inpCoti.placeholder = prefijoCotizacion(selClienteCoti.value) + '0000000';
+        selClienteCoti.addEventListener('change',()=>{if(!cotiEditMode){const digits=inpCoti.value.match(/(\d{7})$/)?.[1]||_sugerirCorrelativoCotiReg();inpCoti.value=prefijoCotizacion(selClienteCoti.value)+digits;}});
 
         inpCoti.title = 'Editable. Se asigna definitivo al generar.';
 
@@ -16612,7 +16615,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             const k = String(r['_key'] != null ? r['_key'] : (r['N° COTIZACION'] || ''));
 
-            const m = k.match(/^HW-(\d{4})-(\d{7})$/);
+            const m = k.match(/^(?:HW|EN|CL|IN)-(\d{4})-(\d{7})$/);
 
             if (m && m[1] === yr) {
 
@@ -17468,13 +17471,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         // Formatear si solo ingresaron los dígitos
 
-        if (numero && !numero.startsWith('HW-')) {
+        if (numero && !/^(?:HW|EN|CL|IN)-\d{4}-\d{7}$/.test(numero)) {
 
             const digits = numero.replace(/\D/g, '');
 
             if (digits) {
 
-                numero = 'HW-' + new Date().getFullYear() + '-' + digits.padStart(7, '0');
+                numero = prefijoCotizacion(getVal('CLIENTE')) + digits.padStart(7, '0');
 
             }
 
@@ -17802,7 +17805,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 if (!digits) { alert('Ingrese el correlativo del N° de cotización.'); return; }
 
-                data['N° COTIZACION'] = 'HW-' + new Date().getFullYear() + '-' + digits.padStart(7, '0');
+                data['N° COTIZACION'] = prefijoCotizacion(data['CLIENTE']) + digits.padStart(7, '0');
 
                 key = data['N° COTIZACION'];
 
@@ -23028,9 +23031,12 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-    function prefijoCotizacion() {
+    function prefijoCotizacion(cliente) {
 
-        return 'HW-' + new Date().getFullYear() + '-';
+        const selected = cliente || document.querySelector('#mar-fields [data-field="CLIENTE"]')?.value || {{ (session.get('current_proyecto_nombre') or '')|tojson }};
+        const name = String(selected || '').toUpperCase();
+        const prefix = name.includes('CLARO')?'CL':name.includes('INTEGRATEL')?'IN':'EN';
+        return prefix + '-' + new Date().getFullYear() + '-';
 
     }
 
@@ -23046,7 +23052,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         let prefix = v.slice(0, v.length - m[1].length);
 
-        if (!/^HW-\d{4}-$/.test(prefix)) prefix = prefijoCotizacion();
+        if (!/^(?:HW|EN|CL|IN)-\d{4}-$/.test(prefix)) prefix = prefijoCotizacion();
 
         return { prefix: prefix, digits: m[1] };
 
@@ -23080,7 +23086,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const pfx = pref ? pref.textContent : '';
 
-        return (/^HW-\d{4}-$/.test(pfx) ? pfx : prefijoCotizacion()) + digits;
+        return (/^(?:HW|EN|CL|IN)-\d{4}-$/.test(pfx) ? pfx : prefijoCotizacion()) + digits;
 
     }
 
@@ -23202,7 +23208,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const sel = document.getElementById('wo-coti-select');
 
-        let max = 0, prefix = prefijoCotizacion();
+        let max = Math.max(0, Number(_sugerirCorrelativoCotiReg()) - 1), prefix = prefijoCotizacion();
 
         if (sel) {
 
@@ -23210,13 +23216,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 if (!o.value) return;
 
-                const m = String(o.textContent).match(/^(.+?)(\d+)/);
+                const m = String(o.textContent).match(/^(?:HW|EN|CL|IN)-\d{4}-(\d{7})(?:\b|$)/);
 
                 if (!m) return;
 
-                const n = parseInt(m[2], 10);
+                const n = parseInt(m[1], 10);
 
-                if (!isNaN(n) && n > max) { max = n; prefix = m[1]; }
+                if (!isNaN(n) && n > max) max = n;
 
             });
 
@@ -27326,7 +27332,7 @@ btnItem.onclick = () => cotRegAgregarFila();
   var _ADMIN_ROL="{{session.get('rol')}}";
   window._ADMIN_ES_ADMIN=['zeno','suport'].includes(_ADMIN_ROL);
   var _ESTADOS=['Pdt. Cotización','En Aprobación','Atendido','Cancelado','Cotizado','En proceso','Observado','Rechazado','Validado'];
-  var _BADGES={'Pdt. Cotización':'#8E8E93','En Aprobación':'#FF9500','Atendido':'#34C759','Cancelado':'#6B7280','Cotizado':'#5AC8FA','En proceso':'#AF52DE','Observado':'#FF6B00','Rechazado':'#FF3B30','Validado':'#30D158'};
+  var _BADGES={'Pdt. Cotización':'#8E8E93','En Aprobación':'#FF9500','Atendido':'#34C759','Cancelado':'#6B7280','Cotizado':'#5AC8FA','En proceso':'#173E76','Observado':'#FF6B00','Rechazado':'#FF3B30','Validado':'#30D158'};
   window.adminCotAbrir=function(){
     if(!window._ADMIN_ES_ADMIN)return;
     var m=document.getElementById('admin-cot-modal');
@@ -28830,6 +28836,15 @@ if ((IS_RENDICION || IS_COTIZACIONES) && document.getElementById('btn-rend-aviso
 
 let _rendAvisosVistos = [];   // ids ya conocidos (para no repetir el toast)
 
+const _avisosModulo = IS_COTIZACIONES ? 'Cotizaciones' : 'Rendición';
+function _avisosFechaLocal(valor) {
+    if (!valor) return '';
+    const raw = String(valor).replace(' ', 'T');
+    const date = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw+'Z');
+    return Number.isNaN(date.getTime()) ? String(valor) : new Intl.DateTimeFormat('es-PE', {
+        timeZone:'America/Lima', dateStyle:'short', timeStyle:'medium'
+    }).format(date);
+}
 let _rendAvisosPrimera = true;
 
 let _rendAvisosUltimos = [];   // última lista pintada (para volver a pintar tras cerrar uno)
@@ -28916,7 +28931,7 @@ function rendAvisosPintar(lista) {
 
                 <div style="font-size:12.5px; line-height:1.4;${a.leida ? '' : ' font-weight:700;'}">${escapeHtml(a.texto || '')}</div>
 
-                <div class="rend-aviso-hora">${escapeHtml(a.creada_en || '')}</div>
+                <div class="rend-aviso-hora">${escapeHtml(_avisosFechaLocal(a.creada_en))}</div>
 
             </div>
 
@@ -28980,7 +28995,7 @@ function rendAvisosToast(a) {
 
     el.innerHTML = '<div class="rend-aviso-toast-head">'
 
-        + '<span><i class="fa-solid fa-bell"></i> Aviso del flujo</span>'
+        + '<span><i class="fa-solid fa-bell"></i> ' + _avisosModulo + ' · cambio de estado</span>'
 
         + '<button type="button" class="rend-aviso-x" title="Cerrar">&times;</button>'
 
@@ -28988,7 +29003,7 @@ function rendAvisosToast(a) {
 
         + '<div class="rend-aviso-toast-txt">' + escapeHtml(a.texto || '') + '</div>'
 
-        + '<div class="rend-aviso-toast-hora">' + escapeHtml(a.creada_en || '') + '</div>';
+        + '<div class="rend-aviso-toast-hora">' + escapeHtml(_avisosFechaLocal(a.creada_en)) + '</div>';
 
     box.appendChild(el);
 
@@ -29034,11 +29049,11 @@ function rendAvisosNavegador(a) {
 
         if (Notification.permission !== 'granted') return;
 
-        const n = new Notification('🔔 Aviso del flujo de Rendición', {
+        const n = new Notification('🔔 ' + _avisosModulo + ' · cambio de estado', {
 
             body: (a.texto || '') + (a.creada_en ? '\n' + a.creada_en : ''),
 
-            tag: 'rend-aviso-' + (a.id || Date.now()),
+            tag: (IS_COTIZACIONES ? 'cot-aviso-' : 'rend-aviso-') + (a.id || Date.now()),
 
             requireInteraction: true
 

@@ -189,6 +189,7 @@
         .up-stats { grid-template-columns: repeat(2, 1fr); }
     }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/usuarios.css') }}?v=3">
 
 <div class="up-page">
     <div class="up-inner">
@@ -196,9 +197,10 @@
         <div class="up-header">
             <div class="up-header-icon"><i class="fa-solid fa-users-gear"></i></div>
             <div class="up-header-text">
-                <h1 class="wizard-title">Gestión de Usuarios</h1>
-                <p class="up-subtitle">Administra cuentas, roles y permisos de acceso al sistema.</p>
+                <h1 class="wizard-title">Usuarios</h1>
+                <p class="up-subtitle">Cuentas y accesos de tu equipo.</p>
             </div>
+            <button type="button" class="up-btn-create up-new" onclick="nuevoUsuarioUI()"><i class="fa-solid fa-plus"></i> Nuevo usuario</button>
         </div>
 
         <!-- Stats -->
@@ -238,35 +240,36 @@
         <div class="up-card up-main">
 
             <!-- Section: Crear / Editar Usuario -->
-            <div class="up-section">
+            <details class="up-section up-editor" id="up-editor">
+                <summary class="up-editor-summary"><span id="up-editor-heading">Nueva cuenta</span><small>Datos y acceso a módulos</small></summary>
                 <div class="up-card-head">
                     <div class="up-card-title"><i class="fa-solid fa-user-plus"></i> Crear / Editar Usuario</div>
-                    <span class="up-card-tag">Nuevo registro</span>
+                    <span class="up-card-tag" id="up-editor-mode">Nueva cuenta</span>
                 </div>
                 <div class="up-form-h">
                     <div class="up-field">
-                        <label>Nombre</label>
+                        <label for="user-nombre">Nombre</label>
                         <div class="up-input-wrap">
                             <i class="fa-solid fa-id-card"></i>
                             <input type="text" id="user-nombre" placeholder="Nombre completo" autocomplete="off">
                         </div>
                     </div>
                     <div class="up-field">
-                        <label>Nombre de usuario</label>
+                        <label for="user-name">Nombre de usuario</label>
                         <div class="up-input-wrap">
                             <i class="fa-solid fa-user"></i>
                             <input type="text" id="user-name" placeholder="Ej: jperez" autocomplete="off">
                         </div>
                     </div>
                     <div class="up-field">
-                        <label>Contraseña</label>
+                        <label for="user-pw">Contraseña</label>
                         <div class="up-input-wrap">
                             <i class="fa-solid fa-lock"></i>
                             <input type="password" id="user-pw" placeholder="Dejar vacío para no cambiar" autocomplete="new-password">
                         </div>
                     </div>
                     <div class="up-field">
-                        <label>Rol de acceso</label>
+                        <label for="user-rol">Rol de acceso</label>
                         <select id="user-rol" class="nucleus-control" style="width: 100%; max-width: 400px; padding: 10px; font-weight: 500;">
                             <option value="contrata">Contrata (Solo datos del módulo asignado)</option>
                             <option value="gestor">Gestor (Supervisión de módulos asignados)</option>
@@ -283,7 +286,8 @@
                     {% endif %}
 
                     <div class="up-field up-field-proj">
-                        <label>Módulos a los que accede</label>
+                        <div class="up-modules-head"><div><h3>Acceso a módulos</h3><p>Selecciona los módulos de esta cuenta.</p></div><span id="up-modules-count" class="up-card-tag">0 seleccionados</span></div>
+                        <input type="search" id="up-module-search" placeholder="Buscar módulo…" aria-label="Buscar módulo">
                         <div class="proj-selector" id="proj-selector">
                             {% set _orden = ['FLM', 'PEXT', 'Claro', 'Integratel', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
                             {% for _nom in _orden %}
@@ -308,7 +312,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </details>
 
             <div class="up-divider"></div>
 
@@ -319,6 +323,11 @@
                     <span class="up-card-tag">{{ usuarios|length }}</span>
                 </div>
 
+                <div class="up-list-toolbar">
+                    <label class="up-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="up-search" type="search" placeholder="Buscar por nombre, usuario o módulo" aria-label="Buscar usuarios"></label>
+                    <select id="up-role-filter" aria-label="Filtrar por rol"><option value="">Todos los roles</option>{% for role in ['zeno','suport','supervisor','gestor','contrata'] %}<option value="{{ role }}">{{ role|capitalize }}</option>{% endfor %}</select>
+                    <span id="up-visible-count" role="status">{{ usuarios|length }} usuarios</span>
+                </div>
                 <div class="up-list">
                     <table class="ios-table up-table">
                         <thead>
@@ -331,10 +340,10 @@
                         </thead>
                         <tbody>
                             {% for u in usuarios %}
-                            <tr>
+                            <tr data-user-role="{{ u.rol }}">
                                 <td>
                                     <div class="up-user">
-                                        <span class="up-avatar" style="background:#fff; overflow:hidden;"><img src="/static/img/cobra-logo.png" alt="Cobra" style="width:100%; height:100%; object-fit:cover;"></span>
+                                        <span class="up-avatar" aria-hidden="true">{{ (u.nombre or u.username)[:2]|upper }}</span>
                                         <span class="up-username">
                                             <b>{{ u.nombre or u.username }}</b>
                                             <small style="display:block; color: var(--ios-gray-2); font-weight:400;">{{ u.username }}</small>
@@ -381,6 +390,7 @@
                         </tbody>
                     </table>
                 </div>
+                <p id="up-empty" hidden>No hay usuarios que coincidan con la búsqueda.</p>
             </div>
         </div>
     </div>
@@ -388,12 +398,58 @@
 
 <script>
 let editUserId = null;
+// Agrupar los controles existentes conserva sus identificadores y eventos.
+const userFormGrid = document.querySelector('.up-form-h');
+const userIdentity = document.createElement('div'); userIdentity.className = 'up-identity';
+const identityTitle = document.createElement('h3'); identityTitle.textContent = 'Datos de la cuenta'; userIdentity.append(identityTitle);
+Array.from(userFormGrid.querySelectorAll(':scope > .up-field:not(.up-field-proj)')).forEach(field => userIdentity.append(field));
+userFormGrid.prepend(userIdentity);
+userFormGrid.append(document.querySelector('.up-actions'));
+function actualizarModulosUI() {
+    document.getElementById('up-modules-count').textContent = getSelectedProyectos().length + ' seleccionados';
+}
+document.querySelectorAll('.proj-check').forEach(input => input.addEventListener('change', actualizarModulosUI));
+document.getElementById('up-module-search').addEventListener('input', event => {
+    const query = event.target.value.toLowerCase().trim();
+    document.querySelectorAll('.proj-chk').forEach(label => label.hidden = !label.textContent.toLowerCase().includes(query));
+});
+function contextoEditorUI(title, mode) {
+    document.getElementById('up-editor-heading').textContent = title;
+    document.getElementById('up-editor-mode').textContent = mode;
+    document.getElementById('up-module-search').value = '';
+    document.querySelectorAll('.proj-chk').forEach(label => label.hidden = false);
+}
+
+function filtrarUsuariosUI() {
+    const text = document.getElementById('up-search').value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const role = document.getElementById('up-role-filter').value;
+    let visible = 0;
+    document.querySelectorAll('.up-table tbody tr').forEach(row => {
+        const content = row.textContent.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        row.hidden = !content.includes(text) || !!(role && row.dataset.userRole !== role);
+        if (!row.hidden) visible++;
+    });
+    document.getElementById('up-visible-count').textContent = visible + ' de ' + document.querySelectorAll('.up-table tbody tr').length + ' usuarios';
+    document.getElementById('up-empty').hidden = visible !== 0;
+}
+document.getElementById('up-search').addEventListener('input', filtrarUsuariosUI);
+document.getElementById('up-role-filter').addEventListener('change', filtrarUsuariosUI);
+async function nuevoUsuarioUI() {
+    await cancelarEdicion();
+    document.getElementById('up-editor').open = true;
+    document.getElementById('btn-cancel-edit').style.display = 'inline-flex';
+    contextoEditorUI('Nuevo usuario', 'Nueva cuenta');
+    document.getElementById('user-pw').placeholder = 'Contraseña para la nueva cuenta';
+    document.getElementById('user-nombre').focus();
+}
+
 
 function setProjCheckboxes(projIds) {
     const ids = (projIds || []).map(Number);
     document.querySelectorAll('.proj-check').forEach(c => {
         c.checked = ids.includes(Number(c.value));
     });
+    actualizarModulosUI();
 }
 
 function getSelectedProyectos() {
@@ -406,6 +462,7 @@ function selectRol(rol) {
 }
 
 async function cancelarEdicion() {
+    document.getElementById("up-editor").open = false;
     editUserId = null;
     document.getElementById('user-nombre').value = '';
     document.getElementById('user-name').value = '';
@@ -420,6 +477,8 @@ async function cancelarEdicion() {
 }
 
 async function editarUsuarioUI(id, nombre, username, rol, projIds) {
+    contextoEditorUI("Editar · " + (nombre || username), "Edición de cuenta");
+    document.getElementById("up-editor").open = true;
     document.getElementById('user-nombre').value = nombre;
     document.getElementById('user-name').value = username;
     selectRol(rol);
@@ -433,7 +492,7 @@ async function editarUsuarioUI(id, nombre, username, rol, projIds) {
     if (cancel) cancel.style.display = 'inline-flex';
     editUserId = id;
     // Scroll al formulario
-    document.querySelector('.up-card').scrollIntoView({behavior: 'smooth', block: 'start'});
+    document.getElementById('user-nombre').focus();
 }
 
 async function crearUsuario() {

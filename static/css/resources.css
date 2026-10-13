@@ -5,7 +5,7 @@
 .excel-main:has(.resources)::-webkit-scrollbar{width:10px;display:block}
 .excel-main:has(.resources)::-webkit-scrollbar-thumb{background:#767676;border-radius:8px;border:2px solid var(--ios-bg)}
 .resources{width:100%;flex-shrink:0;margin:0 auto;padding-bottom:64px}
-.resources #card-render{--resource-color:#7c3aed}.resources #card-neon{--resource-color:#08916b}.resources #card-b2{--resource-color:#d97706}
+.resources #card-render{--resource-color:#173E76}.resources #card-neon{--resource-color:#08916b}.resources #card-b2{--resource-color:#d97706}
 .resources .resource-card{border-top:3px solid var(--resource-color)}.resources .resource-card h2,.resources .metric{color:var(--resource-color)}
 .dark-mode .resources #card-render{--resource-color:#bca0ff}.dark-mode .resources #card-neon{--resource-color:#5ee0b1}.dark-mode .resources #card-b2{--resource-color:#ffc06b}
 .resources .resource-card[data-state=error] .metric{color:#e05050}.resources .resource-card[data-state=warn] .metric{color:#d97706}.dark-mode .resources .resource-card[data-state=warn] .metric{color:#ffc06b}
@@ -38,3 +38,5 @@
 @media(max-width:1099px){.resources .service-details-body{margin-top:8px}.resources .runtime-metrics{grid-template-columns:1fr 1fr}.resources .table-wrap{max-height:260px}}
 
 .resources dl.quick-details{margin:12px 0 0}.resources dl.quick-details>div{padding:6px 0}
+
+.dark-mode .resources #card-render{--resource-color:#91B9F3}

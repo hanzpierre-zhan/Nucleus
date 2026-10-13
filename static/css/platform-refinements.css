@@ -27,7 +27,7 @@ body .up-avatar {border-radius:10px;box-shadow:none;}
 body .up-subtitle,body .up-stat-meta span{color:var(--ios-secondary)}
 /* Shared semantic actions: consistent geometry in light and dark themes. */
 body.theme-vercel [data-action] {
-  --action-color: var(--ios-accent, #7c5cff);
+  --action-color: var(--ios-accent, #173E76);
   border-radius:8px !important; border:1px solid color-mix(in srgb,var(--action-color) 40%,var(--ios-hairline)) !important;
   background:color-mix(in srgb,var(--action-color) 14%,var(--ios-card-bg)) !important;
   color:var(--action-color) !important; box-shadow:none !important;
@@ -46,3 +46,9 @@ body.theme-vercel [data-action]:hover:not(:disabled) {background:color-mix(in sr
 body.theme-vercel [data-action].evidencia-download {font-size:12px !important;display:inline-flex;align-items:center;white-space:nowrap;}
 body.theme-vercel [data-action][data-action-icon] {min-height:0;padding:0;}
 .di-data-notice {padding:12px 16px;border:1px solid var(--ios-hairline);border-radius:8px;color:var(--ios-secondary);font-size:13px;line-height:1.5;}
+.select-options-control{display:flex;align-items:center;gap:6px;width:100%;min-width:0}
+.select-options-control>select{flex:1;min-width:0;width:0!important}
+.select-options-button{flex:none;width:32px;height:32px;padding:0!important;display:inline-flex;align-items:center;justify-content:center}
+.manual-options-dialog{max-height:90vh;overflow:auto}
+.manual-options-list{display:flex;flex-direction:column;gap:8px;max-height:min(50vh,360px);overflow:auto;margin:12px 0}
+.manual-option-row{display:flex;gap:8px;align-items:center}.manual-option-row input{flex:1;min-width:0;padding:8px;border:1px solid var(--ios-hairline);border-radius:6px;background:var(--ios-fill);color:var(--ios-label)}

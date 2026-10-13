@@ -5,40 +5,40 @@
 
 /* ---------- VERCEL LIGHT (default) ---------- */
 body.theme-vercel {
-  --ios-bg: #F0F5F7;
+  --ios-bg: #F5F7FA;
   --ios-card-bg: #FFFFFF;
-  --ios-fill: #E3EAE9;
-  --ios-label: #162623;
-  --ios-secondary: #4F6E6D;
-  --ios-gray-1: #6E8B8A;
-  --ios-gray-2: #A8BFBE;
-  --ios-hairline: #D3DDDC;
-  --ios-blue: #295255;
-  --ios-blue-dark: #1E3F41;
-  --ios-blue-light: #D5E1E1;
-  --ios-accent: #295255;
-  --ios-accent-dark: #1E3F41;
-  --ios-accent-rgb: 41, 82, 85;
-  --ios-teal: #577877;
-  --ios-teal-bg: #D5E1E1;
-  --excel-bg: #F0F5F7;
-  --excel-border: #CFDCDC;
-  --excel-cell-border: #E3EAE9;
-  --excel-text: #162623;
-  --excel-selection: #D5E1E1;
+  --ios-fill: #EDF1F6;
+  --ios-label: #182437;
+  --ios-secondary: #596B83;
+  --ios-gray-1: #72829A;
+  --ios-gray-2: #AFBED0;
+  --ios-hairline: #D8E0EB;
+  --ios-blue: #173E76;
+  --ios-blue-dark: #12305D;
+  --ios-blue-light: #E2EBF8;
+  --ios-accent: #173E76;
+  --ios-accent-dark: #12305D;
+  --ios-accent-rgb: 23, 62, 118;
+  --ios-teal: #173E76;
+  --ios-teal-bg: #E2EBF8;
+  --excel-bg: #F5F7FA;
+  --excel-border: #D8E0EB;
+  --excel-cell-border: #EDF1F6;
+  --excel-text: #182437;
+  --excel-selection: #E2EBF8;
   --shadow-card: 0 1px 3px rgba(22,38,35,0.05), 0 12px 32px rgba(22,38,35,0.06);
   --shadow-soft: 0 4px 24px rgba(22,38,35,0.06);
   --radius: 10px;
   --radius-lg: 14px;
   --radius-pill: 999px;
   font-family: 'Geist Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
-  background: #F0F5F7 !important;
-  color: #162623 !important;
+  background: #F5F7FA !important;
+  color: #182437 !important;
 }
 
 /* ---------- VERCEL DARK ---------- */
 body.theme-vercel.dark-mode {
-  --ios-bg: #14151A;
+  --ios-bg: #181818;
   --ios-card-bg: #222222;
   --ios-fill: #2C2C2C;
   --ios-label: #F8FAFC;
@@ -46,24 +46,24 @@ body.theme-vercel.dark-mode {
   --ios-gray-1: #556582;
   --ios-gray-2: #475569;
   --ios-hairline: #262730;
-  --ios-blue: #7C6BFF;
-  --ios-blue-dark: #5E52F0;
-  --ios-blue-light: #1F223D;
-  --ios-accent: #7C6BFF;
-  --ios-accent-rgb: 124, 107, 255;
+  --ios-blue: #173E76;
+  --ios-blue-dark: #12305D;
+  --ios-blue-light: #202E44;
+  --ios-accent: #173E76;
+  --ios-accent-rgb: 23, 62, 118;
   --ios-teal: #2EC4B6;
   --ios-teal-bg: rgba(46, 196, 182, 0.15);
-  --excel-bg: #14151A;
+  --excel-bg: #181818;
   --excel-border: #333333;
   --excel-cell-border: #2C2C2C;
   --excel-text: #F8FAFC;
-  --excel-selection: #1F223D;
+  --excel-selection: #202E44;
   --shadow-card: 0 1px 3px rgba(0,0,0,0.15), 0 12px 32px rgba(0,0,0,0.18);
   --shadow-soft: 0 4px 24px rgba(0,0,0,0.25);
   --radius: 10px;
   --radius-lg: 14px;
   --radius-pill: 999px;
-  background: #1A1A1A !important;
+  background: #181818 !important;
   color: #F8FAFC !important;
 }
 body.theme-vercel .app-shell { background: var(--ios-bg) !important; }
@@ -79,9 +79,9 @@ body.theme-vercel .sidebar-link { color: var(--ios-secondary) !important; border
 body.theme-vercel .sidebar-link i { color: var(--ios-gray-1) !important; }
 body.theme-vercel .sidebar-link:hover { background: var(--ios-fill) !important; color: var(--ios-label) !important; }
 body.theme-vercel .sidebar-link:hover i { color: var(--ios-label) !important; }
-body.theme-vercel:not(.dark-mode) .sidebar-link.active { background: var(--ios-blue, #295255) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(41, 82, 85, 0.25) !important; font-weight: 600 !important; }
+body.theme-vercel:not(.dark-mode) .sidebar-link.active { background: var(--ios-blue, #173E76) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(23, 62, 118, 0.25) !important; font-weight: 600 !important; }
 body.theme-vercel:not(.dark-mode) .sidebar-link.active i { color: #FFFFFF !important; }
-body.theme-vercel.dark-mode .sidebar-link.active { background: var(--ios-blue, #7C6BFF) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(124, 107, 255, 0.25) !important; font-weight: 600 !important; }
+body.theme-vercel.dark-mode .sidebar-link.active { background: var(--ios-blue, #173E76) !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(23, 62, 118, 0.25) !important; font-weight: 600 !important; }
 body.theme-vercel.dark-mode .sidebar-link.active i { color: #FFFFFF !important; }
 body.theme-vercel .sidebar-link.active:hover { background: var(--ios-blue-dark) !important; color: #FFFFFF !important; }
 body.theme-vercel .sidebar-link.active:hover i { color: #FFFFFF !important; }
@@ -393,7 +393,7 @@ body #rend-modal .mar-modal{width:min(640px,94vw);max-width:640px!important;disp
 #rend-modal .rend-modal-body input:not([type=radio]),#rend-modal .rend-modal-body textarea{width:100%;box-sizing:border-box;background:var(--ios-fill)!important;color:var(--ios-label)!important;border:1px solid var(--ios-hairline)!important;box-shadow:none!important;font-size:13px!important;font-weight:400!important;text-align:left!important;letter-spacing:0!important}
 #rend-modal .rend-opciones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 #rend-modal label.rend-op{margin:0;min-width:0;display:flex;align-items:center;gap:8px;min-height:48px;padding:10px;border-radius:9px;background:var(--ios-fill);border:1px solid var(--ios-hairline);font-size:11px;color:var(--ios-label)}
-#rend-modal label.rend-op:has(input:checked){border-color:var(--ios-blue);background:rgba(108,99,255,.1)}
+#rend-modal label.rend-op:has(input:checked){border-color:var(--ios-blue);background:rgba(23,62,118,.1)}
 #rend-modal .rend-slot{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:80px;border:1px dashed var(--ios-hairline);border-radius:10px;padding:16px;background:transparent;color:var(--ios-blue);font-family:inherit;font-size:12px;cursor:pointer}
 #rend-modal .rend-slot.filled{color:#28A745;border-color:#28A745}
 #rend-modal[data-accion="rend-motivo"] #rend-modal-ok{background:#DC3545!important;border-color:#DC3545!important}
@@ -401,7 +401,7 @@ body #rend-modal .mar-modal{width:min(640px,94vw);max-width:640px!important;disp
 #data-grid .rend-btn-no{background:rgba(255,59,48,.14);color:#FF6B61;border:1px solid rgba(255,59,48,.4);box-shadow:none}
 #data-grid .rend-btn-dep{background:rgba(59,130,246,.15);color:#60A5FA;border:1px solid rgba(59,130,246,.4);box-shadow:none}
 #data-grid .rend-btn-sus{background:rgba(139,92,246,.16);color:#B49AFF;border:1px solid rgba(139,92,246,.4);box-shadow:none}
-body.light #data-grid .rend-btn-ok{color:#15803D}body.light #data-grid .rend-btn-no{color:#C62828}body.light #data-grid .rend-btn-dep{color:#2563EB}body.light #data-grid .rend-btn-sus{color:#7C3AED}
+body.light #data-grid .rend-btn-ok{color:#15803D}body.light #data-grid .rend-btn-no{color:#C62828}body.light #data-grid .rend-btn-dep{color:#2563EB}body.light #data-grid .rend-btn-sus{color:#173E76}
 @media(max-width:640px){body .mar-overlay .mar-header,body .mar-overlay .mar-body,body .mar-overlay .mar-footer{padding:16px!important}#rend-modal .rend-form-card{padding:16px}#rend-modal .rend-opciones{grid-template-columns:1fr}}
 
 /* Rendición: opciones de validación como un único control, sin doble marco. */
@@ -458,3 +458,13 @@ body.theme-vercel #rend-fotos .rend-photo-dialog{width:min(760px,calc(100vw - 40
 .rend-photo-card:hover,.rend-photo-card:focus-visible{border-color:var(--ios-blue);outline:none}
 .rend-photo-empty{color:var(--ios-secondary);font-size:13px;grid-column:1/-1;margin:20px 0;text-align:center}
 @media(max-width:700px){body.theme-vercel .mar-modal.ev-modal{width:calc(100vw - 24px);max-height:92dvh}.ev-modal #evidencia-contenedor{grid-template-columns:1fr}.ev-modal .ev-card:last-child:nth-child(odd){grid-column:auto}.ev-modal .ev-textos{grid-template-columns:1fr}#rend-fotos-grid{grid-template-columns:1fr}.ev-modal .ev-fotos{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
+
+/* Readable text accents on dark surfaces; filled brand controls use the sampled blue. */
+body.theme-vercel.dark-mode{--ios-link:#91B9F3}
+body.theme-vercel.dark-mode .app-sidebar{background:#181818!important}
+body.theme-vercel.dark-mode .tabulator a,body.theme-vercel.dark-mode .ref-quote-link{color:var(--ios-link)!important}
+body.theme-vercel.dark-mode [data-action="primary"]{background:#173E76!important;color:#fff!important}
+body.theme-vercel.dark-mode .sidebar-logo i{color:var(--ios-link)!important}
+
+body.theme-vercel.dark-mode .wo-link{color:var(--ios-link)!important}
+body.theme-vercel.dark-mode .pill-blue{background:#173E76!important;color:#fff!important;border-color:#173E76!important}

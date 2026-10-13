@@ -1002,7 +1002,7 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     hdr_data = [
         row_lbl('FECHA:', fecha_str),
         row_lbl('EMPRESA:', 'Cobra Perú'),
-        row_lbl('DIRIGIDO A :', 'Huawei del Perú', 'RESPONSABLE', 'Dennis Unton'),
+        row_lbl('DIRIGIDO A :', 'Huawei del Perú', 'RESPONSABLE', 'Juan Balarezo'),
         row_lbl('SITE:', site, 'ELABORADO POR', elaborado_por),
         row_lbl('N° COTIZACIÓN :', numero, 'SUPERVISOR', supervisor),
         row_lbl('OBJETIVO:', objetivo, 'TICKET', ticket),

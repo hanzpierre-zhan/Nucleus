@@ -315,26 +315,42 @@ def api_manual_columns():
         return jsonify({'success': True})
 
 
-@bp.route('/api/master/manual_columns/options', methods=['PATCH'])
+@bp.route('/api/master/manual_columns/options', methods=['GET', 'PATCH'])
 @login_required
 def manual_options():
-    if session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+    if request.method != 'GET' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
         return jsonify({'error': 'No tienes permisos para administrar opciones.'}), 403
     pid = session.get('current_proyecto_id')
     if pid not in {p.id for p in get_menu_proyectos(session.get('user_id'), session.get('rol'))}:
         return jsonify({'error': 'No tienes acceso al proyecto.'}), 403
+    from services.form_options import choices, normalized, PROTECTED
+    project = db.session.get(Proyecto, pid)
+    config = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').with_for_update().first()
+    columns = json.loads(config.valor) if config else []
+    if request.method == 'GET':
+        return jsonify({'campos': choices(columns, project.nombre if project else '')})
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return jsonify({'error': 'Solicitud inválida.'}), 400
     options = payload.get('opciones')
     if not isinstance(options, list) or len(options) > 500 or any(not isinstance(v, str) or not v.strip() or len(v) > 200 for v in options):
         return jsonify({'error': 'Ingresa opciones válidas, de hasta 200 caracteres.'}), 400
-    config = AppConfig.query.filter_by(proyecto_id=session.get('current_proyecto_id'), clave='manual_columns').with_for_update().first()
-    columns = json.loads(config.valor) if config else []
+    if normalized(payload.get('nombre','')) in PROTECTED:
+        return jsonify({'error':'Este campo define el flujo o los permisos; no es una lista de criterios.'}), 400
     column = next((c for c in columns if c.get('nombre') == payload.get('nombre') and c.get('tipo') == 'lista'), None)
+    defaults = choices([], project.nombre if project else '')
+    if column is None and any(c['nombre'] == payload.get('nombre') for c in defaults):
+        column = next((c for c in columns if c.get('nombre') == payload['nombre']), None)
+        if column is None:
+            column = {'nombre':payload['nombre'], 'tipo':'lista'}
+            columns.append(column)
+        column['tipo'] = 'lista'
     if column is None:
         return jsonify({'error': 'El campo no es una lista manual.'}), 404
     column['opciones'] = list(dict.fromkeys(v.strip() for v in options))
+    if config is None:
+        config = AppConfig(proyecto_id=pid, clave='manual_columns')
+        db.session.add(config)
     config.valor = safe_json_dumps(columns)
     db.session.commit()
     return jsonify({'success': True, 'opciones': column['opciones']})
