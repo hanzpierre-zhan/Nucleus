@@ -1,0 +1,13 @@
+{% set _dash_actual = 'cotizaciones' if request.path.startswith('/analytics/cotizaciones') else ('rendicion' if request.path.startswith('/analytics/rendicion') else 'operativo') %}
+<nav class="dash-switch" aria-label="Elegir dashboard">
+    <span class="dash-switch-label">Dashboard:</span>
+    <a href="/analytics" class="dash-switch-item {% if _dash_actual == 'operativo' %}is-active{% endif %}">
+        <i class="fa-solid fa-gauge-high"></i> Producción y seguimiento
+    </a>
+    <a href="/analytics/cotizaciones" class="dash-switch-item {% if _dash_actual == 'cotizaciones' %}is-active{% endif %}">
+        <i class="fa-solid fa-file-invoice-dollar"></i> Cotizaciones
+    </a>
+    <a href="/analytics/rendicion" class="dash-switch-item {% if _dash_actual == 'rendicion' %}is-active{% endif %}">
+        <i class="fa-solid fa-money-bill-transfer"></i> Rendición
+    </a>
+</nav>

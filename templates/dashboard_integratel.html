@@ -2,8 +2,9 @@
 {% block title %}Dashboard {{ proyecto_nombre }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=2">
 <section class="di-page">
-  <header class="di-head"><div><span class="di-eyebrow">OPERACIÓN · {{ proyecto_nombre }}</span><h1>Producción y seguimiento</h1></div>
+  <header class="di-head"><div><span class="di-eyebrow">OPERACIÓN · {{ proyecto_nombre }}</span><h1>Producción y seguimiento</h1>{% include '_dash_switch.html' %}</div>
   <div class="di-filters">
     <label>Mes de creación<select id="di-month"><option value="">Todos los meses</option></select></label>
     <label>Departamento<select id="di-department"><option value="">Todos los departamentos</option></select></label>

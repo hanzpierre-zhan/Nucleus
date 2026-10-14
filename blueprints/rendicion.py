@@ -364,7 +364,7 @@ def _persistir_fotos_form(proy_id, key, row):
                              open(ruta_tmp, 'rb') as src:
                             fh.write(src.read())
                     saved = '/api/rendicion/foto/%d/%s/%s?v=%d' % (
-                        proy_id, key, nombre, int(time.time()))
+                        proy_id, secure_filename(str(key)), nombre, int(time.time()))
                     prev[url] = saved
                 finally:
                     if os.path.exists(ruta_tmp):
@@ -414,7 +414,7 @@ def api_rendicion_accion():
     # 'revertir' no usa esta tabla: valida su propio mapa de estados más abajo.
     permitido = {
         'validar': ('PENDIENTE', 'RECHAZADO'),
-        'rechazar': ('VALIDADO', 'CON SUSTENTO', 'OBSERVADO'),
+        'rechazar': ('VALIDADO', 'CON SUSTENTO', 'OBSERVADO', 'SUSTENTADO'),
         'depositar': ('VALIDADO',),
         'sustentar': ('CON SUSTENTO', 'OBSERVADO'),
         'devolver': ('RECHAZADO',),
@@ -495,6 +495,9 @@ def api_rendicion_accion():
         row['FECHA RECHAZO'] = ahora
         row['RECHAZADO POR'] = usuario_actual
         row['OBSERVACIONES'] = motivo
+        # Columna propia para que el motivo se vea en la tabla (antes vivía solo
+        # dentro de OBSERVACIONES, que no es una columna del módulo).
+        row['MOTIVO RECHAZO'] = motivo
         try:
             row['VECES RECHAZADO'] = str(int(row.get('VECES RECHAZADO') or 0) + 1)
         except (ValueError, TypeError):
@@ -678,6 +681,17 @@ def api_rendicion_subir_foto():
                 pass
 
 
+def _claves_foto(key):
+    """La llave del registro es una fecha ('6/10/2026 14:30:00'), así que las
+    URLs viejas pueden traerla cruda o saneada. Se prueban ambas."""
+    vistas = []
+    for cand in (key, secure_filename(str(key))):
+        cand = str(cand or '').strip()
+        if cand and cand not in vistas:
+            vistas.append(cand)
+    return vistas
+
+
 @bp.route('/api/rendicion/foto/<int:pid>/<path:key>/<path:nombre>')
 @login_required
 def api_rendicion_foto(pid, key, nombre):
@@ -687,21 +701,25 @@ def api_rendicion_foto(pid, key, nombre):
     if not proy or int(pid) != int(proy.id):
         return jsonify({'error': 'No encontrado'}), 404
     nombre = os.path.basename(secure_filename(nombre))
+    claves = _claves_foto(key)
     if evidencia_usa_b2():
-        try:
-            obj = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'],
-                                          Key=f'{key}/{nombre}')
+        b2 = b2_cliente()
+        for cand in claves:
+            try:
+                obj = b2.get_object(Bucket=current_app.config['B2_BUCKET'],
+                                    Key=f'{cand}/{nombre}')
+            except Exception:
+                continue
             resp = Response(obj['Body'].read(),
-                           mimetype=mimetypes.guess_type(nombre)[0] or 'image/jpeg')
+                            mimetype=mimetypes.guess_type(nombre)[0] or 'image/jpeg')
             resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
             return resp
-        except Exception:
-            return jsonify({'error': 'No encontrado'}), 404
-    folder = _folder(pid, key)
-    ruta = os.path.join(folder, nombre)
-    if not os.path.exists(ruta):
         return jsonify({'error': 'No encontrado'}), 404
-    return send_from_directory(folder, nombre, max_age=604800)
+    for cand in claves:
+        folder = _folder(pid, cand)
+        if os.path.exists(os.path.join(folder, nombre)):
+            return send_from_directory(folder, nombre, max_age=604800)
+    return jsonify({'error': 'No encontrado'}), 404
 
 
 # ─────────────────────────────────────────────────────────────────────────────

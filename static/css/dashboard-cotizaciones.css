@@ -1,0 +1,40 @@
+/* Dashboard Cotizaciones — solo ADICIONES al look de dashboard-integratel.css.
+   El dashboard operativo y su hoja de estilos no se modifican: aquí solo van
+   los acentos de color por tile, la ubicación de las cards nuevas y los chips. */
+
+/* ── Acento de cada KPI según su pestaña ───────────────────────────────────── */
+.dc-page .di-kpis article:nth-child(1){border-top-color:#173E76}.dc-page .di-kpis article:nth-child(1) strong{color:#173E76}
+.dc-page .di-kpis article:nth-child(2){border-top-color:#8E8E93}.dc-page .di-kpis article:nth-child(2) strong{color:#8E8E93}
+.dc-page .di-kpis article:nth-child(3){border-top-color:var(--di-amber)}.dc-page .di-kpis article:nth-child(3) strong{color:var(--di-amber)}
+.dc-page .di-kpis article:nth-child(4){border-top-color:var(--di-cyan)}.dc-page .di-kpis article:nth-child(4) strong{color:var(--di-cyan)}
+.dc-page .di-kpis article:nth-child(5){border-top-color:var(--di-green)}.dc-page .di-kpis article:nth-child(5) strong{color:var(--di-green)}
+.dc-page .di-kpis article:nth-child(6){border-top-color:#6B7280}.dc-page .di-kpis article:nth-child(6) strong{color:#6B7280}
+.dc-page .di-kpis article:nth-child(7){border-top-color:#5AC8FA}.dc-page .di-kpis article:nth-child(7) strong{color:#5AC8FA}
+
+/* ── Ubicación de las cards (desktop, grilla de 4) ─────────────────────────── */
+@media(min-width:1101px){
+  .dc-page .dc-cli-users{grid-column:1;grid-row:2}
+  .dc-page .dc-cli-proy{grid-column:2;grid-row:2}
+  .dc-page .dc-sus-users{grid-column:3;grid-row:2}
+  .dc-page .dc-prov{grid-column:4;grid-row:2}
+  .dc-page .dc-aging{grid-column:1;grid-row:3}
+  .dc-page .dc-money{grid-column:2;grid-row:3}
+  .dc-page .dc-types{grid-column:3;grid-row:3}
+  .dc-page .dc-estados{grid-column:4;grid-row:3}
+}
+
+/* ── Color de barra por card ───────────────────────────────────────────────── */
+.dc-page .dc-cli-users .di-bar-fill{background:var(--di-amber)}
+.dc-page .dc-cli-proy .di-bar-fill{background:var(--di-blue)}
+.dc-page .dc-sus-users .di-bar-fill{background:var(--di-purple)}
+.dc-page .dc-prov .di-bar-fill{background:var(--di-cyan)}
+.dc-page .dc-aging .di-bar-fill{background:var(--di-amber)}
+.dc-page .dc-money .di-bar-fill{background:var(--di-green)}
+.dc-page .dc-types .di-bar-fill{background:var(--di-blue)}
+.dc-page .dc-estados .di-bar-fill{background:var(--di-purple)}
+
+/* ── Chips informativos y badge de pestaña ─────────────────────────────────── */
+.dc-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.dc-chip{font-size:10px;padding:2px 8px;border-radius:999px;background:var(--ios-fill);color:var(--ios-secondary);border:1px solid var(--ios-hairline);white-space:nowrap}
+.dc-chip strong{color:var(--ios-label)}
+.dc-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;color:#fff;white-space:nowrap}

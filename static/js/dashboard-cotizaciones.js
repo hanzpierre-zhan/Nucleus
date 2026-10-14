@@ -1,0 +1,269 @@
+(function () {
+    'use strict';
+    const data = JSON.parse(document.getElementById('di-data').textContent);
+    const get = id => document.getElementById(id);
+    const rows = data.detalle;
+    let page = 0, visible = [];
+
+    const num = v => new Intl.NumberFormat('es-PE').format(v);
+    const _currency = new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' });
+    const money = v => _currency.format(v || 0);
+    const moneyShort = v => 'S/ ' + new Intl.NumberFormat('es-PE', { maximumFractionDigits: 0 }).format(Math.round(v || 0));
+    const total = (items, k) => items.reduce((a, r) => a + (r[k] || 0), 0);
+
+    const PEST_LABEL = { registro: '1. Registro', cliente: '2. Cliente', sustentar: '3. Sustentar', atendido: '3. Atendido', cancelado: '4. Anulado', proveedor: '5. Proveedor' };
+    const PEST_COLOR = { registro: '#8E8E93', cliente: '#FF9500', sustentar: '#5AC8FA', atendido: '#34C759', cancelado: '#6B7280', proveedor: '#5AC8FA' };
+    const PEST_ORDER = ['registro', 'cliente', 'sustentar', 'atendido', 'cancelado'];
+
+    // ── Opciones de los filtros ────────────────────────────────────────────────
+    for (const [id, key] of [['di-client', 'cliente'], ['di-type', 'tipo'], ['di-owner', 'solicito']]) {
+        [...new Set(rows.map(r => r[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+            .forEach(v => get(id).add(new Option(v, v)));
+    }
+    [...new Set(rows.map(r => r.mes).filter(Boolean))].sort().forEach(v => get('di-month').add(new Option(v, v)));
+
+    function fillDays() {
+        const m = get('di-month').value, sel = get('di-day'), prev = sel.value;
+        sel.disabled = !m;
+        sel.replaceChildren(new Option('Todos los días', ''));
+        if (!m) return;
+        const dias = [...new Set(rows.filter(r => r.mes === m && r.dia).map(r => r.dia.slice(8, 10)))].sort();
+        dias.forEach(d => sel.add(new Option(d, d)));
+        if (dias.includes(prev)) sel.value = prev;
+    }
+
+    function filtered() {
+        const m = get('di-month').value, d = get('di-day').value, c = get('di-client').value,
+            t = get('di-type').value, o = get('di-owner').value;
+        return rows.filter(r =>
+            (!m || r.mes === m) && (!d || (r.dia || '').slice(8, 10) === d) &&
+            (!c || r.cliente === c) && (!t || r.tipo === t) && (!o || r.solicito === o));
+    }
+
+    // ── Renderers genéricos (mismo patrón que el dashboard operativo) ──────────
+    function bars(id, values, opts) {
+        opts = opts || {};
+        const box = get(id); box.classList.add('di-ranking'); box.replaceChildren();
+        if (!values.length) {
+            const empty = document.createElement('p');
+            empty.className = 'di-empty';
+            empty.textContent = 'No hay registros para estos filtros.';
+            box.append(empty); return;
+        }
+        const max = Math.max(...values.map(v => v[1]), 1);
+        values.forEach(([label, value, hint]) => {
+            const row = document.createElement('div'); row.className = 'di-bar-row';
+            const name = document.createElement('span'); name.className = 'di-bar-name';
+            name.textContent = label; name.title = label;
+            const track = document.createElement('div'); track.className = 'di-bar-track';
+            const fill = document.createElement('div'); fill.className = 'di-bar-fill';
+            fill.style.width = (100 * value / max) + '%'; track.append(fill);
+            const b = document.createElement('b'); b.textContent = opts.fmt ? opts.fmt(value) : value;
+            if (hint) row.title = hint;
+            row.append(name, track, b); box.append(row);
+        });
+    }
+
+    function groupAgg(items, key) {
+        const m = new Map();
+        items.forEach(r => {
+            const k = r[key] || 'Sin datos';
+            const e = m.get(k) || { n: 0, monto: 0 };
+            e.n++; e.monto += r.monto || 0; m.set(k, e);
+        });
+        return [...m.entries()].sort((a, b) => b[1].n - a[1].n || b[1].monto - a[1].monto);
+    }
+
+    // ── KPIs: cantidad y plata por pestaña ─────────────────────────────────────
+    function kpis(v) {
+        const set = {
+            total: v,
+            registro: v.filter(r => r.pestania === 'registro'),
+            cliente: v.filter(r => r.pestania === 'cliente'),
+            sustentar: v.filter(r => r.pestania === 'sustentar'),
+            atendido: v.filter(r => r.pestania === 'atendido'),
+            anulado: v.filter(r => r.pestania === 'cancelado'),
+            proveedor: v.filter(r => r.proveedor),
+        };
+        for (const [k, lst] of Object.entries(set)) {
+            get('dc-kpi-' + k).textContent = num(lst.length);
+            get('dc-kpi-' + k + '-m').textContent = moneyShort(total(lst, 'monto'));
+        }
+        return set;
+    }
+
+    function story(v, set) {
+        const pct = v.length ? set.atendido.length / v.length * 100 : 0;
+        get('di-story-title').textContent = v.length
+            ? 'El ' + num(Math.round(pct * 10) / 10) + '% de lo cotizado está atendido'
+            : 'Sin cotizaciones para esta selección';
+        const msgs = [moneyShort(total(set.atendido, 'monto')) + ' atendidos de ' + moneyShort(total(v, 'monto')) + ' cotizados.'];
+        if (set.cliente.length) msgs.push(set.cliente.length + ' esperando al cliente · ' + moneyShort(total(set.cliente, 'monto')) + ' sin aprobar.');
+        if (set.sustentar.length) msgs.push(set.sustentar.length + ' pendientes de sustento.');
+        get('di-story-detail').textContent = msgs.join(' ');
+        get('di-progress-fill').style.width = pct + '%';
+        get('di-progress-fill').parentElement.title = set.atendido.length + ' atendidas de ' + v.length;
+    }
+
+    // ── Gráficos de tiempo ─────────────────────────────────────────────────────
+    function months() {
+        const c = get('di-client').value, t = get('di-type').value, o = get('di-owner').value;
+        const half = rows.filter(r => r.mes && (!c || r.cliente === c) && (!t || r.tipo === t) && (!o || r.solicito === o));
+        const porMes = new Map();
+        half.forEach(r => {
+            const e = porMes.get(r.mes) || { n: 0, atn: 0, monto: 0 };
+            e.n++; if (r.pestania === 'atendido') e.atn++; e.monto += r.monto || 0;
+            porMes.set(r.mes, e);
+        });
+        const lista = [...porMes.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        const max = Math.max(0, ...lista.map(x => x[1].n), 1);
+        const sel = get('di-month').value || data.mes_actual;
+        const box = get('di-months'); box.replaceChildren();
+        const alto = Math.max(54, box.clientHeight - 32);
+        lista.forEach(([mes, e]) => {
+            const bar = document.createElement('div');
+            bar.className = 'di-month' + (mes === sel ? ' di-month-selected' : '');
+            bar.title = mes + ': ' + e.n + ' creadas · ' + e.atn + ' atendidas · ' + money(e.monto);
+            const b = document.createElement('b'); b.textContent = e.n;
+            const fill = document.createElement('i'); fill.style.height = e.n / max * alto + 'px';
+            const label = document.createElement('span'); label.textContent = mes;
+            bar.append(b, fill, label); box.append(bar);
+        });
+        if (!lista.length) box.textContent = 'No hay cotizaciones con fecha para estos filtros.';
+    }
+
+    function daily(v) {
+        const month = get('di-month').value || data.mes_actual;
+        const parts = month.split('-').map(Number);
+        const days = new Date(parts[0], parts[1], 0).getDate();
+        const counts = Array(days).fill(0), montos = Array(days).fill(0);
+        v.filter(r => r.mes === month && r.dia).forEach(r => {
+            const d = Number(r.dia.slice(8, 10)) - 1;
+            if (d >= 0 && d < days) { counts[d]++; montos[d] += r.monto || 0; }
+        });
+        const totalN = counts.reduce((a, b) => a + b, 0), max = Math.max(...counts, 1);
+        const totalM = montos.reduce((a, b) => a + b, 0);
+        get('di-daily-month').textContent = month;
+        get('di-daily-caption').textContent = totalN
+            ? totalN + ' cotizaciones · ' + money(totalM) + ' · por fecha de solicitud'
+            : 'Ninguna cotización creada en este mes; elige otro mes para consultar el histórico';
+        const ns = 'http://www.w3.org/2000/svg';
+        const el = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k, v2]) => e.setAttribute(k, v2)); if (text !== undefined) e.textContent = text; return e; };
+        const box = get('di-daily');
+        const width = Math.max(320, box.clientWidth), height = Math.max(96, box.clientHeight);
+        const left = 24, right = width - 6, bottom = height - 18;
+        const svg = el('svg', { viewBox: '0 0 ' + width + ' ' + height, preserveAspectRatio: 'none', role: 'img', 'aria-label': totalN + ' cotizaciones por día en ' + month });
+        const step = (right - left) / days;
+        const x = i => left + (i + 0.5) * step, y = v2 => bottom - v2 / max * (bottom - 18);
+        [0, max].forEach(v2 => { svg.append(el('line', { x1: left, y1: y(v2), x2: right, y2: y(v2), class: 'di-daily-grid' })); svg.append(el('text', { x: left - 5, y: y(v2) + 3, 'text-anchor': 'end', class: 'di-daily-label' }, v2)); });
+        counts.forEach((v2, i) => {
+            if (v2) {
+                const bar = el('rect', { x: x(i) - step * 0.32, y: y(v2), width: step * 0.64, height: Math.max(1, bottom - y(v2)), rx: 2, class: 'di-daily-dot' });
+                bar.append(el('title', {}, month + '-' + String(i + 1).padStart(2, '0') + ': ' + v2 + ' cotizaciones · ' + money(montos[i]))); svg.append(bar);
+                svg.append(el('text', { x: x(i), y: y(v2) - 5, 'text-anchor': 'middle', class: 'di-daily-value' }, v2));
+            }
+            svg.append(el('text', { x: x(i), y: height - 3, 'text-anchor': 'middle', class: 'di-daily-label' }, i + 1));
+        });
+        box.replaceChildren(svg);
+    }
+
+    // ── Paneles por pestaña ────────────────────────────────────────────────────
+    function paneles(v) {
+        // Cliente: quién generó las que aún no aprueban
+        const cli = v.filter(r => r.pestania === 'cliente');
+        bars('dc-cli-users', groupAgg(cli, 'genero').slice(0, 8)
+            .map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' cotizaciones · ' + money(e.monto) + ' pendientes de aprobación']));
+        bars('dc-cli-proy', groupAgg(cli, 'cliente').slice(0, 8)
+            .map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' pendientes de aprobación · ' + money(e.monto)]));
+
+        // Sustentar: quién pidió lo que falta sustentar + evidencia
+        const sus = v.filter(r => r.pestania === 'sustentar');
+        const conSust = sus.filter(r => r.sustento_ok).length;
+        bars('dc-sus-users', groupAgg(sus, 'solicito').slice(0, 8)
+            .map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' pendientes de sustento · ' + money(e.monto)]));
+        const chips = document.createElement('div');
+        chips.className = 'dc-chips';
+        chips.innerHTML = '<span class="dc-chip">Sustento listo: <strong>' + conSust + '</strong></span><span class="dc-chip">Por sustentar: <strong>' + (sus.length - conSust) + '</strong></span><span class="dc-chip">Monto: ' + moneyShort(total(sus, 'monto')) + '</span>';
+        get('dc-sus-users').prepend(chips);
+
+        // Proveedor: archivos cargados y cierre
+        const prov = v.filter(r => r.proveedor);
+        const atn = prov.filter(r => r.pestania === 'atendido').length;
+        const pct = f => prov.length ? Math.round(prov.filter(f).length / prov.length * 100) : 0;
+        bars('dc-prov', [
+            ['Factura proveedor', pct(r => r.factura_ok), prov.filter(r => r.factura_ok).length + ' de ' + prov.length + ' con factura cargada'],
+            ['Cotización proveedor', pct(r => r.cotprov_ok), prov.filter(r => r.cotprov_ok).length + ' de ' + prov.length + ' con cotización del proveedor'],
+            ['Correo del cliente', pct(r => r.correo_ok), prov.filter(r => r.correo_ok).length + ' de ' + prov.length + ' con correo adjunto'],
+        ], { fmt: x => x + '%' });
+        get('dc-prov-caption').textContent = atn + ' atendidas de ' + prov.length + ' · ' + moneyShort(total(prov, 'facturado')) + ' facturados de ' + moneyShort(total(prov, 'monto')) + ' cotizados';
+
+        // Antigüedad de lo pendiente de sustento
+        const buckets = [['0–7 días', 0], ['8–15 días', 0], ['16–30 días', 0], ['Más de 30', 0], ['Sin fecha', 0]];
+        sus.forEach(r => {
+            if (r.aging === null || r.aging === undefined) buckets[4][1]++;
+            else if (r.aging <= 7) buckets[0][1]++;
+            else if (r.aging <= 15) buckets[1][1]++;
+            else if (r.aging <= 30) buckets[2][1]++;
+            else buckets[3][1]++;
+        });
+        bars('dc-aging', buckets);
+
+        // Dinero y distribución
+        bars('dc-money', PEST_ORDER.map(p => {
+            const it = v.filter(r => r.pestania === p);
+            return [PEST_LABEL[p], Math.round(total(it, 'monto')), it.length + ' cotizaciones'];
+        }).filter(x => x[1] > 0), { fmt: moneyShort });
+        bars('dc-types', groupAgg(v, 'tipo').slice(0, 8).map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n]));
+        bars('dc-estados', groupAgg(v, 'estado').map(([k, e]) => [k, e.n]));
+    }
+
+    // ── Tabla detalle ──────────────────────────────────────────────────────────
+    function table() {
+        const pest = get('dc-pest').value;
+        const subset = visible.filter(r => !pest || (pest === 'proveedor' ? r.proveedor : r.pestania === pest));
+        const pages = Math.max(1, Math.ceil(subset.length / 50));
+        page = Math.min(page, pages - 1);
+        const tb = get('dc-orders'); tb.replaceChildren();
+        subset.slice(page * 50, page * 50 + 50).forEach(r => {
+            const tr = document.createElement('tr');
+            [r.n, r.cliente, r.site || '—', r.tipo, money(r.monto), r.estado, PEST_LABEL[r.pestania],
+             r.solicito, r.genero, r.dia || '—', r.wo || '—', r.factura_ok ? 'Sí' : '—', r.cotprov_ok ? 'Sí' : '—']
+                .forEach((c, i) => {
+                    const td = document.createElement('td');
+                    if (i === 6) {
+                        const s = document.createElement('span');
+                        s.className = 'dc-badge'; s.style.background = PEST_COLOR[r.pestania]; s.textContent = c;
+                        td.append(s);
+                    } else td.textContent = c;
+                    tr.append(td);
+                });
+            tb.append(tr);
+        });
+        get('dc-page-count').textContent = subset.length + ' cotizaciones · página ' + (page + 1) + ' de ' + pages;
+        get('dc-prev').disabled = page === 0;
+        get('dc-next').disabled = page >= pages - 1;
+        get('dc-detail-count').textContent = '(' + subset.length + ')';
+    }
+
+    function render() {
+        visible = filtered();
+        const set = kpis(visible);
+        story(visible, set);
+        months();
+        daily(visible);
+        paneles(visible);
+        page = 0; table();
+    }
+
+    ['di-month', 'di-client', 'di-type', 'di-owner'].forEach(id => get(id).addEventListener('change', () => { if (id === 'di-month') fillDays(); render(); }));
+    get('di-day').addEventListener('change', render);
+    get('dc-pest').addEventListener('change', () => { page = 0; table(); });
+    get('di-clear').addEventListener('click', () => {
+        ['di-month', 'di-day', 'di-client', 'di-type', 'di-owner', 'dc-pest'].forEach(id => get(id).value = '');
+        fillDays(); render();
+    });
+    get('dc-prev').addEventListener('click', () => { page--; table(); });
+    get('dc-next').addEventListener('click', () => { page++; table(); });
+    fillDays();
+    render();
+})();

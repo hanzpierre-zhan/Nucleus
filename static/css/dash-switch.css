@@ -1,0 +1,27 @@
+/* Ajustes COMPARTIDOS de las vistas de Analytics (selector de dashboard y
+   alineación de la barra de filtros). Archivo independiente: no modifica las
+   hojas de estilo de los dashboards, solo añade reglas sobre ellas. */
+
+/* ── Barra de filtros: BLOQUE COMPACTO pegado a la derecha ───────────────────
+   Sin `flex:1` el contenedor mide lo que miden sus controles (no se reparten
+   por el ancho) y `margin-left:auto` lo empuja al borde derecho. Vale en
+   cualquier ancho y gana a la regla del dashboard móvil que lo ponía a ancho
+   completo y alineado a la izquierda. */
+.di-head .di-filters{flex:0 1 auto;margin-left:auto;justify-content:flex-end}
+@media(max-width:1100px){
+  .di-head .di-filters{flex:0 1 auto;flex-basis:auto;width:auto;margin-left:auto;justify-content:flex-end}
+}
+@media(max-width:600px){
+  .di-head .di-filters{flex:1 1 100%;margin-left:0;justify-content:stretch}
+}
+
+/* ── Selector de dashboard (Producción / Cotizaciones / Rendición) ─────────── */
+.dash-switch{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:7px 0 0}
+.dash-switch-label{font-size:9px;font-weight:700;letter-spacing:.09em;color:var(--ios-secondary);text-transform:uppercase;margin-right:3px}
+.dash-switch-item{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:7px;border:1px solid var(--ios-hairline);background:var(--ios-card-bg);color:var(--ios-secondary);font-size:10.5px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s,color .15s}
+.dash-switch-item:hover{color:var(--ios-label);background:var(--ios-fill)}
+.dash-switch-item.is-active{background:#173E76;border-color:#173E76;color:#fff}
+.dash-switch-item.is-active:hover{color:#fff;background:#1d4c91}
+.dark-mode .dash-switch-item.is-active{background:#91B9F3;border-color:#91B9F3;color:#10233f}
+@media(max-width:600px){.dash-switch{margin-top:5px}.dash-switch-item{font-size:10px;padding:3px 8px}.dash-switch-label{display:none}}
+@media(min-width:1101px) and (max-height:800px){.dash-switch{margin-top:5px}.dash-switch-item{padding:2px 8px;font-size:10px}}

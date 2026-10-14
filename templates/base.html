@@ -51,7 +51,7 @@
 
             <nav class="sidebar-nav">
                 {% if (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
-                <a href="/analytics" class="sidebar-link {% if request.path == '/analytics' or request.path == '/dashboard' %}active{% endif %}" data-nav="/analytics">
+                <a href="/analytics" class="sidebar-link {% if request.path.startswith('/analytics') or request.path == '/dashboard' %}active{% endif %}" data-nav="/analytics">
                     <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Analytics</span>
                 </a>
                 {% endif %}
@@ -114,7 +114,7 @@
         <div class="app-main" data-flm-resource="{{ flm_resource_context.flm_nombre if flm_resource_context and flm_resource_context.recurso in ['personal','material'] else '' }}" data-proyecto-id="{{ session.get('current_proyecto_id', '') }}" data-flm-origin="{{ flm_resource_context.flm_id if flm_resource_context else (session.get('current_proyecto_id') if session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'] else '') }}">
             <!-- Main Content Grid -->
             <main class="excel-main">
-                {% if request.path not in ['/', '/salud', '/analytics'] %}{% include '_flm_recursos.html' %}{% endif %}
+                {% if request.path != '/' and request.path != '/salud' and not request.path.startswith('/analytics') %}{% include '_flm_recursos.html' %}{% endif %}
                 {% block content %}{% endblock %}
             </main>
 

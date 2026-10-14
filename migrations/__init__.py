@@ -290,6 +290,12 @@ def run_migrations(app, database_url=''):
         # ── Configurar proyectos de apoyo (Dataper, Material, SITE, etc.) ─
         _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, TablaMaestra)
 
+        # ── Rendicion: columna del motivo de rechazo + URLs de foto viejas ─
+        try:
+            _migrar_rendicion(Proyecto, AppConfig, NucleusData)
+        except Exception as _e_rend:
+            print('Warning: migracion de Rendicion:', _e_rend)
+
         # ── PK de FLM - ENTEL, FLM - INTEGRATEL, FLM - CLARO ──
         for _flm_nombre, _flm_pk in (('FLM - ENTEL', 'Número de WO'), ('FLM - INTEGRATEL', 'Número de WO'), ('FLM - CLARO', 'Número de WO')):
             _fp = Proyecto.query.filter_by(nombre=_flm_nombre).first()
@@ -635,3 +641,81 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         if not AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first():
             db.session.add(AppConfig(proyecto_id=cot_proy.id, clave='cotizacion_next_seq', valor='61'))
         db.session.commit()
+# -*- coding: utf-8 -*-
+
+
+def _migrar_rendicion(Proyecto, AppConfig, NucleusData):
+    """Arreglos idempotentes del modulo Rendicion.
+
+    1. Columna 'MOTIVO RECHAZO': el motivo vivia SOLO en OBSERVACIONES, que no
+       es una columna del modulo, asi que no se veia en la tabla.
+    2. Backfill del motivo en los rechazos historicos.
+    3. URLs de foto saneadas: la llave del registro es una fecha con '/' y
+       espacios ('6/10/2026 14:30:00') y quedaba cruda dentro de la URL, por lo
+       que el navegador la cortaba al abrirla y el archivo daba 'No encontrado'.
+       El servidor ya prueba la llave cruda y la saneada, asi que aqui solo hay
+       que dejar la URL sin espacios ni barras.
+    """
+    import re
+    from werkzeug.utils import secure_filename
+    from db import db
+
+    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not proy:
+        return
+
+    # 1) Columna en el esquema (asi aparece en la tabla y en el selector de columnas)
+    campos = []
+    cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+    if cfg and cfg.valor:
+        try:
+            campos = json.loads(cfg.valor)
+        except Exception:
+            campos = []
+    if not isinstance(campos, list):
+        campos = []
+    bajos = {str(c).strip().lower() for c in campos}
+    if 'motivo rechazo' not in bajos:
+        campos.append('MOTIVO RECHAZO')
+        valor = json.dumps(campos, ensure_ascii=False)
+        if cfg:
+            cfg.valor = valor
+        else:
+            db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema', valor=valor))
+        db.session.commit()
+
+    # 2) y 3) sobre los registros
+    patron = re.compile(r'(/api/rendicion/foto/\d+/)(.*?)(/[^/]+)$')
+
+    def _sanea(texto):
+        return patron.sub(
+            lambda m: m.group(1) + secure_filename(m.group(2)) + m.group(3), texto)
+
+    cambios = 0
+    for fila in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+        try:
+            d = json.loads(fila.data_json or '{}')
+        except Exception:
+            continue
+        if not isinstance(d, dict):
+            continue
+        tocado = False
+        # motivo del rechazo historico -> columna propia
+        if str(d.get('ESTADO') or '').strip().upper() == 'RECHAZADO':
+            motivo = str(d.get('OBSERVACIONES') or '').strip()
+            if motivo and not str(d.get('MOTIVO RECHAZO') or '').strip():
+                d['MOTIVO RECHAZO'] = motivo
+                tocado = True
+        # URLs de foto con la llave cruda
+        for clave, valor in list(d.items()):
+            if isinstance(valor, str) and '/api/rendicion/foto/' in valor:
+                nuevo = _sanea(valor)
+                if nuevo != valor:
+                    d[clave] = nuevo
+                    tocado = True
+        if tocado:
+            fila.data_json = json.dumps(d, ensure_ascii=False)
+            cambios += 1
+    if cambios:
+        db.session.commit()
+        print('Rendicion: %d registros actualizados (motivo de rechazo / URLs de foto)' % cambios)

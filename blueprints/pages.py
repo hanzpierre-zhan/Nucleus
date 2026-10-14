@@ -527,6 +527,81 @@ def analytics():
                            proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
 
 
+@bp.route('/analytics/cotizaciones')
+@login_required
+def analytics_cotizaciones():
+    """Dashboard comercial de Cotizaciones: cantidad y plata por pestaña,
+    quién generó/solicitó cada cotización y avance de archivos de proveedor.
+    Vista separada: el dashboard operativo (/analytics) no cambia."""
+    user_id, user_rol, pid = get_session_info()
+    proyectos = get_menu_proyectos(user_id, user_rol)
+    proy = next((p for p in proyectos if str(p.nombre).strip().lower() == 'cotizaciones'), None)
+    if proy is None and user_rol in ('zeno', 'suport', 'admin'):
+        proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if proy is None:
+        return redirect(url_for('pages.analytics'))
+    restricciones = {}
+    if user_rol not in ('zeno', 'suport'):
+        acceso = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy.id).first()
+        if acceso:
+            try:
+                restricciones = json.loads(acceso.restricciones or '{}')
+            except (ValueError, TypeError):
+                restricciones = {}
+    from services.dashboard_cotizaciones import indicadores
+    def registros():
+        for fila in NucleusData.query.filter_by(proyecto_id=proy.id).order_by(NucleusData.id).yield_per(500):
+            try:
+                datos = json.loads(fila.data_json)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(datos, dict):
+                datos['_key'] = fila.key_value
+                if not restricciones or apply_data_restrictions([datos], restricciones):
+                    yield datos
+    dashboard = indicadores(registros())
+    return render_template('dashboard_cotizaciones.html', dashboard=dashboard,
+                           proyectos_list=proyectos, proyecto_nombre='Cotizaciones',
+                           proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
+
+
+@bp.route('/analytics/rendicion')
+@login_required
+def analytics_rendicion():
+    """Dashboard del flujo de Rendición: dónde se queda cada caso, cantidad y
+    plata por pestaña. Vista separada: no altera el dashboard operativo."""
+    user_id, user_rol, pid = get_session_info()
+    proyectos = get_menu_proyectos(user_id, user_rol)
+    proy = next((p for p in proyectos if str(p.nombre).strip().lower() == 'rendicion'), None)
+    if proy is None and user_rol in ('zeno', 'suport', 'admin'):
+        proy = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if proy is None:
+        return redirect(url_for('pages.analytics'))
+    restricciones = {}
+    if user_rol not in ('zeno', 'suport'):
+        acceso = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy.id).first()
+        if acceso:
+            try:
+                restricciones = json.loads(acceso.restricciones or '{}')
+            except (ValueError, TypeError):
+                restricciones = {}
+    from services.dashboard_rendicion import indicadores
+    def registros():
+        for fila in NucleusData.query.filter_by(proyecto_id=proy.id).order_by(NucleusData.id).yield_per(500):
+            try:
+                datos = json.loads(fila.data_json)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(datos, dict):
+                datos['_key'] = fila.key_value
+                if not restricciones or apply_data_restrictions([datos], restricciones):
+                    yield datos
+    dashboard = indicadores(registros())
+    return render_template('dashboard_rendicion.html', dashboard=dashboard,
+                           proyectos_list=proyectos, proyecto_nombre='Rendicion',
+                           proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
+
+
 @bp.route('/configuraciones')
 @login_required
 def configuraciones():

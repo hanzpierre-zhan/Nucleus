@@ -1072,13 +1072,13 @@
 
     .ev-body { padding: 16px; overflow: auto; flex: 1; background: var(--ios-bg); }
 
-    #evidencia-contenedor {
+    .ev-modal #evidencia-contenedor {
 
-        display: grid; grid-column: 1 / -1;
+        /* Masonry por columnas: las tarjetas se rellenan de arriba a abajo sin
+           dejar huecos muertos. Va con .ev-modal para ganar a la regla de
+           themes.css que lo ponía en 2 columnas estiradas. */
 
-        grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
-
-        gap: 14px; align-items: start;
+        columns: 3 360px; column-gap: 14px; display: block; align-items: initial;
 
     }
 
@@ -1087,6 +1087,13 @@
         background: var(--ios-card-bg); border: 1px solid var(--ios-hairline);
 
         border-radius: 14px; padding: 14px; box-shadow: var(--shadow-soft); min-width: 0;
+
+        /* Con el acomodo por columnas: la tarjeta no se parte entre columnas y
+           mantiene su separación vertical. */
+
+        break-inside: avoid; -webkit-column-break-inside: avoid;
+
+        width: 100%; margin: 0 0 14px;
 
     }
 
@@ -1256,7 +1263,7 @@
 
     @media (max-width: 760px) {
 
-        #evidencia-contenedor { grid-template-columns: 1fr; }
+        .ev-modal #evidencia-contenedor { columns: 1; }
 
         .ev-lb-stage { padding: 0 6px 8px; }
 
@@ -10888,6 +10895,7 @@ let _rendCambiandoVista = false;
                     mk('rend-btn-no', 'Rechazado', 'Rechazar y regresar a Evidencia', () => rendAbrirRechazo(key));
                 } else if (etapa === 'SUSTENTADO') {
                     mk('rend-btn-rev', 'Archivar', 'Archivar solicitud atendida', () => rendArchivar(key, false));
+                    mk('rend-btn-no', 'Rechazado', 'Rechazar y regresar a Evidencia', () => rendAbrirRechazo(key));
                 } else if (etapa === 'ARCHIVADO') {
                     mk('rend-btn-rev', 'Desarchivar', 'Desarchivar y regresar a Atendido', () => rendArchivar(key, true));
                 } else if (etapa === 'ANULADO') {
@@ -28397,7 +28405,7 @@ function rendAbrirRechazo(key) {
 
     const _rk = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
 
-    const _desdeRend = ['CON SUSTENTO','OBSERVADO'].includes(rendEstadoDe(_rk));
+    const _desdeRend = ['CON SUSTENTO','OBSERVADO','SUSTENTADO'].includes(rendEstadoDe(_rk));
 
     document.getElementById('rend-motivo').value = '';
 
