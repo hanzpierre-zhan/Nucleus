@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar sesión — Nucleus</title>
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M 20 26 A 10 10 0 1 1 20 6' fill='none' stroke='%23fff' stroke-width='2'/%3E%3Ccircle cx='12' cy='10' r='4' fill='%23fff'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml" href="/static/img/brand-symbol.svg?v=1">
     <link rel="stylesheet" href="/static/vendor/css/fontawesome.min.css?v=1">
     <style>
         *{box-sizing:border-box}
@@ -126,13 +126,14 @@
             .vl-glow{filter:none}
         }
     </style>
+    <link rel="stylesheet" href="/static/css/brand-lockup.css?v=3">
 </head>
 <body>
     <div class="vl-glow vl-glow-a"></div>
     <div class="vl-glow vl-glow-b"></div>
     <div class="vl-page">
         <div class="vl-center">
-            <a href="/" class="vl-logo" aria-label="Nucleus inicio"><svg width="30" height="30" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M 20 26 A 10 10 0 1 1 20 6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="4" fill="currentColor"/></svg><span>NUCLEUS</span></a>
+            {% set brand_location = 'login' %}{% include '_brand_lockup.html' %}
             <div class="vl-box">
                 <h1 class="vl-title">{{ "Bienvenido a Nucleus" if consent_required else "Inicia sesión" }}</h1>
                 <p class="vl-sub">{{ "Confirma tu conformidad para completar el primer acceso" if consent_required else "Accede a la plataforma con tu cuenta" }}</p>

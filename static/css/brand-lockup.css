@@ -1,0 +1,18 @@
+/* Identidades aprobadas: plataforma × operador. */
+.brand-lockup{display:flex;align-items:center;justify-content:center;text-decoration:none;flex-shrink:0}
+.brand-lockup img{display:block;object-fit:contain;flex-shrink:0}
+.brand-lockup__light,.brand-lockup__dark{width:100%;height:auto}
+.brand-lockup__dark,.brand-lockup__symbol{display:none!important}
+body.dark-mode .brand-lockup__light{display:none!important}
+body.dark-mode .brand-lockup__dark{display:block!important}
+body .vl-logo.brand-lockup .brand-lockup__light{display:none!important}
+body .vl-logo.brand-lockup .brand-lockup__dark{display:block!important}
+body.light .vl-logo.brand-lockup .brand-lockup__light{display:block!important}
+body.light .vl-logo.brand-lockup .brand-lockup__dark{display:none!important}
+body .vl-logo.brand-lockup{width:225px;max-width:85vw;gap:0;margin-bottom:22px}
+body.theme-vercel .sidebar-logo.brand-lockup{padding:12px 16px!important;gap:0;min-height:64px;box-sizing:border-box;overflow:hidden}
+body .sidebar-logo.brand-lockup .brand-lockup__light,body .sidebar-logo.brand-lockup .brand-lockup__dark{width:100%;max-width:208px;height:38px}
+body.sidebar-collapsed .sidebar-logo.brand-lockup{padding:14px 8px!important;min-height:60px}
+body.sidebar-collapsed .sidebar-logo.brand-lockup .brand-lockup__light,body.sidebar-collapsed .sidebar-logo.brand-lockup .brand-lockup__dark{display:none!important}
+body.sidebar-collapsed .sidebar-logo.brand-lockup .brand-lockup__symbol{display:block!important;width:30px;height:30px}
+@media(max-width:600px){body .vl-logo.brand-lockup{width:200px;margin-bottom:18px}}
