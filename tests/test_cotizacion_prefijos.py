@@ -13,8 +13,8 @@ def test_prefijos_comparten_secuencia_historica_y_evitan_reusar_numero(app, auth
         if not cfg:
             cfg = AppConfig(proyecto_id=pid, clave='cotizacion_next_seq')
             db.session.add(cfg)
-        cfg.valor = '9000002'
-        old_key = f'HW-{year}-9000001'
+        cfg.valor = '900002'
+        old_key = f'HW-{year}-0900001'
         db.session.add(NucleusData(proyecto_id=pid, key_value=old_key,
                                   data_json=json.dumps({'N° COTIZACION':old_key,'CLIENTE':'ENTEL'})))
         db.session.commit()
@@ -28,13 +28,13 @@ def test_prefijos_comparten_secuencia_historica_y_evitan_reusar_numero(app, auth
             }})
             assert response.status_code == 200, response.json
             key = response.json['key']; keys.append(key)
-            assert key == f'{prefix}-{year}-{9000002+index:07d}'
+            assert key == f'{prefix}-{year}-{ahora_peru().month:02d}-{900002+index:06d}'
             with app.app_context():
                 row = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).one()
                 assert json.loads(row.data_json)['N° COTIZACION'] == key
         with app.app_context():
             assert NucleusData.query.filter_by(proyecto_id=pid,key_value=old_key).one()
-            assert AppConfig.query.filter_by(proyecto_id=pid,clave='cotizacion_next_seq').one().valor == '9000005'
+            assert AppConfig.query.filter_by(proyecto_id=pid,clave='cotizacion_next_seq').one().valor == '900005'
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.proyecto_id==pid,NucleusData.key_value.in_(keys)).delete(synchronize_session=False)

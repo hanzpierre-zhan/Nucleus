@@ -260,3 +260,106 @@ def descargar_pdf(origen_id):
         abort(409)
     from blueprints.cotizacion import _cotizacion_registro_pdf_response
     return _cotizacion_registro_pdf_response(origen)
+
+@bp.route('/api/registros/<int:origen_id>/expediente')
+@login_required
+def descargar_expediente(origen_id):
+    """Expediente de los respaldos vinculados, sin consultar URLs externas."""
+    import os
+    import tempfile
+    import zipfile
+    from urllib.parse import urlsplit, unquote
+    from flask import send_file, current_app
+    from werkzeug.utils import secure_filename
+    from services.apoyo import evidencia_folder, evidencia_usa_b2, b2_cliente
+    from blueprints.cotizacion import _cot_folder, _cotizacion_registro_pdf_response
+
+    _autorizar()
+    origen = db.session.get(NucleusData, origen_id)
+    proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not origen or not proyecto or origen.proyecto_id != proyecto.id:
+        abort(404)
+    datos = json.loads(origen.data_json or '{}')
+    if not _ingresada(datos):
+        abort(409)
+    row = next((r for r in _registros() if r['id'] == origen_id), None)
+    if not row:
+        abort(404)
+    numero = secure_filename(row['correlativo'])
+    archivo = tempfile.TemporaryFile()
+    resumen = [f"Expediente: {numero}", f"Cotización: {row['cotizacion']}",
+               f"WO: {row['numero_wo']}", f"Inicio: {row['fecha_inicio']}", f"Fin: {row['fecha_fin']}"]
+    total = 0
+
+    def adjuntar(zf, url, destino, tipo):
+        nonlocal total
+        partes = urlsplit(str(url or ''))
+        ruta = unquote(partes.path)
+        patron = r'/api/(evidencia/foto|cotizacion/correo)/(\d+)/([^/]+)/([^/]+)'
+        match = re.fullmatch(patron, ruta)
+        if partes.scheme or partes.netloc or not match or match[1] != tipo:
+            raise ValueError('Referencia no válida')
+        pid, key, nombre = int(match[2]), match[3], match[4]
+        if any(x in key or x in nombre for x in ('..', '\\', '\x00')):
+            raise ValueError('Referencia no válida')
+        if tipo == 'cotizacion/correo' and pid != proyecto.id:
+            raise ValueError('Proyecto no válido')
+        if evidencia_usa_b2():
+            fuente = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'], Key=f'{key}/{nombre}')['Body']
+        else:
+            folder = evidencia_folder(pid, key) if tipo == 'evidencia/foto' else _cot_folder(pid, key)
+            fuente = open(os.path.join(folder, nombre), 'rb')
+        try:
+            # Copiar por bloques a disco; limitar el expediente a 250 MiB.
+            with zf.open(f'{numero}/{destino}/{secure_filename(nombre) or "adjunto"}', 'w') as salida:
+                while True:
+                    bloque = fuente.read(65536)
+                    if not bloque:
+                        break
+                    total += len(bloque)
+                    if total > 250 * 1024 * 1024:
+                        raise OverflowError('El expediente supera 250 MiB')
+                    salida.write(bloque)
+        finally:
+            fuente.close()
+
+    try:
+        with zipfile.ZipFile(archivo, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for kind, estado in row['documentos'].items():
+                resumen.append(f'{kind}: {estado}')
+            for fase in ('inicio', 'proceso', 'cierre'):
+                resumen.append(f"Comentario {fase}: {row['comentarios'].get(fase) or 'Sin comentarios'}")
+                for indice, url in enumerate(row['fotos'].get(fase, []), 1):
+                    try:
+                        adjuntar(zf, url, f'01_Sustento_de_obra/{fase}/{indice:03d}', 'evidencia/foto')
+                    except (OSError, ValueError, KeyError):
+                        resumen.append(f'No disponible: foto {fase} {indice}')
+                    except OverflowError:
+                        raise
+                    except Exception:
+                        resumen.append(f'No disponible: foto {fase} {indice}')
+            for kind, campo, carpeta in [('factura', 'factura_proveedor', '02_Factura_del_proveedor'),
+                                         ('correo', 'correo_cliente', '03_Correo_del_cliente')]:
+                if row.get(campo):
+                    try:
+                        adjuntar(zf, row[campo], carpeta, 'cotizacion/correo')
+                    except OverflowError:
+                        raise
+                    except Exception:
+                        resumen.append(f'No disponible: {kind}')
+            if str(datos.get('GENERADA') or '') == '1':
+                pdf = _cotizacion_registro_pdf_response(origen)
+                if pdf.status_code != 200:
+                    raise ValueError('No se pudo generar la cotización')
+                zf.writestr(f'{numero}/04_Cotizacion_generada/{secure_filename(row["cotizacion"]) or "cotizacion"}.pdf', pdf.get_data())
+            zf.writestr(f'{numero}/00_Resumen.txt', '\n'.join(resumen).encode('utf-8'))
+        archivo.seek(0)
+        return send_file(archivo, mimetype='application/zip', as_attachment=True,
+                         download_name=f'{numero}.zip', max_age=0)
+    except OverflowError:
+        archivo.close()
+        return jsonify({'error': 'El expediente supera 250 MiB. Descarga los respaldos individualmente.'}), 413
+    except Exception:
+        archivo.close()
+        current_app.logger.exception('No se pudo preparar el expediente %s', origen_id)
+        return jsonify({'error': 'No se pudo preparar el expediente. Intenta nuevamente.'}), 500

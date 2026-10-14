@@ -91,3 +91,50 @@ def test_refacturable_renderiza_montos_y_controles(auth_client):
     assert b'name="estado_liquidacion"' in respuesta.data
     assert b'id="ref-pagination"' in respuesta.data
     assert b'actualmente en construcci' not in respuesta.data
+
+
+def test_expediente_pendiente_conserva_numero(auth_client, cot_aprobada):
+    import io
+    import zipfile
+    fila = next(r for r in auth_client.get('/refacturable/api/registros').json['registros'] if r['id'] == cot_aprobada)
+    response = auth_client.get(f'/refacturable/api/registros/{cot_aprobada}/expediente')
+    assert response.status_code == 200
+    assert fila['correlativo'] + '.zip' in response.headers['Content-Disposition']
+    with zipfile.ZipFile(io.BytesIO(response.data)) as archivo:
+        resumen = archivo.read(fila['correlativo'] + '/00_Resumen.txt').decode('utf-8')
+        assert 'Pendiente' in resumen
+        assert fila['correlativo'] in resumen
+    response.close()
+
+
+def test_expediente_documentos_locales(app, auth_client, cot_aprobada, monkeypatch, tmp_path):
+    import io
+    import zipfile
+    from services import apoyo
+    from blueprints import cotizacion
+    monkeypatch.setattr(apoyo, 'evidencia_usa_b2', lambda: False)
+    monkeypatch.setattr(cotizacion, '_cot_folder', lambda pid, key: str(tmp_path))
+    (tmp_path / 'factura.pdf').write_bytes(b'factura-prueba')
+    (tmp_path / 'correo.msg').write_bytes(b'correo-prueba')
+    with app.app_context():
+        origen = db.session.get(NucleusData, cot_aprobada)
+        datos = json.loads(origen.data_json)
+        for campo, nombre in [('ADJUNTO FACTURA PROVEEDOR', 'factura.pdf'), ('ADJUNTO CORREO CLIENTE', 'correo.msg')]:
+            datos[campo] = f'/api/cotizacion/correo/{origen.proyecto_id}/TEST/{nombre}'
+        origen.data_json = json.dumps(datos)
+        db.session.commit()
+    response = auth_client.get(f'/refacturable/api/registros/{cot_aprobada}/expediente')
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.data)) as archivo:
+        names = archivo.namelist()
+        assert archivo.read(next(n for n in names if n.endswith('/02_Factura_del_proveedor/factura.pdf'))) == b'factura-prueba'
+        assert archivo.read(next(n for n in names if n.endswith('/03_Correo_del_cliente/correo.msg'))) == b'correo-prueba'
+    response.close()
+
+
+def test_expediente_no_admite_no_aprobada(app, auth_client, cot_aprobada):
+    with app.app_context():
+        origen = db.session.get(NucleusData, cot_aprobada)
+        origen.data_json = json.dumps({'ESTADO COTIZACION': 'En Aprobación'})
+        db.session.commit()
+    assert auth_client.get(f'/refacturable/api/registros/{cot_aprobada}/expediente').status_code == 409

@@ -38,7 +38,7 @@
         pill.classList.add('ref-status-' + (colors[text] || 'neutral')); return pill;
     }
     function column(title, field, extra = {}) {
-        return {title, field, width: 170, minWidth: 110, headerFilter: 'input', titleFormatter: headerFormatter, formatter: 'plaintext', ...extra};
+        return {title, field, width: 170, minWidth: 48, headerFilter: 'input', titleFormatter: headerFormatter, formatter: 'plaintext', ...extra};
     }
     function showSustento(row) {
         const body = document.getElementById('liq-sustento-body'); body.replaceChildren();
@@ -79,6 +79,14 @@
                 });
                 return link;
     }
+    function expedienteFormatter(cell) {
+                const row = cell.getRow().getData(); const link = document.createElement('a');
+                link.className = 'ref-quote-link'; link.textContent = row.correlativo + ' ↓ ZIP';
+                link.href = `/liquidaciones/api/registros/${row.id}/expediente`;
+                link.title = 'Descargar expediente: sustento, factura, correo y cotización';
+                link.setAttribute('aria-label', `Descargar expediente ${row.correlativo}`);
+                return link;
+    }
     const table = new Tabulator('#ref-grid', {
         layout: 'fitData', rowHeight: 44,
         movableColumns: true,
@@ -88,9 +96,9 @@
         paginationSizeSelector: [100, 200, 500, 1000], paginationButtonCount: 1,
         paginationElement: document.getElementById('ref-pagination'),
         placeholder: 'No hay cotizaciones aprobadas para mostrar.',
-        columnDefaults: {vertAlign: 'middle'},
+        columnDefaults: {vertAlign: 'middle', minWidth: 48, resizable: true},
         columns: [
-            column('N', 'correlativo', {width: 140, minWidth: 130}),
+            column('N', 'correlativo', {width: 185, minWidth: 48, formatter: expedienteFormatter}),
             column('N° COTIZACIÓN', 'cotizacion', {width:185, formatter: quoteFormatter}),
             column('ESTADO DE COTIZACIÓN', 'estado_cotizacion', {width: 185, formatter: statusFormatter}),
             column('TIPO DE GASTO', 'tipo_gasto', {width: 160}),
@@ -188,6 +196,7 @@
     table.on('dataFiltered', updateCount); table.on('pageLoaded', updateCount);
     table.on('tableBuilt', async () => {
         await table.getColumn('cotizacion').updateDefinition({formatter: quoteFormatter});
+        await table.getColumn('correlativo').updateDefinition({formatter: expedienteFormatter});
         await load();
     });
 })();

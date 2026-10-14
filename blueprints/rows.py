@@ -432,7 +432,9 @@ def api_rows_add():
             row_data['GESTOR'] = session.get('username', '')
             if not str(row_data.get('CLIENTE', '') or '').strip():
                 row_data['CLIENTE'] = 'ENTEL'
-            yr = str(ahora_peru().year)
+            fecha_numero = ahora_peru()
+            yr = str(fecha_numero.year)
+            mes = f'{fecha_numero.month:02d}'
             cliente = str(row_data['CLIENTE']).strip().upper()
             prefijo_coti = {'ENTEL':'EN', 'CLARO':'CL', 'INTEGRATEL':'IN'}.get(cliente)
             if not prefijo_coti:
@@ -442,17 +444,17 @@ def api_rows_add():
             cfg_locked = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_seq').with_for_update().first()
             user_coti = str(row_data.get('N° COTIZACION', '') or '').strip()
             # Si el usuario proveyó un N° válido y no duplicado, respétalo (maleable)
-            match_coti = re.fullmatch(r'(?:HW|EN|CL|IN)-(\d{4})-(\d{7})', user_coti)
+            match_coti = re.fullmatch(r'(?:HW|EN|CL|IN)-(\d{4})-(?:(0[1-9]|1[0-2])-)?(\d{6,7})', user_coti)
             if match_coti:
-                user_coti = f"{prefijo_coti}-{match_coti[1]}-{match_coti[2]}"
-                equivalentes = [f"{prefix}-{match_coti[1]}-{match_coti[2]}" for prefix in ('HW','EN','CL','IN')]
+                user_coti = f"{prefijo_coti}-{yr}-{mes}-{int(match_coti[3]):06d}"
+                equivalentes = [user_coti] + [f"{prefix}-{yr}-{int(match_coti[3]):07d}" for prefix in ('HW','EN','CL','IN')] + [f"{prefix}-{yr}-{mes}-{int(match_coti[3]):06d}" for prefix in ('EN','CL','IN')]
                 if not NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(equivalentes)).first():
                     key_val = user_coti
                     row_data['N° COTIZACION'] = key_val
                 else:
                     # Duplicado -> genera siguiente
                     user_coti = ''
-            _need_hw = (not user_coti or not re.match(r'^(?:EN|CL|IN)-\d{4}-\d{7}$', user_coti))
+            _need_hw = (not user_coti or not re.match(r'^(?:EN|CL|IN)-\d{4}-(?:0[1-9]|1[0-2])-\d{6,7}$', user_coti))
             _need_ord = proy_nombre in ('Cotizaciones', 'Combustible')
             # Un solo recorrido de la tabla para ambos correlativos
             # (antes: hasta 2 full-scans + parses JSON por cada alta).
@@ -474,7 +476,7 @@ def api_rows_add():
                         continue
                     if _need_hw:
                         k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
-                        m = re.match(r'^(?:HW|EN|CL|IN)-(\d{4})-(\d{7})$', k2)
+                        m = re.match(r'^(?:HW|EN|CL|IN)-(\d{4})-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})$', k2)
                         if m and m.group(1) == yr:
                             n = int(m.group(2))
                             if n > maxn:
@@ -485,11 +487,11 @@ def api_rows_add():
                             max_ord = int(v)
             if _need_hw:
                 next_n = maxn + 1
-                key_val = f"{prefijo_coti}-{yr}-{next_n:07d}"
+                key_val = f"{prefijo_coti}-{yr}-{mes}-{next_n:06d}"
                 row_data['N° COTIZACION'] = key_val
                 while NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first():
                     next_n += 1
-                    key_val = f"{prefijo_coti}-{yr}-{next_n:07d}"
+                    key_val = f"{prefijo_coti}-{yr}-{mes}-{next_n:06d}"
                     row_data['N° COTIZACION'] = key_val
                 try:
                     nxt_val = str(next_n + 1)

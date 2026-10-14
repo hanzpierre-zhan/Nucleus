@@ -1269,6 +1269,8 @@
     /* Botones de accion del flujo en la fila */
 
     .rend-acciones { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+    .rend-acciones .rend-btn { display:inline-flex; gap:5px; align-items:center; }
+    @container (max-width: 245px) { .rend-acciones .rend-action-label { display:none; } .rend-acciones .rend-btn { min-width:26px; padding:5px; } }
 
     .rend-btn {
 
@@ -6823,7 +6825,7 @@
 
                                     <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits"
 
-                                        value="0000001" maxlength="7" inputmode="numeric"
+                                        value="000001" maxlength="7" inputmode="numeric"
 
                                         title="Correlativo (7 dígitos)">
 
@@ -6989,7 +6991,7 @@
 
                                     <input type="text" id="wo-coti-numero" class="wo-coti-num-input wo-coti-num-digits"
 
-                                        value="0000001" maxlength="7" inputmode="numeric"
+                                        value="000001" maxlength="7" inputmode="numeric"
 
                                         title="Correlativo (7 dígitos)">
 
@@ -7484,7 +7486,7 @@ let _rendCambiandoVista = false;
 
     if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
 
-        fetch('/api/cotizacion/next_seq').then(r=>r.json()).then(j=>{ if(j && j.next){ cotiNextSeqConfig = parseInt(j.next,10); const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'); if(y) y.textContent=new Date().getFullYear(); if(inp) inp.value=String(cotiNextSeqConfig).padStart(7,'0'); } }).catch(()=>{});
+        fetch('/api/cotizacion/next_seq').then(r=>r.json()).then(j=>{ if(j && j.next){ cotiNextSeqConfig = parseInt(j.next,10); const y=document.getElementById('top-next-year'), inp=document.getElementById('top-next-seq'); if(y) y.textContent=new Date().getFullYear(); if(inp) inp.value=String(cotiNextSeqConfig).padStart(6,'0'); } }).catch(()=>{});
 
         // Rango por defecto del lote de PDFs: primer día del mes actual -> hoy
 
@@ -7516,7 +7518,7 @@ let _rendCambiandoVista = false;
 
             if(y) y.textContent=new Date().getFullYear();
 
-            if(inp && cotiNextSeqConfig) inp.value=String(cotiNextSeqConfig).padStart(7,'0');
+            if(inp && cotiNextSeqConfig) inp.value=String(cotiNextSeqConfig).padStart(6,'0');
 
             if(btn) btn.onclick=async()=>{
 
@@ -7536,7 +7538,7 @@ let _rendCambiandoVista = false;
 
                     cotiNextSeqConfig=v;
 
-                    nucleusAlert('Próximo correlativo guardado: EN / CL / IN-'+new Date().getFullYear()+'-'+String(v).padStart(7,'0'));
+                    nucleusAlert('Próximo correlativo guardado: '+prefijoCotizacion() + String(v).padStart(6,'0'));
 
                 }catch(e){ nucleusAlert(e.message||'Error'); }
 
@@ -7742,6 +7744,33 @@ let _rendCambiandoVista = false;
     };
 
     let _cotVista = 'registro';
+    let _cotCambiandoAnchos = false;
+    const _cotAnchosBase = {};
+    function cotAnchosClave(vista) {
+        return 'cot-anchos-' + {{ session.get('user_id') | tojson }} + '-' + {{ session.get('current_proyecto_id') | tojson }} + '-' + vista;
+    }
+    function cotGuardarAnchos() {
+        if (!IS_COTIZACIONES || _cotCambiandoAnchos) return;
+        const anchos = {};
+        table.getColumns().forEach(c => { if (c.getField()) anchos[c.getField()] = c.getWidth(); });
+        try { localStorage.setItem(cotAnchosClave(_cotVista), JSON.stringify(anchos)); } catch (_) {}
+    }
+    function cotAplicarAnchos(vista) {
+        let propios = {};
+        try { propios = JSON.parse(localStorage.getItem(cotAnchosClave(vista)) || '{}'); } catch (_) {}
+        _cotCambiandoAnchos = true;
+        try {
+            table.getColumns().forEach(c => {
+                const f = c.getField(); if (!f) return;
+                if (!_cotAnchosBase[f]) _cotAnchosBase[f] = c.getWidth();
+                const inicial = f === '_accion_cot'
+                    ? ({registro:160, cliente:160, sustentar:65, atendido:160, cancelado:110, proveedor:65}[vista] || 160)
+                    : _cotAnchosBase[f];
+                c.setWidth(Number(propios[f]) >= 40 ? Number(propios[f]) : inicial);
+                c.getDefinition().width = c.getWidth();
+            });
+        } finally { _cotCambiandoAnchos = false; }
+    }
 
     // Devuelve la pestaña ('registro'|'cotizado'|'cliente'|'atendido') a la que
 
@@ -9343,7 +9372,7 @@ let _rendCambiandoVista = false;
 
             width: 150,
 
-            minWidth: 60,
+            minWidth: 48,
 
             maxWidth: 260,
 
@@ -9384,7 +9413,7 @@ let _rendCambiandoVista = false;
                 const row = cell.getRow().getData();
                 const url = String(cell.getValue() || '');
                 if (!/^\/api\/rendicion\/correo\/\d+\/[a-zA-Z0-9_.-]+$/.test(url)) return '—';
-                return `<a class="btn btn-sm" href="${escapeHtml(url)}" download title="${escapeHtml(row['NOMBRE CORREO VALIDACION'] || 'Descargar correo .msg')}"><i class="fa-solid fa-download"></i> Descargar .msg</a>`;
+                return `<a class="action-pill pill-blue" href="${escapeHtml(url)}" download title="${escapeHtml(row['NOMBRE CORREO VALIDACION'] || 'Descargar correo .msg')}"><i class="fa-solid fa-envelope"></i> Correo .msg <i class="fa-solid fa-download"></i></a>`;
             };
             restColumns.push(colDef);
             return;
@@ -10716,7 +10745,7 @@ let _rendCambiandoVista = false;
 
             width: 56,
 
-            minWidth: 56,
+            minWidth: 48,
 
 
 
@@ -10780,7 +10809,7 @@ let _rendCambiandoVista = false;
 
             width: 300,
 
-            minWidth: 280,
+            minWidth: 48,
 
             resizable: true,
 
@@ -10799,6 +10828,8 @@ let _rendCambiandoVista = false;
                 const wrap = document.createElement('div');
 
                 wrap.className = 'rend-acciones';
+                cell.getElement().style.whiteSpace = 'normal';
+                cell.getElement().style.containerType = 'inline-size';
 
                 const key = row._key;
 
@@ -10822,7 +10853,12 @@ let _rendCambiandoVista = false;
 
                     if (String(texto).trim().charAt(0) === '<') b.innerHTML = texto;
 
-                    else b.textContent = texto;
+                    else {
+                        const iconos = {'Validar':'check','Anular':'ban','Registrar depósito':'money-bill-transfer','Rechazado':'rotate-left','Conforme':'check-double','Observar':'triangle-exclamation','Archivar':'box-archive','Desarchivar':'box-open'};
+                        const icono = document.createElement('i'); icono.className = 'fa-solid fa-' + (iconos[texto] || 'arrow-right'); icono.setAttribute('aria-hidden','true');
+                        const etiqueta = document.createElement('span'); etiqueta.className = 'rend-action-label'; etiqueta.textContent = texto;
+                        b.append(icono, etiqueta);
+                    }
 
                     b.title = titulo;
                     b.setAttribute('aria-label', titulo);
@@ -11004,7 +11040,7 @@ let _rendCambiandoVista = false;
 
         c.width = 155;
 
-        c.minWidth = 90;
+        c.minWidth = 48;
 
         c.maxWidth = 300;
 
@@ -11068,7 +11104,7 @@ let _rendCambiandoVista = false;
 
             width: 152,
 
-            minWidth: 152,
+            minWidth: 48,
 
 
 
@@ -11091,6 +11127,8 @@ let _rendCambiandoVista = false;
                 const wrap = document.createElement('div');
 
                 wrap.className = 'rend-acciones';
+                cell.getElement().style.whiteSpace = 'normal';
+                cell.getElement().style.containerType = 'inline-size';
 
 
 
@@ -11099,7 +11137,12 @@ let _rendCambiandoVista = false;
                     b.type = 'button';
                     b.className = 'cot-btn ' + clase;
                     if (String(texto).trim().charAt(0) === '<') b.innerHTML = texto;
-                    else b.textContent = texto;
+                    else {
+                        const iconos = {'Validar':'check','Anular':'ban','Registrar depósito':'money-bill-transfer','Rechazado':'rotate-left','Conforme':'check-double','Observar':'triangle-exclamation','Archivar':'box-archive','Desarchivar':'box-open'};
+                        const icono = document.createElement('i'); icono.className = 'fa-solid fa-' + (iconos[texto] || 'arrow-right'); icono.setAttribute('aria-hidden','true');
+                        const etiqueta = document.createElement('span'); etiqueta.className = 'rend-action-label'; etiqueta.textContent = texto;
+                        b.append(icono, etiqueta);
+                    }
                     b.title = titulo;
                     b.setAttribute('aria-label', titulo);
                     b.disabled = !puede;
@@ -11191,7 +11234,7 @@ let _rendCambiandoVista = false;
 
             width: 140,
 
-            minWidth: 130,
+            minWidth: 48,
 
 
 
@@ -11423,7 +11466,7 @@ let _rendCambiandoVista = false;
 
         var clearBtn = document.createElement("button");
 
-        clearBtn.innerHTML = "<i class='fa-solid fa-eraser'></i> Limpiar";
+        clearBtn.innerHTML = "<i class='fa-regular fa-square'></i> Deseleccionar";
 
         clearBtn.style.flex = "1";
 
@@ -11447,12 +11490,8 @@ let _rendCambiandoVista = false;
 
             ex.preventDefault();
 
-            const grid = column.getTable();
-            grid.getFilters().forEach(f => {
-                if (f.field === column.getField() && f.type === 'in') grid.removeFilter(f.field, f.type, f.value);
-            });
-            grid.setHeaderFilterValue(column.getField(), '');
-            document.body.click();
+            ex.stopPropagation();
+            container.querySelectorAll("input[type='checkbox']").forEach(input => { input.checked = false; input.indeterminate = false; });
 
         };
 
@@ -11575,7 +11614,7 @@ let _rendCambiandoVista = false;
 
             chk.style.cursor = "pointer";
 
-            chk.checked = activeVals.length === 0 || activeVals.includes(String(val));
+            chk.checked = !myFilter || activeVals.includes(String(val));
 
 
 
@@ -11589,7 +11628,10 @@ let _rendCambiandoVista = false;
             lbl.style.overflowWrap = "anywhere";
             lbl.style.minWidth = "0";
 
-            lbl.appendChild(document.createTextNode(val));
+            const valorVisible = String(val);
+            const esCorreo = /^\/api\/rendicion\/correo\//.test(valorVisible);
+            lbl.appendChild(document.createTextNode(esCorreo ? 'Correo adjunto · ' + (unique.indexOf(val) + 1) : val));
+            if (esCorreo) lbl.title = valorVisible;
 
             lbl.onclick = (ex) => { ex.preventDefault(); chk.checked = !chk.checked; };
 
@@ -11613,7 +11655,7 @@ let _rendCambiandoVista = false;
 
 
 
-    tableColumns.forEach(c=>{ if(c.field==='N° ORDEN'){ c.title='N'; c.width=52; c.minWidth=44; c.maxWidth=60; }});
+    tableColumns.forEach(c=>{ if(c.field==='N° ORDEN'){ c.title='N'; c.sorter='number'; c.width=52; c.minWidth=44; c.maxWidth=60; }});
 
     // Cotizaciones: mismo orden que Combustible -> check | N | resto (N° COTIZACION, FECHA, etc.)
 
@@ -11674,14 +11716,14 @@ let _rendCambiandoVista = false;
 
             ? [{ column: "QR ASIGNADO", dir: "asc" }, { column: "FECHA", dir: "asc" }]
 
-            : [],
+            : (IS_COTIZACIONES ? [{column: "N° ORDEN", dir: "desc"}] : []),
 
         height: "100%",
 
         headerHeight: 90,
 
         rowHeight: 44,
-        columnDefaults: { vertAlign: "middle" },
+        columnDefaults: { vertAlign: "middle", minWidth: 48, resizable: true },
 
         selectable: isAdmin,
 
@@ -12258,6 +12300,12 @@ let _rendCambiandoVista = false;
             const def = col.getDefinition();
 
             if (def) def.width = col.getWidth();
+            if (IS_COTIZACIONES) cotGuardarAnchos();
+            if (IS_RENDICION && !_rendCambiandoVista && _rendEstadoListo) {
+                const estado = _rendSnapshot();
+                _rendEstadoVistas[_rendVista] = estado;
+                localStorage.setItem(_rendAnchosClave(_rendVista), JSON.stringify(estado.anchos));
+            }
 
         } catch (e) { }
 
@@ -15805,7 +15853,7 @@ let _rendCambiandoVista = false;
         inpCoti.value = _curCoti;
 
         inpCoti.placeholder = prefijoCotizacion(selClienteCoti.value) + '0000000';
-        selClienteCoti.addEventListener('change',()=>{if(!cotiEditMode){const digits=inpCoti.value.match(/(\d{7})$/)?.[1]||_sugerirCorrelativoCotiReg();inpCoti.value=prefijoCotizacion(selClienteCoti.value)+digits;}});
+        selClienteCoti.addEventListener('change',()=>{if(!cotiEditMode){const digits=inpCoti.value.match(/(\d{6,7})$/)?.[1]||_sugerirCorrelativoCotiReg();inpCoti.value=prefijoCotizacion(selClienteCoti.value)+digits;}});
 
         inpCoti.title = 'Editable. Se asigna definitivo al generar.';
 
@@ -16531,7 +16579,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             const k = String(r['_key'] != null ? r['_key'] : (r['N° COTIZACION'] || ''));
 
-            const m = k.match(/^(?:HW|EN|CL|IN)-(\d{4})-(\d{7})$/);
+            const m = k.match(/^(?:HW|EN|CL|IN)-(\d{4})-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})$/);
 
             if (m && m[1] === yr) {
 
@@ -16547,7 +16595,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (cotiNextSeqConfig && cotiNextSeqConfig > maxn+1) maxn = cotiNextSeqConfig -1;
 
-        return String(maxn + 1).padStart(7, '0');
+        return String(maxn + 1).padStart(6, '0');
 
     }
 
@@ -16649,7 +16697,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (hidden) {
 
-            const m = key.match(/(\d{7})$/);
+            const m = key.match(/(\d{6,7})$/);
 
             hidden.value = m ? m[1] : '';
 
@@ -17387,13 +17435,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         // Formatear si solo ingresaron los dígitos
 
-        if (numero && !/^(?:HW|EN|CL|IN)-\d{4}-\d{7}$/.test(numero)) {
+        if (numero && !/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?\d{6,7}$/.test(numero)) {
 
             const digits = numero.replace(/\D/g, '');
 
             if (digits) {
 
-                numero = prefijoCotizacion(getVal('CLIENTE')) + digits.padStart(7, '0');
+                numero = prefijoCotizacion(getVal('CLIENTE')) + digits.padStart(6, '0');
 
             }
 
@@ -17721,7 +17769,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 if (!digits) { alert('Ingrese el correlativo del N° de cotización.'); return; }
 
-                data['N° COTIZACION'] = prefijoCotizacion(data['CLIENTE']) + digits.padStart(7, '0');
+                data['N° COTIZACION'] = prefijoCotizacion(data['CLIENTE']) + digits.padStart(6, '0');
 
                 key = data['N° COTIZACION'];
 
@@ -22080,7 +22128,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             numInp.addEventListener('blur', () => {
 
-                numInp.value = (numInp.value || '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
+                numInp.value = (numInp.value || '').replace(/\D/g, '').slice(0, 7).padStart(6, '0');
 
             });
 
@@ -22952,7 +23000,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         const selected = cliente || document.querySelector('#mar-fields [data-field="CLIENTE"]')?.value || {{ (session.get('current_proyecto_nombre') or '')|tojson }};
         const name = String(selected || '').toUpperCase();
         const prefix = name.includes('CLARO')?'CL':name.includes('INTEGRATEL')?'IN':'EN';
-        return prefix + '-' + new Date().getFullYear() + '-';
+        const hoy = new Date();
+        return prefix + '-' + hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-';
 
     }
 
@@ -22964,11 +23013,11 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const m = v.match(/(\d+)$/);
 
-        if (!m) return { prefix: prefijoCotizacion(), digits: '0000001' };
+        if (!m) return { prefix: prefijoCotizacion(), digits: '000001' };
 
         let prefix = v.slice(0, v.length - m[1].length);
 
-        if (!/^(?:HW|EN|CL|IN)-\d{4}-$/.test(prefix)) prefix = prefijoCotizacion();
+        if (!/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?$/.test(prefix)) prefix = prefijoCotizacion();
 
         return { prefix: prefix, digits: m[1] };
 
@@ -22982,7 +23031,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const input = document.getElementById('wo-coti-numero');
 
-        if (input) input.value = sp.digits.padStart(7, '0');
+        if (input) input.value = sp.digits.padStart(/-\d{2}-$/.test(sp.prefix) ? 6 : 7, '0');
 
         const pref = document.querySelector('.wo-coti-prefix');
 
@@ -22998,11 +23047,12 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const pref = document.querySelector('.wo-coti-prefix');
 
-        const digits = (input ? input.value : '').replace(/\D/g, '').slice(0, 7).padStart(7, '0');
+        const ancho = /-\d{2}-$/.test(document.querySelector('.wo-coti-prefix')?.textContent || '') ? 6 : 7;
+        const digits = (input ? input.value : '').replace(/\D/g, '').slice(0, 7).padStart(ancho, '0');
 
         const pfx = pref ? pref.textContent : '';
 
-        return (/^(?:HW|EN|CL|IN)-\d{4}-$/.test(pfx) ? pfx : prefijoCotizacion()) + digits;
+        return (/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?$/.test(pfx) ? pfx : prefijoCotizacion()) + digits;
 
     }
 
@@ -23132,7 +23182,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 if (!o.value) return;
 
-                const m = String(o.textContent).match(/^(?:HW|EN|CL|IN)-\d{4}-(\d{7})(?:\b|$)/);
+                const m = String(o.textContent).match(/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})(?:\b|$)/);
 
                 if (!m) return;
 
@@ -23144,7 +23194,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         }
 
-        return prefix + String(max + 1).padStart(7, '0');
+        return prefix + String(max + 1).padStart(6, '0');
 
     }
 
@@ -27694,11 +27744,15 @@ function _rendEsColInterna(f) {
 
 // Visibilidad y orden tal como se ven ahora en la tabla (= la hoja activa).
 
+function _rendAnchosClave(vista) {
+    return 'rend-anchos-' + {{ session.get('user_id') | tojson }} + '-' + {{ session.get('current_proyecto_id') | tojson }} + '-' + vista;
+}
+
 function _rendSnapshot() {
 
-    const visibles = {}, orden = [];
+    const visibles = {}, orden = [], anchos = {};
 
-    if (typeof table === 'undefined' || !table) return { visibles: visibles, orden: orden };
+    if (typeof table === 'undefined' || !table) return { visibles: visibles, orden: orden, anchos: anchos };
 
     table.getColumns().forEach(c => {
 
@@ -27721,12 +27775,13 @@ function _rendSnapshot() {
         }
 
         visibles[f] = c.isVisible();
+        anchos[f] = c.getWidth() || c.getDefinition().width;
 
         if (_rendEsColumnaDeVista(f)) orden.push(f);
 
     });
 
-    return { visibles: visibles, orden: orden };
+    return { visibles: visibles, orden: orden, anchos: anchos };
 
 }
 
@@ -27800,13 +27855,14 @@ function _rendInitEstados() {
 
             camposGuardados = new Set(guardado.map(c => (c && c.field) || '').filter(Boolean));
 
-            est = { visibles: {}, orden: [] };
+            est = { visibles: {}, orden: [], anchos: {} };
 
             guardado.forEach(c => {
 
                 if (!c || !c.field) return;
 
                 est.visibles[c.field] = c.visible !== false;
+                if (Number(c.width) >= 40) est.anchos[c.field] = Number(c.width);
 
                 if (_rendEsColumnaDeVista(c.field) && est.orden.indexOf(c.field) < 0) est.orden.push(c.field);
 
@@ -27856,7 +27912,7 @@ function _rendInitEstados() {
 
         } else {
 
-            est = { visibles: Object.assign({}, base.visibles), orden: base.orden.slice() };
+            est = { visibles: Object.assign({}, base.visibles), orden: base.orden.slice(), anchos: Object.assign({}, base.anchos) };
 
             if (cfg.cols) {
 
@@ -27930,6 +27986,13 @@ function _rendInitEstados() {
 
         });
 
+        est.anchos = Object.assign({}, base.anchos, est.anchos || {});
+        try { Object.assign(est.anchos, JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}')); } catch (_) {}
+        if (!guardado || !guardado.some(c => c.field === '_accion' && c.width)) {
+            let propios = {};
+            try { propios = JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}'); } catch (_) {}
+            if (!propios._accion) est.anchos._accion = ({validacion:160, depositos:260, evidencia:70, rendicion:280, observado:180, cerrado:95, archivado:115, rechazados:70})[vista] || 160;
+        }
         _rendEstadoVistas[vista] = est;
 
     });
@@ -27963,10 +28026,11 @@ function _rendAplicarEstado(est) {
         const selection = columns.filter(c => !c.getField());
         const rest = columns.filter(c => c.getField() && !included.has(c.getField()));
         const ordered = [...selection, ...desired.map(f => byField.get(f)), ...rest];
-        if (ordered.every((c,i) => c === columns[i] && (!c.getField() || c.isVisible() === (est.visibles[c.getField()] !== false)))) return;
+        if (ordered.every((c,i) => c === columns[i] && (!c.getField() || c.isVisible() === (est.visibles[c.getField()] !== false) && (!est.anchos?.[c.getField()] || Math.abs(c.getWidth() - est.anchos[c.getField()]) < 1)))) return;
         const definitions = ordered.map(c => {
             const def = {...c.getDefinition()};
-            if (c.isVisible() && c.getWidth()) def.width = c.getWidth();
+            if (est.anchos && est.anchos[c.getField()]) def.width = est.anchos[c.getField()];
+            else if (c.isVisible() && c.getWidth()) def.width = c.getWidth();
             if (c.getField()) def.visible = est.visibles[c.getField()] !== false;
             return def;
         });
@@ -29793,6 +29857,7 @@ function cotCambiarVista(vista) {
     if (!IS_COTIZACIONES || !COT_VISTAS[vista]) return;
 
     _cotVista = vista;
+    cotAplicarAnchos(vista);
 
     document.querySelectorAll('#cot-tabs .rend-tab').forEach(b => {
 
