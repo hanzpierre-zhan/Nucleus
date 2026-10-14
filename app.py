@@ -21,7 +21,29 @@ import mimetypes
 from flask import Flask, request, jsonify, Response, current_app
 from werkzeug.exceptions import HTTPException
 
-from db import db
+try:
+    from db import db
+except ImportError as error:
+    # Solo el arranque directo en Windows puede usar el entorno local verificado.
+    # Las importaciones de servidor y pruebas mantienen sus errores originales.
+    import sys
+    from pathlib import Path
+    local_python = Path(__file__).resolve().parent / '.venv' / 'Scripts' / 'python.exe'
+    blocked = any(text in str(error).lower() for text in (
+        'control de aplicaciones', 'application control',
+    ))
+    if (__name__ == '__main__' and sys.platform == 'win32' and blocked
+            and local_python.is_file()
+            and Path(sys.executable).resolve() != local_python.resolve()):
+        import subprocess
+        print('Windows bloqueó una dependencia de este Python. Iniciando Nucleus con .venv…', flush=True)
+        try:
+            result = subprocess.call([str(local_python), str(Path(__file__).resolve()), *sys.argv[1:]],
+                                     cwd=str(Path(__file__).resolve().parent))
+        except KeyboardInterrupt:
+            result = 130
+        raise SystemExit(result)
+    raise
 from config import Config, get_default_config
 
 mimetypes.add_type('font/woff2', '.woff2')

@@ -24,6 +24,7 @@ MANIFEST
 
 # Virtualenv
 venv/
+.venv/
 ENV/
 
 # VS Code

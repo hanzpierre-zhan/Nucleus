@@ -58,19 +58,23 @@
 
         <button type="button" class="rend-tab" data-vista="rendicion" onclick="rendCambiarVista('rendicion')">
 
-            <i class="fa-solid fa-file-invoice-dollar"></i> Rendición <span class="rend-badge" id="rend-cnt-sustentos">0</span>
+            <i class="fa-solid fa-file-invoice-dollar"></i> Sustento <span class="rend-badge" id="rend-cnt-sustentos">0</span>
 
         </button>
 
-        <button type="button" class="rend-tab" data-vista="rechazados" onclick="rendCambiarVista('rechazados')">
+        <button type="button" class="rend-tab" data-vista="observado" onclick="rendCambiarVista('observado')"><i class="fa-solid fa-triangle-exclamation"></i> Observado <span class="rend-badge" id="rend-cnt-observado">0</span></button>
 
-            <i class="fa-solid fa-ban"></i> Rechazados <span class="rend-badge" id="rend-cnt-rechazados">0</span>
 
-        </button>
 
         <button type="button" class="rend-tab" data-vista="cerrado" onclick="rendCambiarVista('cerrado')">
 
-            <i class="fa-solid fa-check-double"></i> Cerrado <span class="rend-badge" id="rend-cnt-cerrado">0</span>
+            <i class="fa-solid fa-check-double"></i> Atendido <span class="rend-badge" id="rend-cnt-cerrado">0</span>
+
+        </button>
+        <button type="button" class="rend-tab" data-vista="archivado" onclick="rendCambiarVista('archivado')"><i class="fa-solid fa-box-archive"></i> Archivar <span class="rend-badge" id="rend-cnt-archivado">0</span></button>
+        <button type="button" class="rend-tab" data-vista="rechazados" onclick="rendCambiarVista('rechazados')">
+
+            <i class="fa-solid fa-ban"></i> Anulado <span class="rend-badge" id="rend-cnt-rechazados">0</span>
 
         </button>
 
@@ -788,6 +792,8 @@
 
     .rend-tab[data-vista="rechazados"] { --tab-c: #FF3B30; --tab-bg: #FFECEB; }
 
+    .rend-tab[data-vista="observado"] { --tab-c: #D97706; --tab-bg: #FFF3DF; }
+    .rend-tab[data-vista="archivado"] { --tab-c: #64748B; --tab-bg: #E8EDF3; }
     .rend-tab[data-vista="cerrado"]    { --tab-c: #8E8E93; --tab-bg: #F0F0F3; }
 
     /* Tema oscuro: los tintes claros no se leen, van translúcidos sobre el fondo */
@@ -802,6 +808,8 @@
 
     body.dark-mode .rend-tab[data-vista="rechazados"] { --tab-bg: rgba(255,59,48,.24); }
 
+    body.dark-mode .rend-tab[data-vista="observado"] { --tab-bg: rgba(217,119,6,.2); }
+    body.dark-mode .rend-tab[data-vista="archivado"] { --tab-bg: rgba(100,116,139,.2); }
     body.dark-mode .rend-tab[data-vista="cerrado"]    { --tab-bg: rgba(142,142,147,.26); }
 
     body.dark-mode .rend-tab { color: var(--ios-label, #E5E5EA); }
@@ -7572,7 +7580,10 @@ let _rendCambiandoVista = false;
 
         'SUSTENTADO': { bg: '#28A745', fg: '#fff' },
 
-        'RECHAZADO':  { bg: '#FF3B30', fg: '#fff' }
+        'RECHAZADO':  { bg: '#FF3B30', fg: '#fff' },
+        'ANULADO': {bg:'#64748B',fg:'#fff'},
+        'OBSERVADO': { bg: '#D97706', fg: '#fff' },
+        'ARCHIVADO': { bg: '#64748B', fg: '#fff' }
 
     };
 
@@ -7582,7 +7593,8 @@ let _rendCambiandoVista = false;
 
     const REND_COLS_OCULTAS = new Set([
 
-        'RECHAZADO DESDE', 'VECES RECHAZADO', 'DEVUELTO POR', 'FECHA DEVOLUCION'
+        'RECHAZADO DESDE', 'VECES RECHAZADO', 'DEVUELTO POR', 'FECHA DEVOLUCION',
+        'OBSERVADO POR','FECHA OBSERVACION','ARCHIVADO POR','FECHA ARCHIVO','DESARCHIVADO POR','FECHA DESARCHIVO','ANULADO DESDE','ANULADO POR','FECHA ANULACION'
 
     ]);
 
@@ -7596,6 +7608,14 @@ let _rendCambiandoVista = false;
 
         return v || 'PENDIENTE';
 
+    }
+
+    // Estado visible y etapa son distintos para los rechazos que retornan.
+    function rendEstadoParaVista(row) {
+        const estado = rendEstadoDe(row);
+        if (estado !== 'RECHAZADO') return estado;
+        const destino = row._RECHAZO_ETAPA || ({'VALIDADO':'VALIDACION','DEPOSITADO':'EVIDENCIA','CON SUSTENTO':'EVIDENCIA','OBSERVADO':'EVIDENCIA'}[String(row['RECHAZADO DESDE'] || '').trim().toUpperCase()]);
+        return destino === 'VALIDACION' ? 'PENDIENTE' : destino === 'EVIDENCIA' ? 'DEPOSITADO' : 'ANULADO';
     }
 
     // Botones del flujo: solo si el usuario tiene asignado el módulo Rendicion.
@@ -7675,6 +7695,9 @@ let _rendCambiandoVista = false;
 
                        showCols: ['_evidencia_btn'] },
 
+        observado: { estados: ['OBSERVADO'], cols: null, hidePrefijos: ['SUSTENTO_'], showCols: ['OBSERVACIONES','_evidencia_btn','_accion'] },
+        archivado: { estados: ['ARCHIVADO'], cols: null, hidePrefijos: ['SUSTENTO_'], showCols: ['_evidencia_btn','_accion'] },
+
         // Cerrado: Todo completo
 
         cerrado:     { estados: ['SUSTENTADO'],
@@ -7687,7 +7710,7 @@ let _rendCambiandoVista = false;
 
         // Rechazados:
 
-        rechazados:  { estados: ['RECHAZADO'],
+        rechazados:  { estados: ['ANULADO'],
 
                        cols: null,
 
@@ -9876,7 +9899,7 @@ let _rendCambiandoVista = false;
 
                 colDef.editor = false; // la gestiona el flujo, no se edita a mano
 
-                colDef.headerFilter = listaHeaderFilter(manualDef ? manualDef.opciones : []);
+                colDef.headerFilter = listaHeaderFilter(Object.keys(REND_ESTADO_COLORS));
 
                 colDef.formatter = function (cell) {
 
@@ -10755,9 +10778,9 @@ let _rendCambiandoVista = false;
 
             // Columna flexible: el ancho y el orden se guardan en el layout.
 
-            width: 200,
+            width: 300,
 
-            minWidth: 96,
+            minWidth: 280,
 
             resizable: true,
 
@@ -10814,132 +10837,25 @@ let _rendCambiandoVista = false;
 
 
 
-                if (est === 'PENDIENTE') {
-
-                    mk('rend-btn-ok', '✓', 'Validar solicitud -> pasa a Depósitos',
-
-                       () => rendValidar(key));
-
-                    mk('rend-btn-no', '✕', 'Rechazar con motivo',
-
-                       () => rendAbrirRechazo(key));
-
-                } else if (est === 'VALIDADO') {
-
-                    mk('rend-btn-dep', '<i class="fa-solid fa-money-bill-transfer"></i>',
-
-                       'Registrar fecha, monto y foto del pago (Depositar)',
-
-                       () => rendAbrirDeposito(key));
-
-                    mk('rend-btn-no', '✕', 'Rechazar con motivo',
-
-                       () => rendAbrirRechazo(key));
-
-                    if (puedeRev) {
-
-                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
-
-                    }
-
-                } else if (est === 'DEPOSITADO') {
-
-                    const chk = document.createElement('span');
-
-                    chk.className = 'rend-btn-done rend-pill rend-pill-pdte';
-
-                    chk.title = 'Pendiente de sustentar en Google Sheet';
-
-                    chk.innerHTML = '<i class="fa-solid fa-clock"></i>';
-
-                    wrap.appendChild(chk);
-
-                    mk('rend-btn-no', '✕', 'Rechazar: vuelve a Depósitos para corregir',
-
-                       () => rendAbrirRechazo(key));
-
-                    if (puedeRev) {
-
-                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Validado', () => rendRevertir(key));
-
-                    }
-
-                } else if (est === 'CON SUSTENTO') {
-
-                    mk('rend-btn-sus', '★', 'Subir fotos adicionales o cerrar la solicitud (Sustentar)',
-
-                       () => rendAbrirSustento(key));
-
-                    mk('rend-btn-no', '✕', 'Rechazar: la solicitud vuelve a Evidencia para revisión',
-
-                       () => rendAbrirRechazo(key));
-
-                    if (puedeRev) {
-
-                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Depositado', () => rendRevertir(key));
-
-                    }
-
-                } else if (est === 'SUSTENTADO') {
-
-                    const chk = document.createElement('span');
-
-                    chk.className = 'cot-btn cot-btn-done';
-
-                    chk.title = 'Completado - Sustentado';
-
-                    chk.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
-
-                    wrap.appendChild(chk);
-
-                    if (puedeRev) {
-
-                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Rendición (CON SUSTENTO)', () => rendRevertir(key));
-
-                    }
-
-                } else if (est === 'RECHAZADO') {
-
-                    const chk = document.createElement('span');
-
-                    chk.className = 'rend-btn-done rend-pill rend-pill-rech';
-
-                    chk.title = 'Rechazado';
-
-                    chk.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>';
-
-                    wrap.appendChild(chk);
-
-                    // Volver a la hoja anterior (según de dónde vino el rechazo)
-
-                    // para corregir el pedido y que el flujo avance.
-
-                    const fuente = String(row['RECHAZADO DESDE'] || '').trim().toUpperCase();
-
-                    const destLabel = {
-
-                        'VALIDADO': 'Validación',
-
-                        'DEPOSITADO': 'Depósitos',
-
-                        'CON SUSTENTO': 'Evidencia'
-
-                    }[fuente];
-
-                    if (destLabel) {
-
-                        mk('rend-btn-rev rend-btn-mini', '↩',
-
-                           'Devolver a ' + destLabel + ' para corregir (el rechazo en Validación es definitivo)',
-
-                           () => rendDevolver(key));
-
-                    } else if (puedeRev) {
-
-                        mk('rend-btn-rev rend-btn-mini', '↺', 'Regresar a Pendiente', () => rendRevertir(key));
-
-                    }
-
+                const etapa = rendEstadoParaVista(row);
+                if (etapa === 'PENDIENTE') {
+                    mk('rend-btn-ok', 'Validar', 'Validar solicitud y pasar a Depósitos', () => rendValidar(key));
+                    mk('rend-btn-no', 'Anular', 'Anular solicitud', () => rendAnular(key));
+                } else if (etapa === 'VALIDADO') {
+                    mk('rend-btn-dep', 'Registrar depósito', 'Registrar depósito', () => rendAbrirDeposito(key));
+                    mk('rend-btn-no', 'Rechazado', 'Rechazar y regresar a Validación', () => rendAbrirRechazo(key));
+                } else if (etapa === 'DEPOSITADO') {
+                    mk('rend-btn-no', 'Anular', 'Anular solicitud', () => rendAnular(key));
+                } else if (etapa === 'CON SUSTENTO' || etapa === 'OBSERVADO') {
+                    mk('rend-btn-sus', 'Conforme', 'Confirmar sustento conforme y pasar a Atendido', () => rendAbrirSustento(key));
+                    if (etapa === 'CON SUSTENTO') mk('rend-btn-dep', 'Observar', 'Registrar observación del sustento', () => rendObservar(key));
+                    mk('rend-btn-no', 'Rechazado', 'Rechazar y regresar a Evidencia', () => rendAbrirRechazo(key));
+                } else if (etapa === 'SUSTENTADO') {
+                    mk('rend-btn-rev', 'Archivar', 'Archivar solicitud atendida', () => rendArchivar(key, false));
+                } else if (etapa === 'ARCHIVADO') {
+                    mk('rend-btn-rev', 'Desarchivar', 'Desarchivar y regresar a Atendido', () => rendArchivar(key, true));
+                } else if (etapa === 'ANULADO') {
+                    const badge = document.createElement('span'); badge.className = 'rend-btn-done'; badge.textContent = 'Anulado'; wrap.append(badge);
                 }
 
                 return wrap;
@@ -27695,6 +27611,32 @@ const _rendUserRoles = [String(USER_ROLE || '').trim().toLowerCase()];
 
 // Revierte el estado de una fila un paso atrás (solo zeno/admin)
 
+async function rendArchivar(key, desarchivar) {
+    const accion = desarchivar ? 'desarchivar' : 'archivar';
+    if (!(await nucleusConfirm(desarchivar ? 'La solicitud volverá a Atendido con sus datos y sustentos.' : 'La solicitud pasará a Archivar. Sus datos y sustentos se conservarán.', desarchivar ? 'Desarchivar' : 'Archivar'))) return;
+    const result = await rendAccion(key, accion, {});
+    if (result) rendTrasAccion(result, key);
+}
+function rendAnular(key) {
+    _rendModal = {accion:'anular',key};
+    document.getElementById('rend-motivo').value = '';
+    rendMostrarResumen(key);
+    rendAbrirModal('Anular solicitud', 'Indica el motivo. La solicitud quedará en Anulado conservando sus datos y comprobantes.', 'Confirmar anulación', 'rend-motivo');
+    document.getElementById('rend-lbl-motivo').textContent = 'Motivo de anulación';
+    document.getElementById('rend-lbl-motivo').style.display = 'block';
+    document.getElementById('rend-motivo').style.display = 'block';
+}
+
+function rendObservar(key) {
+    _rendModal = {accion:'observar', key};
+    document.getElementById('rend-motivo').value = '';
+    rendMostrarResumen(key);
+    rendAbrirModal('Observar sustento', 'Indica qué debe corregirse. La solicitud permanecerá en Observado hasta que su sustento esté conforme.', 'Guardar observación', 'rend-motivo');
+    document.getElementById('rend-lbl-motivo').textContent = 'Observación del sustento';
+    document.getElementById('rend-lbl-motivo').style.display = 'block';
+    document.getElementById('rend-motivo').style.display = 'block';
+}
+
 function rendRevertir(key) {
 
     if (!confirm('¿Seguro que deseas revertir esta solicitud al estado anterior?')) return;
@@ -28123,7 +28065,7 @@ function rendAplicarFiltro() {
             if (table.getHeaderFilters().length) table.clearHeaderFilter();
 
     Object.keys(dateFilterRegistry).forEach(field => delete dateFilterRegistry[field]);
-    const fn = (rowData) => cfg.estados.includes(rendEstadoDe(rowData));
+    const fn = (rowData) => cfg.estados.includes(rendEstadoParaVista(rowData));
 
     _rendFiltroFn = fn;
 
@@ -28139,11 +28081,11 @@ function rendActualizarContadores() {
 
     if (!IS_RENDICION) return;
 
-    const c = { validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, cerrado: 0, rechazados: 0 };
+    const c = { validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0, rechazados: 0 };
 
     rawData.forEach(r => {
 
-        const e = rendEstadoDe(r);
+        const e = rendEstadoParaVista(r);
 
         if (e === 'PENDIENTE') c.validacion++;
 
@@ -28155,7 +28097,9 @@ function rendActualizarContadores() {
 
         else if (e === 'SUSTENTADO') c.cerrado++;
 
-        else if (e === 'RECHAZADO') c.rechazados++;
+        else if (e === 'ANULADO') c.rechazados++;
+        else if (e === 'OBSERVADO') c.observado++;
+        else if (e === 'ARCHIVADO') c.archivado++;
 
     });
 
@@ -28384,11 +28328,12 @@ function rendValidar(key) {
 
 function rendAbrirRechazo(key) {
 
+    document.getElementById('rend-lbl-motivo').textContent = 'Motivo del rechazo';
     _rendModal = { accion: 'rechazar', key: key };
 
     const _rk = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
 
-    const _desdeRend = rendEstadoDe(_rk) === 'CON SUSTENTO';
+    const _desdeRend = ['CON SUSTENTO','OBSERVADO'].includes(rendEstadoDe(_rk));
 
     document.getElementById('rend-motivo').value = '';
 
@@ -28400,9 +28345,9 @@ function rendAbrirRechazo(key) {
 
         _desdeRend
 
-            ? 'Escribe el motivo del rechazo — la solicitud volverá a Evidencia para que el gestor la revise.'
+            ? 'La solicitud volverá a Evidencia con estado Rechazado. Indica el motivo.'
 
-            : 'Escribe el motivo del rechazo — quedará guardado en OBSERVACIONES.',
+            : 'La solicitud volverá a Validación con estado Rechazado. Indica el motivo.',
 
         'Confirmar Rechazo',
 
@@ -28488,11 +28433,11 @@ function rendAbrirSustento(key) {
 
     rendAbrirModal(
 
-        '★ Sustentar depósito',
+        'Confirmar atención del sustento',
 
-        'Escribe el comentario con el siguiente paso. Al confirmar cambia a estado SUSTENTADO.',
+        'Confirma que el sustento está conforme. La solicitud pasará a Atendido.',
 
-        'Confirmar Sustento',
+        'Pasar a Atendido',
 
         'rend-sus-form'
 
@@ -28646,11 +28591,11 @@ function rendConfirmarModal() {
 
         extra.observaciones = document.getElementById('rend-val-obs').value.trim();
 
-    } else if (accion === 'rechazar') {
+    } else if (accion === 'rechazar' || accion === 'observar' || accion === 'anular') {
 
         const motivo = document.getElementById('rend-motivo').value.trim();
 
-        if (!motivo) { alert('Escribe el motivo del rechazo.'); return; }
+        if (!motivo) { alert('Escribe el motivo u observación.'); return; }
 
         extra.observaciones = motivo;
 

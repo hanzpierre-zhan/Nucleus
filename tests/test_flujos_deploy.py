@@ -37,6 +37,12 @@ def test_rendicion_viaja_validacion_deposito_evidencia_cierre(app, auth_client, 
             ('sustentar', {'comentario': 'Sustento completado'}, 'SUSTENTADO'),
         ]
         for accion, campos, esperado in pasos:
+            if accion == 'sustentar':
+                # La recepción del formulario de sustento habilita su conformidad.
+                with app.app_context():
+                    fila = db.session.get(NucleusData, origen_id)
+                    datos = json.loads(fila.data_json); datos['ESTADO'] = 'CON SUSTENTO'
+                    fila.data_json = json.dumps(datos); db.session.commit()
             resultado = auth_client.post('/api/rendicion/accion', json={'key': 'AUDIT-FLUJO-REND', 'accion': accion, **campos})
             assert resultado.status_code == 200, resultado.json
             assert resultado.json['newData']['ESTADO'] == esperado

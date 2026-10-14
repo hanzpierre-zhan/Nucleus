@@ -6,8 +6,12 @@
    - '' / PENDIENTE -> hoja Validacion
    - VALIDADO      -> hoja Depositos
    - DEPOSITADO    -> hoja Evidencia
-   - SUSTENTADO    -> hoja Evidencia (completado)
-   - RECHAZADO     -> hoja Rechazados
+   - CON SUSTENTO -> hoja Sustento
+   - OBSERVADO    -> hoja Observado (pendiente de corrección)
+   - SUSTENTADO   -> hoja Atendido
+   - ARCHIVADO    -> hoja Archivar (regresa a Atendido al desarchivar)
+   - RECHAZADO    -> Validación o Evidencia según la etapa de retorno
+   - ANULADO      -> hoja Anulado (conserva los registros)
 """
 import os, json, time, re, tempfile, mimetypes, unicodedata, urllib.request
 from uuid import uuid4
@@ -26,7 +30,7 @@ bp = Blueprint('rendicion', __name__)
 
 PROY_NOMBRE = 'Rendicion'
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-ESTADOS = ('PENDIENTE', 'VALIDADO', 'RECHAZADO', 'DEPOSITADO', 'CON SUSTENTO', 'SUSTENTADO')
+ESTADOS = ('PENDIENTE', 'VALIDADO', 'RECHAZADO', 'ANULADO', 'DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO', 'SUSTENTADO', 'ARCHIVADO')
 ROLES_ACCION = ('admin', 'zeno', 'suport', 'supervisor', 'gestor')
 MAX_FOTOS_SUSTENTO = 5
 SLOTS = ('pago', 'susto_1', 'susto_2', 'susto_3', 'susto_4', 'susto_5')
@@ -47,6 +51,21 @@ def _puede_gestionar():
 
 def _estado_de(d):
     return str(d.get('ESTADO', '') or '').strip().upper() or 'PENDIENTE'
+
+
+def _etapa_de(row):
+    estado = _estado_de(row)
+    if estado == 'RECHAZADO':
+        destino = row.get('_RECHAZO_ETAPA')
+        if destino in ('VALIDACION', 'EVIDENCIA'):
+            return destino
+        # Mostrar los rechazos históricos sin borrar ni reescribir registros.
+        return {'VALIDADO': 'VALIDACION', 'DEPOSITADO': 'EVIDENCIA',
+                'CON SUSTENTO': 'EVIDENCIA', 'OBSERVADO': 'EVIDENCIA'}.get(
+                    str(row.get('RECHAZADO DESDE') or '').strip().upper(), 'ANULADO')
+    return {'PENDIENTE': 'VALIDACION', 'VALIDADO': 'DEPOSITOS', 'DEPOSITADO': 'EVIDENCIA',
+            'CON SUSTENTO': 'SUSTENTO', 'OBSERVADO': 'OBSERVADO', 'SUSTENTADO': 'ATENDIDO',
+            'ARCHIVADO': 'ARCHIVADO', 'ANULADO': 'ANULADO'}.get(estado, 'VALIDACION')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,9 +235,13 @@ def _avisar_flujo(proy_id, accion, row, usuario):
         elif accion == 'rechazar':
             motivo = str(row.get('OBSERVACIONES') or '').strip()
             _crear_aviso(proy_id, 'rechazar',
-                         '%s rechazó la solicitud — %s%s'
-                         % (usuario, site, (': ' + motivo) if motivo else ''),
+                         '%s rechazó la solicitud — %s vuelve a %s%s'
+                         % (usuario, site, 'Validación' if _etapa_de(row) == 'VALIDACION' else 'Evidencia',
+                            (': ' + motivo) if motivo else ''),
                          '#FF3B30', usuario)
+        elif accion == 'anular':
+            _crear_aviso(proy_id, 'anular', '%s anuló la solicitud — %s: %s' %
+                         (usuario, site, row.get('OBSERVACIONES', '')), '#64748B', usuario)
         elif accion == 'sustentar':
             _crear_aviso(proy_id, 'sustentar',
                          '%s sustentó el depósito %s — %s' % (usuario, codigo or '-', site),
@@ -230,6 +253,13 @@ def _avisar_flujo(proy_id, accion, row, usuario):
                          '%s rechazó la solicitud en Rendición — %s vuelve a Evidencia%s'
                          % (usuario, site, (': ' + motivo) if motivo else ''),
                          '#FF3B30', usuario)
+        elif accion in ('observar', 'archivar', 'desarchivar'):
+            textos = {'observar': 'observó el sustento', 'archivar': 'archivó la solicitud atendida',
+                      'desarchivar': 'desarchivó la solicitud y la devolvió a Atendido'}
+            motivo = str(row.get('OBSERVACIONES') or '').strip() if accion == 'observar' else ''
+            _crear_aviso(proy_id, accion, '%s %s — %s%s' %
+                         (usuario, textos[accion], site, (': ' + motivo) if motivo else ''),
+                         '#D97706' if accion == 'observar' else '#173E76', usuario)
         elif accion == 'revertir':
             _crear_aviso(proy_id, 'revertir',
                          '%s revirtió la solicitud — %s ahora %s' % (usuario, site, _estado_de(row)),
@@ -367,10 +397,10 @@ def api_rendicion_accion():
     data = request.get_json(silent=True) or {}
     key = str(data.get('key') or '').strip()
     accion = str(data.get('accion') or '').strip().lower()
-    if not key or accion not in ('validar', 'rechazar', 'depositar', 'sustentar', 'revertir', 'devolver'):
+    if not key or accion not in ('validar', 'rechazar', 'anular', 'depositar', 'sustentar', 'revertir', 'devolver', 'observar', 'archivar', 'desarchivar'):
         return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
 
-    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).with_for_update().first()
     if not fila:
         return jsonify({'error': 'La solicitud no existe.'}), 404
     try:
@@ -379,18 +409,26 @@ def api_rendicion_accion():
         row = {}
 
     estado = _estado_de(row)
+    etapa = _etapa_de(row)
     # Reglas del flujo: cada acción solo desde la hoja que le corresponde.
     # 'revertir' no usa esta tabla: valida su propio mapa de estados más abajo.
     permitido = {
-        'validar': ('PENDIENTE',),
-        'rechazar': ('PENDIENTE', 'VALIDADO', 'DEPOSITADO', 'CON SUSTENTO'),
+        'validar': ('PENDIENTE', 'RECHAZADO'),
+        'rechazar': ('VALIDADO', 'CON SUSTENTO', 'OBSERVADO'),
         'depositar': ('VALIDADO',),
-        'sustentar': ('DEPOSITADO', 'CON SUSTENTO'),
+        'sustentar': ('CON SUSTENTO', 'OBSERVADO'),
         'devolver': ('RECHAZADO',),
+        'observar': ('CON SUSTENTO', 'OBSERVADO'),
+        'archivar': ('SUSTENTADO',),
+        'desarchivar': ('ARCHIVADO',),
     }
     if accion in permitido and estado not in permitido[accion]:
         return jsonify({'error': 'No se puede "%s" una solicitud en estado %s.'
                                 % (accion, estado)}), 409
+    if (accion == 'validar' and etapa != 'VALIDACION') or (
+            accion == 'anular' and etapa not in ('VALIDACION', 'EVIDENCIA')) or (
+            accion in ('revertir', 'devolver') and etapa == 'ANULADO'):
+        return jsonify({'error': 'Esta acción no corresponde a la etapa actual.'}), 409
 
     ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     usuario_actual = session.get('username') or 'Desconocido'
@@ -401,7 +439,36 @@ def api_rendicion_accion():
     # Datos del aviso por WhatsApp (solo se llenan al depositar).
     wa_deposito = None
 
-    if accion == 'validar':
+    if accion == 'anular':
+        motivo = str(data.get('observaciones') or '').strip()
+        if not motivo:
+            return jsonify({'error': 'Escribe el motivo de anulación.'}), 400
+        row['ESTADO'] = 'ANULADO'
+        row['ANULADO DESDE'] = etapa
+        row['ANULADO POR'] = usuario_actual
+        row['FECHA ANULACION'] = ahora
+        row['OBSERVACIONES'] = motivo
+
+    elif accion == 'observar':
+        motivo = str(data.get('observaciones') or '').strip()
+        if not motivo:
+            return jsonify({'error': 'Escribe qué debe corregirse en el sustento.'}), 400
+        row['ESTADO'] = 'OBSERVADO'
+        row['OBSERVACIONES'] = motivo
+        row['OBSERVADO POR'] = usuario_actual
+        row['FECHA OBSERVACION'] = ahora
+
+    elif accion == 'archivar':
+        row['ESTADO'] = 'ARCHIVADO'
+        row['ARCHIVADO POR'] = usuario_actual
+        row['FECHA ARCHIVO'] = ahora
+
+    elif accion == 'desarchivar':
+        row['ESTADO'] = 'SUSTENTADO'
+        row['DESARCHIVADO POR'] = usuario_actual
+        row['FECHA DESARCHIVO'] = ahora
+
+    elif accion == 'validar':
         # El modal exige elegir una de las 3 opciones de tiempo de respuesta.
         tiempo = str(data.get('tiempo') or '').strip()
         if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica'):
@@ -419,29 +486,19 @@ def api_rendicion_accion():
         row['OBSERVACIONES'] = str(data.get('observaciones') or row.get('OBSERVACIONES') or '').strip()
 
     elif accion == 'rechazar':
-        if estado == 'CON SUSTENTO':
-            # En Rendición el rechazo NO va a la hoja de Rechazados: devuelve la
-            # solicitud a Evidencia (DEPOSITADO) para que el gestor la revise.
-            row['ESTADO'] = 'DEPOSITADO'
-            row['DEVUELTO POR'] = usuario_actual
-            row['FECHA DEVOLUCION'] = ahora
-            motivo = str(data.get('observaciones') or '').strip()
-            if motivo:
-                row['OBSERVACIONES'] = motivo
-        else:
-            row['ESTADO'] = 'RECHAZADO'
-            # De dónde viene el rechazo (para devolver a la hoja anterior) + contador.
-            row['RECHAZADO DESDE'] = estado
-            try:
-                vez = int(str(row.get('VECES RECHAZADO', '') or '0').strip() or 0) + 1
-            except (ValueError, TypeError):
-                vez = 1
-            row['VECES RECHAZADO'] = str(vez)
-            row['FECHA RECHAZO'] = ahora
-            row['RECHAZADO POR'] = usuario_actual
-            motivo = str(data.get('observaciones') or '').strip()
-            if motivo:
-                row['OBSERVACIONES'] = motivo
+        motivo = str(data.get('observaciones') or '').strip()
+        if not motivo:
+            return jsonify({'error': 'Escribe el motivo del rechazo.'}), 400
+        row['ESTADO'] = 'RECHAZADO'
+        row['_RECHAZO_ETAPA'] = 'VALIDACION' if estado == 'VALIDADO' else 'EVIDENCIA'
+        row['RECHAZADO DESDE'] = estado
+        row['FECHA RECHAZO'] = ahora
+        row['RECHAZADO POR'] = usuario_actual
+        row['OBSERVACIONES'] = motivo
+        try:
+            row['VECES RECHAZADO'] = str(int(row.get('VECES RECHAZADO') or 0) + 1)
+        except (ValueError, TypeError):
+            row['VECES RECHAZADO'] = '1'
 
     elif accion == 'depositar':
         fecha_pago = str(data.get('fecha_pago') or '').strip()
@@ -532,6 +589,13 @@ def api_rendicion_accion():
         row['FECHA DEVOLUCION'] = ahora
 
 
+    historial = row.get('_HISTORIAL_FLUJO')
+    if not isinstance(historial, list):
+        historial = []
+    historial.append({'accion': accion, 'desde': estado, 'hasta': row['ESTADO'],
+                      'usuario': usuario_actual, 'fecha': ahora,
+                      'motivo': str(data.get('observaciones') or '').strip()})
+    row['_HISTORIAL_FLUJO'] = historial
     fila.data_json = safe_json_dumps(row)
     fila.key_value = key
     db.session.commit()

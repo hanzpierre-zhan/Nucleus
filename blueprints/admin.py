@@ -620,6 +620,9 @@ def api_rendicion_sync():
         'DEPOSITADO POR', 'SUSTENTADO POR', 'EDITADO POR',
         'RECHAZADO DESDE', 'VECES RECHAZADO', 'DEVUELTO POR',
         'FECHA DEVOLUCION', '_SUSTENTO_MARCAS',
+        'OBSERVADO POR', 'FECHA OBSERVACION', 'ARCHIVADO POR', 'FECHA ARCHIVO',
+        'DESARCHIVADO POR', 'FECHA DESARCHIVO', '_HISTORIAL_FLUJO',
+        '_RECHAZO_ETAPA', 'ANULADO DESDE', 'ANULADO POR', 'FECHA ANULACION',
     }
 
     # Esquema DINÁMICO: las columnas del grid del form son exactamente las que
@@ -786,7 +789,9 @@ def api_rendicion_sync_sustentos():
             continue
             
         estado_actual = str(target_dict.get('ESTADO', '')).strip().upper()
-        if estado_actual not in ('DEPOSITADO', 'CON SUSTENTO'):
+        from blueprints.rendicion import _etapa_de
+        rechazo_evidencia = estado_actual == 'RECHAZADO' and _etapa_de(target_dict) == 'EVIDENCIA'
+        if estado_actual not in ('DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO') and not rechazo_evidencia:
             omitidos += 1
             continue
 
@@ -814,7 +819,7 @@ def api_rendicion_sync_sustentos():
                 target_dict[col] = str(v).strip()
                 nuevas_sustento.add(col)
 
-        if estado_actual == 'DEPOSITADO':
+        if estado_actual == 'DEPOSITADO' or rechazo_evidencia:
             target_dict['ESTADO'] = 'CON SUSTENTO'
         if marca_actual:
             procesadas.add(marca_actual)
