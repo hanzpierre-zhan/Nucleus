@@ -62,3 +62,5 @@ def test_pdf_responsable_juan_balarezo(app):
     text = b'\n'.join(streams)
     assert b'Juan Balarezo' in text
     assert b'Dennis Unton' not in text
+    assert b'2 d' in text
+    assert b'15 d' not in text

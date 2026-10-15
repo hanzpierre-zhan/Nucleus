@@ -1114,7 +1114,7 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     secciones_cierre = {
         'TIEMPO DE ENTREGA': '',
         'LUGAR DE ENTREGA': 'En la puerta del site',
-        'VALIDEZ DE LA OFERTA': '15 días calendario',
+        'VALIDEZ DE LA OFERTA': '2 días calendario',
         'CONDICIONES GENERALES': ''
     }
     for titulo, contenido in secciones_cierre.items():
