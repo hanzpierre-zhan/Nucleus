@@ -922,6 +922,6 @@ def configurar_validadores():
             return jsonify(error=str(error)), 400
     return jsonify(configuracion=configuracion(), proyectos=list(PROYECTOS), usuarios=[
         {'id': u.id, 'nombre': u.nombre or u.username, 'username': u.username,
-         'admin': u.rol in ADMIN_ROLES}
+         'admin': u.rol in ADMIN_ROLES, 'acceso_rendicion': puede_rendicion(u.id, u.rol, '')}
         for u in Usuario.query.order_by(Usuario.nombre, Usuario.username).all()
-        if puede_rendicion(u.id, u.rol, '')])
+        ])

@@ -89,3 +89,15 @@ def test_no_se_puede_validar_con_edicion_generica(auth_client,escenario):
     assert auth_client.post('/api/rows/update',json={'key':'VAL-CLARO','field':'ESTADO','value':'VALIDADO'}).status_code==403
     assert auth_client.post('/api/rows/bulk_update',json={'key':'VAL-CLARO','data':{'ESTADO':'VALIDADO'}}).status_code==403
     assert auth_client.post('/api/rows/update',json={'key':'VAL-CLARO','field':'Nombre del proyecto','value':'ENTEL'}).status_code==403
+
+
+
+def test_lista_incluye_usuarios_sin_modulo(auth_client, escenario):
+    uid, _ = escenario
+    respuesta = auth_client.get('/api/rendicion/validadores')
+    assert respuesta.status_code == 200
+    usuario = next(u for u in respuesta.json['usuarios'] if u['id'] == uid)
+    assert usuario['nombre'] == 'Validador de Prueba'
+    assert usuario['acceso_rendicion'] is False
+    assert usuario['admin'] is False
+    assert auth_client.post('/api/rendicion/validadores', json={'activo': True, 'asignaciones': {str(uid): ['ENTEL']}}).status_code == 200

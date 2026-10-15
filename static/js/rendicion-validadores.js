@@ -14,7 +14,7 @@
             for (const user of data.usuarios) {
                 const tr = document.createElement('tr'), name = document.createElement('th'); name.scope='row';
                 const full = document.createElement('strong'), login = document.createElement('small');
-                full.textContent = user.nombre; login.textContent = user.username + (user.admin ? ' · Administración: todos los proyectos' : '');
+                full.textContent = user.nombre; login.textContent = user.username + (user.admin ? ' · Administración: todos los proyectos' : (!user.acceso_rendicion ? ' · Falta acceso al módulo Rendición (asignar en Usuarios)' : ''));
                 name.append(full,login); tr.append(name);
                 for (const project of data.proyectos) {
                     const td = document.createElement('td'), box = document.createElement('input'); box.type='checkbox';
