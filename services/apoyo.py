@@ -915,6 +915,8 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
     `fecha`: datetime o string del campo FECHA del registro. Si no se puede
     interpretar, se usa la fecha actual (comportamiento anterior).
     """
+    from services.identidades import nombre_usuario
+    elaborado_por = nombre_usuario(elaborado_por)
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.lib.units import mm

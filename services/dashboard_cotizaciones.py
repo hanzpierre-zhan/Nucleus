@@ -94,6 +94,8 @@ def indicadores(rows, hoy=None):
             'n': _txt(row.get('N° COTIZACION'), row.get('_key')),
             'key': _txt(row.get('_key')),
             'cliente': _txt(row.get('CLIENTE')) or 'Sin cliente',
+            'proyecto': _txt(row.get('NOMBRE DE PROYECTO'), row.get('NOMBRE PROYECTO'), row.get('PROYECTO'), row.get('CLIENTE')) or 'Sin proyecto',
+            'gasto': _txt(row.get('TIPO DE GASTO')) or 'Sin clasificar',
             'site': _txt(row.get('NOMBRE SITE')),
             'tipo': _txt(row.get('TIPO DE COTIZACION')) or 'Sin tipo',
             'gestor': gestor or 'Sin gestor',
@@ -114,7 +116,7 @@ def indicadores(rows, hoy=None):
             'mes_ate': f_ate.strftime('%Y-%m') if f_ate else '',
             # Aging solo tiene sentido en Sustentar (aprobada sin atender).
             'aging': (hoy - f_apr).days if (pest == 'sustentar' and f_apr) else None,
-            'sustento_ok': bool(row.get('_SUSTENTO_VALIDADO')) or _flag(row.get('_SUSTENTO_APROBADO')),
+            'sustento_ok': _flag(row.get('_SUSTENTO_VALIDADO')) or _flag(row.get('_SUSTENTO_APROBADO')),
             'factura_ok': bool(_txt(row.get('ADJUNTO FACTURA PROVEEDOR'))),
             'cotprov_ok': bool(_txt(row.get('ADJUNTO COTIZACION PROVEEDOR'))),
             'correo_ok': bool(_txt(row.get('ADJUNTO CORREO CLIENTE'))),

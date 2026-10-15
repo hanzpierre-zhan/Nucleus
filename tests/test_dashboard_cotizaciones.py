@@ -116,3 +116,20 @@ def test_ruta_dashboard_cotizaciones(app, auth_client):
 def test_ruta_dashboard_cotizaciones_login_requerido(client):
     r = client.get('/analytics/cotizaciones')
     assert r.status_code in (301, 302)
+
+
+def test_proyecto_gasto_y_responsables_no_se_confunden():
+    rows = [
+        _fila('REG', 'Pdt. Cotización', **{'SOLICITADO POR':'solicitante', 'GESTOR':'gestor', 'CLIENTE':'ENTEL', 'PROYECTO':'FLM Norte', 'TIPO DE GASTO':'Gasto Cobra'}),
+        _fila('CLI', 'En Aprobación', **{'SOLICITADO POR':'solicitante', 'COTIZADO POR':'cotizador', 'SUB TOTAL + FEE':'1250.45', 'CLIENTE':'ENTEL', 'NOMBRE DE PROYECTO':'Obra Sur', 'TIPO DE GASTO':'Refacturable'}),
+        _fila('SUS', 'Aprobado', **{'SOLICITADO POR':'operaciones', 'COTIZADO POR':'cotizador', 'SUB TOTAL + FEE':'500', '_SUSTENTO_VALIDADO':'0'}),
+        _fila('ATE', 'Atendido', **{'SOLICITADO POR':'operaciones', 'SUB TOTAL + FEE':'250', '_SUSTENTO_APROBADO':'1'}),
+    ]
+    detalle = indicadores(rows)['detalle']
+    assert [r['pestania'] for r in detalle] == ['registro','cliente','sustentar','atendido']
+    assert detalle[0]['proyecto'] == 'FLM Norte' and detalle[0]['gasto'] == 'Gasto Cobra'
+    assert detalle[1]['proyecto'] == 'Obra Sur' and detalle[1]['cliente'] == 'ENTEL'
+    assert detalle[1]['gasto'] == 'Refacturable' and detalle[1]['genero'] == 'cotizador'
+    assert detalle[1]['solicito'] == 'solicitante' and detalle[1]['monto'] == 1250.45
+    assert not detalle[2]['sustento_ok'] and detalle[3]['sustento_ok']
+    assert detalle[2]['gasto'] == 'Sin clasificar'

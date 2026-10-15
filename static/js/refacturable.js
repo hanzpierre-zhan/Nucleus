@@ -197,6 +197,8 @@
     table.on('tableBuilt', async () => {
         await table.getColumn('cotizacion').updateDefinition({formatter: quoteFormatter});
         await table.getColumn('correlativo').updateDefinition({formatter: expedienteFormatter});
+        const gestor = table.getColumn('gestor');
+        if (gestor) { const def = {field:'GESTOR'}; window.NucleusIdentity.columns([def]); await gestor.updateDefinition({formatter:def.formatter}); }
         await load();
     });
 })();

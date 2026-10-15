@@ -522,13 +522,14 @@
             {% if rol_es_admin %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('col')"><i class="fa-solid fa-table-columns"></i> Columnas</button>{% endif %}
             {% if session.get('rol') in ['zeno', 'suport'] %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('order')"><i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar</button>{% endif %}
             <div class="coti-gear-group">Acciones del módulo</div>
+            {% if proy_nombre_flow == 'rendicion' and session.get('rol') in ['zeno','suport','admin'] %}<button type="button" class="coti-gear-item" onclick="abrirValidadoresRendicion()"><i class="fa-solid fa-user-check"></i> Validadores por proyecto</button>{% endif %}
             <div id="module-settings-actions"></div>
         </div>
     </div>
     {% endif %}
 </div>
 
-{% if proy_nombre_flow == 'rendicion' %}{% include '_rendicion_formularios.html' %}{% endif %}
+{% if proy_nombre_flow == 'rendicion' %}{% include '_rendicion_formularios.html' %}{% if session.get('rol') in ['zeno','suport','admin'] %}{% include '_rendicion_validadores.html' %}{% endif %}{% endif %}
 
 <div id="data-stats" class="data-stats"></div>
 
@@ -7633,6 +7634,15 @@ let _rendCambiandoVista = false;
 
     const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
 
+    window.REND_VALIDADORES_CONFIG = {{ rend_validadores_config|default({})|tojson }};
+    function rendPuedeValidarFila(row) {
+        if (['zeno','suport','admin'].includes(USER_ROLE)) return true;
+        const cfg=window.REND_VALIDADORES_CONFIG;
+        if(!cfg.activo) return true;
+        const nombre=String(row['Nombre del proyecto'] || row['NOMBRE DEL PROYECTO'] || row.PROYECTO || row.CLIENTE || '').toUpperCase();
+        const matches=['ENTEL','INTEGRATEL','CLARO'].filter(p=>new RegExp('\\b'+p+'\\b').test(nombre));
+        return matches.length===1 && (cfg.asignaciones?.[{{ session.get('user_id')|tojson }}] || []).includes(matches[0]);
+    }
     function rendPuedeGestionar() {
 
         return IS_RENDICION && typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR === true;
@@ -10870,7 +10880,7 @@ let _rendCambiandoVista = false;
                     b.title = titulo;
                     b.setAttribute('aria-label', titulo);
 
-                    b.disabled = !puede;
+                    b.disabled = !puede || (texto === 'Validar' && !rendPuedeValidarFila(row));
 
                     b.onclick = (e) => { e.stopPropagation(); fn(); };
 
@@ -11638,7 +11648,7 @@ let _rendCambiandoVista = false;
 
             const valorVisible = String(val);
             const esCorreo = /^\/api\/rendicion\/correo\//.test(valorVisible);
-            lbl.appendChild(document.createTextNode(esCorreo ? 'Correo adjunto · ' + (unique.indexOf(val) + 1) : val));
+            lbl.appendChild(document.createTextNode(esCorreo ? 'Correo adjunto · ' + (unique.indexOf(val) + 1) : (window.NucleusIdentity.isUserField(column.getField()) ? window.NucleusIdentity.display(val) : val)));
             if (esCorreo) lbl.title = valorVisible;
 
             lbl.onclick = (ex) => { ex.preventDefault(); chk.checked = !chk.checked; };
@@ -11711,6 +11721,7 @@ let _rendCambiandoVista = false;
             return (layoutOrderMap.get(a.field) ?? Infinity) - (layoutOrderMap.get(b.field) ?? Infinity) || initialOrder.get(a) - initialOrder.get(b);
         });
     }
+    window.NucleusIdentity.columns(tableColumns);
     const table = new Tabulator("#data-grid", {
 
         data: rawData,
@@ -19668,7 +19679,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         listEl.innerHTML = entries.slice().reverse().map((e, i) => {
 
-            const u = escapeHtml(String(e['usuario'] || '').trim());
+            const u = escapeHtml(window.NucleusIdentity.display(String(e['usuario'] || '').trim()));
 
             const f = escapeHtml(String(e['fecha'] || '').trim());
 
@@ -28946,7 +28957,7 @@ function rendAvisosPintar(lista) {
 
             <div style="flex:1; min-width:0;">
 
-                <div style="font-size:12.5px; line-height:1.4;${a.leida ? '' : ' font-weight:700;'}">${escapeHtml(a.texto || '')}</div>
+                <div style="font-size:12.5px; line-height:1.4;${a.leida ? '' : ' font-weight:700;'}">${escapeHtml(window.NucleusIdentity.text(a.texto || ''))}</div>
 
                 <div class="rend-aviso-hora">${escapeHtml(_avisosFechaLocal(a.creada_en))}</div>
 
@@ -29018,7 +29029,7 @@ function rendAvisosToast(a) {
 
         + '</div>'
 
-        + '<div class="rend-aviso-toast-txt">' + escapeHtml(a.texto || '') + '</div>'
+        + '<div class="rend-aviso-toast-txt">' + escapeHtml(window.NucleusIdentity.text(a.texto || '')) + '</div>'
 
         + '<div class="rend-aviso-toast-hora">' + escapeHtml(_avisosFechaLocal(a.creada_en)) + '</div>';
 

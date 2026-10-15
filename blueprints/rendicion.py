@@ -408,6 +408,10 @@ def api_rendicion_accion():
     except Exception:
         row = {}
 
+    from services.rendicion_validadores import puede_validar
+    if accion == 'validar' and not puede_validar(row, session.get('user_id'), session.get('rol')):
+        return jsonify({'error': 'No estás asignado para validar este proyecto.'}), 403
+
     estado = _estado_de(row)
     etapa = _etapa_de(row)
     # Reglas del flujo: cada acción solo desde la hoja que le corresponde.
@@ -903,3 +907,21 @@ def rendiciones_por_wo():
             'motivo': _motivo_de(datos), 'monto': _monto_de(datos),
             'fecha': campos.get('marcatemporal') or datos.get('FECHA VALIDACION') or ''})
     return jsonify({'lista': lista})
+
+@bp.route('/api/rendicion/validadores', methods=['GET', 'POST'])
+@login_required
+def configurar_validadores():
+    from models import Usuario
+    from services.rendicion_validadores import ADMIN_ROLES, configuracion, guardar, PROYECTOS
+    if session.get('rol') not in ADMIN_ROLES or not _puede_gestionar():
+        return jsonify({'error': 'Solo administración puede configurar validadores.'}), 403
+    if request.method == 'POST':
+        try:
+            return jsonify(success=True, configuracion=guardar(request.get_json(silent=True)))
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+    return jsonify(configuracion=configuracion(), proyectos=list(PROYECTOS), usuarios=[
+        {'id': u.id, 'nombre': u.nombre or u.username, 'username': u.username,
+         'admin': u.rol in ADMIN_ROLES}
+        for u in Usuario.query.order_by(Usuario.nombre, Usuario.username).all()
+        if puede_rendicion(u.id, u.rol, '')])

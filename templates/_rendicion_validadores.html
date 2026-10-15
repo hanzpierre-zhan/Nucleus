@@ -1,0 +1,12 @@
+<dialog id="rend-validator-dialog" class="rend-validator-dialog" aria-labelledby="rend-validator-title">
+  <header><div><h2 id="rend-validator-title">Validadores por proyecto</h2><p>Todos ven las rendiciones. La asignación controla únicamente quién puede validar.</p></div><button type="button" id="rend-validator-close" class="action-pill pill-neutral" aria-label="Cerrar validadores">Cerrar</button></header>
+  <label><input type="checkbox" id="rend-validator-active"> Activar asignación por proyecto</label>
+  <p>Al activar, cada usuario valida solo los proyectos marcados. Sin proyectos marcados no puede validar. Administración conserva acceso a todos. Desactivado mantiene el permiso anterior del módulo.</p>
+  <div class="rend-validator-scroll"><table><thead><tr><th>Usuario</th><th>ENTEL</th><th>INTEGRATEL</th><th>CLARO</th></tr></thead><tbody id="rend-validator-users"></tbody></table></div>
+  <footer><p id="rend-validator-status" role="status"></p><button type="button" class="action-pill pill-blue" id="rend-validator-save">Guardar asignaciones</button></footer>
+</dialog>
+<style>
+.rend-validator-dialog{width:min(760px,94vw);max-height:85vh;border:1px solid var(--ios-hairline);border-radius:14px;padding:20px;background:var(--ios-card-bg);color:var(--ios-label)}
+.rend-validator-dialog::backdrop{background:#0008}.rend-validator-dialog header,.rend-validator-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.rend-validator-dialog h2{margin:0;font-size:20px}.rend-validator-dialog p{font-size:12px;color:var(--ios-secondary);line-height:1.5}.rend-validator-scroll{max-height:48vh;overflow:auto;margin:14px 0}.rend-validator-dialog table{width:100%;border-collapse:collapse}.rend-validator-dialog th,.rend-validator-dialog td{padding:10px;border-bottom:1px solid var(--ios-hairline);text-align:center}.rend-validator-dialog th:first-child{text-align:left}.rend-validator-dialog small{display:block;font-weight:normal;color:var(--ios-secondary);margin-top:3px}.rend-validator-dialog input{accent-color:#173e76}
+</style>
+<script src="/static/js/rendicion-validadores.js?v=1"></script>

@@ -71,6 +71,10 @@ def api_rows_update():
         record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
         if not record: return jsonify({'error': 'Record not found'}), 404
         row_dict = json.loads(record.data_json)
+        from services.rendicion_validadores import error_edicion
+        error = error_edicion(pid, row_dict, {field: value}, session.get('rol'))
+        if error:
+            return jsonify({'error': error}), 403
         if cambio_bloqueado(row_dict,{field:value}):
             return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
         if field in ('INICIO EJECUCION', 'FIN EJECUCION'):
@@ -692,6 +696,10 @@ def api_rows_bulk_update():
         record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
         if not record: return jsonify({'error': 'Registro no encontrado'}), 404
         row_dict = json.loads(record.data_json)
+        from services.rendicion_validadores import error_edicion
+        error = error_edicion(pid, row_dict, updates, session.get('rol'))
+        if error:
+            return jsonify({'error': error}), 403
         if cambio_bloqueado(row_dict,updates):
             return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
         if any(campo in updates for campo in ('INICIO EJECUCION', 'FIN EJECUCION')):

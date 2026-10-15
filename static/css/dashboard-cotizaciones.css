@@ -38,3 +38,22 @@
 .dc-chip{font-size:10px;padding:2px 8px;border-radius:999px;background:var(--ios-fill);color:var(--ios-secondary);border:1px solid var(--ios-hairline);white-space:nowrap}
 .dc-chip strong{color:var(--ios-label)}
 .dc-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;color:#fff;white-space:nowrap}
+
+.dc-control{background:var(--ios-card-bg);border:1px solid var(--ios-hairline);border-radius:12px;padding:12px;margin-bottom:10px}
+.dc-control-head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.dc-control h2{font-size:15px;margin:0 0 4px}.dc-control p{font-size:11px;color:var(--ios-secondary);margin:5px 0 9px}
+.dc-control label{font-size:11px;display:flex;align-items:center;gap:8px}
+.dc-matrix-scroll{max-height:330px;overflow:auto;border:1px solid var(--ios-hairline);border-radius:8px}
+.dc-page .dc-matrix{width:100%;border-collapse:collapse;min-width:780px}
+.dc-page .dc-matrix th,.dc-page .dc-matrix td{padding:9px 12px;font-size:12px;text-align:right;white-space:nowrap}
+.dc-page .dc-matrix th:first-child{text-align:left;min-width:155px}
+.dc-matrix td strong,.dc-matrix td span{display:block}.dc-matrix td span{font-size:11px;margin-top:3px;color:var(--ios-secondary)}
+.dc-matrix thead th{z-index:1}.dc-matrix tfoot{position:sticky;bottom:0;background:var(--ios-card-bg);font-weight:bold}
+.dc-matrix thead small{font-weight:normal}.dc-page .di-filters{flex-wrap:wrap}
+
+.dc-page .dc-chips{align-items:flex-start;align-content:start;align-self:start}
+.dc-page .dc-chip{height:auto;min-height:0;align-self:start;line-height:1.4;flex:0 0 auto;border-radius:5px}
+.dc-page .di-kpis article small{font-variant-numeric:tabular-nums}
+@media(max-width:600px){.dc-control{padding:9px}.dc-control-head label{width:100%;justify-content:space-between}.dc-control h2{font-size:14px}}
+
+.dark-mode .dc-page .di-kpis article:first-child strong{color:var(--di-blue)}

@@ -16,11 +16,11 @@
     const PEST_ORDER = ['registro', 'cliente', 'sustentar', 'atendido', 'cancelado'];
 
     // ── Opciones de los filtros ────────────────────────────────────────────────
-    for (const [id, key] of [['di-client', 'cliente'], ['di-type', 'tipo'], ['di-owner', 'solicito']]) {
+    for (const [id, key] of [['di-client', 'cliente'], ['di-type', 'tipo'], ['di-owner', 'solicito'], ['dc-project', 'proyecto'], ['dc-expense', 'gasto'], ['dc-generator', 'genero']]) {
         [...new Set(rows.map(r => r[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b))
-            .forEach(v => get(id).add(new Option(v, v)));
+            .forEach(v => get(id).add(new Option(window.NucleusIdentity.display(v), v)));
     }
-    [...new Set(rows.map(r => r.mes).filter(Boolean))].sort().forEach(v => get('di-month').add(new Option(v, v)));
+    [...new Set(rows.map(r => r.mes).filter(Boolean))].sort().forEach(v => get('di-month').add(new Option(window.NucleusIdentity.display(v), v)));
 
     function fillDays() {
         const m = get('di-month').value, sel = get('di-day'), prev = sel.value;
@@ -32,12 +32,49 @@
         if (dias.includes(prev)) sel.value = prev;
     }
 
+    function extraFilters(r) {
+        return [['dc-project','proyecto'], ['dc-expense','gasto'], ['dc-generator','genero']]
+            .every(([id, key]) => !get(id).value || r[key] === get(id).value);
+    }
+    function matrix(v) {
+        const stages = ['registro', 'cliente', 'sustentar', 'atendido'];
+        const mode = get('dc-group').value;
+        const groups = new Map();
+        const empty = () => stages.map(() => ({n:0, monto:0}));
+        const sums = empty();
+        for (const r of v) {
+            const index = stages.indexOf(r.pestania); if (index < 0) continue;
+            const key = mode === 'responsable' ? (r.pestania === 'cliente' ? r.genero : r.solicito) : r[mode];
+            const label = key || 'Sin datos';
+            if (!groups.has(label)) groups.set(label, empty());
+            groups.get(label)[index].n++; groups.get(label)[index].monto += r.monto || 0;
+            sums[index].n++; sums[index].monto += r.monto || 0;
+        }
+        const paintRow = (label, counts) => {
+            const tr = document.createElement('tr'), name = document.createElement('th');
+            name.scope = 'row'; name.textContent = window.NucleusIdentity.text(label); tr.append(name);
+            const all = {n: counts.reduce((a,x)=>a+x.n,0), monto: counts.reduce((a,x)=>a+x.monto,0)};
+            [...counts, all].forEach(value => {
+                const td = document.createElement('td'), count = document.createElement('strong'), amount = document.createElement('span');
+                count.textContent = num(value.n) + (value.n === 1 ? ' caso' : ' casos');
+                amount.textContent = money(value.monto); td.append(count, amount); tr.append(td);
+            });
+            return tr;
+        };
+        const body = get('dc-matrix'); body.replaceChildren();
+        [...groups].sort((a,b)=>b[1].reduce((sum,x)=>sum+x.monto,0)-a[1].reduce((sum,x)=>sum+x.monto,0) || a[0].localeCompare(b[0]))
+            .forEach(([label, counts]) => body.append(paintRow(label, counts)));
+        if (!groups.size) { const tr = document.createElement('tr'), td = document.createElement('td'); td.colSpan=6; td.textContent='Sin casos activos para estos filtros.'; tr.append(td); body.append(tr); }
+        get('dc-matrix-total').replaceChildren(paintRow('Total', sums));
+        get('dc-group-label').textContent = get('dc-group').selectedOptions[0].textContent;
+        get('dc-role-caption').hidden = mode !== 'responsable';
+    }
     function filtered() {
         const m = get('di-month').value, d = get('di-day').value, c = get('di-client').value,
             t = get('di-type').value, o = get('di-owner').value;
         return rows.filter(r =>
             (!m || r.mes === m) && (!d || (r.dia || '').slice(8, 10) === d) &&
-            (!c || r.cliente === c) && (!t || r.tipo === t) && (!o || r.solicito === o));
+            (!c || r.cliente === c) && (!t || r.tipo === t) && (!o || r.solicito === o) && extraFilters(r));
     }
 
     // ── Renderers genéricos (mismo patrón que el dashboard operativo) ──────────
@@ -54,7 +91,7 @@
         values.forEach(([label, value, hint]) => {
             const row = document.createElement('div'); row.className = 'di-bar-row';
             const name = document.createElement('span'); name.className = 'di-bar-name';
-            name.textContent = label; name.title = label;
+            name.textContent = window.NucleusIdentity.text(label); name.title = label;
             const track = document.createElement('div'); track.className = 'di-bar-track';
             const fill = document.createElement('div'); fill.className = 'di-bar-fill';
             fill.style.width = (100 * value / max) + '%'; track.append(fill);
@@ -87,7 +124,12 @@
         };
         for (const [k, lst] of Object.entries(set)) {
             get('dc-kpi-' + k).textContent = num(lst.length);
-            get('dc-kpi-' + k + '-m').textContent = moneyShort(total(lst, 'monto'));
+            get('dc-kpi-' + k + '-m').textContent = money(total(lst, 'monto'));
+        }
+        for (const stage of ['registro','cliente','sustentar','atendido']) {
+            const key = stage === 'cliente' ? 'genero' : 'solicito';
+            const names = new Set(set[stage].map(r=>r[key]).filter(x=>x && x!=='Sin datos'));
+            get('dc-kpi-' + stage + '-users').textContent = names.size + (stage === 'cliente' ? (names.size === 1 ? ' usuario que cotizó' : ' usuarios que cotizaron') : (names.size === 1 ? ' solicitante' : ' solicitantes'));
         }
         return set;
     }
@@ -95,7 +137,7 @@
     function story(v, set) {
         const pct = v.length ? set.atendido.length / v.length * 100 : 0;
         get('di-story-title').textContent = v.length
-            ? 'El ' + num(Math.round(pct * 10) / 10) + '% de lo cotizado está atendido'
+            ? 'El ' + num(Math.round(pct * 10) / 10) + '% de las solicitudes está atendido'
             : 'Sin cotizaciones para esta selección';
         const msgs = [moneyShort(total(set.atendido, 'monto')) + ' atendidos de ' + moneyShort(total(v, 'monto')) + ' cotizados.'];
         if (set.cliente.length) msgs.push(set.cliente.length + ' esperando al cliente · ' + moneyShort(total(set.cliente, 'monto')) + ' sin aprobar.');
@@ -108,7 +150,7 @@
     // ── Gráficos de tiempo ─────────────────────────────────────────────────────
     function months() {
         const c = get('di-client').value, t = get('di-type').value, o = get('di-owner').value;
-        const half = rows.filter(r => r.mes && (!c || r.cliente === c) && (!t || r.tipo === t) && (!o || r.solicito === o));
+        const half = rows.filter(r => r.mes && (!c || r.cliente === c) && (!t || r.tipo === t) && (!o || r.solicito === o) && extraFilters(r));
         const porMes = new Map();
         half.forEach(r => {
             const e = porMes.get(r.mes) || { n: 0, atn: 0, monto: 0 };
@@ -173,7 +215,7 @@
         const cli = v.filter(r => r.pestania === 'cliente');
         bars('dc-cli-users', groupAgg(cli, 'genero').slice(0, 8)
             .map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' cotizaciones · ' + money(e.monto) + ' pendientes de aprobación']));
-        bars('dc-cli-proy', groupAgg(cli, 'cliente').slice(0, 8)
+        bars('dc-cli-proy', groupAgg(cli, 'proyecto').slice(0, 8)
             .map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' pendientes de aprobación · ' + money(e.monto)]));
 
         // Sustentar: quién pidió lo que falta sustentar + evidencia
@@ -214,7 +256,7 @@
             return [PEST_LABEL[p], Math.round(total(it, 'monto')), it.length + ' cotizaciones'];
         }).filter(x => x[1] > 0), { fmt: moneyShort });
         bars('dc-types', groupAgg(v, 'tipo').slice(0, 8).map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n]));
-        bars('dc-estados', groupAgg(v, 'estado').map(([k, e]) => [k, e.n]));
+        bars('dc-estados', groupAgg(v, 'estado').map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' casos · ' + money(e.monto)]));
     }
 
     // ── Tabla detalle ──────────────────────────────────────────────────────────
@@ -226,15 +268,15 @@
         const tb = get('dc-orders'); tb.replaceChildren();
         subset.slice(page * 50, page * 50 + 50).forEach(r => {
             const tr = document.createElement('tr');
-            [r.n, r.cliente, r.site || '—', r.tipo, money(r.monto), r.estado, PEST_LABEL[r.pestania],
+            [r.n, r.cliente, r.proyecto, r.gasto, r.site || '—', r.tipo, money(r.monto), r.estado, PEST_LABEL[r.pestania],
              r.solicito, r.genero, r.dia || '—', r.wo || '—', r.factura_ok ? 'Sí' : '—', r.cotprov_ok ? 'Sí' : '—']
                 .forEach((c, i) => {
                     const td = document.createElement('td');
-                    if (i === 6) {
+                    if (i === 8) {
                         const s = document.createElement('span');
                         s.className = 'dc-badge'; s.style.background = PEST_COLOR[r.pestania]; s.textContent = c;
                         td.append(s);
-                    } else td.textContent = c;
+                    } else td.textContent = window.NucleusIdentity.display(c);
                     tr.append(td);
                 });
             tb.append(tr);
@@ -252,14 +294,16 @@
         months();
         daily(visible);
         paneles(visible);
+        matrix(visible);
         page = 0; table();
     }
 
-    ['di-month', 'di-client', 'di-type', 'di-owner'].forEach(id => get(id).addEventListener('change', () => { if (id === 'di-month') fillDays(); render(); }));
+    ['di-month', 'di-client', 'di-type', 'di-owner', 'dc-project', 'dc-expense', 'dc-generator'].forEach(id => get(id).addEventListener('change', () => { if (id === 'di-month') fillDays(); render(); }));
+    get('dc-group').addEventListener('change', () => matrix(visible));
     get('di-day').addEventListener('change', render);
     get('dc-pest').addEventListener('change', () => { page = 0; table(); });
     get('di-clear').addEventListener('click', () => {
-        ['di-month', 'di-day', 'di-client', 'di-type', 'di-owner', 'dc-pest'].forEach(id => get(id).value = '');
+        ['di-month', 'di-day', 'di-client', 'di-type', 'di-owner', 'dc-pest', 'dc-project', 'dc-expense', 'dc-generator'].forEach(id => get(id).value = '');
         fillDays(); render();
     });
     get('dc-prev').addEventListener('click', () => { page--; table(); });

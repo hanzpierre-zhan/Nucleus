@@ -24,9 +24,9 @@
 
     for (const [id, key] of [['di-client', 'proyecto'], ['di-budget', 'presupuesto'], ['di-owner', 'solicito']]) {
         [...new Set(rows.map(r => r[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b))
-            .forEach(v => get(id).add(new Option(v, v)));
+            .forEach(v => get(id).add(new Option(window.NucleusIdentity.display(v), v)));
     }
-    [...new Set(rows.map(r => r.mes).filter(Boolean))].sort().forEach(v => get('di-month').add(new Option(v, v)));
+    [...new Set(rows.map(r => r.mes).filter(Boolean))].sort().forEach(v => get('di-month').add(new Option(window.NucleusIdentity.display(v), v)));
 
     function fillDays() {
         const m = get('di-month').value, sel = get('di-day'), prev = sel.value;
@@ -58,7 +58,7 @@
         values.forEach(([label, value, hint]) => {
             const row = document.createElement('div'); row.className = 'di-bar-row';
             const name = document.createElement('span'); name.className = 'di-bar-name';
-            name.textContent = label; name.title = label;
+            name.textContent = window.NucleusIdentity.text(label); name.title = label;
             const track = document.createElement('div'); track.className = 'di-bar-track';
             const fill = document.createElement('div'); fill.className = 'di-bar-fill';
             fill.style.width = (100 * value / max) + '%'; track.append(fill);
@@ -232,7 +232,7 @@
                         const s = document.createElement('span');
                         s.className = 'dr-badge'; s.style.background = ETAPA_COLOR[r.etapa]; s.textContent = c;
                         td.append(s);
-                    } else td.textContent = c;
+                    } else td.textContent = window.NucleusIdentity.display(c);
                     tr.append(td);
                 });
             tb.append(tr);

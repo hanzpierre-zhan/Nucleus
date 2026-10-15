@@ -3,14 +3,17 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=2">
-<link rel="stylesheet" href="/static/css/dashboard-cotizaciones.css?v=1">
+<link rel="stylesheet" href="/static/css/dashboard-cotizaciones.css?v=2">
 <section class="di-page dc-page">
   <header class="di-head"><div><span class="di-eyebrow">COMERCIAL · {{ proyecto_nombre|upper }}</span><h1>Pipeline de cotizaciones</h1>{% include '_dash_switch.html' %}</div>
   <div class="di-filters">
     <label>Mes de solicitud<select id="di-month"><option value="">Todos los meses</option></select></label>
     <label>Día<select id="di-day"><option value="">Todos los días</option></select></label>
-    <label>Proyecto / cliente<select id="di-client"><option value="">Todos</option></select></label>
-    <label>Tipo<select id="di-type"><option value="">Todos</option></select></label>
+    <label>Operador<select id="di-client"><option value="">Todos</option></select></label>
+    <label>Tipo de cotización<select id="di-type"><option value="">Todos</option></select></label>
+    <label>Nombre de proyecto<select id="dc-project"><option value="">Todos</option></select></label>
+    <label>Tipo de gasto<select id="dc-expense"><option value="">Todos</option></select></label>
+    <label>Generó cotización<select id="dc-generator"><option value="">Todos</option></select></label>
     <label>Solicitante<select id="di-owner"><option value="">Todos</option></select></label>
     <button type="button" id="di-clear" class="action-pill pill-neutral">Limpiar filtros</button>
   </div>
@@ -19,18 +22,25 @@
   <section class="di-story" aria-live="polite"><div><h2 id="di-story-title"></h2><p id="di-story-detail"></p></div><div class="di-progress" aria-label="Porcentaje atendido"><div id="di-progress-fill"></div></div></section>
   <div class="di-kpis" aria-live="polite">
     <article><span>Total cotizaciones</span><strong id="dc-kpi-total">0</strong><small id="dc-kpi-total-m">—</small></article>
-    <article><span>1. Registro</span><strong id="dc-kpi-registro">0</strong><small id="dc-kpi-registro-m">—</small></article>
-    <article><span>2. Cliente</span><strong id="dc-kpi-cliente">0</strong><small id="dc-kpi-cliente-m">—</small></article>
-    <article><span>3. Sustentar</span><strong id="dc-kpi-sustentar">0</strong><small id="dc-kpi-sustentar-m">—</small></article>
-    <article><span>3. Atendido</span><strong id="dc-kpi-atendido">0</strong><small id="dc-kpi-atendido-m">—</small></article>
+    <article><span>1. Pendientes de cotizar</span><strong id="dc-kpi-registro">0</strong><small id="dc-kpi-registro-m">—</small><small id="dc-kpi-registro-users"></small></article>
+    <article><span>2. Sin aprobación del cliente</span><strong id="dc-kpi-cliente">0</strong><small id="dc-kpi-cliente-m">—</small><small id="dc-kpi-cliente-users"></small></article>
+    <article><span>3. Aprobados sin sustentar</span><strong id="dc-kpi-sustentar">0</strong><small id="dc-kpi-sustentar-m">—</small><small id="dc-kpi-sustentar-users"></small></article>
+    <article><span>Atendidos · evidencia entregada</span><strong id="dc-kpi-atendido">0</strong><small id="dc-kpi-atendido-m">—</small><small id="dc-kpi-atendido-users"></small></article>
     <article><span>4. Anulado</span><strong id="dc-kpi-anulado">0</strong><small id="dc-kpi-anulado-m">—</small></article>
     <article><span>5. Proveedor</span><strong id="dc-kpi-proveedor">0</strong><small id="dc-kpi-proveedor-m">—</small></article>
   </div>
+  <section class="dc-control" aria-label="Control de cantidades e importes por etapa">
+    <div class="dc-control-head"><div><h2>Responsables y dinero por etapa</h2><p>Cantidad de casos y monto cotizado en soles. Los filtros se aplican a todos los cuadros.</p></div>
+      <label>Comparar por<select id="dc-group"><option value="responsable">Responsable de cada etapa</option><option value="solicito">Solicitante</option><option value="genero">Generó cotización</option><option value="proyecto">Nombre de proyecto</option><option value="cliente">Operador</option><option value="gasto">Gasto Cobra / Refacturable</option></select></label></div>
+    <p id="dc-role-caption">Registro y Sustentar se atribuyen al solicitante; Cliente a quien generó la cotización; Atendido al solicitante.</p>
+    <div class="dc-matrix-scroll"><table class="dc-matrix"><thead><tr><th id="dc-group-label">Responsable</th><th>1. Registro<br><small>Pendiente de cotizar</small></th><th>2. Cliente<br><small>Sin aprobación</small></th><th>3. Sustentar<br><small>Aprobado sin evidencia entregada</small></th><th>Atendido<br><small>Evidencia entregada</small></th><th>Total activo</th></tr></thead><tbody id="dc-matrix"></tbody><tfoot id="dc-matrix-total"></tfoot></table></div>
+    <p>Importes según «SUB TOTAL + FEE». Las solicitudes aún sin monto suman S/ 0. Los anulados se muestran aparte; Proveedor es una vista paralela y no se suma dos veces.</p>
+  </section>
   <div class="di-charts">
     <article class="di-card di-month-card"><h2>Solicitudes por mes</h2><p>Creadas por mes de solicitud · el tooltip incluye atendidas y S/ cotizado</p><div id="di-months" class="di-month-bars"></div></article>
     <article class="di-card di-daily-card"><h2>Cotizaciones por día <span id="di-daily-month"></span></h2><p id="di-daily-caption">Por fecha de solicitud · mes actual salvo filtro</p><div id="di-daily"></div></article>
     <article class="di-card dc-cli-users"><h2>Cliente · sin aprobación, por usuario</h2><p>Quién generó la cotización que el cliente aún no aprueba</p><div id="dc-cli-users"></div></article>
-    <article class="di-card dc-cli-proy"><h2>Cliente · sin aprobación, por proyecto</h2><p>Pendientes de aprobación por cliente</p><div id="dc-cli-proy"></div></article>
+    <article class="di-card dc-cli-proy"><h2>Cliente · sin aprobación, por proyecto</h2><p>Pendientes de aprobación por nombre de proyecto</p><div id="dc-cli-proy"></div></article>
     <article class="di-card dc-sus-users"><h2>Sustentar · pendiente por solicitante</h2><p>Quién pidió la cotización que falta sustentar</p><div id="dc-sus-users"></div></article>
     <article class="di-card dc-prov"><h2>Proveedor · archivos y cierre</h2><p id="dc-prov-caption"></p><div id="dc-prov"></div></article>
     <article class="di-card dc-aging"><h2>Sustentar · antigüedad</h2><p>Días desde que el cliente aprobó</p><div id="dc-aging"></div></article>
@@ -39,10 +49,10 @@
     <article class="di-card dc-estados"><h2>Estado exacto guardado</h2><p>Lo que dice la columna ESTADO COTIZACION</p><div id="dc-estados"></div></article>
   </div>
   <details class="di-order-details"><summary>Ver detalle por cotización <span id="dc-detail-count"></span></summary><article class="di-card"><div class="di-table-head"><div><h2>Cotizaciones de la selección</h2><p>Los filtros de arriba también aplican aquí.</p></div><label>Pestaña<select id="dc-pest"><option value="">Todas</option><option value="registro">1. Registro</option><option value="cliente">2. Cliente</option><option value="sustentar">3. Sustentar</option><option value="atendido">3. Atendido</option><option value="cancelado">4. Anulado</option><option value="proveedor">5. Proveedor</option></select></label></div>
-    <div class="di-table-scroll"><table><thead><tr><th>N° cotización</th><th>Proyecto</th><th>Site</th><th>Tipo</th><th>S/ cotizado</th><th>Estado</th><th>Pestaña</th><th>Solicitó</th><th>Generó</th><th>Solicitud</th><th>WO</th><th>Factura prov.</th><th>Cot. prov.</th></tr></thead><tbody id="dc-orders"></tbody></table></div>
+    <div class="di-table-scroll"><table><thead><tr><th>N° cotización</th><th>Proyecto</th><th>Nombre de proyecto</th><th>Tipo de gasto</th><th>Site</th><th>Tipo</th><th>S/ cotizado</th><th>Estado</th><th>Pestaña</th><th>Solicitó</th><th>Generó</th><th>Solicitud</th><th>WO</th><th>Factura prov.</th><th>Cot. prov.</th></tr></thead><tbody id="dc-orders"></tbody></table></div>
     <div class="di-pagination"><button type="button" id="dc-prev" class="action-pill pill-neutral">Anterior</button><span id="dc-page-count" aria-live="polite"></span><button type="button" id="dc-next" class="action-pill pill-neutral">Siguiente</button></div>
   </article></details>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-cotizaciones.js?v=1"></script>
+<script src="/static/js/dashboard-cotizaciones.js?v=3"></script>
 {% endblock %}
