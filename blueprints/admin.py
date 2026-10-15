@@ -661,6 +661,10 @@ def api_rendicion_sync():
     existentes = {r[0] for r in NucleusData.query.with_entities(NucleusData.key_value)
                   .filter_by(proyecto_id=proy.id).all()}
     for row in reader:
+        from services.rendicion_origen import recibir_en_nucleus
+        if not recibir_en_nucleus(row):
+            omitidas += 1
+            continue
         datos = {}
         for f in fields:
             nombre_col = mapa_cols.get(f)
