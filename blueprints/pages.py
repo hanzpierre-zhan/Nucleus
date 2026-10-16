@@ -247,6 +247,7 @@ def index():
     # Campo del formulario: debe existir en la tabla aunque el esquema importado sea antiguo.
     if proy_actual_nombre.strip().lower() == 'cotizaciones':
         columns_set.add('TIPO DE GASTO')
+        columns_set.add('TIPO GASTO APROBACION')
 
     # Add KPI columns to the set so frontend can see them
     kpi_configs = KpiConfig.query.filter_by(proyecto_id=pid).all()

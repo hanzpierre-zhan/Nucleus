@@ -7688,7 +7688,7 @@ let _rendCambiandoVista = false;
     const REND_ESENCIALES = {
         base: ['_accion','ESTADO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Técnico beneficiario (Form)','Documento del beneficiario','Cruce de personal','Nombre de site','Número CM / PM / PLM'],
         validacion: ['Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Motivo de la solicitud','Criticidad - Prioridad','Responsable de la validación','Observaciones (Form)','OBSERVACIONES'],
-        depositos: ['Monto total del depósito','FECHA PAGO','MONTO PAGO','FOTO PAGO','ADJUNTO CORREO VALIDACION','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar'],
+        depositos: ['Monto total del depósito','Motivo de la solicitud','FECHA PAGO','MONTO PAGO','FOTO PAGO','ADJUNTO CORREO VALIDACION','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar'],
         evidencia: ['FECHA PAGO','MONTO PAGO','FOTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
         rendicion: ['FECHA PAGO','MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
         observado: ['MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
@@ -11952,6 +11952,8 @@ let _rendCambiandoVista = false;
             const cliente = tableColumns.findIndex(c=>c.field==='CLIENTE');
             tableColumns.splice(cliente >= 0 ? cliente+1 : Math.min(4,tableColumns.length),0,gasto);
         }
+        const idxPago = tableColumns.findIndex(c=>c.field==='TIPO GASTO APROBACION');
+        if (idxPago >= 0) tableColumns[idxPago].title = 'Tipo de gasto (aprobación)';
     }
     for (const definition of tableColumns) {
         const manual = manualColsConfig.find(c=>c.nombre===definition.field && c.tipo==='lista');
@@ -27431,9 +27433,9 @@ btnItem.onclick = () => cotRegAgregarFila();
           <section class="cot-form-section" aria-labelledby="cot-client-heading">
             <h4 id="cot-client-heading"><i class="fa-regular fa-circle-check" aria-hidden="true"></i> Aprobación del cliente</h4>
             <div class="cot-form-field">
-              <label for="cot-tipo-gasto-aprobacion">Tipo de gasto <span class="cot-required">*</span></label>
+              <label for="cot-tipo-gasto-aprobacion">Tipo de gasto (aprobación) <span class="cot-required">*</span></label>
               <select id="cot-tipo-gasto-aprobacion" required>
-                <option value="">Seleccione tipo de gasto</option>
+                <option value="">Seleccione tipo de gasto (aprobación)</option>
                 <option value="Caja chica">Caja chica</option>
                 <option value="Proveedor">Proveedor</option>
               </select>
@@ -27809,7 +27811,8 @@ function rendPoblarDetalle(data, gridId) {
 
         // Solo lo que se ve en la tabla (la hoja activa puede ocultar columnas)
 
-        if (typeof col.isVisible === 'function' && !col.isVisible()) return;
+        const _forceShowDetalle = /motivo/i.test(f);
+        if (typeof col.isVisible === 'function' && !col.isVisible() && !_forceShowDetalle) return;
 
         seen.add(f);
 
