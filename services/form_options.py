@@ -33,5 +33,7 @@ def choices(columns, project_name):
         for name, values in FLM_CHOICES.items():
             result.setdefault(normalized(name), {'nombre':name,'tipo':'lista','opciones':values,'configurada':False})
     if project_name == 'Cotizaciones':
+        result.setdefault(normalized('NOMBRE CLIENTE'), {'nombre':'NOMBRE CLIENTE','tipo':'lista','opciones':[],'configurada':False})
+        result.setdefault(normalized('TIPO DE GASTO'), {'nombre':'TIPO DE GASTO','tipo':'lista','opciones':['Gasto Cobra','Refacturable'],'configurada':False})
         result.setdefault(normalized('SUPERVISOR'), {'nombre':'SUPERVISOR','tipo':'lista','opciones':[],'configurada':False})
     return list(result.values())

@@ -24,3 +24,36 @@
         });
     };
 })();
+
+// Editor de listas manuales: el identificador especial nunca se guarda en la fila.
+window.nucleusManualListEditor = function(cell, onRendered, success, cancel) {
+    const field=cell.getField();
+    const column=manualColsConfig.find(c=>c.nombre===field);
+    const select=document.createElement('select');select.style.cssText='width:100%;height:100%;color:var(--ios-label);background:var(--ios-card-bg)';
+    const current=String(cell.getValue()??'');
+    select.add(new Option('— Seleccionar —',''));
+    const values=Array.from(new Set(column?.opciones||[]));
+    for(const value of values)select.add(new Option(value,value));
+    if(current && !values.includes(current))select.add(new Option(current+' (registrado)',current));
+    const canManage=['zeno','suport','supervisor'].includes(document.body.dataset.optionsRole)
+        && window.nucleusCanManageOptions?.(field);
+    const manage='__nucleus_manage_manual__';
+    if(canManage)select.add(new Option('＋ Agregar o quitar opciones…',manage));
+    select.value=current;
+    select.addEventListener('change',async()=>{
+        if(select.value!==manage){success(select.value);return;}
+        cancel();
+        const result=await nucleusOptionsDialog('Opciones · '+field,values);
+        if(result===null)return;
+        try{
+            const response=await fetch('/api/master/manual_columns/options',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:field,opciones:result.split('\n').map(x=>x.trim()).filter(Boolean)})});
+            const data=await response.json();if(!response.ok)throw new Error(data.error||'No se guardaron las opciones.');
+            column.opciones=data.opciones;
+            window.dispatchEvent(new CustomEvent('nucleus:options-updated',{detail:{nombre:field,opciones:data.opciones}}));
+            cell.getTable().redraw();
+        }catch(error){window.nucleusAlert(error.message);}
+    });
+    select.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();cancel();}});
+    onRendered(()=>select.focus());
+    return select;
+};

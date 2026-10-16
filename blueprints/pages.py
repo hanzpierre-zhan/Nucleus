@@ -279,6 +279,8 @@ def index():
         d = json.loads(r.data_json)
         if personal_rendicion is not None:
             completar_personal(d, personal_rendicion)
+        from services.columnas_fuente import presentar as presentar_columnas_fuente
+        d = presentar_columnas_fuente(d, proy_actual_nombre, r.key_value)
         d['_key'] = r.key_value
         if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and not d.get('GESTOR'):
             d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''

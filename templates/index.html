@@ -1904,6 +1904,8 @@
     :is(#cot-modal, #cot-proveedor-modal) .cot-chip-input{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%;min-height:42px;box-sizing:border-box;padding:5px 8px;background:var(--ios-fill);border:1px solid var(--ios-hairline);border-radius:9px;cursor:text;transition:all .15s ease}
     :is(#cot-modal, #cot-proveedor-modal) .cot-chip-input:focus-within{border-color:var(--ios-blue);box-shadow:0 0 0 3px rgba(128,100,255,.15)}
     :is(#cot-modal, #cot-proveedor-modal) .cot-chip-input input[type="text"]{flex:1 1 130px;min-width:130px;width:auto;min-height:auto;padding:4px 2px;border:0;background:transparent;box-shadow:none;font-size:13px}
+    #cot-nombre-cliente-chips .select-options-control{flex:1 1 180px;min-width:0}
+    #cot-nombre-cliente-chips select{width:100%;min-width:0}
     :is(#cot-modal, #cot-proveedor-modal) .cot-chip{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#0d9488,#115e59);color:#fff;border-radius:6px;padding:4px 5px 4px 9px;font-size:12.5px;font-weight:600;max-width:100%}
     :is(#cot-modal, #cot-proveedor-modal) .cot-chip span{overflow-wrap:anywhere}
     :is(#cot-modal, #cot-proveedor-modal) .cot-chip button{background:none;border:0;color:#fff;opacity:.75;cursor:pointer;font-size:16px;line-height:1;padding:0 3px}
@@ -9372,6 +9374,126 @@ let _rendCambiandoVista = false;
 
 
 
+    // ── Preferencia PERSONAL de visibilidad de columnas ──────────────────────
+
+    // Se guarda en localStorage por usuario+proyecto (y por hoja en Rendicion) y
+
+    // se superpone al layout global del servidor sin tocar la config del admin.
+
+    // Asi el mostrar/ocultar de cada usuario se conserva al navegar y volver.
+
+    function _colVisClave(vista) {
+
+        let clave = 'nucleus-colvis-' + {{ session.get('user_id') | tojson }}
+
+            + '-' + {{ session.get('current_proyecto_id') | tojson }};
+
+        if (vista) {
+
+            clave += '-' + String(vista).toLowerCase();
+
+            // En Rendicion "columnas adicionales" agrupa sus propias preferencias.
+
+            try { if (rendColumnasAdicionales()) clave += '-extra'; } catch (_) {}
+
+        }
+
+        return clave;
+
+    }
+
+    function _colVisPersistible(field) {
+
+        if (!field) return false;
+
+        if (field === '_key' || field === '_accion') return false;
+
+        if (String(field).indexOf('KPI_') === 0) return false;
+
+        if (MANUAL_PROJECT && field === pkName) return false;
+
+        return true;
+
+    }
+
+    function _colVisLeer(vista) {
+
+        try {
+
+            const crudo = JSON.parse(localStorage.getItem(_colVisClave(vista)) || '{}');
+
+            return (crudo && typeof crudo === 'object') ? crudo : {};
+
+        } catch (_) { return {}; }
+
+    }
+
+    // Superpone la preferencia personal sobre las definiciones de columna.
+
+    function _colVisAplicarColumnas(tableColumns, vista) {
+
+        const guardado = _colVisLeer(vista);
+
+        if (!Object.keys(guardado).length) return;
+
+        tableColumns.forEach(def => {
+
+            if (!def || !_colVisPersistible(def.field)) return;
+
+            if (Object.prototype.hasOwnProperty.call(guardado, def.field)) {
+
+                def.visible = guardado[def.field] !== false;
+
+            }
+
+        });
+
+    }
+
+    // Superpone la preferencia personal al estado de una hoja de Rendicion.
+
+    function _colVisAplicarEstado(est, vista) {
+
+        const guardado = _colVisLeer(vista);
+
+        Object.keys(guardado).forEach(f => {
+
+            if (!_colVisPersistible(f)) return;
+
+            if (Object.prototype.hasOwnProperty.call(est.visibles, f)) {
+
+                est.visibles[f] = guardado[f] !== false;
+
+            }
+
+        });
+
+    }
+
+    // Guarda la visibilidad actual del usuario (hoja activa en Rendicion).
+
+    function _colVisGuardar(vista) {
+
+        if (typeof table === 'undefined' || !table) return;
+
+        const visibles = {};
+
+        table.getColumns().forEach(c => {
+
+            const f = c.getField();
+
+            if (!_colVisPersistible(f)) return;
+
+            visibles[f] = c.isVisible();
+
+        });
+
+        try { localStorage.setItem(_colVisClave(vista), JSON.stringify(visibles)); } catch (_) {}
+
+    }
+
+
+
     // Manual columns: se ocultan por defecto cuando la tabla tiene muchas columnas importadas
 
     // (así no se llena la "sábana"); el gestor las revela con el botón "Manuales".
@@ -9520,7 +9642,7 @@ let _rendCambiandoVista = false;
 
         // Evitamos agregar la columna real al datatable para no duplicarla bajo ninguna circunstancia.
 
-        if (MANUAL_PROJECT && fieldName === pkName) {
+        if ((MANUAL_PROJECT || IS_WO_PROJECT) && fieldName === pkName) {
 
             return;
 
@@ -11780,7 +11902,13 @@ let _rendCambiandoVista = false;
             tableColumns.splice(cliente >= 0 ? cliente+1 : Math.min(4,tableColumns.length),0,gasto);
         }
     }
+    for (const definition of tableColumns) {
+        const manual = manualColsConfig.find(c=>c.nombre===definition.field && c.tipo==='lista');
+        if (manual && definition.editor === 'list' && typeof window.nucleusManualListEditor === 'function') definition.editor = window.nucleusManualListEditor;
+    }
     window.NucleusIdentity.columns(tableColumns);
+    // Preferencia personal: se superpone al layout global del admin.
+    if (!IS_RENDICION) _colVisAplicarColumnas(tableColumns, null);
     const table = new Tabulator("#data-grid", {
 
         data: rawData,
@@ -12359,9 +12487,31 @@ let _rendCambiandoVista = false;
 
         table.on("columnMoved", function () { if (!orderApplying && !_rendCambiandoVista) saveColumnLayout(); });
 
-        table.on("columnVisibilityChanged", function () { if (!orderApplying && !_rendCambiandoVista) saveColumnLayout(); });
-
     }
+
+
+
+    // Visibilidad: SIEMPRE se guarda como preferencia personal (localStorage, por
+
+    // usuario+proyecto+hoja). zeno/suport ademas la guardan global en el servidor.
+
+    table.on("columnVisibilityChanged", function () {
+
+        if (orderApplying || _rendCambiandoVista) return;
+
+        let vista = null;
+
+        if (IS_RENDICION) {
+
+            try { vista = _rendVista; } catch (_) { return; }
+
+        }
+
+        _colVisGuardar(vista);
+
+        if (isAdmin) saveColumnLayout();
+
+    });
 
 
 
@@ -12643,6 +12793,7 @@ let _rendCambiandoVista = false;
 
         if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return; // Los no-admin siempre ven lo que define el admin (servidor o por defecto)
 
+        if (Object.keys(_colVisLeer(IS_RENDICION ? _rendVista : null)).length) return;
         if (hasServerLayout) return; // La visibilidad la define el layout del admin (servidor)
 
         const saved = localStorage.getItem('nucleus-manual-cols-visible');
@@ -12804,6 +12955,10 @@ let _rendCambiandoVista = false;
                 if (propia && propia.length) tieneLayout = true;
 
             }
+
+            // La preferencia personal de visibilidad tambien se restaura.
+
+            try { localStorage.removeItem(_colVisClave(vista)); } catch (_) {}
 
             if (isAdmin && tieneLayout) {
 
@@ -27181,18 +27336,6 @@ btnItem.onclick = () => cotRegAgregarFila();
           <summary><span><i class="fa-regular fa-clipboard" aria-hidden="true"></i> Datos de la cotización</span><span class="cot-summary-hint">Ver detalle <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span></summary>
           <div id="cot-resumen-grid" class="rend-detalle-grid"></div>
         </details>
-        <!-- Selector de accion -->
-        <div id="cot-accion-tabs" aria-label="Decisión sobre la cotización">
-          <button type="button" id="cot-tab-aprobado" class="cot-accion-tab cot-tab-active" onclick="cotSeleccionarAccion('aprobado')">
-            <i class="fa-solid fa-circle-check"></i> Aprobado
-          </button>
-          <button type="button" id="cot-tab-rechazado" class="cot-accion-tab" onclick="cotSeleccionarAccion('rechazado')">
-            <i class="fa-solid fa-rotate-left"></i> Rechazado
-          </button>
-          <button type="button" id="cot-tab-cancelado" class="cot-accion-tab" onclick="cotSeleccionarAccion('cancelado')">
-            <i class="fa-solid fa-ban"></i> Cancelado
-          </button>
-        </div>
         <!-- Panel: Aprobado -->
         <div id="cot-panel-aprobado" class="cot-approval-grid">
           <section class="cot-form-section" aria-labelledby="cot-client-heading">
@@ -27223,7 +27366,9 @@ btnItem.onclick = () => cotRegAgregarFila();
             <div class="cot-form-field">
               <label for="cot-nombre-cliente-texto">Nombre cliente</label>
               <div id="cot-nombre-cliente-chips" class="cot-chip-input">
-                <input type="text" id="cot-nombre-cliente-texto" placeholder="Escribe un nombre y presiona Enter">
+                <select id="cot-nombre-cliente-texto" data-field="NOMBRE CLIENTE" aria-label="Nombre cliente">
+                  <option value="">— Seleccionar nombre —</option>
+                </select>
               </div>
               <input type="hidden" id="cot-nombre-cliente">
             </div>
@@ -28087,6 +28232,8 @@ function _rendInitEstados() {
         rendAplicarColumnasEsenciales(est, vista);
         est.visibles['DEPARTAMENTO'] = true;
         est.visibles['VERIFICACIÓN PERSONAL'] = false;
+        // Preferencia personal de la hoja: manda sobre el default del modulo.
+        _colVisAplicarEstado(est, vista);
         _rendEstadoVistas[vista] = est;
 
     });
@@ -30165,11 +30312,6 @@ function cotAbrirModal(key, pestania, accionDef) {
     if (window.cotSetNombreCliente) window.cotSetNombreCliente(row['NOMBRE CLIENTE'] || '');
     cotResumen(row);
 
-    // Mostrar / ocultar boton Aprobado segun pestana origen
-    const tabAprob = document.getElementById('cot-tab-aprobado');
-    if (tabAprob) tabAprob.style.display = (pestania === 'cliente') ? '' : 'none';
-    const tabs = document.getElementById('cot-accion-tabs');
-    if (tabs) tabs.style.display = 'flex';
 
     // Precargar fecha/hora actual
     const now = new Date(), pad = x => String(x).padStart(2, '0');
@@ -30225,7 +30367,7 @@ function cotConformar(key) { cotAbrirModal(key, 'cliente', 'aprobado'); }
             btn.onclick = ev => { ev.preventDefault(); ev.stopPropagation();
                 nombres.splice(i, 1); pintar(); sincronizar(); inp.focus(); };
             chip.appendChild(txt); chip.appendChild(btn);
-            caja.insertBefore(chip, inp);
+            caja.insertBefore(chip, inp.parentElement === caja ? inp : inp.parentElement);
         });
     }
     function agregar() {
@@ -30235,11 +30377,7 @@ function cotConformar(key) { cotAbrirModal(key, 'cliente', 'aprobado'); }
         });
         inp.value = ''; pintar(); sincronizar();
     }
-    inp.addEventListener('keydown', ev => {
-        if (ev.key === 'Enter') { ev.preventDefault(); agregar(); }
-        else if (ev.key === 'Backspace' && !inp.value && nombres.length) { nombres.pop(); pintar(); sincronizar(); }
-    });
-    inp.addEventListener('blur', () => { if (inp.value.trim()) agregar(); });
+    inp.addEventListener('change', () => { if (inp.value && !inp.value.startsWith('__nucleus_')) agregar(); });
     caja.addEventListener('click', () => inp.focus());
     window.cotSetNombreCliente = function (valor) {
         nombres = String(valor || '').split(/[,;\n\r|]+/).map(s => s.trim()).filter(Boolean);

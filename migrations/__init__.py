@@ -322,6 +322,8 @@ def run_migrations(app, database_url=''):
                     _dest_flm = Proyecto.query.filter_by(nombre=_dest_nombre).first()
                     if not _dest_flm:
                         continue
+                    if AppConfig.query.filter_by(proyecto_id=_dest_flm.id, clave='columnas_fuente_20261016_v1').first():
+                        continue
                     for _clave in ('primary_key', 'app_schema', 'column_layout', 'manual_columns'):
                         _src_cfg = AppConfig.query.filter_by(proyecto_id=_src_flm.id, clave=_clave).first()
                         if not _src_cfg or not _src_cfg.valor:

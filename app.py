@@ -250,6 +250,8 @@ def create_app(config_object=None):
     database_url = os.environ.get('DATABASE_URL', '')
     run_migrations(app, database_url)
     with app.app_context():
+        from services.columnas_fuente import instalar as instalar_columnas_fuente
+        instalar_columnas_fuente()
         clean_existing_config()
         from services.liquidacion_numero import numerar_historicos
         numerar_historicos()

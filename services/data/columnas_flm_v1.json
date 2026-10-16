@@ -1,0 +1,1045 @@
+{
+  "FLM - INTEGRATEL": {
+    "origen": "Modus",
+    "configuracion": {
+      "app_schema": [
+        "Task Id",
+        "Createtime",
+        "Dispatch Time",
+        "Accept Time",
+        "Depart Time",
+        "Arrive Time",
+        "Complete Time",
+        "Require Finish Time",
+        "First Complete Time",
+        "Cancel Time",
+        "Cancel Operator",
+        "Cancel Reason",
+        "Task Status",
+        "Com Fault Speciality",
+        "Com Fault Sub Speciality",
+        "Com Fault Cause",
+        "Leave Observations",
+        "Site Id",
+        "Site Priority",
+        "Title",
+        "Description",
+        "Nro TOA",
+        "Company Supply",
+        "ZONA",
+        "DEPARTAMENTO",
+        "TORRERO",
+        "Task Type",
+        "Fm Office",
+        "Region",
+        "Site Id Name",
+        "Site location type",
+        "Sla",
+        "Sla Status",
+        "Suspend State",
+        "Create Operator",
+        "Fault First Occur Time",
+        "Schedule Operator",
+        "Schedule Time",
+        "Assign To Fme",
+        "Assign To Fme Full Name",
+        "Dispatch Operator",
+        "Depart Operator",
+        "Arrive Operator",
+        "Complete Operator",
+        "Reject Time",
+        "Reject Operator",
+        "Reject Des",
+        "Com Level 1 Aff Equip",
+        "Com Level 2 Aff Equip",
+        "Com Level 3 Aff Equip",
+        "Fault Type",
+        "Task Category",
+        "Task Subcategory",
+        "FME contrator",
+        "Contratista Sitio",
+        "Complete Operator Name",
+        "Reject Operator Name",
+        "Arrive Operator Name",
+        "Depart Operator Name",
+        "Dispatch Operator Name",
+        "Cancel Operator Name",
+        "Schedule Operator Name",
+        "Create Operator Name",
+        "Situación encontrada",
+        "Detalle de actuación realizada",
+        "Atención Incidencias",
+        "Remedy ID",
+        "First Pause Time",
+        "First Pause Operator",
+        "First Pause Reason",
+        "First Resume Operator",
+        "First Resume Time",
+        "Second Pause Time",
+        "Second Pause Reason",
+        "Second Pause Operator",
+        "Second Resume Time",
+        "Second Resume Operator",
+        "Third Pause Time",
+        "Third Pause Reason",
+        "Third Pause Operator",
+        "Third Resume Time",
+        "Third Resume Operator",
+        "Fourth Pause Time",
+        "Fourth Pause Reason",
+        "Fourth Pause Operator",
+        "Fourth Resume Time",
+        "Fourth Resume Operator",
+        "Fifth Pause Time",
+        "Fifth Pause Reason",
+        "Fifth Pause Operator",
+        "Fifth Resume Time",
+        "Fifth Resume Operator",
+        "Reject Flag",
+        "Reject Counter",
+        "Fuel Type"
+      ],
+      "column_layout": [
+        {
+          "field": "_key",
+          "visible": true
+        },
+        {
+          "field": "Createtime",
+          "visible": true
+        },
+        {
+          "field": "Dispatch Time",
+          "visible": true
+        },
+        {
+          "field": "Accept Time",
+          "visible": true
+        },
+        {
+          "field": "Depart Time",
+          "visible": true
+        },
+        {
+          "field": "Arrive Time",
+          "visible": true
+        },
+        {
+          "field": "Complete Time",
+          "visible": true
+        },
+        {
+          "field": "Require Finish Time",
+          "visible": true
+        },
+        {
+          "field": "First Complete Time",
+          "visible": true
+        },
+        {
+          "field": "Cancel Time",
+          "visible": true
+        },
+        {
+          "field": "Cancel Operator",
+          "visible": true
+        },
+        {
+          "field": "Cancel Reason",
+          "visible": true
+        },
+        {
+          "field": "Task Status",
+          "visible": true
+        },
+        {
+          "field": "Com Fault Speciality",
+          "visible": true
+        },
+        {
+          "field": "Com Fault Sub Speciality",
+          "visible": true
+        },
+        {
+          "field": "Com Fault Cause",
+          "visible": true
+        },
+        {
+          "field": "Leave Observations",
+          "visible": true
+        },
+        {
+          "field": "Site Id",
+          "visible": true
+        },
+        {
+          "field": "Site Priority",
+          "visible": true
+        },
+        {
+          "field": "Title",
+          "visible": true
+        },
+        {
+          "field": "Description",
+          "visible": true
+        },
+        {
+          "field": "Nro TOA",
+          "visible": true
+        },
+        {
+          "field": "Company Supply",
+          "visible": true
+        },
+        {
+          "field": "ZONA",
+          "visible": true
+        },
+        {
+          "field": "DEPARTAMENTO",
+          "visible": true
+        },
+        {
+          "field": "TORRERO",
+          "visible": true
+        },
+        {
+          "field": "Task Type",
+          "visible": true
+        },
+        {
+          "field": "Fm Office",
+          "visible": true
+        },
+        {
+          "field": "Region",
+          "visible": true
+        },
+        {
+          "field": "Site Id Name",
+          "visible": true
+        },
+        {
+          "field": "Site location type",
+          "visible": true
+        },
+        {
+          "field": "Sla",
+          "visible": true
+        },
+        {
+          "field": "Sla Status",
+          "visible": true
+        },
+        {
+          "field": "Suspend State",
+          "visible": true
+        },
+        {
+          "field": "Create Operator",
+          "visible": true
+        },
+        {
+          "field": "Fault First Occur Time",
+          "visible": true
+        },
+        {
+          "field": "Schedule Operator",
+          "visible": true
+        },
+        {
+          "field": "Schedule Time",
+          "visible": true
+        },
+        {
+          "field": "Assign To Fme",
+          "visible": true
+        },
+        {
+          "field": "Assign To Fme Full Name",
+          "visible": true
+        },
+        {
+          "field": "Dispatch Operator",
+          "visible": true
+        },
+        {
+          "field": "Depart Operator",
+          "visible": true
+        },
+        {
+          "field": "Arrive Operator",
+          "visible": true
+        },
+        {
+          "field": "Complete Operator",
+          "visible": true
+        },
+        {
+          "field": "Reject Time",
+          "visible": true
+        },
+        {
+          "field": "Reject Operator",
+          "visible": true
+        },
+        {
+          "field": "Reject Des",
+          "visible": true
+        },
+        {
+          "field": "Com Level 1 Aff Equip",
+          "visible": true
+        },
+        {
+          "field": "Com Level 2 Aff Equip",
+          "visible": true
+        },
+        {
+          "field": "Com Level 3 Aff Equip",
+          "visible": true
+        },
+        {
+          "field": "Fault Type",
+          "visible": true
+        },
+        {
+          "field": "Task Category",
+          "visible": true
+        },
+        {
+          "field": "Task Subcategory",
+          "visible": true
+        },
+        {
+          "field": "FME contrator",
+          "visible": true
+        },
+        {
+          "field": "Contratista Sitio",
+          "visible": true
+        },
+        {
+          "field": "Complete Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Reject Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Arrive Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Depart Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Dispatch Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Cancel Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Schedule Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Create Operator Name",
+          "visible": true
+        },
+        {
+          "field": "Situación encontrada",
+          "visible": true
+        },
+        {
+          "field": "Detalle de actuación realizada",
+          "visible": true
+        },
+        {
+          "field": "Atención Incidencias",
+          "visible": true
+        },
+        {
+          "field": "Remedy ID",
+          "visible": true
+        },
+        {
+          "field": "First Pause Time",
+          "visible": true
+        },
+        {
+          "field": "First Pause Operator",
+          "visible": true
+        },
+        {
+          "field": "First Pause Reason",
+          "visible": true
+        },
+        {
+          "field": "First Resume Operator",
+          "visible": true
+        },
+        {
+          "field": "First Resume Time",
+          "visible": true
+        },
+        {
+          "field": "Second Pause Time",
+          "visible": true
+        },
+        {
+          "field": "Second Pause Reason",
+          "visible": true
+        },
+        {
+          "field": "Second Pause Operator",
+          "visible": true
+        },
+        {
+          "field": "Second Resume Time",
+          "visible": true
+        },
+        {
+          "field": "Second Resume Operator",
+          "visible": true
+        },
+        {
+          "field": "Third Pause Time",
+          "visible": true
+        },
+        {
+          "field": "Third Pause Reason",
+          "visible": true
+        },
+        {
+          "field": "Third Pause Operator",
+          "visible": true
+        },
+        {
+          "field": "Third Resume Time",
+          "visible": true
+        },
+        {
+          "field": "Third Resume Operator",
+          "visible": true
+        },
+        {
+          "field": "Fourth Pause Time",
+          "visible": true
+        },
+        {
+          "field": "Fourth Pause Reason",
+          "visible": true
+        },
+        {
+          "field": "Fourth Pause Operator",
+          "visible": true
+        },
+        {
+          "field": "Fourth Resume Time",
+          "visible": true
+        },
+        {
+          "field": "Fourth Resume Operator",
+          "visible": true
+        },
+        {
+          "field": "Fifth Pause Time",
+          "visible": true
+        },
+        {
+          "field": "Fifth Pause Reason",
+          "visible": true
+        },
+        {
+          "field": "Fifth Pause Operator",
+          "visible": true
+        },
+        {
+          "field": "Fifth Resume Time",
+          "visible": true
+        },
+        {
+          "field": "Fifth Resume Operator",
+          "visible": true
+        },
+        {
+          "field": "Reject Flag",
+          "visible": true
+        },
+        {
+          "field": "Reject Counter",
+          "visible": true
+        },
+        {
+          "field": "Fuel Type",
+          "visible": true
+        },
+        {
+          "field": "Task Id",
+          "visible": false
+        },
+        {
+          "field": "BITACORA",
+          "visible": false
+        },
+        {
+          "field": "CIUDAD",
+          "visible": false
+        },
+        {
+          "field": "CONTRATA",
+          "visible": false
+        },
+        {
+          "field": "TECNICO ASIGNADO",
+          "visible": false
+        },
+        {
+          "field": "FIN DE PARADA",
+          "visible": false
+        },
+        {
+          "field": "INICIO DE PARADA",
+          "visible": false
+        },
+        {
+          "field": "LATITUD",
+          "visible": false
+        },
+        {
+          "field": "LATITUD MUFAS",
+          "visible": false
+        },
+        {
+          "field": "LONGITUD",
+          "visible": false
+        },
+        {
+          "field": "LONGITUD MUFAS",
+          "visible": false
+        },
+        {
+          "field": "MOTIVO DE AVERÍA",
+          "visible": false
+        },
+        {
+          "field": "REQUIERE CORRECTIVO FINAL",
+          "visible": false
+        },
+        {
+          "field": "SE INSTALÓ MUFAS",
+          "visible": false
+        },
+        {
+          "field": "SERVICIO",
+          "visible": false
+        },
+        {
+          "field": "SOLUCIÓN",
+          "visible": false
+        },
+        {
+          "field": "DETALLE CORRECTIVO",
+          "visible": false
+        },
+        {
+          "field": "SISTEMAS",
+          "visible": false
+        },
+        {
+          "field": "COSTO DE MATERIAL (SOLES)",
+          "visible": false
+        },
+        {
+          "field": "MONTO BIÁTICOS (SOLES)",
+          "visible": false
+        },
+        {
+          "field": "REQUIERE BIÁTICOS",
+          "visible": false
+        }
+      ],
+      "manual_columns": [
+        {
+          "nombre": "SERVICIO",
+          "tipo": "lista",
+          "opciones": [
+            "PREVENTIVO",
+            "CORRECTIVO",
+            "PREDICTIVO",
+            "ABASTECIMIENTO DE COMBUSTIBLE",
+            "ADICIONALES",
+            "CORTE PROGRAMADO",
+            "TRABAJO PROGRAMADO"
+          ]
+        },
+        {
+          "nombre": "CIUDAD",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "TECNICO ASIGNADO",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "CONTRATA",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "LATITUD",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "LONGITUD",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "MOTIVO DE AVERÍA",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "SE INSTALÓ MUFAS",
+          "tipo": "lista",
+          "opciones": [
+            "GEP",
+            "GEE",
+            "NA"
+          ]
+        },
+        {
+          "nombre": "LATITUD MUFAS",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "LONGITUD MUFAS",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "SOLUCIÓN",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "SISTEMAS",
+          "tipo": "lista",
+          "opciones": [
+            "Energía",
+            "Transmisión",
+            "Aire Acondicionado"
+          ]
+        },
+        {
+          "nombre": "REQUIERE CORRECTIVO FINAL",
+          "tipo": "lista",
+          "opciones": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "nombre": "INICIO DE PARADA",
+          "tipo": "fecha",
+          "opciones": []
+        },
+        {
+          "nombre": "FIN DE PARADA",
+          "tipo": "fecha",
+          "opciones": []
+        },
+        {
+          "nombre": "BITACORA",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "DETALLE CORRECTIVO",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "REQUIERE BIÁTICOS",
+          "tipo": "lista",
+          "opciones": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "nombre": "MONTO BIÁTICOS (SOLES)",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "COSTO DE MATERIAL (SOLES)",
+          "tipo": "texto",
+          "opciones": []
+        }
+      ],
+      "primary_key": "Task Id"
+    }
+  },
+  "FLM - PEXT": {
+    "origen": "Anton",
+    "configuracion": {
+      "app_schema": [
+        "GESTOR",
+        "EDITADO POR",
+        "Nombre de Site",
+        "Antiguedad",
+        "Provincia",
+        "Distrito",
+        "Category",
+        "Estado del TT",
+        "Causa raiz",
+        "Autin TT",
+        "Prioridad del Site",
+        "Tipo tarea",
+        "Fault Level",
+        "Numero de WO",
+        "Operate Phase",
+        "Fecha y hora de WO a estado complete",
+        "Departamento",
+        "Fecha de creacion",
+        "Comentarios complete",
+        "Estado de la tarea"
+      ],
+      "column_layout": [
+        {
+          "field": "Autin TT",
+          "visible": true
+        },
+        {
+          "field": "Estado del TT",
+          "visible": true
+        },
+        {
+          "field": "Causa raiz",
+          "visible": true
+        },
+        {
+          "field": "Nombre de Site",
+          "visible": true
+        },
+        {
+          "field": "Prioridad del Site",
+          "visible": true
+        },
+        {
+          "field": "Tipo tarea",
+          "visible": true
+        },
+        {
+          "field": "Antiguedad",
+          "visible": true
+        },
+        {
+          "field": "Departamento",
+          "visible": true
+        },
+        {
+          "field": "Provincia",
+          "visible": true
+        },
+        {
+          "field": "Distrito",
+          "visible": true
+        },
+        {
+          "field": "Estado de la tarea",
+          "visible": true
+        },
+        {
+          "field": "Fecha de creacion",
+          "visible": true
+        },
+        {
+          "field": "Comentarios complete",
+          "visible": true
+        },
+        {
+          "field": "Category",
+          "visible": true
+        },
+        {
+          "field": "Operate Phase",
+          "visible": true
+        },
+        {
+          "field": "Fecha y hora de WO a estado complete",
+          "visible": true
+        },
+        {
+          "field": "Fault Level",
+          "visible": true
+        },
+        {
+          "field": "GESTOR",
+          "visible": true
+        },
+        {
+          "field": "SERVICIO",
+          "visible": false
+        },
+        {
+          "field": "TECNICO ASIGNADO",
+          "visible": false
+        },
+        {
+          "field": "CONTRATA",
+          "visible": false
+        },
+        {
+          "field": "FECHA DE ASIGNACIÓN",
+          "visible": false
+        },
+        {
+          "field": "MOTIVO DE AVERÍA",
+          "visible": false
+        },
+        {
+          "field": "¿REQUIERE MATERIAL?",
+          "visible": false
+        },
+        {
+          "field": "¿REQUIERE ACCESO AL SITE?",
+          "visible": false
+        },
+        {
+          "field": "¿FUE TORRERA?",
+          "visible": false
+        },
+        {
+          "field": "¿FUE SITE PROPIO?",
+          "visible": false
+        },
+        {
+          "field": "¿CUADRILLA DE 3 O 2?",
+          "visible": false
+        },
+        {
+          "field": "TEAM LEADER ASIGNADO EN APLICATIVO",
+          "visible": false
+        },
+        {
+          "field": "¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?",
+          "visible": false
+        },
+        {
+          "field": "COORDINADOR ENTEL",
+          "visible": false
+        },
+        {
+          "field": "STATUS DE ATENCION",
+          "visible": false
+        },
+        {
+          "field": "QUIEBRE",
+          "visible": false
+        },
+        {
+          "field": "¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?",
+          "visible": false
+        },
+        {
+          "field": "INICIO DE PARADA",
+          "visible": false
+        },
+        {
+          "field": "FIN DE PARADA",
+          "visible": false
+        },
+        {
+          "field": "MOTIVO DE PARADA",
+          "visible": false
+        },
+        {
+          "field": "DETALLE CORRECTIVO ADICIONAL",
+          "visible": false
+        }
+      ],
+      "manual_columns": [
+        {
+          "nombre": "SERVICIO",
+          "tipo": "lista",
+          "opciones": [
+            "PREVENTIVO",
+            "CORRECTIVO",
+            "PREDICTIVO",
+            "ABASTECIMIENTO DE COMBUSTIBLE",
+            "ADICIONALES",
+            "CORTE PROGRAMADO",
+            "TRABAJO PROGRAMADO"
+          ]
+        },
+        {
+          "nombre": "TECNICO ASIGNADO",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "CONTRATA",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "MOTIVO DE AVERÍA",
+          "tipo": "lista",
+          "opciones": [
+            "Accidente vehicular",
+            "Acoplador sucio",
+            "Buffer mal acondicionado",
+            "Cámara inundada",
+            "Cámara sin tapa",
+            "Corte de fibra en sifón",
+            "Empalme dañado",
+            "Ferretería con corrosión",
+            "Fibra drop cliente cortado",
+            "Fibra quemada",
+            "FO cortado",
+            "Habilitación de hilos por Implementación",
+            "Habilitación de hilos por ORC",
+            "Hilo roto en medio vano",
+            "Hilo roto en mufa",
+            "Hilos invertidos en ODF",
+            "Jumper averiado",
+            "Mal derivado-no es PEXT",
+            "Mordida de roedor",
+            "Mufa con acondicionamiento deficiente",
+            "NAP con acondicionamineto deficiente",
+            "NAP sin bornera",
+            "NAP sin rotulación",
+            "Obras civiles de interferencia",
+            "Pernos con corrosión",
+            "Pigtail roto",
+            "Poste deteriorado",
+            "Robo de mufa",
+            "RTN averiado",
+            "Splitter averiado",
+            "Transceiver averiado"
+          ]
+        },
+        {
+          "nombre": "INICIO DE PARADA",
+          "tipo": "fecha",
+          "opciones": []
+        },
+        {
+          "nombre": "FIN DE PARADA",
+          "tipo": "fecha",
+          "opciones": []
+        },
+        {
+          "nombre": "FECHA DE ASIGNACIÓN",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "¿REQUIERE MATERIAL?",
+          "tipo": "lista",
+          "opciones": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "nombre": "¿REQUIERE ACCESO AL SITE?",
+          "tipo": "lista",
+          "opciones": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "nombre": "¿FUE TORRERA?",
+          "tipo": "lista",
+          "opciones": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "nombre": "¿FUE SITE PROPIO?",
+          "tipo": "lista",
+          "opciones": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "nombre": "¿CUADRILLA DE 3 O 2?",
+          "tipo": "lista",
+          "opciones": [
+            "2",
+            "3",
+            "más de 3"
+          ]
+        },
+        {
+          "nombre": "TEAM LEADER ASIGNADO EN APLICATIVO",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "¿QUIÉN FUE EL SUPERVISOR A CARGO EN ESE TURNO?",
+          "tipo": "lista",
+          "opciones": [
+            "CHAMBERGO ORIHUELA PERCY",
+            "DIAZ BERECHE JORGE ELVIS"
+          ]
+        },
+        {
+          "nombre": "COORDINADOR ENTEL",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "STATUS DE ATENCION",
+          "tipo": "lista",
+          "opciones": [
+            "PROCESO",
+            "SUSPENDIDO",
+            "TERMINADO"
+          ]
+        },
+        {
+          "nombre": "QUIEBRE",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "¿QUEDO PENDIENTE ALGUN CORRECTIVO ADICIONAL?",
+          "tipo": "lista",
+          "opciones": [
+            "Sí",
+            "No"
+          ]
+        },
+        {
+          "nombre": "DETALLE CORRECTIVO ADICIONAL",
+          "tipo": "texto",
+          "opciones": []
+        },
+        {
+          "nombre": "MOTIVO DE PARADA",
+          "tipo": "texto",
+          "opciones": []
+        }
+      ],
+      "primary_key": "Numero de WO"
+    }
+  }
+}
