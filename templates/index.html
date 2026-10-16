@@ -523,6 +523,7 @@
             {% if session.get('rol') in ['zeno', 'suport'] %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('order')"><i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar</button>{% endif %}
             <div class="coti-gear-group">Acciones del módulo</div>
             {% if proy_nombre_flow == 'rendicion' and session.get('rol') in ['zeno','suport','admin'] %}<button type="button" class="coti-gear-item" onclick="abrirValidadoresRendicion()"><i class="fa-solid fa-user-check"></i> Validadores por proyecto</button>{% endif %}
+            {% if proy_nombre_flow == 'rendicion' %}<label class="coti-gear-item"><input id="rend-extra-columns" type="checkbox" onchange="localStorage.setItem('rend-columnas-adicionales',this.checked?'1':'0');location.reload()"> Mostrar columnas adicionales</label><script>document.getElementById('rend-extra-columns').checked=localStorage.getItem('rend-columnas-adicionales')==='1';</script>{% endif %}
             <div id="module-settings-actions"></div>
         </div>
     </div>
@@ -7675,6 +7676,31 @@ let _rendCambiandoVista = false;
 
     }
 
+    const REND_ESENCIALES = {
+        base: ['_accion','ESTADO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','VERIFICACIÓN PERSONAL','Nombre de site','Número CM / PM / PLM'],
+        validacion: ['Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Motivo de la solicitud','Criticidad - Prioridad','Responsable de la validación','Observaciones (Form)','OBSERVACIONES'],
+        depositos: ['Monto total del depósito','FECHA PAGO','MONTO PAGO','FOTO PAGO','ADJUNTO CORREO VALIDACION','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar'],
+        evidencia: ['FECHA PAGO','MONTO PAGO','FOTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
+        rendicion: ['FECHA PAGO','MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
+        observado: ['MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
+        cerrado: ['FECHA PAGO','MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','FECHA SUSTENTO','COMENTARIOS SUSTENTO'],
+        archivado: ['MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','FECHA SUSTENTO'],
+        rechazados: ['Monto total del depósito','MONTO PAGO','OBSERVACIONES','MOTIVO RECHAZO','FECHA ANULACION']
+    };
+    function rendColumnasAdicionales() {
+        try { return localStorage.getItem('rend-columnas-adicionales') === '1'; } catch (_) { return false; }
+    }
+    function rendAplicarColumnasEsenciales(est, vista) {
+        if (rendColumnasAdicionales()) return;
+        const normal = x => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9_]/g,'');
+        const preferidas = [...REND_ESENCIALES.base, ...(REND_ESENCIALES[vista] || [])];
+        const existentes = Object.keys(est.visibles);
+        const orden = preferidas.map(f => existentes.find(e => normal(e) === normal(f))).filter(Boolean);
+        const visibles = new Set(orden);
+        existentes.forEach(f => { est.visibles[f] = visibles.has(f); });
+        est.orden = [...orden, ...(est.orden || []).filter(f=>!visibles.has(f))];
+    }
+
     const REND_VISTAS = {
 
         // Validación: muestra todo lo que cargó el técnico (sin restricción de cols)
@@ -9540,6 +9566,23 @@ let _rendCambiandoVista = false;
         }
 
 
+
+        if (IS_RENDICION && fieldName === 'VERIFICACIÓN PERSONAL') {
+            colDef.editor = false;
+            colDef.editable = false;
+            colDef.width = 180;
+            colDef.formatter = cell => {
+                const row = cell.getRow().getData();
+                const value = String(cell.getValue() || 'Sin verificar');
+                const label = document.createElement('span');
+                label.className = 'rend-pill';
+                label.textContent = value;
+                label.style.color = value === 'Verificado' ? 'var(--ios-green)' : 'var(--ios-orange)';
+                label.title = (row._PERSONAL_CRUCE?.estado || 'Solicitud anterior al cruce automático')
+                    + (row._PERSONAL_ORIGINAL?.tecnico ? ' · Nombre del formulario: ' + row._PERSONAL_ORIGINAL.tecnico : '');
+                return label;
+            };
+        }
 
         // 2. KPI ALARM (Dilación - Frozen columns on the left)
 
@@ -13011,6 +13054,7 @@ let _rendCambiandoVista = false;
                 } else {
 
                     msgs.push(j.nuevas > 0 ? `+${j.nuevas} forms` : 'Forms al día');
+                    if (j.personal_pendiente_verificar) msgs.push(`${j.personal_pendiente_verificar} pendientes de verificar en Personal`);
 
                 }
 
@@ -28012,6 +28056,7 @@ function _rendInitEstados() {
             try { propios = JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}'); } catch (_) {}
             if (!propios._accion) est.anchos._accion = ({validacion:160, depositos:260, evidencia:70, rendicion:280, observado:180, cerrado:95, archivado:115, rechazados:70})[vista] || 160;
         }
+        rendAplicarColumnasEsenciales(est, vista);
         _rendEstadoVistas[vista] = est;
 
     });

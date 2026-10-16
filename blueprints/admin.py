@@ -613,6 +613,7 @@ def api_rendicion_sync():
     # Claves que escribe el sistema/flujo del módulo: si el form trajera un
     # encabezado idéntico, se desplaza con sufijo ' (Form)' para no pisarlas.
     claves_sistema = {
+        'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
         'ESTADO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
         'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',
         'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',
@@ -654,6 +655,10 @@ def api_rendicion_sync():
     columnas_quitadas = sorted(form_previas - form_actual)
     schema_cols = form_actual | sistema_cols
 
+    from services.rendicion_personal import indice_personal, completar_personal
+    personal = indice_personal()
+    verificadas = 0
+    pendientes_personal = 0
     nuevas = 0
     omitidas = 0
     t0 = time.time()
@@ -679,6 +684,11 @@ def api_rendicion_sync():
         if id_sol in existentes:
             omitidas += 1
             continue
+        completar_personal(datos, personal)
+        if datos['VERIFICACIÓN PERSONAL'] == 'Verificado':
+            verificadas += 1
+        else:
+            pendientes_personal += 1
         db.session.add(NucleusData(proyecto_id=proy.id, key_value=id_sol,
                                    data_json=safe_json_dumps(datos)))
         existentes.add(id_sol)
@@ -708,6 +718,8 @@ def api_rendicion_sync():
     return jsonify({
         'success': True,
         'nuevas': nuevas,
+        'personal_verificado': verificadas,
+        'personal_pendiente_verificar': pendientes_personal,
         'omitidas_existentes': omitidas,
         'columnas_agregadas': columnas_agregadas,
         'columnas_quitadas': columnas_quitadas,
