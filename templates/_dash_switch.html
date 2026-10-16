@@ -1,4 +1,4 @@
-{% set _dash_actual = 'cotizaciones' if request.path.startswith('/analytics/cotizaciones') else ('rendicion' if request.path.startswith('/analytics/rendicion') else 'operativo') %}
+{% set _dash_actual = 'cobranza' if request.path.startswith('/analytics/cobranza') else ('cotizaciones' if request.path.startswith('/analytics/cotizaciones') else ('rendicion' if request.path.startswith('/analytics/rendicion') else 'operativo')) %}
 <nav class="dash-switch" aria-label="Elegir dashboard">
     <span class="dash-switch-label">Dashboard:</span>
     <a href="/analytics" class="dash-switch-item {% if _dash_actual == 'operativo' %}is-active{% endif %}">
@@ -9,5 +9,8 @@
     </a>
     <a href="/analytics/rendicion" class="dash-switch-item {% if _dash_actual == 'rendicion' %}is-active{% endif %}">
         <i class="fa-solid fa-money-bill-transfer"></i> Rendición
+    </a>
+    <a href="/analytics/cobranza" class="dash-switch-item {% if _dash_actual == 'cobranza' %}is-active{% endif %}">
+        <i class="fa-solid fa-sack-dollar"></i> Cobranza
     </a>
 </nav>

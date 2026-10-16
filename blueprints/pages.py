@@ -611,6 +611,26 @@ def analytics_rendicion():
                            proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
 
 
+@bp.route('/analytics/cobranza')
+@login_required
+def analytics_cobranza():
+    """Cuadro de control de cobranza: cuánto se cobrará y cuánto está pendiente.
+
+    Reutiliza el catálogo ya consolidado por el módulo Refacturable (una fila
+    por cotización aprobada, cruzada con los FLM y el seguimiento manual), así
+    no se duplica el cruce WO→cliente ni la lectura de RefacturableDetalle."""
+    user_id, user_rol, pid = get_session_info()
+    proyectos = get_menu_proyectos(user_id, user_rol)
+    if not puede_cotizaciones(user_id, user_rol, session.get('current_proyecto_nombre')):
+        return redirect(url_for('pages.analytics'))
+    from blueprints.refacturable import _registros
+    from services.dashboard_cobranza import indicadores
+    dashboard = indicadores(_registros())
+    return render_template('dashboard_cobranza.html', dashboard=dashboard,
+                           proyectos_list=proyectos, proyecto_nombre='Cobranza',
+                           proyecto_id=None, data_total=dashboard['total'], data_limite=dashboard['total'])
+
+
 @bp.route('/configuraciones')
 @login_required
 def configuraciones():

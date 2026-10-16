@@ -1,0 +1,58 @@
+/* Dashboard Cobranza — solo ADICIONES al look de dashboard-integratel.css.
+   La hoja compartida no se modifica: aquí van los acentos de KPI, la ubicación
+   de las cards y los chips/badges propios del Cuadro de Control. */
+
+/* ── 8 tiles: 4 + 4 en desktop, 2 por fila en móvil ────────────────────────── */
+.cb-page .di-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1100px){.cb-page .di-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:600px){.cb-page .di-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ── Acento por tile ───────────────────────────────────────────────────────── */
+.cb-page .di-kpis article:nth-child(1){border-top-color:#173E76}.cb-page .di-kpis article:nth-child(1) strong{color:#173E76}
+.cb-page .di-kpis article:nth-child(2){border-top-color:var(--di-green)}.cb-page .di-kpis article:nth-child(2) strong{color:var(--di-green)}
+.cb-page .di-kpis article:nth-child(3){border-top-color:var(--di-cyan)}.cb-page .di-kpis article:nth-child(3) strong{color:var(--di-cyan)}
+.cb-page .di-kpis article:nth-child(4){border-top-color:var(--di-amber)}.cb-page .di-kpis article:nth-child(4) strong{color:var(--di-amber)}
+.cb-page .di-kpis article:nth-child(5){border-top-color:var(--di-green)}.cb-page .di-kpis article:nth-child(5) strong{color:var(--di-green)}
+.cb-page .di-kpis article:nth-child(6){border-top-color:#e77969}.cb-page .di-kpis article:nth-child(6) strong{color:#e77969}
+.cb-page .di-kpis article:nth-child(7){border-top-color:var(--di-blue)}.cb-page .di-kpis article:nth-child(7) strong{color:var(--di-blue)}
+.cb-page .di-kpis article:nth-child(8){border-top-color:#5AC8FA}.cb-page .di-kpis article:nth-child(8) strong{color:#5AC8FA}
+
+/* ── Ubicación de las cards (desktop, grilla de 4) ─────────────────────────── */
+@media(min-width:1101px){
+  .cb-page .cb-clientes{grid-column:1/3;grid-row:1}
+  .cb-page .cb-plata{grid-column:3/5;grid-row:1}
+  .cb-page .cb-meses{grid-column:1/3;grid-row:2}
+  .cb-page .cb-evid{grid-column:3;grid-row:2}
+  .cb-page .cb-expense{grid-column:4;grid-row:2}
+  .cb-page .cb-cobrado{grid-column:1;grid-row:3}
+  .cb-page .cb-alertas{grid-column:2/5;grid-row:3}
+}
+@media(max-width:1100px){.cb-page .di-charts .di-card{grid-column:auto;grid-row:auto}}
+
+/* ── Color de barra por card ───────────────────────────────────────────────── */
+.cb-page .cb-clientes .di-bar-fill{background:var(--di-green)}
+.cb-page .cb-plata .di-bar-fill{background:var(--di-blue)}
+.cb-page .cb-evid .di-bar-fill{background:var(--di-cyan)}
+.cb-page .cb-expense .di-bar-fill{background:var(--di-amber)}
+
+/* ── Chips informativos (mismos que los otros dashboards) ──────────────────── */
+.cb-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.cb-chip{font-size:10px;padding:2px 8px;border-radius:999px;background:var(--ios-fill);color:var(--ios-secondary);border:1px solid var(--ios-hairline);white-space:nowrap}
+.cb-chip strong{color:var(--ios-label)}
+
+/* ── Cobrado vs pendiente: dos cifras grandes como en el tablero de referencia ─ */
+.cb-page .cb-cobrado>div:last-child{display:flex;flex-direction:column;gap:7px}
+.cb-stat{border:1px solid var(--ios-hairline);border-radius:8px;padding:7px 9px;background:var(--ios-fill)}
+.cb-stat span{display:block;font-size:10px;color:var(--ios-secondary);text-transform:uppercase;letter-spacing:.04em}
+.cb-stat b{display:block;font-size:20px;letter-spacing:-.5px;margin-top:2px;font-variant-numeric:tabular-nums}
+.cb-stat small{font-size:10px;color:var(--ios-secondary)}
+.cb-stat.is-ok b{color:var(--di-green)}
+.cb-stat.is-pend b{color:#e77969}
+
+/* ── Comentarios / alertas ─────────────────────────────────────────────────── */
+.cb-page .cb-alertas>div:last-child{overflow:auto}
+.cb-alertas ul{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.cb-alertas li{font-size:11px;line-height:1.35;color:var(--ios-secondary);padding-left:12px;position:relative}
+.cb-alertas li::before{content:"•";position:absolute;left:0;color:var(--di-blue);font-weight:700}
+.cb-alertas li strong{color:var(--ios-label)}
+.cb-alertas li.is-warn::before{color:#e77969}

@@ -288,6 +288,7 @@ abre su vista de métricas y el resto de proyectos, **Producción**.
 | Dashboards | **Producción** | WO — vista por defecto en proyectos sin dashboards propios | solo filas `Operate Phase = close`, evolución mensual, detalle |
 | Dashboards | **Rendición** | Proyecto 11 (también disponible en cualquier proyecto con columna `ESTADO`) | estado, responsable de validación, proyecto, criticidad, evolución mensual y tabla resumen con montos (`Monto total del depósito`) |
 | Dashboards | **Cotización** | Proyecto 8 (y cualquiera con `ESTADO COTIZACION`) | estado, cliente, supervisor, gestor, evolución mensual y tabla con `SUB TOTAL + FEE` |
+| Dashboards | **Cobranza** (`/analytics/cobranza`) | Catálogo consolidado del módulo Refacturable (cotizaciones aprobadas cruzadas con FLM) | por cliente (ENTEL/CLARO/INTEGRATEL): casos al 100% y S/; casos con/sin evidencia; S/ por mes de cierre; casos con/sin `Número Expense`; cobrado vs pendiente y alertas |
 
 - Cada opción de **Métricas clave** solo se ofrece en su programa (`MK_OK` en
   `templates/analytics.html`); el separador del grupo desaparece si el proyecto no tiene ninguna.
