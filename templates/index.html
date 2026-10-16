@@ -13486,6 +13486,14 @@ let _rendCambiandoVista = false;
 
                 let val = r[c];
 
+                // Mostrar nombre completo en vez de usuario en columnas de auditoría ("X POR", GESTOR, etc.)
+                if (/ POR$/i.test(String(c).trim()) || /^(GESTOR|EDITADO POR|_ultimo_usuario_manual)$/i.test(String(c).trim())) {
+                    try {
+                        const _un = JSON.parse((document.getElementById('nucleus-user-names') || {}).textContent || '{}');
+                        if (_un && _un[val]) val = _un[val];
+                    } catch (e) {}
+                }
+
                 if (val === null || val === undefined) return '';
 
                 if (val instanceof Date) {
@@ -14057,6 +14065,13 @@ let _rendCambiandoVista = false;
                 const up = String(c).trim().toUpperCase();
 
                 let v = r[c];
+                // Mostrar nombre completo en vez de usuario en columnas de auditoría ("X POR", GESTOR, etc.)
+                if (/ POR$/i.test(String(c).trim()) || /^(GESTOR|EDITADO POR|_ultimo_usuario_manual)$/i.test(String(c).trim())) {
+                    try {
+                        const _un = JSON.parse((document.getElementById('nucleus-user-names') || {}).textContent || '{}');
+                        if (_un && _un[v]) v = _un[v];
+                    } catch (e) {}
+                }
 
                 if (up === 'ESTADO' && esRendicion) {
 
