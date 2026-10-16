@@ -15806,9 +15806,40 @@ let _rendCambiandoVista = false;
 
 
 
-        // 5. Nombre de Site
-
-        mkSel('NOMBRE DE SITE', 'NOMBRE SITE', [], '— Seleccionar site —', { required: true });
+        // 5. Nombre de Site — texto libre con sugerencias de todos los sites registrados.
+        const inpNombreSite = document.createElement('input');
+        inpNombreSite.type = 'text';
+        inpNombreSite.placeholder = 'Escribe para buscar un site registrado...';
+        inpNombreSite.autocomplete = 'off';
+        inpNombreSite.setAttribute('list', 'cot-site-list-datalist');
+        let dlNombreSite = document.getElementById('cot-site-list-datalist');
+        if (!dlNombreSite) {
+            dlNombreSite = document.createElement('datalist');
+            dlNombreSite.id = 'cot-site-list-datalist';
+            document.body.appendChild(dlNombreSite);
+        }
+        const _opcionesManualesSite = () => {
+            try {
+                const cfg = (typeof manualColsConfig !== 'undefined' ? manualColsConfig : []).find(
+                    c => c && c.tipo === 'lista' &&
+                        String(c.nombre || '').toUpperCase().includes('NOMBRE') &&
+                        String(c.nombre || '').toUpperCase().includes('SITE'));
+                return (cfg && Array.isArray(cfg.opciones)) ? cfg.opciones.map(o => String(o || '').trim()).filter(Boolean) : [];
+            } catch (e) { return []; }
+        };
+        if (window.cotSiteNamesCache) {
+            dlNombreSite.innerHTML = window.cotSiteNamesCache.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+        } else {
+            fetch('/api/sites/nombres').then(r => r.json()).then(data => {
+                const nombres = (Array.isArray(data) ? data : []).map(n => String(n || '').trim()).filter(Boolean);
+                nombres.push(..._opcionesManualesSite());
+                window.cotSiteNamesCache = [...new Set(nombres)].sort((a, b) => a.localeCompare(b, 'es'));
+                dlNombreSite.innerHTML = window.cotSiteNamesCache.map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+            }).catch(() => {
+                dlNombreSite.innerHTML = _opcionesManualesSite().map(n => `<option value="${escapeHtml(n)}"></option>`).join('');
+            });
+        }
+        mkField('NOMBRE DE SITE', inpNombreSite, 'NOMBRE SITE', { required: true });
 
 
 

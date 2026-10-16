@@ -457,6 +457,43 @@ def api_sites():
     return jsonify(sites)
 
 
+@bp.route('/api/sites/nombres')
+@login_required
+def api_sites_nombres():
+    """Nombres de TODOS los sites registrados (maestro SITE, cotizaciones y rendiciones).
+
+    A diferencia de /api/sites no filtra por coordenadas: se usa como fuente
+    de sugerencias para el autocompletado de 'Nombre de site'.
+    """
+    nombres = set()
+
+    def _extraer(datos, claves):
+        for clave in claves:
+            for k in datos:
+                if str(k or '').strip().upper() == clave:
+                    valor = str(datos.get(k) or '').strip()
+                    if valor:
+                        nombres.add(valor)
+                    return
+
+    for nombre_proyecto, claves in (
+        ('SITE', ('NOMBRE', 'NOMBRE SITE', 'NOMBRE DE SITE', 'NOMBRE DEL SITE')),
+        ('Cotizaciones', ('NOMBRE SITE', 'NOMBRE DE SITE', 'NOMBRE DEL SITE')),
+        ('Rendicion', ('NOMBRE DE SITE', 'NOMBRE DEL SITE', 'NOMBRE SITE')),
+    ):
+        proyecto = Proyecto.query.filter_by(nombre=nombre_proyecto).first()
+        if not proyecto:
+            continue
+        for reg in NucleusData.query.filter_by(proyecto_id=proyecto.id).yield_per(500):
+            try:
+                datos = json.loads(reg.data_json or '{}')
+            except (ValueError, TypeError):
+                continue
+            if isinstance(datos, dict):
+                _extraer(datos, claves)
+    return jsonify(sorted(nombres))
+
+
 @bp.route('/api/site/detalle')
 @login_required
 def api_site_detalle():
