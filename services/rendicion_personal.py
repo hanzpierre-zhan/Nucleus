@@ -48,7 +48,7 @@ def completar_personal(datos, indice):
     name_key = campo(datos, ['Técnico beneficiario','TECNICO','Nombre del tecnico','Nombre del beneficiario'])
     dep_key = campo(datos, ['DEPARTAMENTO','Departamento del tecnico','DEPARTAMENTO (Form)'])
     doc = documento(datos.get(doc_key))
-    datos['_PERSONAL_ORIGINAL'] = {'documento': datos.get(doc_key, ''), 'tecnico': datos.get(name_key, ''), 'departamento': datos.get(dep_key, '')}
+    datos.setdefault('_PERSONAL_ORIGINAL', {'documento': datos.get(doc_key, ''), 'tecnico': datos.get(name_key, ''), 'departamento': datos.get(dep_key, '')})
     estado = 'SIN DOCUMENTO' if not doc else ''
     candidatos = indice.get(doc, []) if not estado else []
     identidades = {(normalizar(n), normalizar(d)) for n,d in candidatos}

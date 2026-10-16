@@ -27,7 +27,7 @@ def test_desconocido_y_ambiguo_no_adivina():
     assert row['_PERSONAL_CRUCE']['estado']=='SIN DEPARTAMENTO EN PERSONAL'
 
 
-def test_sync_cruza_solo_nuevas_y_no_reescribe_anteriores(app,auth_client,monkeypatch):
+def test_sync_completa_anteriores_sin_alterar_flujo_y_respaldo(app,auth_client,monkeypatch):
     with app.app_context():
         rend=Proyecto.query.filter_by(nombre='Rendicion').one()
         personal=Proyecto.query.filter_by(nombre='Dataper').first()
@@ -39,11 +39,19 @@ def test_sync_cruza_solo_nuevas_y_no_reescribe_anteriores(app,auth_client,monkey
         if not cfg: cfg=AppConfig(proyecto_id=rid,clave='rendicion_csv_url');db.session.add(cfg)
         cfg.valor='https://example.test/personal.csv'
         db.session.add(NucleusData(proyecto_id=pid,key_value='PERSONAL-CRUCE-TEST',data_json=json.dumps({'PROYECTO':'FLM','DOCUMENTO':'00123456','TECNICO':'Tecnico Oficial','DEPARTAMENTO':'JUNIN'})))
-        db.session.add(NucleusData(proyecto_id=rid,key_value='CRUCE-ANTERIOR',data_json=json.dumps({'Técnico beneficiario':'Historico intacto'})))
+        db.session.add(NucleusData(proyecto_id=rid,key_value='CRUCE-ANTERIOR',data_json=json.dumps({'Técnico beneficiario':'Nombre anterior','Documento del beneficiario':'00123456','ESTADO':'DEPOSITADO','MONTO PAGO':'88.50','FOTO PAGO':'/evidencia/pago.jpg'})))
         db.session.commit()
     csv='Marca temporal,Nombre del proyecto,Documento del beneficiario,Técnico beneficiario\nCRUCE-NUEVO,Entel,00123456,nombre informal\nCRUCE-ANTERIOR,Entel,00123456,nombre informal\nCRUCE-SIN-MATCH,Claro,00123456,otro\n'
     monkeypatch.setattr('urllib.request.urlopen',lambda *a,**k:io.BytesIO(csv.encode('utf-8')))
     try:
+        auth_client.get(f'/switch_project/{rid}')
+        vista = auth_client.get('/')
+        assert vista.status_code == 200
+        assert 'DEPARTAMENTO' in vista.get_data(as_text=True)
+        assert 'Tecnico Oficial' in vista.get_data(as_text=True)
+        with app.app_context():
+            antes = json.loads(NucleusData.query.filter_by(proyecto_id=rid,key_value='CRUCE-ANTERIOR').one().data_json)
+            assert antes['Técnico beneficiario'] == 'Nombre anterior'
         response=auth_client.post('/api/rendicion/sync')
         assert response.status_code==200,response.json
         assert response.json['personal_verificado']==2
@@ -55,9 +63,13 @@ def test_sync_cruza_solo_nuevas_y_no_reescribe_anteriores(app,auth_client,monkey
             claro=json.loads(NucleusData.query.filter_by(proyecto_id=rid,key_value='CRUCE-SIN-MATCH').one().data_json)
             assert claro['Técnico beneficiario']=='Tecnico Oficial' and claro['DEPARTAMENTO']=='JUNIN'
             anterior=json.loads(NucleusData.query.filter_by(proyecto_id=rid,key_value='CRUCE-ANTERIOR').one().data_json)
-            assert anterior=={'Técnico beneficiario':'Historico intacto'}
+            assert anterior['Técnico beneficiario']=='Tecnico Oficial' and anterior['DEPARTAMENTO']=='JUNIN'
+            assert anterior['_PERSONAL_ORIGINAL']['tecnico']=='Nombre anterior'
+            assert anterior['ESTADO']=='DEPOSITADO' and anterior['MONTO PAGO']=='88.50'
+            assert anterior['FOTO PAGO']=='/evidencia/pago.jpg'
         response=auth_client.post('/api/rendicion/sync')
         assert response.json['nuevas']==0
+        assert response.json['personal_actualizado']==0
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.proyecto_id==rid,NucleusData.key_value.like('CRUCE-%')).delete(synchronize_session=False)

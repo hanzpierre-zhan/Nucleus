@@ -695,6 +695,18 @@ def api_rendicion_sync():
         schema_cols.update(set(datos.keys()))
         nuevas += 1
 
+    # Completar los registros anteriores sin modificar importes, etapas ni evidencias.
+    personal_actualizado = 0
+    for registro in NucleusData.query.filter_by(proyecto_id=proy.id).yield_per(500):
+        anteriores = json.loads(registro.data_json or '{}')
+        cruzados = completar_personal(dict(anteriores), personal)
+        if cruzados['_PERSONAL_CRUCE']['estado'] not in ('VERIFICADO', 'SIN DEPARTAMENTO EN PERSONAL'):
+            continue
+        if cruzados != anteriores:
+            registro.data_json = safe_json_dumps(cruzados)
+            personal_actualizado += 1
+    schema_cols.add('DEPARTAMENTO')
+
     # Persistir esquema DINÁMICO (reemplaza columnas dadas de baja, no solo agrega)
     if schema_cfg:
         schema_cfg.valor = safe_json_dumps(sorted(schema_cols))
@@ -719,6 +731,7 @@ def api_rendicion_sync():
         'success': True,
         'nuevas': nuevas,
         'personal_verificado': verificadas,
+        'personal_actualizado': personal_actualizado,
         'personal_pendiente_verificar': pendientes_personal,
         'omitidas_existentes': omitidas,
         'columnas_agregadas': columnas_agregadas,

@@ -261,11 +261,20 @@ def index():
         if 'HORA DE CR' in _hc.upper():
             columns_set.discard(_hc)
     
+    personal_rendicion = None
+    if proy_actual_nombre.strip().lower() == 'rendicion':
+        from services.rendicion_personal import indice_personal, completar_personal
+        personal_rendicion = indice_personal()
+        columns_set.add('DEPARTAMENTO')
+        columns_set.discard('VERIFICACIÓN PERSONAL')
+
     # Load and Filter data
     rows = NucleusData.query.filter_by(proyecto_id=pid).all()
     raw_data = []
     for r in rows:
         d = json.loads(r.data_json)
+        if personal_rendicion is not None:
+            completar_personal(d, personal_rendicion)
         d['_key'] = r.key_value
         if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and not d.get('GESTOR'):
             d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''

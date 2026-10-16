@@ -7677,7 +7677,7 @@ let _rendCambiandoVista = false;
     }
 
     const REND_ESENCIALES = {
-        base: ['_accion','ESTADO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','VERIFICACIÓN PERSONAL','Nombre de site','Número CM / PM / PLM'],
+        base: ['_accion','ESTADO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','Nombre de site','Número CM / PM / PLM'],
         validacion: ['Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Motivo de la solicitud','Criticidad - Prioridad','Responsable de la validación','Observaciones (Form)','OBSERVACIONES'],
         depositos: ['Monto total del depósito','FECHA PAGO','MONTO PAGO','FOTO PAGO','ADJUNTO CORREO VALIDACION','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar'],
         evidencia: ['FECHA PAGO','MONTO PAGO','FOTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
@@ -28057,6 +28057,8 @@ function _rendInitEstados() {
             if (!propios._accion) est.anchos._accion = ({validacion:160, depositos:260, evidencia:70, rendicion:280, observado:180, cerrado:95, archivado:115, rechazados:70})[vista] || 160;
         }
         rendAplicarColumnasEsenciales(est, vista);
+        est.visibles['DEPARTAMENTO'] = true;
+        est.visibles['VERIFICACIÓN PERSONAL'] = false;
         _rendEstadoVistas[vista] = est;
 
     });
