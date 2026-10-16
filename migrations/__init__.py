@@ -340,6 +340,38 @@ def run_migrations(app, database_url=''):
             db.session.rollback()
             print('Warning: sincronizacion de columnas FLM:', _e_flm)
 
+        # ── Cotizaciones: TIPO DE GASTO como columna de lista editable ──
+        # (una sola vez: marca 'manual_tipo_gasto_v1'. Habilita el desplegable
+        # en la tabla y la edicion en linea; las opciones las gestiona el
+        # admin con el engranaje, igual que TIPO DE COTIZACION).
+        try:
+            _coti_proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+            _coti_flag = None
+            if _coti_proy:
+                _coti_flag = AppConfig.query.filter_by(proyecto_id=_coti_proy.id, clave='manual_tipo_gasto_v1').first()
+            if _coti_proy and not _coti_flag:
+                _mc_cfg = AppConfig.query.filter_by(proyecto_id=_coti_proy.id, clave='manual_columns').first()
+                try:
+                    _mc = json.loads(_mc_cfg.valor) if _mc_cfg else []
+                except Exception:
+                    _mc = []
+                if not isinstance(_mc, list):
+                    _mc = []
+                _nombres_mc = {str(c.get('nombre') or '').strip().upper() for c in _mc if isinstance(c, dict)}
+                if 'TIPO DE GASTO' not in _nombres_mc:
+                    _mc.append({'nombre': 'TIPO DE GASTO', 'tipo': 'lista',
+                                'opciones': ['Gasto Cobra', 'Refacturable']})
+                    if _mc_cfg:
+                        _mc_cfg.valor = json.dumps(_mc)
+                    else:
+                        db.session.add(AppConfig(proyecto_id=_coti_proy.id, clave='manual_columns', valor=json.dumps(_mc)))
+                db.session.add(AppConfig(proyecto_id=_coti_proy.id, clave='manual_tipo_gasto_v1', valor='ok'))
+                db.session.commit()
+                print('OK: TIPO DE GASTO habilitada como lista en Cotizaciones.')
+        except Exception as _e_coti_tg:
+            db.session.rollback()
+            print('Warning: TIPO DE GASTO en Cotizaciones:', _e_coti_tg)
+
         # ── GESTOR y EDITADO POR en FLM - ENTEL, FLM - INTEGRATEL, FLM - CLARO ──
         try:
             for proy_g in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'):

@@ -15861,7 +15861,8 @@ let _rendCambiandoVista = false;
 
 
         // 6. Tipo de Gasto
-        mkSel('TIPO DE GASTO', 'TIPO DE GASTO', ['Gasto Cobra', 'Refacturable'], '— Seleccione Tipo de Gasto —');
+        const tipoGastoConfig = (manualColsConfig || []).find(c => c && c.nombre === 'TIPO DE GASTO' && c.tipo === 'lista');
+        mkSel('TIPO DE GASTO', 'TIPO DE GASTO', (tipoGastoConfig && Array.isArray(tipoGastoConfig.opciones) && tipoGastoConfig.opciones.length) ? tipoGastoConfig.opciones : ['Gasto Cobra', 'Refacturable'], '— Seleccione Tipo de Gasto —');
 
 
 
