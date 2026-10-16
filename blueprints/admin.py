@@ -615,6 +615,7 @@ def api_rendicion_sync():
     claves_sistema = {
         '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
         'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
+        'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal',
         'ESTADO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
         'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',
         'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',
@@ -707,6 +708,7 @@ def api_rendicion_sync():
             registro.data_json = safe_json_dumps(cruzados)
             personal_actualizado += 1
     schema_cols.add('DEPARTAMENTO')
+    schema_cols.update({'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal'})
 
     # Persistir esquema DINÁMICO (reemplaza columnas dadas de baja, no solo agrega)
     if schema_cfg:

@@ -43,6 +43,20 @@ def indice_personal():
     return indice
 
 
+def _exponer_cruce(datos, estado):
+    """Expone columnas visibles para auditar el cruce de personal.
+
+    'Técnico beneficiario (Form)' guarda el nombre tal como lo escribió el técnico,
+    'Técnico beneficiario' queda con el nombre oficial (cruce por documento) y
+    'Cruce de personal' con el resultado (VERIFICADO, NO ENCONTRADO, DUPLICADO...).
+    """
+    original = datos.get('_PERSONAL_ORIGINAL') or {}
+    datos['Técnico beneficiario (Form)'] = str(original.get('tecnico') or '').strip()
+    datos['Documento del beneficiario (Form)'] = str(original.get('documento') or '').strip()
+    datos['Cruce de personal'] = estado
+    return datos
+
+
 def completar_personal(datos, indice):
     doc_key = campo(datos, ['Documento del beneficiario','DOCUMENTO','DNI','Numero de documento','Documento de identidad'])
     name_key = campo(datos, ['Técnico beneficiario','TECNICO','Nombre del tecnico','Nombre del beneficiario'])
@@ -52,7 +66,7 @@ def completar_personal(datos, indice):
     if datos.get('_PERSONAL_CORRECCION_MANUAL'):
         datos['_PERSONAL_CRUCE'] = {'estado':'CORREGIDO MANUALMENTE','criterio':'DOCUMENTO','documento':doc,'fuente':'Corrección del gestor'}
         datos['VERIFICACIÓN PERSONAL'] = 'Corregido manualmente'
-        return datos
+        return _exponer_cruce(datos, 'CORREGIDO MANUALMENTE')
     estado = 'SIN DOCUMENTO' if not doc else ''
     candidatos = indice.get(doc, []) if not estado else []
     identidades = {(normalizar(n), normalizar(d)) for n,d in candidatos}
@@ -73,4 +87,4 @@ def completar_personal(datos, indice):
                 estado = 'SIN DEPARTAMENTO EN PERSONAL'
     datos['VERIFICACIÓN PERSONAL'] = 'Verificado' if estado == 'VERIFICADO' else 'Pendiente de verificar'
     datos['_PERSONAL_CRUCE'] = {'estado': estado, 'criterio': 'DOCUMENTO', 'documento': doc, 'fuente': 'Dataper'}
-    return datos
+    return _exponer_cruce(datos, estado)

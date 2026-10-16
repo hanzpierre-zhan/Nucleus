@@ -7686,7 +7686,7 @@ let _rendCambiandoVista = false;
     }
 
     const REND_ESENCIALES = {
-        base: ['_accion','ESTADO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','Nombre de site','Número CM / PM / PLM'],
+        base: ['_accion','ESTADO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Técnico beneficiario (Form)','Documento del beneficiario','Cruce de personal','Nombre de site','Número CM / PM / PLM'],
         validacion: ['Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Motivo de la solicitud','Criticidad - Prioridad','Responsable de la validación','Observaciones (Form)','OBSERVACIONES'],
         depositos: ['Monto total del depósito','FECHA PAGO','MONTO PAGO','FOTO PAGO','ADJUNTO CORREO VALIDACION','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar'],
         evidencia: ['FECHA PAGO','MONTO PAGO','FOTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
@@ -7840,7 +7840,8 @@ let _rendCambiandoVista = false;
     }
 
     function cotEnProveedor(row) {
-        return !!(row['_PROVEEDOR_PARALELO'] || row['FECHA APROBACION'] || ['sustentar', 'atendido'].includes(cotPestaniaDe(row)));
+        return String(row['TIPO GASTO APROBACION'] || '').trim().toLowerCase() === 'proveedor'
+            && ['sustentar', 'atendido'].includes(cotPestaniaDe(row));
     }
 
     function cotEstadoDe(row) {
@@ -9589,6 +9590,41 @@ let _rendCambiandoVista = false;
             };
             restColumns.push(colDef);
             return;
+        }
+
+        // Cruce de personal: separa el nombre ingresado (form) del nombre oficial (Dataper).
+        if (IS_RENDICION && fieldName === 'Técnico beneficiario') {
+            colDef.title = 'Técnico beneficiario (Dataper)';
+            colDef.width = 200;
+            colDef.editor = false;
+            colDef.editable = false;
+        }
+
+        if (IS_RENDICION && fieldName === 'Técnico beneficiario (Form)') {
+            colDef.title = 'Técnico beneficiario (Formulario)';
+            colDef.width = 200;
+            colDef.editor = false;
+            colDef.editable = false;
+        }
+
+        if (IS_RENDICION && fieldName === 'Cruce de personal') {
+            colDef.title = 'Cruce de personal';
+            colDef.width = 170;
+            colDef.editor = false;
+            colDef.editable = false;
+            colDef.formatter = cell => {
+                const row = cell.getRow().getData();
+                const value = String(cell.getValue() || 'SIN CRUCE');
+                const ok = value === 'VERIFICADO';
+                const label = document.createElement('span');
+                label.className = 'rend-pill';
+                label.textContent = value;
+                label.style.color = ok ? 'var(--ios-green)' : 'var(--ios-orange)';
+                label.title = (row._PERSONAL_CRUCE?.estado || 'Sin cruce')
+                    + (row._PERSONAL_ORIGINAL?.tecnico ? ' · Formulario: ' + row._PERSONAL_ORIGINAL.tecnico : '')
+                    + (row._PERSONAL_CRUCE?.documento ? ' · Documento: ' + row._PERSONAL_CRUCE.documento : '');
+                return label;
+            };
         }
 
         // 1. PRIMARY KEY
@@ -12793,7 +12829,15 @@ let _rendCambiandoVista = false;
 
         if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return; // Los no-admin siempre ven lo que define el admin (servidor o por defecto)
 
-        if (Object.keys(_colVisLeer(IS_RENDICION ? _rendVista : null)).length) return;
+        // Si el usuario ya tiene su visibilidad personal guardada, esa manda:
+
+        // no re-aplicar el auto-mostrado de columnas manuales del administrador.
+
+        let _vistaPersonal = null;
+
+        if (IS_RENDICION) { try { _vistaPersonal = _rendVista; } catch (_) { _vistaPersonal = null; } }
+
+        if (Object.keys(_colVisLeer(_vistaPersonal)).length) return;
         if (hasServerLayout) return; // La visibilidad la define el layout del admin (servidor)
 
         const saved = localStorage.getItem('nucleus-manual-cols-visible');
@@ -15735,7 +15779,7 @@ let _rendCambiandoVista = false;
 
         // 3. Proyecto (operador al que va la solicitud)
 
-        mkSel('PROYECTO', 'CLIENTE', ['ENTEL', 'CLARO', 'INTEGRATEL'],
+        mkSel('PROYECTO', 'CLIENTE', ['ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'],
 
             '— Seleccione Proyecto —', { required: true });
 
@@ -15749,7 +15793,7 @@ let _rendCambiandoVista = false;
 
         // 5. Nombre de Site
 
-        mkTxt('NOMBRE DE SITE', 'NOMBRE SITE', 'Nombre del site', { required: true });
+        mkSel('NOMBRE DE SITE', 'NOMBRE SITE', [], '— Seleccionar site —', { required: true });
 
 
 
@@ -16056,7 +16100,7 @@ let _rendCambiandoVista = false;
 
         selClienteCoti.appendChild(optClienteDefault);
 
-        ['ENTEL', 'CLARO', 'INTEGRATEL'].forEach(cli => {
+        ['ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'].forEach(cli => {
 
             const opt = document.createElement('option');
 
@@ -16813,7 +16857,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             const k = String(r['_key'] != null ? r['_key'] : (r['N° COTIZACION'] || ''));
 
-            const m = k.match(/^(?:HW|EN|CL|IN)-(\d{4})-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})$/);
+            const m = k.match(/^(?:HW|EN|CL|IN|PX)-(\d{4})-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})$/);
 
             if (m && m[1] === yr) {
 
@@ -17669,7 +17713,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         // Formatear si solo ingresaron los dígitos
 
-        if (numero && !/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?\d{6,7}$/.test(numero)) {
+        if (numero && !/^(?:HW|EN|CL|IN|PX)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?\d{6,7}$/.test(numero)) {
 
             const digits = numero.replace(/\D/g, '');
 
@@ -17981,7 +18025,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
 
-            if (!data['CLIENTE']) { alert('Seleccione el CLIENTE de la cotización (ENTEL, CLARO o INTEGRATEL).'); return; }
+            if (!data['CLIENTE']) { alert('Seleccione el CLIENTE de la cotización (ENTEL, CLARO, INTEGRATEL o PEXT).'); return; }
 
             if (cotiEditMode && cotiEditKey) {
 
@@ -23233,7 +23277,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const selected = cliente || document.querySelector('#mar-fields [data-field="CLIENTE"]')?.value || {{ (session.get('current_proyecto_nombre') or '')|tojson }};
         const name = String(selected || '').toUpperCase();
-        const prefix = name.includes('CLARO')?'CL':name.includes('INTEGRATEL')?'IN':'EN';
+        const prefix = name.includes('PEXT')?'PX':name.includes('CLARO')?'CL':name.includes('INTEGRATEL')?'IN':'EN';
         const hoy = new Date();
         return prefix + '-' + hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-';
 
@@ -23251,7 +23295,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         let prefix = v.slice(0, v.length - m[1].length);
 
-        if (!/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?$/.test(prefix)) prefix = prefijoCotizacion();
+        if (!/^(?:HW|EN|CL|IN|PX)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?$/.test(prefix)) prefix = prefijoCotizacion();
 
         return { prefix: prefix, digits: m[1] };
 
@@ -23286,7 +23330,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const pfx = pref ? pref.textContent : '';
 
-        return (/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?$/.test(pfx) ? pfx : prefijoCotizacion()) + digits;
+        return (/^(?:HW|EN|CL|IN|PX)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?$/.test(pfx) ? pfx : prefijoCotizacion()) + digits;
 
     }
 
@@ -23416,7 +23460,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 if (!o.value) return;
 
-                const m = String(o.textContent).match(/^(?:HW|EN|CL|IN)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})(?:\b|$)/);
+                const m = String(o.textContent).match(/^(?:HW|EN|CL|IN|PX)-\d{4}-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})(?:\b|$)/);
 
                 if (!m) return;
 
@@ -27429,6 +27473,10 @@ btnItem.onclick = () => cotRegAgregarFila();
     <div class="mar-body" style="display:block;">
       <div class="rend-modal-body">
         <p class="cot-provider-intro">Completa los datos de facturación y adjunta el documento del proveedor.</p>
+        <section class="cot-form-section" style="margin-bottom:18px" aria-label="Descargar documentos">
+          <h4>Documentos adjuntos</h4>
+          <div id="cot-proveedor-descargas" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+        </section>
         <section class="cot-form-section" aria-labelledby="cot-invoice-heading">
           <h4 id="cot-invoice-heading"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i> Facturación del proveedor</h4>
           <div class="cot-provider-fields">
@@ -30463,6 +30511,16 @@ function cotAbrirProveedor(key) {
     const row = rawData.find(r => r._key === key);
     if (!row) return;
     _cotProveedorModal = {key, url: row['ADJUNTO FACTURA PROVEEDOR'] || '', subiendo: false};
+    const descargas = document.getElementById('cot-proveedor-descargas');
+    descargas.replaceChildren();
+    for (const [campos, titulo] of [[['CORREO DE VALIDACION','ADJUNTO CORREO VALIDACION'],'Correo de validación'],[['ADJUNTO CORREO CLIENTE'],'Correo de aprobación del cliente'],[['ADJUNTO COTIZACION PROVEEDOR'],'Cotización del proveedor'],[['ADJUNTO FACTURA PROVEEDOR'],'Factura del proveedor']]) {
+        const url = String(campos.map(campo=>row[campo]).find(Boolean) || '').trim();
+        const el = document.createElement(/^\/api\/(?:cotizacion|rendicion)\/correo\//.test(url) ? 'a' : 'span');
+        el.className = 'action-pill pill-neutral';
+        el.textContent = (el.tagName === 'A' ? '↓ ' : '') + titulo + (el.tagName === 'A' ? '' : ' · Sin adjunto');
+        if (el.tagName === 'A') {el.href = url; el.download = '';}
+        descargas.appendChild(el);
+    }
     document.getElementById('cot-proveedor-sub').textContent = 'Cotización: ' + key;
     document.getElementById('cot-factura-numero').value = row['NUMERO FACTURA PROVEEDOR'] || '';
     document.getElementById('cot-factura-subtotal').value = row['SUBTOTAL FACTURA PROVEEDOR'] ?? '';
@@ -30483,7 +30541,7 @@ function cotMostrarFactura() {
     const estado = document.getElementById('cot-factura-estado'); estado.replaceChildren();
     if (!_cotProveedorModal || !_cotProveedorModal.url) return;
     const link = document.createElement('a'); link.href = _cotProveedorModal.url;
-    link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Ver factura adjunta'; estado.appendChild(link);
+    link.download = ''; link.className = 'action-pill pill-blue'; link.textContent = 'Descargar factura adjunta'; estado.appendChild(link);
 }
 async function cotSubirFactura(input) {
     const modal = _cotProveedorModal, archivo = input.files[0];

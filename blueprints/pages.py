@@ -271,6 +271,10 @@ def index():
         personal_rendicion = indice_personal()
         columns_set.add('DEPARTAMENTO')
         columns_set.discard('VERIFICACIÓN PERSONAL')
+        # Cruce de personal: columnas de auditoría (nombre ingresado vs cruce con Dataper).
+        columns_set.add('Técnico beneficiario (Form)')
+        columns_set.add('Documento del beneficiario (Form)')
+        columns_set.add('Cruce de personal')
 
     # Load and Filter data
     rows = NucleusData.query.filter_by(proyecto_id=pid).all()

@@ -86,3 +86,30 @@ def test_sin_proyecto_y_repetidos_identicos():
     assert row['VERIFICACIÓN PERSONAL']=='Verificado'
     assert row['Técnico beneficiario']=='Nombre Oficial'
     assert row['_PERSONAL_CRUCE']['criterio']=='DOCUMENTO'
+
+
+def test_expone_columnas_de_auditoria_del_cruce():
+    # El nombre ingresado se aísla en 'Técnico beneficiario (Form)' y el oficial
+    # (cruce por documento con Dataper) en 'Técnico beneficiario'.
+    indice = {'00123456':[('Nombre Oficial','JUNIN')]}
+    row = completar_personal({'Documento del beneficiario':'00 123 456','Técnico beneficiario':'nombre escrito como quiera'}, indice)
+    assert row['Técnico beneficiario (Form)'] == 'nombre escrito como quiera'
+    assert row['Documento del beneficiario (Form)'] == '00 123 456'
+    assert row['Técnico beneficiario'] == 'Nombre Oficial'
+    assert row['Cruce de personal'] == 'VERIFICADO'
+
+    # Documento no encontrado: se conserva lo ingresado y el estado lo refleja.
+    sin_match = completar_personal({'Documento del beneficiario':'99999999','Técnico beneficiario':'Desconocido'}, {})
+    assert sin_match['Cruce de personal'] == 'NO ENCONTRADO'
+    assert sin_match['Técnico beneficiario (Form)'] == 'Desconocido'
+    assert sin_match['Técnico beneficiario'] == 'Desconocido'
+
+    # Sin documento.
+    sin_doc = completar_personal({'Técnico beneficiario':'Alguien'}, {})
+    assert sin_doc['Cruce de personal'] == 'SIN DOCUMENTO'
+    assert sin_doc['Técnico beneficiario (Form)'] == 'Alguien'
+
+    # Corrección manual del gestor.
+    manual = completar_personal({'Documento del beneficiario':'00123456','Técnico beneficiario':'x','_PERSONAL_CORRECCION_MANUAL':True}, indice)
+    assert manual['Cruce de personal'] == 'CORREGIDO MANUALMENTE'
+    assert manual['Técnico beneficiario (Form)'] == 'x'
