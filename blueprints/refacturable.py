@@ -85,19 +85,17 @@ def _registros():
     proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
     if not proyecto:
         return []
-    from blueprints.cotizacion import _PROYECTOS_WO_SUSTENTO
-    obras = {}
-    proyectos_obra = {p.id: p for p in Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()}
-    if proyectos_obra:
-        for fila in NucleusData.query.filter(NucleusData.proyecto_id.in_(proyectos_obra)).all():
-            obras.setdefault(str(fila.key_value).strip().lower(), (proyectos_obra[fila.proyecto_id], fila))
+    from blueprints.cotizacion import _PROYECTOS_WO_SUSTENTO, _split_wos
+    from services.recursos_flm import familia as _familia
+    from services.sustento import SustentoAdicional
     from models import LiquidacionNumero
     from services.liquidacion_numero import numero_liquidacion
-    detalles = {d.origen_id: json.loads(d.data_json or '{}') for d in RefacturableDetalle.query.all()}
-    numeros = {n.origen_id: f'C-{n.id:08d}' for n in LiquidacionNumero.query.all()}
+    from sqlalchemy import func as _func
+
+    # 1) Cotizaciones ingresadas y sus WO declarados (una sola lectura).
     filas = NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id).all()
     casos = []
-    nuevos = False
+    wos_buscados = set()
     for registro in filas:
         try:
             datos = json.loads(registro.data_json)
@@ -105,22 +103,54 @@ def _registros():
             continue
         if _ingresada(datos):
             casos.append((registro, datos))
-            if registro.id not in numeros:
-                numeros[registro.id] = numero_liquidacion(registro.id)
-                nuevos = True
-    if nuevos: db.session.commit()
+            for wo in _split_wos(datos.get('NUMERO WO')):
+                if wo.strip():
+                    wos_buscados.add(wo.strip().lower())
+
+    # 2) Filas de WO necesarias en UNA consulta. Antes se consultaba la base por
+    #    cada WO de cada registro (N+1), lo que volvía la carga muy lenta.
+    obras = {}
+    proyectos_obra = {p.id: p for p in Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()}
+    if proyectos_obra and wos_buscados:
+        consulta = NucleusData.query.filter(
+            NucleusData.proyecto_id.in_(list(proyectos_obra)),
+            _func.lower(NucleusData.key_value).in_(list(wos_buscados)))
+        for fila in consulta.all():
+            obras.setdefault(str(fila.key_value).strip().lower(), []).append((proyectos_obra[fila.proyecto_id], fila))
+        for lista in obras.values():
+            lista.sort(key=lambda par: par[0].id)
+
+    detalles = {d.origen_id: json.loads(d.data_json or '{}') for d in RefacturableDetalle.query.all()}
+    numeros = {n.origen_id: f'C-{n.id:08d}' for n in LiquidacionNumero.query.all()}
+    nuevos = False
+    for registro, _datos in casos:
+        if registro.id not in numeros:
+            numeros[registro.id] = numero_liquidacion(registro.id)
+            nuevos = True
+    if nuevos:
+        db.session.commit()
+
     registros = []
     for registro, datos in reversed(casos):
-        if not _ingresada(datos):
-            continue
         seguimiento = detalles.get(registro.id, {})
-        from blueprints.cotizacion import _split_wos,_resolver_sustento_cot
-        obras_registro=dict(obras)
-        for wo in _split_wos(datos.get('NUMERO WO')):
-            obras_registro[wo.lower()]=_resolver_sustento_cot(registro,wo,datos)
-        trabajos=[json.loads(obras_registro[w.lower()][1].data_json or '{}') for w in _split_wos(datos.get('NUMERO WO'))]
-        inicios=[str(w.get('INICIO EJECUCION'))[:10] for w in trabajos if w.get('INICIO EJECUCION')]
-        finales=[str(w.get('FIN EJECUCION'))[:10] for w in trabajos if w.get('FIN EJECUCION')]
+        wos = _split_wos(datos.get('NUMERO WO'))
+        adicionales = datos.get('_SUSTENTOS_ADICIONALES') or {}
+        fam = _familia(datos.get('CLIENTE'))
+        obras_registro = {}
+        for wo in wos:
+            clave = wo.lower()
+            if wo.strip().casefold() in adicionales:
+                obras_registro[clave] = (proyecto, SustentoAdicional(registro, wo))
+                continue
+            elegido = None
+            for par in obras.get(clave, ()):
+                if not fam or _familia(par[0].nombre) == fam:
+                    elegido = par
+                    break
+            obras_registro[clave] = elegido or (proyecto, SustentoAdicional(registro, wo))
+        trabajos = [json.loads(obras_registro[w.lower()][1].data_json or '{}') for w in wos]
+        inicios = [str(w.get('INICIO EJECUCION'))[:10] for w in trabajos if w.get('INICIO EJECUCION')]
+        finales = [str(w.get('FIN EJECUCION'))[:10] for w in trabajos if w.get('FIN EJECUCION')]
         monto_hw = _monto(datos.get('SUB TOTAL + FEE'))
         monto_cobra = _monto(seguimiento.get('monto_cobra'))
         margen = monto_cobra - monto_hw if monto_cobra is not None and monto_hw is not None else None
