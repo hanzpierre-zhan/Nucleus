@@ -7,14 +7,14 @@ from db import db
 from models import Proyecto,NucleusData
 from services.utilidades import get_menu_proyectos
 
-FLM_NOMBRES=('FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO')
+FLM_NOMBRES=('FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT')
 
 def normalizar(valor):
     return re.sub(r'[^a-z0-9]', '', ''.join(c for c in unicodedata.normalize('NFKD',str(valor or '')).lower() if not unicodedata.combining(c)))
 
 def familia(nombre):
     n=normalizar(nombre)
-    if n in ('flm','flmentel','entel','pext'): return 'ENTEL'
+    if n in ('flm','flmentel','entel','pext','flmpext'): return 'ENTEL'
     if n in ('flmclaro','claro'): return 'CLARO'
     if n in ('flmintegratel','integratel'): return 'INTEGRATEL'
     return ''

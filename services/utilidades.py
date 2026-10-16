@@ -17,7 +17,7 @@ from models import (Proyecto, AppConfig, NucleusData, KpiConfig,
                     AccesoProyecto, HistorialCambios)
 
 # ── Proyectos que no pueden borrarse ni accederse externamente ─────────────
-PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT', 'Dataper', 'Material'})
+PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT', 'Dataper', 'Material'})
 PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL', 'FLM - CLARO y INTEGRATEL'})
 
 
@@ -77,14 +77,14 @@ def _get_menu_proyectos(user_id, user_rol):
     nombres = {p.nombre for p in proyectos}
     ids_set = {p.id for p in proyectos}
 
-    if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT', 'Claro', 'Integratel')):
+    if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT', 'Claro', 'Integratel')):
         for extra_name in ('Dataper', 'Material'):
             e = Proyecto.query.filter_by(nombre=extra_name).first()
             if e and e.id not in ids_set:
                 proyectos.append(e)
                 ids_set.add(e.id)
 
-    if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'Claro', 'Integratel')):
+    if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'Claro', 'Integratel')):
         extras = ('SITE', 'Generadores') if user_rol in ('gestor', 'contrata') else ('Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE')
         for extra_name in extras:
             e = Proyecto.query.filter_by(nombre=extra_name).first()
@@ -120,7 +120,7 @@ def puede_cotizaciones(user_id, user_rol, proy_nombre):
     try:
         for a in AccesoProyecto.query.filter_by(usuario_id=user_id).all():
             ap = db.session.get(Proyecto, a.proyecto_id)
-            if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT'):
+            if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT'):
                 return True
     except Exception:
         pass

@@ -29,7 +29,7 @@ PROTECTED = {normalized(x) for x in ('CLIENTE','PROYECTO','ROL','ESTADO COTIZACI
 def choices(columns, project_name):
     result = {normalized(c['nombre']): {**c, 'configurada':True}
               for c in columns if c.get('tipo') == 'lista' and normalized(c.get('nombre','')) not in PROTECTED}
-    if project_name in ('FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'):
+    if project_name in ('FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'):
         for name, values in FLM_CHOICES.items():
             result.setdefault(normalized(name), {'nombre':name,'tipo':'lista','opciones':values,'configurada':False})
     if project_name == 'Cotizaciones':

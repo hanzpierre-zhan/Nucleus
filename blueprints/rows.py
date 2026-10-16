@@ -311,7 +311,7 @@ def api_rows_edit_key():
         if contexto_recursos() and session.get('current_proyecto_nombre') in ('Dataper', 'Material') and not validar_fila_catalogo(detalle_actual):
             return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
         proyecto_actual = db.session.get(Proyecto, pid)
-        asignar_pendiente = bool(proyecto_actual and proyecto_actual.nombre in ('FLM - CLARO', 'FLM - INTEGRATEL') and detalle_actual.get('_WO_PENDIENTE'))
+        asignar_pendiente = bool(proyecto_actual and proyecto_actual.nombre in ('FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL') and detalle_actual.get('_WO_PENDIENTE'))
         if session.get('rol') != 'zeno' and not (asignar_pendiente and session.get('rol') in ('suport', 'admin', 'supervisor', 'gestor')):
             return jsonify({'error': 'No tienes permisos para cambiar este WO.'}), 403
         rec.key_value = new_key
@@ -371,7 +371,7 @@ def api_rows_add():
         data = request.json
         key_val = str(data.get('key', '')).strip()
         wo_solicitado = key_val
-        permite_pendiente = proy_nombre_chk in ('FLM - CLARO', 'FLM - INTEGRATEL')
+        permite_pendiente = proy_nombre_chk in ('FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL')
         wo_pendiente = permite_pendiente and not key_val
         if wo_pendiente:
             key_val = 'WO-TEMP-' + uuid4().hex
@@ -402,7 +402,7 @@ def api_rows_add():
         # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
         proy_obj = db.session.get(Proyecto, pid)
         proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
-        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
+        if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT'):
             return jsonify({'error': 'El rol Contrata no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
         if proy_nombre == 'Combustible':
             row_data['GESTOR'] = session.get('username', '')
@@ -527,7 +527,7 @@ def api_rows_add():
         # Alta manual de WO (FLM/PEXT) por el gestor: exige el CM, fija CATEGORY,
         # aplica TablaMaestra (ej: Hrs Respuesta según Fault Level) y deja rastro
         # en historial + esquema para que el WO se consolide en tabla/KPIs.
-        if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT'):
             if not key_val:
                 return jsonify({'error': 'Ingrese el Número de WO (ej: CM-20260719-00000014).'}), 400
             if not str(row_data.get('CATEGORY', '') or '').strip():
@@ -540,7 +540,7 @@ def api_rows_add():
             row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             row_data['EDITADO POR'] = session.get('username', '')
             # FLM/PEXT: GESTOR = quien registra/edita; el admin no cuenta.
-            if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+            if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
                 row_data['GESTOR'] = session.get('username', '')
             for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
                 t_cols = [c.strip() for c in t.columna_criterio.split(',')]
@@ -551,7 +551,7 @@ def api_rows_add():
         # Proyectos manuales (Material, Dataper, SITE, Generadores, etc.): la PK debe quedar
         # también dentro del JSON, no solo como key_value. /api/wo/meta y otros lectores
         # hacen d.get('COD_MATERIAL') — si no está, el desplegable sale sin [código].
-        if proy_nombre not in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
+        if proy_nombre not in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT'):
             try:
                 _pk_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
                 _pk_col2 = str(_pk_cfg2.valor or '').strip() if _pk_cfg2 else ''
@@ -577,7 +577,7 @@ def api_rows_add():
             new_record.data_json = json.dumps(row_data)
         db.session.commit()
 
-        if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'PEXT'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT'):
             db.session.add(HistorialCambios(
                 proyecto_id=pid, usuario_id=session.get('user_id'), username=session.get('username'),
                 key_value=key_val, campo_modificado='CREACIÓN',

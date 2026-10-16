@@ -223,6 +223,7 @@ def run_migrations(app, database_url=''):
             ('FLM - ENTEL', 'FLM – Proyecto Entel'),
             ('FLM - INTEGRATEL', 'FLM – Proyecto Integratel'),
             ('FLM - CLARO', 'FLM – Proyecto Claro'),
+            ('FLM - PEXT', 'FLM – Proyecto PEXT'),
             ('Liquidaciones', 'Seguimiento de liquidaciones de obras'),
             ('Rendicion', 'Solicitudes de Técnicos (Google Form)'),
             ('Dataper', 'DataPer S.A.C.'),
@@ -297,7 +298,7 @@ def run_migrations(app, database_url=''):
             print('Warning: migracion de Rendicion:', _e_rend)
 
         # ── PK de FLM - ENTEL, FLM - INTEGRATEL, FLM - CLARO ──
-        for _flm_nombre, _flm_pk in (('FLM - ENTEL', 'Número de WO'), ('FLM - INTEGRATEL', 'Número de WO'), ('FLM - CLARO', 'Número de WO')):
+        for _flm_nombre, _flm_pk in (('FLM - ENTEL', 'Número de WO'), ('FLM - INTEGRATEL', 'Número de WO'), ('FLM - CLARO', 'Número de WO'), ('FLM - PEXT', 'Número de WO')):
             _fp = Proyecto.query.filter_by(nombre=_flm_nombre).first()
             if not _fp:
                 continue
@@ -308,9 +309,38 @@ def run_migrations(app, database_url=''):
                 _pk_cfg.valor = _flm_pk
         db.session.commit()
 
+        # ── FLM - INTEGRATEL y FLM - PEXT heredan las columnas de FLM - ENTEL ──
+        # (una sola vez: queda marcado con 'flm_config_sync_v1'; después se
+        # pueden personalizar sin que el arranque las vuelva a sobrescribir).
+        try:
+            _src_flm = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
+            _sync_flag = None
+            if _src_flm:
+                _sync_flag = AppConfig.query.filter_by(proyecto_id=_src_flm.id, clave='flm_config_sync_v1').first()
+            if _src_flm and not _sync_flag:
+                for _dest_nombre in ('FLM - INTEGRATEL', 'FLM - PEXT'):
+                    _dest_flm = Proyecto.query.filter_by(nombre=_dest_nombre).first()
+                    if not _dest_flm:
+                        continue
+                    for _clave in ('primary_key', 'app_schema', 'column_layout', 'manual_columns'):
+                        _src_cfg = AppConfig.query.filter_by(proyecto_id=_src_flm.id, clave=_clave).first()
+                        if not _src_cfg or not _src_cfg.valor:
+                            continue
+                        _dst_cfg = AppConfig.query.filter_by(proyecto_id=_dest_flm.id, clave=_clave).first()
+                        if _dst_cfg:
+                            _dst_cfg.valor = _src_cfg.valor
+                        else:
+                            db.session.add(AppConfig(proyecto_id=_dest_flm.id, clave=_clave, valor=_src_cfg.valor))
+                db.session.add(AppConfig(proyecto_id=_src_flm.id, clave='flm_config_sync_v1', valor='ok'))
+                db.session.commit()
+                print('OK: columnas de FLM - ENTEL copiadas a FLM - INTEGRATEL y FLM - PEXT.')
+        except Exception as _e_flm:
+            db.session.rollback()
+            print('Warning: sincronizacion de columnas FLM:', _e_flm)
+
         # ── GESTOR y EDITADO POR en FLM - ENTEL, FLM - INTEGRATEL, FLM - CLARO ──
         try:
-            for proy_g in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
+            for proy_g in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'):
                 proy_g_obj = Proyecto.query.filter_by(nombre=proy_g).first()
                 if not proy_g_obj:
                     continue

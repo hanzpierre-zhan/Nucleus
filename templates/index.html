@@ -10,7 +10,7 @@
 
 {% set proy_nombre_flow = (session.get('current_proyecto_nombre') or '') | trim | lower %}
 
-<div class="topbar-row topbar-row-compact{% if flm_resource_context or session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'] %} topbar-row-flm-resources{% endif %}{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}{% if proy_nombre_flow == 'cotizaciones' %} topbar-row-coti{% endif %}"
+<div class="topbar-row topbar-row-compact{% if flm_resource_context or session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'] %} topbar-row-flm-resources{% endif %}{% if proy_nombre_flow == 'rendicion' %} topbar-row-rend{% endif %}{% if proy_nombre_flow == 'cotizaciones' %} topbar-row-coti{% endif %}"
 
     style="display: flex; align-items: center; gap: 8px; padding: 4px 14px; min-height: 40px;">
 
@@ -28,7 +28,7 @@
 
     {% set rol_es_admin = session.get('rol') in ['zeno', 'suport', 'admin'] %}
 
-    {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'PEXT', 'FLM - CLARO', 'FLM - INTEGRATEL'] %}
+    {% set proy_flm_pext = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'PEXT', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL'] %}
 
 
 
@@ -350,7 +350,7 @@
 
 
 
-    {% if proy_nombre in ['flm - entel', 'pext', 'flm - claro', 'flm - integratel'] and session.get('rol') not in ['contrata'] %}
+    {% if proy_nombre in ['flm - entel', 'pext', 'flm - claro', 'flm - integratel', 'flm - pext'] and session.get('rol') not in ['contrata'] %}
 
     <!-- Botón Nuevo WO (Azul): alta de WO (no disponible para Contrata, que solo completa la información) -->
 
@@ -6151,7 +6151,7 @@
 
                             class="fa-solid fa-hand-holding-dollar"></i> Cotización</button>
 
-                    {% if proy_nombre in ['flm - entel', 'flm - integratel', 'flm - claro'] %}
+                    {% if proy_nombre in ['flm - entel', 'flm - integratel', 'flm - claro', 'flm - pext'] %}
                     <button type="button" class="wo-tab" id="wo-tab-rendicion" onclick="cambiarWoTab('rendicion')"><i class="fa-solid fa-wallet"></i> Rendición</button>
                     {% else %}
                     <button type="button" class="wo-tab" id="wo-tab-resguardo" onclick="cambiarWoTab('resguardo')"><i
@@ -6172,7 +6172,7 @@
 
                         onclick="cambiarWoTab('bitacora')"><i class="fa-solid fa-book"></i> Bitácora</button>
 
-                    {% if session.get('rol') in ('zeno', 'suport') and proy_nombre not in ['flm - entel', 'flm - integratel', 'flm - claro'] %}
+                    {% if session.get('rol') in ('zeno', 'suport') and proy_nombre not in ['flm - entel', 'flm - integratel', 'flm - claro', 'flm - pext'] %}
 
                     <button type="button" class="wo-tab" id="wo-tab-estado" onclick="cambiarWoTab('estado')"><i
 
@@ -7568,7 +7568,7 @@ let _rendCambiandoVista = false;
 
     const _projNorm = currentProjectNombre.trim().toLowerCase();
 
-    const IS_WO_PROJECT = ['pext', 'flm - entel', 'flm - claro', 'flm - integratel', 'claro', 'integratel'].includes(_projNorm);
+    const IS_WO_PROJECT = ['pext', 'flm - pext', 'flm - entel', 'flm - claro', 'flm - integratel', 'claro', 'integratel'].includes(_projNorm);
 
     const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
 
@@ -7576,7 +7576,7 @@ let _rendCambiandoVista = false;
 
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm - entel';
 
-    const IS_FLM_CLARO_INTEGRATEL = ['flm - claro', 'flm - integratel'].includes(_projNorm);
+    const IS_FLM_CLARO_INTEGRATEL = ['flm - claro', 'flm - integratel', 'flm - pext'].includes(_projNorm);
 
     const IS_FLM_LIKE = IS_FLM || IS_FLM_CLARO_INTEGRATEL; // todos los módulos FLM usan el mismo formulario/modal
 
@@ -21881,7 +21881,7 @@ btnItem.onclick = () => cotRegAgregarFila();
             ejecucion.innerHTML = '<div class="wo-field"><label for="wo-inicio-ejecucion">Inicio de ejecución</label><input type="datetime-local" id="wo-inicio-ejecucion"></div><div class="wo-field"><label for="wo-fin-ejecucion">Fin de ejecución</label><input type="datetime-local" id="wo-fin-ejecucion"></div>';
             document.getElementById('evidencia-inicio-proceso-cierre').insertAdjacentElement('beforebegin', ejecucion);
         }
-        ejecucion.style.display = ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'].includes(currentProjectNombre.trim()) ? 'grid' : 'none';
+        ejecucion.style.display = ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'].includes(currentProjectNombre.trim()) ? 'grid' : 'none';
         document.getElementById('wo-inicio-ejecucion').value = toDatetimeLocal(data['INICIO EJECUCION']);
         document.getElementById('wo-fin-ejecucion').value = toDatetimeLocal(data['FIN EJECUCION']);
 
@@ -24315,7 +24315,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         };
 
-        if (['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'].includes(currentProjectNombre.trim())) {
+        if (['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'].includes(currentProjectNombre.trim())) {
             const inicio = document.getElementById('wo-inicio-ejecucion').value;
             const fin = document.getElementById('wo-fin-ejecucion').value;
             if (inicio && fin && fin < inicio) { nucleusAlert('El fin de ejecución no puede ser anterior al inicio.'); return; }
@@ -27218,6 +27218,8 @@ btnItem.onclick = () => cotRegAgregarFila();
               </button>
               <div id="cot-adjunto-ok" class="cot-file-status" role="status" style="display:none;"></div>
             </div>
+          </section>
+          <section class="cot-form-section" aria-labelledby="cot-provider-heading">
             <div class="cot-form-field">
               <label for="cot-nombre-cliente-texto">Nombre cliente</label>
               <div id="cot-nombre-cliente-chips" class="cot-chip-input">
@@ -27225,8 +27227,6 @@ btnItem.onclick = () => cotRegAgregarFila();
               </div>
               <input type="hidden" id="cot-nombre-cliente">
             </div>
-          </section>
-          <section class="cot-form-section" aria-labelledby="cot-provider-heading">
             <h4 id="cot-provider-heading"><i class="fa-solid fa-building" aria-hidden="true"></i> Información del proveedor</h4>
             <div class="cot-form-field">
               <label for="cot-nombre-proveedor">Nombre de proveedor</label>

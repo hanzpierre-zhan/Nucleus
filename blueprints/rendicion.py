@@ -881,7 +881,7 @@ def rendiciones_por_wo():
     key = str(request.args.get('key') or '').strip()
     pid = request.args.get('proyecto_id', type=int)
     proyectos = get_menu_proyectos(session.get('user_id'), session.get('rol'))
-    if not pid or not any(p.id == pid and p.nombre in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO') for p in proyectos):
+    if not pid or not any(p.id == pid and p.nombre in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT') for p in proyectos):
         return jsonify({'error': 'No tienes acceso a este WO.'}), 403
     if not key or not NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first():
         return jsonify({'error': 'WO no encontrado.'}), 404

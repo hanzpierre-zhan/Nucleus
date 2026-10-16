@@ -215,7 +215,7 @@ def api_detalle_opciones():
         def add_norm(s): return str(s or '').strip()
         # SITE maestro (id 9) y Site Name (id 5) + FLM/PEXT como respaldo
         for nombre_proy in ('SITE', 'Site Name', 'FLM', 'FLM - ENTEL', 'PEXT',
-                            'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - CLARO y INTEGRATEL'):
+                            'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - CLARO y INTEGRATEL'):
             proy = Proyecto.query.filter_by(nombre=nombre_proy).first()
             if not proy:
                 continue
@@ -251,7 +251,7 @@ def api_detalle_opciones():
                         # No usar código como nombre, solo como fallback si falta nombre
                         pass
                 if nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT',
-                                   'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - CLARO y INTEGRATEL'):
+                                   'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - CLARO y INTEGRATEL'):
                     for k in ('departamento', 'provincia', 'distrito', 'prioridad del site'):
                         v = add_norm(low_map.get(k))
                         if not v:
@@ -497,7 +497,7 @@ def api_wo_resolver():
     wo = (request.args.get('wo') or request.args.get('key') or '').strip()
     if not wo:
         return jsonify({'found': False, 'error': 'Falta WO'}), 400
-    for nombre in ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM', 'PEXT']:
+    for nombre in ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM', 'PEXT']:
         proy = Proyecto.query.filter_by(nombre=nombre).first()
         if not proy:
             continue
@@ -826,7 +826,7 @@ def _autin_sp_link(pid):
     if not p:
         # último recurso: la config de otro proyecto de AUTIN (nunca de otro módulo,
         # para que un Rendición o Material no se meta a buscar fotos donde no hay)
-        for nombre in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM', 'PEXT'):
+        for nombre in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - PEXT', 'FLM', 'PEXT'):
             pr = Proyecto.query.filter_by(nombre=nombre).first()
             if not pr:
                 continue

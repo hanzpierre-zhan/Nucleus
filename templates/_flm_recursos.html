@@ -1,5 +1,5 @@
 {% set _flm_ctx = flm_resource_context %}
-{% set _flm_actual = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'] %}
+{% set _flm_actual = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'] %}
 {% if _flm_ctx or _flm_actual %}
 {% set _flm_id = _flm_ctx.flm_id if _flm_ctx else session.get('current_proyecto_id') %}
 {% set _flm_nombre = _flm_ctx.flm_nombre if _flm_ctx else session.get('current_proyecto_nombre') %}

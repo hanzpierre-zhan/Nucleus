@@ -1207,7 +1207,7 @@ def api_cotizacion_migrar_antiguos():
 # Sustento (evidencia fotográfica ligada a la fila de Cotización → su WO)
 # ---------------------------------------------------------------------------
 
-_PROYECTOS_WO_SUSTENTO = ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - INTEGRATEL', 'FLM - CLARO')
+_PROYECTOS_WO_SUSTENTO = ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT')
 
 
 def _resolver_wo_sustento(wo, cliente=None):

@@ -116,7 +116,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -127,7 +127,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -138,7 +138,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -149,7 +149,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -160,7 +160,7 @@ def index():
                 allowed = False
                 for a in accs:
                     ap = db.session.get(Proyecto, a.proyecto_id)
-                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'PEXT'):
+                    if ap and ap.nombre in ('FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT'):
                         allowed = True
                         break
                 if not allowed:
@@ -504,7 +504,7 @@ def analytics():
     user_id, user_rol, pid = get_session_info()
     proyectos = get_menu_proyectos(user_id, user_rol)
     flms = [p for p in proyectos if p.nombre.strip().upper() in
-            ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO')]
+            ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT')]
     contexto = contexto_recursos()
     origen_pid = contexto['flm_id'] if contexto else pid
     proy = next((p for p in flms if p.id == origen_pid), None)
