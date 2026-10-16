@@ -165,11 +165,12 @@ def test_proveedor_rechaza_factura_de_otro_registro(auth_client, cotizacion):
     assert respuesta.status_code == 400
 
 
-def test_aprobacion_gatilla_liquidacion_y_conserva_caso(app, auth_client, cotizacion):
+def test_liquidacion_visible_desde_creacion_y_conserva_caso(app, auth_client, cotizacion):
     pid, key = cotizacion
     def registros():
         return [r for r in auth_client.get('/liquidaciones/api/registros').json['registros'] if r['cotizacion']==key]
-    assert registros()==[]
+    # La cotización aparece en Liquidaciones desde que se crea, sin esperar aprobación.
+    assert len(registros())==1
     assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion'}).status_code==200
     assert len(registros())==1
     origen_id=registros()[0]['id']

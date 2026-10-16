@@ -530,7 +530,7 @@
     {% endif %}
 </div>
 
-{% if proy_nombre_flow == 'rendicion' %}{% include '_rendicion_formularios.html' %}{% if session.get('rol') in ['zeno','suport','admin'] %}{% include '_rendicion_validadores.html' %}{% endif %}{% endif %}
+{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=1"></script>{% include '_rendicion_formularios.html' %}{% if session.get('rol') in ['zeno','suport','admin'] %}{% include '_rendicion_validadores.html' %}{% endif %}{% endif %}
 
 <div id="data-stats" class="data-stats"></div>
 
@@ -27056,6 +27056,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         <details id="rend-resumen" class="rend-record-summary">
           <summary><span><i class="fa-regular fa-clipboard" aria-hidden="true"></i> Datos de la solicitud</span><span>Ver detalle <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span></summary>
           <div id="rend-resumen-grid" class="rend-detalle-grid"></div>
+          <div id="rend-correccion-actions" style="display:none;padding:12px;border-top:1px solid var(--ios-hairline)"><button id="rend-correccion-save" type="button" class="action-pill pill-blue" onclick="rendGuardarCorrecciones()"><i class="fa-solid fa-pen-to-square"></i> Guardar correcciones</button><p id="rend-correccion-status" role="status" style="font-size:12px;margin-top:8px"></p></div>
         </details>
 
         <label id="rend-lbl-motivo" for="rend-motivo" style="display:none;">Motivo del rechazo</label>
@@ -27522,6 +27523,13 @@ function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.disp
 // de la hoja activa, en el mismo orden) dentro del contenedor indicado.
 
 function rendPoblarDetalle(data, gridId) {
+    const editable = gridId === 'rend-resumen-grid' && typeof _rendModal !== 'undefined' && _rendModal?.accion === 'validar'
+        && ['gestor','supervisor','zeno','suport','admin'].includes(String(USER_ROLE).toLowerCase()) && rendPuedeValidarFila(data);
+    if (gridId === 'rend-resumen-grid') {
+        document.getElementById('rend-correccion-actions').style.display = editable ? 'block' : 'none';
+        document.getElementById('rend-correccion-status').textContent = editable ? 'Corrige los datos y guarda antes de validar.' : '';
+        if (editable) rendIniciarCorrecciones(data);
+    }
 
     const grid = document.getElementById(gridId);
 
@@ -27530,6 +27538,7 @@ function rendPoblarDetalle(data, gridId) {
     data = data || {};
 
     const items = [];
+    const editables = [];
 
     const seen = new Set();
 
@@ -27554,20 +27563,6 @@ function rendPoblarDetalle(data, gridId) {
         let label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
 
         let raw = data[f];
-
-        // En el resumen del flujo el site se muestra como "Motivo de la solicitud"
-
-        const _normCol = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
-        if (_normCol(f) === 'nombre de site' || _normCol(f) === 'nombre site') {
-
-            seen.add('Motivo de la solicitud');
-
-            label = 'Motivo de la solicitud';
-
-            raw = data['Motivo de la solicitud'];
-
-        }
 
         const val = (raw === null || raw === undefined) ? '' : String(raw).trim();
 
@@ -27601,11 +27596,21 @@ function rendPoblarDetalle(data, gridId) {
 
         }
 
-        items.push(`<div class="rd-k">${escapeHtml(label)}</div><div class="rd-v">${valHtml}</div>`);
+        if (editable && rendCampoCorregible(f)) {
+            const attrs = `data-rend-campo="${escapeHtml(f)}" aria-label="${escapeHtml(label)}" maxlength="4000" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--ios-hairline);border-radius:7px;background:var(--ios-fill);color:var(--ios-label);font:inherit;"`;
+            valHtml = /motivo|observaci/i.test(f)
+                ? `<textarea ${attrs} rows="3">${escapeHtml(val)}</textarea>`
+                : `<input type="text" ${attrs} value="${escapeHtml(val)}">`;
+        }
+        const html = `<div class="rd-k">${escapeHtml(label)}</div><div class="rd-v">${valHtml}</div>`;
+        if (editable && rendCampoCorregible(f)) editables.push({field:f,html});
+        else items.push(html);
 
     });
 
-    grid.innerHTML = items.join('') || '<div class="rd-k">Registro</div><div class="rd-v">Sin datos</div>';
+    const prioritarios = ['DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','Motivo de la solicitud','Número CM / PM / PLM'];
+    editables.sort((a,b)=>(prioritarios.includes(a.field)?prioritarios.indexOf(a.field):99)-(prioritarios.includes(b.field)?prioritarios.indexOf(b.field):99));
+    grid.innerHTML = editables.map(x=>x.html).concat(items).join('') || '<div class="rd-k">Registro</div><div class="rd-v">Sin datos</div>';
 
 }
 
@@ -28322,7 +28327,7 @@ function rendAbrirModal(titulo, sub, okTexto, cuerpo) {
 
     // innerHTML: permite iconos FontAwesome en el título (todos los literales de código).
 
-    document.getElementById('rend-resumen').open = false;
+    document.getElementById('rend-resumen').open = cuerpo === 'rend-val-form';
     document.getElementById('rend-modal').dataset.accion = cuerpo || '';
     document.getElementById('rend-modal-title').innerHTML = titulo;
 
@@ -28718,6 +28723,7 @@ function rendConfirmarModal() {
 
 
     if (accion === 'validar') {
+        if (rendHayCorrecciones()) { alert('Guarda las correcciones de la solicitud antes de validar.'); return; }
 
         const op = document.querySelector('#rend-val-ops input[name="rend-val-op"]:checked');
 

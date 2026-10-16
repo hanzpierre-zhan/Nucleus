@@ -49,6 +49,10 @@ def completar_personal(datos, indice):
     dep_key = campo(datos, ['DEPARTAMENTO','Departamento del tecnico','DEPARTAMENTO (Form)'])
     doc = documento(datos.get(doc_key))
     datos.setdefault('_PERSONAL_ORIGINAL', {'documento': datos.get(doc_key, ''), 'tecnico': datos.get(name_key, ''), 'departamento': datos.get(dep_key, '')})
+    if datos.get('_PERSONAL_CORRECCION_MANUAL'):
+        datos['_PERSONAL_CRUCE'] = {'estado':'CORREGIDO MANUALMENTE','criterio':'DOCUMENTO','documento':doc,'fuente':'Corrección del gestor'}
+        datos['VERIFICACIÓN PERSONAL'] = 'Corregido manualmente'
+        return datos
     estado = 'SIN DOCUMENTO' if not doc else ''
     candidatos = indice.get(doc, []) if not estado else []
     identidades = {(normalizar(n), normalizar(d)) for n,d in candidatos}

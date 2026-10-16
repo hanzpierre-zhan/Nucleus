@@ -925,3 +925,58 @@ def configurar_validadores():
          'admin': u.rol in ADMIN_ROLES, 'acceso_rendicion': puede_rendicion(u.id, u.rol, '')}
         for u in Usuario.query.order_by(Usuario.nombre, Usuario.username).all()
         ])
+
+@bp.route('/api/rendicion/solicitud', methods=['PATCH'])
+@login_required
+def corregir_solicitud():
+    from models import HistorialCambios
+    from services.rendicion_validadores import puede_validar
+    from services.rendicion_correcciones import validar_cambios, normalizar
+    from services.rendicion_personal import completar_personal, indice_personal, documento
+    if not _puede_gestionar() or session.get('rol') not in ROLES_ACCION:
+        return jsonify(error='No tienes permiso para corregir solicitudes.'),403
+    payload=request.get_json(silent=True) or {}
+    if not isinstance(payload,dict):
+        return jsonify(error='Solicitud inválida.'),400
+    proy=_proy()
+    fila=NucleusData.query.filter_by(proyecto_id=proy.id,key_value=str(payload.get('key') or '')).with_for_update().first() if proy else None
+    if not fila:
+        return jsonify(error='Solicitud no encontrada.'),404
+    row=json.loads(fila.data_json or '{}')
+    if not puede_validar(row,session.get('user_id'),session.get('rol')):
+        return jsonify(error='No estás asignado para validar este proyecto.'),403
+    if _etapa_de(row)!='VALIDACION':
+        return jsonify(error='Solo puedes corregir la solicitud mientras esté en Validación.'),409
+    if payload.get('revision',0)!=row.get('_CORRECCION_REV',0):
+        return jsonify(error='Otro usuario corrigió esta solicitud. Recarga antes de continuar.'),409
+    try:
+        cambios=validar_cambios(payload.get('cambios'),row)
+    except ValueError as error:
+        return jsonify(error=str(error)),400
+    nuevos={**row,**cambios}
+    campos_doc=[k for k in cambios if normalizar(k)=='documentodelbeneficiario']
+    if campos_doc:
+        nuevos.pop('_PERSONAL_CORRECCION_MANUAL',None)
+        completar_personal(nuevos,indice_personal())
+        nuevos.update(cambios)
+    identidad=any(normalizar(k) in ('tecnicobeneficiario','departamento') for k in cambios)
+    if identidad:
+        nuevos.setdefault('_PERSONAL_ORIGINAL',{'tecnico':row.get('Técnico beneficiario',''),'documento':row.get('Documento del beneficiario',''),'departamento':row.get('DEPARTAMENTO','')})
+        nuevos['_PERSONAL_CORRECCION_MANUAL']=True
+    auditoria=[]
+    for campo,valor in nuevos.items():
+        if campo.startswith('_') or valor==row.get(campo):
+            continue
+        if campo in cambios or campo in ('Técnico beneficiario','DEPARTAMENTO'):
+            auditoria.append(HistorialCambios(proyecto_id=proy.id,usuario_id=session.get('user_id'),
+                username=session.get('username') or '',key_value=fila.key_value,campo_modificado=campo,
+                valor_anterior=str(row.get(campo) or ''),valor_nuevo=str(valor or '')))
+    if not auditoria:
+        return jsonify(success=True,newData={**row,'_key':fila.key_value})
+    nuevos['_CORRECCION_REV']=row.get('_CORRECCION_REV',0)+1
+    nuevos['_CORREGIDO_POR']=session.get('username') or ''
+    nuevos['_FECHA_CORRECCION']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    db.session.add_all(auditoria)
+    fila.data_json=json.dumps(nuevos,ensure_ascii=False)
+    db.session.commit()
+    return jsonify(success=True,newData={**nuevos,'_key':fila.key_value})

@@ -613,6 +613,7 @@ def api_rendicion_sync():
     # Claves que escribe el sistema/flujo del módulo: si el form trajera un
     # encabezado idéntico, se desplaza con sufijo ' (Form)' para no pisarlas.
     claves_sistema = {
+        '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
         'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
         'ESTADO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
         'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',

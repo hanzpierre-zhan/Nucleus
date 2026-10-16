@@ -15,14 +15,25 @@ def _autorizar():
         abort(403)
 
 
+# Estados que NO entran a Liquidaciones: la cotización fue cancelada o
+# rechazada, así que ya no hay nada que cobrar.
+_ESTADOS_FUERA = ('cancelado', 'cancelada', 'anulado', 'anulada', 'rechazado', 'rechazada')
+
+
 def _aprobada(datos):
     estado = str(datos.get('ESTADO COTIZACION') or '').strip().lower()
     return estado in ('aprobado', 'atendido', 'validado') or (
-        bool(datos.get('FECHA APROBACION')) and estado not in ('cancelado', 'rechazado'))
+        bool(datos.get('FECHA APROBACION')) and estado not in _ESTADOS_FUERA)
 
 
 def _ingresada(datos):
-    return bool(datos.get('_LIQUIDACION_INGRESO')) or _aprobada(datos)
+    """Un caso entra a Liquidaciones desde que se registra/genera la cotización,
+    esté o no aprobada por el cliente (así se ve lo pendiente de cobrar). Solo
+    quedan fuera los casos cancelados o rechazados."""
+    if bool(datos.get('_LIQUIDACION_INGRESO')):
+        return True
+    estado = str(datos.get('ESTADO COTIZACION') or '').strip().lower()
+    return estado not in _ESTADOS_FUERA
 
 
 
@@ -206,7 +217,7 @@ def guardar(origen_id):
     if not origen or not proyecto or origen.proyecto_id != proyecto.id:
         return jsonify({'error': 'Cotización no encontrada.'}), 404
     if not _ingresada(json.loads(origen.data_json)):
-        return jsonify({'error': 'La cotización debe estar aprobada.'}), 409
+        return jsonify({'error': 'La cotización fue cancelada o rechazada; ya no se edita en Liquidaciones.'}), 409
     cambios = request.get_json(silent=True)
     if not isinstance(cambios, dict) or not cambios or set(cambios) - CAMPOS_MANUALES:
         return jsonify({'error': 'Solo puedes editar los campos manuales de Liquidaciones.'}), 400

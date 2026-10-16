@@ -3,7 +3,7 @@ from db import db
 from models import Proyecto, NucleusData
 
 
-def test_refacturable_solo_cotizaciones_aprobadas(app, auth_client):
+def test_refacturable_incluye_no_aprobadas_y_excluye_canceladas(app, auth_client):
     with app.app_context():
         proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').one()
         filas = []
@@ -17,8 +17,8 @@ def test_refacturable_solo_cotizaciones_aprobadas(app, auth_client):
         respuesta = auth_client.get('/refacturable/api/registros')
         assert respuesta.status_code == 200
         datos = {fila['id']: fila for fila in respuesta.json['registros']}
-        assert ids[0] in datos and ids[1] in datos
-        assert ids[2] not in datos and ids[3] not in datos
+        assert ids[0] in datos and ids[1] in datos and ids[2] in datos
+        assert ids[3] not in datos
         assert datos[ids[0]]['numero_wo'] == 'CM-123'
         assert datos[ids[0]]['monto_hw'] == '120.00'
     finally:
@@ -76,7 +76,7 @@ def test_refacturable_valida_montos_y_campos_derivados(auth_client, cot_aprobada
     assert auth_client.patch('/refacturable/api/registros/%s' % cot_aprobada, json=cambios).status_code == 400
 
 
-def test_refacturable_impide_guardar_si_aprobacion_se_retiro(app, auth_client, cot_aprobada):
+def test_refacturable_impide_guardar_si_cancelada(app, auth_client, cot_aprobada):
     with app.app_context():
         registro = db.session.get(NucleusData, cot_aprobada)
         registro.data_json = json.dumps({'ESTADO COTIZACION': 'Cancelado'})
@@ -132,9 +132,9 @@ def test_expediente_documentos_locales(app, auth_client, cot_aprobada, monkeypat
     response.close()
 
 
-def test_expediente_no_admite_no_aprobada(app, auth_client, cot_aprobada):
+def test_expediente_no_admite_cancelada(app, auth_client, cot_aprobada):
     with app.app_context():
         origen = db.session.get(NucleusData, cot_aprobada)
-        origen.data_json = json.dumps({'ESTADO COTIZACION': 'En Aprobación'})
+        origen.data_json = json.dumps({'ESTADO COTIZACION': 'Cancelado'})
         db.session.commit()
     assert auth_client.get(f'/refacturable/api/registros/{cot_aprobada}/expediente').status_code == 409
