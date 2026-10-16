@@ -11378,6 +11378,9 @@ let _rendCambiandoVista = false;
 
                 if (_cotVista === 'proveedor') {
                     mk('cot-btn-sus', '<i class="fa-solid fa-file-invoice"></i>', 'Completar factura y OC del proveedor', () => cotAbrirProveedor(key));
+                    if(String(row['_SUSTENTO_APROBADO']||'')!=='1'){
+                        mk('cot-btn-rev', '<i class="fa-solid fa-money-bill-wave"></i>', 'Mover a caja chica: saca el caso de la pestaña Proveedor', () => cotCambiarTipoGasto(key, 'Caja chica'));
+                    }
                 } else if (pest === 'registro') {
                     // Boton principal: Generar cotizacion
                     mk('cot-btn-gen', '<i class="fa-solid fa-file-circle-plus"></i>',
@@ -11412,6 +11415,13 @@ let _rendCambiandoVista = false;
                     mk('cot-btn-sus', '<i class="fa-solid fa-camera"></i>',
                        'Sustentar - Subir fotos y pasar a Atendido',
                        () => cotAbrirModalSustento(key));
+                    if(String(row['_SUSTENTO_APROBADO']||'')!=='1'){
+                        const _enProv = cotEnProveedor(row);
+                        mk(_enProv ? 'cot-btn-rev' : 'cot-btn-sus',
+                           _enProv ? '<i class="fa-solid fa-money-bill-wave"></i>' : '<i class="fa-solid fa-truck-field"></i>',
+                           _enProv ? 'Mover a caja chica: saca el caso de la pestaña Proveedor' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
+                           () => cotCambiarTipoGasto(key, _enProv ? 'Caja chica' : 'Proveedor'));
+                    }
                 } else if (pest === 'atendido') {
                     mk('cot-btn-sus-atendido','<i class="fa-solid fa-camera"></i>','Ver sustento por WO',()=>cotAbrirModalSustento(key));
                     if(String(row['_SUSTENTO_APROBADO']||'')==='1'){
@@ -11419,6 +11429,11 @@ let _rendCambiandoVista = false;
                     }else{
                         mk('cot-btn-ok','<i class="fa-solid fa-check"></i>','Aprobar y bloquear el sustento',()=>cotRevisarSustento(key,true));
                         mk('cot-btn-cancel','<i class="fa-solid fa-xmark"></i>','Rechazar y devolver a Sustentar',()=>cotRevisarSustento(key,false));
+                        const _enProvAt = cotEnProveedor(row);
+                        mk(_enProvAt ? 'cot-btn-rev' : 'cot-btn-sus',
+                           _enProvAt ? '<i class="fa-solid fa-money-bill-wave"></i>' : '<i class="fa-solid fa-truck-field"></i>',
+                           _enProvAt ? 'Mover a caja chica: saca el caso de la pestaña Proveedor' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
+                           () => cotCambiarTipoGasto(key, _enProvAt ? 'Caja chica' : 'Proveedor'));
                     }
                 } else if (pest === 'cancelado') {
 
@@ -30227,6 +30242,14 @@ async function cotRevisarSustento(key,aprobar) {
     if(aprobar){if(!await nucleusConfirm('¿Aprobar el sustento? Sus evidencias quedarán bloqueadas para edición.'))return;}
     let motivo='';if(!aprobar){motivo=prompt('Motivo del rechazo del sustento:');if(motivo===null)return;}
     const j=await cotAccionKey(key,aprobar?'aprobar_sustento':'rechazar_sustento',{motivo});if(j)cotTrasAccion(j,key);
+}
+
+// Mueve una cotización aprobada entre Caja chica y Proveedor.
+// La pestaña Proveedor es una vista derivada de TIPO GASTO APROBACION,
+// así que cambiar ese campo mete (o saca) el caso de dicha pestaña.
+async function cotCambiarTipoGasto(key, tipo) {
+    if(!await nucleusConfirm('¿Mover esta cotización a "' + tipo + '"?'))return;
+    await cotAccionKey(key,'cambiar_tipo_gasto',{tipo_gasto_aprobacion:tipo});
 }
 
 // Llamada al backend y refresco de la fila.

@@ -857,6 +857,8 @@ def api_cotizacion_accion():
       rechazar             Cliente/Registro -> Pdt. Cotización (fecha + motivo)
       cancelar             Cliente/Registro -> Cancelado (fecha + motivo)
       revertir             un paso atrás (solo admin)
+      cambiar_tipo_gasto   Caja chica <-> Proveedor en cotizaciones aprobadas
+                           (entra/sale de la pestaña Proveedor)
     """
     if not _cot_puede_gestionar():
         return jsonify({'error': 'No tienes permisos para gestionar cotizaciones.'}), 403
@@ -871,7 +873,7 @@ def api_cotizacion_accion():
         accion = 'rechazar'
     if accion == 'aprobar':
         accion = 'conformar_aprobacion'
-    if not key or accion not in ('generar', 'enviar', 'conformar_aprobacion',
+    if not key or accion not in ('generar', 'enviar', 'conformar_aprobacion', 'cambiar_tipo_gasto',
                                  'pasar_atendido', 'revertir', 'rechazar', 'cancelar', 'aprobar_sustento', 'rechazar_sustento'):
         return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
 
@@ -1033,6 +1035,21 @@ def api_cotizacion_accion():
             row['ESTADO COTIZACION'] = ESTADO_NUEVO
         else:
             return jsonify({'error': 'No se puede revertir desde "Pdt. Cotización".'}), 400
+
+    elif accion == 'cambiar_tipo_gasto':
+        # Mueve la cotización entre Caja chica y Proveedor después de la
+        # aprobación. La pestaña Proveedor es una vista derivada de
+        # TIPO GASTO APROBACION, así que cambiar el campo "mueve" el caso.
+        if pestania not in ('sustentar', 'atendido'):
+            return jsonify({'error': 'El tipo de gasto solo se puede cambiar en cotizaciones aprobadas (Pdt. Sustento o Atendido).'}), 409
+        tipo_gasto = str(data.get('tipo_gasto_aprobacion') or '').strip()
+        if tipo_gasto not in ('Caja chica', 'Proveedor'):
+            return jsonify({'error': 'El tipo de gasto debe ser Caja chica o Proveedor.'}), 400
+        anterior = str(row.get('TIPO GASTO APROBACION') or '').strip() or '(sin definir)'
+        if tipo_gasto != anterior:
+            row['TIPO GASTO APROBACION'] = tipo_gasto
+            row['_PROVEEDOR_PARALELO'] = tipo_gasto == 'Proveedor'
+            row['_TIPO_GASTO_MODIFICADO'] = {'anterior': anterior, 'nuevo': tipo_gasto, 'por': usuario, 'fecha': ahora}
 
     fila.data_json = safe_json_dumps(row)
     db.session.commit()

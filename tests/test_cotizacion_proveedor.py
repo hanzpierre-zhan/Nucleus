@@ -221,3 +221,32 @@ def test_proveedor_depende_del_pago_aprobado(app, auth_client, cotizacion, gasto
     assert _en_proveedor(datos)==(pago=='Proveedor')
     if pago!='Proveedor':
         assert auth_client.post('/api/cotizacion/proveedor',json={'key':key}).status_code==409
+
+
+def test_cambiar_tipo_gasto_mueve_entre_caja_chica_y_proveedor(app, auth_client, cotizacion):
+    pid, key = cotizacion
+    # Antes de aprobar (pestaña Cliente) no se puede mover.
+    antes = auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'cambiar_tipo_gasto', 'tipo_gasto_aprobacion': 'Caja chica'})
+    assert antes.status_code == 409
+    # Aprobar: la cotización queda en Pdt. Sustento (aparece en Proveedor).
+    aprobada = auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'conformar_aprobacion'})
+    assert aprobada.status_code == 200
+    assert _cot_en_proveedor(aprobada.json['newData'])
+    # Mover a caja chica: sale de la pestaña Proveedor.
+    a_caja = auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'cambiar_tipo_gasto', 'tipo_gasto_aprobacion': 'Caja chica'})
+    assert a_caja.status_code == 200, a_caja.json
+    datos = a_caja.json['newData']
+    assert datos['TIPO GASTO APROBACION'] == 'Caja chica'
+    assert datos['_PROVEEDOR_PARALELO'] is False
+    assert not _cot_en_proveedor(datos)
+    assert datos['_TIPO_GASTO_MODIFICADO']['anterior'] == 'Proveedor'
+    # Volver a proveedor: reaparece en la pestaña.
+    a_prov = auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'cambiar_tipo_gasto', 'tipo_gasto_aprobacion': 'Proveedor'})
+    assert a_prov.status_code == 200
+    assert _cot_en_proveedor(a_prov.json['newData'])
+    # Tipo de gasto inválido.
+    assert auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'cambiar_tipo_gasto', 'tipo_gasto_aprobacion': 'Otro'}).status_code == 400
+    # El cambio queda persistido en la fila.
+    with app.app_context():
+        guardado = json.loads(NucleusData.query.filter_by(proyecto_id=pid, key_value=key).one().data_json)
+        assert guardado['TIPO GASTO APROBACION'] == 'Proveedor'
