@@ -1,20 +1,28 @@
-<section class="rend-formularios" aria-label="Formularios de Rendición">
-    {% for titulo, icono, enlace in [
-        ('Solicitud de viáticos · FLM', 'fa-wallet', 'https://docs.google.com/forms/d/e/1FAIpQLSezPz4lHQiwqTxHmATCGFPr28_eL2PiS8wvYsU7cmkHmH8m2g/viewform?usp=header'),
-        ('Rendición de caja chica · FLM', 'fa-receipt', 'https://docs.google.com/forms/d/e/1FAIpQLSf_lskHsHkdBbcIbJOIZ5wOZDZTBM7vGxHguqmZ6ir2RRnTYA/viewform?usp=header')
-    ] %}
-    <article class="rend-formulario">
-        <i class="fa-solid {{ icono }} rend-formulario-icon" aria-hidden="true"></i>
-        <div class="rend-formulario-info"><strong>{{ titulo }}</strong><span>Completa o comparte el formulario</span></div>
-        <div class="rend-formulario-acciones">
-            <a href="{{ enlace }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir formulario: {{ titulo }}">Abrir <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
-            <button type="button" data-formulario-enlace="{{ enlace }}" aria-label="Copiar enlace: {{ titulo }}"><i class="fa-regular fa-copy" aria-hidden="true"></i> <span>Copiar enlace</span></button>
-        </div>
-    </article>
-    {% endfor %}
-    <span class="rend-formularios-status" role="status" aria-live="polite"></span>
-</section>
+<details class="rend-formularios-caja" id="rend-formularios-caja" open>
+    <summary class="rend-formularios-resumen"><i class="fa-solid fa-link" aria-hidden="true"></i> Formularios</summary>
+    <section class="rend-formularios" aria-label="Formularios de Rendición">
+        {% for titulo, icono, enlace in [
+            ('Solicitud de viáticos · FLM', 'fa-wallet', 'https://docs.google.com/forms/d/e/1FAIpQLSezPz4lHQiwqTxHmATCGFPr28_eL2PiS8wvYsU7cmkHmH8m2g/viewform?usp=header'),
+            ('Rendición de caja chica · FLM', 'fa-receipt', 'https://docs.google.com/forms/d/e/1FAIpQLSf_lskHsHkdBbcIbJOIZ5wOZDZTBM7vGxHguqmZ6ir2RRnTYA/viewform?usp=header')
+        ] %}
+        <article class="rend-formulario">
+            <i class="fa-solid {{ icono }} rend-formulario-icon" aria-hidden="true"></i>
+            <div class="rend-formulario-info"><strong>{{ titulo }}</strong><span>Completa o comparte el formulario</span></div>
+            <div class="rend-formulario-acciones">
+                <a href="{{ enlace }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir formulario: {{ titulo }}">Abrir <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+                <button type="button" data-formulario-enlace="{{ enlace }}" aria-label="Copiar enlace: {{ titulo }}"><i class="fa-regular fa-copy" aria-hidden="true"></i> <span>Copiar enlace</span></button>
+            </div>
+        </article>
+        {% endfor %}
+        <span class="rend-formularios-status" role="status" aria-live="polite"></span>
+    </section>
+</details>
 <style>
+.rend-formularios-caja{border:0}
+.rend-formularios-resumen{display:none;list-style:none;align-items:center;gap:8px;padding:9px 14px;background:var(--ios-bg);color:var(--ios-secondary);font-size:12px;font-weight:600;cursor:pointer;user-select:none}
+.rend-formularios-resumen::-webkit-details-marker{display:none}
+.rend-formularios-resumen:hover{color:var(--ios-label)}
+.rend-formularios-resumen .fa-link{font-size:12px}
 .rend-formularios{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:10px 14px 12px;background:var(--ios-bg)}
 .rend-formulario{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--ios-hairline);border-radius:10px;background:var(--ios-card-bg);color:var(--ios-label);min-width:0}
 .rend-formulario-icon{color:var(--ios-accent);font-size:17px;flex-shrink:0}
@@ -23,11 +31,14 @@
 .rend-formulario-acciones a:hover,.rend-formulario-acciones button:hover{border-color:var(--ios-accent)}.rend-formulario-acciones a:focus-visible,.rend-formulario-acciones button:focus-visible{outline:2px solid var(--ios-accent);outline-offset:2px}
 .rend-formularios-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 @media(max-width:1100px){.rend-formulario{flex-wrap:wrap}.rend-formulario-acciones{margin-left:29px}}
-@media(max-width:650px){.rend-formularios{grid-template-columns:1fr}.rend-formulario-acciones{margin-left:0}.rend-formulario-info{flex-basis:calc(100% - 32px)}}
+@media(max-width:650px){.rend-formularios{grid-template-columns:1fr}.rend-formulario-acciones{margin-left:0}.rend-formulario-info{flex-basis:calc(100% - 32px)}.rend-formularios-resumen{display:flex}}
 </style>
 <script>
 (()=>{
- const contenedor=document.querySelector('.rend-formularios');if(!contenedor)return;
+ const caja=document.getElementById('rend-formularios-caja');if(!caja)return;
+ // En móvil se colapsa por defecto para no estorbar la vista; el usuario lo abre al tocar "Formularios".
+ if(window.matchMedia('(max-width:650px)').matches)caja.removeAttribute('open');
+ const contenedor=caja.querySelector('.rend-formularios');if(!contenedor)return;
  contenedor.querySelectorAll('[data-formulario-enlace]').forEach(boton=>boton.addEventListener('click',async()=>{
    const enlace=boton.dataset.formularioEnlace;const texto=boton.querySelector('span');const estado=contenedor.querySelector('[role="status"]');
    try{
