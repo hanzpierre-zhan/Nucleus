@@ -145,6 +145,48 @@
             }
         });
     }
+    const ESTADOS_ORDEN = ['Pdt. Cotización', 'En Aprobación', 'Aprobado', 'Atendido', 'Validado', 'Rechazado', 'Cancelado', 'Anulado'];
+    function estadoTipo(estado) {
+        const e = estado.toLowerCase();
+        if (/rechaz|anulad|cancelad/.test(e)) return 'danger';
+        if (/aprobad|atendid|validado|culminado/.test(e)) return 'success';
+        if (/aprobaci|pendiente|stand/.test(e)) return 'warning';
+        return 'info';
+    }
+    function montoDe(row) {
+        const valor = row.monto_cobra !== '' && row.monto_cobra != null ? row.monto_cobra : row.monto_hw;
+        return Number(valor) || 0;
+    }
+    function renderCards(rows) {
+        const cont = document.getElementById('ref-cards');
+        if (!cont) return;
+        const grupos = new Map();
+        let totalCasos = 0, totalMonto = 0;
+        for (const row of rows) {
+            const estado = String(row.estado_cotizacion || 'Sin estado').trim() || 'Sin estado';
+            const monto = montoDe(row);
+            const grupo = grupos.get(estado) || {count: 0, money: 0};
+            grupo.count += 1; grupo.money += monto; grupos.set(estado, grupo);
+            totalCasos += 1; totalMonto += monto;
+        }
+        const estados = [...grupos.keys()].sort((a, b) => {
+            const ia = ESTADOS_ORDEN.indexOf(a), ib = ESTADOS_ORDEN.indexOf(b);
+            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+        });
+        const tarjeta = (titulo, count, monto, clases) => {
+            const card = document.createElement('div'); card.className = 'ref-card ' + (clases || '');
+            const t = document.createElement('span'); t.className = 'ref-card-title'; t.textContent = titulo;
+            const c = document.createElement('span'); c.className = 'ref-card-count'; c.textContent = count + (count === 1 ? ' caso' : ' casos');
+            const m = document.createElement('span'); m.className = 'ref-card-money'; m.textContent = 'S/ ' + money.format(monto);
+            card.append(t, c, m); return card;
+        };
+        cont.replaceChildren();
+        for (const estado of estados) {
+            const g = grupos.get(estado);
+            cont.appendChild(tarjeta(estado, g.count, g.money, 'ref-card-' + estadoTipo(estado)));
+        }
+        cont.appendChild(tarjeta('Total', totalCasos, totalMonto, 'is-total'));
+    }
     async function load() {
         message.textContent = 'Cargando cotizaciones aprobadas…';
         try {
@@ -152,6 +194,7 @@
             const data = await nucleusLeerRespuestaJSON(response);
             if (!response.ok) throw new Error(data.error || 'No se pudieron cargar las cotizaciones.');
             total = data.registros.length;
+            renderCards(data.registros);
             await table.replaceData(data.registros);
             updateCount(); message.textContent = '';
         } catch (error) { message.textContent = error.message; }

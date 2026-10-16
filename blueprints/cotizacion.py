@@ -930,6 +930,7 @@ def api_cotizacion_accion():
         row['APROBADO POR'] = usuario
         row['COMENTARIO APROBACION'] = str(data.get('comentario') or '').strip()
         row['NOMBRE DE PROVEEDOR'] = str(data.get('nombre_proveedor', row.get('NOMBRE DE PROVEEDOR')) or '').strip()
+        row['NOMBRE CLIENTE'] = str(data.get('nombre_cliente', row.get('NOMBRE CLIENTE')) or '').strip()
         proveedor_adjunto = str(data.get('adjunto_cotizacion_proveedor') or '').strip()
         if proveedor_adjunto:
             prefijo = '/api/cotizacion/correo/%d/%s/cotizacion_proveedor_' % (proy.id, secure_filename(key))

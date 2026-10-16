@@ -81,3 +81,17 @@ body.dark-mode .ref-status-danger{color:#f87171}
 #ref-grid .tabulator-tableholder::-webkit-scrollbar{width:12px;height:12px;display:block}
 #ref-grid .tabulator-tableholder::-webkit-scrollbar-thumb{background:var(--ios-secondary);border:3px solid var(--ios-fill);border-radius:8px}
 #ref-grid .tabulator-tableholder::-webkit-scrollbar-track{background:var(--ios-fill)}
+
+/* Tarjetas de resumen por estado (Liquidaciones). */
+.ref-cards{display:flex;flex-wrap:wrap;gap:10px;padding:10px 12px 0}
+.ref-cards:empty{display:none}
+.ref-card{flex:1 1 150px;min-width:140px;max-width:280px;border:1px solid var(--ios-hairline);border-left:3px solid var(--ios-secondary);border-radius:12px;padding:10px 13px;background:var(--ios-card-bg,#fff);display:flex;flex-direction:column;gap:5px}
+.ref-card-title{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.02em;color:var(--ios-secondary);line-height:1.25}
+.ref-card-count{font-size:20px;font-weight:700;color:var(--ios-label);line-height:1}
+.ref-card-money{font-size:12px;color:var(--ios-secondary);font-variant-numeric:tabular-nums}
+.ref-card-success{border-left-color:#22c55e}
+.ref-card-warning{border-left-color:#f59e0b}
+.ref-card-danger{border-left-color:#ef4444}
+.ref-card-info{border-left-color:var(--ios-blue,#007AFF)}
+.ref-card.is-total{border-color:var(--ios-blue,#007AFF);border-left-color:var(--ios-blue,#007AFF);background:var(--ios-fill)}
+@media(max-width:600px){.ref-cards{padding:8px 10px 0}.ref-card{flex:1 1 calc(50% - 10px);min-width:0}}
