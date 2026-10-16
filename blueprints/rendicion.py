@@ -165,7 +165,7 @@ def _wa_deposito(row):
     if not num:
         return None
 
-    nombre = _campo(row, 'Tecnico beneficiario')
+    nombre = _campo(row, 'Tecnico beneficiario (Form)') or _campo(row, 'Tecnico beneficiario')
     codigo = str(row.get('CODIGO DEPOSITO') or '').strip()
     motivo = _motivo_de(row)
     if len(motivo) > 140:
