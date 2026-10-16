@@ -11764,6 +11764,15 @@ let _rendCambiandoVista = false;
             return (layoutOrderMap.get(a.field) ?? Infinity) - (layoutOrderMap.get(b.field) ?? Infinity) || initialOrder.get(a) - initialOrder.get(b);
         });
     }
+    if (IS_COTIZACIONES) {
+        const index = tableColumns.findIndex(c=>c.field==='TIPO DE GASTO');
+        if (index >= 0 && !layoutVisibleMap.has('TIPO DE GASTO')) {
+            const gasto = tableColumns.splice(index,1)[0];
+            gasto.visible = true;
+            const cliente = tableColumns.findIndex(c=>c.field==='CLIENTE');
+            tableColumns.splice(cliente >= 0 ? cliente+1 : Math.min(4,tableColumns.length),0,gasto);
+        }
+    }
     window.NucleusIdentity.columns(tableColumns);
     const table = new Tabulator("#data-grid", {
 

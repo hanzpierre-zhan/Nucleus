@@ -244,6 +244,10 @@ def index():
             if mc.get('nombre') == 'WO NUMBER':
                 mc['opciones'] = wo_list
     
+    # Campo del formulario: debe existir en la tabla aunque el esquema importado sea antiguo.
+    if proy_actual_nombre.strip().lower() == 'cotizaciones':
+        columns_set.add('TIPO DE GASTO')
+
     # Add KPI columns to the set so frontend can see them
     kpi_configs = KpiConfig.query.filter_by(proyecto_id=pid).all()
     for k in kpi_configs:
