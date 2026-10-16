@@ -268,7 +268,7 @@ def api_cotizacion_descargar_lote():
                     supervisor=str(d.get('SUPERVISOR', '') or ''),
                     objetivo=str(d.get('OBJETIVO', '') or ''),
                     ticket=numero_wo if numero_wo else 'CM-PENDIENTE',
-                    elaborado_por=str(d.get('GESTOR', '') or session.get('username', '')),
+                    elaborado_por=str(d.get('GESTOR', '') or audit_user()),
                     items=items,
                     # FECHA registrada de cada cotización (no la fecha de descarga)
                     fecha=d.get('FECHA')
@@ -348,7 +348,7 @@ def api_cotizacion_previsualizar():
             supervisor=supervisor,
             objetivo=objetivo,
             ticket=ticket,
-            elaborado_por=str(session.get('username', '') or ''),
+            elaborado_por=str(audit_user() or ''),
             items=items,
             fecha=fecha_form or None
         )
@@ -487,7 +487,7 @@ def api_cotizacion_generar():
 
     # Obtener nombre del gestor actual como "Cotizado por" y "Revisado por"
     usuario = db.session.get(Usuario, session.get('user_id'))
-    nombre_gestor = (usuario.nombre or usuario.username) if usuario else (session.get('username') or '')
+    nombre_gestor = '' if session.get('silent_mode') else ((usuario.nombre or usuario.username) if usuario else (audit_user() or ''))
 
     # Guardar en BD (nueva fila si no se pasa cotizacion_id, o regenerar esa)
     if cot_existente:
@@ -890,7 +890,7 @@ def api_cotizacion_accion():
     pestania = _cot_pestania(row)
     estado_anterior = _cot_estado_guardado(row)
     ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    usuario = session.get('username') or 'Desconocido'
+    usuario = audit_user() or 'Desconocido'
 
     if accion == 'generar':
         # Se genera la cotización (PDF) y viaja DIRECTO a la pestaña Cliente
@@ -1386,10 +1386,10 @@ def _guardar_sustento(datos, finalizar=False):
     if finalizar:
         d['ESTADO COTIZACION']='Atendido'
         d['_SUSTENTO_VALIDADO']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        d['ATENDIDO POR']=session.get('username') or ''
+        d['ATENDIDO POR']=audit_user() or ''
     cot.data_json=safe_json_dumps(d)
     db.session.commit()
-    if finalizar:_avisar_cambio_estado(p.id,key,anterior,d,session.get('username') or '')
+    if finalizar:_avisar_cambio_estado(p.id,key,anterior,d,audit_user() or '')
     return jsonify({'success':True,'newData':d,'wo_data':nuevo,'estado':d.get('ESTADO COTIZACION'),'pestania':_cot_pestania(d),'guardados':1,'errores':[]})
 
 

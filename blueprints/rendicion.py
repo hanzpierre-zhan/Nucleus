@@ -435,7 +435,7 @@ def api_rendicion_accion():
         return jsonify({'error': 'Esta acción no corresponde a la etapa actual.'}), 409
 
     ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    usuario_actual = session.get('username') or 'Desconocido'
+    usuario_actual = audit_user() or 'Desconocido'
 
     # Siempre actualizamos quién fue el último en interactuar
     row['INTERACCION'] = usuario_actual
@@ -969,12 +969,12 @@ def corregir_solicitud():
             continue
         if campo in cambios or campo in ('Técnico beneficiario','DEPARTAMENTO'):
             auditoria.append(HistorialCambios(proyecto_id=proy.id,usuario_id=session.get('user_id'),
-                username=session.get('username') or '',key_value=fila.key_value,campo_modificado=campo,
+                username=audit_user() or '',key_value=fila.key_value,campo_modificado=campo,
                 valor_anterior=str(row.get(campo) or ''),valor_nuevo=str(valor or '')))
     if not auditoria:
         return jsonify(success=True,newData={**row,'_key':fila.key_value})
     nuevos['_CORRECCION_REV']=row.get('_CORRECCION_REV',0)+1
-    nuevos['_CORREGIDO_POR']=session.get('username') or ''
+    nuevos['_CORREGIDO_POR']=audit_user() or ''
     nuevos['_FECHA_CORRECCION']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     db.session.add_all(auditoria)
     fila.data_json=json.dumps(nuevos,ensure_ascii=False)

@@ -575,9 +575,16 @@ def api_master_bulk_import(tipo):
         return jsonify({'error': str(e)}), 500
 
 
-@bp.route('/api/clean', methods=['POST'])
+@bp.route('/api/silent_mode', methods=['GET', 'POST'])
 @login_required
-def api_clean():
+def api_silent_mode():
+    rol = str(session.get('rol') or '').strip().lower()
+    if rol not in ('zeno', 'suport', 'admin'):
+        return jsonify({'error': 'Sin permisos.'}), 403
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        session['silent_mode'] = bool(data.get('enabled', False))
+    return jsonify({'silent_mode': bool(session.get('silent_mode', False))})
     if session.get('rol') in ['contrata', 'gestor', 'demo']:
         return jsonify({'error': 'No tienes permisos para esta acción.'}), 403
         

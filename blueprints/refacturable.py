@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from flask import Blueprint, render_template, session, jsonify, abort, request
-from services.utilidades import login_required, get_menu_proyectos, puede_cotizaciones
+from services.utilidades import login_required, get_menu_proyectos, puede_cotizaciones, audit_user
 from db import db
 from models import Proyecto, NucleusData, RefacturableDetalle
 
@@ -283,7 +283,7 @@ def guardar(origen_id):
     seguimiento = json.loads(detalle.data_json or '{}')
     seguimiento.update(nuevos)
     detalle.data_json = json.dumps(seguimiento, ensure_ascii=False)
-    detalle.actualizado_por = str(session.get('username') or session.get('user_id') or '')
+    detalle.actualizado_por = '' if session.get('silent_mode') else str(session.get('username') or session.get('user_id') or '')
     detalle.actualizado_en = datetime.utcnow()
     db.session.commit()
     return jsonify({'registro': next(r for r in _registros() if r['id'] == origen_id)})

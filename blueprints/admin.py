@@ -919,7 +919,7 @@ def api_admin_cotizacion_forzar_estado():
         row = {}
 
     anterior = str(row.get('ESTADO COTIZACION') or '').strip()
-    usuario  = session.get('username') or 'admin'
+    usuario  = audit_user() or 'admin'
     ahora    = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
 
     row['ESTADO COTIZACION']  = nuevo

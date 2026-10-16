@@ -7,7 +7,8 @@ from services.utilidades import (
     _combustible_filas_gen, _combustible_chequear, _combustible_validar_gasto,
     _combustible_saldo, _flm_wo_list, _sane_data_key, _sane_dict,
     _flm_pair_ids, _flm_hermano_id, _flm_campo_propagable,
-    _flm_registro_hermano, _flm_sync_campos, CAMPOS_TRABAJO_FLM
+    _flm_registro_hermano, _flm_sync_campos, CAMPOS_TRABAJO_FLM,
+    audit_user,
 )
 from services.apoyo import (
     EVIDENCIA_TIPOS, EVIDENCIA_MAX_POR_TIPO, EVIDENCIA_MAX_PEX,
@@ -27,7 +28,7 @@ from services.apoyo import (
 
 __all__ = [
     'login_required', 'ahora_peru', 'safe_json_dumps', 'inject_kpis', 'apply_data_restrictions',
-    'get_session_info', 'get_menu_proyectos', 'puede_cotizaciones', 'puede_rendicion',
+    'get_session_info', 'audit_user', 'get_menu_proyectos', 'puede_cotizaciones', 'puede_rendicion',
     'PROYECTOS_FIJOS', 'PROYECTOS_REMOVIDOS',
     '_parse_galones', '_combustible_fecha_norm', '_combustible_fecha_ord',
     '_combustible_filas_gen', '_combustible_chequear', '_combustible_validar_gasto',

@@ -104,6 +104,11 @@
                     </div>
                 </div>
                 <div class="sidebar-actions">
+                    {% if session.get('rol') in ('zeno','suport','admin') %}
+                    <button id="silent-toggle" class="sidebar-theme-toggle" title="Modo silencioso: no registrar mi usuario en auditoría" aria-label="Modo silencioso" style="color:#FF3B30;">
+                        <i class="fa-solid fa-user-secret"></i>
+                    </button>
+                    {% endif %}
                     <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
                         <i class="fa-solid fa-moon"></i>
                     </button>
@@ -363,6 +368,30 @@
     })();
     </script>
     <script>document.addEventListener('DOMContentLoaded',function(){var o=document.getElementById('nucleus-dialog'),m=document.getElementById('nucleus-dialog-message');if(o&&m&&!m.textContent.trim()){o.classList.remove('show');o.style.display='none'}});</script>
+    {% if session.get('rol') in ('zeno','suport','admin') %}
+    <script>
+    (function(){
+      const btn = document.getElementById('silent-toggle');
+      if (!btn) return;
+      let on = {{ 'true' if session.get('silent_mode') else 'false' }};
+      function render() {
+        btn.style.opacity = on ? '1' : '0.4';
+        btn.title = on ? 'Modo silencioso ACTIVO — no se registra tu usuario' : 'Modo silencioso: no registrar mi usuario en auditoría';
+        btn.innerHTML = on ? '<i class="fa-solid fa-user-secret" style="color:#FF3B30;"></i>' : '<i class="fa-solid fa-user-secret"></i>';
+      }
+      render();
+      btn.addEventListener('click', async () => {
+        on = !on;
+        try {
+          const r = await fetch('/api/silent_mode', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({enabled: on})});
+          const j = await r.json();
+          on = !!j.silent_mode;
+        } catch (e) { on = !on; }
+        render();
+      });
+    })();
+    </script>
+    {% endif %}
     {% include 'cookie_banner.html' %}
 </body>
 </html>

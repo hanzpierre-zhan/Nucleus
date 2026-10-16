@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 from datetime import datetime, timedelta
-from services.utilidades import ahora_peru
+from services.utilidades import ahora_peru, audit_user
 
 from flask import current_app, session, request, jsonify, make_response
 from werkzeug.utils import secure_filename
@@ -1184,7 +1184,7 @@ def _cotizacion_registro_pdf_response(rec):
         supervisor=str(d.get('SUPERVISOR', '') or ''),
         objetivo=str(d.get('OBJETIVO', '') or ''),
         ticket=pdf_ticket,
-        elaborado_por=str(d.get('GESTOR', '') or session.get('username', '')),
+        elaborado_por=str(d.get('GESTOR', '') or audit_user()),
         items=items,
         # FECHA registrada de la cotización (no la fecha de descarga)
         fecha=d.get('FECHA')

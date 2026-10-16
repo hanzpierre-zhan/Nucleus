@@ -208,7 +208,7 @@ def api_rows_update():
             historial = HistorialCambios(
                 proyecto_id=pid,
                 usuario_id=session.get('user_id'),
-                username=session.get('username'),
+                username=audit_user(),
                 key_value=str(key_val),
                 campo_modificado=field,
                 valor_anterior=str(valor_anterior),
@@ -219,12 +219,12 @@ def api_rows_update():
                 row_dict['FECHA CAMBIO ESTADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         
         row_dict[field] = value
-        row_dict['_ultimo_usuario_manual'] = session.get('username')
+        row_dict['_ultimo_usuario_manual'] = audit_user()
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        row_dict['EDITADO POR'] = session.get('username')
+        row_dict['EDITADO POR'] = audit_user()
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
         if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
-            row_dict['GESTOR'] = session.get('username')
+            row_dict['GESTOR'] = audit_user()
         
         # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
         tablas = TablaMaestra.query.filter_by(proyecto_id=pid).all()
@@ -405,7 +405,7 @@ def api_rows_add():
         if session.get('rol') == 'contrata' and proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT'):
             return jsonify({'error': 'El rol Contrata no puede crear WOs nuevos: solo completa la información de los existentes.'}), 403
         if proy_nombre == 'Combustible':
-            row_data['GESTOR'] = session.get('username', '')
+            row_data['GESTOR'] = audit_user()
             mov = str(row_data.get('MOVIMIENTO', '')).strip().upper()
             gen = str(row_data.get('QR ASIGNADO', '')).strip()
             gal = row_data.get('GALONES')
@@ -431,9 +431,9 @@ def api_rows_add():
 
         # Cotizaciones: GESTOR automático y N° COTIZACION maleable (solo se fija al generar)
         if proy_nombre == 'Cotizaciones':
-            row_data['SOLICITADO POR'] = session.get('username', '')
+            row_data['SOLICITADO POR'] = audit_user()
             import re
-            row_data['GESTOR'] = session.get('username', '')
+            row_data['GESTOR'] = audit_user()
             if not str(row_data.get('CLIENTE', '') or '').strip():
                 row_data['CLIENTE'] = 'ENTEL'
             fecha_numero = ahora_peru()
@@ -536,12 +536,12 @@ def api_rows_add():
             pk_col = str(pk_cfg.valor or '').strip() if pk_cfg else ''
             if pk_col:
                 row_data[pk_col] = key_val
-            row_data['_ultimo_usuario_manual'] = session.get('username', '')
+            row_data['_ultimo_usuario_manual'] = audit_user()
             row_data['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-            row_data['EDITADO POR'] = session.get('username', '')
+            row_data['EDITADO POR'] = audit_user()
             # FLM/PEXT: GESTOR = quien registra/edita; el admin no cuenta.
             if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
-                row_data['GESTOR'] = session.get('username', '')
+                row_data['GESTOR'] = audit_user()
             for t in TablaMaestra.query.filter_by(proyecto_id=pid).all():
                 t_cols = [c.strip() for c in t.columna_criterio.split(',')]
                 t_vals = [v.strip() for v in t.valor_criterio.split(',')]
@@ -579,7 +579,7 @@ def api_rows_add():
 
         if proy_nombre in ('FLM', 'FLM - ENTEL', 'FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL', 'PEXT'):
             db.session.add(HistorialCambios(
-                proyecto_id=pid, usuario_id=session.get('user_id'), username=session.get('username'),
+                proyecto_id=pid, usuario_id=session.get('user_id'), username=audit_user(),
                 key_value=key_val, campo_modificado='CREACIÓN',
                 valor_anterior='', valor_nuevo=key_val, fecha=datetime.utcnow()))
             schema_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
@@ -751,7 +751,7 @@ def api_rows_bulk_update():
                     _entradas = []
                 _entradas.append({
                     'texto': _bit_txt,
-                    'usuario': session.get('username') or '',
+                    'usuario': audit_user() or '',
                     'fecha': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 })
                 row_dict['_BITACORA_ENTRIES'] = _entradas
@@ -785,7 +785,7 @@ def api_rows_bulk_update():
                 historial = HistorialCambios(
                     proyecto_id=pid,
                     usuario_id=session.get('user_id'),
-                    username=session.get('username'),
+                    username=audit_user(),
                     key_value=str(key_val),
                     campo_modificado=field,
                     valor_anterior=str(valor_anterior),
@@ -793,12 +793,12 @@ def api_rows_bulk_update():
                 )
                 db.session.add(historial)
             row_dict[field] = value
-        row_dict['_ultimo_usuario_manual'] = session.get('username')
+        row_dict['_ultimo_usuario_manual'] = audit_user()
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        row_dict['EDITADO POR'] = session.get('username')
+        row_dict['EDITADO POR'] = audit_user()
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
         if _proy_bulk_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
-            row_dict['GESTOR'] = session.get('username')
+            row_dict['GESTOR'] = audit_user()
 
         new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
         if new_state and new_state != old_state:
@@ -906,7 +906,7 @@ def api_rows_finalizar():
         historial = HistorialCambios(
             proyecto_id=pid,
             usuario_id=session.get('user_id'),
-            username=session.get('username'),
+            username=audit_user(),
             key_value=str(key_val),
             campo_modificado='_FINALIZADO',
             valor_anterior=estado_anterior,
@@ -915,7 +915,7 @@ def api_rows_finalizar():
         db.session.add(historial)
 
         row_dict['_FINALIZADO'] = nuevo_estado
-        row_dict['_FINALIZADO_POR'] = session.get('username') if finalizado else ''
+        row_dict['_FINALIZADO_POR'] = audit_user() if finalizado else ''
         row_dict['_FINALIZADO_FECHA'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') if finalizado else ''
         record.data_json = safe_json_dumps(row_dict)
         db.session.commit()

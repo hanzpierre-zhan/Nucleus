@@ -391,7 +391,7 @@ def api_wo_enviar_aprobacion():
             return jsonify({'error': 'Este WO ya fue enviado a aprobación.'}), 400
         d['_ENVIADO_APROBACION'] = '1'
         d['_APROBACION_FECHA'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        d['_APROBACION_USUARIO'] = session.get('username') or ''
+        d['_APROBACION_USUARIO'] = audit_user() or ''
     elif accion == 'desbloquear':
         if rol not in ('zeno', 'suport'):
             return jsonify({'error': 'Solo el administrador puede desbloquear la aprobación.'}), 403

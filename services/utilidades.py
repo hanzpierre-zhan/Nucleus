@@ -56,6 +56,17 @@ def get_session_info():
     return uid, rol, pid
 
 
+def audit_user():
+    """Usuario a registrar en campos de auditoría (X POR, GESTOR, EDITADO POR, etc.).
+
+    En "modo silencioso" (mantenimiento), devuelve '' para no atribuir los cambios
+    al administrador que está sincerando/corrigiendo información.
+    """
+    if session.get('silent_mode'):
+        return ''
+    return session.get('username') or ''
+
+
 def get_menu_proyectos(user_id, user_rol):
     """Reutiliza permisos solo dentro de la solicitud actual, nunca entre usuarios."""
     from flask import request,has_request_context
