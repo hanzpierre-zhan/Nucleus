@@ -34,11 +34,10 @@ def _pestania(d):
 
 
 def _en_proveedor(d):
-    """Paralelo al frontend cotEnProveedor: aprobada o ya en sustentar/atendido."""
+    """Solo aprobadas con pago a proveedor, independientemente del presupuesto."""
     p = _pestania(d)
-    return bool(d.get('_PROVEEDOR_PARALELO')
-                or str(d.get('FECHA APROBACION') or '').strip()
-                or p in ('sustentar', 'atendido'))
+    return (str(d.get('TIPO GASTO APROBACION') or '').strip().casefold() == 'proveedor'
+            and p in ('sustentar', 'atendido'))
 
 
 def _money(value):

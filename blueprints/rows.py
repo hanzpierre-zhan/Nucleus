@@ -440,7 +440,7 @@ def api_rows_add():
             yr = str(fecha_numero.year)
             mes = f'{fecha_numero.month:02d}'
             cliente = str(row_data['CLIENTE']).strip().upper()
-            prefijo_coti = {'ENTEL':'EN', 'CLARO':'CL', 'INTEGRATEL':'IN'}.get(cliente)
+            prefijo_coti = {'ENTEL':'EN', 'CLARO':'CL', 'INTEGRATEL':'IN', 'PEXT':'PX'}.get(cliente)
             if not prefijo_coti:
                 return jsonify({'error':'Proyecto de cotización inválido.'}), 400
             row_data['CLIENTE'] = cliente
@@ -448,7 +448,7 @@ def api_rows_add():
             cfg_locked = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_seq').with_for_update().first()
             user_coti = str(row_data.get('N° COTIZACION', '') or '').strip()
             # Si el usuario proveyó un N° válido y no duplicado, respétalo (maleable)
-            match_coti = re.fullmatch(r'(?:HW|EN|CL|IN)-(\d{4})-(?:(0[1-9]|1[0-2])-)?(\d{6,7})', user_coti)
+            match_coti = re.fullmatch(r'(?:HW|EN|CL|IN|PX)-(\d{4})-(?:(0[1-9]|1[0-2])-)?(\d{6,7})', user_coti)
             if match_coti:
                 user_coti = f"{prefijo_coti}-{yr}-{mes}-{int(match_coti[3]):06d}"
                 equivalentes = [user_coti] + [f"{prefix}-{yr}-{int(match_coti[3]):07d}" for prefix in ('HW','EN','CL','IN')] + [f"{prefix}-{yr}-{mes}-{int(match_coti[3]):06d}" for prefix in ('EN','CL','IN')]
@@ -480,7 +480,7 @@ def api_rows_add():
                         continue
                     if _need_hw:
                         k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
-                        m = re.match(r'^(?:HW|EN|CL|IN)-(\d{4})-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})$', k2)
+                        m = re.match(r'^(?:HW|EN|CL|IN|PX)-(\d{4})-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})$', k2)
                         if m and m.group(1) == yr:
                             n = int(m.group(2))
                             if n > maxn:

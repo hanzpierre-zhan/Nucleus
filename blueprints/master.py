@@ -335,7 +335,10 @@ def manual_options():
     options = payload.get('opciones')
     if not isinstance(options, list) or len(options) > 500 or any(not isinstance(v, str) or not v.strip() or len(v) > 200 for v in options):
         return jsonify({'error': 'Ingresa opciones válidas, de hasta 200 caracteres.'}), 400
-    if normalized(payload.get('nombre','')) in PROTECTED:
+    es_operador_cotizacion = bool(project and project.nombre == 'Cotizaciones' and payload.get('nombre') == 'CLIENTE')
+    if es_operador_cotizacion and any(v.strip() not in ('ENTEL','CLARO','INTEGRATEL','PEXT') for v in options):
+        return jsonify({'error':'Los proyectos disponibles son ENTEL, CLARO, INTEGRATEL y PEXT. Un proyecto nuevo requiere configurar su operador y código.'}), 400
+    if normalized(payload.get('nombre','')) in PROTECTED and not es_operador_cotizacion:
         return jsonify({'error':'Este campo define el flujo o los permisos; no es una lista de criterios.'}), 400
     column = next((c for c in columns if c.get('nombre') == payload.get('nombre') and c.get('tipo') == 'lista'), None)
     defaults = choices([], project.nombre if project else '')

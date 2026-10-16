@@ -36,7 +36,7 @@ def cotizacion(app, monkeypatch, tmp_path):
     with app.app_context():
         pid = Proyecto.query.filter_by(nombre='Cotizaciones').one().id
         fila = NucleusData(proyecto_id=pid, key_value='TEST-PROVEEDOR',
-                           data_json=json.dumps({'ESTADO COTIZACION': 'En Aprobación'}))
+                           data_json=json.dumps({'ESTADO COTIZACION': 'En Aprobación', 'TIPO GASTO APROBACION':'Proveedor'}))
         db.session.add(fila)
         db.session.commit()
     yield pid, 'TEST-PROVEEDOR'
@@ -202,3 +202,22 @@ def test_tipo_gasto_en_aprobacion(auth_client,cotizacion,tipo):
 def test_tipo_gasto_aprobacion_invalido(auth_client,cotizacion):
     pid,key=cotizacion
     assert auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion','tipo_gasto_aprobacion':'Otro'}).status_code==400
+
+
+@pytest.mark.parametrize('gasto', ['Gasto Cobra','Refacturable'])
+@pytest.mark.parametrize('pago', ['Caja chica','Proveedor',''])
+def test_proveedor_depende_del_pago_aprobado(app, auth_client, cotizacion, gasto, pago):
+    pid,key=cotizacion
+    with app.app_context():
+        fila=NucleusData.query.filter_by(proyecto_id=pid,key_value=key).one()
+        datos=json.loads(fila.data_json);datos['TIPO DE GASTO']=gasto
+        datos['_PROVEEDOR_PARALELO']=True
+        fila.data_json=json.dumps(datos);db.session.commit()
+    respuesta=auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion','tipo_gasto_aprobacion':pago})
+    assert respuesta.status_code==200
+    datos=respuesta.json['newData']
+    assert _cot_en_proveedor(datos)==(pago=='Proveedor')
+    from services.dashboard_cotizaciones import _en_proveedor
+    assert _en_proveedor(datos)==(pago=='Proveedor')
+    if pago!='Proveedor':
+        assert auth_client.post('/api/cotizacion/proveedor',json={'key':key}).status_code==409

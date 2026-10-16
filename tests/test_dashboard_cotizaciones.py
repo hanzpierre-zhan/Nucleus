@@ -38,10 +38,10 @@ def test_pestania_mapea_igual_que_el_backend():
 
 
 def test_en_proveedor_flags():
-    assert _en_proveedor({'ESTADO COTIZACION': 'Aprobado'})
-    assert _en_proveedor({'ESTADO COTIZACION': 'Atendido'})
-    assert _en_proveedor({'ESTADO COTIZACION': 'Registro', '_PROVEEDOR_PARALELO': True})
-    assert _en_proveedor({'ESTADO COTIZACION': 'Registro', 'FECHA APROBACION': '2026-01-01'})
+    assert _en_proveedor({'ESTADO COTIZACION': 'Aprobado', 'TIPO GASTO APROBACION':'Proveedor'})
+    assert _en_proveedor({'ESTADO COTIZACION': 'Atendido', 'TIPO GASTO APROBACION':'Proveedor'})
+    assert not _en_proveedor({'ESTADO COTIZACION': 'Registro', '_PROVEEDOR_PARALELO': True})
+    assert not _en_proveedor({'ESTADO COTIZACION': 'Registro', 'FECHA APROBACION': '2026-01-01'})
     assert not _en_proveedor({'ESTADO COTIZACION': 'Pdt. Cotización'})
 
 
@@ -60,7 +60,7 @@ def test_indicadores_detalle():
               'FECHA': '01/10/2026', 'COTIZADO POR': 'hvargas'}),
         _fila('A3', 'Atendido', **{'SUBTOTAL FACTURA PROVEEDOR': '50',
               'FECHA': '2026-10-03', 'FECHA ATENCION': '2026-10-05 10:00',
-              'ADJUNTO FACTURA PROVEEDOR': '/api/x/factura.pdf'}),
+              'ADJUNTO FACTURA PROVEEDOR': '/api/x/factura.pdf', 'TIPO GASTO APROBACION':'Proveedor'}),
         _fila('A4', 'Aprobado', **{'FECHA APROBACION': '2026-10-01 08:00',
               'SOLICITADO POR': 'laracca'}),
     ]

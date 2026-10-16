@@ -252,6 +252,8 @@ def create_app(config_object=None):
     with app.app_context():
         from services.columnas_fuente import instalar as instalar_columnas_fuente
         instalar_columnas_fuente()
+        from services.form_options import instalar_pext
+        instalar_pext()
         clean_existing_config()
         from services.liquidacion_numero import numerar_historicos
         numerar_historicos()

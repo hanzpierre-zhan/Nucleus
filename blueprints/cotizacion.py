@@ -815,8 +815,8 @@ def _cot_proyecto():
 
 
 def _cot_en_proveedor(row):
-    return bool(row.get('_PROVEEDOR_PARALELO') or row.get('FECHA APROBACION')
-                or _cot_pestania(row) in ('sustentar', 'atendido'))
+    return (str(row.get('TIPO GASTO APROBACION') or '').strip().casefold() == 'proveedor'
+            and _cot_pestania(row) in ('sustentar', 'atendido'))
 
 
 def _cot_puede_gestionar():
@@ -925,7 +925,7 @@ def api_cotizacion_accion():
             return jsonify({'error': 'El tipo de gasto debe ser Caja chica o Proveedor.'}), 400
         row['TIPO GASTO APROBACION'] = tipo_gasto
         row['ESTADO COTIZACION'] = ESTADO_SUSTENTO
-        row['_PROVEEDOR_PARALELO'] = True
+        row['_PROVEEDOR_PARALELO'] = tipo_gasto == 'Proveedor'
         row['FECHA APROBACION'] = str(data.get('fecha_aprobacion') or '').strip() or ahora
         row['APROBADO POR'] = usuario
         row['COMENTARIO APROBACION'] = str(data.get('comentario') or '').strip()

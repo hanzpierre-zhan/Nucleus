@@ -21,7 +21,7 @@ def test_prefijos_comparten_secuencia_historica_y_evitan_reusar_numero(app, auth
     auth_client.get(f'/switch_project/{pid}')
     keys = [old_key]
     try:
-        for index, (client, prefix) in enumerate([('ENTEL','EN'),('CLARO','CL'),('INTEGRATEL','IN')]):
+        for index, (client, prefix) in enumerate([('ENTEL','EN'),('CLARO','CL'),('INTEGRATEL','IN'),('PEXT','PX')]):
             # A stale suggestion must not reuse the historical sequence under a new prefix.
             response = auth_client.post('/api/rows/add', json={'key':'', 'data':{
                 'CLIENTE':client, 'N° COTIZACION':old_key if index == 0 else '',
@@ -34,7 +34,7 @@ def test_prefijos_comparten_secuencia_historica_y_evitan_reusar_numero(app, auth
                 assert json.loads(row.data_json)['N° COTIZACION'] == key
         with app.app_context():
             assert NucleusData.query.filter_by(proyecto_id=pid,key_value=old_key).one()
-            assert AppConfig.query.filter_by(proyecto_id=pid,clave='cotizacion_next_seq').one().valor == '900005'
+            assert AppConfig.query.filter_by(proyecto_id=pid,clave='cotizacion_next_seq').one().valor == '900006'
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.proyecto_id==pid,NucleusData.key_value.in_(keys)).delete(synchronize_session=False)

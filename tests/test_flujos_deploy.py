@@ -11,7 +11,7 @@ def test_cotizacion_viaja_cliente_sustento_proveedor_atendido(app, auth_client):
     auth_client.get('/switch_project/%s' % pid)
     try:
         for accion, esperado in [('generar', 'En Aprobación'), ('conformar_aprobacion', 'Aprobado'), ('pasar_atendido', 'Atendido')]:
-            resultado = auth_client.post('/api/cotizacion/accion', json={'key': 'AUDIT-FLUJO-COT', 'accion': accion})
+            resultado = auth_client.post('/api/cotizacion/accion', json={'key': 'AUDIT-FLUJO-COT', 'accion': accion, 'tipo_gasto_aprobacion':'Proveedor'})
             assert resultado.status_code == 200, resultado.json
             assert resultado.json['newData']['ESTADO COTIZACION'] == esperado
             if esperado != 'En Aprobación':
