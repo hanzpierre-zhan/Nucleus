@@ -1,4 +1,4 @@
-/* Identidades aprobadas: plataforma × operador. */
+/* Identidad Nucleus y distintivos propios de proyectos. */
 .brand-lockup{display:flex;align-items:center;justify-content:center;text-decoration:none;flex-shrink:0}
 .brand-lockup img{display:block;object-fit:contain;flex-shrink:0}
 .brand-lockup__light,.brand-lockup__dark{width:100%;height:auto}
@@ -16,3 +16,5 @@ body.sidebar-collapsed .sidebar-logo.brand-lockup{padding:14px 8px!important;min
 body.sidebar-collapsed .sidebar-logo.brand-lockup .brand-lockup__light,body.sidebar-collapsed .sidebar-logo.brand-lockup .brand-lockup__dark{display:none!important}
 body.sidebar-collapsed .sidebar-logo.brand-lockup .brand-lockup__symbol{display:block!important;width:30px;height:30px}
 @media(max-width:600px){body .vl-logo.brand-lockup{width:200px;margin-bottom:18px}}
+
+.sidebar-link .project-brand-icon{width:20px;height:20px;object-fit:contain;flex:0 0 20px;vertical-align:middle}

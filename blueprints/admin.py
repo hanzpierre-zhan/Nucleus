@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, io, re, json, time, glob, zipfile, gzip, mimetypes, tempfile, csv
+import os, re, json, time, glob, zipfile, gzip, mimetypes, tempfile
 import urllib.request
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 from datetime import datetime, timedelta
@@ -10,7 +10,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-import pandas as pd
+from perezoso import pd
 from PIL import Image, ImageOps
 try:
     from pillow_heif import register_heif_opener
@@ -22,7 +22,14 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
-from services import *
+from services import (
+    login_required,
+    safe_json_dumps,
+    audit_user,
+    get_menu_proyectos,
+    puede_rendicion,
+    _od_cuenta,
+)
 
 
 bp = Blueprint('admin', __name__)
@@ -32,7 +39,7 @@ bp = Blueprint('admin', __name__)
 @bp.route('/api/debug/dataper', methods=['GET'])
 @login_required
 def api_debug_dataper():
-    """Diagnóstico de Dataper: muestra cuántos técnicos hay y sus valores de ESTADO."""
+    """DiagnÃ³stico de Dataper: muestra cuÃ¡ntos tÃ©cnicos hay y sus valores de ESTADO."""
     if session.get('rol') not in ['zeno', 'suport']:
         return jsonify({'error': 'Unauthorized'}), 403
     try:
@@ -48,10 +55,10 @@ def api_debug_dataper():
                 d = json.loads(r.data_json)
             except Exception:
                 continue
-            est = str(d.get('ESTADO') or '').strip() or '(vacío)'
+            est = str(d.get('ESTADO') or '').strip() or '(vacÃ­o)'
             estado_counter[est] = estado_counter.get(est, 0) + 1
             est_up = est.upper()
-            if est_up in ('ACTIVO', '(VACÍO)', ''):
+            if est_up in ('ACTIVO', '(VACÃO)', ''):
                 tec = str(d.get('TECNICO') or '').strip()
                 if tec:
                     tecnicos_activos.append({'tecnico': tec, 'contrata': str(d.get('CONTRATA') or ''), 'estado': est})
@@ -183,7 +190,7 @@ def api_admin_usuario():
         proyectos = data.get('proyectos', [])
         if not all([user, pw]): return jsonify({'error': 'Datos incompletos'}), 400
         if rol.strip().lower() in ('gestor', 'contrata') and not proyectos:
-            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un módulo asignado.'}), 400
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un mÃ³dulo asignado.'}), 400
         try:
             nuevo = Usuario(username=user, password_hash=generate_password_hash(pw), rol=rol, nombre=nombre)
             db.session.add(nuevo)
@@ -207,7 +214,7 @@ def api_admin_usuario():
         
         if not uid or not user: return jsonify({'error': 'ID y usuario requeridos'}), 400
         if rol.strip().lower() in ('gestor', 'contrata') and proyectos == []:
-            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un módulo asignado.'}), 400
+            return jsonify({'error': 'El rol Gestor/Contrata requiere al menos un mÃ³dulo asignado.'}), 400
         try:
             u = db.session.get(Usuario, uid)
             if not u: return jsonify({'error': 'Usuario no encontrado'}), 404
@@ -271,9 +278,11 @@ def api_admin_usuario_duplicar():
     src_u = db.session.get(Usuario, src_id)
     if not src_u: 
         return jsonify({'error': 'Usuario origen no encontrado'}), 404
+    if session.get('rol') == 'suport' and src_u.rol == 'zeno':
+        return jsonify({'error':'Suport no puede duplicar una cuenta Zeno.'}),403
         
     try:
-        nuevo = Usuario(username=new_user, password_hash=generate_password_hash(new_pw), rol=src_u.rol)
+        nuevo = Usuario(username=new_user, nombre=src_u.nombre, password_hash=generate_password_hash(new_pw), rol=src_u.rol)
         db.session.add(nuevo)
         db.session.flush() # Para obtener el nuevo ID
         
@@ -282,12 +291,28 @@ def api_admin_usuario_duplicar():
         for p in permisos:
             new_p = AccesoProyecto(usuario_id=nuevo.id, proyecto_id=p.proyecto_id, restricciones=p.restricciones)
             db.session.add(new_p)
-            
+
+        # Conservar el aislamiento y copiar permisos independientes de la cuenta origen.
+        from models import CuentaEspacio, AccesoEspacio, PerfilEspacio
+        if db.session.get(CuentaEspacio, src_u.id):
+            db.session.add(CuentaEspacio(usuario_id=nuevo.id))
+            perfiles_copiados = {}
+            for acceso in AccesoEspacio.query.filter_by(usuario_id=src_u.id).all():
+                if acceso.perfil_id not in perfiles_copiados:
+                    perfil_origen = db.session.get(PerfilEspacio, acceso.perfil_id)
+                    if perfil_origen is None:
+                        raise ValueError('La cuenta origen tiene un permiso sin definiciÃ³n.')
+                    perfil = PerfilEspacio(nombre='Duplicado Â· %s Â· %s' % (nuevo.id, perfil_origen.id),
+                                           permisos_json=perfil_origen.permisos_json)
+                    db.session.add(perfil);db.session.flush()
+                    perfiles_copiados[acceso.perfil_id] = perfil.id
+                db.session.add(AccesoEspacio(usuario_id=nuevo.id, proyecto_id=acceso.proyecto_id,
+                                             perfil_id=perfiles_copiados[acceso.perfil_id]))
         db.session.commit()
         return jsonify({'success': True, 'id': nuevo.id})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': 'Error al duplicar (¿Usuario duplicado?): ' + str(e)}), 400
+        return jsonify({'error': 'Error al duplicar (Â¿Usuario duplicado?): ' + str(e)}), 400
 
 
 @bp.route('/api/admin/permisos', methods=['GET', 'POST', 'DELETE'])
@@ -382,12 +407,46 @@ def api_column_values():
     return jsonify(sorted(list(vals)))
 
 
+_JSON_FILA = json.JSONEncoder(ensure_ascii=False, separators=(', ', ': '))
+
+
+def _volcar_json_en_zip(zf, nombre, columnas, filas):
+    """Escribe un array JSON como entrada del ZIP, fila a fila.
+
+    Antes se acumulaba toda la tabla en una lista y se serializaba de golpe
+    (para `nucleus_data` eran decenas de MB en memoria). Ahora se escribe por
+    partes: el contenido JSON es idÃ©ntico, pero el pico de memoria deja de
+    crecer con el tamaÃ±o de la tabla.
+    """
+    total = 0
+    with zf.open(nombre, 'w') as destino:
+        # Se escribe en bloques: `zf.open` comprime en cada write y encadenar
+        # 30 000 escrituras diminutas tiene sobrecarga.
+        partes = ['[']
+        for fila in filas:
+            registro = {}
+            for col, valor in zip(columnas, fila):
+                if isinstance(valor, datetime):
+                    valor = valor.strftime('%Y-%m-%d %H:%M:%S')
+                registro[col.name] = valor
+            if total:
+                partes.append(', ')
+            partes.append(_JSON_FILA.encode(registro))
+            total += 1
+            if len(partes) >= 128:
+                destino.write(''.join(partes).encode('utf-8'))
+                partes = []
+        partes.append(']')
+        destino.write(''.join(partes).encode('utf-8'))
+    return total
+
+
 @bp.route('/api/admin/export_zip', methods=['GET'])
 @login_required
 def api_admin_export_zip():
     """Respaldo completo de la DB (solo datos, las fotos son archivos y no se incluyen).
     Solo admin. Descarga un ZIP con un JSON por tabla + manifest con conteos.
-    Se excluye token_store (secretos) a propósito."""
+    Se excluye token_store (secretos) a propÃ³sito."""
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo admin'}), 403
     import zipfile
@@ -408,42 +467,30 @@ def api_admin_export_zip():
             manifest['proyecto_por_id'][str(p.id)] = p.nombre
         with zipfile.ZipFile(ruta, 'w', zipfile.ZIP_DEFLATED) as zf:
             for nombre, modelo in modelos.items():
+                columnas = list(modelo.__table__.columns)
                 tiene_pid = hasattr(modelo, 'proyecto_id')
                 if tiene_pid:
                     pids = [r[0] for r in db.session.query(modelo.proyecto_id).distinct().all()]
                     total = 0
                     for _pid in pids:
-                        fil = []
-                        q = modelo.query.filter_by(proyecto_id=_pid).order_by(modelo.id)
-                        offset = 0
-                        while True:
-                            lote = q.offset(offset).limit(2000).all()
-                            if not lote:
-                                break
-                            for obj in lote:
-                                d = {}
-                                for col in modelo.__table__.columns:
-                                    v = getattr(obj, col.name)
-                                    if isinstance(v, datetime):
-                                        v = v.strftime('%Y-%m-%d %H:%M:%S')
-                                    d[col.name] = v
-                                fil.append(d)
-                            offset += len(lote)
-                        zf.writestr(f'{nombre}_p{_pid}.json', json.dumps(fil, ensure_ascii=False))
-                        total += len(fil)
+                        # Se consultan columnas (sin instancias ORM) y en lotes:
+                        # una tabla grande ya no se materializa entera en memoria.
+                        consulta = (
+                            db.session.query(*columnas)
+                            .filter(modelo.proyecto_id == _pid)
+                            .order_by(modelo.id)
+                            .yield_per(2000)
+                        )
+                        total += _volcar_json_en_zip(zf, f'{nombre}_p{_pid}.json', columnas, consulta)
                     manifest['tablas'][nombre] = total
                 else:
-                    fil = []
-                    for obj in modelo.query.order_by(modelo.id).all():
-                        d = {}
-                        for col in modelo.__table__.columns:
-                            v = getattr(obj, col.name)
-                            if isinstance(v, datetime):
-                                v = v.strftime('%Y-%m-%d %H:%M:%S')
-                            d[col.name] = v
-                        fil.append(d)
-                    zf.writestr(f'{nombre}.json', json.dumps(fil, ensure_ascii=False))
-                    manifest['tablas'][nombre] = len(fil)
+                    consulta = (
+                        db.session.query(*columnas)
+                        .order_by(modelo.id)
+                        .yield_per(2000)
+                    )
+                    manifest['tablas'][nombre] = _volcar_json_en_zip(
+                        zf, f'{nombre}.json', columnas, consulta)
             manifest['exportado_en'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
             zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=1))
     except Exception as e:
@@ -473,7 +520,7 @@ def api_admin_od_reset():
 def api_config_consolidation():
     pid = session.get('current_proyecto_id')
     if session.get('rol') == 'demo' and request.method != 'GET':
-        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar la configuración de consolidación.'}), 403
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar la configuraciÃ³n de consolidaciÃ³n.'}), 403
     config = AppConfig.query.filter_by(proyecto_id=pid, clave='consolidation_config').first()
     
     if request.method == 'GET':
@@ -495,7 +542,7 @@ def api_config_cotizacion_margen():
     """Porcentaje de margen aplicado al Precio Cobra para calcular Precio Unid (default 30)."""
     pid = session.get('current_proyecto_id')
     if session.get('rol') == 'demo' and request.method != 'GET':
-        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar el margen de cotización.'}), 403
+        return jsonify({'error': 'Rol DEMO no tiene permisos para modificar el margen de cotizaciÃ³n.'}), 403
     config = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_margen_pct').first()
 
     if request.method == 'GET':
@@ -511,7 +558,7 @@ def api_config_cotizacion_margen():
         try:
             pct = float(data.get('porcentaje', 30))
         except (TypeError, ValueError):
-            return jsonify({'error': 'Porcentaje inválido'}), 400
+            return jsonify({'error': 'Porcentaje invÃ¡lido'}), 400
         if pct < 0:
             return jsonify({'error': 'El porcentaje no puede ser negativo'}), 400
         if config:
@@ -551,339 +598,11 @@ def api_config_init_manual():
         return jsonify({'error': str(e)}), 500
 
 
-RENDICION_CSV_TEMPLATE = 'https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}'
-# Claves AppConfig usadas por el módulo Rendición:
-#   rendicion_csv_url  -> URL CSV pública del Google Form
-#   rendicion_sync_key -> token de sincronización (cron externo)
 
 
-@bp.route('/api/rendicion/sync', methods=['GET', 'POST'])
-def api_rendicion_sync():
-    """Importa SOLO las filas nuevas del Google Form al módulo 'Rendicion'.
-
-    Autorización por dos vías:
-      - Botón "Sincronizar" en la web: cualquier usuario que tenga el módulo
-        Rendicion habilitado (no depende del rol).
-      - Cron externo: ?key=<rendicion_sync_key> (sin sesión).
-    No toca filas existentes: solo inserta claves nuevas (Marca temporal).
-    """
-    key = request.args.get('key') or (request.get_json(silent=True) or {}).get('key', '')
-    cfg = AppConfig.query.filter_by(clave='rendicion_sync_key').first()
-    key_valida = bool(cfg and cfg.valor and key == cfg.valor)
-    if not key_valida:
-        autorizado_web = bool(
-            session.get('user_id')
-            and puede_rendicion(session.get('user_id'), session.get('rol'),
-                                session.get('current_proyecto_nombre'))
-        )
-        if not autorizado_web:
-            if not key:
-                return jsonify({'error': 'Falta la key de sincronización.'}), 400
-            return jsonify({'error': 'Key de sincronización inválida.'}), 403
-
-    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
-    if not proy:
-        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
-
-    url_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='rendicion_csv_url').first()
-    csv_url = (url_cfg.valor if url_cfg and url_cfg.valor else '').strip()
-    if not csv_url:
-        return jsonify({'error': 'No hay URL de CSV configurada (rendicion_csv_url).'}), 500
-
-    # Descargar CSV
-    try:
-        req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read()
-    except Exception as e:
-        return jsonify({'error': 'No se pudo descargar el CSV: %s' % e}), 502
-    text = raw.decode('utf-8-sig', errors='replace')
-
-    reader = csv.DictReader(io.StringIO(text))
-    fields = reader.fieldnames or []
-    # Clave del módulo: la que esté configurada en primary_key (Marca temporal en Rendicion).
-    pk_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='primary_key').first()
-    pk_col = (pk_cfg.valor if pk_cfg and pk_cfg.valor else '').strip() or 'Marca temporal'
-    if pk_col not in fields:
-        return jsonify({'error': 'El CSV no tiene la columna clave "%s".' % pk_col}), 502
-
-    # 'Observaciones' del form se renombra para no chocar con la columna manual OBSERVACIONES.
-    renombrar = {'Observaciones': 'Observaciones (Form)'}
-
-    # Claves que escribe el sistema/flujo del módulo: si el form trajera un
-    # encabezado idéntico, se desplaza con sufijo ' (Form)' para no pisarlas.
-    claves_sistema = {
-        '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
-        'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
-        'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal',
-        'ESTADO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
-        'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',
-        'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',
-        'RECHAZADO POR', 'FECHA VALIDACION', 'VALIDADO POR',
-        'DEPOSITADO POR', 'SUSTENTADO POR', 'EDITADO POR',
-        'RECHAZADO DESDE', 'VECES RECHAZADO', 'DEVUELTO POR',
-        'FECHA DEVOLUCION', '_SUSTENTO_MARCAS',
-        'OBSERVADO POR', 'FECHA OBSERVACION', 'ARCHIVADO POR', 'FECHA ARCHIVO',
-        'DESARCHIVADO POR', 'FECHA DESARCHIVO', '_HISTORIAL_FLUJO',
-        '_RECHAZO_ETAPA', 'ANULADO DESDE', 'ANULADO POR', 'FECHA ANULACION',
-    }
-
-    # Esquema DINÁMICO: las columnas del grid del form son exactamente las que
-    # traiga el CSV HOY. Agregar, quitar o renombrar una pregunta en el form se
-    # refleja en el próximo sync (sin tocar código): las nuevas aparecen, las
-    # dadas de baja (o renombradas) dejan de mostrarse.
-    # El 2.º formulario (SUSTENTO_*) y las claves que escribe el flujo NO vienen
-    # del CSV: este sync las conserva en lugar de borrarlas.
-    schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
-    try:
-        schema_previo = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
-    except Exception:
-        schema_previo = set()
-    sistema_cols = {c for c in schema_previo
-                    if c.startswith('SUSTENTO_') or c in claves_sistema}
-    form_previas = schema_previo - sistema_cols
-
-    mapa_cols = {}
-    for f in fields:
-        if f is None or not str(f).strip():
-            continue
-        nombre_col = renombrar.get(str(f).strip(), str(f).strip())
-        if nombre_col in claves_sistema:
-            nombre_col = '%s (Form)' % nombre_col
-        if nombre_col not in mapa_cols.values():
-            mapa_cols[f] = nombre_col
-    form_actual = set(mapa_cols.values())
-    columnas_agregadas = sorted(form_actual - form_previas)
-    columnas_quitadas = sorted(form_previas - form_actual)
-    schema_cols = form_actual | sistema_cols
-
-    from services.rendicion_personal import indice_personal, completar_personal
-    personal = indice_personal()
-    verificadas = 0
-    pendientes_personal = 0
-    nuevas = 0
-    omitidas = 0
-    t0 = time.time()
-    # Claves existentes en una sola consulta (antes: 1 query por fila del CSV).
-    existentes = {r[0] for r in NucleusData.query.with_entities(NucleusData.key_value)
-                  .filter_by(proyecto_id=proy.id).all()}
-    for row in reader:
-        from services.rendicion_origen import recibir_en_nucleus
-        if not recibir_en_nucleus(row):
-            omitidas += 1
-            continue
-        datos = {}
-        for f in fields:
-            nombre_col = mapa_cols.get(f)
-            if not nombre_col:
-                continue
-            datos[nombre_col] = (row.get(f) or '').strip()
-        
-        id_sol = str(datos.get(pk_col, '') or '').strip()
-        if not id_sol:
-            omitidas += 1
-            continue
-        if id_sol in existentes:
-            omitidas += 1
-            continue
-        completar_personal(datos, personal)
-        if datos['VERIFICACIÓN PERSONAL'] == 'Verificado':
-            verificadas += 1
-        else:
-            pendientes_personal += 1
-        db.session.add(NucleusData(proyecto_id=proy.id, key_value=id_sol,
-                                   data_json=safe_json_dumps(datos)))
-        existentes.add(id_sol)
-        schema_cols.update(set(datos.keys()))
-        nuevas += 1
-
-    # Completar los registros anteriores sin modificar importes, etapas ni evidencias.
-    personal_actualizado = 0
-    for registro in NucleusData.query.filter_by(proyecto_id=proy.id).yield_per(500):
-        anteriores = json.loads(registro.data_json or '{}')
-        cruzados = completar_personal(dict(anteriores), personal)
-        if cruzados['_PERSONAL_CRUCE']['estado'] not in ('VERIFICADO', 'SIN DEPARTAMENTO EN PERSONAL'):
-            continue
-        if cruzados != anteriores:
-            registro.data_json = safe_json_dumps(cruzados)
-            personal_actualizado += 1
-    schema_cols.add('DEPARTAMENTO')
-    schema_cols.update({'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal'})
-
-    # Persistir esquema DINÁMICO (reemplaza columnas dadas de baja, no solo agrega)
-    if schema_cfg:
-        schema_cfg.valor = safe_json_dumps(sorted(schema_cols))
-    else:
-        db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema',
-                                 valor=safe_json_dumps(sorted(schema_cols))))
-    # Podar el layout: quitar entradas de columnas de form que ya no existen
-    # (quitadas o renombradas) para que no queden fantasmas en la tabla.
-    try:
-        layout_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='column_layout').first()
-        if layout_cfg and layout_cfg.valor:
-            layout = json.loads(layout_cfg.valor)
-            quitadas = set(columnas_quitadas)
-            layout_filtrado = [e for e in layout if e.get('field') not in quitadas]
-            if len(layout_filtrado) != len(layout):
-                layout_cfg.valor = safe_json_dumps(layout_filtrado)
-    except Exception:
-        pass
-    db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'nuevas': nuevas,
-        'personal_verificado': verificadas,
-        'personal_actualizado': personal_actualizado,
-        'personal_pendiente_verificar': pendientes_personal,
-        'omitidas_existentes': omitidas,
-        'columnas_agregadas': columnas_agregadas,
-        'columnas_quitadas': columnas_quitadas,
-        'segundos': round(time.time() - t0, 2),
-    })
-@bp.route('/api/rendicion/sync_sustentos', methods=['POST'])
-def api_rendicion_sync_sustentos():
-    """Sincroniza los sustentos desde la segunda hoja de Google Sheets."""
-    autorizado = bool(session.get('user_id')
-                       and puede_rendicion(session.get('user_id'), session.get('rol'),
-                                           session.get('current_proyecto_nombre')))
-    if not autorizado:
-        return jsonify({'error': 'No autorizado.'}), 403
-
-    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
-    if not proy:
-        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
-
-    # URL configurable (AppConfig rendicion_sustentos_url) con fallback a la hoja fija.
-    url_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='rendicion_sustentos_url').first()
-    csv_url = ((url_cfg.valor if url_cfg and url_cfg.valor else '').strip()
-               or 'https://docs.google.com/spreadsheets/d/18CYUhXGN8jWk4hzr194p3vhdU6H90WD-O0Aw77WxgEY/export?format=csv&gid=831408062')
-    try:
-        req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            raw = resp.read()
-    except Exception as e:
-        return jsonify({'error': 'No se pudo descargar el CSV de Sustentos: %s' % e}), 502
-    
-    text = raw.decode('utf-8-sig', errors='replace')
-    reader = csv.DictReader(io.StringIO(text))
-    fields = reader.fieldnames or []
-
-    # Buscamos la columna CODIGO DEPOSITO
-    col_codigo = next((f for f in fields if 'codigo' in str(f).lower() and 'deposito' in str(f).lower()), None)
-    if not col_codigo:
-        # Fallback a la primera columna o un nombre estandar
-        col_codigo = 'CODIGO DEPOSITO' if 'CODIGO DEPOSITO' in fields else (fields[0] if fields else None)
-    
-    if not col_codigo:
-         return jsonify({'error': 'No se encontro la columna CODIGO DEPOSITO en la hoja.'}), 400
-
-    # Independencia del form 2: cada envío (Marca temporal) aplica UNA sola vez.
-    # Si la hoja no trae columna de fecha/hora, se conserva el comportamiento
-    # anterior (refresh de SUSTENTO_*) por compatibilidad.
-    col_marca = next((f for f in fields
-                      if 'marca' in str(f).lower() and 'temporal' in str(f).lower()), None)
-    if not col_marca:
-        col_marca = next((f for f in fields
-                          if str(f).strip().lower() in ('marca temporal', 'timestamp',
-                                                        'marca de tiempo')), None)
-
-    # Los datos del 2.º formulario se guardan en la fila como SUSTENTO_* y SÍ
-    # son columnas del grid: se agregan al esquema al final del sync. Quedan
-    # ocultas por defecto (no estorban en Validación/Depósitos) y las pestañas
-    # Evidencia y Rendición las muestran con showPrefijos.
-    schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
-
-    actualizados = 0
-    omitidos = 0
-    no_encontrados = 0
-    nuevas_sustento = set()
-    t0 = time.time()
-
-    # Índice único por CODIGO DEPOSITO (antes: full-scan por cada fila del CSV).
-    idx_cod = {}
-    for d in NucleusData.query.filter_by(proyecto_id=proy.id).all():
-        try:
-            dj = json.loads(d.data_json)
-        except Exception:
-            continue
-        cod = str(dj.get('CODIGO DEPOSITO', '') or '').strip()
-        if cod and cod not in idx_cod:
-            idx_cod[cod] = (d, dj)
-
-    for row in reader:
-        cod = (row.get(col_codigo) or '').strip()
-        if not cod: continue
-
-        target, target_dict = idx_cod.get(cod, (None, None))
-        if not target:
-            no_encontrados += 1
-            continue
-            
-        estado_actual = str(target_dict.get('ESTADO', '')).strip().upper()
-        from blueprints.rendicion import _etapa_de
-        rechazo_evidencia = estado_actual == 'RECHAZADO' and _etapa_de(target_dict) == 'EVIDENCIA'
-        if estado_actual not in ('DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO') and not rechazo_evidencia:
-            omitidos += 1
-            continue
-
-        # Cada envío del 2.º formulario aplica una sola vez (append-only por
-        # Marca temporal): los cambios posteriores en el form ya no re-escriben
-        # lo que se haya corregido en la app (independencia del form 2).
-        marca_actual = None
-        if col_marca:
-            marca_actual = str(row.get(col_marca) or '').strip()
-            if not marca_actual:
-                omitidos += 1
-                continue
-            procesadas = set()
-            for x in str(target_dict.get('_SUSTENTO_MARCAS', '') or '').replace(';', '\n').split('\n'):
-                x = x.strip()
-                if x:
-                    procesadas.add(x)
-            if marca_actual in procesadas:
-                omitidos += 1
-                continue
-
-        for k, v in row.items():
-            if k and k != col_codigo and k != col_marca:
-                col = 'SUSTENTO_%s' % k.upper()
-                target_dict[col] = str(v).strip()
-                nuevas_sustento.add(col)
-
-        if estado_actual == 'DEPOSITADO' or rechazo_evidencia:
-            target_dict['ESTADO'] = 'CON SUSTENTO'
-        if marca_actual:
-            procesadas.add(marca_actual)
-            target_dict['_SUSTENTO_MARCAS'] = ';'.join(sorted(procesadas))
-        target.data_json = safe_json_dumps(target_dict)
-        actualizados += 1
-
-    # ── Columnas del 2.º formulario: se suman al esquema del módulo ─────────
-    try:
-        schema_previo = list(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else []
-    except Exception:
-        schema_previo = []
-    faltantes = sorted(set(nuevas_sustento) - set(schema_previo))
-    if faltantes and schema_cfg:
-        schema_cfg.valor = safe_json_dumps(sorted(set(schema_previo) | set(nuevas_sustento)))
-
-    db.session.commit()
-
-    return jsonify({
-        'success': True,
-        'actualizados': actualizados,
-        'omitidos_por_estado': omitidos,
-        'no_encontrados': no_encontrados,
-        'columnas_sustento': len(nuevas_sustento),
-        'columnas_nuevas': faltantes,
-        'segundos': round(time.time() - t0, 2)
-    })
-
-
-# ── Admin: forzar estado de una cotización (módulo Cotizaciones) ───────────────
+# â”€â”€ Admin: forzar estado de una cotizaciÃ³n (mÃ³dulo Cotizaciones) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ESTADOS_COT_VALIDOS = (
-    'Pdt. Cotización', 'En Aprobación', 'Atendido', 'Cancelado',
+    'Pdt. CotizaciÃ³n', 'En AprobaciÃ³n', 'Atendido', 'Cancelado',
     'Cotizado', 'En proceso', 'Observado', 'Rechazado', 'Validado',
 )
 
@@ -891,7 +610,7 @@ ESTADOS_COT_VALIDOS = (
 @bp.route('/api/admin/cotizacion/forzar_estado', methods=['POST'])
 @login_required
 def api_admin_cotizacion_forzar_estado():
-    """Fuerza el ESTADO COTIZACION de un registro del módulo Cotizaciones.
+    """Fuerza el ESTADO COTIZACION de un registro del mÃ³dulo Cotizaciones.
     Solo para admin (zeno / suport). Registra el cambio en historial."""
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo administradores pueden forzar estados.'}), 403
@@ -903,11 +622,11 @@ def api_admin_cotizacion_forzar_estado():
     if not key:
         return jsonify({'error': 'Falta la clave del registro (key).'}), 400
     if nuevo not in ESTADOS_COT_VALIDOS:
-        return jsonify({'error': 'Estado inválido. Opciones: ' + ', '.join(ESTADOS_COT_VALIDOS)}), 400
+        return jsonify({'error': 'Estado invÃ¡lido. Opciones: ' + ', '.join(ESTADOS_COT_VALIDOS)}), 400
 
     proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
     if not proy:
-        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+        return jsonify({'error': 'MÃ³dulo Cotizaciones no existe.'}), 404
 
     fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
     if not fila:
@@ -952,7 +671,7 @@ def api_admin_cotizacion_forzar_estado():
 @bp.route('/api/admin/cotizacion/lista', methods=['GET'])
 @login_required
 def api_admin_cotizacion_lista():
-    """Lista cotizaciones del módulo Cotizaciones filtradas por estado/texto.
+    """Lista cotizaciones del mÃ³dulo Cotizaciones filtradas por estado/texto.
     Solo para admin (zeno / suport)."""
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'No autorizado.'}), 403
@@ -977,7 +696,7 @@ def api_admin_cotizacion_lista():
         if filtro_q:
             haystack = ' '.join([
                 f.key_value, estado,
-                str(d.get('N° COTIZACION') or ''),
+                str(d.get('NÂ° COTIZACION') or ''),
                 str(d.get('CLIENTE') or ''),
                 str(d.get('NUMERO WO') or ''),
                 str(d.get('NOMBRE SITE') or ''),
@@ -987,7 +706,7 @@ def api_admin_cotizacion_lista():
                 continue
         resultado.append({
             'key':     f.key_value,
-            'codigo':  str(d.get('N° COTIZACION') or f.key_value),
+            'codigo':  str(d.get('NÂ° COTIZACION') or f.key_value),
             'estado':  estado,
             'cliente': str(d.get('CLIENTE') or ''),
             'wo':      str(d.get('NUMERO WO') or ''),
@@ -999,7 +718,7 @@ def api_admin_cotizacion_lista():
     return jsonify({'registros': resultado, 'total': len(resultado)})
 
 
-# Infraestructura: panel compacto, restringido a administración.
+# Infraestructura: panel compacto, restringido a administraciÃ³n.
 @bp.route('/salud')
 @login_required
 def salud_panel():

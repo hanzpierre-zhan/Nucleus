@@ -2,7 +2,7 @@
 import json
 import re
 from flask import g
-from models import AppConfig, Usuario, Proyecto
+from models import AppConfig, Usuario, Proyecto, AccesoProyecto
 from db import db
 
 ADMIN_ROLES = ('zeno', 'suport', 'admin')
@@ -37,6 +37,28 @@ def puede_validar(row, usuario_id, rol):
     if not cfg.get('activo'):
         return True  # Compatibilidad hasta que el administrador configure la regla.
     return proyecto_fila(row) in cfg.get('asignaciones', {}).get(str(usuario_id), [])
+
+
+def accesos_rendicion(usuarios):
+    """{usuario_id: ¿lleva el módulo Rendición en su menú?} para toda la lista.
+
+    Aplica la misma regla que `services.utilidades.puede_rendicion` para el
+    módulo Rendición (zeno/suport ven todos los módulos; el resto, solo los que
+    tiene asignados), pero resuelta con dos consultas fijas en vez de una por
+    usuario: la pantalla de validadores lista a todos los usuarios.
+    """
+    proyecto = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if proyecto is None:
+        return {u.id: False for u in usuarios}
+    acceso = {u.id: str(u.rol or '').strip().lower() in ('zeno', 'suport') for u in usuarios}
+    consultados = [uid for uid, tiene in acceso.items() if not tiene]
+    if consultados:
+        asignados = db.session.query(AccesoProyecto.usuario_id).filter(
+            AccesoProyecto.usuario_id.in_(consultados),
+            AccesoProyecto.proyecto_id == proyecto.id).all()
+        for (usuario_id,) in asignados:
+            acceso[usuario_id] = True
+    return acceso
 
 
 def guardar(payload):

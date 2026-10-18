@@ -1,0 +1,42 @@
+name: pruebas
+
+# Se deja en disparo MANUAL a propósito.
+#
+# Las pruebas se han validado en Windows, que es el entorno donde corre la app
+# (runtime.txt = python-3.11.8). Antes de activarlo en cada push conviene
+# comprobar una vez que pasan en Linux; para ello, descomenta las líneas de
+# `push` y `pull_request` de abajo.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Descargar el navegador de la prueba de humo
+        # Si este paso se omite o falla, la prueba de navegador se SALTA sola y
+        # el resto de la suite sigue igual.
+        run: python -m playwright install --with-deps chromium
+
+      - name: Ejecutar las pruebas
+        # Las pruebas se aíslan solas en una base SQLite temporal, por lo que no
+        # hace falta una base de datos real ni secretos.
+        env:
+          FLASK_ENV: testing
+          SECRET_KEY: ci-secret
+        run: python -m pytest tests

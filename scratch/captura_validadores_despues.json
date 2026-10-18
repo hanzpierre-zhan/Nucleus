@@ -1,0 +1,9 @@
+{
+  "rutas": {
+    "/api/rendicion/validadores": {
+      "code": 200,
+      "bytes": 1892,
+      "sha": "05a10c30a7717cddce835db00958a947f2ae86a023040db047a1766923ea9e84"
+    }
+  }
+}

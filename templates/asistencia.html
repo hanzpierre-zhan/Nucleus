@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Asistencia mensual — Nucleus{% endblock %}
+{% block content %}
+<meta name="asistencia-csrf" content="{{ session.get('asistencia_csrf') }}">
+<link rel="stylesheet" href="/static/css/asistencia.css?v=7">
+<link rel="stylesheet" href="/static/css/personal.css?v=2">
+<section class="attendance">
+<div class="attendance-topbar">
+<strong>Asistencia</strong>
+<div class="attendance-control-group" aria-label="Período y filtros">
+<label>Mes<select id="as-mes" aria-label="Mes"></select></label>
+<label>Año<input id="as-anio" aria-label="Año" type="number" min="1900" max="9999"></label>
+<label>Proyecto<select id="as-proyecto" aria-label="Proyecto"></select></label>
+<label>Personal<select id="as-personal"><option value="activos">Activos</option><option value="cesados">Cesados</option><option value="ambos">Ambos</option></select></label>
+<button id="as-consultar">Consultar</button>
+<input id="as-buscar" type="search" placeholder="Buscar personal…" aria-label="Buscar personal">
+</div>
+<div class="attendance-control-group attendance-mark-group" aria-label="Marcación por rango">
+<label>Marcar<select id="as-pincel" aria-label="Estado para marcar"></select></label>
+<label>Días<input id="as-desde" aria-label="Desde el día" type="number" min="1" max="31" value="1"></label>
+<label>al<input id="as-hasta" aria-label="Hasta el día" type="number" min="1" max="31" value="1"></label>
+<button id="as-aplicar" title="Aplicar el estado a los trabajadores seleccionados en todos los días del rango">Aplicar</button>
+</div>
+<div class="attendance-control-group attendance-save-group" aria-label="Guardar o descartar marcas">
+<button id="as-guardar" disabled>Guardar cambios</button><button id="as-deshacer" title="Descartar las marcas sin guardar">Descartar</button>
+</div>
+<div class="attendance-control-group attendance-exit-group" aria-label="Exportar y regresar">
+<button id="as-exportar">Exportar Excel</button>
+<a class="personal-attendance-link" href="{{ '/espacios?modulo=personal' if session.get('current_proyecto_nombre') != 'Dataper' else '/' }}"><i class="fa-solid fa-users" aria-hidden="true"></i> Volver a Personal</a>
+</div>
+</div>
+<div class="attendance-stats" id="as-totales" aria-label="Estados del mes"></div>
+<div class="attendance-table" tabindex="0" role="region" aria-label="Planilla de asistencia con desplazamiento horizontal"><table id="as-planilla"><thead id="as-cabecera"></thead><tbody id="as-filas"></tbody></table></div>
+<span id="as-pendientes" class="attendance-hint">Pulsa las celdas para marcar directamente.</span><div id="as-estado" role="status" aria-live="polite"></div>
+
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="/static/js/asistencia.js?v=7"></script>{% endblock %}

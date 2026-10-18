@@ -3,6 +3,26 @@ import pytest
 from db import db
 from models import Proyecto,NucleusData
 
+
+def test_clave_wo_compartida_no_mezcla_rendiciones(app,auth_client):
+    with app.app_context():
+        ids={p.nombre:p.id for p in Proyecto.query.all()};filas=[]
+        for n in ('FLM - CLARO','FLM - INTEGRATEL'):
+            filas.append(NucleusData(proyecto_id=ids[n],key_value='WO-COMPARTIDA',data_json='{}'))
+        for i,n in enumerate(('Claro','Integratel','')):
+            filas.append(NucleusData(proyecto_id=ids['Rendicion'],key_value='REND-COMPARTIDA-'+str(i),data_json=json.dumps({'Número CM / PM / PLM':'WO-COMPARTIDA','Nombre del proyecto':n,'Técnico beneficiario':n or 'Sin proyecto'})))
+        db.session.add_all(filas);db.session.commit();creados=[x.id for x in filas]
+    try:
+        r=auth_client.get('/api/rendicion/por_wo',query_string={'key':'WO-COMPARTIDA','proyecto_id':ids['FLM - CLARO']})
+        assert r.status_code==200
+        assert [x['tecnico'] for x in r.json['lista']]==['Claro']
+        from blueprints.cotizacion import _resolver_wo_sustento
+        with app.app_context():
+            assert _resolver_wo_sustento('WO-COMPARTIDA') is None
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.id.in_(creados)).delete(synchronize_session=False);db.session.commit()
+
 @pytest.mark.parametrize('nombre',['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO'])
 def test_pestanas_y_rendiciones_por_wo(app,auth_client,nombre):
     with app.app_context():

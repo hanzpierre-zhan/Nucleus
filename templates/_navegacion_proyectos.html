@@ -1,0 +1,11 @@
+<div class="sidebar-section-label">Proyectos</div>
+<label class="project-selector"><span class="sr-only">Proyecto activo</span><select id="proyecto" aria-label="Proyecto activo">
+{% if navegacion_negocio.proyectos|length > 1 %}<option value="todos" {% if navegacion_negocio.seleccion == 'todos' %}selected{% endif %}>Todos mis proyectos</option>{% endif %}
+{% for p in navegacion_negocio.proyectos %}<option value="{{ p.id }}" {% if navegacion_negocio.seleccion == p.id|string %}selected{% endif %}>{{ p.nombre }}</option>{% endfor %}
+{% if not navegacion_negocio.proyectos %}<option value="todos">Sin proyectos asignados</option>{% endif %}
+</select></label>
+{% if navegacion_negocio.admin %}<div class="sidebar-section-label">Analytics</div><a href="/analytics" class="sidebar-link {% if request.path.startswith('/analytics') %}active{% endif %}"><i class="fa-solid fa-chart-pie"></i><span class="sidebar-link-text">Dashboard</span></a>{% endif %}
+<div class="sidebar-section-label">Módulos</div>
+<nav id="modulos" aria-label="Módulos autorizados">
+{% for m in navegacion_negocio.modulos %}<a href="/espacios?proyecto={{ navegacion_negocio.seleccion }}&amp;modulo={{ m.id }}" data-modulo="{{ m.id }}" class="sidebar-link {% if request.path == '/espacios' and not request.args.get('administrar') and navegacion_negocio.modulo == m.id %}active{% endif %}"><i class="fa-solid {{ m.icono }}"></i><span class="sidebar-link-text">{{ m.nombre }}</span></a>{% endfor %}
+</nav>

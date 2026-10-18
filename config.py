@@ -38,6 +38,8 @@ class Config:
     """Configuración base — válida para todos los entornos."""
     TESTING = False
     DEBUG = False
+    # Piloto independiente; requiere asignaciones expresas antes de habilitarlo.
+    ESPACIOS_HABILITADOS = os.environ.get('ESPACIOS_HABILITADOS') == '1'
     _sk = os.environ.get('SECRET_KEY')
     if not _sk:
         # Generar una clave aleatoria para evitar el default inseguro

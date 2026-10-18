@@ -92,13 +92,15 @@ def test_ruta_dashboard_rendicion(app, auth_client):
                 assert 'dash-switch' in pagina, ruta
                 assert 'analytics-comun.css' in pagina, ruta
             # La barra de recursos del FLM no debe aparecer en ninguna vista de Analytics.
-            # Control positivo: con un FLM como proyecto actual, SÍ aparece en una
-            # vista normal (en '/' también está excluida), si no la comprobación
+            # Los catálogos ahora tienen accesos propios en el menú de módulos.
+            # Con un FLM como proyecto actual, la comprobación
             # de abajo no probaría nada.
             flm = Proyecto.query.filter_by(nombre='FLM - ENTEL').first()
             if flm:
                 auth_client.get('/switch_project/%s' % flm.id)
-                assert 'flm-resource-bar' in auth_client.get('/configuraciones').get_data(as_text=True)
+                html = auth_client.get('/configuraciones').get_data(as_text=True)
+                assert 'flm-resource-bar' not in html
+                assert 'sidebar-link-text">Personal</span>' in html
                 for ruta in ('/analytics', '/analytics/cotizaciones', '/analytics/rendicion'):
                     assert 'flm-resource-bar' not in auth_client.get(ruta).get_data(as_text=True), ruta
         finally:

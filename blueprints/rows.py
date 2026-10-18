@@ -10,7 +10,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-import pandas as pd
+from perezoso import pd
 from PIL import Image, ImageOps
 try:
     from pillow_heif import register_heif_opener
@@ -22,7 +22,21 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
-from services import *
+from services import (
+    login_required,
+    ahora_peru,
+    safe_json_dumps,
+    inject_kpis,
+    audit_user,
+    _parse_galones,
+    _combustible_fecha_norm,
+    _combustible_fecha_ord,
+    _combustible_filas_gen,
+    _combustible_chequear,
+    _combustible_validar_gasto,
+    _flm_registro_hermano,
+    _flm_sync_campos,
+)
 from services.sustento import cambio_bloqueado
 from services.recursos_flm import contexto_recursos, validar_fila_catalogo, familia
 
@@ -71,6 +85,16 @@ def api_rows_update():
         record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
         if not record: return jsonify({'error': 'Record not found'}), 404
         row_dict = json.loads(record.data_json)
+        if session.get('current_proyecto_nombre') in ('Material','SITE','Generadores'):
+            from services.proyectos_catalogo import validar as validar_proyecto
+            try: value = validar_proyecto({field:value}).get(field,value)
+            except ValueError as error: return jsonify(error=str(error)),400
+
+        if session.get('current_proyecto_nombre') == 'Dataper':
+            from services.personal import validar as validar_personal
+            try: value = validar_personal({field:value}).get(field,value)
+            except ValueError as error: return jsonify(error=str(error)),400
+
         from services.rendicion_validadores import error_edicion
         error = error_edicion(pid, row_dict, {field: value}, session.get('rol'))
         if error:
@@ -399,6 +423,16 @@ def api_rows_add():
         if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material'):
             row_data['PROYECTO'] = contexto['flm_nombre']
 
+        if proy_nombre_chk == 'Dataper':
+            from services.personal import validar as validar_personal
+            try: row_data = validar_personal(row_data, nuevo=True)
+            except ValueError as error: return jsonify(error=str(error)),400
+
+        if proy_nombre_chk in ('Material','SITE','Generadores'):
+            from services.proyectos_catalogo import validar as validar_proyecto
+            try: row_data = validar_proyecto(row_data,nuevo=True)
+            except ValueError as error: return jsonify(error=str(error)),400
+
         # Combustible: forzar GESTOR = usuario que registra y validar saldo en GASTO.
         proy_obj = db.session.get(Proyecto, pid)
         proy_nombre = proy_obj.nombre.strip() if proy_obj and proy_obj.nombre else ''
@@ -637,6 +671,12 @@ def api_rows_delete():
         keys = [str(k).strip() for k in keys if str(k or '').strip()]
         keys = list(dict.fromkeys(keys))  # dedup preservando orden
         if not keys: return jsonify({'error': 'No se especificaron registros para eliminar'}), 400
+        if proy_nombre == 'Dataper':
+            from models import AsistenciaDiaria
+            personas=[r.id for r in NucleusData.query.filter(NucleusData.proyecto_id==pid,NucleusData.key_value.in_(keys))]
+            if personas and AsistenciaDiaria.query.filter(AsistenciaDiaria.personal_id.in_(personas)).first():
+                return jsonify(error='Este personal tiene asistencia registrada. Cambia su estado a Cesado para conservar el historial.'),409
+
         
         # Combustible: eliminar un INGRESO (o cualquier movimiento) no puede
         # dejar en negativo el historial del generador.
@@ -693,6 +733,14 @@ def api_rows_bulk_update():
             return jsonify({'error': 'El proyecto se asigna desde el FLM de origen.'}), 400
         if not key_val or not isinstance(updates, dict):
             return jsonify({'error': 'Datos incompletos'}), 400
+        if session.get('current_proyecto_nombre') == 'Dataper':
+            from services.personal import validar as validar_personal
+            try: updates = validar_personal(updates)
+            except ValueError as error: return jsonify(error=str(error)),400
+        if session.get('current_proyecto_nombre') in ('Material','SITE','Generadores'):
+            from services.proyectos_catalogo import validar as validar_proyecto
+            try: updates = validar_proyecto(updates)
+            except ValueError as error: return jsonify(error=str(error)),400
         record = NucleusData.query.filter_by(proyecto_id=pid, key_value=str(key_val)).first()
         if not record: return jsonify({'error': 'Registro no encontrado'}), 404
         row_dict = json.loads(record.data_json)

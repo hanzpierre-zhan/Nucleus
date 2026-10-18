@@ -1,12 +1,10 @@
 """Cruce de nuevas solicitudes con el catálogo de Personal (Dataper)."""
 import json
 import re
-import unicodedata
+from services.normalizacion import normalizar
 from models import Proyecto, NucleusData
 
 
-def normalizar(valor):
-    return re.sub(r'[^a-z0-9]', '', ''.join(c for c in unicodedata.normalize('NFKD', str(valor or '')).lower() if not unicodedata.combining(c)))
 
 
 def documento(valor):

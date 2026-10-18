@@ -32,11 +32,22 @@ def sugerencias():
     ids=[p.id for p in permitidos if p.nombre=='SITE']
     sites={}
     if ids:
-        for fila in NucleusData.query.filter(NucleusData.proyecto_id.in_(ids)).all():
-            try: datos=json.loads(fila.data_json or '{}')
+        claves_site=('site','nombresite','nombredesite','nombredelsite','sitename')
+        # El nombre de cada campo se evalúa una sola vez (antes: una llamada a
+        # normalizar por cada campo de cada fila; con 5 583 filas eran ~111 000).
+        es_clave_site={}
+        # Solo se lee data_json (sin instanciar un objeto ORM por fila) y por lotes.
+        filas=(db.session.query(NucleusData.data_json)
+               .filter(NucleusData.proyecto_id.in_(ids)).yield_per(1000))
+        for (data_json,) in filas:
+            try: datos=json.loads(data_json or '{}')
             except (ValueError,TypeError): continue
             for campo,valor in datos.items():
-                if normalizar(campo) in ('site','nombresite','nombredesite','nombredelsite','sitename') and isinstance(valor,str) and valor.strip():
+                aceptado=es_clave_site.get(campo)
+                if aceptado is None:
+                    aceptado=normalizar(campo) in claves_site
+                    es_clave_site[campo]=aceptado
+                if aceptado and isinstance(valor,str) and valor.strip():
                     sites.setdefault(valor.strip().casefold(),valor.strip())
     return jsonify({'departamentos':departamentos,'sites':sorted(sites.values(),key=str.casefold)})
 

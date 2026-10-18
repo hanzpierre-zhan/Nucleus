@@ -1,18 +1,1 @@
-{% set _flm_ctx = flm_resource_context %}
-{% set _flm_actual = session.get('current_proyecto_nombre') in ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'] %}
-{% if _flm_ctx or _flm_actual %}
-{% set _flm_id = _flm_ctx.flm_id if _flm_ctx else session.get('current_proyecto_id') %}
-{% set _flm_nombre = _flm_ctx.flm_nombre if _flm_ctx else session.get('current_proyecto_nombre') %}
-{% if not flm_inline %}<nav class="flm-resource-bar" aria-label="Recursos del proyecto">
-    {% if _flm_ctx %}<a class="flm-resource-back" href="/switch_project/{{ _flm_id }}?next=/"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Volver a {{ _flm_nombre }}</a><span class="flm-resource-current">{{ {'personal':'Personal','material':'Material','sites':'Sites','mapa':'Mapa de Sites','generadores':'Generadores'}.get(_flm_ctx.recurso) }}</span>
-    {% else %}<span class="flm-resource-current">{{ _flm_nombre }}</span>{% endif %}
-{% endif %}
-    <details class="flm-resource-menu"><summary class="action-pill"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Recursos <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></summary>
-        <div class="flm-resource-options">
-            {% for _slug, _label, _icon in [('personal','Personal','fa-users'),('material','Material','fa-boxes-stacked'),('sites','Sites','fa-location-dot'),('mapa','Mapa de Sites','fa-map-location-dot'),('generadores','Generadores','fa-bolt')] %}
-            <a href="/flm/{{ _flm_id }}/recursos/{{ _slug }}" {% if _flm_ctx and _flm_ctx.recurso==_slug %}aria-current="page"{% endif %}><i class="fa-solid {{ _icon }}" aria-hidden="true"></i><span>{{ _label }}</span></a>
-            {% endfor %}
-        </div>
-    </details>
-{% if not flm_inline %}</nav>{% endif %}
-{% endif %}
+{# Los catálogos se abren directamente desde Módulos y consolidan los proyectos autorizados. #}

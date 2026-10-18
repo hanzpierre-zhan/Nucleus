@@ -1,0 +1,9 @@
+# Dependencias SOLO para desarrollo y tests (no se instalan en producción).
+# Ver docs/estrategia_testing.md §7.2
+pytest
+pytest-cov
+pytest-mock
+freezegun
+responses
+moto
+playwright

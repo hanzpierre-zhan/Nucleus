@@ -9,6 +9,7 @@ de filtro no recarga la página.
 Solo lee: nunca modifica datos.
 """
 import re
+from services.normalizacion import primer_texto as _txt
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -60,12 +61,6 @@ def _money(value):
         return 0.0
 
 
-def _txt(*vals):
-    for v in vals:
-        v = str(v or '').strip()
-        if v:
-            return v
-    return ''
 
 
 def _flag(v):

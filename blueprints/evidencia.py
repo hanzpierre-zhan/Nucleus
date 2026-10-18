@@ -10,7 +10,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-import pandas as pd
+from perezoso import pd
 from PIL import Image, ImageOps
 try:
     from pillow_heif import register_heif_opener
@@ -22,7 +22,33 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
-from services import *
+from services import (
+    login_required,
+    puede_cotizaciones,
+    _flm_hermano_id,
+    EVIDENCIA_TIPOS,
+    EVIDENCIA_MAX_POR_TIPO,
+    EVIDENCIA_TIPO_RESGUARDO,
+    EVIDENCIA_MAX_RESGUARDO,
+    EVIDENCIA_EXT_ALLOWED,
+    PEX_REPORTE_XLSX,
+    evidencia_folder,
+    evidencia_limpiar_slot,
+    evidencia_comprimir,
+    evidencia_usa_b2,
+    b2_cliente,
+    evidencia_eliminar_b2,
+    onedrive_subir,
+    onedrive_eliminar,
+    _evidencia_aprobacion_bloquea,
+    _evidencia_migrar_legacy,
+    _evidencia_leer,
+    _box_px,
+    _n_a_en_box,
+    _encajar_foto_cover,
+    _pext_config,
+    _pext_max,
+)
 from services.sustento import acceso_desde_cotizacion, actualizar_slot, preparar_wo_desde_cotizacion, registro_evidencia
 
 

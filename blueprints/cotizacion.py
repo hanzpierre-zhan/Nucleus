@@ -9,7 +9,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-import pandas as pd
+from perezoso import pd
 from PIL import Image, ImageOps
 try:
     from pillow_heif import register_heif_opener
@@ -21,7 +21,22 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
-from services import *
+from services import (
+    login_required,
+    ahora_peru,
+    safe_json_dumps,
+    audit_user,
+    puede_cotizaciones,
+    _flm_hermano_id,
+    evidencia_usa_b2,
+    b2_cliente,
+    _evidencia_aprobacion_bloquea,
+    _parse_fecha_registro,
+    _generar_pdf_cotizacion,
+    _generar_pdf_cotizacion_cobra,
+    _obtener_registro_cotizacion,
+    _cotizacion_registro_pdf_response,
+)
 from services.sustento import bloqueado, efectivos, CAMPOS
 
 
@@ -1234,13 +1249,14 @@ def _resolver_wo_sustento(wo, cliente=None):
         return None
     proys = Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()
     from services.recursos_flm import familia
+    coincidencias = []
     for p in proys:
         if familia(cliente) and familia(p.nombre) != familia(cliente):
             continue
         fila = NucleusData.query.filter(NucleusData.proyecto_id == p.id, func.lower(NucleusData.key_value) == wo.lower()).first()
         if fila:
-            return p, fila
-    return None
+            coincidencias.append((p, fila))
+    return coincidencias[0] if len(coincidencias) == 1 else None
 
 
 def _leer_evidencia_wo(fila):

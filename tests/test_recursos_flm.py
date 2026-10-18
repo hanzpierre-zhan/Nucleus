@@ -100,9 +100,85 @@ def test_gestor_solo_accede_recursos_de_su_flm(app,client,recursos):
 def test_generadores_con_contexto_explicito(auth_client,recursos):
     r=auth_client.get('/flm/%s/recursos/generadores'%recursos['FLM - INTEGRATEL'],follow_redirects=True)
     assert r.status_code==200
-    assert '/recursos/generadores' in r.text
+    assert '<details class="flm-resource-menu"' not in r.text
+    assert '/switch_project/%s?next=/'%recursos['Generadores'] in r.text
     headers={'X-FLM-Origin':str(recursos['FLM - INTEGRATEL']),'X-Nucleus-Project':str(recursos['Generadores'])}
     assert auth_client.get('/api/catalogos/autocompletar',headers=headers).status_code==200
     with auth_client.session_transaction() as ses:
         assert ses['current_proyecto_nombre']=='Generadores'
         assert ses['flm_resource_context']['recurso']=='generadores'
+
+def test_personal_directo_consolida_proyectos_asignados(app,client,recursos):
+    with app.app_context():
+        usuario=Usuario(username='gestor-consolidado',password_hash='prueba',rol='gestor')
+        db.session.add(usuario);db.session.flush();uid=usuario.id
+        for nombre in ('FLM - CLARO','FLM - INTEGRATEL'):
+            db.session.add(AccesoProyecto(usuario_id=uid,proyecto_id=recursos[nombre],restricciones='{}'))
+        db.session.commit()
+    try:
+        with client.session_transaction() as ses:
+            ses.update(user_id=uid,username='gestor-consolidado',rol='gestor',current_proyecto_id=recursos['FLM - CLARO'],current_proyecto_nombre='FLM - CLARO')
+        # Even after visiting a per-FLM legacy deep link, the direct module clears that context.
+        client.get('/flm/%s/recursos/personal'%recursos['FLM - CLARO'])
+        r=client.get('/switch_project/%s?next=/'%recursos['Dataper'],follow_redirects=True)
+        assert r.status_code==200
+        assert 'RECURSO-Dataper-FLM - CLARO' in r.text
+        assert 'RECURSO-Dataper-FLM - INTEGRATEL' in r.text
+        assert 'RECURSO-Dataper-FLM - ENTEL' not in r.text
+        assert '<details class="flm-resource-menu"' not in r.text
+        with client.session_transaction() as ses:
+            assert ses['current_proyecto_nombre']=='Dataper' and 'flm_resource_context' not in ses
+    finally:
+        with app.app_context():
+            AccesoProyecto.query.filter_by(usuario_id=uid).delete();Usuario.query.filter_by(id=uid).delete();db.session.commit()
+
+def test_personal_nombres_supervisor_y_estado(app,recursos):
+    from services.personal import validar,presentar,configurar
+    from flask import session
+    with app.app_context():
+        usuario=Usuario(username='supervisor-personal-prueba',nombre='Supervisora de prueba',password_hash='prueba',rol='supervisor')
+        db.session.add(usuario);db.session.flush();uid=usuario.id
+        db.session.add(AccesoProyecto(usuario_id=uid,proyecto_id=recursos['FLM - CLARO'],restricciones='{}'));db.session.commit()
+    try:
+        with app.test_request_context('/'):
+            session.update(user_id=uid,rol='supervisor')
+            datos=validar({'TECNICO':'Persona nueva','ESTADO':'activo'},nuevo=True)
+            assert datos['PROYECTO']=='FLM - CLARO'
+            assert datos['SUPERVISOR']=='Supervisora de prueba'
+            assert datos['ESTADO']=='ACTIVO'
+            assert presentar({'PROYECTO':'INTEGRATEL'})['PROYECTO']=='FLM - INTEGRATEL'
+            assert presentar({'PROYECTO':'PEXT'})['PROYECTO']=='FLM - PEXT'
+            assert presentar({'PROYECTO':'CLARO'})['SUPERVISOR']==''
+            opciones=next(c for c in configurar([]) if c['nombre']=='PROYECTO')['opciones']
+            assert opciones==['FLM - CLARO']
+            with pytest.raises(ValueError):validar({'PROYECTO':'ENTEL'},nuevo=True)
+            with pytest.raises(ValueError):validar({'ESTADO':'CUALQUIERA'})
+    finally:
+        with app.app_context():
+            AccesoProyecto.query.filter_by(usuario_id=uid).delete();Usuario.query.filter_by(id=uid).delete();db.session.commit()
+
+@pytest.mark.parametrize('catalogo',['Material','SITE','Generadores'])
+def test_proyecto_canonico_en_catalogos(app,auth_client,recursos,catalogo):
+    auth_client.get('/switch_project/%s?next=/'%recursos[catalogo])
+    r=auth_client.post('/api/rows/add',json={'key':'NUEVO-RECURSO-TEST','data':{'PROYECTO':'CLARO'}})
+    assert r.status_code==200,r.text
+    with app.app_context():
+        fila=NucleusData.query.filter_by(proyecto_id=recursos[catalogo],key_value='NUEVO-RECURSO-TEST').one()
+        assert json.loads(fila.data_json)['PROYECTO']=='FLM - CLARO'
+    r=auth_client.post('/api/rows/bulk_update',json={'key':'NUEVO-RECURSO-TEST','data':{'PROYECTO':'PEXT'}})
+    assert r.status_code==200,r.text
+    with app.app_context():
+        db.session.expire_all()
+        fila=NucleusData.query.filter_by(proyecto_id=recursos[catalogo],key_value='NUEVO-RECURSO-TEST').one()
+        assert json.loads(fila.data_json)['PROYECTO']=='FLM - PEXT'
+    r=auth_client.post('/api/rows/update',json={'key':'NUEVO-RECURSO-TEST','field':'PROYECTO','value':'DESCONOCIDO'})
+    assert r.status_code==400
+    html=auth_client.get('/').text
+    assert 'FLM - INTEGRATEL' in html and '"PROYECTO"' in html
+
+
+def test_catalogo_no_asigna_proyecto_a_historicos():
+    from services.proyectos_catalogo import presentar
+    original={'CODIGO':'HISTORICO'}
+    assert presentar(original)['PROYECTO']==''
+    assert 'PROYECTO' not in original

@@ -186,3 +186,88 @@ class LiquidacionNumero(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     origen_id = db.Column(db.Integer, nullable=False, unique=True)
     __table_args__ = {'sqlite_autoincrement': True}
+
+
+class PerfilEspacio(db.Model):
+    __tablename__ = 'espacio_perfiles'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(80), nullable=False, unique=True)
+    permisos_json = db.Column(db.Text, nullable=False, default='{}')
+
+
+class ProyectoNegocio(db.Model):
+    """Registro extensible de espacios; su operación sigue en Proyecto."""
+    __tablename__ = 'espacio_proyectos'
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), primary_key=True)
+    nombre = db.Column(db.String(80), nullable=False, unique=True)
+
+
+class CuentaEspacio(db.Model):
+    """Mantiene el aislamiento aunque se revoque la última asignación."""
+    __tablename__ = 'espacio_cuentas'
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), primary_key=True)
+
+
+class AccesoEspacio(db.Model):
+    __tablename__ = 'espacio_accesos'
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+    perfil_id = db.Column(db.Integer, db.ForeignKey('espacio_perfiles.id'), nullable=False)
+    __table_args__ = (db.UniqueConstraint('usuario_id', 'proyecto_id', name='uq_espacio_usuario_proyecto'),)
+
+
+class ClasificacionEspacio(db.Model):
+    """Asignación revisada sin mover ni duplicar el registro original."""
+    __tablename__ = 'espacio_clasificaciones'
+    registro_id = db.Column(db.Integer, db.ForeignKey('nucleus_data.id'), primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False)
+
+
+class AuditoriaEspacio(db.Model):
+    __tablename__ = 'espacio_auditoria'
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    accion = db.Column(db.String(80), nullable=False)
+    detalle_json = db.Column(db.Text, nullable=False)
+    creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class AsistenciaDiaria(db.Model):
+    """Marcación explícita; ausencia de registro significa pendiente, nunca falta."""
+    __tablename__ = 'asistencia_diaria'
+    id = db.Column(db.Integer, primary_key=True)
+    personal_id = db.Column(db.Integer, db.ForeignKey('nucleus_data.id'), nullable=False, index=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey('proyectos.id'), nullable=False, index=True)
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    estado = db.Column(db.String(24), nullable=False)
+    observacion = db.Column(db.String(500), nullable=False, default='')
+    nombre = db.Column(db.String(200), nullable=False)
+    documento = db.Column(db.String(100), nullable=False)
+    actualizado_por = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    actualizado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    version = db.Column(db.Integer, nullable=False, default=1)
+    __mapper_args__ = {'version_id_col': version}
+    __table_args__ = (db.UniqueConstraint('personal_id','proyecto_id','fecha',name='uq_asistencia_persona_proyecto_dia'),)
+
+
+class AsistenciaCambio(db.Model):
+    __tablename__ = 'asistencia_cambios'
+    id = db.Column(db.Integer, primary_key=True)
+    asistencia_id = db.Column(db.Integer, db.ForeignKey('asistencia_diaria.id'), nullable=False, index=True)
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), nullable=False)
+    anterior_json = db.Column(db.Text, nullable=False, default='{}')
+    nuevo_json = db.Column(db.Text, nullable=False)
+    creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class ConciliacionOrigen(db.Model):
+    __tablename__ = 'conciliacion_origen'
+    id = db.Column(db.Integer, primary_key=True)
+    fuente_sha256 = db.Column(db.String(64), nullable=False)
+    fuente = db.Column(db.String(160), nullable=False)
+    origen_id = db.Column(db.String(80), nullable=False)
+    destino_id = db.Column(db.Integer, db.ForeignKey('nucleus_data.id'), nullable=False)
+    original_json = db.Column(db.Text, nullable=False)
+    creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint('fuente_sha256','origen_id',name='uq_conciliacion_origen'),)

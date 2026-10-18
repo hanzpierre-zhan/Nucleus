@@ -71,3 +71,5 @@ body.theme-vercel.dark-mode .up-username small{color:#9DAABE!important}
 .up-actions .up-btn-ghost{min-height:40px;border-radius:8px}
 @media(max-width:1000px){.up-editor>.up-form-h{grid-template-columns:1fr}.up-field-proj .proj-selector{grid-template-columns:repeat(3,minmax(0,1fr));max-height:240px}}
 @media(max-width:600px){.up-editor>.up-form-h{margin:12px;gap:12px}.up-identity{grid-template-columns:1fr;padding:14px}.up-form-h>.up-field-proj{padding:14px}.up-field-proj .proj-selector{grid-template-columns:repeat(2,minmax(0,1fr))}.up-editor-summary{padding:14px}.up-editor-summary #up-editor-heading{display:inline;font-size:14px}.up-editor-summary small{display:none}}
+/* Dos grupos de selección a la derecha de los datos de cuenta. */
+@media(min-width:1001px){.up-form-h>.up-identity{grid-column:1;grid-row:1 / span 2}.up-form-h>.up-field-proj{grid-column:2}}

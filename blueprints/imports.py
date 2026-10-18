@@ -9,7 +9,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-import pandas as pd
+from perezoso import pd
 from PIL import Image, ImageOps
 try:
     from pillow_heif import register_heif_opener
@@ -21,7 +21,15 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
-from services import *
+from services import (
+    login_required,
+    safe_json_dumps,
+    _parse_galones,
+    _combustible_fecha_norm,
+    _combustible_fecha_ord,
+    _combustible_chequear,
+    _sane_data_key,
+)
 from services.sustento import cambio_bloqueado
 from services.recursos_flm import contexto_recursos, validar_fila_catalogo, familia
 
@@ -58,6 +66,44 @@ def api_import_manual_template():
     proy = db.session.get(Proyecto, pid)
     proy_nombre = proy.nombre if proy else ''
 
+    # Ambas plantillas se generan con openpyxl directamente en lugar de
+    # pandas.to_excel: para miles de filas el formateo interno de pandas añade
+    # ~0,5 s por archivo y el resultado (hoja, estilos, anchos) es el mismo.
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    def _escribir_plantilla(columnas, filas, tope_ancho, congelar=False,
+                            autofiltro=False, estilos=None):
+        """Devuelve los bytes de un .xlsx con cabecera + filas y anchos ajustados."""
+        libro = Workbook()
+        hoja = libro.active
+        hoja.title = 'Plantilla'
+        hoja.append(list(columnas))
+        anchos = [len(str(c)) for c in columnas]
+        for fila in filas:
+            hoja.append(fila)
+            for i, valor in enumerate(fila):
+                largo = len(str(valor or ''))
+                if largo > anchos[i]:
+                    anchos[i] = largo
+        for i, largo in enumerate(anchos, 1):
+            hoja.column_dimensions[get_column_letter(i)].width = min(largo + 4, tope_ancho)
+        if congelar:
+            hoja.freeze_panes = 'A2'
+        if autofiltro:
+            hoja.auto_filter.ref = hoja.dimensions
+        if estilos:
+            fuente = Font(bold=True, size=9)
+            for idx, nombre_col in enumerate(columnas, 1):
+                celda = hoja.cell(row=1, column=idx)
+                celda.font = fuente
+                if nombre_col in estilos:
+                    celda.fill = estilos[nombre_col]
+        salida = io.BytesIO()
+        libro.save(salida)
+        return salida.getvalue()
+
     # Plantilla FLM/PEXT: Detalle (9 campos) + Gestión (16 manuales), con contenidos actuales pre-llenados
     if proy_nombre in ('PEXT', 'FLM', 'FLM - ENTEL'):
         detalle_cols = [
@@ -71,70 +117,52 @@ def api_import_manual_template():
             'Provincia',
             'Distrito',
         ]
-        # Sin _key duplicado; el PK (Número de WO) va como primera columna para el import
-        all_cols = detalle_cols + manual_cols
-        data = {}
-        # PK primero para poder hacer match en el import.
-        # Se parsea cada data_json UNA sola vez (antes: una vez por columna).
+        # Sin _key duplicado; el PK (Número de WO) va como primera columna para el import.
+        # Un nombre repetido entre Detalle y Gestión ocupa una sola columna, en la
+        # posición de la primera aparición (antes lo deduplicaba el DataFrame).
+        todas = detalle_cols + manual_cols
+        columnas = [pk_name] + list(dict.fromkeys(todas))
+        # Se parsea cada data_json UNA sola vez.
         _parsed = []
         for r in rows:
             try:
                 _parsed.append((r.key_value, json.loads(r.data_json)))
             except Exception:
                 _parsed.append((r.key_value, {}))
-        data[pk_name] = [k for k, _d in _parsed]
-        for col in detalle_cols:
-            data[col] = [str((_d.get(col) or '')) for _k, _d in _parsed]
-        for col in manual_cols:
-            data[col] = [str((_d.get(col) or '')) for _k, _d in _parsed]
-        df = pd.DataFrame(data)
-        if df.empty and not rows:
-            df = pd.DataFrame(columns=[pk_name] + all_cols)
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Plantilla')
-            ws = writer.sheets['Plantilla']
-            # congelar encabezado y autofiltro
-            ws.freeze_panes = 'A2'
-            ws.auto_filter.ref = ws.dimensions
-            for col_cells in ws.columns:
-                max_len = max(len(str(cell.value or '')) for cell in col_cells)
-                ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 38)
-            # resaltar cabeceras de Gestión vs Detalle
-            from openpyxl.styles import PatternFill, Font
-            fill_det = PatternFill(start_color="E8F0FE", end_color="E8F0FE", fill_type="solid")
-            fill_ges = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
-            for idx, col_name in enumerate(df.columns, 1):
-                cell = ws.cell(row=1, column=idx)
-                cell.font = Font(bold=True, size=9)
-                if col_name in detalle_cols:
-                    cell.fill = fill_det
-                elif col_name in manual_cols:
-                    cell.fill = fill_ges
-        output.seek(0)
-        response = make_response(output.read())
+        filas = []
+        for clave, d in _parsed:
+            fila = {pk_name: clave}
+            for col in todas:
+                fila[col] = str(d.get(col) or '')
+            filas.append([fila[col] for col in columnas])
+        # Los datos de origen ya no se necesitan: liberarlos antes de armar el
+        # libro evita mantener dos copias completas en el pico de memoria.
+        del _parsed, rows
+        # resaltar cabeceras de Gestión vs Detalle (Detalle tiene prioridad si coincide)
+        fill_det = PatternFill(start_color="E8F0FE", end_color="E8F0FE", fill_type="solid")
+        fill_ges = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+        estilos = {col: fill_ges for col in manual_cols}
+        estilos.update({col: fill_det for col in detalle_cols})
+        datos = _escribir_plantilla(columnas, filas, 38, congelar=True,
+                                    autofiltro=True, estilos=estilos)
+        response = make_response(datos)
         response.headers['Content-Disposition'] = f'attachment; filename=plantilla_{proy_nombre}.xlsx'
         response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         return response
 
-    # Build DataFrame: pk column pre-filled, manual columns empty
-    df_data = {pk_name: [r.key_value for r in rows]}
+    # Plantilla genérica: pk pre-llenado, columnas manuales vacías.
+    # Si un nombre manual repite el PK, la columna queda vacía y ocupa una sola
+    # posición (antes era el propio DataFrame quien lo resolvía así).
+    por_columna = {pk_name: [r.key_value for r in rows]}
     for col in manual_cols:
-        df_data[col] = [''] * len(rows)
-    df = pd.DataFrame(df_data)
-
-    # Write to in-memory Excel
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Plantilla')
-        # Auto-adjust column widths
-        ws = writer.sheets['Plantilla']
-        for col_cells in ws.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col_cells)
-            ws.column_dimensions[col_cells[0].column_letter].width = min(max_len + 4, 40)
-    output.seek(0)
-
-    response = make_response(output.read())
+        por_columna[col] = [''] * len(rows)
+    columnas = list(por_columna.keys())
+    total_filas = len(rows)
+    del rows
+    filas = [[por_columna[col][i] for col in columnas] for i in range(total_filas)]
+    del por_columna
+    datos = _escribir_plantilla(columnas, filas, 40)
+    response = make_response(datos)
     response.headers['Content-Disposition'] = 'attachment; filename=plantilla_columnas_manuales.xlsx'
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     return response
@@ -550,6 +578,10 @@ def api_import_process():
             if not keep_record:
                 if consolidate_on_fail and key_val in existing_records:
                     record = existing_records[key_val]
+                    from models import AsistenciaDiaria
+                    if proy_act_nombre == 'Dataper' and AsistenciaDiaria.query.filter_by(personal_id=record.id).first():
+                        ignored += 1
+                        continue
                     # Guardamos el current_data (que contiene las actualizaciones del archivo importado) en el histórico
                     new_hist = NucleusHistory(proyecto_id=pid, key_value=key_val, data_json=safe_json_dumps(current_data))
                     db.session.add(new_hist)
@@ -633,6 +665,10 @@ def api_import_process():
                         NucleusData.proyecto_id == pid,
                         NucleusData.key_value.in_(_chunk)).all():
                     if contexto and session.get('current_proyecto_nombre') in ('Dataper', 'Material') and not validar_fila_catalogo(json.loads(rec.data_json or '{}')):
+                        continue
+                    from models import AsistenciaDiaria
+                    if proy_act_nombre == 'Dataper' and AsistenciaDiaria.query.filter_by(personal_id=rec.id).first():
+                        ignored += 1
                         continue
                     new_hist = NucleusHistory(proyecto_id=pid, key_value=rec.key_value, data_json=rec.data_json)
                     db.session.add(new_hist)

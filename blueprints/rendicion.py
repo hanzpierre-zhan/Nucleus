@@ -1,3 +1,4 @@
+from services.rendicion_estados import estado_de as _estado_de, etapa_de as _etapa_de
 # -*- coding: utf-8 -*-
 """Flujo de Rendicion: pestanas por estado + acciones (validar / rechazar /
    depositar / sustentar) y subida de fotos (comprobante de pago y sustento).
@@ -13,7 +14,7 @@
    - RECHAZADO    -> Validación o Evidencia según la etapa de retorno
    - ANULADO      -> hoja Anulado (conserva los registros)
 """
-import os, json, time, re, tempfile, mimetypes, unicodedata, urllib.request
+import os, json, time, re, csv, io, tempfile, mimetypes, unicodedata, urllib.request
 from uuid import uuid4
 from urllib.parse import quote
 from datetime import datetime
@@ -24,7 +25,16 @@ from werkzeug.utils import secure_filename
 
 from db import db
 from models import Proyecto, NucleusData, AppConfig, Notificacion
-from services import *
+from services import (
+    login_required,
+    safe_json_dumps,
+    audit_user,
+    get_menu_proyectos,
+    puede_rendicion,
+    evidencia_comprimir,
+    evidencia_usa_b2,
+    b2_cliente,
+)
 
 bp = Blueprint('rendicion', __name__)
 
@@ -49,23 +59,8 @@ def _puede_gestionar():
                                     session.get('current_proyecto_nombre')))
 
 
-def _estado_de(d):
-    return str(d.get('ESTADO', '') or '').strip().upper() or 'PENDIENTE'
 
 
-def _etapa_de(row):
-    estado = _estado_de(row)
-    if estado == 'RECHAZADO':
-        destino = row.get('_RECHAZO_ETAPA')
-        if destino in ('VALIDACION', 'EVIDENCIA'):
-            return destino
-        # Mostrar los rechazos históricos sin borrar ni reescribir registros.
-        return {'VALIDADO': 'VALIDACION', 'DEPOSITADO': 'EVIDENCIA',
-                'CON SUSTENTO': 'EVIDENCIA', 'OBSERVADO': 'EVIDENCIA'}.get(
-                    str(row.get('RECHAZADO DESDE') or '').strip().upper(), 'ANULADO')
-    return {'PENDIENTE': 'VALIDACION', 'VALIDADO': 'DEPOSITOS', 'DEPOSITADO': 'EVIDENCIA',
-            'CON SUSTENTO': 'SUSTENTO', 'OBSERVADO': 'OBSERVADO', 'SUSTENTADO': 'ATENDIDO',
-            'ARCHIVADO': 'ARCHIVADO', 'ANULADO': 'ANULADO'}.get(estado, 'VALIDACION')
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -891,6 +886,11 @@ def rendiciones_por_wo():
     def normalizar(texto):
         return re.sub(r'[^a-z0-9]', '', ''.join(c for c in unicodedata.normalize('NFKD', str(texto or '')).lower() if not unicodedata.combining(c)))
     campos_wo = {'numerocmpmplm', 'numerocm', 'numerowo', 'numerodewo', 'numerocmpm', 'numeropmplm'}
+    from services.recursos_flm import familia
+    from sqlalchemy import func
+    origen_nombre = next(p.nombre for p in proyectos if p.id == pid)
+    fuentes_wo = [p.id for p in Proyecto.query.filter(Proyecto.nombre.in_(('FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT')))]
+    ambiguo = NucleusData.query.filter(NucleusData.proyecto_id.in_(fuentes_wo), func.lower(NucleusData.key_value)==key.lower()).count() > 1
     lista = []
     for fila in NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id.desc()).all():
         try:
@@ -898,6 +898,9 @@ def rendiciones_por_wo():
         except (ValueError, TypeError):
             continue
         campos = {normalizar(c): v for c, v in datos.items()}
+        negocio = familia(campos.get('nombredelproyecto') or campos.get('proyecto') or campos.get('cliente'))
+        if negocio and negocio != familia(origen_nombre):continue
+        if not negocio and ambiguo:continue
         valores = [v for c,v in campos.items() if c in campos_wo]
         codigos = [str(c).strip().casefold() for v in valores for c in (v if isinstance(v,list) else re.split(r'[,;|\n]+',str(v or '')))]
         if key.casefold() not in codigos:
@@ -912,7 +915,8 @@ def rendiciones_por_wo():
 @login_required
 def configurar_validadores():
     from models import Usuario
-    from services.rendicion_validadores import ADMIN_ROLES, configuracion, guardar, PROYECTOS
+    from services.rendicion_validadores import (ADMIN_ROLES, configuracion, guardar,
+                                                PROYECTOS, accesos_rendicion)
     if session.get('rol') not in ADMIN_ROLES or not _puede_gestionar():
         return jsonify({'error': 'Solo administración puede configurar validadores.'}), 403
     if request.method == 'POST':
@@ -920,10 +924,14 @@ def configurar_validadores():
             return jsonify(success=True, configuracion=guardar(request.get_json(silent=True)))
         except ValueError as error:
             return jsonify(error=str(error)), 400
+    usuarios = Usuario.query.order_by(Usuario.nombre, Usuario.username).all()
+    # El acceso de cada usuario se resuelve en bloque (antes: una consulta por
+    # usuario, ~90 en total para esta pantalla).
+    acceso_rendicion = accesos_rendicion(usuarios)
     return jsonify(configuracion=configuracion(), proyectos=list(PROYECTOS), usuarios=[
         {'id': u.id, 'nombre': u.nombre or u.username, 'username': u.username,
-         'admin': u.rol in ADMIN_ROLES, 'acceso_rendicion': puede_rendicion(u.id, u.rol, '')}
-        for u in Usuario.query.order_by(Usuario.nombre, Usuario.username).all()
+         'admin': u.rol in ADMIN_ROLES, 'acceso_rendicion': acceso_rendicion[u.id]}
+        for u in usuarios
         ])
 
 @bp.route('/api/rendicion/solicitud', methods=['PATCH'])
@@ -980,3 +988,333 @@ def corregir_solicitud():
     fila.data_json=json.dumps(nuevos,ensure_ascii=False)
     db.session.commit()
     return jsonify(success=True,newData={**nuevos,'_key':fila.key_value})
+
+
+RENDICION_CSV_TEMPLATE = 'https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}'
+# Claves AppConfig usadas por el módulo Rendición:
+#   rendicion_csv_url  -> URL CSV pública del Google Form
+#   rendicion_sync_key -> token de sincronización (cron externo)
+
+
+@bp.route('/api/rendicion/sync', methods=['GET', 'POST'])
+def api_rendicion_sync():
+    """Importa SOLO las filas nuevas del Google Form al módulo 'Rendicion'.
+
+    Autorización por dos vías:
+      - Botón "Sincronizar" en la web: cualquier usuario que tenga el módulo
+        Rendicion habilitado (no depende del rol).
+      - Cron externo: ?key=<rendicion_sync_key> (sin sesión).
+    No toca filas existentes: solo inserta claves nuevas (Marca temporal).
+    """
+    key = request.args.get('key') or (request.get_json(silent=True) or {}).get('key', '')
+    cfg = AppConfig.query.filter_by(clave='rendicion_sync_key').first()
+    key_valida = bool(cfg and cfg.valor and key == cfg.valor)
+    if not key_valida:
+        autorizado_web = bool(
+            session.get('user_id')
+            and puede_rendicion(session.get('user_id'), session.get('rol'),
+                                session.get('current_proyecto_nombre'))
+        )
+        if not autorizado_web:
+            if not key:
+                return jsonify({'error': 'Falta la key de sincronización.'}), 400
+            return jsonify({'error': 'Key de sincronización inválida.'}), 403
+
+    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not proy:
+        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
+
+    url_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='rendicion_csv_url').first()
+    csv_url = (url_cfg.valor if url_cfg and url_cfg.valor else '').strip()
+    if not csv_url:
+        return jsonify({'error': 'No hay URL de CSV configurada (rendicion_csv_url).'}), 500
+
+    # Descargar CSV
+    try:
+        req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+    except Exception as e:
+        return jsonify({'error': 'No se pudo descargar el CSV: %s' % e}), 502
+    text = raw.decode('utf-8-sig', errors='replace')
+
+    reader = csv.DictReader(io.StringIO(text))
+    fields = reader.fieldnames or []
+    # Clave del módulo: la que esté configurada en primary_key (Marca temporal en Rendicion).
+    pk_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='primary_key').first()
+    pk_col = (pk_cfg.valor if pk_cfg and pk_cfg.valor else '').strip() or 'Marca temporal'
+    if pk_col not in fields:
+        return jsonify({'error': 'El CSV no tiene la columna clave "%s".' % pk_col}), 502
+
+    # 'Observaciones' del form se renombra para no chocar con la columna manual OBSERVACIONES.
+    renombrar = {'Observaciones': 'Observaciones (Form)'}
+
+    # Claves que escribe el sistema/flujo del módulo: si el form trajera un
+    # encabezado idéntico, se desplaza con sufijo ' (Form)' para no pisarlas.
+    claves_sistema = {
+        '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
+        'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
+        'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal',
+        'ESTADO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
+        'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',
+        'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',
+        'RECHAZADO POR', 'FECHA VALIDACION', 'VALIDADO POR',
+        'DEPOSITADO POR', 'SUSTENTADO POR', 'EDITADO POR',
+        'RECHAZADO DESDE', 'VECES RECHAZADO', 'DEVUELTO POR',
+        'FECHA DEVOLUCION', '_SUSTENTO_MARCAS',
+        'OBSERVADO POR', 'FECHA OBSERVACION', 'ARCHIVADO POR', 'FECHA ARCHIVO',
+        'DESARCHIVADO POR', 'FECHA DESARCHIVO', '_HISTORIAL_FLUJO',
+        '_RECHAZO_ETAPA', 'ANULADO DESDE', 'ANULADO POR', 'FECHA ANULACION',
+    }
+
+    # Esquema DINÁMICO: las columnas del grid del form son exactamente las que
+    # traiga el CSV HOY. Agregar, quitar o renombrar una pregunta en el form se
+    # refleja en el próximo sync (sin tocar código): las nuevas aparecen, las
+    # dadas de baja (o renombradas) dejan de mostrarse.
+    # El 2.º formulario (SUSTENTO_*) y las claves que escribe el flujo NO vienen
+    # del CSV: este sync las conserva en lugar de borrarlas.
+    schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+    try:
+        schema_previo = set(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else set()
+    except Exception:
+        schema_previo = set()
+    sistema_cols = {c for c in schema_previo
+                    if c.startswith('SUSTENTO_') or c in claves_sistema}
+    form_previas = schema_previo - sistema_cols
+
+    mapa_cols = {}
+    for f in fields:
+        if f is None or not str(f).strip():
+            continue
+        nombre_col = renombrar.get(str(f).strip(), str(f).strip())
+        if nombre_col in claves_sistema:
+            nombre_col = '%s (Form)' % nombre_col
+        if nombre_col not in mapa_cols.values():
+            mapa_cols[f] = nombre_col
+    form_actual = set(mapa_cols.values())
+    columnas_agregadas = sorted(form_actual - form_previas)
+    columnas_quitadas = sorted(form_previas - form_actual)
+    schema_cols = form_actual | sistema_cols
+
+    from services.rendicion_personal import indice_personal, completar_personal
+    personal = indice_personal()
+    verificadas = 0
+    pendientes_personal = 0
+    nuevas = 0
+    omitidas = 0
+    t0 = time.time()
+    # Claves existentes en una sola consulta (antes: 1 query por fila del CSV).
+    existentes = {r[0] for r in NucleusData.query.with_entities(NucleusData.key_value)
+                  .filter_by(proyecto_id=proy.id).all()}
+    for row in reader:
+        from services.rendicion_origen import recibir_en_nucleus
+        if not recibir_en_nucleus(row):
+            omitidas += 1
+            continue
+        datos = {}
+        for f in fields:
+            nombre_col = mapa_cols.get(f)
+            if not nombre_col:
+                continue
+            datos[nombre_col] = (row.get(f) or '').strip()
+        
+        id_sol = str(datos.get(pk_col, '') or '').strip()
+        if not id_sol:
+            omitidas += 1
+            continue
+        if id_sol in existentes:
+            omitidas += 1
+            continue
+        completar_personal(datos, personal)
+        if datos['VERIFICACIÓN PERSONAL'] == 'Verificado':
+            verificadas += 1
+        else:
+            pendientes_personal += 1
+        db.session.add(NucleusData(proyecto_id=proy.id, key_value=id_sol,
+                                   data_json=safe_json_dumps(datos)))
+        existentes.add(id_sol)
+        schema_cols.update(set(datos.keys()))
+        nuevas += 1
+
+    # Completar los registros anteriores sin modificar importes, etapas ni evidencias.
+    personal_actualizado = 0
+    for registro in NucleusData.query.filter_by(proyecto_id=proy.id).yield_per(500):
+        anteriores = json.loads(registro.data_json or '{}')
+        cruzados = completar_personal(dict(anteriores), personal)
+        if cruzados['_PERSONAL_CRUCE']['estado'] not in ('VERIFICADO', 'SIN DEPARTAMENTO EN PERSONAL'):
+            continue
+        if cruzados != anteriores:
+            registro.data_json = safe_json_dumps(cruzados)
+            personal_actualizado += 1
+    schema_cols.add('DEPARTAMENTO')
+    schema_cols.update({'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal'})
+
+    # Persistir esquema DINÁMICO (reemplaza columnas dadas de baja, no solo agrega)
+    if schema_cfg:
+        schema_cfg.valor = safe_json_dumps(sorted(schema_cols))
+    else:
+        db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema',
+                                 valor=safe_json_dumps(sorted(schema_cols))))
+    # Podar el layout: quitar entradas de columnas de form que ya no existen
+    # (quitadas o renombradas) para que no queden fantasmas en la tabla.
+    try:
+        layout_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='column_layout').first()
+        if layout_cfg and layout_cfg.valor:
+            layout = json.loads(layout_cfg.valor)
+            quitadas = set(columnas_quitadas)
+            layout_filtrado = [e for e in layout if e.get('field') not in quitadas]
+            if len(layout_filtrado) != len(layout):
+                layout_cfg.valor = safe_json_dumps(layout_filtrado)
+    except Exception:
+        pass
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'nuevas': nuevas,
+        'personal_verificado': verificadas,
+        'personal_actualizado': personal_actualizado,
+        'personal_pendiente_verificar': pendientes_personal,
+        'omitidas_existentes': omitidas,
+        'columnas_agregadas': columnas_agregadas,
+        'columnas_quitadas': columnas_quitadas,
+        'segundos': round(time.time() - t0, 2),
+    })
+@bp.route('/api/rendicion/sync_sustentos', methods=['POST'])
+def api_rendicion_sync_sustentos():
+    """Sincroniza los sustentos desde la segunda hoja de Google Sheets."""
+    autorizado = bool(session.get('user_id')
+                       and puede_rendicion(session.get('user_id'), session.get('rol'),
+                                           session.get('current_proyecto_nombre')))
+    if not autorizado:
+        return jsonify({'error': 'No autorizado.'}), 403
+
+    proy = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not proy:
+        return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
+
+    # URL configurable (AppConfig rendicion_sustentos_url) con fallback a la hoja fija.
+    url_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='rendicion_sustentos_url').first()
+    csv_url = ((url_cfg.valor if url_cfg and url_cfg.valor else '').strip()
+               or 'https://docs.google.com/spreadsheets/d/18CYUhXGN8jWk4hzr194p3vhdU6H90WD-O0Aw77WxgEY/export?format=csv&gid=831408062')
+    try:
+        req = urllib.request.Request(csv_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+    except Exception as e:
+        return jsonify({'error': 'No se pudo descargar el CSV de Sustentos: %s' % e}), 502
+    
+    text = raw.decode('utf-8-sig', errors='replace')
+    reader = csv.DictReader(io.StringIO(text))
+    fields = reader.fieldnames or []
+
+    # Buscamos la columna CODIGO DEPOSITO
+    col_codigo = next((f for f in fields if 'codigo' in str(f).lower() and 'deposito' in str(f).lower()), None)
+    if not col_codigo:
+        # Fallback a la primera columna o un nombre estandar
+        col_codigo = 'CODIGO DEPOSITO' if 'CODIGO DEPOSITO' in fields else (fields[0] if fields else None)
+    
+    if not col_codigo:
+         return jsonify({'error': 'No se encontro la columna CODIGO DEPOSITO en la hoja.'}), 400
+
+    # Independencia del form 2: cada envío (Marca temporal) aplica UNA sola vez.
+    # Si la hoja no trae columna de fecha/hora, se conserva el comportamiento
+    # anterior (refresh de SUSTENTO_*) por compatibilidad.
+    col_marca = next((f for f in fields
+                      if 'marca' in str(f).lower() and 'temporal' in str(f).lower()), None)
+    if not col_marca:
+        col_marca = next((f for f in fields
+                          if str(f).strip().lower() in ('marca temporal', 'timestamp',
+                                                        'marca de tiempo')), None)
+
+    # Los datos del 2.º formulario se guardan en la fila como SUSTENTO_* y SÍ
+    # son columnas del grid: se agregan al esquema al final del sync. Quedan
+    # ocultas por defecto (no estorban en Validación/Depósitos) y las pestañas
+    # Evidencia y Rendición las muestran con showPrefijos.
+    schema_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='app_schema').first()
+
+    actualizados = 0
+    omitidos = 0
+    no_encontrados = 0
+    nuevas_sustento = set()
+    t0 = time.time()
+
+    # Índice único por CODIGO DEPOSITO (antes: full-scan por cada fila del CSV).
+    idx_cod = {}
+    for d in NucleusData.query.filter_by(proyecto_id=proy.id).all():
+        try:
+            dj = json.loads(d.data_json)
+        except Exception:
+            continue
+        cod = str(dj.get('CODIGO DEPOSITO', '') or '').strip()
+        if cod and cod not in idx_cod:
+            idx_cod[cod] = (d, dj)
+
+    for row in reader:
+        cod = (row.get(col_codigo) or '').strip()
+        if not cod: continue
+
+        target, target_dict = idx_cod.get(cod, (None, None))
+        if not target:
+            no_encontrados += 1
+            continue
+            
+        estado_actual = str(target_dict.get('ESTADO', '')).strip().upper()
+        from blueprints.rendicion import _etapa_de
+        rechazo_evidencia = estado_actual == 'RECHAZADO' and _etapa_de(target_dict) == 'EVIDENCIA'
+        if estado_actual not in ('DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO') and not rechazo_evidencia:
+            omitidos += 1
+            continue
+
+        # Cada envío del 2.º formulario aplica una sola vez (append-only por
+        # Marca temporal): los cambios posteriores en el form ya no re-escriben
+        # lo que se haya corregido en la app (independencia del form 2).
+        marca_actual = None
+        if col_marca:
+            marca_actual = str(row.get(col_marca) or '').strip()
+            if not marca_actual:
+                omitidos += 1
+                continue
+            procesadas = set()
+            for x in str(target_dict.get('_SUSTENTO_MARCAS', '') or '').replace(';', '\n').split('\n'):
+                x = x.strip()
+                if x:
+                    procesadas.add(x)
+            if marca_actual in procesadas:
+                omitidos += 1
+                continue
+
+        for k, v in row.items():
+            if k and k != col_codigo and k != col_marca:
+                col = 'SUSTENTO_%s' % k.upper()
+                target_dict[col] = str(v).strip()
+                nuevas_sustento.add(col)
+
+        if estado_actual == 'DEPOSITADO' or rechazo_evidencia:
+            target_dict['ESTADO'] = 'CON SUSTENTO'
+        if marca_actual:
+            procesadas.add(marca_actual)
+            target_dict['_SUSTENTO_MARCAS'] = ';'.join(sorted(procesadas))
+        target.data_json = safe_json_dumps(target_dict)
+        actualizados += 1
+
+    # ── Columnas del 2.º formulario: se suman al esquema del módulo ─────────
+    try:
+        schema_previo = list(json.loads(schema_cfg.valor)) if schema_cfg and schema_cfg.valor else []
+    except Exception:
+        schema_previo = []
+    faltantes = sorted(set(nuevas_sustento) - set(schema_previo))
+    if faltantes and schema_cfg:
+        schema_cfg.valor = safe_json_dumps(sorted(set(schema_previo) | set(nuevas_sustento)))
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'actualizados': actualizados,
+        'omitidos_por_estado': omitidos,
+        'no_encontrados': no_encontrados,
+        'columnas_sustento': len(nuevas_sustento),
+        'columnas_nuevas': faltantes,
+        'segundos': round(time.time() - t0, 2)
+    })

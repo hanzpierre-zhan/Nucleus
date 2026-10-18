@@ -1,0 +1,612 @@
+.attendance {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ios-label, #172e4a);
+  overflow: hidden;
+}
+.attendance * {
+  box-sizing: border-box;
+}
+.attendance-topbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+}
+.attendance-topbar strong {
+  margin-right: 5px;
+  font-size: 13px;
+}
+.attendance label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+.attendance button,
+.attendance select,
+.attendance input {
+  font: inherit;
+  color: var(--ios-label, #172e4a);
+  background: var(--ios-card-bg, #fff);
+  border: 1px solid var(--ios-hairline, #cbd5e1);
+  border-radius: 4px;
+  padding: 4px 6px;
+  min-height: 27px;
+}
+.attendance button {
+  cursor: pointer;
+}
+.attendance button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.attendance-topbar #as-anio {
+  width: 67px;
+}
+.attendance-topbar #as-buscar {
+  width: 155px;
+}
+.attendance-topbar a {
+  margin-left: auto;
+  font-size: 10px;
+}
+.attendance-stats {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.attendance-stat {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 98px;
+  padding: 6px 9px;
+  border: 1px solid var(--ios-hairline, #dce4ee);
+  background: var(--ios-card-bg, #fff);
+  border-radius: 5px;
+  font-size: 10px;
+}
+.attendance-stat b {
+  font-size: 17px;
+}
+.attendance-stat em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 5px;
+  border-radius: 4px;
+}
+.attendance-table {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--ios-hairline, #dce4ee);
+  border-radius: 4px;
+  background: var(--ios-card-bg, #fff);
+}
+.attendance table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 10px;
+  table-layout: fixed;
+}
+.attendance th,
+.attendance td {
+  border-right: 1px solid var(--ios-hairline, #dce4ee);
+  border-bottom: 1px solid var(--ios-hairline, #dce4ee);
+  padding: 3px;
+  text-align: center;
+  height: 32px;
+}
+.attendance th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--ios-fill, #edf2f7);
+  font-size: 9px;
+  font-weight: 650;
+}
+.attendance th:first-child,
+.attendance td:first-child {
+  position: sticky;
+  left: 0;
+  width: 190px;
+  text-align: left;
+  padding: 4px 7px;
+  background: var(--ios-card-bg, #fff);
+  z-index: 2;
+}
+.attendance th:first-child {
+  z-index: 5;
+  background: var(--ios-fill, #edf2f7);
+}
+.attendance td:first-child strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+.attendance td small {
+  display: block;
+  font-size: 9px;
+  color: var(--ios-secondary, #64748b);
+}
+.attendance th:not(:first-child) {
+  width: 31px;
+  min-width: 31px;
+}
+.attendance th small {
+  display: block;
+  font-size: 8px;
+  font-weight: 400;
+}
+.attendance td button {
+  width: 25px;
+  min-height: 24px;
+  padding: 2px 0;
+  font-size: 10px;
+  font-weight: 700;
+}
+.attendance .weekend {
+  background: var(--ios-fill, rgba(120, 130, 145, 0.06));
+}
+.attendance [data-state="PRESENTE"] {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+.attendance [data-state="FALTA"] {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+.attendance [data-state="PERMISO"] {
+  background: #ffedd5 !important;
+  color: #9a3412 !important;
+}
+.attendance [data-state="DESCANSO"] {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+}
+.attendance [data-state="LICENCIA"] {
+  background: #ede9fe !important;
+  color: #5b21b6 !important;
+}
+.attendance [data-state="VACACIONES"] {
+  background: #cffafe !important;
+  color: #155e75 !important;
+}
+.attendance [data-state="PENDIENTE"] {
+  background: var(--ios-fill, #f1f5f9);
+  color: var(--ios-secondary, #64748b);
+}
+.attendance #as-estado {
+  font-size: 10px;
+  min-height: 13px;
+}
+.attendance dialog {
+  width: min(370px, calc(100vw - 24px));
+  padding: 14px;
+  border: 1px solid var(--ios-hairline, #dce4ee);
+  border-radius: 8px;
+  background: var(--ios-card-bg, #fff);
+  color: var(--ios-label, #172e4a);
+}
+.attendance dialog::backdrop {
+  background: #0007;
+}
+.attendance dialog header,
+.attendance dialog footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.attendance dialog label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 9px 0;
+  font-size: 12px;
+}
+.attendance dialog p {
+  font-size: 11px;
+}
+.attendance dialog footer {
+  justify-content: flex-end;
+}
+.attendance #as-guardar {
+  background: #173e76;
+  color: #fff;
+}
+.attendance #as-error {
+  color: #c43b3b;
+}
+.attendance dialog button,
+.attendance dialog input,
+.attendance dialog select {
+  font-size: 12px;
+  min-height: 32px;
+}
+@media (max-width: 768px) {
+  .attendance-topbar {
+    gap: 5px;
+  }
+  .attendance-topbar a {
+    margin-left: 0;
+  }
+  .attendance-topbar #as-buscar {
+    flex: 1;
+    min-width: 130px;
+  }
+  .attendance-stat {
+    min-width: 88px;
+    padding: 4px 6px;
+  }
+  .attendance th:first-child,
+  .attendance td:first-child {
+    width: 150px;
+  }
+  .attendance td button {
+    min-height: 28px;
+  }
+  .attendance-table {
+    min-height: 250px;
+  }
+}
+
+.attendance #as-planilla button {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  min-width: 0 !important;
+}
+.attendance #as-planilla button[data-state="PENDIENTE"] {
+  background: var(--ios-fill, #f1f5f9) !important;
+  color: var(--ios-secondary, #64748b) !important;
+}
+
+.attendance #as-planilla button[data-state="PRESENTE"] {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+  border-color: #16653455 !important;
+}
+.attendance #as-planilla button[data-state="FALTA"] {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border-color: #991b1b55 !important;
+}
+.attendance #as-planilla button[data-state="PERMISO"] {
+  background: #ffedd5 !important;
+  color: #9a3412 !important;
+  border-color: #9a341255 !important;
+}
+.attendance #as-planilla button[data-state="DESCANSO"] {
+  background: #dbeafe !important;
+  color: #1e40af !important;
+  border-color: #1e40af55 !important;
+}
+.attendance #as-planilla button[data-state="LICENCIA"] {
+  background: #ede9fe !important;
+  color: #5b21b6 !important;
+  border-color: #5b21b655 !important;
+}
+.attendance #as-planilla button[data-state="VACACIONES"] {
+  background: #cffafe !important;
+  color: #155e75 !important;
+  border-color: #155e7555 !important;
+}
+.attendance-quick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 10px;
+}
+.attendance-quick input[type="number"] {
+  width: 44px;
+}
+.attendance-quick #as-pendientes {
+  font-size: 10px;
+  color: var(--ios-secondary, #64748b);
+}
+.attendance-quick #as-guardar {
+  margin-left: auto;
+}
+.attendance #as-planilla td button.unsaved {
+  outline: 2px solid #3089ec;
+  outline-offset: -2px;
+}
+.attendance #as-planilla td:first-child input[type="checkbox"] {
+  float: left;
+  margin: 3px 6px 3px 0;
+  min-height: 0;
+}
+.attendance #as-planilla th:first-child input {
+  min-height: 0;
+  vertical-align: middle;
+}
+.attendance th {
+  height: 42px;
+}
+
+/* Una barra de acciones y tarjetas repartidas a todo el ancho. */
+.attendance-topbar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+  padding-bottom: 3px;
+  min-height: 34px;
+  gap: 6px;
+}
+.attendance-topbar > * {
+  flex-shrink: 0;
+}
+.attendance-topbar label {
+  white-space: nowrap;
+}
+.attendance-topbar .attendance-quick {
+  display: contents;
+}
+.attendance-topbar a {
+  order: 9;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.attendance-topbar #as-buscar {
+  width: 125px;
+}
+.attendance-topbar #as-guardar {
+  margin-left: 0;
+  white-space: nowrap;
+}
+.attendance-topbar #as-pincel {
+  max-width: 105px;
+}
+.attendance-stats {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.attendance-stat {
+  min-width: 0;
+  justify-content: center;
+  padding: 7px 5px;
+  gap: 6px;
+}
+.attendance-stat span {
+  white-space: nowrap;
+}
+.attendance-hint {
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--ios-secondary, #64748b);
+}
+.attendance #as-planilla {
+  min-width: calc(250px + var(--attendance-days, 31) * 44px);
+  width: 100%;
+}
+.attendance #as-planilla th:first-child,
+.attendance #as-planilla td:first-child {
+  width: 250px;
+  min-width: 250px;
+  background: var(--ios-card-bg, #fff);
+  box-shadow: 2px 0 3px #0001;
+}
+.attendance #as-planilla th:first-child {
+  background: var(--ios-fill, #edf2f7);
+}
+.attendance #as-planilla th:not(:first-child) {
+  width: 44px;
+  min-width: 44px;
+}
+.attendance #as-planilla td {
+  height: 39px;
+  padding: 4px;
+}
+.attendance #as-planilla td button {
+  width: 31px;
+  min-height: 29px;
+  font-size: 11px;
+}
+.attendance #as-planilla td:first-child strong {
+  font-size: 11px;
+}
+.attendance #as-planilla td:first-child small {
+  font-size: 10px;
+}
+.attendance #as-planilla .attendance-sort {
+  min-height: 16px;
+  height: 16px;
+  min-width: 16px;
+  width: 18px;
+  padding: 0;
+  font-size: 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 1;
+  display: inline-block;
+  margin-left: 2px;
+}
+.attendance #as-planilla th:not(:first-child) .attendance-sort {
+  display: block;
+  margin: 1px auto 0;
+}
+.attendance-table {
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+}
+.attendance-table::-webkit-scrollbar {
+  height: 12px;
+  width: 10px;
+}
+.attendance-table::-webkit-scrollbar-thumb {
+  background: #8895a6;
+  border-radius: 6px;
+  border: 2px solid var(--ios-card-bg, #fff);
+}
+.attendance-table::-webkit-scrollbar-track {
+  background: var(--ios-fill, #edf2f7);
+}
+@media (max-width: 768px) {
+  .attendance-stats {
+    display: flex;
+    overflow: auto;
+    flex-wrap: nowrap;
+  }
+  .attendance-stat {
+    flex: 1 0 100px;
+  }
+  .attendance #as-planilla th:first-child,
+  .attendance #as-planilla td:first-child {
+    width: 190px;
+    min-width: 190px;
+  }
+  .attendance #as-planilla {
+    min-width: calc(190px + var(--attendance-days, 31) * 44px);
+  }
+}
+
+.attendance-topbar button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.attendance-topbar #as-guardar {
+  position: sticky;
+  right: 0;
+  z-index: 6;
+  background: var(--ios-card-bg, #fff) !important;
+  box-shadow: -4px 0 6px var(--ios-card-bg, #fff);
+  color: var(--ios-label, #172e4a) !important;
+}
+.attendance-topbar #as-guardar:not(:disabled) {
+  background: #173e76 !important;
+  color: #fff !important;
+}
+
+.attendance-topbar strong {
+  order: -2;
+}
+.attendance-topbar #as-guardar {
+  position: static;
+  order: -1;
+  box-shadow: none;
+  opacity: 1;
+}
+.attendance-topbar #as-guardar:disabled {
+  color: var(--ios-secondary, #64748b) !important;
+}
+
+/* Secuencia: consultar, marcar, guardar y salir. */
+.attendance-topbar {
+  gap: 9px;
+  align-items: center;
+  padding: 3px 0 6px;
+  min-height: 37px;
+}
+.attendance-topbar strong {
+  order: 0;
+  margin: 0;
+  font-size: 12px;
+}
+.attendance-control-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding-right: 9px;
+  border-right: 1px solid var(--ios-hairline, #cbd5e1);
+}
+.attendance-control-group:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+.attendance-topbar .attendance-exit-group {
+  margin-left: auto;
+}
+.attendance-topbar #as-guardar,
+.attendance-topbar a {
+  order: 0;
+  margin-left: 0;
+  position: static;
+}
+.attendance-topbar button,
+.attendance-topbar select,
+.attendance-topbar input,
+.attendance-topbar .personal-attendance-link {
+  height: 28px;
+  min-height: 28px;
+  font-size: 10px !important;
+}
+.attendance-topbar label {
+  gap: 3px;
+  font-size: 10px;
+}
+.attendance-topbar #as-mes {
+  width: 80px;
+}
+.attendance-topbar #as-anio {
+  width: 58px;
+}
+.attendance-topbar #as-proyecto {
+  max-width: 140px;
+}
+.attendance-topbar #as-personal {
+  width: 71px;
+}
+.attendance-topbar #as-buscar {
+  width: 112px;
+}
+.attendance-topbar #as-pincel {
+  width: 97px;
+}
+.attendance-mark-group input[type="number"] {
+  width: 38px;
+  padding: 4px;
+}
+.attendance-topbar #as-aplicar {
+  background: #173e76 !important;
+  color: #fff !important;
+  border-color: #173e76;
+}
+.attendance-topbar #as-deshacer {
+  background: var(--ios-fill, #edf2f7);
+  color: var(--ios-secondary, #64748b);
+}
+
+.attendance-topbar #as-mes {
+  width: 96px;
+}
+.attendance-topbar #as-anio {
+  width: 76px;
+}
+.attendance-topbar #as-proyecto {
+  max-width: none;
+  width: 160px;
+}
+.attendance-topbar #as-personal {
+  width: 88px;
+}
+.attendance-topbar #as-pincel {
+  width: 112px;
+}
+.attendance-mark-group input[type="number"] {
+  width: 50px;
+}
+.attendance-topbar #as-desde,
+.attendance-topbar #as-hasta {
+  width: 50px;
+}
+.attendance-topbar .attendance-control-group {
+  flex-shrink: 0;
+}

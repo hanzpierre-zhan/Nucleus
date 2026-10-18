@@ -1,6 +1,7 @@
-"""Las solicitudes de Entel - Pext se reciben únicamente en Anton."""
+"""Nucleus recibe las solicitudes de todos los proyectos, incluido Entel - Pext."""
 
 
 def recibir_en_nucleus(datos):
-    proyecto = str(datos.get('Nombre del proyecto') or '').strip().casefold()
-    return proyecto != 'entel - pext'
+    # La unión de sistemas elimina la exclusión por proyecto de origen.
+    # La sincronización sigue validando la clave y evitando duplicados.
+    return True

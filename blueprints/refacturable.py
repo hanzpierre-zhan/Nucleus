@@ -37,10 +37,22 @@ def _ingresada(datos):
 
 
 
+def _datos_fuente(cot_datos, fuente):
+    """Datos de una fuente de WO (una fila real o un sustento adicional).
+
+    El sustento adicional ya vive dentro de `cot_datos` (la cotización parseada),
+    así que se lee directo en lugar de serializarlo y volver a parsearlo.
+    """
+    from services.sustento import SustentoAdicional
+    if isinstance(fuente, SustentoAdicional):
+        return (cot_datos.get('_SUSTENTOS_ADICIONALES') or {}).get(fuente.wo, {})
+    return json.loads(fuente.data_json or '{}')
+
+
 def _documentos(datos, obras):
     from blueprints.cotizacion import _split_wos, _leer_evidencia_wo
     wos=_split_wos(datos.get('NUMERO WO'))
-    if wos and any(json.loads(obras[w.lower()][1].data_json or '{}').get('_COT_EVIDENCIA_MIGRADA') for w in wos if w.lower() in obras):
+    if wos and any(_datos_fuente(datos, obras[w.lower()][1]).get('_COT_EVIDENCIA_MIGRADA') for w in wos if w.lower() in obras):
         datos={c:v for c,v in datos.items() if not c.startswith(('_EVIDENCIA_','_BITACORA_'))}
     fotos = {fase: [] for fase in ('inicio', 'proceso', 'cierre')}
     comentarios = {fase: str(datos.get('_BITACORA_' + fase.upper()) or '') for fase in fotos}
@@ -61,7 +73,7 @@ def _documentos(datos, obras):
             if nombre in proyecto.nombre.upper():
                 proyectos.add(nombre)
         try:
-            origen = json.loads(fila.data_json or '{}')
+            origen = _datos_fuente(datos, fila)
         except (ValueError, TypeError):
             origen = {}
         estado = str(origen.get('ESTADO DE EJECUCION') or origen.get('ESTADO EJECUCION') or 'Pendiente').strip()
@@ -148,7 +160,7 @@ def _registros():
                     elegido = par
                     break
             obras_registro[clave] = elegido or (proyecto, SustentoAdicional(registro, wo))
-        trabajos = [json.loads(obras_registro[w.lower()][1].data_json or '{}') for w in wos]
+        trabajos = [_datos_fuente(datos, obras_registro[w.lower()][1]) for w in wos]
         inicios = [str(w.get('INICIO EJECUCION'))[:10] for w in trabajos if w.get('INICIO EJECUCION')]
         finales = [str(w.get('FIN EJECUCION'))[:10] for w in trabajos if w.get('FIN EJECUCION')]
         monto_hw = _monto(datos.get('SUB TOTAL + FEE'))

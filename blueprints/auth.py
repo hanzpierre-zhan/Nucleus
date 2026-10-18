@@ -9,7 +9,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-import pandas as pd
+from perezoso import pd
 from PIL import Image, ImageOps
 try:
     from pillow_heif import register_heif_opener
@@ -21,7 +21,10 @@ from models import (ConformidadUsuario, Usuario, Proyecto, AppConfig, TokenStore
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
-from services import *
+from services import (
+    login_required,
+    get_menu_proyectos,
+)
 
 
 bp = Blueprint('auth', __name__)
@@ -160,7 +163,9 @@ def switch_project(pid):
     # Check permission
     if session.get('rol') not in ['zeno', 'suport']:
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
-        if not acceso:
+        from services.utilidades import get_menu_proyectos
+        visible = any(p.id == pid for p in get_menu_proyectos(session.get('user_id'), session.get('rol')))
+        if not acceso and not visible:
             # Gestor y Contrata solo pueden operar en los proyectos que tienen asignados.
             if session.get('rol') in ('gestor', 'contrata'):
                 return redirect(url_for('pages.index'))

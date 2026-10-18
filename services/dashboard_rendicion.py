@@ -7,6 +7,8 @@ El mapa de estados→pestaña replica el de blueprints/rendicion.py, y hay un te
 que verifica que ambos sigan idénticos.
 """
 from datetime import datetime
+from services.rendicion_estados import estado_de as _estado_de, etapa_de as _etapa_de
+from services.normalizacion import primer_texto as _txt
 from zoneinfo import ZoneInfo
 
 from services.dashboard_integratel import fecha as _fecha
@@ -27,30 +29,10 @@ ETAPAS = (
 ETAPAS_CERRADAS = ('ATENDIDO', 'ARCHIVADO', 'ANULADO')
 
 
-def _estado_de(d):
-    return str(d.get('ESTADO', '') or '').strip().upper() or 'PENDIENTE'
 
 
-def _etapa_de(d):
-    estado = _estado_de(d)
-    if estado == 'RECHAZADO':
-        destino = d.get('_RECHAZO_ETAPA')
-        if destino in ('VALIDACION', 'EVIDENCIA'):
-            return destino
-        return {'VALIDADO': 'VALIDACION', 'DEPOSITADO': 'EVIDENCIA',
-                'CON SUSTENTO': 'EVIDENCIA', 'OBSERVADO': 'EVIDENCIA'}.get(
-                    str(d.get('RECHAZADO DESDE') or '').strip().upper(), 'ANULADO')
-    return {'PENDIENTE': 'VALIDACION', 'VALIDADO': 'DEPOSITOS', 'DEPOSITADO': 'EVIDENCIA',
-            'CON SUSTENTO': 'SUSTENTO', 'OBSERVADO': 'OBSERVADO', 'SUSTENTADO': 'ATENDIDO',
-            'ARCHIVADO': 'ARCHIVADO', 'ANULADO': 'ANULADO'}.get(estado, 'VALIDACION')
 
 
-def _txt(*vals):
-    for v in vals:
-        v = str(v or '').strip()
-        if v:
-            return v
-    return ''
 
 
 def _int(v):

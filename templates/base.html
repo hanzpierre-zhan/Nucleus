@@ -23,7 +23,7 @@
     <script src="/static/js/manual-options.js?v=3"></script>
     <script defer src="/static/js/button-semantics.js?v=1"></script>
     <script defer src="/static/js/form-options.js?v=2"></script>
-    <link rel="stylesheet" href="/static/css/brand-lockup.css?v=3">
+    <link rel="stylesheet" href="/static/css/brand-lockup.css?v=4">
     <script id="nucleus-user-names" type="application/json">{{ nombres_usuarios|default({})|tojson }}</script>
     <script src="/static/js/user-names.js?v=1"></script>
 </head>
@@ -52,36 +52,45 @@
             {% set brand_location = 'sidebar' %}{% include '_brand_lockup.html' %}
 
             <nav class="sidebar-nav">
+                {% if request.path == '/espacios' and navegacion_negocio and not navegacion_negocio.admin %}
+                {% include '_navegacion_proyectos.html' %}
+                {% else %}
                 {% if (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
+                <div class="sidebar-section-label">Analytics</div>
                 <a href="/analytics" class="sidebar-link {% if request.path.startswith('/analytics') or request.path == '/dashboard' %}active{% endif %}" data-nav="/analytics">
-                    <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Analytics</span>
+                    <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Dashboard</span>
                 </a>
                 {% endif %}
 
-                <div class="sidebar-section-label">Módulos</div>
+                <div class="sidebar-section-label">Proyectos</div>
                 {% set _flm_asignados = proyectos_list | selectattr('nombre', 'in', ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT']) | list %}
-                {% set _orden_modulos = ['FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE', 'Rendicion'] %}
+                {% set _orden_modulos = ['FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'] %}
                 {% for _nombre_mod in _orden_modulos %}
                 {% for p in proyectos_list %}
-                {% if p.nombre == _nombre_mod and not (_flm_asignados and p.nombre in ['Dataper', 'Material', 'SITE', 'Generadores']) %}
+                {% if p.nombre == _nombre_mod %}
                 <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and (p.id == session.get('current_proyecto_id') or (flm_resource_context and p.id == flm_resource_context.flm_id)) %}active{% endif %}" data-nav="/">
-                    <i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i> <span class="sidebar-link-text">{{ p.nombre }}</span>
+                    {% set operator_icon = {'FLM - ENTEL': 'entel', 'FLM - CLARO': 'claro', 'FLM - INTEGRATEL': 'integratel', 'FLM - PEXT': 'pext'}.get(p.nombre) %}
+                    {% if operator_icon %}<img class="project-brand-icon" src="/static/img/project-{{ operator_icon }}.svg?v=1" width="20" height="20" alt="" aria-hidden="true">{% else %}<i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i>{% endif %} <span class="sidebar-link-text">{{ p.nombre }}</span>
                 </a>
                 {% endif %}
                 {% endfor %}
                 {% endfor %}
 
+                <div class="sidebar-section-label">Módulos</div>
+                {% for nombre, etiqueta, icono in [('Dataper','Personal','fa-users'),('Material','Material','fa-boxes-stacked'),('SITE','Sites','fa-location-dot'),('Generadores','Generadores','fa-bolt'),('Combustible','Combustible','fa-gas-pump'),('Cotizaciones','Cotizaciones','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet')] %}
+                {% for p in proyectos_list %}{% if p.nombre == nombre %}
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                {% if nombre == 'SITE' %}<a href="/mapa-site" class="sidebar-link {% if request.path in ['/mapa','/mapa-site'] %}active{% endif %}"><i class="fa-solid fa-map-location-dot"></i><span class="sidebar-link-text">Mapa de Sites</span></a>{% endif %}
+                {% endif %}{% endfor %}{% endfor %}
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
-                {% if not _flm_asignados and (session.get('rol') or '').lower() not in ['gestor', 'contrata'] %}
-                <a href="/mapa-site" class="sidebar-link {% if request.path == '/mapa-site' or request.path == '/mapa' %}active{% endif %}" data-nav="/mapa-site">
-                    <i class="fa-solid fa-map-location-dot"></i> <span class="sidebar-link-text">Mapa Sites</span>
-                </a>
-                {% endif %}
 
+
+                {% endif %}
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
-                <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' %}active{% endif %}" data-nav="/usuarios">
+                <div class="sidebar-section-label">Configuración</div>
+                <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' or (request.path == '/espacios' and request.args.get('administrar') == '1') %}active{% endif %}" data-nav="/usuarios">
                     <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
                 </a>
                 <a href="/salud" class="sidebar-link {% if request.path == '/salud' %}active{% endif %}" data-nav="/salud">
@@ -97,7 +106,7 @@
             </nav>
             <div class="sidebar-footer">
                 <div class="sidebar-user">
-                    <div class="user-avatar" style="background:#fff;"><img src="/static/img/cobra-logo.png" alt="Cobra" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;"></div>
+                    <div class="user-avatar" style="background:#fff;"><img src="/static/img/brand-symbol.svg?v=4" alt="Nucleus" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;"></div>
                     <div class="sidebar-user-info">
                         <div style="font-size: 13px; font-weight: 700; color: var(--ios-label, #1C1C1E);">{{ nombre_usuario_actual or session.get('username') }}</div>
                         <div style="font-size: 10px; color: var(--ios-gray-1, #8E8E93); text-transform: uppercase; letter-spacing: 0.4px;">{{ session.get('rol') }}</div>
@@ -196,6 +205,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/api-response.js') }}?v=2"></script>
     <script src="{{ url_for('static', filename='js/catalogos-autocomplete.js') }}?v=1"></script>
+
     {% block scripts %}{% endblock %}
 
     <!-- Bottom Nav Bar para móvil: se construye a partir del sidebar existente -->

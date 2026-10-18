@@ -1,0 +1,64 @@
+
+(function(){
+  var _ADMIN_ROL="{{session.get('rol')}}";
+  window._ADMIN_ES_ADMIN=['zeno','suport'].includes(_ADMIN_ROL);
+  var _ESTADOS=['Pdt. Cotización','En Aprobación','Atendido','Cancelado','Cotizado','En proceso','Observado','Rechazado','Validado'];
+  var _BADGES={'Pdt. Cotización':'#8E8E93','En Aprobación':'#FF9500','Atendido':'#34C759','Cancelado':'#6B7280','Cotizado':'#5AC8FA','En proceso':'#173E76','Observado':'#FF6B00','Rechazado':'#FF3B30','Validado':'#30D158'};
+  window.adminCotAbrir=function(){
+    if(!window._ADMIN_ES_ADMIN)return;
+    var m=document.getElementById('admin-cot-modal');
+    if(m){m.style.display='flex';adminCotBuscar();}
+  };
+  window.adminCotCerrar=function(){
+    var m=document.getElementById('admin-cot-modal');
+    if(m)m.style.display='none';
+  };
+  var _t=null;
+  window.adminCotBuscar=function(){clearTimeout(_t);_t=setTimeout(_run,350);};
+  function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function _run(){
+    var q=(document.getElementById('admin-cot-q')||{}).value||'';
+    var est=(document.getElementById('admin-cot-filtro-estado')||{}).value||'';
+    var tb=document.getElementById('admin-cot-tbody');
+    var cnt=document.getElementById('admin-cot-count');
+    if(!tb)return;
+    tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:18px;color:var(--ios-gray-2);"><i class="fa-solid fa-spinner fa-spin"></i> Cargando...</td></tr>';
+    var p=new URLSearchParams();
+    if(q.trim())p.set('q',q.trim());
+    if(est)p.set('estado',est);
+    fetch('/api/admin/cotizacion/lista?'+p.toString()).then(function(r){return r.json();}).then(function(d){
+      var rs=d.registros||[];
+      if(cnt)cnt.textContent=rs.length+' registro(s) encontrado(s)';
+      if(!rs.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--ios-gray-2);">Sin resultados.</td></tr>';return;}
+      tb.innerHTML=rs.map(function(r){
+        var b=_BADGES[r.estado]||'#8E8E93';
+        var sk=_e(r.key).replace(/[^a-zA-Z0-9_-]/g,'_');
+        var opts=_ESTADOS.filter(function(e){return e!==r.estado;}).map(function(e){return '<option value="'+_e(e)+'">'+_e(e)+'</option>';}).join('');
+        return '<tr style="border-bottom:1px solid var(--ios-hairline);">'+
+          '<td style="padding:7px 10px;font-weight:600;white-space:nowrap;font-size:12px;">'+_e(r.codigo||r.key)+'</td>'+
+          '<td style="padding:7px 10px;white-space:nowrap;"><span style="display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;background:'+b+'22;color:'+b+';border:1px solid '+b+'55;">'+_e(r.estado||'—')+'</span></td>'+
+          '<td style="padding:7px 10px;font-size:12px;white-space:nowrap;">'+_e(r.cliente)+(r.wo?'<br><span style="color:var(--ios-gray-2);font-size:11px;">WO: '+_e(r.wo)+'</span>':'')+'</td>'+
+          '<td style="padding:7px 10px;font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+_e(r.objetivo)+'">'+_e(r.objetivo||'—')+'</td>'+
+          '<td style="padding:7px 10px;white-space:nowrap;"><div style="display:flex;gap:5px;align-items:center;justify-content:center;">'+
+            '<select id="selac'+sk+'" style="padding:4px 6px;border-radius:6px;border:1px solid var(--ios-hairline);background:var(--excel-bg);color:var(--ios-label);font-size:12px;">'+opts+'</select>'+
+            '<button type="button" data-key="'+_e(r.key)+'" onclick="adminCotForzarEstado(this.dataset.key)" style="padding:4px 10px;border-radius:6px;background:#00d4aa;border:none;color:#000;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;"><i class="fa-solid fa-bolt"></i> Mover</button>'+
+          '</div></td></tr>';
+      }).join('');
+    }).catch(function(e){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:18px;color:#FF3B30;">Error: '+_e(e.message)+'</td></tr>';});
+  }
+  window.adminCotForzarEstado=function(key){
+    var sk=key.replace(/[^a-zA-Z0-9_-]/g,'_');
+    var sel=document.getElementById('selac'+sk);
+    var nuevo=sel?sel.value:'';
+    if(!nuevo)return;
+    if(!confirm('Mover "'+key+'" al estado "'+nuevo+'"\n\nEsta accion queda registrada en el historial.'))return;
+    fetch('/api/admin/cotizacion/forzar_estado',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,estado:nuevo})})
+      .then(function(r){return r.json();}).then(function(res){
+        if(res.error){try{nucleusAlert(res.error);}catch(e){alert(res.error);}return;}
+        try{nucleusToast('✅ Movido a "'+nuevo+'".');}catch(e){}
+        adminCotBuscar();
+        try{if(typeof reloadTabulator==='function')reloadTabulator();}catch(_e){}
+        try{if(typeof nucleusRefresh==='function')nucleusRefresh();}catch(_e){}
+      }).catch(function(e){try{nucleusAlert(e.message||'Error');}catch(_e){alert(e.message||'Error');}});
+  };
+})();

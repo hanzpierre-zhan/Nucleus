@@ -5,7 +5,7 @@ from models import AppConfig, Proyecto, NucleusData
 from services.rendicion_origen import recibir_en_nucleus
 
 
-def test_sync_excluye_entel_pext_y_recibe_los_demas(app, auth_client, monkeypatch):
+def test_sync_recibe_entel_pext_y_los_demas_sin_duplicar(app, auth_client, monkeypatch):
     with app.app_context():
         pid = Proyecto.query.filter_by(nombre='Rendicion').one().id
         cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='rendicion_csv_url').first()
@@ -23,10 +23,14 @@ def test_sync_excluye_entel_pext_y_recibe_los_demas(app, auth_client, monkeypatc
     monkeypatch.setattr('urllib.request.urlopen', lambda *a, **kw: io.BytesIO(csv.encode()))
     response = auth_client.post('/api/rendicion/sync')
     assert response.status_code == 200, response.json
-    assert response.json['nuevas'] == 3
+    assert response.json['nuevas'] == 4
+    repetida = auth_client.post('/api/rendicion/sync')
+    assert repetida.status_code == 200, repetida.json
+    assert repetida.json['nuevas'] == 0
     with app.app_context():
         rows = NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.key_value.like('ORIGEN-%')).all()
-        assert {json.loads(row.data_json)['Nombre del proyecto'] for row in rows} == {'Entel', 'Claro', 'Integratel'}
+        assert len(rows) == 4
+        assert {json.loads(row.data_json)['Nombre del proyecto'] for row in rows} == {'Entel - Pext', 'Entel', 'Claro', 'Integratel'}
         for row in rows:
             db.session.delete(row)
         cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='rendicion_csv_url').one()
@@ -37,6 +41,6 @@ def test_sync_excluye_entel_pext_y_recibe_los_demas(app, auth_client, monkeypatc
         db.session.commit()
 
 
-def test_exclusion_admite_espacios_y_mayusculas():
-    assert not recibir_en_nucleus({'Nombre del proyecto': '  ENTEL - PEXT  '})
+def test_recepcion_admite_entel_pext_con_espacios_y_mayusculas():
+    assert recibir_en_nucleus({'Nombre del proyecto': '  ENTEL - PEXT  '})
     assert recibir_en_nucleus({'Nombre del proyecto': 'Entel'})

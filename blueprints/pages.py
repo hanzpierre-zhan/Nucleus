@@ -10,7 +10,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
-import pandas as pd
+from perezoso import pd
 from PIL import Image, ImageOps
 try:
     from pillow_heif import register_heif_opener
@@ -22,7 +22,17 @@ from models import (Usuario, Proyecto, AppConfig, TokenStore, NucleusData,
                     NucleusHistory, FiltroMaestro, TablaMaestra,
                     ReglaEstadoManual, AccesoProyecto, KpiConfig,
                     HistorialCambios, Tecnico, Cotizacion)
-from services import *
+from services import (
+    login_required,
+    inject_kpis,
+    apply_data_restrictions,
+    get_session_info,
+    get_menu_proyectos,
+    puede_cotizaciones,
+    puede_rendicion,
+    _combustible_fecha_ord,
+    _flm_wo_list,
+)
 from services.recursos_flm import contexto_recursos, filtrar_catalogo, FLM_NOMBRES
 
 
@@ -32,6 +42,7 @@ bp = Blueprint('pages', __name__)
 # ─────────────────────────────────────────────────────────────────────────────
 # Cache del cruce Site Name → FLM (5.000+ filas con json.loads en CADA / de FLM)
 # ─────────────────────────────────────────────────────────────────────────────
+_MARCADOR_DATOS_TABLA = '__NUCLEUS_DATOS_TABLA_9f4c1a__'
 _SITE_MAP_TTL = 120.0
 _site_map_cache = {'ts': 0.0, 'data': None}
 
@@ -174,11 +185,13 @@ def index():
         except:
             res_obj = {}
 
-    # Load all distinct keys reliably from AppConfig Master Schema
-    schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+    # Se leen todas las claves de configuración del proyecto en UNA consulta y
+    # se sirven desde memoria: en Render/Neon cada ida y vuelta a la BD se paga.
+    app_cfg = {c.clave: c for c in AppConfig.query.filter_by(proyecto_id=pid).all()}
+    schema_config = app_cfg.get('app_schema')
     columns_set = set(json.loads(schema_config.valor)) if schema_config else set()
-    
-    manual_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='manual_columns').first()
+
+    manual_cfg = app_cfg.get('manual_columns')
     manual_cols_data = json.loads(manual_cfg.valor) if manual_cfg else []
     from services.legacy_columns import retired
     manual_cols_data=[c for c in manual_cols_data if not retired(c.get('nombre'))]
@@ -192,6 +205,14 @@ def index():
     # autocompleta desde el mapa generador->TIPO, TECNICO ASIGNADO lista los técnicos.
     proy_actual = db.session.get(Proyecto, pid)
     proy_actual_nombre = proy_actual.nombre.strip() if proy_actual and proy_actual.nombre else ''
+    if proy_actual_nombre == 'Dataper':
+        from services.personal import configurar
+        manual_cols_data = configurar(manual_cols_data)
+        columns_set.update(c['nombre'] for c in manual_cols_data)
+    if proy_actual_nombre in ('Material','SITE','Generadores'):
+        from services.proyectos_catalogo import configurar as configurar_proyectos
+        manual_cols_data = configurar_proyectos(manual_cols_data)
+        columns_set.add('PROYECTO')
     if proy_actual_nombre in ('Generadores', 'Combustible'):
         dataper_proy = Proyecto.query.filter_by(nombre='Dataper').first()
         tecnicos_set = set()
@@ -278,15 +299,29 @@ def index():
         columns_set.add('Cruce de personal')
 
     # Load and Filter data
-    rows = NucleusData.query.filter_by(proyecto_id=pid).all()
+    from services.columnas_fuente import presentar as presentar_columnas_fuente
+    if proy_actual_nombre == 'Dataper':
+        from services.personal import presentar as presentar_personal
+    if proy_actual_nombre in ('Material', 'SITE', 'Generadores'):
+        from services.proyectos_catalogo import presentar as presentar_proyecto
+
+    # Solo se necesitan key_value + data_json: pedir esas dos columnas evita
+    # cargar entidades ORM completas (menos memoria y menos sobrecarga en
+    # proyectos con miles de filas).
+    filas = db.session.query(
+        NucleusData.key_value, NucleusData.data_json
+    ).filter_by(proyecto_id=pid).all()
     raw_data = []
-    for r in rows:
-        d = json.loads(r.data_json)
+    for key_value, data_json in filas:
+        d = json.loads(data_json)
         if personal_rendicion is not None:
             completar_personal(d, personal_rendicion)
-        from services.columnas_fuente import presentar as presentar_columnas_fuente
-        d = presentar_columnas_fuente(d, proy_actual_nombre, r.key_value)
-        d['_key'] = r.key_value
+        d = presentar_columnas_fuente(d, proy_actual_nombre, key_value)
+        if proy_actual_nombre == 'Dataper':
+            d = presentar_personal(d)
+        if proy_actual_nombre in ('Material','SITE','Generadores'):
+            d = presentar_proyecto(d)
+        d['_key'] = key_value
         if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and not d.get('GESTOR'):
             d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
             
@@ -298,6 +333,10 @@ def index():
                 columns_set.add('Tipo WO')
 
         raw_data.append(d)
+
+    # Las filas crudas ya están decodificadas: se liberan antes de transformar y
+    # serializar para no mantener a la vez los JSON de origen y los dicts.
+    del filas
 
     # Dataper y Material: solo mostrar registros cuyo campo PROYECTO sea FLM/PEXT/Claro/Integratel
     # según los proyectos asignados al usuario (si tiene varios, muestra todos). Comparación case-insensitive.
@@ -353,9 +392,9 @@ def index():
         except Exception:
             pass
 
-    data, kpi_meta = inject_kpis(pid, data)
+    data, kpi_meta = inject_kpis(pid, data, kpi_configs)
 
-    config_key = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+    config_key = app_cfg.get('primary_key')
     pk = config_key.valor if config_key else 'NO_DEF'
     
     # Keys con MÁS DE UN cambio de estado registrado (por importación o manual).
@@ -458,16 +497,19 @@ def index():
     # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
     layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
+    if proy_actual_nombre == 'Dataper' and column_layout and not any(c.get('field')=='SUPERVISOR' for c in column_layout):
+        column_layout.append({'field':'SUPERVISOR','visible':True})
+    if proy_actual_nombre in ('Material','SITE','Generadores') and column_layout and not any(c.get('field')=='PROYECTO' for c in column_layout):
+        column_layout.append({'field':'PROYECTO','visible':True})
     # En Rendicion cada hoja guarda su propia vista: column_layout__depositos, etc.
     column_layout_vistas = {}
     try:
         _pref = 'column_layout__'
-        for _vcfg in AppConfig.query.filter(
-                AppConfig.proyecto_id == pid,
-                AppConfig.clave.like(_pref + '%')).all():
-            _vista = (_vcfg.clave or '')[len(_pref):].strip().lower()
-            if _vista and _vcfg.valor:
-                column_layout_vistas[_vista] = json.loads(_vcfg.valor)
+        for _clave, _vcfg in app_cfg.items():
+            if _clave and _clave.startswith(_pref):
+                _vista = _clave[len(_pref):].strip().lower()
+                if _vista and _vcfg.valor:
+                    column_layout_vistas[_vista] = json.loads(_vcfg.valor)
     except Exception:
         column_layout_vistas = {}
 
@@ -478,8 +520,18 @@ def index():
     # Exportar / Sincronizar y botones del flujo: para quien tenga Rendicion.
     puede_rend = puede_rendicion(user_id, user_rol, session.get('current_proyecto_nombre'))
 
-    return render_template('index.html', 
-                          data=json.dumps(data, ensure_ascii=False, separators=(',', ':')), 
+    # El HTML solo necesita el TEXTO del JSON. Se serializa aquí y se inserta
+    # con un marcador único en vez de pasar el string gigante a Jinja: si se
+    # pasa como valor, Jinja lo copia varias veces al renderizar (para ~8 MB de
+    # datos el pico subía a ~50 MB). Además se liberan los diccionarios antes
+    # de renderizar. El HTML resultante es byte a byte el mismo.
+    datos_json = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    # Liberar las estructuras pesadas (dicts decodificados) antes de renderizar:
+    # el HTML solo necesita `datos_json`.
+    del data, raw_data
+
+    html = render_template('index.html', 
+                          data=_MARCADOR_DATOS_TABLA, 
                           columns=json.dumps(cols), 
                           pk=pk, 
                           manual_cols=json.dumps(manual_cols_data),
@@ -496,6 +548,8 @@ def index():
                           proyectos_list=proyectos,
                           puede_cotizaciones=puede_coti,
                           puede_rendicion=puede_rend)
+
+    return html.replace(_MARCADOR_DATOS_TABLA, datos_json)
 
 
 @bp.route('/dashboard')

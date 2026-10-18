@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Proyectos y módulos — Nucleus{% endblock %}
+{% block content %}
+<meta name="espacios-csrf" content="{{ session.get('espacios_csrf') }}">
+<link rel="stylesheet" href="/static/css/espacios.css?v=2">
+<link rel="stylesheet" href="/static/vendor/css/leaflet.css">
+<div class="workspace-page">
+<div class="workspace-project-mobile"><label for="proyecto-movil">Proyecto</label><select id="proyecto-movil" aria-label="Proyecto activo en móvil"></select><button id="menu-movil" type="button" aria-expanded="false">Módulos</button></div>
+<nav id="modulos-movil" aria-label="Módulos en móvil" hidden></nav>
+
+        <section id="vista-datos"><a id="herramienta-asistencia" href="/personal/asistencia" hidden>Control de asistencia →</a>
+            <div class="heading"><div><p id="contexto" class="eyebrow"></p><h1 id="titulo">Tu espacio de trabajo</h1></div><button id="exportar" hidden>Exportar CSV</button></div>
+            <div id="workspace-map" hidden></div><p id="ayuda">Elige un módulo para consultar los registros de tus proyectos.</p>
+            <div class="toolbar"><label class="search">Buscar<input id="buscar" type="search" placeholder="Código, persona, site…"></label><button id="actualizar">Actualizar</button><span id="conteo"></span></div>
+            <div class="table-wrap"><table><thead><tr><th>Proyecto</th><th>Registro</th><th>Descripción</th><th>Estado</th><th>Fecha</th><th><span class="sr-only">Detalle</span></th></tr></thead><tbody id="filas"></tbody></table></div>
+            <div class="pagination"><button id="anterior">Anterior</button><span id="pagina">Página 1</span><button id="siguiente">Siguiente</button></div>
+        </section>
+
+        <p id="estado" role="status" aria-live="polite"></p>
+</div>
+<dialog id="detalle"><div class="heading"><h2 id="detalle-titulo">Detalle</h2><button id="cerrar-detalle" aria-label="Cerrar detalle">Cerrar</button></div><p id="detalle-proyecto" class="eyebrow"></p><dl id="detalle-campos"></dl>
+    <form id="editar-form" hidden><h3>Actualizar un campo</h3><label>Campo<select id="campo-editar"></select></label><label>Valor<textarea id="valor-editar" rows="3"></textarea></label><button type="submit">Guardar cambio</button></form>
+    <form id="accion-form" hidden><h3>Flujo de rendición</h3><label>Acción<select id="accion"></select></label>
+        <label>Tiempo de respuesta<select id="tiempo"><option value="">Seleccionar</option><option>Menor a 4 horas</option><option>Mayor a 4 horas</option><option>No aplica</option></select></label>
+        <label>Fecha de pago<input type="date" id="fecha-pago"></label><label>Monto pagado<input type="number" min="0.01" step="0.01" id="monto-pago"></label><label>Referencia del comprobante ya registrado<input id="foto-pago"></label>
+        <label>Comentario u observación<textarea id="comentario" rows="3"></textarea></label><button type="submit">Aplicar acción</button>
+    </form><p id="detalle-estado" role="status"></p>
+</dialog>
+
+{% endblock %}
+{% block scripts %}<script src="/static/js/leaflet.js"></script><script src="/static/js/espacios.js?v=2"></script>{% endblock %}

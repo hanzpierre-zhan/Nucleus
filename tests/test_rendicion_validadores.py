@@ -101,3 +101,22 @@ def test_lista_incluye_usuarios_sin_modulo(auth_client, escenario):
     assert usuario['acceso_rendicion'] is False
     assert usuario['admin'] is False
     assert auth_client.post('/api/rendicion/validadores', json={'activo': True, 'asignaciones': {str(uid): ['ENTEL']}}).status_code == 200
+
+
+def test_acceso_rendicion_equivale_a_la_regla_individual(app, auth_client, escenario):
+    """La lista resuelve el acceso de todos los usuarios en bloque (dos consultas
+    fijas en vez de una por usuario): debe coincidir usuario por usuario con la
+    regla individual `puede_rendicion`."""
+    from models import Usuario
+    from services.utilidades import puede_rendicion
+    respuesta = auth_client.get('/api/rendicion/validadores')
+    assert respuesta.status_code == 200
+    usuarios = respuesta.json['usuarios']
+    with app.test_request_context():
+        esperado = {u.id: bool(puede_rendicion(u.id, u.rol, '')) for u in Usuario.query.all()}
+    assert {u['id'] for u in usuarios} == set(esperado)
+    for usuario in usuarios:
+        assert usuario['acceso_rendicion'] is esperado[usuario['id']], usuario['username']
+    # La base de prueba cubre las dos ramas: zeno siempre entra, el supervisor no.
+    assert any(usuario['acceso_rendicion'] for usuario in usuarios)
+    assert any(not usuario['acceso_rendicion'] for usuario in usuarios)

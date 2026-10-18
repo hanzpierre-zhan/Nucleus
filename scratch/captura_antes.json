@@ -1,0 +1,14 @@
+{
+  "/liquidaciones/api/registros": {
+    "code": 200,
+    "bytes": 230892,
+    "sha": "e25bcdc15599e8eb2d568e32ed4ef23d047fcb4e48117efcc4458ff732af3abe",
+    "registros": 319
+  },
+  "/refacturable/api/registros": {
+    "code": 200,
+    "bytes": 230892,
+    "sha": "e25bcdc15599e8eb2d568e32ed4ef23d047fcb4e48117efcc4458ff732af3abe",
+    "registros": 319
+  }
+}

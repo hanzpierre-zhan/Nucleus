@@ -1,0 +1,3006 @@
+
+
+function abrirNDetalle(data){
+
+  document.getElementById('n-detalle-sub').textContent = data['_key']||data['N° COTIZACION']||'';
+
+  document.getElementById('n-detalle-text').value = `N: ${data['N° ORDEN']||''}\nN° COTIZACION: ${data['_key']||data['N° COTIZACION']||''}\nFECHA: ${data['FECHA']||''}\nSUPERVISOR: ${data['SUPERVISOR']||''}\nOBJETIVO: ${data['OBJETIVO']||''}\nNOMBRE SITE: ${data['NOMBRE SITE']||''}\nNUMERO WO: ${data['NUMERO WO']||''}`;
+
+  document.getElementById('modal-n-detalle').style.display='flex';
+
+}
+
+function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.display='none'; }
+
+
+
+// Rendición: genera el detalle del registro (las columnas que están en la tabla
+
+// de la hoja activa, en el mismo orden) dentro del contenedor indicado.
+
+function rendPoblarDetalle(data, gridId) {
+    const editable = gridId === 'rend-resumen-grid' && typeof _rendModal !== 'undefined' && _rendModal?.accion === 'validar'
+        && ['gestor','supervisor','zeno','suport','admin'].includes(String(USER_ROLE).toLowerCase()) && rendPuedeValidarFila(data);
+    if (gridId === 'rend-resumen-grid') {
+        document.getElementById('rend-correccion-actions').style.display = editable ? 'block' : 'none';
+        document.getElementById('rend-correccion-status').textContent = editable ? 'Corrige los datos y guarda antes de validar.' : '';
+        if (editable) rendIniciarCorrecciones(data);
+    }
+
+    const grid = document.getElementById(gridId);
+
+    if (!grid) return;
+
+    data = data || {};
+
+    const items = [];
+    const editables = [];
+
+    const seen = new Set();
+
+    const cols = (typeof table !== 'undefined' && table && typeof table.getColumns === 'function')
+
+        ? table.getColumns() : [];
+
+    cols.forEach(col => {
+
+        const def = (col && col.getDefinition) ? col.getDefinition() : {};
+
+        const f = def.field;
+
+        if (!f || f === '_key' || f === '_accion' || seen.has(f)) return;
+
+        // Solo lo que se ve en la tabla (la hoja activa puede ocultar columnas)
+
+        const _forceShowDetalle = /motivo/i.test(f);
+        if (typeof col.isVisible === 'function' && !col.isVisible() && !_forceShowDetalle) return;
+
+        seen.add(f);
+
+        let label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
+
+        let raw = data[f];
+
+        const val = (raw === null || raw === undefined) ? '' : String(raw).trim();
+
+        let valHtml;
+
+        // Campos de monto: resaltados con pastilla verde (mismo estilo que los valores de estado)
+
+        const _camposMonto = ['Monto total del depósito', 'MONTO PAGO', 'Monto', 'Monto total'];
+
+        if (f === 'ESTADO' && val && typeof rendEstadoDe === 'function' && typeof REND_ESTADO_COLORS !== 'undefined') {
+
+            const est = rendEstadoDe({ ESTADO: val });
+
+            const c = REND_ESTADO_COLORS[est];
+
+            valHtml = c
+
+                ? `<span style="background:${c.bg};color:${c.fg};padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;">${escapeHtml(est)}</span>`
+
+                : escapeHtml(est);
+
+        } else if (_camposMonto.includes(f) && val) {
+
+            valHtml = `<span style="background:linear-gradient(135deg,#28A745,#1e8a38);color:#fff;padding:3px 12px;border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 1px 4px rgba(40,167,69,.35);letter-spacing:.3px;">S/ ${escapeHtml(val)}</span>`;
+
+        } else {
+
+            valHtml = val ? escapeHtml(val)
+
+                : '<span style="color:var(--ios-gray-3, #C7C7CC); opacity:.55;">—</span>';
+
+        }
+
+        if (editable && rendCampoCorregible(f)) {
+            const attrs = `data-rend-campo="${escapeHtml(f)}" aria-label="${escapeHtml(label)}" maxlength="4000" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--ios-hairline);border-radius:7px;background:var(--ios-fill);color:var(--ios-label);font:inherit;"`;
+            valHtml = /motivo|observaci/i.test(f)
+                ? `<textarea ${attrs} rows="3">${escapeHtml(val)}</textarea>`
+                : `<input type="text" ${attrs} value="${escapeHtml(val)}">`;
+        }
+        const html = `<div class="rd-k">${escapeHtml(label)}</div><div class="rd-v">${valHtml}</div>`;
+        if (editable && rendCampoCorregible(f)) editables.push({field:f,html});
+        else items.push(html);
+
+    });
+
+    const prioritarios = ['DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','Motivo de la solicitud','Número CM / PM / PLM'];
+    editables.sort((a,b)=>(prioritarios.includes(a.field)?prioritarios.indexOf(a.field):99)-(prioritarios.includes(b.field)?prioritarios.indexOf(b.field):99));
+    grid.innerHTML = editables.map(x=>x.html).concat(items).join('') || '<div class="rd-k">Registro</div><div class="rd-v">Sin datos</div>';
+
+}
+
+let _textoAmplioTarget=null;
+
+function abrirTextoAmplio(input,title){
+
+  _textoAmplioTarget=input;
+
+  document.getElementById('texto-amplio-title').textContent=title||'Editar texto';
+
+  document.getElementById('texto-amplio-text').value=input.value||'';
+
+  document.getElementById('modal-texto-amplio').style.display='flex';
+
+  setTimeout(()=>document.getElementById('texto-amplio-text').focus(),50);
+
+}
+
+function cerrarTextoAmplio(){ document.getElementById('modal-texto-amplio').style.display='none'; _textoAmplioTarget=null; }
+
+function guardarTextoAmplio(){
+
+  if(_textoAmplioTarget){
+
+    _textoAmplioTarget.value=document.getElementById('texto-amplio-text').value;
+
+    _textoAmplioTarget.title=_textoAmplioTarget.value;
+
+    _textoAmplioTarget.dispatchEvent(new Event('input',{bubbles:true}));
+
+    _textoAmplioTarget.dispatchEvent(new Event('change',{bubbles:true}));
+
+  }
+
+  cerrarTextoAmplio();
+
+}
+
+
+
+async function editarCodigoWO() {
+
+    if (!woKey) return;
+
+    const newKey = prompt("Editar código principal de este registro.\nActual: " + woKey + "\nNuevo código:", woKey);
+
+    if (!newKey || newKey.trim() === '' || newKey.trim() === woKey) return;
+
+    
+
+    if (!confirm("¿Estás seguro de cambiar el código de \"" + woKey + "\" a \"" + newKey.trim() + "\"?\n\nEsto actualizará el historial, cotizaciones y todos los registros asociados. El código interno se conservará como referencia de la solicitud.")) return;
+
+    
+
+    try {
+
+        const res = await fetch('/api/rows/edit_key', {
+
+            method: 'POST',
+
+            headers: {'Content-Type': 'application/json'},
+
+            body: JSON.stringify({ old_key: woKey, new_key: newKey.trim() })
+
+        });
+
+        const j = await res.json();
+
+        if (res.ok && j.success) {
+
+            alert('Código actualizado con éxito. La tabla se recargará.');
+
+            location.reload();
+
+        } else {
+
+            alert('Error: ' + (j.error || 'No se pudo actualizar el código.'));
+
+        }
+
+    } catch(e) {
+
+        alert('Error de conexión.');
+
+    }
+
+}
+
+/* ================================================================
+
+   RENDICION — flujo por pestañas (hojas tipo Excel)
+
+   Cada solicitud salta de hoja sola cuando cambia su ESTADO.
+
+   ================================================================ */
+
+
+
+let _rendVista = 'validacion';
+
+let _rendFiltroFn = null;          // filtro de la pestaña activa
+
+// Cada hoja tiene SU vista de columnas: {visibles:{campo: bool}, orden:[campo,...]}.
+
+// Mostrar/ocultar/ordenar en Depósitos no toca a Validación ni a otros módulos.
+
+const _rendEstadoVistas = {};
+
+let _rendEstadoListo = false;
+
+let _rendModal = null;             // {accion, key, estadoPrevio, fotos:[], ...}
+
+const _rendFotosPend = {};         // slot -> url ya subida
+
+
+
+
+
+// Roles del usuario actual como array (ej: ['zeno'])
+
+const _rendUserRoles = [String(USER_ROLE || '').trim().toLowerCase()];
+
+
+
+// Revierte el estado de una fila un paso atrás (solo zeno/admin)
+
+async function rendArchivar(key, desarchivar) {
+    const accion = desarchivar ? 'desarchivar' : 'archivar';
+    if (!(await nucleusConfirm(desarchivar ? 'La solicitud volverá a Atendido con sus datos y sustentos.' : 'La solicitud pasará a Archivar. Sus datos y sustentos se conservarán.', desarchivar ? 'Desarchivar' : 'Archivar'))) return;
+    const result = await rendAccion(key, accion, {});
+    if (result) rendTrasAccion(result, key);
+}
+function rendAnular(key) {
+    _rendModal = {accion:'anular',key};
+    document.getElementById('rend-motivo').value = '';
+    rendMostrarResumen(key);
+    rendAbrirModal('Anular solicitud', 'Indica el motivo. La solicitud quedará en Anulado conservando sus datos y comprobantes.', 'Confirmar anulación', 'rend-motivo');
+    document.getElementById('rend-lbl-motivo').textContent = 'Motivo de anulación';
+    document.getElementById('rend-lbl-motivo').style.display = 'block';
+    document.getElementById('rend-motivo').style.display = 'block';
+}
+
+function rendObservar(key) {
+    _rendModal = {accion:'observar', key};
+    document.getElementById('rend-motivo').value = '';
+    rendMostrarResumen(key);
+    rendAbrirModal('Observar sustento', 'Indica qué debe corregirse. La solicitud permanecerá en Observado hasta que su sustento esté conforme.', 'Guardar observación', 'rend-motivo');
+    document.getElementById('rend-lbl-motivo').textContent = 'Observación del sustento';
+    document.getElementById('rend-lbl-motivo').style.display = 'block';
+    document.getElementById('rend-motivo').style.display = 'block';
+}
+
+function rendRevertir(key) {
+
+    if (!confirm('¿Seguro que deseas revertir esta solicitud al estado anterior?')) return;
+
+    rendAccion(key, 'revertir', {}).then(j => {
+
+        if (!j) return;
+
+        rendTrasAccion(j, key);
+
+    });
+
+}
+
+
+
+// Columnas que no participan en el orden por hoja (fijas / KPI).
+
+// _evidencia_btn (botón "Ver" de comprobantes) SÍ participa: es una columna
+
+// de cara al usuario y su orden/visibilidad se guarda con la hoja.
+
+function _rendEsColumnaDeVista(f) {
+
+    if (f === '_accion' || f === '_evidencia_btn') return true;
+    return !!f && f !== '_key' && f !== '_evidencia_btn'
+
+        && String(f).indexOf('_') !== 0
+
+        && String(f).indexOf('KPI_') !== 0;
+
+}
+
+
+
+// Rastro interno del flujo: prefijo "_" salvo _accion (esa es la columna
+
+// Flujo, con los botones Validar/Depositar/Sustentar): esa NUNCA se oculta.
+
+// Tampoco _evidencia_btn: se puede mostrar/ocultar desde Columnas y se
+
+// persiste en el layout de la hoja (antes se reseteaba y "desaparecia").
+
+function _rendEsColInterna(f) {
+
+    if (f === '_evidencia_btn') return false;
+
+    return (String(f).indexOf('_') === 0 && f !== '_accion') || REND_COLS_OCULTAS.has(f);
+
+}
+
+
+
+
+
+// Visibilidad y orden tal como se ven ahora en la tabla (= la hoja activa).
+
+function _rendAnchosClave(vista) {
+    return 'rend-anchos-' + {{ session.get('user_id') | tojson }} + '-' + {{ session.get('current_proyecto_id') | tojson }} + '-' + vista;
+}
+
+function _rendSnapshot() {
+
+    const visibles = {}, orden = [], anchos = {};
+
+    if (typeof table === 'undefined' || !table) return { visibles: visibles, orden: orden, anchos: anchos };
+
+    table.getColumns().forEach(c => {
+
+        const f = c.getField();
+
+        if (!f) return;
+
+        // Columnas internas del flujo (prefijo "_") y rastros de la hoja de
+
+        // rechazo: nunca se persisten en el layout, quedan ocultas por defecto.
+
+        // _accion (Flujo) sí se respeta: es la que trae los botones del flujo.
+
+        if (_rendEsColInterna(f)) {
+
+            visibles[f] = false;
+
+            return;
+
+        }
+
+        visibles[f] = c.isVisible();
+        anchos[f] = c.getWidth() || c.getDefinition().width;
+
+        if (_rendEsColumnaDeVista(f)) orden.push(f);
+
+    });
+
+    return { visibles: visibles, orden: orden, anchos: anchos };
+
+}
+
+
+
+// Visibilidad por defecto: la del layout general del modulо.
+
+function _rendVisPorDefecto(f) {
+
+    // Columnas del 2.º formulario (Sustento): ocultas por defecto, solo las
+
+    // pestañas Evidencia y Rendición las muestran (showPrefijos).
+
+    if (String(f).indexOf('SUSTENTO_') === 0) return false;
+
+    // Columnas internas del flujo y rastros de la hoja de rechazo: ocultas.
+
+    // _accion (Flujo) queda fuera: siempre visible.
+
+    if (IS_RENDICION && _rendEsColInterna(f)) return false;
+
+    const lay = (typeof columnLayout !== 'undefined' && columnLayout) ? columnLayout : [];
+
+    for (let i = 0; i < lay.length; i++) {
+
+        if (lay[i] && lay[i].field === f) return lay[i].visible !== false;
+
+    }
+
+    // El botón de Evidencia no es una columna de datos: oculto por defecto en
+
+    // cualquier hoja que no lo tenga guardado en su layout.
+
+    if (f === '_evidencia_btn') return false;
+
+    return true;
+
+}
+
+
+
+// Una sola vez: arma la vista de cada hoja con lo GUARDADO para esa hoja
+
+// (column_layout__hoja en el servidor, asi lo ven todos los usuarios) o, si la
+
+// hoja nunca se toco, con el default de la hoja sobre la vista del modulo.
+
+function _rendInitEstados() {
+
+    if (_rendEstadoListo) return;
+
+    _rendEstadoListo = true;
+
+    const base = _rendSnapshot();
+
+    const vistas = (typeof REND_VISTAS !== 'undefined' && REND_VISTAS) ? REND_VISTAS : {};
+
+    Object.keys(vistas).forEach(vista => {
+
+        const cfg = vistas[vista] || {};
+
+        const guardado = (typeof columnLayoutVistas !== 'undefined' && columnLayoutVistas)
+
+            ? columnLayoutVistas[vista] : null;
+
+        let est;
+
+        let camposGuardados = null;
+
+        if (guardado && guardado.length) {
+
+            camposGuardados = new Set(guardado.map(c => (c && c.field) || '').filter(Boolean));
+
+            est = { visibles: {}, orden: [], anchos: {} };
+
+            guardado.forEach(c => {
+
+                if (!c || !c.field) return;
+
+                est.visibles[c.field] = c.visible !== false;
+                if (Number(c.width) >= 40) est.anchos[c.field] = Number(c.width);
+
+                if (_rendEsColumnaDeVista(c.field) && est.orden.indexOf(c.field) < 0) est.orden.push(c.field);
+
+            });
+
+            // Columnas nuevas (aparecieron despues de guardar): visibilidad por
+
+            // defecto y orden en la misma posicion que ocupan en la vista base
+
+            // del modulo. Antes se empujaban AL FINAL y quedaban pegadas al
+
+            // extremo derecho de la tabla, de donde ya no era facil sacarlas.
+
+            // Si la hoja declara showCols/hideCols, eso manda sobre el default
+
+            // del modulo (p.ej. el boton de Evidencia en la hoja Rendicion).
+
+            Object.keys(base.visibles).forEach(f => {
+
+                if (Object.prototype.hasOwnProperty.call(est.visibles, f)) return;
+
+                let v = _rendVisPorDefecto(f);
+
+                if (cfg.showCols && cfg.showCols.indexOf(f) >= 0) v = true;
+
+                if (cfg.hideCols && cfg.hideCols.indexOf(f) >= 0) v = false;
+
+                est.visibles[f] = v;
+
+            });
+
+            base.orden.forEach((f, i) => {
+
+                if (est.orden.indexOf(f) >= 0) return;
+
+                let pos = est.orden.length;
+
+                for (let j = 0; j < est.orden.length; j++) {
+
+                    if (base.orden.indexOf(est.orden[j]) > i) { pos = j; break; }
+
+                }
+
+                est.orden.splice(pos, 0, f);
+
+            });
+
+        } else {
+
+            est = { visibles: Object.assign({}, base.visibles), orden: base.orden.slice(), anchos: Object.assign({}, base.anchos) };
+
+            if (cfg.cols) {
+
+                const set = cfg.cols;
+
+                Object.keys(est.visibles).forEach(f => { est.visibles[f] = set.indexOf(f) >= 0; });
+
+            }
+
+            if (cfg.showCols) cfg.showCols.forEach(f => { est.visibles[f] = true; });
+
+            if (cfg.hideCols) cfg.hideCols.forEach(f => { est.visibles[f] = false; });
+
+        }
+
+        // Prefijos que esta hoja quiere ver (SUSTENTO_* en Evidencia y Rendición).
+
+        if (cfg.showPrefijos && cfg.showPrefijos.length) {
+
+            cfg.showPrefijos.forEach(pre => {
+
+                Object.keys(est.visibles).forEach(f => {
+
+                    if (String(f).indexOf(pre) !== 0) return;
+
+                    if (camposGuardados && camposGuardados.has(f)) return;
+
+                    est.visibles[f] = true;
+
+                });
+
+            });
+
+        }
+
+        // Prefijos que esta hoja quiere OCULTAR expresamente.
+
+        if (cfg.hidePrefijos && cfg.hidePrefijos.length) {
+
+            cfg.hidePrefijos.forEach(pre => {
+
+                Object.keys(est.visibles).forEach(f => {
+
+                    if (String(f).indexOf(pre) === 0) {
+
+                        est.visibles[f] = false;
+
+                    }
+
+                });
+
+            });
+
+        }
+
+        // Rastros internos del flujo: ocultos siempre, aunque un layout viejo
+
+        // los tenga guardados como visibles. _accion (Flujo) no es rastro.
+
+        Object.keys(est.visibles).forEach(f => {
+
+            if (_rendEsColInterna(f)) {
+
+                est.visibles[f] = false;
+
+                const i = est.orden.indexOf(f);
+
+                if (i >= 0) est.orden.splice(i, 1);
+
+            }
+
+        });
+
+        est.anchos = Object.assign({}, base.anchos, est.anchos || {});
+        try { Object.assign(est.anchos, JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}')); } catch (_) {}
+        if (!guardado || !guardado.some(c => c.field === '_accion' && c.width)) {
+            let propios = {};
+            try { propios = JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}'); } catch (_) {}
+            if (!propios._accion) est.anchos._accion = ({validacion:160, depositos:260, evidencia:70, rendicion:280, observado:180, cerrado:95, archivado:115, rechazados:70})[vista] || 160;
+        }
+        rendAplicarColumnasEsenciales(est, vista);
+        est.visibles['DEPARTAMENTO'] = true;
+        est.visibles['VERIFICACIÓN PERSONAL'] = false;
+        // Preferencia personal de la hoja: manda sobre el default del modulo.
+        _colVisAplicarEstado(est, vista);
+        _rendEstadoVistas[vista] = est;
+
+    });
+
+}
+
+
+
+// Reordena columnas al orden guardado de la hoja.
+
+// column.move(destino, false) = colocarlo ANTES del destino (Tabulator 5.x).
+
+function _rendAplicarOrden(orden) {
+    nucleusReorderColumns(table, orden);
+}
+
+// Aplica la vista (visibilidad + orden) de una hoja sin guardar el layout.
+
+function _rendAplicarEstado(est) {
+
+    if (!est || !table) return;
+
+    _rendCambiandoVista = true;
+
+    try {
+
+        const columns = table.getColumns();
+        const byField = new Map(columns.map(c => [c.getField(), c]));
+        const desired = Array.from(new Set(est.orden || [])).filter(f => byField.has(f));
+        const included = new Set(desired);
+        const selection = columns.filter(c => !c.getField());
+        const rest = columns.filter(c => c.getField() && !included.has(c.getField()));
+        const ordered = [...selection, ...desired.map(f => byField.get(f)), ...rest];
+        if (ordered.every((c,i) => c === columns[i] && (!c.getField() || c.isVisible() === (est.visibles[c.getField()] !== false) && (!est.anchos?.[c.getField()] || Math.abs(c.getWidth() - est.anchos[c.getField()]) < 1)))) return;
+        const definitions = ordered.map(c => {
+            const def = {...c.getDefinition()};
+            if (est.anchos && est.anchos[c.getField()]) def.width = est.anchos[c.getField()];
+            else if (c.isVisible() && c.getWidth()) def.width = c.getWidth();
+            if (c.getField()) def.visible = est.visibles[c.getField()] !== false;
+            return def;
+        });
+        const sorters = table.getSorters().map(s => ({column:s.field, dir:s.dir}));
+        table.setColumns(definitions);
+        if (sorters.length) table.setSort(sorters);
+
+    } finally {
+
+        _rendCambiandoVista = false;
+
+    }
+
+}
+
+
+
+// Vista que debe guardarse: la de la hoja activa, con lo que se esta viendo.
+
+function rendEstadoParaGuardar() {
+
+    if (!IS_RENDICION) return null;
+
+    _rendInitEstados();
+
+    const est = _rendSnapshot();
+
+    _rendEstadoVistas[_rendVista] = est;
+
+    return est;
+
+}
+
+
+
+// Resumen de la fila en los modales: las columnas que estan en la tabla.
+
+function rendMostrarResumen(key) {
+
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+
+    rendPoblarDetalle(row, 'rend-resumen-grid');
+
+}
+
+
+
+// Cambio de hoja: filtra por estado y aplica la vista de columnas de esa hoja.
+
+function rendCambiarVista(vista) {
+
+    if (!IS_RENDICION || !REND_VISTAS[vista]) return;
+    if (_rendVista === vista && _rendFiltroFn) return;
+    const switchStarted = performance.now();
+
+    _rendInitEstados();
+
+    // La hoja saliente se queda con lo que el usuario tenia en pantalla.
+
+    if (_rendVista !== vista) _rendEstadoVistas[_rendVista] = _rendSnapshot();
+
+    _rendVista = vista;
+
+
+
+    document.querySelectorAll('#rend-tabs .rend-tab').forEach(b => {
+
+        b.classList.toggle('active', b.getAttribute('data-vista') === vista);
+
+    });
+
+
+
+    nucleusBatchTable(table, () => rendAplicarFiltro());
+    _rendAplicarEstado(_rendEstadoVistas[vista]);
+    requestAnimationFrame(() => { document.getElementById('rend-tabs').dataset.renderMs = (performance.now() - switchStarted).toFixed(1); });
+
+}
+
+
+
+// Aplica el filtro de la hoja limpiando cualquier filtro previo (incluidos los de cabecera)
+
+// para que al cambiar de pestaña siempre se vean todas las filas del estado correspondiente.
+
+function rendAplicarFiltro() {
+
+    const cfg = REND_VISTAS[_rendVista];
+
+    if (!cfg || !table) return;
+
+    // clearFilter(true) limpia TODOS los filtros (cabecera + programáticos).
+
+    // Necesario al cambiar de pestaña para que no queden filtros residuales de otra vista.
+
+            if (table.getHeaderFilters().length) table.clearHeaderFilter();
+
+    Object.keys(dateFilterRegistry).forEach(field => delete dateFilterRegistry[field]);
+    const fn = (rowData) => cfg.estados.includes(rendEstadoParaVista(rowData));
+
+    _rendFiltroFn = fn;
+
+    table.setFilter(fn);
+
+}
+
+
+
+// ── Conteos por hoja ──
+
+function rendActualizarContadores() {
+
+    if (!IS_RENDICION) return;
+
+    const c = { validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0, rechazados: 0 };
+
+    rawData.forEach(r => {
+
+        const e = rendEstadoParaVista(r);
+
+        if (e === 'PENDIENTE') c.validacion++;
+
+        else if (e === 'VALIDADO') c.depositos++;
+
+        else if (e === 'DEPOSITADO') c.evidencia++;
+
+        else if (e === 'CON SUSTENTO') c.sustentos++;
+
+        else if (e === 'SUSTENTADO') c.cerrado++;
+
+        else if (e === 'ANULADO') c.rechazados++;
+        else if (e === 'OBSERVADO') c.observado++;
+        else if (e === 'ARCHIVADO') c.archivado++;
+
+    });
+
+    Object.keys(c).forEach(k => {
+
+        const el = document.getElementById('rend-cnt-' + k);
+
+        if (el) el.textContent = c[k];
+
+    });
+
+}
+
+
+
+// ── Backend del flujo ──
+
+function rendAccion(key, accion, extra) {
+
+    const body = Object.assign({ key: key, accion: accion }, extra || {});
+
+    return fetch('/api/rendicion/accion', {
+
+        method: 'POST',
+
+        headers: { 'Content-Type': 'application/json' },
+
+        body: JSON.stringify(body)
+
+    })
+
+        .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
+
+        .then(({ ok, j }) => {
+
+            if (!ok || j.error) { alert(j.error || 'No se pudo completar la acción.'); return null; }
+
+            return j;
+
+        })
+
+        .catch(error => { alert(nucleusErrorSolicitud(error)); return null; });
+
+}
+
+
+
+// Tras la acción la fila cambia de hoja: se actualiza en memoria y se re-filtra.
+
+function rendTrasAccion(j, key) {
+
+    const i = rawData.findIndex(r => r._key === key);
+
+    if (i > -1 && j.newData) rawData[i] = Object.assign({}, rawData[i], j.newData);
+
+    const row = table.getRows().find(r => r.getData()._key === key);
+
+    if (row && j.newData) {
+
+        row.update(j.newData);
+
+        if (typeof row.reformat === 'function') row.reformat();
+
+    }
+
+    rendAplicarFiltro();
+
+    rendActualizarContadores();
+
+    // Actualiza la campanita con el aviso que acaba de generarse
+
+    if (typeof rendAvisosCargar === 'function') rendAvisosCargar(true);
+
+}
+
+
+
+/* ── Modales: rechazo, depósito y sustento ── */
+
+function rendAbrirModal(titulo, sub, okTexto, cuerpo) {
+
+    // innerHTML: permite iconos FontAwesome en el título (todos los literales de código).
+
+    document.getElementById('rend-resumen').open = cuerpo === 'rend-val-form';
+    document.getElementById('rend-modal').dataset.accion = cuerpo || '';
+    document.getElementById('rend-modal-title').innerHTML = titulo;
+
+    document.getElementById('rend-modal-sub').textContent = sub || '';
+
+    document.getElementById('rend-modal-ok').textContent = okTexto || 'Confirmar';
+
+    ['rend-lbl-motivo', 'rend-motivo', 'rend-dep-form', 'rend-sus-form', 'rend-val-form'].forEach(id => {
+
+        document.getElementById(id).style.display = 'none';
+
+    });
+
+    if (cuerpo) document.getElementById(cuerpo).style.display = 'block';
+
+    document.getElementById('rend-modal').style.display = 'flex';
+
+}
+
+function rendCerrarModal() {
+
+    document.getElementById('rend-modal').style.display = 'none';
+
+    _rendModal = null;
+
+}
+
+
+
+// Devolver: la solicitud rechazada vuelve a la hoja anterior (según de dónde
+
+// vino) para que se corrijan los datos y el flujo avance.
+
+function rendDevolver(key) {
+
+    const row = (typeof rawData !== 'undefined' && Array.isArray(rawData) ? rawData : []).find(r => r._key === key) || {};
+
+    const fuente = String(row['RECHAZADO DESDE'] || '').trim().toUpperCase();
+
+    const dest = {
+
+        'VALIDADO': 'Validación (PENDIENTE)',
+
+        'DEPOSITADO': 'Depósitos (VALIDADO)',
+
+        'CON SUSTENTO': 'Evidencia (DEPOSITADO)'
+
+    }[fuente];
+
+    if (!dest) {
+
+        nucleusAlert('<b>Rechazo definitivo.</b> Este rechazo no puede devolverse al flujo.');
+
+        return;
+
+    }
+
+    _rendModal = { accion: 'devolver', key: key };
+
+    rendAbrirModal('Devolver a hoja anterior',
+
+                   'La solicitud volverá a ' + dest + ' para corregir los datos. El flujo continuará desde esa etapa.',
+
+                   'Devolver', null);
+
+}
+
+
+
+// Validar: muestra confirmación con el detalle completo de la solicitud
+
+// + selección de tiempo de respuesta (3 opciones) y observación.
+
+function rendValidar(key) {
+
+    _rendModal = { accion: 'validar', key: key };
+
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+
+    const normalizarPresupuesto = valor => String(valor || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const campoPresupuesto = Object.keys(row).find(campo => ['tipodepresupuesto', 'tipopresupuesto'].includes(normalizarPresupuesto(campo)));
+    const presupuesto = normalizarPresupuesto(row[campoPresupuesto]);
+    const campoGasto = Object.keys(row).find(campo => ['tipodegasto', 'tipogasto'].includes(normalizarPresupuesto(campo)));
+    const gastos = String(row[campoGasto] || '').split(/[,;/|+\n]+/).map(normalizarPresupuesto);
+    const exentosCorreo = new Set(['viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes']);
+    const soloExentos = gastos.length > 0 && gastos.every(gasto => exentosCorreo.has(gasto));
+    const refacturable = !soloExentos && (presupuesto === 'refacturable' || (presupuesto === 'gastocobra' && gastos.some(gasto => !exentosCorreo.has(gasto))));
+    _rendModal.refacturable = refacturable;
+    _rendModal.correo = row['ADJUNTO CORREO VALIDACION'] || '';
+    document.getElementById('rend-val-correo-wrap').hidden = !refacturable;
+    document.getElementById('rend-val-correo').value = '';
+    document.getElementById('rend-val-correo-status').textContent = _rendModal.correo ? 'Correo adjunto. Puedes reemplazarlo.' : 'Obligatorio para validar esta solicitud.';
+    const correoLink = document.getElementById('rend-val-correo-link');
+    correoLink.hidden = !_rendModal.correo;
+    correoLink.href = _rendModal.correo || '#';
+
+    const previo = String(row['TIEMPO DE RESPUESTA'] || '').trim();
+
+    let hay = false;
+
+    document.querySelectorAll('#rend-val-ops input[type="radio"]').forEach(r => {
+
+        r.checked = (r.value === previo);
+
+        if (r.checked) hay = true;
+
+    });
+
+    if (!hay) {
+
+        const primero = document.querySelector('#rend-val-ops input[type="radio"]');
+
+        if (primero) primero.checked = false;
+
+    }
+
+    document.getElementById('rend-val-obs').value = String(row['OBSERVACIONES'] || '');
+
+    rendMostrarResumen(key);
+
+    rendAbrirModal(
+
+        '✓ Validar solicitud',
+
+        'Elige el tiempo de respuesta y escribe la observación. La solicitud pasará a Depósitos.',
+
+        'Confirmar Validación',
+
+        'rend-val-form'
+
+    );
+
+}
+
+
+
+// Rechazar: pide motivo obligatorio (lo guarda en OBSERVACIONES).
+
+// Desde Rendición (CON SUSTENTO) el rechazo NO va a la hoja de Rechazados:
+
+// devuelve la solicitud a Evidencia para que el gestor la revise.
+
+function rendAbrirRechazo(key) {
+
+    document.getElementById('rend-lbl-motivo').textContent = 'Motivo del rechazo';
+    _rendModal = { accion: 'rechazar', key: key };
+
+    const _rk = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+
+    const _desdeRend = ['CON SUSTENTO','OBSERVADO','SUSTENTADO'].includes(rendEstadoDe(_rk));
+
+    document.getElementById('rend-motivo').value = '';
+
+    rendMostrarResumen(key);
+
+    rendAbrirModal(
+
+        '✕ Rechazar solicitud',
+
+        _desdeRend
+
+            ? 'La solicitud volverá a Evidencia con estado Rechazado. Indica el motivo.'
+
+            : 'La solicitud volverá a Validación con estado Rechazado. Indica el motivo.',
+
+        'Confirmar Rechazo',
+
+        'rend-motivo'
+
+    );
+
+    document.getElementById('rend-lbl-motivo').style.display = 'block';
+
+    document.getElementById('rend-motivo').style.display = 'block';
+
+    setTimeout(() => document.getElementById('rend-motivo').focus(), 80);
+
+}
+
+
+
+// Depositar: fecha + monto + 1 foto (obligatorios) + Info a modo de lectura
+
+function rendAbrirDeposito(key) {
+
+    _rendModal = { accion: 'depositar', key: key, fotos: {} };
+
+    Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
+
+    
+
+    // Resumen de lectura: las mismas columnas que se ven en la tabla
+
+    const row = rawData.find(r => r._key === key) || {};
+
+    rendMostrarResumen(key);
+
+
+
+    // datetime-local requiere formato YYYY-MM-DDTHH:MM (sin segundos ni Z)
+
+    const _now = new Date();
+
+    const _pad = n => String(n).padStart(2, '0');
+
+    document.getElementById('rend-fecha-pago').value =
+
+        _now.getFullYear() + '-' + _pad(_now.getMonth()+1) + '-' + _pad(_now.getDate()) +
+
+        'T' + _pad(_now.getHours()) + ':' + _pad(_now.getMinutes());
+
+    // Pre-llenar monto si es posible
+
+    const montoBase = parseFloat(row['Monto total del depósito'] || 0);
+
+    document.getElementById('rend-monto-pago').value = montoBase > 0 ? montoBase : '';
+
+    rendPintarSlot('pago', null);
+
+    rendAbrirModal(
+
+        '<i class="fa-solid fa-money-bill-transfer"></i> Registrar depósito',
+
+        'Completa los 3 campos: fecha, monto y foto del comprobante. Al confirmar pasa a Evidencia.',
+
+        'Registrar Depósito',
+
+        'rend-dep-form'
+
+    );
+
+}
+
+
+
+// Sustentar: hasta 5 fotos + comentario (mínimo 1 foto obligatoria)
+
+function rendAbrirSustento(key) {
+
+    _rendModal = { accion: 'sustentar', key: key, fotos: {} };
+
+    Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
+
+    document.getElementById('rend-comentario').value = '';
+
+    rendMostrarResumen(key);
+
+    rendAbrirModal(
+
+        'Confirmar atención del sustento',
+
+        'Confirma que el sustento está conforme. La solicitud pasará a Atendido.',
+
+        'Pasar a Atendido',
+
+        'rend-sus-form'
+
+    );
+
+}
+
+
+
+function rendPintarSlot(slot, url) {
+
+    const el = slot === 'pago'
+
+        ? document.getElementById('rend-slot-pago')
+
+        : document.querySelector('#rend-slots-sus [data-slot="' + slot + '"]');
+
+    if (!el) return;
+
+    if (url) {
+
+        el.classList.add('filled');
+
+        el.innerHTML = '<img src="' + url + '" alt=""><i class="fa-solid fa-check"></i>';
+
+    } else {
+
+        el.classList.remove('filled');
+
+        el.innerHTML = '<i class="fa-solid fa-camera"></i> Foto';
+
+    }
+
+}
+
+
+
+// Sube una foto y guarda su URL en el modal
+
+function rendElegirFoto(slot) {
+
+    if (!_rendModal) return;
+
+    const inp = document.createElement('input');
+
+    inp.type = 'file';
+
+    inp.accept = 'image/*';
+
+    inp.onchange = () => {
+
+        const f = inp.files && inp.files[0];
+
+        if (!f) return;
+
+        const _extImg = String(f.name || '').toLowerCase();
+
+        const _extOk = ['.jpg','.jpeg','.png','.webp','.heic','.heif','.bmp'].some(e => _extImg.endsWith(e));
+
+        if (!_extOk && !f.type.startsWith('image/')) {
+
+            try { nucleusAlert('Solo se admiten imágenes (JPG, PNG, WEBP, HEIC).'); } catch (e) { alert('Solo se admiten imágenes.'); }
+
+            return;
+
+        }
+
+        const fd = new FormData();
+
+        fd.append('key', _rendModal.key);
+
+        fd.append('slot', slot);
+
+        fd.append('foto', f);
+
+        rendPintarSlot(slot, 'Cargando...');
+
+        fetch('/api/rendicion/subir_foto', { method: 'POST', body: fd })
+
+            .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
+
+            .then(({ ok, j }) => {
+
+                if (!ok || j.error) { rendPintarSlot(slot, null); alert(j.error || 'No se pudo subir la foto.'); return; }
+
+                _rendFotosPend[slot] = j.url;
+
+                _rendModal.fotos[slot] = j.url;
+
+                rendPintarSlot(slot, j.url);
+
+            })
+
+            .catch(error => { rendPintarSlot(slot, null); alert(nucleusErrorSolicitud(error)); });
+
+    };
+
+    inp.click();
+
+}
+
+
+
+// Confirma la acción del modal abierta
+
+async function rendSubirCorreoValidacion(input) {
+    const file = input.files[0];
+    const modal = _rendModal;
+    if (!file || !modal || modal.accion !== 'validar') return;
+    const status = document.getElementById('rend-val-correo-status');
+    if (!/\.msg$/i.test(file.name)) { status.textContent = 'Selecciona un archivo .msg de Outlook.'; input.value = ''; return; }
+    modal.subiendoCorreo = true;
+    const button = document.getElementById('rend-modal-ok');
+    button.disabled = true; status.textContent = 'Cargando correo…';
+    try {
+        const body = new FormData(); body.append('key', modal.key); body.append('correo', file);
+        const response = await fetch('/api/rendicion/subir_correo', {method: 'POST', body});
+        const data = await nucleusLeerRespuestaJSON(response);
+        if (!response.ok) throw new Error(data.error || 'No se pudo adjuntar el correo.');
+        modal.correo = data.url;
+        const row = rawData.find(row => row._key === modal.key);
+        if (row) { row['ADJUNTO CORREO VALIDACION'] = data.url; row['NOMBRE CORREO VALIDACION'] = data.nombre; }
+        if (_rendModal === modal) {
+            status.textContent = `Correo adjunto: ${data.nombre}`;
+            const link = document.getElementById('rend-val-correo-link'); link.href = data.url; link.hidden = false;
+        }
+    } catch (error) { if (_rendModal === modal) status.textContent = error.message; }
+    finally { modal.subiendoCorreo = false; if (_rendModal === modal) button.disabled = false; input.value = ''; }
+}
+
+function rendConfirmarModal() {
+
+    if (!_rendModal) return;
+
+    const { accion, key } = _rendModal;
+
+    const extra = {};
+
+
+
+    if (accion === 'validar') {
+        if (rendHayCorrecciones()) { alert('Guarda las correcciones de la solicitud antes de validar.'); return; }
+
+        const op = document.querySelector('#rend-val-ops input[name="rend-val-op"]:checked');
+
+        if (!op) { alert('Selecciona una opción de tiempo de respuesta.'); return; }
+
+        if (_rendModal.subiendoCorreo) { alert('Espera a que termine de cargar el correo.'); return; }
+        if (_rendModal.refacturable && !_rendModal.correo) { alert('Adjunta el correo de aprobación en formato .msg.'); return; }
+
+        extra.tiempo = op.value;
+
+        extra.observaciones = document.getElementById('rend-val-obs').value.trim();
+
+    } else if (accion === 'rechazar' || accion === 'observar' || accion === 'anular') {
+
+        const motivo = document.getElementById('rend-motivo').value.trim();
+
+        if (!motivo) { alert('Escribe el motivo u observación.'); return; }
+
+        extra.observaciones = motivo;
+
+    } else if (accion === 'depositar') {
+
+        const fecha = document.getElementById('rend-fecha-pago').value;
+
+        const monto = document.getElementById('rend-monto-pago').value;
+
+        if (!fecha) { alert('Ingresa la fecha del pago.'); return; }
+
+        if (!monto || parseFloat(monto) <= 0) { alert('Ingresa el monto pagado.'); return; }
+
+        if (!_rendFotosPend['pago']) { alert('Adjunta la captura del comprobante.'); return; }
+
+        extra.fecha_pago = fecha;
+
+        extra.monto_pago = monto;
+
+        extra.foto_pago = _rendFotosPend['pago'];
+
+    } else if (accion === 'sustentar') {
+
+        // Sin fotos: el sustento se confirma solo con el comentario (las fotos, si
+
+        // existieran de antes, se conservan tal cual en el registro).
+
+        const fotos = Object.keys(_rendFotosPend)
+
+            .sort()
+
+            .map(k => _rendFotosPend[k])
+
+            .filter(Boolean);
+
+        if (fotos.length) extra.fotos = fotos;
+
+        extra.comentario = document.getElementById('rend-comentario').value.trim();
+
+    }
+
+
+
+    const btn = document.getElementById('rend-modal-ok');
+
+    btn.disabled = true;
+
+    const txt = btn.textContent;
+
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando';
+
+
+
+    rendAccion(key, accion, extra).then(j => {
+
+        btn.disabled = false;
+
+        btn.textContent = txt;
+
+        if (!j) return;
+
+        
+
+        if (accion === 'depositar' && j.newData && j.newData['CODIGO DEPOSITO']) {
+
+            // Sin vista previa: ahí mismo, al confirmar, se abre WhatsApp con el
+
+            // mensaje ya escrito (solo falta apretar el botón verde de enviar).
+
+            rendWaDirecto(j.wa);
+
+        }
+
+        if (accion === 'rechazar' && j.estado === 'DEPOSITADO') {
+
+            setTimeout(() => nucleusAlert('Solicitud devuelta a Evidencia para revisión.'), 300);
+
+        }
+
+        
+
+        rendCerrarModal();
+
+        rendTrasAccion(j, key);
+
+    });
+
+}
+
+
+
+/* ── Aviso de depósito por WhatsApp ──────────────────────────────────────────
+
+   El backend arma un enlace wa.me (gratis, sin API ni cuenta de Meta): al
+
+   abrirlo, WhatsApp muestra el mensaje YA ESCRITO y solo falta apretar el
+
+   botón verde de enviar. Desde el celular abre la app; desde la computadora,
+
+   WhatsApp Web (hay que haberlo vinculado una vez con QR).
+
+   Sin vista previa: la ventana se abre SOLO al registrar el depósito. */
+
+function rendWaDirecto(wa) {
+
+    if (!wa || !wa.url) {
+
+        nucleusAlert('Depósito registrado. Esta solicitud no tiene un celular válido (Yape/Plin o "Número de celular o CCI"), por eso no se pudo avisar por WhatsApp.');
+
+        return;
+
+    }
+
+    const w = window.open(wa.url, '_blank', 'noopener');
+
+    if (w) return;
+
+    // El navegador bloqueó la ventana: se copia el mensaje para pegarlo a mano.
+
+    const aviso = 'Depósito registrado. El navegador bloqueó la ventana de WhatsApp; ';
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+
+        navigator.clipboard.writeText(wa.texto || '')
+
+            .then(() => nucleusAlert(aviso + 'el mensaje quedó copiado, pégalo con Ctrl+V.'))
+
+            .catch(() => nucleusAlert(aviso + 'abre WhatsApp y escríbele al ' + (wa.numero || '') + '.'));
+
+    } else {
+
+        nucleusAlert(aviso + 'abre WhatsApp y escríbele al ' + (wa.numero || '') + '.');
+
+    }
+
+}
+
+
+
+/* ── Visor de fotos ── */
+
+function rendVerFotos(row, esSustento) {
+
+    const urls = rendUrlsFoto(row[esSustento ? 'FOTOS SUSTENTO' : 'FOTO PAGO'], esSustento);
+
+    document.getElementById('rend-fotos-title').textContent = esSustento ? 'Fotos de sustento' : 'Comprobante de pago';
+
+    document.getElementById('rend-fotos-sub').textContent = row['Nombre de site'] || row._key || '';
+
+    const grid = document.getElementById('rend-fotos-grid');
+
+    grid.innerHTML = '';
+
+    grid.classList.toggle('single-photo', urls.length === 1);
+    if (!urls.length) {
+        const empty = document.createElement('p'); empty.className = 'rend-photo-empty';
+        empty.textContent = 'No hay archivos adjuntos para mostrar.'; grid.appendChild(empty);
+    }
+    urls.forEach((u, index) => {
+        const a = document.createElement('a');
+        a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.className = 'rend-photo-card';
+        a.title = 'Abrir imagen completa';
+        const img = document.createElement('img'); img.src = u;
+        img.alt = `${esSustento ? 'Foto de sustento' : 'Comprobante de pago'} ${index + 1}`;
+        const caption = document.createElement('span');
+        caption.textContent = `${esSustento ? 'Sustento' : 'Comprobante'} ${index + 1} · Abrir original ↗`;
+        a.append(img, caption); grid.appendChild(a);
+    });
+
+    document.getElementById('rend-fotos').style.display = 'flex';
+
+}
+
+function rendCerrarFotos() { document.getElementById('rend-fotos').style.display = 'none'; }
+
+
+
+// Al abrir el módulo, arranca en la hoja Validación con el filtro aplicado.
+
+if ((IS_RENDICION || IS_COTIZACIONES) && document.getElementById('btn-rend-avisos')) {
+
+    /* ── Avisos del flujo (campanita): quién validó / depositó / rechazó ── */
+
+let _rendAvisosVistos = [];   // ids ya conocidos (para no repetir el toast)
+
+const _avisosModulo = IS_COTIZACIONES ? 'Cotizaciones' : 'Rendición';
+function _avisosFechaLocal(valor) {
+    if (!valor) return '';
+    const raw = String(valor).replace(' ', 'T');
+    const date = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw+'Z');
+    return Number.isNaN(date.getTime()) ? String(valor) : new Intl.DateTimeFormat('es-PE', {
+        timeZone:'America/Lima', dateStyle:'short', timeStyle:'medium'
+    }).format(date);
+}
+let _rendAvisosPrimera = true;
+
+let _rendAvisosUltimos = [];   // última lista pintada (para volver a pintar tras cerrar uno)
+
+const _rendAvisosCERRADOS = 'rend_avisos_cerrados';   // localStorage: avisos que el usuario cerró
+
+
+
+function _rendAvisosCerrados() {
+
+    try { return JSON.parse(localStorage.getItem(_rendAvisosCERRADOS) || '[]') || []; }
+
+    catch (e) { return []; }
+
+}
+
+
+
+// Cierra UN aviso del panel: se recuerda para no volver a mostrarlo (server lo conserva)
+
+function rendAvisosCerrar(id) {
+
+    const ids = _rendAvisosCerrados();
+
+    const sid = String(id);
+
+    if (ids.indexOf(sid) < 0) {
+
+        ids.push(sid);
+
+        try { localStorage.setItem(_rendAvisosCERRADOS, JSON.stringify(ids.slice(-300))); } catch (e) { }
+
+    }
+
+    rendAvisosPintar(_rendAvisosUltimos);
+
+}
+
+
+
+function rendAvisosBadge(n) {
+
+    const b = document.getElementById('rend-avisos-badge');
+
+    if (!b) return;
+
+    b.textContent = String(n || 0);
+
+    b.style.display = (n > 0) ? 'block' : 'none';
+
+}
+
+
+
+function rendAvisosPintar(lista) {
+
+    const p = document.getElementById('rend-avisos-lista');
+
+    if (!p) return;
+
+    _rendAvisosUltimos = Array.isArray(lista) ? lista : [];
+
+    const cerrados = _rendAvisosCerrados();
+
+    const visibles = _rendAvisosUltimos.filter(a => !a || cerrados.indexOf(String(a.id)) < 0);
+
+    if (!visibles.length) {
+
+        p.innerHTML = '<div style="padding:14px 13px; font-size:13px; color:var(--ios-secondary);">'
+
+            + 'Todavía no hay avisos.</div>';
+
+        return;
+
+    }
+
+    p.innerHTML = visibles.map(a => `
+
+        <div class="rend-aviso-item"${a.leida ? ' style="opacity:.6;"' : ''}>
+
+            <span style="flex:0 0 4px; width:4px; border-radius:4px; background:${a.color || '#007AFF'};"></span>
+
+            <div style="flex:1; min-width:0;">
+
+                <div style="font-size:12.5px; line-height:1.4;${a.leida ? '' : ' font-weight:700;'}">${escapeHtml(window.NucleusIdentity.text(a.texto || ''))}</div>
+
+                <div class="rend-aviso-hora">${escapeHtml(_avisosFechaLocal(a.creada_en))}</div>
+
+            </div>
+
+            <button type="button" class="rend-aviso-close" data-id="${escapeHtml(String(a.id))}"
+
+                title="Cerrar este aviso">&times;</button>
+
+        </div>`).join('');
+
+    p.querySelectorAll('.rend-aviso-close').forEach(btn => {
+
+        btn.addEventListener('click', (e) => {
+
+            e.stopPropagation();
+
+            rendAvisosCerrar(btn.dataset.id);
+
+        });
+
+    });
+
+}
+
+
+
+function rendAvisosToast(a) {
+
+    // Contenedor apilable: los avisos se acumulan CENTRADOS Y ENCIMA DE TODO
+
+    // (z-index maximo del navegador), para que no haya forma de no verlos.
+
+    let box = document.getElementById('rend-aviso-stack');
+
+    if (!box) {
+
+        box = document.createElement('div');
+
+        box.id = 'rend-aviso-stack';
+
+        box.style.cssText = 'position:fixed; bottom:80px; right:18px; '
+
+            + 'z-index:2147483647; display:flex; flex-direction:column-reverse; gap:10px; '
+
+            + 'width:min(380px, calc(100vw - 24px)); pointer-events:none;';
+
+        document.body.appendChild(box);
+
+    }
+
+    // Nunca tapa toda la pantalla: como máximo 4 avisos a la vez
+
+    while (box.children.length >= 4) box.removeChild(box.firstElementChild);
+
+
+
+    const el = document.createElement('div');
+
+    el.className = 'rend-aviso-toast';
+
+    el.style.borderLeftColor = a.color || '#007AFF';
+
+    el.innerHTML = '<div class="rend-aviso-toast-head">'
+
+        + '<span><i class="fa-solid fa-bell"></i> ' + _avisosModulo + ' · cambio de estado</span>'
+
+        + '<button type="button" class="rend-aviso-x" title="Cerrar">&times;</button>'
+
+        + '</div>'
+
+        + '<div class="rend-aviso-toast-txt">' + escapeHtml(window.NucleusIdentity.text(a.texto || '')) + '</div>'
+
+        + '<div class="rend-aviso-toast-hora">' + escapeHtml(_avisosFechaLocal(a.creada_en)) + '</div>';
+
+    box.appendChild(el);
+
+    requestAnimationFrame(() => el.classList.add('on'));
+
+
+
+    const cerrar = () => {
+
+        el.classList.remove('on');
+
+        setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 260);
+
+    };
+
+    el.querySelector('.rend-aviso-x').addEventListener('click', (e) => {
+
+        e.stopPropagation();
+
+        cerrar();
+
+    });
+
+    // Se queda hasta que el gestor lo cierre (garantiza que lo vio).
+
+    rendAvisosNavegador(a);
+
+    rendAvisosPitido();
+
+}
+
+
+
+// Notificación del NAVEGADOR: sale encima de Chrome/Windows, aunque la pestaña
+
+// no esté activa. requireInteraction la deja fija hasta que hagan clic.
+
+function rendAvisosNavegador(a) {
+
+    try {
+
+        if (!('Notification' in window)) return;
+
+        if (Notification.permission !== 'granted') return;
+
+        const n = new Notification('🔔 ' + _avisosModulo + ' · cambio de estado', {
+
+            body: (a.texto || '') + (a.creada_en ? '\n' + a.creada_en : ''),
+
+            tag: (IS_COTIZACIONES ? 'cot-aviso-' : 'rend-aviso-') + (a.id || Date.now()),
+
+            requireInteraction: true
+
+        });
+
+        n.onclick = () => { window.focus(); try { n.close(); } catch (e) { } };
+
+    } catch (e) { }
+
+}
+
+
+
+// Pide permiso para avisar fuera de la pestaña (en el primer clic del usuario,
+
+// que es lo que exige Chrome).
+
+function rendAvisosPedirPermiso() {
+
+    try {
+
+        if ('Notification' in window && Notification.permission === 'default') {
+
+            Notification.requestPermission();
+
+        }
+
+    } catch (e) { }
+
+}
+
+document.addEventListener('click', function _rendPedirPermiso() {
+
+    document.removeEventListener('click', _rendPedirPermiso);
+
+    rendAvisosPedirPermiso();
+
+});
+
+
+
+// Pip cortito (dos tonos) para que el aviso se note también por audio.
+
+function rendAvisosPitido() {
+
+    try {
+
+        const AC = window.AudioContext || window.webkitAudioContext;
+
+        if (!AC) return;
+
+        if (!rendAvisosPitido._ctx) rendAvisosPitido._ctx = new AC();
+
+        const ctx = rendAvisosPitido._ctx;
+
+        if (ctx.state === 'suspended') ctx.resume();
+
+        const t0 = ctx.currentTime;
+
+        [988, 1319].forEach((f, i) => {
+
+            const o = ctx.createOscillator(), g = ctx.createGain();
+
+            o.type = 'sine';
+
+            o.frequency.value = f;
+
+            const t = t0 + i * 0.17;
+
+            g.gain.setValueAtTime(0.0001, t);
+
+            g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+
+            o.connect(g);
+
+            g.connect(ctx.destination);
+
+            o.start(t);
+
+            o.stop(t + 0.17);
+
+        });
+
+    } catch (e) { }
+
+}
+
+
+
+// Carga los avisos. silencioso=true la primera vez (no revienta con toasts
+
+// de todo lo histórico); después solo avisa de los que llegan nuevos.
+
+function rendAvisosCargar(silencioso) {
+
+    const btn = document.getElementById('btn-rend-avisos');
+
+    if (!btn) return Promise.resolve();
+
+    return fetch(IS_COTIZACIONES ? '/api/cotizacion/avisos' : '/api/rendicion/avisos')
+
+        .then(r => (r && r.ok) ? r.json() : null)
+
+        .then(j => {
+
+            if (!j || !Array.isArray(j.avisos)) return;
+
+            const nuevos = [];
+
+            j.avisos.forEach(a => {
+
+                if (_rendAvisosVistos.indexOf(a.id) < 0) {
+
+                    _rendAvisosVistos.push(a.id);
+
+                    if (!silencioso && !a.leida) nuevos.push(a);
+
+                }
+
+            });
+
+            rendAvisosBadge(j.no_leidas || 0);
+
+            rendAvisosPintar(j.avisos);
+
+            // El más reciente primero en el toast
+
+            nuevos.slice(0, 3).reverse().forEach((a, i) => {
+
+                setTimeout(() => rendAvisosToast(a), i * 900);
+
+            });
+
+        })
+
+        .catch(() => { });
+
+}
+
+
+
+function rendAvisosToggle() {
+
+    const panel = document.getElementById('rend-avisos-panel');
+
+    if (!panel) return;
+
+    const abierto = panel.style.display !== 'none';
+
+    if (abierto) {
+
+        panel.style.display = 'none';
+
+        return;
+
+    }
+
+    panel.style.display = 'block';
+
+    // Al abrir, todo queda como leído para este usuario
+
+    fetch(IS_COTIZACIONES ? '/api/cotizacion/avisos/leer' : '/api/rendicion/avisos/leer', {
+
+        method: 'POST',
+
+        headers: { 'Content-Type': 'application/json' },
+
+        body: JSON.stringify({})
+
+    }).then(() => rendAvisosCargar(true)).catch(() => { });
+
+}
+
+
+
+// Cierra el panel al hacer clic fuera
+
+document.addEventListener('click', (e) => {
+
+    const panel = document.getElementById('rend-avisos-panel');
+
+    const wrap = document.getElementById('rend-avisos-wrap');
+
+    if (panel && wrap && panel.style.display !== 'none'
+
+        && !wrap.contains(e.target)) {
+
+        panel.style.display = 'none';
+
+    }
+
+});
+
+}
+
+
+
+// ============================================================================
+
+// MODAL DE DETALLE DE EVIDENCIAS (NUEVO REQUERIMIENTO)
+
+// ============================================================================
+
+/* ── Evidencia: helpers de Google Drive ──────────────────────────────────────
+
+   Los enlaces llegan en varios formatos (open?id=ID, /file/d/ID/view,
+
+   uc?export=download&id=ID); de todos sacamos el ID para armar miniaturas
+
+   que sí cargan (drive.google.com/thumbnail suele devolver 404 y caía siempre
+
+   en el logo de reemplazo). */
+
+function evDriveId(u) {
+
+    const s = String(u || '');
+
+    let m = s.match(/[?&]id=([A-Za-z0-9_-]{8,})/);
+
+    if (m) return m[1];
+
+    m = s.match(/\/d\/([A-Za-z0-9_-]{8,})/);
+
+    if (m) return m[1];
+
+    return null;
+
+}
+
+function evVerUrl(u) {
+
+    const id = evDriveId(u);
+
+    return id ? ('https://drive.google.com/file/d/' + id + '/view') : String(u || '#');
+
+}
+
+// Cadena de respaldo para <img>: se avanza automáticamente con evImgFail().
+
+function evThumbChain(u) {
+
+    const id = evDriveId(u);
+
+    const c = [];
+
+    if (id) {
+
+        c.push('https://lh3.googleusercontent.com/d/' + id + '=w400');
+
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w400');
+
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w800');
+
+    }
+
+    c.push(u);
+
+    return c;
+
+}
+
+function evFullChain(u) {
+
+    const id = evDriveId(u);
+
+    const c = [];
+
+    if (id) {
+
+        c.push('https://lh3.googleusercontent.com/d/' + id + '=s2000');
+
+        c.push('https://drive.google.com/thumbnail?id=' + id + '&sz=w2000');
+
+    }
+
+    c.push(u);
+
+    return c;
+
+}
+
+// Sustituto neutro cuando Drive no deja previsualizar (archivo con acceso restringido):
+
+// un icono de foto, nunca el logo, para que no parezca que la evidencia es otra cosa.
+
+const EV_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+
+    '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">' +
+
+    '<rect width="240" height="240" fill="#1c1c1e"/>' +
+
+    '<g fill="none" stroke="#5a5a5f" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">' +
+
+    '<rect x="54" y="74" width="132" height="100" rx="14"/>' +
+
+    '<circle cx="92" cy="110" r="13"/>' +
+
+    '<path d="M60 162l40-40 30 30 21-17 31 27"/></g>' +
+
+    '<text x="120" y="212" fill="#8E8E93" font-family="Arial,Helvetica,sans-serif" ' +
+
+    'font-size="17" font-weight="bold" text-anchor="middle">Drive</text></svg>');
+
+function evImgFail(img) {
+
+    try {
+
+        const urls = String(img.dataset.urls || '').split('|||').filter(Boolean);
+
+        let i = parseInt(img.dataset.i || '0', 10) + 1;
+
+        if (i < urls.length) { img.dataset.i = String(i); img.src = urls[i]; return; }
+
+    } catch (e) {}
+
+    img.onerror = null;
+
+    if (img.classList.contains('ev-lb-img')) {
+
+        img.style.display = 'none';
+
+        const f = document.getElementById('ev-lb-fail');
+
+        if (f) f.style.display = 'flex';
+
+        return;
+
+    }
+
+    img.src = EV_PLACEHOLDER;
+
+    img.dataset.fallo = '1';
+
+}
+
+// Fotos ya extraidas (para recorrerlas con ← -> en el visor).
+
+let EV_FOTOS = [];
+
+function evLbBox() {
+
+    let b = document.getElementById('ev-lb');
+
+    if (b) return b;
+
+    b = document.createElement('div');
+
+    b.id = 'ev-lb';
+
+    b.className = 'ev-lb';
+
+    b.innerHTML =
+
+        '<div class="ev-lb-top">' +
+
+            '<span class="ev-lb-cat"></span>' +
+
+            '<span class="ev-lb-cap"></span>' +
+
+            '<span class="ev-lb-count"></span>' +
+
+            '<button type="button" class="ev-lb-x" title="Cerrar (Esc)">&times;</button>' +
+
+        '</div>' +
+
+        '<div class="ev-lb-stage">' +
+
+            '<button type="button" class="ev-lb-nav ev-lb-prev" title="Anterior (←)">&#10094;</button>' +
+
+            '<img class="ev-lb-img" alt="">' +
+
+            '<div class="ev-lb-fail" id="ev-lb-fail">' +
+
+                '<i class="fa-solid fa-image"></i>' +
+
+                '<p>Google Drive no permite previsualizar este archivo desde aqui ' +
+
+                '(acceso restringido). Abre el original para verlo.</p>' +
+
+                '<a class="ev-lb-cta ev-lb-href" href="#" target="_blank" rel="noopener">' +
+
+                'Abrir en Drive <i class="fa-solid fa-arrow-up-right-from-square"></i></a>' +
+
+            '</div>' +
+
+            '<button type="button" class="ev-lb-nav ev-lb-next" title="Siguiente (->)">&#10095;</button>' +
+
+        '</div>' +
+
+        '<div class="ev-lb-bottom"><a class="ev-lb-open ev-lb-href" href="#" target="_blank" rel="noopener">' +
+
+        '<i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir original</a></div>';
+
+    document.body.appendChild(b);
+
+    b.addEventListener('click', e => { if (e.target === b) evLbCierra(); });
+
+    b.querySelector('.ev-lb-x').onclick = evLbCierra;
+
+    b.querySelector('.ev-lb-prev').onclick = () => evLbMuestra((window.__evLbI || 0) - 1);
+
+    b.querySelector('.ev-lb-next').onclick = () => evLbMuestra((window.__evLbI || 0) + 1);
+
+    if (!window.__evLbTeclado) {
+
+        window.__evLbTeclado = true;
+
+        document.addEventListener('keydown', e => {
+
+            const box = document.getElementById('ev-lb');
+
+            if (!box || box.style.display !== 'flex') return;
+
+            if (e.key === 'Escape') evLbCierra();
+
+            else if (e.key === 'ArrowLeft') evLbMuestra((window.__evLbI || 0) - 1);
+
+            else if (e.key === 'ArrowRight') evLbMuestra((window.__evLbI || 0) + 1);
+
+        });
+
+    }
+
+    return b;
+
+}
+
+function evLbMuestra(i) {
+
+    const n = EV_FOTOS.length;
+
+    if (!n) return;
+
+    i = ((i % n) + n) % n;
+
+    window.__evLbI = i;
+
+    const it = EV_FOTOS[i];
+
+    const b = evLbBox();
+
+    b.style.display = 'flex';
+
+    const img = b.querySelector('.ev-lb-img');
+
+    const cadena = evFullChain(it.url);
+
+    img.style.display = '';
+
+    const fail = document.getElementById('ev-lb-fail');
+
+    if (fail) fail.style.display = 'none';
+
+    img.dataset.urls = cadena.join('|||');
+
+    img.dataset.i = '0';
+
+    img.onerror = function () { evImgFail(this); };
+
+    img.src = cadena[0];
+
+    b.querySelector('.ev-lb-cat').textContent = it.cat;
+
+    b.querySelector('.ev-lb-cap').textContent = it.k;
+
+    b.querySelector('.ev-lb-count').textContent = (i + 1) + ' / ' + n;
+
+    const href = evVerUrl(it.url);
+
+    b.querySelectorAll('.ev-lb-href').forEach(a => { a.href = href; });
+
+}
+
+function evLbCierra() { const b = document.getElementById('ev-lb'); if (b) b.style.display = 'none'; }
+
+
+
+function rendAbrirDetalleEvidencia(key) {
+
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key);
+
+    if (!row) return;
+
+
+
+    const CATS = ['PAGO', 'PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
+
+                  'HOSPEDAJE', 'OTROS', 'COMPROBANTE', 'GENERAL'];
+
+    const data = {};
+
+    CATS.forEach(c => data[c] = { textos: [], fotos: [] });
+
+
+
+    const catDe = k => {
+
+        const K = String(k).toUpperCase();
+
+        if (K === 'FOTO PAGO' || K === 'FOTOS SUSTENTO') return 'PAGO';
+
+        const base = K.indexOf('SUSTENTO_') === 0 ? K.slice(9) : K;
+
+        for (const c of ['PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
+
+                         'HOSPEDAJE', 'OTROS', 'COMPROBANTE']) {
+
+            if (base.indexOf(c) >= 0) return c;
+
+        }
+
+        return 'GENERAL';
+
+    };
+
+    // Devuelve cuantas URLs agrego (un campo puede traer varias).
+
+    // Tambien rutas del propio servidor (/api/rendicion/foto/..., /static/...).
+
+    const addFotos = (cat, etiqueta, valor) => {
+
+        const s = String(valor == null ? '' : valor).replace(/\\\//g, '/');
+
+        const urls = s.match(/(?:https?:\/\/[^\s,;"'<>]+|\/(?:api|static)\/[^\s,;"'<>]+)/g) || [];
+
+        urls.forEach((u, i) => data[cat].fotos.push({
+
+            k: urls.length > 1 ? (etiqueta + ' ' + (i + 1)) : etiqueta,
+
+            url: u
+
+        }));
+
+        return urls.length;
+
+    };
+
+
+
+    if (String(row['FOTO PAGO'] || '').trim()) addFotos('PAGO', 'Comprobante de pago', row['FOTO PAGO']);
+
+    if (row['FOTOS SUSTENTO']) addFotos('PAGO', 'Foto de sustento', row['FOTOS SUSTENTO']);
+
+
+
+    Object.keys(row).forEach(k => {
+
+        if (k.indexOf('SUSTENTO_') !== 0) return;
+
+        const v = String(row[k] == null ? '' : row[k]).trim();
+
+        if (!v) return;
+
+        let clean = k.slice(9).trim();
+
+        if (clean.toUpperCase().indexOf('FOTO ') === 0) clean = clean.slice(5).trim();
+
+        const cat = catDe(k);
+
+        if (!addFotos(cat, clean || 'FOTO/DOC', v)) data[cat].textos.push({ k: clean || k, v: v });
+
+    });
+
+
+
+    const catsCon = CATS.filter(c => data[c].textos.length || data[c].fotos.length);
+
+    const nTextos = catsCon.reduce((s, c) => s + data[c].textos.length, 0);
+
+    const nFotos = catsCon.reduce((s, c) => s + data[c].fotos.length, 0);
+
+    EV_FOTOS = [];
+
+
+
+    const overlay = document.createElement('div');
+
+    overlay.className = 'mar-overlay show';
+
+    overlay.style.zIndex = '9999';
+
+    overlay.innerHTML = `
+
+        <div class="mar-modal mar-modal-wide ev-modal">
+
+            <div class="mar-header" style="flex-shrink:0;">
+
+                <h3 class="mar-title"><i class="fa-solid fa-file-invoice-dollar"></i> Detalle de Evidencia
+
+                    <span class="ev-hint">${catsCon.length} categorías · ${nFotos} fotos · ${nTextos} campos</span></h3>
+
+                <button type="button" class="mar-close">&times;</button>
+
+            </div>
+
+            <div class="ev-stats" id="ev-stats"></div>
+
+            <div class="mar-body ev-body">
+
+                <div id="evidencia-contenedor"></div>
+
+            </div>
+
+        </div>
+
+    `;
+
+    document.body.appendChild(overlay);
+
+    const cerrar = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 250); };
+
+    overlay.querySelector('.mar-close').onclick = cerrar;
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cerrar(); });
+
+
+
+    const cont = overlay.querySelector('#evidencia-contenedor');
+
+    let gi = 0;
+
+    if (!catsCon.length) {
+
+        cont.innerHTML = '<div class="ev-empty"><i class="fa-solid fa-folder-open"></i>' +
+
+            'No hay evidencias registradas en el formulario para esta solicitud.</div>';
+
+    }
+
+    catsCon.forEach(cat => {
+
+        const d = data[cat];
+
+        const card = document.createElement('div');
+
+        card.className = 'ev-card';
+
+        card.dataset.cat = cat;
+
+        let html = '<div class="ev-card-h"><i class="fa-solid fa-hashtag"></i> ' + cat +
+
+            '<span class="ev-badge">' + (d.fotos.length + d.textos.length) + '</span></div>';
+
+        if (d.textos.length) {
+
+            html += '<div class="ev-textos">';
+
+            d.textos.forEach(t => {
+
+                html += '<div class="ev-t"><span>' + escapeHtml(t.k) + '</span>' +
+
+                    '<span>' + escapeHtml(t.v) + '</span></div>';
+
+            });
+
+            html += '</div>';
+
+        }
+
+        if (d.fotos.length) {
+
+            html += '<div class="ev-fotos">';
+
+            d.fotos.forEach(f => {
+
+                const cadena = evThumbChain(f.url);
+
+                EV_FOTOS.push({ url: f.url, k: f.k, cat: cat });
+
+                html += '<div class="ev-f-wrap">' +
+
+                    '<button type="button" class="ev-f" data-i="' + gi + '" title="Ver: ' +
+
+                    escapeHtml(f.k) + '">' +
+
+                    '<img data-urls="' + escapeHtml(cadena.join('|||')) + '" data-i="0" src="' +
+
+                    escapeHtml(cadena[0]) + '" alt="" onerror="evImgFail(this)">' +
+
+                    '<span class="ev-f-cap">' + escapeHtml(f.k) + '</span></button>' +
+
+                    '<a class="ev-f-go" href="' + escapeHtml(evVerUrl(f.url)) +
+
+                    '" target="_blank" rel="noopener" title="Abrir archivo original">&#8599;</a>' +
+
+                    '</div>';
+
+                gi++;
+
+            });
+
+            html += '</div>';
+
+        }
+
+        card.innerHTML = html;
+
+        cont.appendChild(card);
+
+    });
+
+    cont.querySelectorAll('.ev-f').forEach(btn => {
+
+        btn.onclick = () => evLbMuestra(parseInt(btn.dataset.i, 10) || 0);
+
+    });
+
+
+
+    // Chips de categoria: filtran las tarjetas sin recargar el modal.
+
+    const stats = overlay.querySelector('#ev-stats');
+
+    if (stats && catsCon.length) {
+
+        const chip = (cat, txt, n, on) =>
+
+            '<button type="button" class="ev-chip' + (on ? ' on' : '') + '" data-cat="' + cat + '">' +
+
+            txt + ' <b>' + n + '</b></button>';
+
+        let html = chip('__all', 'Todas', nTextos + nFotos, true);
+
+        catsCon.forEach(c => { html += chip(c, c, data[c].textos.length + data[c].fotos.length, false); });
+
+        stats.innerHTML = html;
+
+        stats.querySelectorAll('.ev-chip').forEach(b => {
+
+            b.onclick = () => {
+
+                const sel = b.dataset.cat;
+
+                stats.querySelectorAll('.ev-chip').forEach(x => x.classList.toggle('on', x === b));
+
+                cont.querySelectorAll('.ev-card').forEach(c => {
+
+                    c.style.display = (sel === '__all' || c.dataset.cat === sel) ? '' : 'none';
+
+                });
+
+            };
+
+        });
+
+    }
+
+}
+
+
+
+/* ── Flujo de Cotizaciones: 4 pestañas + acciones ─────────────────────────── */
+
+// Filtro de la pestaña activa. 'registro' es FALLBACK: si la vista activa es
+
+// registro y la fila no es de otra pestaña, se muestra (así nada desaparece).
+
+function cotAplicarFiltro() {
+
+    if (!IS_COTIZACIONES || !table) return;
+
+    table.clearFilter(true);
+
+    const activa = _cotVista;
+
+    table.setFilter((rowData) => activa === 'proveedor' ? cotEnProveedor(rowData) : cotPestaniaDe(rowData) === activa);
+
+}
+
+function cotActualizarContadores() {
+
+    if (!IS_COTIZACIONES || typeof rawData === 'undefined') return;
+
+    const c = { registro: 0, cliente: 0, sustentar: 0, atendido: 0, cancelado: 0, proveedor: 0 };
+
+    rawData.forEach(r => { const p = cotPestaniaDe(r); if (c[p] !== undefined) c[p]++; if (cotEnProveedor(r)) c.proveedor++; });
+
+    Object.keys(c).forEach(k => {
+
+        const el = document.getElementById('cot-cnt-' + k);
+
+        if (el) el.textContent = c[k];
+
+    });
+
+}
+
+function cotCambiarVista(vista) {
+
+    if (!IS_COTIZACIONES || !COT_VISTAS[vista]) return;
+
+    _cotVista = vista;
+    cotAplicarAnchos(vista);
+
+    document.querySelectorAll('#cot-tabs .rend-tab').forEach(b => {
+
+        b.classList.toggle('active', b.getAttribute('data-vista') === vista);
+
+    });
+
+    nucleusBatchTable(table, () => {
+    cotAplicarFiltro();
+    if (table) table.getRows('active').forEach(row => row.reformat());
+    });
+
+    cotActualizarContadores();
+
+
+}
+
+// Llamada al backend para abrir interfaz de evidencia del WO
+let _cotSustentoContext = null;
+async function cotAbrirModalSustento(key) {
+    try {
+        const r=await fetch('/api/cotizacion/sustento?key='+encodeURIComponent(key));
+        const res=await nucleusLeerRespuestaJSON(r);if(!r.ok||!res.success)throw new Error(res.error||'No se pudo abrir el sustento.');
+        const lista=res.wos.length ? res.wos : [{wo:'',encontrado:true,proyecto_id:currentProjectId,wo_data:res.cotizacion_data,bloqueado:res.sustento_aprobado}];
+        if(res.wos.length>1 && ['INICIO','PROCESO','CIERRE'].some(t=>parseEvidenciaArr(res.cotizacion_data['_EVIDENCIA_'+t]).some(Boolean))) lista.push({wo:'Sustento anterior (sin WO asignado)',encontrado:true,proyecto_id:currentProjectId,wo_data:{...res.cotizacion_data,_key:key},bloqueado:true,legacy:true});
+        const index=lista.findIndex(w=>w.encontrado);if(index<0)throw new Error('Primero registra los WOs en el FLM correspondiente.');
+        _cotSustentoContext={key,lista,index:null,aprobado:res.sustento_aprobado,uploads:0};
+        await cotSeleccionarSustentoWo(index,false);
+    }catch(error){nucleusAlert(error.message);}
+}
+async function cotSeleccionarSustentoWo(index,guardar=true) {
+    const ctx=_cotSustentoContext;if(!ctx)return;
+    if(ctx.uploads){nucleusAlert('Espera a que termine la carga de fotos.');return;}
+    try {
+        if(guardar && ctx.index!==null)await cotGuardarSustentoSeleccionado(false);
+        const elegido=ctx.lista[index];if(!elegido.encontrado)return;
+        ctx.index=index;
+        const data={...elegido.wo_data,_key:elegido.wo_data._key||elegido.wo||ctx.key};
+        abrirWoModal({getData:()=>data,getElement:()=>null});
+        document.querySelectorAll('.wo-tab').forEach(t=>t.style.display='none');
+        document.getElementById('wo-tab-evidencia').style.display='';
+        woEditable=cotPuedeGestionar()&&!ctx.aprobado&&!elegido.bloqueado;
+        document.getElementById('wo-ejecucion-fechas').style.display='grid';
+        document.querySelectorAll('#wo-panel-evidencia textarea, #wo-panel-evidencia input[type="datetime-local"]').forEach(input=>input.disabled=!woEditable);
+        document.getElementById('btn-wo-save').style.display=woEditable?'':'none';
+        cambiarWoTab('evidencia');
+        document.getElementById('cot-sustento-wo-tabs')?.remove();
+        const tabs=document.createElement('div');tabs.id='cot-sustento-wo-tabs';tabs.className='cot-wo-sustento-tabs';tabs.setAttribute('aria-label','Sustento por WO');
+        ctx.lista.forEach((w,i)=>{
+            const b=document.createElement('button');b.type='button';b.className='action-pill'+(i===index?' pill-blue':'');
+            b.textContent=w.wo||'Sustento sin WO';b.disabled=!w.encontrado;b.setAttribute('aria-pressed',String(i===index));
+            b.title=w.encontrado?'Ver evidencia de este WO':'WO pendiente de registro en FLM';b.onclick=()=>cotSeleccionarSustentoWo(i);tabs.appendChild(b);
+        });
+        document.getElementById('wo-panel-evidencia').prepend(tabs);
+        document.getElementById('cot-btn-guardar-sustento')?.remove();
+        if(!ctx.aprobado && !elegido.legacy && cotPuedeGestionar()){
+            const button=document.createElement('button');button.id='cot-btn-guardar-sustento';button.className='mar-btn-primary';button.textContent='Validar sustento';button.style.cssText='margin-top:16px;width:100%;';
+            button.onclick=async()=>{button.disabled=true;try{await cotGuardarSustentoSeleccionado(true);cerrarWoModal();}catch(error){nucleusAlert(error.message);}finally{button.disabled=false;}};
+            document.getElementById('evidencia-inicio-proceso-cierre').appendChild(button);
+        }
+    }catch(error){nucleusAlert(error.message);}
+}
+async function cotGuardarSustentoSeleccionado(finalizar) {
+    const ctx=_cotSustentoContext;if(!ctx||ctx.index===null)return;
+    if(ctx.uploads)throw new Error('Espera a que termine la carga de fotos.');
+    const entry=ctx.lista[ctx.index];
+    if((ctx.aprobado||entry.bloqueado)&&!finalizar)return;
+    const evidencia={};
+    ['inicio','proceso','cierre'].forEach(fase=>{evidencia['_EVIDENCIA_'+fase.toUpperCase()]=JSON.stringify(evidenciaState?.[fase]?.fotos||[]);evidencia['_BITACORA_'+fase.toUpperCase()]=document.getElementById('evidencia-bitacora-'+fase).value;});
+    evidencia['INICIO EJECUCION']=fromDatetimeLocal(document.getElementById('wo-inicio-ejecucion').value);
+    evidencia['FIN EJECUCION']=fromDatetimeLocal(document.getElementById('wo-fin-ejecucion').value);
+    const r=await fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia})});
+    const j=await nucleusLeerRespuestaJSON(r);if(!r.ok||!j.success)throw new Error(j.error||'No se pudo guardar.');
+    entry.wo_data={...j.wo_data,_key:woKey};cotTrasAccion(j,ctx.key);return j;
+}
+async function cotRevisarSustento(key,aprobar) {
+    if(aprobar){if(!await nucleusConfirm('¿Aprobar el sustento? Sus evidencias quedarán bloqueadas para edición.'))return;}
+    let motivo='';if(!aprobar){motivo=prompt('Motivo del rechazo del sustento:');if(motivo===null)return;}
+    const j=await cotAccionKey(key,aprobar?'aprobar_sustento':'rechazar_sustento',{motivo});if(j)cotTrasAccion(j,key);
+}
+
+// Mueve una cotización aprobada entre Caja chica y Proveedor.
+// La pestaña Proveedor es una vista derivada de TIPO GASTO APROBACION,
+// así que cambiar ese campo mete (o saca) el caso de dicha pestaña.
+async function cotCambiarTipoGasto(key, tipo) {
+    if(!await nucleusConfirm('¿Mover esta cotización a "' + tipo + '"?'))return;
+    await cotAccionKey(key,'cambiar_tipo_gasto',{tipo_gasto_aprobacion:tipo});
+}
+
+// Llamada al backend y refresco de la fila.
+function cotAccionKey(key, accion, extra) {
+
+    const body = Object.assign({ key: key, accion: accion }, extra || {});
+
+    return fetch('/api/cotizacion/accion', {
+
+        method: 'POST',
+
+        headers: { 'Content-Type': 'application/json' },
+
+        body: JSON.stringify(body)
+
+    })
+
+        .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
+
+        .then(({ ok, j }) => {
+
+            if (!ok || j.error) { alert(j.error || 'No se pudo completar la acción.'); return null; }
+
+            cotTrasAccion(j, key);
+
+            return j;
+
+        })
+
+        .catch(error => { alert(nucleusErrorSolicitud(error)); return null; });
+
+}
+
+// Tras pulsar "Generar Cotización" en el modal, el registro pasa a Cotizado
+
+// y viaja a la pestaña 2 (Cliente). Se recuerda la pestaña destino para que, al
+
+// recargar, el usuario lo encuentre ahí y no tenga que buscarlo.
+
+function cotMarcarCotizado(key) {
+
+    try { sessionStorage.setItem('cot_vista_tras', 'cliente'); } catch (e) { }
+
+    return fetch('/api/cotizacion/accion', {
+
+        method: 'POST',
+
+        headers: { 'Content-Type': 'application/json' },
+
+        body: JSON.stringify({ key: key, accion: 'generar' })
+
+    })
+
+        .then(r => r.json())
+
+        .then(j => {
+
+            if (j && j.error) console.warn('No se pudo marcar como Cotizado:', j.error);
+
+            return j;
+
+        })
+
+        .catch(() => null);
+
+}
+
+
+
+function cotTrasAccion(j, key) {
+
+    if (typeof rawData !== 'undefined') {
+
+        const i = rawData.findIndex(r => r._key === key);
+
+        if (i > -1 && j.newData) rawData[i] = Object.assign({}, rawData[i], j.newData);
+
+    }
+
+    const row = table.getRows().find(r => r.getData()._key === key);
+
+    if (row && j.newData) {
+
+        row.update(j.newData);
+
+        if (typeof row.reformat === 'function') row.reformat();
+
+    }
+
+    // La fila cambió de pestaña: si ya no pertenece a la activa, sale de la vista.
+
+    cotAplicarFiltro();
+
+    cotActualizarContadores();
+
+}
+
+
+
+/* ── Modal: Conformar Aprobación ──────────────────────────────────────────── */
+
+/* -- Modal Gestion Cotizacion: Aprobado / Rechazado / Cancelado -- */
+let _cotModal = null;          // { key, pestania }
+let _cotAccionActual = 'aprobado';
+let _cotAdjuntoUrl = '';
+let _cotProveedorUrl = '';
+let _cotProveedorSubiendo = false;
+
+function cotResumen(row) {
+    if (typeof rendPoblarDetalle === 'function') {
+        rendPoblarDetalle(row, 'cot-resumen-grid');
+    }
+}
+
+/** Abre el modal unificado.
+ *  @param {string} key        clave de la fila
+ *  @param {string} pestania   'registro' | 'cliente'
+ *  @param {string} accionDef  'aprobado' | 'rechazado' | 'cancelado'
+ */
+function cotAbrirModal(key, pestania, accionDef) {
+    const row = (typeof rawData !== 'undefined' ? rawData : []).find(r => r._key === key) || {};
+    _cotModal = { key, pestania };
+    document.getElementById('cot-resumen').open = false;
+    _cotProveedorUrl = String(row['ADJUNTO COTIZACION PROVEEDOR'] || '').trim();
+    _cotProveedorSubiendo = false;
+    document.getElementById('cot-nombre-proveedor').value = String(row['NOMBRE DE PROVEEDOR'] || '');
+    document.getElementById('cot-proveedor-archivo').value = '';
+    cotMostrarProveedorAdjunto();
+    _cotAdjuntoUrl = String(row['ADJUNTO CORREO CLIENTE'] || '').trim();
+    document.getElementById('cot-tipo-gasto-aprobacion').value = row['TIPO GASTO APROBACION'] || '';
+    if (window.cotSetNombreCliente) window.cotSetNombreCliente(row['NOMBRE CLIENTE'] || '');
+    cotResumen(row);
+
+
+    // Precargar fecha/hora actual
+    const now = new Date(), pad = x => String(x).padStart(2, '0');
+    const dtStr = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) +
+                  'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    ['cot-fecha-aprob','cot-fecha-rechazo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = dtStr;
+    });
+
+    // Limpiar campos de texto
+    const cm = document.getElementById('cot-comentario');
+    if (cm) cm.value = String(row['COMENTARIO APROBACION'] || '');
+    ['cot-motivo-rechazo','cot-motivo-cancel'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+
+    // Estado adjunto
+    const ok = document.getElementById('cot-adjunto-ok');
+    if (ok) {
+        ok.style.display = _cotAdjuntoUrl ? 'block' : 'none';
+        ok.style.color = '#28A745';
+        ok.innerHTML = _cotAdjuntoUrl
+            ? '<i class="fa-solid fa-check"></i> Archivo .msg cargado. Clic para reemplazar.'
+            : '';
+    }
+
+    cotSeleccionarAccion(pestania === 'registro' ? accionDef || 'rechazado' : accionDef || 'aprobado');
+
+    const sub = document.getElementById('cot-modal-sub');
+    if (sub) sub.textContent = 'Registro: ' + (row['_key'] || key);
+    document.getElementById('cot-modal').style.display = 'flex';
+}
+
+// Alias legado
+function cotConformar(key) { cotAbrirModal(key, 'cliente', 'aprobado'); }
+
+// Nombre cliente: chips con agregar/quitar (varios nombres por cotización).
+(function () {
+    const caja = document.getElementById('cot-nombre-cliente-chips');
+    const oculto = document.getElementById('cot-nombre-cliente');
+    const inp = document.getElementById('cot-nombre-cliente-texto');
+    if (!caja || !oculto || !inp) return;
+    let nombres = [];
+    function sincronizar() { oculto.value = nombres.join(', '); }
+    function pintar() {
+        Array.prototype.forEach.call(caja.querySelectorAll('.cot-chip'), e => e.remove());
+        nombres.forEach((n, i) => {
+            const chip = document.createElement('span'); chip.className = 'cot-chip';
+            const txt = document.createElement('span'); txt.textContent = n;
+            const btn = document.createElement('button'); btn.type = 'button';
+            btn.title = 'Quitar este nombre'; btn.innerHTML = '&times;';
+            btn.onclick = ev => { ev.preventDefault(); ev.stopPropagation();
+                nombres.splice(i, 1); pintar(); sincronizar(); inp.focus(); };
+            chip.appendChild(txt); chip.appendChild(btn);
+            caja.insertBefore(chip, inp.parentElement === caja ? inp : inp.parentElement);
+        });
+    }
+    function agregar() {
+        const bruto = inp.value.trim(); if (!bruto) return;
+        bruto.split(/[,;\n\r|]+/).map(s => s.trim()).filter(Boolean).forEach(n => {
+            if (!nombres.some(x => x.toLowerCase() === n.toLowerCase())) nombres.push(n);
+        });
+        inp.value = ''; pintar(); sincronizar();
+    }
+    inp.addEventListener('change', () => { if (inp.value && !inp.value.startsWith('__nucleus_')) agregar(); });
+    caja.addEventListener('click', () => inp.focus());
+    window.cotSetNombreCliente = function (valor) {
+        nombres = String(valor || '').split(/[,;\n\r|]+/).map(s => s.trim()).filter(Boolean);
+        inp.value = ''; pintar(); sincronizar();
+    };
+    window.cotGetNombreCliente = function () { return oculto.value; };
+})();
+
+function cotSeleccionarAccion(accion) {
+    _cotAccionActual = accion;
+    ['aprobado','rechazado','cancelado'].forEach(a => {
+        const tab   = document.getElementById('cot-tab-' + a);
+        const panel = document.getElementById('cot-panel-' + a);
+        const active = a === accion;
+        if (tab) { tab.classList.toggle('cot-tab-active', active); tab.setAttribute('aria-pressed', String(active)); }
+        if (panel) panel.style.display = active ? '' : 'none';
+    });
+    const btn = document.getElementById('cot-modal-ok');
+    if (btn) {
+        const labels = {
+            aprobado:  '<i class="fa-solid fa-circle-check"></i> Confirmar Aprobacion',
+            rechazado: '<i class="fa-solid fa-rotate-left"></i> Confirmar Rechazo',
+            cancelado: '<i class="fa-solid fa-ban"></i> Confirmar Cancelacion'
+        };
+        btn.innerHTML = labels[accion] || 'Confirmar';
+        btn.style.background = accion === 'aprobado' ? '' :
+                               accion === 'rechazado' ? 'linear-gradient(135deg,#FF9500,#e68900)' :
+                               'linear-gradient(135deg,#6B7280,#4B5563)';
+        btn.style.borderColor = accion === 'aprobado' ? '' :
+                                accion === 'rechazado' ? '#e68900' : '#4B5563';
+    }
+}
+
+function cotCerrarModal() {
+    const m = document.getElementById('cot-modal');
+    if (m) m.style.display = 'none';
+    _cotModal = null;
+}
+
+function cotElegirAdjunto() {
+    if (!_cotModal) return;
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.msg';
+    inp.style.display = 'none';
+    inp.onchange = () => {
+        const f = inp.files[0];
+        if (!f) return;
+        if (!f.name.toLowerCase().endsWith('.msg')) {
+            nucleusAlert('Solo se aceptan archivos .msg de Outlook.');
+            return;
+        }
+        const ok = document.getElementById('cot-adjunto-ok');
+        const fd = new FormData();
+        fd.append('key', _cotModal.key);
+        fd.append('adjunto', f);
+        if (ok) { ok.style.display = 'block'; ok.style.color = 'var(--ios-gray-1)';
+                  ok.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Subiendo...'; }
+        fetch('/api/cotizacion/subir_correo', { method: 'POST', body: fd })
+            .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
+            .then(({ ok: o, j }) => {
+                if (!o || j.error) {
+                    if (ok) { ok.style.display = 'block'; ok.style.color = '#FF3B30';
+                              ok.innerHTML = '<i class="fa-solid fa-xmark"></i> ' + escapeHtml(j.error || 'Error al subir.'); }
+                    return;
+                }
+                _cotAdjuntoUrl = j.url;
+                if (ok) { ok.style.color = '#28A745';
+                          ok.innerHTML = '<i class="fa-solid fa-check"></i> ' + escapeHtml(f.name); }
+            })
+            .catch(() => {
+                if (ok) { ok.style.display = 'block'; ok.style.color = '#FF3B30';
+                          ok.innerHTML = '<i class="fa-solid fa-xmark"></i> Error de red al subir.'; }
+            });
+        inp.remove();
+    };
+    document.body.appendChild(inp);
+    inp.click();
+}
+
+let _cotProveedorModal = null;
+function cotAbrirProveedor(key) {
+    const row = rawData.find(r => r._key === key);
+    if (!row) return;
+    _cotProveedorModal = {key, url: row['ADJUNTO FACTURA PROVEEDOR'] || '', subiendo: false};
+    const descargas = document.getElementById('cot-proveedor-descargas');
+    descargas.replaceChildren();
+    for (const [campos, titulo] of [[['CORREO DE VALIDACION','ADJUNTO CORREO VALIDACION'],'Correo de validación'],[['ADJUNTO CORREO CLIENTE'],'Correo de aprobación del cliente'],[['ADJUNTO COTIZACION PROVEEDOR'],'Cotización del proveedor'],[['ADJUNTO FACTURA PROVEEDOR'],'Factura del proveedor']]) {
+        const url = String(campos.map(campo=>row[campo]).find(Boolean) || '').trim();
+        const el = document.createElement(/^\/api\/(?:cotizacion|rendicion)\/correo\//.test(url) ? 'a' : 'span');
+        el.className = 'action-pill pill-neutral';
+        el.textContent = (el.tagName === 'A' ? '↓ ' : '') + titulo + (el.tagName === 'A' ? '' : ' · Sin adjunto');
+        if (el.tagName === 'A') {el.href = url; el.download = '';}
+        descargas.appendChild(el);
+    }
+    document.getElementById('cot-proveedor-sub').textContent = 'Cotización: ' + key;
+    document.getElementById('cot-factura-numero').value = row['NUMERO FACTURA PROVEEDOR'] || '';
+    document.getElementById('cot-factura-subtotal').value = row['SUBTOTAL FACTURA PROVEEDOR'] ?? '';
+    document.getElementById('cot-oc-numero').value = row['NUMERO OC PROVEEDOR'] || '';
+    const input = document.getElementById('cot-factura-archivo'); input.value = ''; input.disabled = false;
+    document.getElementById('cot-factura-elegir').disabled = false;
+    document.getElementById('cot-proveedor-guardar').disabled = false;
+    document.getElementById('cot-proveedor-guardar').innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Guardar documentos';
+    document.getElementById('cot-factura-caption').textContent = _cotProveedorModal.url ? 'Reemplazar factura del proveedor' : 'Adjuntar factura del proveedor';
+    cotMostrarFactura();
+    document.getElementById('cot-proveedor-modal').style.display = 'flex';
+}
+function cotCerrarProveedor() {
+    document.getElementById('cot-proveedor-modal').style.display = 'none';
+    _cotProveedorModal = null;
+}
+function cotMostrarFactura() {
+    const estado = document.getElementById('cot-factura-estado'); estado.replaceChildren();
+    if (!_cotProveedorModal || !_cotProveedorModal.url) return;
+    const link = document.createElement('a'); link.href = _cotProveedorModal.url;
+    link.download = ''; link.className = 'action-pill pill-blue'; link.textContent = 'Descargar factura adjunta'; estado.appendChild(link);
+}
+async function cotSubirFactura(input) {
+    const modal = _cotProveedorModal, archivo = input.files[0];
+    if (!modal || !archivo) return;
+    modal.subiendo = true; input.disabled = true;
+    document.getElementById('cot-factura-elegir').disabled = true;
+    document.getElementById('cot-proveedor-guardar').disabled = true;
+    const estado = document.getElementById('cot-factura-estado'); estado.textContent = 'Subiendo factura…';
+    try {
+        const datos = new FormData(); datos.append('key', modal.key); datos.append('adjunto', archivo);
+        const r = await fetch('/api/cotizacion/subir_factura_proveedor', {method:'POST', body:datos});
+        const j = await r.json(); if (!r.ok || !j.success) throw new Error(j.error || 'Error al subir factura.');
+        if (_cotProveedorModal !== modal) return;
+        modal.url = j.url; cotMostrarFactura();
+    } catch(e) { if (_cotProveedorModal === modal) {cotMostrarFactura(); estado.appendChild(document.createTextNode(' ' + e.message)); input.value = '';}}
+    finally {modal.subiendo = false; if (_cotProveedorModal === modal) {input.disabled = false; document.getElementById('cot-factura-elegir').disabled = false; document.getElementById('cot-proveedor-guardar').disabled = false; document.getElementById('cot-factura-caption').textContent = modal.url ? 'Reemplazar factura del proveedor' : 'Adjuntar factura del proveedor';}}
+}
+async function cotGuardarProveedor() {
+    const modal = _cotProveedorModal; if (!modal) return;
+    if (modal.subiendo) {nucleusAlert('Espera a que termine de subir la factura.'); return;}
+    const numero = document.getElementById('cot-factura-numero').value.trim();
+    const oc = document.getElementById('cot-oc-numero').value.trim();
+    const subtotal = document.getElementById('cot-factura-subtotal').value;
+    if (subtotal === '' || !Number.isFinite(Number(subtotal)) || Number(subtotal) < 0) {nucleusAlert('Ingresa el subtotal de la factura.'); return;}
+    if (!numero || !oc || !modal.url) {nucleusAlert('Completa el número de factura, el número de OC y adjunta la factura.'); return;}
+    const boton = document.getElementById('cot-proveedor-guardar'); boton.disabled = true; boton.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Guardando…';
+    try {
+        const r = await fetch('/api/cotizacion/proveedor', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:modal.key,numero_factura:numero,numero_oc:oc,factura_proveedor:modal.url,subtotal_factura:subtotal})});
+        const j = await r.json(); if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo guardar.');
+        cotTrasAccion(j, modal.key); if (_cotProveedorModal === modal) cotCerrarProveedor();
+    } catch(e) {nucleusAlert(e.message);} finally {if (_cotProveedorModal === modal) {boton.disabled = false; boton.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Guardar documentos';}}
+}
+
+function cotMostrarProveedorAdjunto() {
+    const estado = document.getElementById('cot-proveedor-ok');
+    estado.replaceChildren();
+    if (!_cotProveedorUrl) return;
+    const link = document.createElement('a');
+    link.href = _cotProveedorUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = 'Ver cotización del proveedor adjunta';
+    estado.appendChild(link);
+}
+
+async function cotSubirCotizacionProveedor(input) {
+    const archivo = input.files[0];
+    if (!_cotModal || !archivo) return;
+    const modal = _cotModal;
+    const estado = document.getElementById('cot-proveedor-ok');
+    const anterior = _cotProveedorUrl;
+    _cotProveedorSubiendo = true;
+    input.disabled = true;
+    estado.textContent = 'Subiendo cotización del proveedor…';
+    try {
+        const datos = new FormData();
+        datos.append('key', modal.key);
+        datos.append('adjunto', archivo);
+        const respuesta = await fetch('/api/cotizacion/subir_cotizacion_proveedor', {method: 'POST', body: datos});
+        const resultado = await respuesta.json();
+        if (!respuesta.ok || !resultado.success) throw new Error(resultado.error || 'No se pudo subir el archivo.');
+        if (_cotModal !== modal) return;
+        _cotProveedorUrl = resultado.url;
+        cotMostrarProveedorAdjunto();
+    } catch (error) {
+        if (_cotModal !== modal) return;
+        _cotProveedorUrl = anterior;
+        cotMostrarProveedorAdjunto();
+        estado.appendChild(document.createTextNode(' ' + error.message));
+        input.value = '';
+    } finally {
+        input.disabled = false;
+        if (_cotModal === modal) _cotProveedorSubiendo = false;
+    }
+}
+
+function cotConfirmarModal() {
+    if (!_cotModal) return;
+    if (_cotProveedorSubiendo) { nucleusAlert('Espera a que termine de subir la cotización del proveedor.'); return; }
+    const btn = document.getElementById('cot-modal-ok');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...'; }
+
+    const restore = () => {
+        if (btn) { btn.disabled = false; cotSeleccionarAccion(_cotAccionActual); }
+    };
+
+    if (_cotAccionActual === 'aprobado') {
+        const dt = document.getElementById('cot-fecha-aprob');
+        const cm = document.getElementById('cot-comentario');
+        const tipoGasto = document.getElementById('cot-tipo-gasto-aprobacion').value;
+        if (!tipoGasto) { nucleusAlert('Selecciona Caja chica o Proveedor.'); restore(); return; }
+        if (!dt || !dt.value) { nucleusAlert('La fecha y hora de aprobacion es obligatoria.'); restore(); return; }
+        const extra = {
+            tipo_gasto_aprobacion: tipoGasto,
+            fecha_aprobacion: dt.value.replace('T', ' '),
+            comentario: cm ? cm.value.trim() : '',
+            nombre_proveedor: document.getElementById('cot-nombre-proveedor').value.trim(),
+            nombre_cliente: (window.cotGetNombreCliente ? window.cotGetNombreCliente() : ''),
+            adjunto_cotizacion_proveedor: _cotProveedorUrl,
+            adjunto_correo: _cotAdjuntoUrl
+        };
+        cotAccionKey(_cotModal.key, 'conformar_aprobacion', extra).then(j => {
+            restore(); if (j) cotCerrarModal();
+        });
+
+    } else if (_cotAccionActual === 'rechazado') {
+        const dt  = document.getElementById('cot-fecha-rechazo');
+        const mot = document.getElementById('cot-motivo-rechazo');
+        if (!mot || !mot.value.trim()) { nucleusAlert('El motivo del rechazo es obligatorio.'); restore(); return; }
+        const extra = {
+            fecha_rechazo: dt ? dt.value.replace('T', ' ') : '',
+            motivo: mot.value.trim()
+        };
+        cotAccionKey(_cotModal.key, 'rechazar', extra).then(j => {
+            restore(); if (j) cotCerrarModal();
+        });
+
+    } else if (_cotAccionActual === 'cancelado') {
+        const mot = document.getElementById('cot-motivo-cancel');
+        if (!mot || !mot.value.trim()) { nucleusAlert('El motivo de cancelacion es obligatorio.'); restore(); return; }
+        const extra = { motivo_cancel: mot.value.trim() };
+        cotAccionKey(_cotModal.key, 'cancelar', extra).then(j => {
+            restore(); if (j) cotCerrarModal();
+        });
+    } else {
+        restore();
+    }
+}
+document.addEventListener('DOMContentLoaded', () => {
+
+    setTimeout(() => { rendCambiarVista('validacion'); rendActualizarContadores(); }, 0);
+
+    if (IS_COTIZACIONES) setTimeout(() => {
+
+        // Si venimos de generar una cotización, abrir en la pestaña destino
+
+        // para que el registro no "desaparezca" de la vista del usuario.
+
+        let destino = 'registro';
+
+        try {
+
+            destino = sessionStorage.getItem('cot_vista_tras') || 'registro';
+
+            sessionStorage.removeItem('cot_vista_tras');
+
+        } catch (e) { }
+
+        if (!COT_VISTAS[destino]) destino = 'registro';
+
+        cotCambiarVista(destino);
+
+    }, 0);
+
+    if (document.getElementById('btn-rend-avisos')) {
+
+        setTimeout(() => rendAvisosCargar(true), 600);   // silencioso: sin toasts históricos
+
+        setInterval(() => rendAvisosCargar(false), 30000); // revisa avisos nuevos cada 30 s
+
+    }
+
+});
+

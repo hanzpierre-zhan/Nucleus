@@ -15,12 +15,7 @@ def run_migrations(app, database_url=''):
                         FiltroMaestro, TablaMaestra, ReglaEstadoManual, AccesoProyecto,
                         KpiConfig, HistorialCambios, Tecnico, Cotizacion, TokenStore)
     from werkzeug.security import generate_password_hash
-
-    def _sane_data_key(k):
-        return str(k).replace('.', '_')
-
-    def _sane_dict(d):
-        return {_sane_data_key(k): v for k, v in d.items()}
+    from services.utilidades import _sane_data_key, _sane_dict
 
     with app.app_context():
         # ── Lock de migración (solo PostgreSQL) ──────────────────────────────

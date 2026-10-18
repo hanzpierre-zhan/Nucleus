@@ -79,3 +79,7 @@ clean_sla.py
 # Copias y JavaScript temporales usados para verificar la interfaz
 /scratch/performance-*/
 /scratch/rendered-check-*.js
+
+# Entorno virtual de verificación de las pruebas (NUNCA subir: pesa cientos de MB
+# e incluye el navegador de Playwright). Se recrea con requirements-dev.txt.
+/scratch/verify-rendicion-env/
