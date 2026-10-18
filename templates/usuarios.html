@@ -190,7 +190,7 @@
         .up-stats { grid-template-columns: repeat(2, 1fr); }
     }
 </style>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/usuarios.css') }}?v=3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/usuarios.css') }}?v=4">
 
 <div class="up-page">
     <div class="up-inner">
@@ -287,37 +287,29 @@
                     {% endif %}
 
                     {% if navegacion_negocio %}
-                    <div class="up-field up-field-proj"><div class="up-modules-head"><div><h3>Proyectos</h3><p>Selecciona los proyectos que podrá atender.</p></div></div><div class="proj-selector">
+                    <div class="up-field up-field-proj"><div class="up-modules-head"><div><h3>Acceso a proyectos</h3><p>Selecciona los proyectos que podrá atender.</p></div></div><div class="proj-selector">
                     {% for p in negocios_usuario %}<label class="proj-chk"><input type="checkbox" class="negocio-check" value="{{ p.id }}"><i class="fa-solid fa-briefcase"></i>{{ p.nombre }}</label>{% endfor %}
                     </div></div>
-                    <div class="up-field up-field-proj"><div class="up-modules-head"><div><h3>Módulos</h3><p>Los módulos seleccionados se habilitan para los proyectos marcados.</p></div></div><div class="proj-selector">
+                    <div class="up-field up-field-proj"><div class="up-modules-head"><div><h3>Acceso a módulos</h3><p>Los módulos seleccionados se habilitan para los proyectos marcados.</p></div></div><div class="proj-selector">
                     {% for m in modulos_usuario %}<label class="proj-chk"><input type="checkbox" class="modulo-check" value="{{ m.id }}"><i class="fa-solid fa-table-cells-large"></i>{{ m.nombre }}</label>{% endfor %}
                     </div><p id="usuario-global" hidden>Zeno y soporte tienen acceso a todos los proyectos y módulos.</p></div>
                     {% endif %}
+                    {% set proyectos_negocio = ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'] %}
+                    <div class="up-field up-field-proj" {% if navegacion_negocio %}hidden{% endif %}>
+                        <div class="up-modules-head"><div><h3>Acceso a proyectos</h3><p>Selecciona los proyectos que podrá atender.</p></div><span id="up-projects-count" class="up-card-tag">0 seleccionados</span></div>
+                        <div class="proj-selector" id="project-access-selector">
+                        {% for nombre in proyectos_negocio %}{% for p in proyectos %}{% if p.nombre == nombre %}
+                            <label class="proj-chk"><input type="checkbox" class="proj-check project-access-check" value="{{ p.id }}"><i class="fa-solid fa-briefcase"></i>{{ p.nombre }}</label>
+                        {% endif %}{% endfor %}{% endfor %}
+                        </div>
+                    </div>
                     <div class="up-field up-field-proj" {% if navegacion_negocio %}hidden{% endif %}>
                         <div class="up-modules-head"><div><h3>Acceso a módulos</h3><p>Selecciona los módulos de esta cuenta.</p></div><span id="up-modules-count" class="up-card-tag">0 seleccionados</span></div>
                         <input type="search" id="up-module-search" placeholder="Buscar módulo…" aria-label="Buscar módulo">
                         <div class="proj-selector" id="proj-selector">
-                            {% set _orden = ['FLM', 'PEXT', 'Claro', 'Integratel', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
-                            {% for _nom in _orden %}
-                            {% for p in proyectos %}
-                            {% if p.nombre == _nom %}
-                            <label class="proj-chk">
-                                <input type="checkbox" class="proj-check" value="{{ p.id }}">
-                                <i class="fa-solid {{ p.icono or 'fa-folder' }}"></i> {{ p.nombre }}
-                            </label>
-                            {% endif %}
-                            {% endfor %}
-                            {% endfor %}
-                            {# Módulos no incluidos en el orden predefinido #}
-                            {% for p in proyectos %}
-                            {% if p.nombre not in ['FLM', 'PEXT', 'Claro', 'Integratel', 'Combustible', 'Cotizaciones', 'Dataper', 'Material', 'Generadores', 'SITE'] %}
-                            <label class="proj-chk">
-                                <input type="checkbox" class="proj-check" value="{{ p.id }}">
-                                <i class="fa-solid {{ p.icono or 'fa-folder' }}"></i> {{ p.nombre }}
-                            </label>
-                            {% endif %}
-                            {% endfor %}
+                        {% for p in proyectos %}{% if p.nombre not in proyectos_negocio %}
+                            <label class="proj-chk"><input type="checkbox" class="proj-check module-access-check" value="{{ p.id }}"><i class="fa-solid {{ p.icono or 'fa-folder' }}"></i>{{ p.nombre }}</label>
+                        {% endif %}{% endfor %}
                         </div>
                     </div>
                 </div>
@@ -421,12 +413,13 @@ Array.from(userFormGrid.querySelectorAll(':scope > .up-field:not(.up-field-proj)
 userFormGrid.prepend(userIdentity);
 userFormGrid.append(document.querySelector('.up-actions'));
 function actualizarModulosUI() {
-    document.getElementById('up-modules-count').textContent = getSelectedProyectos().length + ' seleccionados';
+    document.getElementById('up-modules-count').textContent = document.querySelectorAll('.module-access-check:checked').length + ' seleccionados';
+    document.getElementById('up-projects-count').textContent = document.querySelectorAll('.project-access-check:checked').length + ' seleccionados';
 }
 document.querySelectorAll('.proj-check').forEach(input => input.addEventListener('change', actualizarModulosUI));
 document.getElementById('up-module-search').addEventListener('input', event => {
     const query = event.target.value.toLowerCase().trim();
-    document.querySelectorAll('.proj-chk').forEach(label => label.hidden = !label.textContent.toLowerCase().includes(query));
+    document.querySelectorAll('#proj-selector .proj-chk').forEach(label => label.hidden = !label.textContent.toLowerCase().includes(query));
 });
 function contextoEditorUI(title, mode) {
     document.getElementById('up-editor-heading').textContent = title;

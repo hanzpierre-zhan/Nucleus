@@ -182,3 +182,39 @@ def test_catalogo_no_asigna_proyecto_a_historicos():
     original={'CODIGO':'HISTORICO'}
     assert presentar(original)['PROYECTO']==''
     assert 'PROYECTO' not in original
+
+
+@pytest.mark.parametrize('rol', ['gestor', 'supervisor'])
+def test_personal_diez_claro_mas_diez_integratel(app, client, rol):
+    """Caso solicitado: dos proyectos se consolidan sin incluir un tercero."""
+    with app.app_context():
+        ids = {p.nombre: p.id for p in Proyecto.query.all()}
+        usuario = Usuario(username='revision-pepito-'+rol, password_hash='sin-login', rol=rol)
+        db.session.add(usuario); db.session.flush(); uid = usuario.id
+        for nombre in ('Dataper', 'FLM - CLARO', 'FLM - INTEGRATEL'):
+            db.session.add(AccesoProyecto(usuario_id=uid, proyecto_id=ids[nombre], restricciones='{}'))
+        filas = []
+        for proyecto, cantidad in [('FLM - CLARO',10),('FLM - INTEGRATEL',10),('FLM - ENTEL',1)]:
+            for i in range(cantidad):
+                clave='REVISION-PEPITO-'+rol+'-'+proyecto+'-'+str(i)
+                fila=NucleusData(proyecto_id=ids['Dataper'],key_value=clave,data_json=json.dumps({'DOCUMENTO':clave,'TECNICO':clave,'PROYECTO':proyecto,'ESTADO':'ACTIVO'}))
+                db.session.add(fila);filas.append(fila)
+        db.session.commit(); creados=[f.id for f in filas]
+    try:
+        with client.session_transaction() as ses:
+            ses.update(user_id=uid,username='revision-pepito-'+rol,rol=rol)
+        respuesta=client.get('/switch_project/%s?next=/'%ids['Dataper'],follow_redirects=True)
+        assert respuesta.status_code==200
+        for proyecto in ('FLM - CLARO','FLM - INTEGRATEL'):
+            for i in range(10):assert 'REVISION-PEPITO-'+rol+'-'+proyecto+'-'+str(i) in respuesta.text
+        assert 'REVISION-PEPITO-'+rol+'-FLM - ENTEL-0' not in respuesta.text
+        with app.app_context():
+            AccesoProyecto.query.filter_by(usuario_id=uid,proyecto_id=ids['FLM - CLARO']).delete();db.session.commit()
+        respuesta=client.get('/')
+        assert 'REVISION-PEPITO-'+rol+'-FLM - CLARO-0' not in respuesta.text
+        assert 'REVISION-PEPITO-'+rol+'-FLM - INTEGRATEL-0' in respuesta.text
+    finally:
+        with app.app_context():
+            AccesoProyecto.query.filter_by(usuario_id=uid).delete()
+            NucleusData.query.filter(NucleusData.id.in_(creados)).delete(synchronize_session=False)
+            Usuario.query.filter_by(id=uid).delete();db.session.commit()
