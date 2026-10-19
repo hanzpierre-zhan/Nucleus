@@ -53,7 +53,10 @@ def invalidar_site_map_cache():
 
 
 def _get_site_map():
-    if _site_map_cache['data'] is not None and (time.time() - _site_map_cache['ts']) < _SITE_MAP_TTL:
+    from services.alcance_proyectos import contexto
+    alcance = contexto()
+    clave_alcance = tuple(sorted(alcance['familias'])) if alcance is not None else None
+    if _site_map_cache.get('alcance') == clave_alcance and _site_map_cache['data'] is not None and (time.time() - _site_map_cache['ts']) < _SITE_MAP_TTL:
         return _site_map_cache['data']
     site_map = {}
     site_proy = Proyecto.query.filter_by(nombre='Site Name').first()
@@ -74,6 +77,7 @@ def _get_site_map():
                 'LONGITUD': sd.get('LONGITUD', ''),
             }
     _site_map_cache['data'] = site_map
+    _site_map_cache['alcance'] = clave_alcance
     _site_map_cache['ts'] = time.time()
     return site_map
 
@@ -193,6 +197,8 @@ def index():
 
     manual_cfg = app_cfg.get('manual_columns')
     manual_cols_data = json.loads(manual_cfg.valor) if manual_cfg else []
+    from services.alcance_proyectos import limitar_opciones
+    manual_cols_data = limitar_opciones(manual_cols_data)
     from services.legacy_columns import retired
     manual_cols_data=[c for c in manual_cols_data if not retired(c.get('nombre'))]
     columns_set={c for c in columns_set if not retired(c)}

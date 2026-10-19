@@ -219,9 +219,12 @@ def _sin_tildes(s):
 @login_required
 def api_detalle_opciones():
     try:
+        from services.alcance_proyectos import contexto
+        alcance = contexto()
+        clave_alcance = tuple(sorted(alcance['familias'])) if alcance is not None else None
         # Cache en memoria: este endpoint recorre SITE + Site Name + FLM + PEXT
         # (decenas de miles de filas con json.loads) y se pide en CADA carga de FLM.
-        if _opciones_cache['data'] is not None and (time.time() - _opciones_cache['ts']) < _OPCIONES_TTL:
+        if _opciones_cache.get('alcance') == clave_alcance and _opciones_cache['data'] is not None and (time.time() - _opciones_cache['ts']) < _OPCIONES_TTL:
             return jsonify(_opciones_cache['data'])
         # Agrega valores válidos para los 5 campos del Detalle (solo admin los edita):
         # NOMBRE DE SITE, DEPARTAMENTO, PRIORIDAD DEL SITE, PROVINCIA, DISTRITO.
@@ -318,6 +321,7 @@ def api_detalle_opciones():
                    'prov_dist_map': {k: s2l(v) for k, v in prov_dist_map.items()},
                    'site_geo_map': site_geo_map}
         _opciones_cache['data'] = payload
+        _opciones_cache['alcance'] = clave_alcance
         _opciones_cache['ts'] = time.time()
         return jsonify(payload)
     except Exception as e:

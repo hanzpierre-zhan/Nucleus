@@ -1224,6 +1224,8 @@ def api_cotizacion_subir_correo():
 @login_required
 def api_cotizacion_correo(pid, key, nombre):
     """Sirve la evidencia del correo del cliente."""
+    from services.alcance_proyectos import comprobar_archivo
+    comprobar_archivo(pid, key)
     if not _cot_puede_gestionar():
         return jsonify({'error': 'No autorizado.'}), 403
     proy = _cot_proyecto()

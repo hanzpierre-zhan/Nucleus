@@ -131,6 +131,8 @@ def create_app(config_object=None):
     _register_no_cache_html(app)
 
     db.init_app(app)
+    from services.alcance_proyectos import instalar as instalar_alcance_proyectos
+    instalar_alcance_proyectos()
     _register_opciones_cache_invalidation()
     _register_blueprints(app)
     from services.legacy_columns import install, clean_existing_config

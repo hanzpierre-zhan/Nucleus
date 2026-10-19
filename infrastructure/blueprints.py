@@ -68,5 +68,8 @@ def _register_blueprints(app):
     @app.context_processor
     def recursos_contexto_template():
         from services.recursos_flm import contexto_recursos
+        from services.alcance_proyectos import contexto
 
-        return {"flm_resource_context": contexto_recursos()}
+        alcance = contexto()
+        return {"flm_resource_context": contexto_recursos(),
+                "familias_acceso": sorted(alcance['familias']) if alcance is not None else ['ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT']}

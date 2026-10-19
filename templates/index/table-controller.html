@@ -5,6 +5,7 @@
     const rawCols = ({{ columns | safe }}).filter(c => !['SLA','SLA CUMPLIMIENTO'].includes(String(c).trim().toUpperCase()));
 
     const manualColsConfig = {{ manual_cols | safe }};
+    const clientesAutorizados = {{ familias_acceso | tojson }};
 
     const columnLayout = {{ column_layout | safe }} || [];
 
@@ -8399,7 +8400,7 @@ let _rendCambiandoVista = false;
 
         // 3. Proyecto (operador al que va la solicitud)
 
-        mkSel('PROYECTO', 'CLIENTE', ['ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'],
+        mkSel('PROYECTO', 'CLIENTE', clientesAutorizados,
 
             '— Seleccione Proyecto —', { required: true });
 
@@ -8752,7 +8753,7 @@ let _rendCambiandoVista = false;
 
         selClienteCoti.appendChild(optClienteDefault);
 
-        ['ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'].forEach(cli => {
+        clientesAutorizados.forEach(cli => {
 
             const opt = document.createElement('option');
 

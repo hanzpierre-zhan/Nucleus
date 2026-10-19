@@ -60,4 +60,5 @@ def choices(columns, project_name):
         result.setdefault(normalized('NOMBRE CLIENTE'), {'nombre':'NOMBRE CLIENTE','tipo':'lista','opciones':[],'configurada':False})
         result.setdefault(normalized('TIPO DE GASTO'), {'nombre':'TIPO DE GASTO','tipo':'lista','opciones':['Gasto Cobra','Refacturable'],'configurada':False})
         result.setdefault(normalized('SUPERVISOR'), {'nombre':'SUPERVISOR','tipo':'lista','opciones':[],'configurada':False})
-    return list(result.values())
+    from services.alcance_proyectos import limitar_opciones
+    return limitar_opciones(list(result.values()))

@@ -296,6 +296,8 @@ def api_evidencia_eliminar():
 @bp.route('/api/evidencia/foto/<int:pid>/<path:key>/<path:nombre>')
 @login_required
 def api_evidencia_foto(pid, key, nombre):
+    from services.alcance_proyectos import comprobar_archivo
+    comprobar_archivo(pid, key)
     cur = session.get('current_proyecto_id')
     # FLM <-> FLM - ENTEL: las fotos subidas desde uno son accesibles desde el otro.
     permitido = (pid == cur) or (_flm_hermano_id(cur) == pid)
@@ -346,6 +348,8 @@ def api_evidencia_foto(pid, key, nombre):
 @bp.route('/api/evidencia/zip/<int:pid>/<path:key>')
 @login_required
 def api_evidencia_zip(pid, key):
+    from services.alcance_proyectos import comprobar_archivo
+    comprobar_archivo(pid, key)
     if pid != session.get('current_proyecto_id') and not acceso_desde_cotizacion(pid, key, request.args.get('cotizacion_key', ''), lectura=True):
         return jsonify({'error': 'Acceso denegado'}), 403
     key = (key or '').strip()
