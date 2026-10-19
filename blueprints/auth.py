@@ -25,6 +25,7 @@ from services import (
     login_required,
     get_menu_proyectos,
 )
+from services.usuarios import usuarios_activos, ROL_ELIMINADO
 
 
 bp = Blueprint('auth', __name__)
@@ -81,7 +82,7 @@ def login():
     if request.method == 'POST':
         if request.form.get('consent_step') == '1':
             user = db.session.get(Usuario, pendiente.get('user_id')) if vigente else None
-            if not user:
+            if not user or user.rol == ROL_ELIMINADO:
                 return render_template('login.html', error='La verificación expiró. Inicia sesión de nuevo.'), 400
             if request.form.get('legal_accept') != '1':
                 return render_template('login.html', consent_required=True,
@@ -97,9 +98,9 @@ def login():
 
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
-        user = Usuario.query.filter(func.lower(Usuario.username) == username.lower()).first()
+        user = usuarios_activos().filter(func.lower(Usuario.username) == username.lower()).first()
         if not user:
-            user = Usuario.query.filter(func.lower(Usuario.nombre) == username.lower()).first()
+            user = usuarios_activos().filter(func.lower(Usuario.nombre) == username.lower()).first()
         if not user or not check_password_hash(user.password_hash, password):
             session.pop('legal_pending', None)
             return render_template('login.html', error='Credenciales inválidas', username=username)
@@ -148,7 +149,7 @@ def cambiar_password_public():
         return jsonify({'error': 'Usuario, actual y nueva requeridas'}), 400
     if len(nueva) < 4:
         return jsonify({'error': 'Mínimo 4 caracteres'}), 400
-    u = Usuario.query.filter(func.lower(Usuario.username) == username.lower()).first()
+    u = usuarios_activos().filter(func.lower(Usuario.username) == username.lower()).first()
     if not u or not check_password_hash(u.password_hash, actual):
         return jsonify({'error': 'Usuario o contraseña actual incorrecta'}), 403
     u.password_hash = generate_password_hash(nueva)

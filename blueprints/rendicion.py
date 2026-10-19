@@ -924,7 +924,8 @@ def configurar_validadores():
             return jsonify(success=True, configuracion=guardar(request.get_json(silent=True)))
         except ValueError as error:
             return jsonify(error=str(error)), 400
-    usuarios = Usuario.query.order_by(Usuario.nombre, Usuario.username).all()
+    from services.usuarios import usuarios_activos
+    usuarios = usuarios_activos().order_by(Usuario.nombre, Usuario.username).all()
     # El acceso de cada usuario se resuelve en bloque (antes: una consulta por
     # usuario, ~90 en total para esta pantalla).
     acceso_rendicion = accesos_rendicion(usuarios)

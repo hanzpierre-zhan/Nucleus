@@ -58,7 +58,7 @@ def test_atencion_directa_y_permisos(app, auth_client, solicitud_flujo):
         session['user_id'] = -999
         session['current_proyecto_id'] = None
         session['current_proyecto_nombre'] = ''
-    assert accion(auth_client, 'archivar').status_code == 403
+    assert accion(auth_client, 'archivar').status_code == 401  # La cuenta -999 no existe.
 
 
 def cambiar_estado(app, rid, estado, **datos):

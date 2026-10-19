@@ -14,6 +14,7 @@ from models import (Usuario, Proyecto, NucleusData, PerfilEspacio, AccesoEspacio
                     ClasificacionEspacio, CuentaEspacio, ProyectoNegocio)
 from services.utilidades import login_required
 from services import espacios as servicio
+from services.usuarios import usuarios_activos
 
 bp = Blueprint('espacios', __name__)
 
@@ -160,7 +161,7 @@ def usuarios_selecciones():
     if request.path != '/usuarios' or not current_app.config.get('ESPACIOS_HABILITADOS') or not servicio.es_admin():
         return {}
     session.setdefault('espacios_csrf', secrets.token_urlsafe(32))
-    return {'usuarios_ambitos':{u.id:_selecciones_usuario(u) for u in Usuario.query.all()},
+    return {'usuarios_ambitos':{u.id:_selecciones_usuario(u) for u in usuarios_activos()},
             'negocios_usuario':servicio.proyectos(),
             'modulos_usuario':[{'id':m,'nombre':etiqueta} for m,(etiqueta,_) in servicio.MODULOS.items()]}
 
@@ -393,7 +394,7 @@ def administracion():
     _admin()
     return jsonify(usuarios=[{'id': u.id, 'nombre': u.nombre or u.username, 'rol':u.rol,
                              'administrador_global':u.rol in ('zeno','suport')}
-                            for u in Usuario.query.order_by(Usuario.username)],
+                            for u in usuarios_activos().order_by(Usuario.username)],
                    perfiles=[{'id': p.id, 'nombre': p.nombre, 'permisos': json.loads(p.permisos_json)}
                              for p in PerfilEspacio.query.order_by(PerfilEspacio.nombre)],
                    accesos=[{'id': a.id, 'usuario_id': a.usuario_id, 'proyecto_id': a.proyecto_id,

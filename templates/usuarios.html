@@ -562,7 +562,7 @@ async function resetearPassword(id, username){
     else nucleusAlert(j.error||'Error');
 }
 async function eliminarUsuario(id, username) {
-    if(!await nucleusConfirm(`¿Eliminar al usuario "${username}"?`)) return;
+    if(!await nucleusConfirm(`¿Eliminar al usuario "${username}"? Se retirará su acceso y se conservará su historial. Su nombre de usuario quedará reservado.`)) return;
 
     fetch('/api/admin/usuario', {
         method: 'DELETE',

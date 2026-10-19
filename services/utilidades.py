@@ -33,6 +33,12 @@ def ahora_peru():
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        if 'user_id' in session:
+            from models import Usuario
+            from services.usuarios import ROL_ELIMINADO
+            usuario = db.session.get(Usuario, session['user_id'])
+            if usuario is None or usuario.rol == ROL_ELIMINADO:
+                session.clear()
         if 'user_id' not in session:
             if request.path.startswith('/api/') or '/api/' in request.path:
                 return jsonify({'error': 'Tu sesión venció. Vuelve a iniciar sesión y reintenta.', 'login_required': True}), 401

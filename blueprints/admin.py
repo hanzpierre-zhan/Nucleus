@@ -242,23 +242,25 @@ def api_admin_usuario():
     if request.method == 'DELETE':
         if session.get('rol') != 'zeno':
             return jsonify({'error': 'Solo Zeno puede eliminar usuarios.'}), 403
-        uid = request.json.get('id')
-        if not uid: return jsonify({'error': 'ID requerido'}), 400
+        try:
+            uid = int((request.get_json(silent=True) or {}).get('id'))
+            if uid <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return jsonify({'error': 'ID de usuario válido requerido.'}), 400
         if int(uid) == session.get('user_id'):
             return jsonify({'error': 'No puedes borrar tu propio usuario'}), 400
         try:
-            u = db.session.get(Usuario, uid)
+            u = Usuario.query.filter_by(id=uid).with_for_update().first()
             if u:
-                # Nullify history records referencing this user (FK nullable)
-                HistorialCambios.query.filter_by(usuario_id=uid).update({'usuario_id': None})
-                # Delete project access permissions
-                AccesoProyecto.query.filter_by(usuario_id=uid).delete()
-                db.session.delete(u)
+                from services.usuarios import retirar_cuenta
+                retirar_cuenta(u)
                 db.session.commit()
             return jsonify({'success': True})
         except Exception as e:
             db.session.rollback()
-            return jsonify({'error': str(e)}), 500
+            current_app.logger.exception('No se pudo retirar la cuenta de usuario %s', uid)
+            return jsonify({'error': 'No se pudo eliminar la cuenta. No se guardaron cambios; vuelve a intentarlo.'}), 500
 
 
 @bp.route('/api/admin/usuario/duplicar', methods=['POST'])

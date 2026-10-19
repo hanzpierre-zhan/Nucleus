@@ -64,7 +64,8 @@ def accesos_rendicion(usuarios):
 def guardar(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get('activo'), bool) or not isinstance(payload.get('asignaciones'), dict):
         raise ValueError('Configuración inválida.')
-    usuarios = {str(u.id) for u in Usuario.query.all()}
+    from services.usuarios import usuarios_activos
+    usuarios = {str(u.id) for u in usuarios_activos()}
     asignaciones = {}
     for uid, proyectos in payload['asignaciones'].items():
         if uid not in usuarios or not isinstance(proyectos, list) or any(p not in PROYECTOS for p in proyectos):

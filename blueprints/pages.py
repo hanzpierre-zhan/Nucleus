@@ -741,7 +741,8 @@ def usuarios_page():
     if session.get('rol') not in ('zeno', 'suport'):
         return redirect(url_for('pages.index'))
     proy = Proyecto.query.order_by(Proyecto.id).all()
-    user = Usuario.query.all()
+    from services.usuarios import usuarios_activos
+    user = usuarios_activos().all()
     accesos = {}
     for a in AccesoProyecto.query.all():
         accesos.setdefault(a.usuario_id, []).append(a.proyecto_id)
