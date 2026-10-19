@@ -69,6 +69,26 @@ def test_aprobar_con_proveedor_y_pdf(app, auth_client, cotizacion):
         assert datos['ESTADO COTIZACION'] == 'Aprobado'
 
 
+def test_aprobacion_guarda_el_nombre_original_del_correo(app, auth_client, cotizacion):
+    """El enlace guarda un nombre técnico; la aprobación conserva además el
+    nombre original del archivo para poder mostrarlo en Liquidaciones."""
+    pid, key = cotizacion
+    subida = auth_client.post('/api/cotizacion/subir_correo', data={
+        'key': key, 'adjunto': (io.BytesIO(b'correo outlook'), 'RE Aprobacion cotizacion.msg'),
+    })
+    assert subida.status_code == 200, subida.json
+    assert subida.json['nombre'] == 'RE_Aprobacion_cotizacion.msg'
+    respuesta = auth_client.post('/api/cotizacion/accion', json={
+        'key': key, 'accion': 'conformar_aprobacion',
+        'adjunto_correo': subida.json['url'], 'nombre_correo': subida.json['nombre'],
+    })
+    assert respuesta.status_code == 200, respuesta.json
+    with app.app_context():
+        datos = json.loads(NucleusData.query.filter_by(proyecto_id=pid, key_value=key).one().data_json)
+        assert datos['ADJUNTO CORREO CLIENTE'] == subida.json['url']
+        assert datos['NOMBRE CORREO CLIENTE'] == 'RE_Aprobacion_cotizacion.msg'
+
+
 def test_pantalla_cotizaciones_carga_modal(auth_client, cotizacion):
     pid, _ = cotizacion
     auth_client.get('/switch_project/%d' % pid)

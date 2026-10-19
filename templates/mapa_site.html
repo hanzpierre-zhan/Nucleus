@@ -104,6 +104,8 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     border: 1px solid var(--ios-hairline, rgba(0,0,0,0.08));
   }
+  /* Botón para regresar al maestro SITE, al costado del título del panel */
+  .mapa-volver { margin-left: auto; }
 </style>
 
 <div class="mapa-layout">
@@ -111,7 +113,9 @@
     <div id="map-loading"><i class="fa-solid fa-spinner fa-spin" style="color:#007AFF;"></i> Cargando {{ sites_count }} sites...</div>
   </div>
   <div class="mapa-panel">
-    <h3><i class="fa-solid fa-map-location-dot" style="color:#007AFF;"></i> Mapa de Sites</h3>
+    <h3><i class="fa-solid fa-map-location-dot" style="color:#007AFF;"></i> Mapa de Sites
+      <a href="/" class="action-pill pill-blue mapa-volver" title="Volver al maestro SITE"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Volver a Sites</a>
+    </h3>
     <p class="hint">Busca un site por <b>código</b> o <b>nombre</b>, o haz <b>clic</b> en un punto del mapa. Se resaltará entre los <span id="total-sites">{{ sites_count }}</span> sites del maestro.</p>
 
     <div class="search-wrap">

@@ -9946,6 +9946,48 @@ btnItem.onclick = () => cotRegAgregarFila();
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeModuleSettings);
     else initializeModuleSettings();
 
+    // Descarga de la plantilla de columnas manuales (botón "Plantilla").
+    // Cuando el servidor NO puede armar el archivo (sesión vencida o módulo sin
+    // columnas manuales) responde un .json de error muy corto. Con el enlace
+    // normal el navegador guardaba ese error como "manual_template.json" y el
+    // usuario no se enteraba del motivo; aquí se revisa la respuesta y se avisa.
+    function descargarPlantillaManual(evento) {
+        evento.preventDefault();
+        const enlace = evento.currentTarget;
+        fetch(enlace.getAttribute('href'), { credentials: 'same-origin' })
+            .then(async respuesta => {
+                const tipo = respuesta.headers.get('Content-Type') || '';
+                if (!respuesta.ok || tipo.indexOf('spreadsheet') === -1) {
+                    let motivo = 'No se pudo generar la plantilla.';
+                    try {
+                        const cuerpo = await respuesta.json();
+                        if (cuerpo && cuerpo.error) motivo = cuerpo.error;
+                    } catch (error) { /* respuesta sin JSON: se usa el mensaje genérico */ }
+                    alert(motivo);
+                    return;
+                }
+                const archivo = await respuesta.blob();
+                const coincidencia = /filename="?([^";]+)"?/.exec(
+                    respuesta.headers.get('Content-Disposition') || '');
+                const url = URL.createObjectURL(archivo);
+                const temporal = document.createElement('a');
+                temporal.href = url;
+                temporal.download = (coincidencia && coincidencia[1]) || 'plantilla_columnas_manuales.xlsx';
+                document.body.appendChild(temporal);
+                temporal.click();
+                temporal.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            })
+            .catch(() => alert('No se pudo descargar la plantilla. Revisa tu conexión e inténtalo otra vez.'));
+    }
+    function inicializarDescargaPlantilla() {
+        document.querySelectorAll('a[href="/api/import/manual_template"]').forEach(enlace => {
+            enlace.addEventListener('click', descargarPlantillaManual);
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inicializarDescargaPlantilla);
+    else inicializarDescargaPlantilla();
+
     function cotiGearToggle() {
 
         const menu = document.getElementById('coti-gear-menu');

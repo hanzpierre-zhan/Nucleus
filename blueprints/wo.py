@@ -491,58 +491,14 @@ def api_sites():
 @bp.route('/api/sites/nombres')
 @login_required
 def api_sites_nombres():
-    """Nombres de TODOS los sites registrados (maestro SITE, cotizaciones y rendiciones).
+    """Nombres de los sites registrados en el maestro SITE.
 
-    A diferencia de /api/sites no filtra por coordenadas: se usa como fuente
-    de sugerencias para el autocompletado de 'Nombre de site'.
+    Fuente única del autocompletado de "site" / "nombre de site" en todos los
+    módulos (decisión de negocio: solo el maestro SITE, sin mezclar cotizaciones
+    ni rendiciones). A diferencia de /api/sites no filtra por coordenadas.
     """
-    nombres = set()
-    pendiente = object()
-
-    def _clave_nombre(datos, claves):
-        """Primera clave de `claves` presente en la fila (sin distinguir
-        mayúsculas ni espacios) o None. Es el nombre del campo de site."""
-        por_clave = {}
-        for k in datos:
-            por_clave.setdefault(str(k or '').strip().upper(), k)
-        for clave in claves:
-            k = por_clave.get(clave)
-            if k is not None:
-                return k
-        return None
-
-    for nombre_proyecto, claves in (
-        ('SITE', ('NOMBRE', 'NOMBRE SITE', 'NOMBRE DE SITE', 'NOMBRE DEL SITE')),
-        ('Cotizaciones', ('NOMBRE SITE', 'NOMBRE DE SITE', 'NOMBRE DEL SITE')),
-        ('Rendicion', ('NOMBRE DE SITE', 'NOMBRE DEL SITE', 'NOMBRE SITE')),
-    ):
-        proyecto = Proyecto.query.filter_by(nombre=nombre_proyecto).first()
-        if not proyecto:
-            continue
-        # Las filas de un mismo maestro comparten las mismas claves: el campo de
-        # nombre se resuelve una sola vez por juego de claves (antes se recorría
-        # el diccionario entero, hasta 4 veces, en cada fila).
-        columna_por_claves = {}
-        # Solo se lee data_json (sin materializar entidades ORM) y por lotes.
-        filas = db.session.query(NucleusData.data_json).filter_by(
-            proyecto_id=proyecto.id).yield_per(500)
-        for (data_json,) in filas:
-            try:
-                datos = json.loads(data_json or '{}')
-            except (ValueError, TypeError):
-                continue
-            if not isinstance(datos, dict):
-                continue
-            firma = tuple(datos)
-            clave = columna_por_claves.get(firma, pendiente)
-            if clave is pendiente:
-                clave = _clave_nombre(datos, claves)
-                columna_por_claves[firma] = clave
-            if clave is not None:
-                valor = str(datos.get(clave) or '').strip()
-                if valor:
-                    nombres.add(valor)
-    return jsonify(sorted(nombres))
+    from services.sites_maestro import nombres_maestro
+    return jsonify(nombres_maestro())
 
 
 @bp.route('/api/site/detalle')

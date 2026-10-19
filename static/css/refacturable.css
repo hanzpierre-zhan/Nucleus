@@ -54,7 +54,7 @@
 #ref-grid .tabulator-cell{padding:8px 12px;line-height:1.4}
 #ref-grid .tabulator-row:hover{background:var(--ios-fill)!important}
 #ref-grid .tabulator-cell[tabulator-field="cotizacion"]{color:var(--ios-blue);font-weight:600}
-#ref-grid .tabulator-cell[tabulator-field="monto_cobra"],#ref-grid .tabulator-cell[tabulator-field="monto_hw"],#ref-grid .tabulator-cell[tabulator-field="margen"]{font-variant-numeric:tabular-nums}
+#ref-grid .tabulator-cell[tabulator-field="monto_cobra"],#ref-grid .tabulator-cell[tabulator-field="monto_hw"],#ref-grid .tabulator-cell[tabulator-field="sub_total"],#ref-grid .tabulator-cell[tabulator-field="margen"]{font-variant-numeric:tabular-nums}
 .ref-status{display:inline-flex;align-items:center;min-height:23px;padding:2px 9px;border-radius:6px;font-size:11px;font-weight:600;line-height:1.25;box-sizing:border-box}
 .ref-status-success{color:#15803d;background:rgba(34,197,94,.13)}
 .ref-status-warning{color:#a16207;background:rgba(245,158,11,.13)}
@@ -94,4 +94,10 @@ body.dark-mode .ref-status-danger{color:#f87171}
 .ref-card-danger{border-left-color:#ef4444}
 .ref-card-info{border-left-color:var(--ios-blue,#007AFF)}
 .ref-card.is-total{border-color:var(--ios-blue,#007AFF);border-left-color:var(--ios-blue,#007AFF);background:var(--ios-fill)}
+.ref-card{cursor:pointer}
+.ref-card.is-active{border-color:var(--ios-blue,#007AFF);box-shadow:0 0 0 2px rgba(0,122,255,.18)}
+.ref-card:focus-visible{outline:2px solid var(--ios-blue);outline-offset:2px}
 @media(max-width:600px){.ref-cards{padding:8px 10px 0}.ref-card{flex:1 1 calc(50% - 10px);min-width:0}}
+
+/* Nombre del archivo del correo: una sola línea con puntos suspensivos. */
+#ref-grid .ref-file-name{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--ios-label)}

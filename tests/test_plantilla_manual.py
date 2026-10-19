@@ -14,6 +14,56 @@ import openpyxl
 from db import db
 from models import AppConfig, NucleusData, Proyecto
 
+
+def test_plantilla_site_clave_manual_importable(app, auth_client):
+    """Una clave incluida en las manuales debe sobrevivir descarga e importación."""
+    with app.app_context():
+        proyecto = Proyecto(nombre='SITE QA plantilla')
+        db.session.add(proyecto)
+        db.session.flush()
+        pid = proyecto.id
+        db.session.add_all([
+            AppConfig(proyecto_id=pid, clave='primary_key', valor='Código'),
+            AppConfig(proyecto_id=pid, clave='manual_columns',
+                      valor=json.dumps([{'nombre': 'Código'}, {'nombre': 'Nombre'}])),
+            NucleusData(proyecto_id=pid, key_value='SITE-001',
+                        data_json=json.dumps({'Código': 'SITE-001', 'Nombre': 'Original'})),
+        ])
+        db.session.commit()
+    try:
+        with auth_client.session_transaction() as ses:
+            ses['current_proyecto_id'] = pid
+            ses['current_proyecto_nombre'] = 'SITE'
+        descarga = auth_client.get('/api/import/manual_template')
+        assert descarga.status_code == 200
+        assert 'spreadsheetml' in descarga.content_type
+        libro = openpyxl.load_workbook(io.BytesIO(descarga.data))
+        hoja = libro['Plantilla']
+        assert list(hoja.values) == [('Código', 'Nombre'), ('SITE-001', None)]
+        hoja['B2'] = 'Actualizado'
+        archivo = io.BytesIO()
+        libro.save(archivo)
+        contenido = archivo.getvalue()
+        preview = auth_client.post('/api/import/preview', data={
+            'file': (io.BytesIO(contenido), 'plantilla.xlsx')})
+        assert preview.status_code == 200
+        assert preview.json['columns'] == ['Código', 'Nombre']
+        resultado = auth_client.post('/api/import/process', data={
+            'type': 'manual_cols', 'file': (io.BytesIO(contenido), 'plantilla.xlsx')})
+        assert resultado.status_code == 200, resultado.json
+        assert resultado.json['updated'] == 1
+        assert resultado.json['added'] == 0
+        with app.app_context():
+            fila = NucleusData.query.filter_by(proyecto_id=pid).one()
+            assert fila.key_value == 'SITE-001'
+            assert json.loads(fila.data_json)['Nombre'] == 'Actualizado'
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(proyecto_id=pid).delete()
+            AppConfig.query.filter_by(proyecto_id=pid).delete()
+            db.session.delete(db.session.get(Proyecto, pid))
+            db.session.commit()
+
 DETALLE = [
     'Fecha de creación (WO Creation date)',
     'Nombre de Site',

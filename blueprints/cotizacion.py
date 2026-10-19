@@ -1003,6 +1003,11 @@ def api_cotizacion_accion():
         adj = str(data.get('adjunto_correo') or '').strip()
         if adj:
             row['ADJUNTO CORREO CLIENTE'] = adj
+            # Nombre original del archivo (el enlace guarda un nombre técnico).
+            # Los adjuntos antiguos no lo tienen; Liquidaciones cae al nombre del enlace.
+            nombre_adj = secure_filename(str(data.get('nombre_correo') or '').strip())
+            if nombre_adj:
+                row['NOMBRE CORREO CLIENTE'] = nombre_adj
         # La aprobación registra el ingreso a Liquidaciones en la misma transacción.
         # Se conserva para seguir el caso aunque después se revierta o cancele.
         row.setdefault('_LIQUIDACION_INGRESO', ahora)
@@ -1211,7 +1216,7 @@ def api_cotizacion_subir_correo():
             return jsonify({'error': 'No se pudo subir el archivo: %s' % e}), 500
         url = '/api/cotizacion/correo/%d/%s/%s?v=%d' % (
             proy.id, key, nombre, int(time.time()))
-        return jsonify({'success': True, 'url': url})
+        return jsonify({'success': True, 'url': url, 'nombre': secure_filename(file.filename)})
     finally:
         if os.path.exists(ruta_tmp):
             try:

@@ -93,6 +93,21 @@ def _url_documento(valor):
     return url if url.startswith('/api/cotizacion/correo/') else ''
 
 
+def _nombre_documento(valor, guardado=''):
+    """Nombre visible del adjunto.
+
+    Se usa el nombre original que se guardó al subirlo (``guardado``). Los
+    adjuntos antiguos no lo tienen: solo existe el nombre técnico con el que se
+    archivaron (por ejemplo ``correo_aprob_<código>.msg``), así que se devuelve
+    ese para que la columna nunca quede vacía si hay archivo.
+    """
+    nombre = str(guardado or '').strip()
+    if nombre:
+        return nombre
+    url = _url_documento(valor).split('?', 1)[0].rstrip('/')
+    return url.rsplit('/', 1)[-1] if url else ''
+
+
 def _registros():
     proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
     if not proyecto:
@@ -190,6 +205,8 @@ def _registros():
             'nombre_proyecto': nombre_proyecto,
             'factura_proveedor': _url_documento(datos.get('ADJUNTO FACTURA PROVEEDOR')),
             'correo_cliente': _url_documento(datos.get('ADJUNTO CORREO CLIENTE')),
+            'nombre_correo': _nombre_documento(datos.get('ADJUNTO CORREO CLIENTE'),
+                                               datos.get('NOMBRE CORREO CLIENTE')),
             'cotizacion_generada': respaldo['cotizacion'],
             'documentos': documentos,
             'avance': avance,
@@ -198,6 +215,7 @@ def _registros():
             'monto_factura_proveedor': _importe(_monto(datos.get('SUBTOTAL FACTURA PROVEEDOR'))),
             'estado_liquidacion': seguimiento.get('estado_liquidacion') or seguimiento.get('estado_expense') or 'Pendiente',
             'numero_wo': datos.get('NUMERO WO') or '',
+            'sub_total': _importe(_sub_total_sin_fee(datos)),
             'monto_hw': _importe(monto_hw),
             'monto_cobra': _importe(monto_cobra),
             'margen': _importe(margen),
@@ -248,6 +266,33 @@ def _monto(valor):
 
 def _importe(valor):
     return format(valor, '.2f') if valor is not None else ''
+
+
+def _sub_total_sin_fee(datos):
+    """Suma cantidad × valor unitario de los ítems de la cotización (sin FEE).
+
+    Las cotizaciones generadas guardan sus ítems en ITEMS_JSON. Las que no los
+    tienen (registros históricos importados) devuelven None: no se inventa un
+    importe que el usuario no registró.
+    """
+    try:
+        items = json.loads(datos.get('ITEMS_JSON') or '[]')
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(items, list):
+        return None
+    total = Decimal('0')
+    hay = False
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        cantidad = _monto(item.get('cantidad'))
+        unitario = _monto(item.get('valor_unitario'))
+        if cantidad is None or unitario is None:
+            continue
+        total += cantidad * unitario
+        hay = True
+    return total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) if hay else None
 
 
 @bp.route('/api/registros/<int:origen_id>', methods=['PATCH'])

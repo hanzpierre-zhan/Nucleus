@@ -101,7 +101,10 @@ def test_generadores_con_contexto_explicito(auth_client,recursos):
     r=auth_client.get('/flm/%s/recursos/generadores'%recursos['FLM - INTEGRATEL'],follow_redirects=True)
     assert r.status_code==200
     assert '<details class="flm-resource-menu"' not in r.text
-    assert '/switch_project/%s?next=/'%recursos['Generadores'] in r.text
+    # Generadores dejó de ser un módulo del menú: vive dentro de Combustible,
+    # así que la página ofrece el botón para volver a ese módulo.
+    assert 'Volver a Combustible' in r.text
+    assert '/switch_project/%s?next=/'%recursos['Combustible'] in r.text
     headers={'X-FLM-Origin':str(recursos['FLM - INTEGRATEL']),'X-Nucleus-Project':str(recursos['Generadores'])}
     assert auth_client.get('/api/catalogos/autocompletar',headers=headers).status_code==200
     with auth_client.session_transaction() as ses:

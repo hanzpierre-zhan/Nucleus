@@ -76,6 +76,78 @@ def test_refacturable_valida_montos_y_campos_derivados(auth_client, cot_aprobada
     assert auth_client.patch('/refacturable/api/registros/%s' % cot_aprobada, json=cambios).status_code == 400
 
 
+def test_sub_total_sin_fee_se_deriva_de_los_items(app, auth_client):
+    """La columna nueva es la suma de cantidad × valor unitario (sin FEE),
+    calculada desde los ítems; no se guarda ni se migra nada."""
+    with app.app_context():
+        proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').one()
+        items = [
+            {'cantidad': '2', 'valor_unitario': '100', 'fee': '5', 'valor_total': '210.00'},
+            {'cantidad': '1', 'valor_unitario': '50.50', 'fee': '0', 'valor_total': '50.50'},
+        ]
+        fila = NucleusData(proyecto_id=proyecto.id, key_value='REF-SUBTOTAL-TEST',
+                           data_json=json.dumps({'ESTADO COTIZACION': 'Aprobado',
+                                                 'SUB TOTAL + FEE': '260.50',
+                                                 'ITEMS_JSON': json.dumps(items)}))
+        db.session.add(fila)
+        db.session.commit()
+        origen_id = fila.id
+    try:
+        registro = next(r for r in auth_client.get('/refacturable/api/registros').json['registros']
+                        if r['id'] == origen_id)
+        assert registro['monto_hw'] == '260.50'
+        assert registro['sub_total'] == '250.50'
+    finally:
+        with app.app_context():
+            RefacturableDetalle.query.filter_by(origen_id=origen_id).delete()
+            NucleusData.query.filter_by(id=origen_id).delete()
+            db.session.commit()
+
+
+def test_sub_total_sin_fee_vacio_sin_items(auth_client, cot_aprobada):
+    """Sin ítems registrados (cotizaciones históricas) la columna queda vacía."""
+    registro = next(r for r in auth_client.get('/refacturable/api/registros').json['registros']
+                    if r['id'] == cot_aprobada)
+    assert registro['monto_hw'] == '120.35'
+    assert registro['sub_total'] == ''
+
+
+def test_nombre_correo_usa_el_original_y_cae_al_nombre_del_archivo(app, auth_client):
+    """La columna ARCHIVO DEL CORREO muestra el nombre original cuando se guardó
+    al subir; en los adjuntos antiguos (sin nombre) muestra el nombre del enlace."""
+    from models import LiquidacionNumero
+    with app.app_context():
+        proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').one()
+        filas = []
+        casos = [
+            ('REF-NOMBRE-ORIGINAL', {
+                'ESTADO COTIZACION': 'Aprobado',
+                'ADJUNTO CORREO CLIENTE': '/api/cotizacion/correo/8/K/correo_aprob_abc.msg?v=1',
+                'NOMBRE CORREO CLIENTE': 'RE Aprobacion.msg'}),
+            ('REF-NOMBRE-TECNICO', {
+                'ESTADO COTIZACION': 'Aprobado',
+                'ADJUNTO CORREO CLIENTE': '/api/cotizacion/correo/8/K/correo_aprob_def.msg?v=2'}),
+            ('REF-SIN-CORREO', {'ESTADO COTIZACION': 'Aprobado'}),
+        ]
+        for clave, datos in casos:
+            fila = NucleusData(proyecto_id=proyecto.id, key_value=clave, data_json=json.dumps(datos))
+            db.session.add(fila)
+            filas.append(fila)
+        db.session.commit()
+        ids = [fila.id for fila in filas]
+    try:
+        registros = {r['id']: r for r in auth_client.get('/refacturable/api/registros').json['registros']}
+        assert registros[ids[0]]['nombre_correo'] == 'RE Aprobacion.msg'
+        assert registros[ids[1]]['nombre_correo'] == 'correo_aprob_def.msg'
+        assert registros[ids[2]]['nombre_correo'] == ''
+    finally:
+        with app.app_context():
+            RefacturableDetalle.query.filter(RefacturableDetalle.origen_id.in_(ids)).delete(synchronize_session=False)
+            LiquidacionNumero.query.filter(LiquidacionNumero.origen_id.in_(ids)).delete(synchronize_session=False)
+            NucleusData.query.filter(NucleusData.id.in_(ids)).delete(synchronize_session=False)
+            db.session.commit()
+
+
 def test_refacturable_impide_guardar_si_cancelada(app, auth_client, cot_aprobada):
     with app.app_context():
         registro = db.session.get(NucleusData, cot_aprobada)

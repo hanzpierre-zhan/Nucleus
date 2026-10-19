@@ -59,6 +59,13 @@
         document.getElementById('liq-sustento').showModal();
     }
     function safeUrl(url) { return typeof url === 'string' && (/^\/(?!\/)/.test(url) || /^https?:\/\//i.test(url)); }
+    function fileNameFormatter(cell) {
+        const nombre = String(cell.getValue() || '');
+        if (!nombre) return '—';
+        const span = document.createElement('span');
+        span.className = 'ref-file-name'; span.textContent = nombre; span.title = nombre;
+        return span;
+    }
     function documentButton(cell, kind) {
         const row = cell.getRow().getData(); const state = row.documentos?.[kind] || 'Pendiente';
         if (state !== 'Completo' && !(kind === 'sustento' && state !== 'No aplica' && Object.values(row.fotos || {}).some(fotos => fotos.length))) { const label = document.createElement('span'); label.textContent = state; label.className = 'ref-status ref-status-neutral'; return label; }
@@ -109,6 +116,7 @@
             column('SUSTENTO DE OBRA', 'sustento', {headerFilter: false, formatter: cell => documentButton(cell, 'sustento')}),
             column('FACTURA DEL PROVEEDOR', 'factura_proveedor', {headerFilter: false, formatter: cell => documentButton(cell, 'factura')}),
             column('CORREO DEL CLIENTE', 'correo_cliente', {headerFilter: false, formatter: cell => documentButton(cell, 'correo')}),
+            column('ARCHIVO DEL CORREO', 'nombre_correo', {width: 230, formatter: fileNameFormatter}),
             column('COTIZACIÓN GENERADA', 'cotizacion_generada', {headerFilter: false, formatter: cell => documentButton(cell, 'cotizacion')}),
             column('AVANCE', 'avance', {width: 140, formatter: cell => {
                 const value = Number(cell.getValue()); const el = document.createElement('span');
@@ -116,6 +124,7 @@
                 el.textContent = value + '%'; el.title = 'Respaldos completos / respaldos aplicables'; return el;
             }}),
             column('MONTO FACTURA PROVEEDOR', 'monto_factura_proveedor', {hozAlign: 'right', formatter: moneyFormatter, width: 190}),
+            column('SUB TOTAL (SIN FEE)', 'sub_total', {hozAlign: 'right', formatter: moneyFormatter, width: 190}),
             column('MONTO DE COTIZACIÓN', 'monto_hw', {hozAlign: 'right', formatter: moneyFormatter, width: 185}),
             column('CÓDIGO AJB / EJB', 'codigo_ajb_ejb'),
             column('NÚMERO EXPENSE', 'numero_expense'),
@@ -154,8 +163,13 @@
         return 'info';
     }
     function montoDe(row) {
-        const valor = row.monto_cobra !== '' && row.monto_cobra != null ? row.monto_cobra : row.monto_hw;
-        return Number(valor) || 0;
+        return Number(row.monto_hw) || 0;
+    }
+    function filtrarPorEstado(estado) {
+        const columna = table.getColumn('estado_cotizacion');
+        if (!columna) return;
+        const actual = String(columna.getHeaderFilterValue() || '');
+        columna.setHeaderFilterValue(estado && actual !== estado ? estado : '');
     }
     function renderCards(rows) {
         const cont = document.getElementById('ref-cards');
@@ -173,8 +187,17 @@
             const ia = ESTADOS_ORDEN.indexOf(a), ib = ESTADOS_ORDEN.indexOf(b);
             return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
         });
-        const tarjeta = (titulo, count, monto, clases) => {
-            const card = document.createElement('div'); card.className = 'ref-card ' + (clases || '');
+        const activo = String(table.getColumn('estado_cotizacion')?.getHeaderFilterValue() || '');
+        const tarjeta = (titulo, count, monto, clases, estado) => {
+            const card = document.createElement('div');
+            card.className = 'ref-card ' + (clases || '') + (estado && estado === activo ? ' is-active' : '');
+            card.tabIndex = 0;
+            card.setAttribute('role', 'button');
+            card.title = estado ? 'Filtrar por ' + estado : 'Quitar el filtro de estado';
+            card.addEventListener('click', () => filtrarPorEstado(estado));
+            card.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); filtrarPorEstado(estado); }
+            });
             const t = document.createElement('span'); t.className = 'ref-card-title'; t.textContent = titulo;
             const c = document.createElement('span'); c.className = 'ref-card-count'; c.textContent = count + (count === 1 ? ' caso' : ' casos');
             const m = document.createElement('span'); m.className = 'ref-card-money'; m.textContent = 'S/ ' + money.format(monto);
@@ -183,7 +206,7 @@
         cont.replaceChildren();
         for (const estado of estados) {
             const g = grupos.get(estado);
-            cont.appendChild(tarjeta(estado, g.count, g.money, 'ref-card-' + estadoTipo(estado)));
+            cont.appendChild(tarjeta(estado, g.count, g.money, 'ref-card-' + estadoTipo(estado), estado));
         }
         cont.appendChild(tarjeta('Total', totalCasos, totalMonto, 'is-total'));
     }
@@ -236,7 +259,10 @@
         const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, 'Liquidaciones');
         XLSX.writeFile(book, 'Liquidaciones.xlsx');
     });
-    table.on('dataFiltered', updateCount); table.on('pageLoaded', updateCount);
+    table.on('dataFiltered', (filtros, filas) => {
+        renderCards((filas || []).map(fila => fila.getData ? fila.getData() : fila));
+        updateCount();
+    }); table.on('pageLoaded', updateCount);
     table.on('tableBuilt', async () => {
         await table.getColumn('cotizacion').updateDefinition({formatter: quoteFormatter});
         await table.getColumn('correlativo').updateDefinition({formatter: expedienteFormatter});

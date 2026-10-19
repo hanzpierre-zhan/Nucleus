@@ -2630,6 +2630,7 @@ function cotTrasAccion(j, key) {
 let _cotModal = null;          // { key, pestania }
 let _cotAccionActual = 'aprobado';
 let _cotAdjuntoUrl = '';
+let _cotAdjuntoNombre = '';
 let _cotProveedorUrl = '';
 let _cotProveedorSubiendo = false;
 
@@ -2654,6 +2655,7 @@ function cotAbrirModal(key, pestania, accionDef) {
     document.getElementById('cot-proveedor-archivo').value = '';
     cotMostrarProveedorAdjunto();
     _cotAdjuntoUrl = String(row['ADJUNTO CORREO CLIENTE'] || '').trim();
+    _cotAdjuntoNombre = String(row['NOMBRE CORREO CLIENTE'] || '').trim();
     document.getElementById('cot-tipo-gasto-aprobacion').value = row['TIPO GASTO APROBACION'] || '';
     if (window.cotSetNombreCliente) window.cotSetNombreCliente(row['NOMBRE CLIENTE'] || '');
     cotResumen(row);
@@ -2681,7 +2683,9 @@ function cotAbrirModal(key, pestania, accionDef) {
         ok.style.display = _cotAdjuntoUrl ? 'block' : 'none';
         ok.style.color = '#28A745';
         ok.innerHTML = _cotAdjuntoUrl
-            ? '<i class="fa-solid fa-check"></i> Archivo .msg cargado. Clic para reemplazar.'
+            ? '<i class="fa-solid fa-check"></i> Archivo .msg cargado' +
+              (_cotAdjuntoNombre ? ' · ' + escapeHtml(_cotAdjuntoNombre) : '') +
+              '. Clic para reemplazar.'
             : '';
     }
 
@@ -2791,6 +2795,7 @@ function cotElegirAdjunto() {
                     return;
                 }
                 _cotAdjuntoUrl = j.url;
+                _cotAdjuntoNombre = j.nombre || f.name;
                 if (ok) { ok.style.color = '#28A745';
                           ok.innerHTML = '<i class="fa-solid fa-check"></i> ' + escapeHtml(f.name); }
             })
@@ -2939,7 +2944,8 @@ function cotConfirmarModal() {
             nombre_proveedor: document.getElementById('cot-nombre-proveedor').value.trim(),
             nombre_cliente: (window.cotGetNombreCliente ? window.cotGetNombreCliente() : ''),
             adjunto_cotizacion_proveedor: _cotProveedorUrl,
-            adjunto_correo: _cotAdjuntoUrl
+            adjunto_correo: _cotAdjuntoUrl,
+            nombre_correo: _cotAdjuntoNombre
         };
         cotAccionKey(_cotModal.key, 'conformar_aprobacion', extra).then(j => {
             restore(); if (j) cotCerrarModal();

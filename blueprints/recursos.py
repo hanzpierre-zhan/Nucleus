@@ -1,9 +1,8 @@
-import json
 from flask import Blueprint,jsonify,session,request,redirect,abort
 from db import db
-from models import Proyecto,NucleusData
+from models import Proyecto
 from services.utilidades import login_required,get_menu_proyectos
-from services.recursos_flm import FLM_NOMBRES,normalizar
+from services.recursos_flm import FLM_NOMBRES
 bp=Blueprint('recursos',__name__)
 
 @bp.route('/flm/<int:flm_id>/recursos/<recurso>')
@@ -26,30 +25,13 @@ def abrir(flm_id,recurso):
 @bp.route('/api/catalogos/autocompletar')
 @login_required
 def sugerencias():
+    # Sugerencias de los campos "site" / "nombre de site" de todos los módulos.
+    # Fuente única: el maestro SITE (ver services/sites_maestro). Antes este
+    # endpoint no reconocía la columna 'Nombre' del maestro y devolvía siempre
+    # una lista vacía.
+    from services.sites_maestro import nombres_maestro
     departamentos=['Amazonas','Áncash','Apurímac','Arequipa','Ayacucho','Cajamarca','Callao','Cusco','Huancavelica','Huánuco','Ica','Junín','La Libertad','Lambayeque','Lima','Loreto','Madre de Dios','Moquegua','Pasco','Piura','Puno','San Martín','Tacna','Tumbes','Ucayali']
-    permitidos=get_menu_proyectos(session.get('user_id'),session.get('rol'))
-    # Un maestro común: las sugerencias incluyen sites sin coordenadas.
-    ids=[p.id for p in permitidos if p.nombre=='SITE']
-    sites={}
-    if ids:
-        claves_site=('site','nombresite','nombredesite','nombredelsite','sitename')
-        # El nombre de cada campo se evalúa una sola vez (antes: una llamada a
-        # normalizar por cada campo de cada fila; con 5 583 filas eran ~111 000).
-        es_clave_site={}
-        # Solo se lee data_json (sin instanciar un objeto ORM por fila) y por lotes.
-        filas=(db.session.query(NucleusData.data_json)
-               .filter(NucleusData.proyecto_id.in_(ids)).yield_per(1000))
-        for (data_json,) in filas:
-            try: datos=json.loads(data_json or '{}')
-            except (ValueError,TypeError): continue
-            for campo,valor in datos.items():
-                aceptado=es_clave_site.get(campo)
-                if aceptado is None:
-                    aceptado=normalizar(campo) in claves_site
-                    es_clave_site[campo]=aceptado
-                if aceptado and isinstance(valor,str) and valor.strip():
-                    sites.setdefault(valor.strip().casefold(),valor.strip())
-    return jsonify({'departamentos':departamentos,'sites':sorted(sites.values(),key=str.casefold)})
+    return jsonify({'departamentos':departamentos,'sites':nombres_maestro()})
 
 
 @bp.before_app_request

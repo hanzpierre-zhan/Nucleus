@@ -151,11 +151,12 @@ def api_import_manual_template():
         return response
 
     # Plantilla genérica: pk pre-llenado, columnas manuales vacías.
-    # Si un nombre manual repite el PK, la columna queda vacía y ocupa una sola
-    # posición (antes era el propio DataFrame quien lo resolvía así).
+    # La clave también puede estar configurada como columna manual (SITE).
+    # Conservarla: sin ella la plantilla no puede volver a importarse.
     por_columna = {pk_name: [r.key_value for r in rows]}
     for col in manual_cols:
-        por_columna[col] = [''] * len(rows)
+        if col != pk_name:
+            por_columna[col] = [''] * len(rows)
     columnas = list(por_columna.keys())
     total_filas = len(rows)
     del rows

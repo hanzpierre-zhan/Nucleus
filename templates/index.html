@@ -339,6 +339,54 @@
 
 
 
+    {% if proy_nombre == 'site' %}
+
+    <!-- Botón Mapa de Site (Azul): abre el mapa del maestro SITE -->
+
+    <a href="/mapa-site" class="action-pill pill-blue" title="Ver los sites del maestro en el mapa">
+
+        <i class="fa-solid fa-map-location-dot" aria-hidden="true"></i><span class="pill-txt"> Mapa de Site</span>
+
+    </a>
+
+    {% endif %}
+
+    {% if proy_nombre == 'combustible' %}
+
+    {% set _proy_generadores = (proyectos_list | selectattr('nombre', 'equalto', 'Generadores') | list | first) %}
+
+    {% if _proy_generadores %}
+
+    <!-- Botón Generadores (Azul): los generadores se ven dentro de Combustible -->
+
+    <a href="/switch_project/{{ _proy_generadores.id }}?next=/" class="action-pill pill-blue" title="Ver los generadores">
+
+        <i class="fa-solid fa-bolt" aria-hidden="true"></i><span class="pill-txt"> Generadores</span>
+
+    </a>
+
+    {% endif %}
+
+    {% endif %}
+
+    {% if proy_nombre == 'generadores' %}
+
+    {% set _proy_combustible = (proyectos_list | selectattr('nombre', 'equalto', 'Combustible') | list | first) %}
+
+    {% if _proy_combustible %}
+
+    <!-- Botón Volver (Azul): regresa al módulo Combustible -->
+
+    <a href="/switch_project/{{ _proy_combustible.id }}?next=/" class="action-pill pill-blue" title="Volver al módulo Combustible">
+
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i><span class="pill-txt"> Volver a Combustible</span>
+
+    </a>
+
+    {% endif %}
+
+    {% endif %}
+
     {% if proy_nombre in ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'] %}
 
     {% if proy_nombre == 'dataper' %}<a href="/personal/asistencia" class="action-pill pill-blue personal-attendance-link"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i><span>Control de asistencia</span></a>{% endif %}
