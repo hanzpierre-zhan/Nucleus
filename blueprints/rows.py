@@ -653,8 +653,8 @@ def api_rows_add():
 @bp.route('/api/rows/delete', methods=['POST'])
 @login_required
 def api_rows_delete():
-    if session.get('rol') not in ('zeno', 'suport'):
-        return jsonify({'error': 'No tienes permisos para eliminar registros. Solo Zeno y Suport pueden hacerlo.'}), 403
+    if session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+        return jsonify({'error': 'No tienes permisos para eliminar registros. Solo Zeno, Suport y Supervisor pueden hacerlo.'}), 403
     
     pid = session.get('current_proyecto_id')
     if not pid: return jsonify({'error': 'No hay proyecto seleccionado'}), 400

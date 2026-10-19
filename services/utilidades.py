@@ -44,7 +44,7 @@ def login_required(f):
                 return jsonify({'error': 'Tu sesión venció. Vuelve a iniciar sesión y reintenta.', 'login_required': True}), 401
             return redirect(url_for('auth.login'))
         session['rol'] = usuario.rol
-        if usuario.rol not in ('zeno', 'suport', 'admin'):
+        if usuario.rol not in ('zeno', 'suport', 'admin', 'supervisor'):
             ruta = request.path.lower()
             restringida = (
                 request.blueprint == 'imports'

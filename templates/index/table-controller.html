@@ -3537,7 +3537,7 @@ let _rendCambiandoVista = false;
 
     const tableColumns = [
 
-        ...((["zeno", "suport"].includes("{{ session.get('rol') }}")) ? [selectCol] : []),
+        ...((["zeno", "suport", "supervisor"].includes("{{ session.get('rol') }}")) ? [selectCol] : []),
 
     ];
 

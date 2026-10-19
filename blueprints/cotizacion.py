@@ -482,8 +482,8 @@ def api_cotizacion_desbloquear():
 @login_required
 def api_cotizacion_eliminar():
     """Solo admin puede eliminar una cotización."""
-    if session.get('rol') not in ('zeno', 'suport'):
-        return jsonify({'error': 'Solo admin puede eliminar cotizaciones.'}), 403
+    if session.get('rol') not in ('zeno', 'suport', 'supervisor'):
+        return jsonify({'error': 'Solo administradores y supervisores pueden eliminar cotizaciones.'}), 403
     pid = session.get('current_proyecto_id')
     data = request.json or {}
     key = data.get('key', '').strip()

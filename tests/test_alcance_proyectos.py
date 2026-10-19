@@ -74,7 +74,10 @@ def test_exportacion_y_urls_directas_no_revelan_otro_proyecto(app, client, unive
     with client.session_transaction() as s:
         s.update(user_id=uid, rol='supervisor', username='alcance-prueba', current_proyecto_id=ids['Cotizaciones'], current_proyecto_nombre='Cotizaciones')
     response = client.get('/api/import/manual_template')
-    assert response.status_code == 403
+    assert response.status_code == 200
+    wb = load_workbook(io.BytesIO(response.data), read_only=True)
+    assert 'SCOPE-Cotizaciones-CLARO' not in str(list(wb.active.values))
+    wb.close()
     pagina = client.get('/')
     assert pagina.status_code == 200
     assert 'SCOPE-Cotizaciones-ENTEL' in pagina.text and 'SCOPE-Cotizaciones-CLARO' not in pagina.text
@@ -185,7 +188,7 @@ def test_cache_de_opciones_no_se_comparte_con_otra_cuenta(app, client, auth_clie
     assert 'SCOPE-CACHE-ENTEL' in respuesta.text and 'SCOPE-CACHE-CLARO' not in respuesta.text
 
 
-@pytest.mark.parametrize('rol', ['gestor', 'supervisor', 'contrata'])
+@pytest.mark.parametrize('rol', ['gestor', 'contrata'])
 @pytest.mark.parametrize('metodo,ruta', [
     ('get', '/api/import/manual_template'),
     ('post', '/api/import/preview'),
@@ -229,3 +232,37 @@ def test_soporte_solo_proyecto_asignado(app, client, universo):
     with client.session_transaction() as s:
         s.update(current_proyecto_id=ids['FLM - ENTEL'], current_proyecto_nombre='FLM - ENTEL')
     assert client.get('/api/import/manual_template').status_code == 403
+
+
+def test_supervisor_descarga_importa_y_elimina_solo_su_proyecto(app, client, universo):
+    uid, ids, registros = universo
+    asignar(app, universo, ['FLM - CLARO'])
+    with client.session_transaction() as s:
+        s.update(user_id=uid, rol='supervisor', current_proyecto_id=ids['SITE'], current_proyecto_nombre='SITE')
+    pagina = client.get('/')
+    assert pagina.status_code == 200
+    assert 'id="btn-top-import"' in pagina.text
+    assert 'id="btn-top-plantilla"' in pagina.text
+    assert 'id="btn-delete-rows"' in pagina.text
+    plantilla = client.get('/api/import/manual_template')
+    assert plantilla.status_code == 200
+    libro = load_workbook(io.BytesIO(plantilla.data))
+    assert 'SCOPE-SITE-ENTEL' not in str(list(libro.active.values))
+    libro.close()
+    contenido = 'Código,Nombre,PROYECTO\nSCOPE-SUPERVISOR,Nuevo,CLARO\n'.encode('utf-8')
+    respuesta = client.post('/api/import/process', data={
+        'type': 'manual_cols', 'file': (io.BytesIO(contenido), 'sites.csv')})
+    assert respuesta.status_code == 200, respuesta.json
+    assert respuesta.json['added'] == 1
+    with app.app_context():
+        fila = NucleusData.query.filter_by(proyecto_id=ids['SITE'], key_value='SCOPE-SUPERVISOR').one()
+        registros.append(fila.id)
+    fuera = contenido.replace(b'CLARO', b'ENTEL')
+    respuesta = client.post('/api/import/process', data={
+        'type': 'manual_cols', 'file': (io.BytesIO(fuera), 'sites.csv')})
+    assert respuesta.status_code == 403
+    respuesta = client.post('/api/rows/delete', json={'keys':['SCOPE-SUPERVISOR', 'SCOPE-SITE-ENTEL']})
+    assert respuesta.status_code == 200, respuesta.json
+    with app.app_context():
+        assert NucleusData.query.filter_by(proyecto_id=ids['SITE'], key_value='SCOPE-SUPERVISOR').first() is None
+        assert NucleusData.query.filter_by(proyecto_id=ids['SITE'], key_value='SCOPE-SITE-ENTEL').first() is not None

@@ -273,7 +273,7 @@ def api_evidencia_eliminar():
     if indice < 0 or indice >= max_i:
         return jsonify({'error': 'Índice inválido'}), 400
     # Solo admin puede borrar foto de Combustible
-    if tipo == 'comb' and session.get('rol') not in ('zeno', 'suport'):
+    if tipo == 'comb' and session.get('rol') not in ('zeno', 'suport', 'supervisor'):
         return jsonify({'error': 'Solo el administrador puede eliminar la foto.'}), 403
     preparar_wo_desde_cotizacion(pid,key,cot_key)
     if evidencia_usa_b2():
