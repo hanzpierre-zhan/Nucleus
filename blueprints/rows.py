@@ -113,7 +113,7 @@ def api_rows_update():
         # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
         _proy_upd = db.session.get(Proyecto, pid)
         _proy_upd_nombre = _proy_upd.nombre.strip() if _proy_upd and _proy_upd.nombre else ''
-        if (_proy_upd_nombre in ('PEXT', 'FLM', 'FLM - ENTEL')
+        if (_proy_upd_nombre in ('PEXT', 'FLM - PEXT', 'FLM', 'FLM - ENTEL')
                 and str(row_dict.get('CATEGORY', '')).strip() == 'O&M PEXT'
                 and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
                 and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
@@ -247,7 +247,7 @@ def api_rows_update():
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = audit_user()
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
-        if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+        if proy_nombre in ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - PEXT') and session.get('rol') not in ('zeno', 'suport'):
             row_dict['GESTOR'] = audit_user()
         
         # --- Instant Logic: Re-apply TablaMaestra rules for this row ---
@@ -765,12 +765,12 @@ def api_rows_bulk_update():
         _proy_bulk_nombre = _proy_bulk.nombre.strip() if _proy_bulk and _proy_bulk.nombre else ''
 
         # WO enviado a aprobación: el rol Contrata ya no puede modificarlo.
-        if (session.get('rol') == 'contrata' and _proy_bulk_nombre in ('FLM', 'FLM - ENTEL', 'PEXT')
+        if (session.get('rol') == 'contrata' and _proy_bulk_nombre in ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - PEXT')
                 and str(row_dict.get('_ENVIADO_APROBACION', '')).strip() == '1'):
             return jsonify({'error': 'Este WO ya fue enviado a aprobaci\u00f3n y no puede editarse. Contacta al personal administrativo.'}), 403
 
         # PEXT: fila finalizada → solo zeno/suport/supervisor pueden editar
-        if (_proy_bulk_nombre in ('PEXT', 'FLM', 'FLM - ENTEL')
+        if (_proy_bulk_nombre in ('PEXT', 'FLM - PEXT', 'FLM', 'FLM - ENTEL')
                 and str(row_dict.get('CATEGORY', '')).strip() == 'O&M PEXT'
                 and str(row_dict.get('_FINALIZADO', '')).strip() == '1'
                 and session.get('rol') not in ('zeno', 'suport', 'supervisor')):
@@ -786,7 +786,7 @@ def api_rows_bulk_update():
         # fecha} a la pestaña Bitácora. La clave se consume siempre (sin persistirse).
         if '_BITACORA_ENTRY' in updates:
             _bit_txt = str(updates.pop('_BITACORA_ENTRY') or '').strip()
-            if (_proy_bulk_nombre in ('PEXT', 'FLM', 'FLM - ENTEL')
+            if (_proy_bulk_nombre in ('PEXT', 'FLM - PEXT', 'FLM', 'FLM - ENTEL')
                 and str(row_dict.get('CATEGORY', '')).strip() == 'O&M PEXT'
                 and _bit_txt):
                 _entradas = row_dict.get('_BITACORA_ENTRIES')
@@ -845,7 +845,7 @@ def api_rows_bulk_update():
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = audit_user()
         # FLM/PEXT: GESTOR = quien presiona Guardar; el admin no cuenta.
-        if _proy_bulk_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and session.get('rol') not in ('zeno', 'suport'):
+        if _proy_bulk_nombre in ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - PEXT') and session.get('rol') not in ('zeno', 'suport'):
             row_dict['GESTOR'] = audit_user()
 
         new_state = str(row_dict.get('Estado de la tarea (WO State)', '')).strip()
@@ -927,7 +927,7 @@ def api_rows_finalizar():
 
         # Solo proyecto PEXT (o FLM - ENTEL, donde viven hoy las filas PEXT migradas)
         proy = db.session.get(Proyecto, pid)
-        if not proy or proy.nombre.strip() not in ('PEXT', 'FLM', 'FLM - ENTEL'):
+        if not proy or proy.nombre.strip() not in ('PEXT', 'FLM - PEXT', 'FLM', 'FLM - ENTEL'):
             return jsonify({'error': 'Esta acci\u00f3n solo est\u00e1 disponible en los proyectos PEXT/FLM.'}), 403
 
         # Revertir: solo roles privilegiados

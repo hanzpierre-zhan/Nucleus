@@ -269,7 +269,7 @@ def api_detalle_opciones():
                                 prov_dist_map.setdefault(prov, set()).add(dist)
                             site_geo_map[v] = {'departamento': dept, 'provincia': prov, 'distrito': dist, 'prioridad': prio}
                         # Site Name no tiene geo detallado, pero igual agrega nombre
-                    elif v and k == 'codigo site' and nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT'):
+                    elif v and k == 'codigo site' and nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - PEXT'):
                         # No usar código como nombre, solo como fallback si falta nombre
                         pass
                 if nombre_proy in ('FLM', 'FLM - ENTEL', 'PEXT',
@@ -395,7 +395,7 @@ def api_wo_enviar_aprobacion():
         return jsonify({'error': 'Faltan datos.'}), 400
     proy = db.session.get(Proyecto, pid)
     proy_nombre = proy.nombre.strip() if proy and proy.nombre else ''
-    if proy_nombre not in ('PEXT', 'FLM', 'FLM - ENTEL'):
+    if proy_nombre not in ('PEXT', 'FLM - PEXT', 'FLM', 'FLM - ENTEL'):
         return jsonify({'error': 'Acción solo válida para WOs PEXT/FLM.'}), 400
     if rol in ('contrata', 'gestor'):
         acc = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()

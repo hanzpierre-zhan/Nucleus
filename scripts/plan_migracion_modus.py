@@ -102,6 +102,11 @@ def aplicar(plan, engine, conexion=None):
                 Column('sha256_origen', String(64), nullable=False),
                 Column('accion', String(40), nullable=False))
             j.create(conn)
+        nuevas_anton = {'migracion_anton_origen', 'migracion_anton_versiones'} & set(plan['tablas'])
+        if nuevas_anton - set(m.tables):
+            from scripts.migrar_anton import tablas_procedencia
+            for tabla in tablas_procedencia(m):
+                tabla.create(conn, checkfirst=True)
         for n in plan['orden']:
             spec, tabla = plan['tablas'][n], m.tables[n]
             for start in range(0, len(spec['insertar']), 500):

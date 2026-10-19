@@ -123,6 +123,52 @@ def api_cotizacion_lista():
     return jsonify({'lista': lista})
 
 
+@bp.route('/api/cotizacion/descargar', methods=['GET'])
+@login_required
+def api_cotizacion_descargar():
+    """Descarga una cotización guardada sin regenerarla ni cambiar su auditoría.
+
+    El formato pertenece al documento (Cobra o Huawei), no al nombre actual
+    del proyecto. Esto conserva las cotizaciones históricas de PEXT.
+    """
+    pid = session.get('current_proyecto_id')
+    key = request.args.get('key', '').strip()
+    cid = request.args.get('cotizacion_id', type=int)
+    if not pid or not key or cid is None:
+        return jsonify({'error': 'Selecciona una cotización guardada.'}), 400
+    cot = Cotizacion.query.filter_by(id=cid, proyecto_id=pid, key_value=key).first()
+    if cot is None:
+        return jsonify({'error': 'Cotización no encontrada.'}), 404
+    try:
+        if str(cot.formato or '').strip().lower() == 'cobra':
+            items = json.loads(cot.items_json or '[]')
+            if not isinstance(items, list) or any(not isinstance(i, dict) for i in items):
+                raise ValueError('Ítems inválidos')
+            pdf = _generar_pdf_cotizacion_cobra(
+                numero=cot.numero, site=cot.site or '', supervisor=cot.supervisor or '',
+                objetivo=cot.nota or '', ticket=cot.key_value,
+                elaborado_por=cot.cotizado_por or '', items=items,
+                fecha=cot.fecha_generacion)
+        else:
+            gastos = json.loads(cot.gastos_json or '[]')
+            mano_obra = json.loads(cot.mano_obra_json or '[]')
+            if any(not isinstance(items, list) or any(not isinstance(i, dict) for i in items)
+                   for items in (gastos, mano_obra)):
+                raise ValueError('Detalle de cotización inválido')
+            pdf = _generar_pdf_cotizacion(
+                numero=cot.numero, nota=cot.nota or '', ticket=cot.key_value,
+                cotizado_por=cot.cotizado_por or '', revisado_por=cot.revisado_por or '',
+                fecha=cot.fecha_generacion.strftime('%d/%m/%Y') if cot.fecha_generacion else '',
+                gastos=gastos, mano_obra=mano_obra)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'El detalle guardado de la cotización necesita revisión.'}), 400
+    resp = make_response(pdf)
+    resp.headers['Content-Type'] = 'application/pdf'
+    resp.headers['Content-Disposition'] = 'attachment; filename="Cotizacion_%s.pdf"' % (
+        secure_filename(cot.numero or str(cot.id)))
+    return resp
+
+
 @bp.route('/api/cotizacion/registro', methods=['GET'])
 @login_required
 def api_cotizacion_registro():

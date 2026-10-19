@@ -124,11 +124,11 @@ let _rendCambiandoVista = false;
 
     const IS_FLM = currentProjectNombre.trim().toLowerCase() === 'flm - entel';
 
-    const IS_FLM_CLARO_INTEGRATEL = ['flm - claro', 'flm - integratel', 'flm - pext'].includes(_projNorm);
+    const IS_FLM_CLARO_INTEGRATEL = ['flm - claro', 'flm - integratel'].includes(_projNorm);
 
     const IS_FLM_LIKE = IS_FLM || IS_FLM_CLARO_INTEGRATEL; // todos los módulos FLM usan el mismo formulario/modal
 
-    const IS_PEXT = currentProjectNombre.trim().toLowerCase() === 'pext';
+    const IS_PEXT = ['pext', 'flm - pext'].includes(_projNorm);
 
     // Rendicion: pestañas por estado del flujo (Validación/Depósitos/Evidencia/Rechazados)
 
@@ -18879,6 +18879,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function pintarListaCotizaciones(lista, registros) {
 
+        // PEXT conserva el acceso a documentos históricos ligados a su WO.
+        // Sin documentos guardados mantiene el panel operativo habitual.
+        if (IS_PEXT) {
+            const tab = document.getElementById('wo-tab-cotizacion');
+            if (tab) tab.style.display = lista.length ? '' : 'none';
+        }
+
         const sel = document.getElementById('wo-coti-select');
 
         if (!sel) return;
@@ -19170,6 +19177,34 @@ btnItem.onclick = () => cotRegAgregarFila();
     async function reDescargarCotizacion() {
 
         if (!woKey) return;
+
+        // Un documento guardado se descarga desde su versión persistida.
+        // No regenerarlo: cambiaría fecha, autores o el formato histórico PEXT.
+        if (/^\d+$/.test(String(_cotiActivaId || ''))) {
+            const btnGuardada = document.getElementById('btn-wo-redownload-coti');
+            if (btnGuardada) btnGuardada.disabled = true;
+            try {
+                const params = new URLSearchParams({ key: woKey, cotizacion_id: _cotiActivaId });
+                const respuesta = await fetch('/api/cotizacion/descargar?' + params);
+                if (!respuesta.ok) {
+                    const error = await respuesta.json();
+                    throw new Error(error.error || 'No se pudo descargar la cotización.');
+                }
+                const url = URL.createObjectURL(await respuesta.blob());
+                const enlace = document.createElement('a');
+                enlace.href = url;
+                enlace.download = 'Cotizacion_' + (obtenerNumeroCotizacion() || woKey).replace(/[/\s]/g, '_') + '.pdf';
+                document.body.appendChild(enlace);
+                enlace.click();
+                enlace.remove();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                alert(error.message || 'Error de red');
+            } finally {
+                if (btnGuardada) btnGuardada.disabled = false;
+            }
+            return;
+        }
 
         // Cotización del módulo "Cotizaciones": descargar directo desde el registro
 

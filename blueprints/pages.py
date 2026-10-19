@@ -279,7 +279,7 @@ def index():
     # Ocultar columnas internas (prefijo _) y redundantes de la vista
     columns_set = {c for c in columns_set if not c.startswith('_') and c != 'WO Number'}
     # FLM/PEXT: EDITADO POR se reemplaza por GESTOR (quien presiona Guardar, el admin no cuenta).
-    if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT'):
+    if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - PEXT'):
         columns_set.discard('EDITADO POR')
         columns_set.add('GESTOR')
     # Columna obsoleta que no aporta información (FLM/PEXT).
@@ -322,7 +322,7 @@ def index():
         if proy_actual_nombre in ('Material','SITE','Generadores'):
             d = presentar_proyecto(d)
         d['_key'] = key_value
-        if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT') and not d.get('GESTOR'):
+        if proy_actual_nombre in ('FLM', 'FLM - ENTEL', 'PEXT', 'FLM - PEXT') and not d.get('GESTOR'):
             d['GESTOR'] = d.get('EDITADO POR') or d.get('_ultimo_usuario_manual') or ''
             
         wo_val = str(d.get('NUMERO DE WO') or d.get('WO NUMBER') or d.get('WO Number') or d.get('Número de WO') or '').strip()
