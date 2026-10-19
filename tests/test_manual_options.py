@@ -19,8 +19,8 @@ def test_roles_pueden_cambiar_opciones_sin_cambiar_datos(app, auth_client, rol):
     assert json.loads(db.session.get(NucleusData,rid).data_json)['CAMPO']=='Antigua'
 
 
-def test_otro_rol_no_puede_administrar_opciones(auth_client):
-    with auth_client.session_transaction() as session: session['rol']='gestor'
+def test_otro_rol_no_puede_administrar_opciones(auth_client,cambiar_rol):
+    cambiar_rol(auth_client, 'gestor')
     assert auth_client.patch('/api/master/manual_columns/options',json={'nombre':'CAMPO','opciones':['Nueva']}).status_code==403
 
 

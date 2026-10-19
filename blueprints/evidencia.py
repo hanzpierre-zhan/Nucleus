@@ -50,6 +50,7 @@ from services import (
     _pext_max,
 )
 from services.sustento import acceso_desde_cotizacion, actualizar_slot, preparar_wo_desde_cotizacion, registro_evidencia
+from services.apoyo import guardar_archivo_atomico, comprobar_error_b2
 
 
 bp = Blueprint('evidencia', __name__)
@@ -176,29 +177,35 @@ def api_evidencia_subir():
                 nombre = f'{tipo}_{indice}.jpg'
 
         if evidencia_usa_b2():
-            evidencia_eliminar_b2(key, tipo, indice)
-            b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'], f'{key}/{nombre}')
+            destino = f'{secure_filename(str(key))}/{nombre}'
+            b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'], destino)
+            for prefijo in dict.fromkeys((key, secure_filename(str(key)))):
+                evidencia_eliminar_b2(prefijo, tipo, indice, conservar=destino)
         else:
             folder = evidencia_folder(pid, key)
             os.makedirs(folder, exist_ok=True)
-            evidencia_limpiar_slot(pid, key, tipo, indice)
-            os.replace(ruta_tmp, os.path.join(folder, nombre))
+            guardar_archivo_atomico(ruta_tmp, os.path.join(folder, nombre))
+            for anterior in glob.glob(os.path.join(folder, f'{tipo}_{indice}.*')):
+                if os.path.basename(anterior) != nombre:
+                    try:
+                        os.remove(anterior)
+                    except OSError:
+                        current_app.logger.warning('No se pudo limpiar una versión antigua de evidencia')
             # FLM <-> FLM - ENTEL: replica la foto física en la carpeta del proyecto
             # hermano para que la evidencia sea visible/eliminable desde ambos.
             her = _flm_hermano_id(pid)
             if her is not None:
                 her_folder = evidencia_folder(her, key)
                 os.makedirs(her_folder, exist_ok=True)
-                evidencia_limpiar_slot(her, key, tipo, indice)
                 try:
-                    import shutil
-                    shutil.copy2(os.path.join(folder, nombre), os.path.join(her_folder, nombre))
+                    guardar_archivo_atomico(os.path.join(folder, nombre), os.path.join(her_folder, nombre))
                 except Exception:
                     pass
 
         # 2do backup: OneDrive personal. Si falla, no interrumpe la subida principal.
         try:
-            onedrive_subir(f'{key}/{nombre}', ruta_tmp)
+            ruta_backup = ruta_tmp if os.path.isfile(ruta_tmp) else os.path.join(evidencia_folder(pid, key), nombre)
+            onedrive_subir(f'{key}/{nombre}', ruta_backup)
         except Exception as e:
             current_app.logger.warning('OD backup fallo: %s', e)
 
@@ -332,8 +339,18 @@ def api_evidencia_foto(pid, key, nombre):
             resp = Response(data, mimetype=mt)
             resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
             return resp
-        except Exception:
-            return jsonify({'error': 'No encontrado'}), 404
+        except Exception as error:
+            comprobar_error_b2(error)
+            from services.apoyo import evidencia_claves
+            for original in evidencia_claves(pid, key):
+                if original == key:
+                    continue
+                try:
+                    obj = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'], Key=f'{original}/{nombre}')
+                    return Response(obj['Body'].read(), mimetype=mimetypes.guess_type(nombre)[0] or 'application/octet-stream')
+                except Exception as error:
+                    comprobar_error_b2(error)
+                    continue
     folder = evidencia_folder(pid, key)
     ruta = os.path.join(folder, nombre)
     if not os.path.exists(ruta):

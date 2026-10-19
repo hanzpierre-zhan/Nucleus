@@ -20,11 +20,12 @@ from urllib.parse import quote
 from datetime import datetime
 
 from flask import (Blueprint, request, jsonify, session, current_app,
-                   Response, send_from_directory)
+                   Response, send_from_directory, send_file)
 from werkzeug.utils import secure_filename
 
 from db import db
 from models import Proyecto, NucleusData, AppConfig, Notificacion
+from services.apoyo import guardar_archivo_atomico, comprobar_error_b2
 from services import (
     login_required,
     safe_json_dumps,
@@ -270,7 +271,7 @@ def _avisar_flujo(proy_id, accion, row, usuario):
 
 
 def _folder(pid, key):
-    return os.path.join(BASE_DIR, 'static', 'evidencia', str(pid),
+    return os.path.join(current_app.config['EVIDENCIA_DIR'], str(pid),
                          secure_filename(str(key)))
 
 
@@ -280,11 +281,27 @@ def _bajar_foto_form(url):
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req, timeout=30) as resp:
-            data = resp.read()
-        ctype = (resp.headers.get('Content-Type') or '').lower()
-        if ctype.startswith('image/png'):
+            data = resp.read(25 * 1024 * 1024 + 1)
+        if not data or len(data) > 25 * 1024 * 1024:
+            return None, None
+        if data.startswith(b'%PDF-'):
+            from pypdf import PdfReader
+            if not len(PdfReader(io.BytesIO(data)).pages):
+                return None, None
+            fd, ruta = tempfile.mkstemp(suffix='.pdf')
+            os.close(fd)
+            with open(ruta, 'wb') as fh:
+                fh.write(data)
+            return ruta, '.pdf'
+        # Drive puede responder HTTP 200 con una página de acceso en lugar
+        # de una foto. No guardarla como JPG ni reemplazar el enlace original.
+        from PIL import Image
+        with Image.open(io.BytesIO(data)) as imagen:
+            formato = imagen.format
+            imagen.verify()
+        if formato == 'PNG':
             ext = '.png'
-        elif ctype.startswith('image/webp'):
+        elif formato == 'WEBP':
             ext = '.webp'
         else:
             ext = '.jpg'
@@ -348,11 +365,11 @@ def _persistir_fotos_form(proy_id, key, row):
                         evidencia_comprimir(ruta_tmp)
                     except Exception:
                         pass
-                    nombre = 'sustento_form_%03d%s' % (idx, ext)
+                    nombre = 'sustento_form_%s%s' % (uuid4().hex, ext)
                     if evidencia_usa_b2():
                         b2_cliente().upload_file(ruta_tmp,
                                                  current_app.config['B2_BUCKET'],
-                                                 f'{key}/{nombre}')
+                                                 f'{secure_filename(str(key))}/{nombre}')
                     else:
                         os.makedirs(folder, exist_ok=True)
                         with open(os.path.join(folder, nombre), 'wb') as fh, \
@@ -476,7 +493,7 @@ def api_rendicion_accion():
             correo = str(row.get('ADJUNTO CORREO VALIDACION') or '')
             prefijo = '/api/rendicion/correo/%s/' % fila.id
             nombre = correo[len(prefijo):] if correo.startswith(prefijo) else ''
-            if not nombre or secure_filename(nombre) != nombre or not os.path.isfile(os.path.join(_correo_folder(fila.id), nombre)):
+            if not nombre or secure_filename(nombre) != nombre or not _correo_existe(fila.id, nombre):
                 return jsonify({'error': 'Adjunta el correo .msg para validar esta solicitud.'}), 400
         row['ESTADO'] = 'VALIDADO'
         row['TIEMPO DE RESPUESTA'] = tiempo
@@ -645,29 +662,14 @@ def api_rendicion_subir_foto():
             except Exception:
                 pass
             if evidencia_usa_b2():
-                # borra la versión anterior del mismo slot
-                try:
-                    pref = f'{key}/rendicion_{slot}'
-                    b2 = b2_cliente()
-                    for obj in b2.list_objects_v2(Bucket=current_app.config['B2_BUCKET'],
-                                                  Prefix=pref).get('Contents', []):
-                        b2.delete_object(Bucket=current_app.config['B2_BUCKET'], Key=obj['Key'])
-                except Exception:
-                    pass
+                # La sustitución del objeto ocurre al completar la subida.
+                # No borrar primero: un fallo de red perdería la foto anterior.
                 b2_cliente().upload_file(ruta_tmp, current_app.config['B2_BUCKET'],
                                          f'{key}/{nombre}')
             else:
                 folder = _folder(pid, key)
                 os.makedirs(folder, exist_ok=True)
-                for viejo in os.listdir(folder):
-                    if viejo.startswith('rendicion_%s.' % slot):
-                        try:
-                            os.remove(os.path.join(folder, viejo))
-                        except Exception:
-                            pass
-                with open(os.path.join(folder, nombre), 'wb') as fh:
-                    with open(ruta_tmp, 'rb') as src:
-                        fh.write(src.read())
+                guardar_archivo_atomico(ruta_tmp, os.path.join(folder, nombre))
             url = '/api/rendicion/foto/%d/%s/%s?v=%d' % (pid, key, nombre, int(time.time()))
             return jsonify({'success': True, 'url': url})
         except Exception as e:
@@ -680,7 +682,7 @@ def api_rendicion_subir_foto():
                 pass
 
 
-def _claves_foto(key):
+def _claves_foto(key, pid=None):
     """La llave del registro es una fecha ('6/10/2026 14:30:00'), así que las
     URLs viejas pueden traerla cruda o saneada. Se prueban ambas."""
     vistas = []
@@ -688,12 +690,21 @@ def _claves_foto(key):
         cand = str(cand or '').strip()
         if cand and cand not in vistas:
             vistas.append(cand)
+    if pid is not None:
+        # Las copias antiguas del formulario usaban la fecha cruda en B2,
+        # pero publicaban una URL saneada. Recuperar la clave del registro
+        # (respetando el alcance ORM), sin adivinar el formato de la fecha.
+        for (original,) in db.session.query(NucleusData.key_value).filter_by(proyecto_id=pid):
+            if secure_filename(str(original)) == secure_filename(str(key)) and original not in vistas:
+                vistas.append(original)
     return vistas
 
 
 @bp.route('/api/rendicion/foto/<int:pid>/<path:key>/<path:nombre>')
 @login_required
 def api_rendicion_foto(pid, key, nombre):
+    from services.alcance_proyectos import comprobar_archivo
+    comprobar_archivo(pid, key)
     if not _puede_gestionar():
         return jsonify({'error': 'No autorizado.'}), 403
     proy = _proy()
@@ -707,17 +718,30 @@ def api_rendicion_foto(pid, key, nombre):
             try:
                 obj = b2.get_object(Bucket=current_app.config['B2_BUCKET'],
                                     Key=f'{cand}/{nombre}')
-            except Exception:
+            except Exception as error:
+                comprobar_error_b2(error)
                 continue
             resp = Response(obj['Body'].read(),
                             mimetype=mimetypes.guess_type(nombre)[0] or 'image/jpeg')
             resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
             return resp
-        return jsonify({'error': 'No encontrado'}), 404
+        # Compatibilidad con copias históricas guardadas bajo la fecha cruda.
+        for cand in _claves_foto(key, pid):
+            if cand in claves:
+                continue
+            try:
+                obj = b2.get_object(Bucket=current_app.config['B2_BUCKET'], Key=f'{cand}/{nombre}')
+            except Exception as error:
+                comprobar_error_b2(error)
+                continue
+            resp = Response(obj['Body'].read(), mimetype=mimetypes.guess_type(nombre)[0] or 'image/jpeg')
+            resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
+            return resp
     for cand in claves:
-        folder = _folder(pid, cand)
-        if os.path.exists(os.path.join(folder, nombre)):
-            return send_from_directory(folder, nombre, max_age=604800)
+        carpetas = (_folder(pid, cand), os.path.join(BASE_DIR, 'static', 'evidencia', str(pid), secure_filename(str(cand))))
+        for folder in dict.fromkeys(carpetas):
+            if os.path.isfile(os.path.join(folder, nombre)):
+                return send_from_directory(folder, nombre, max_age=604800)
     return jsonify({'error': 'No encontrado'}), 404
 
 
@@ -818,6 +842,19 @@ def _correo_folder(origen_id):
     return os.path.join(current_app.config.get('EVIDENCIA_DIR') or os.path.join(BASE_DIR, 'static', 'evidencia'), 'rendicion_correos', str(origen_id))
 
 
+def _correo_existe(origen_id, nombre):
+    if os.path.isfile(os.path.join(_correo_folder(origen_id), nombre)):
+        return True
+    if evidencia_usa_b2():
+        try:
+            b2_cliente().head_object(Bucket=current_app.config['B2_BUCKET'],
+                                    Key=f'rendicion_correos/{origen_id}/{nombre}')
+            return True
+        except Exception:
+            pass
+    return False
+
+
 @bp.route('/api/rendicion/subir_correo', methods=['POST'])
 @login_required
 def subir_correo_validacion():
@@ -843,6 +880,14 @@ def subir_correo_validacion():
     ruta = os.path.join(carpeta, nombre)
     with open(ruta, 'wb') as destino:
         destino.write(contenido)
+    if evidencia_usa_b2():
+        try:
+            b2_cliente().upload_file(ruta, current_app.config['B2_BUCKET'],
+                                     f'rendicion_correos/{fila.id}/{nombre}')
+        except Exception:
+            os.remove(ruta)
+            current_app.logger.exception('No se pudo persistir el correo de validación en B2')
+            return jsonify({'error': 'No se pudo guardar el correo. Reintenta la subida.'}), 503
     row['ADJUNTO CORREO VALIDACION'] = '/api/rendicion/correo/%s/%s' % (fila.id, nombre)
     row['NOMBRE CORREO VALIDACION'] = secure_filename(archivo.filename)
     fila.data_json = json.dumps(row, ensure_ascii=False)
@@ -867,6 +912,15 @@ def descargar_correo_validacion(origen_id, nombre):
     row = json.loads(fila.data_json or '{}')
     if row.get('ADJUNTO CORREO VALIDACION') != '/api/rendicion/correo/%s/%s' % (origen_id, nombre):
         return jsonify({'error': 'Correo no encontrado.'}), 404
+    if evidencia_usa_b2():
+        try:
+            objeto = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'],
+                                            Key=f'rendicion_correos/{origen_id}/{nombre}')
+            return send_file(io.BytesIO(objeto['Body'].read()), as_attachment=True,
+                             download_name=row.get('NOMBRE CORREO VALIDACION') or nombre)
+        except Exception:
+            if not os.path.isfile(os.path.join(_correo_folder(origen_id), nombre)):
+                return jsonify({'error': 'No se pudo recuperar el correo del almacenamiento. Reintenta en unos momentos.'}), 503
     return send_from_directory(_correo_folder(origen_id), nombre, as_attachment=True, download_name=row.get('NOMBRE CORREO VALIDACION') or nombre)
 
 

@@ -100,9 +100,15 @@ def test_duplicar_usuario_conserva_proyectos_modulos_sin_compartir_perfil(app,au
             Usuario.query.filter(Usuario.id.in_(uids)).delete(synchronize_session=False);db.session.commit()
 
 
-def test_soporte_no_duplica_zeno(app,auth_client):
-    with app.app_context():uid=Usuario.query.filter_by(username='zeno').one().id
-    with auth_client.session_transaction() as s:s['rol']='suport'
-    r=auth_client.post('/api/admin/usuario/duplicar',json={'source_id':uid,'new_username':'NO-DEBE-CREARSE','new_password':'solo-fixture-local'})
-    assert r.status_code==403
-    with app.app_context():assert Usuario.query.filter_by(username='NO-DEBE-CREARSE').first() is None
+def test_soporte_no_duplica_zeno(app,auth_client,cambiar_rol):
+    with app.app_context():
+        origen=Usuario(username='QA-ZENO-ORIGEN',rol='zeno',password_hash='no-login')
+        db.session.add(origen);db.session.commit();uid=origen.id
+    cambiar_rol(auth_client,'suport')
+    try:
+        r=auth_client.post('/api/admin/usuario/duplicar',json={'source_id':uid,'new_username':'NO-DEBE-CREARSE','new_password':'solo-fixture-local'})
+        assert r.status_code==403
+        with app.app_context():assert Usuario.query.filter_by(username='NO-DEBE-CREARSE').first() is None
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(Usuario,uid));db.session.commit()

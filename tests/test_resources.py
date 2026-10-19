@@ -16,9 +16,8 @@ def test_resources_page_loads_assets(auth_client):
     assert b'FLM - INTEGRATEL' in response.data
 
 
-def test_resources_requires_admin_role(auth_client):
-    with auth_client.session_transaction() as session:
-        session['rol'] = 'gestor'
+def test_resources_requires_admin_role(auth_client,cambiar_rol):
+    cambiar_rol(auth_client, 'gestor')
     assert auth_client.get('/api/salud').status_code == 403
     assert auth_client.get('/salud').status_code == 302
 

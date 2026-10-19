@@ -135,12 +135,17 @@ def test_pdf_real_admite_ambos_formatos_guardados(app, auth_client, documento_gu
     assert response.data.startswith(b'%PDF-') and len(response.data) > 1000
 
 
-def test_flujo_pext_funciona_con_nombre_canonico_y_conserva_bloqueo(app, auth_client):
+def test_flujo_pext_funciona_con_nombre_canonico_y_conserva_bloqueo(app, auth_client, cambiar_rol):
     from db import db
-    from models import Proyecto, NucleusData, HistorialCambios
+    from models import Proyecto, NucleusData, HistorialCambios, AccesoProyecto
     key = 'ANTON-FLUJO-PEXT-TEST'
+    with auth_client.session_transaction() as ses:
+        uid = ses['user_id']
     with app.app_context():
         pid = Proyecto.query.filter_by(nombre='FLM - PEXT').one().id
+        acceso_previo = AccesoProyecto.query.filter_by(usuario_id=uid, proyecto_id=pid).first()
+        if not acceso_previo:
+            db.session.add(AccesoProyecto(usuario_id=uid, proyecto_id=pid, restricciones='{}'))
         row = NucleusData(proyecto_id=pid, key_value=key,
                           data_json=json.dumps({'CATEGORY': 'O&M PEXT', 'Numero de WO': key}))
         db.session.add(row)
@@ -149,12 +154,10 @@ def test_flujo_pext_funciona_con_nombre_canonico_y_conserva_bloqueo(app, auth_cl
         auth_client.get('/switch_project/%s' % pid)
         response = auth_client.post('/api/rows/finalizar', json={'key': key, 'finalizado': True})
         assert response.status_code == 200, response.json
-        with auth_client.session_transaction() as session:
-            session['rol'] = 'contrata'
+        cambiar_rol(auth_client, 'contrata')
         bloqueado = auth_client.post('/api/rows/update', json={'key': key, 'field': 'MOTIVO', 'value': 'Cambio'})
         assert bloqueado.status_code == 403
-        with auth_client.session_transaction() as session:
-            session['rol'] = 'zeno'
+        cambiar_rol(auth_client, 'zeno')
         assert auth_client.post('/api/rows/finalizar', json={'key': key, 'finalizado': False}).status_code == 200
         response = auth_client.post('/api/wo/enviar_aprobacion', json={'key': key, 'accion': 'enviar'})
         assert response.status_code == 200, response.json
@@ -162,4 +165,6 @@ def test_flujo_pext_funciona_con_nombre_canonico_y_conserva_bloqueo(app, auth_cl
         with app.app_context():
             HistorialCambios.query.filter_by(proyecto_id=pid, key_value=key).delete()
             NucleusData.query.filter_by(proyecto_id=pid, key_value=key).delete()
+            if not acceso_previo:
+                AccesoProyecto.query.filter_by(usuario_id=uid, proyecto_id=pid).delete()
             db.session.commit()

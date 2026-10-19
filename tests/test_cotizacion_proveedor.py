@@ -270,3 +270,25 @@ def test_cambiar_tipo_gasto_mueve_entre_caja_chica_y_proveedor(app, auth_client,
     with app.app_context():
         guardado = json.loads(NucleusData.query.filter_by(proyecto_id=pid, key_value=key).one().data_json)
         assert guardado['TIPO GASTO APROBACION'] == 'Proveedor'
+
+
+def test_adjunto_cotizacion_con_clave_que_requiere_sanear(app, auth_client, cotizacion):
+    pid, original = cotizacion
+    clave = 'QA Cotización con espacios'
+    with app.app_context():
+        fila = NucleusData.query.filter_by(proyecto_id=pid, key_value=original).one()
+        fila.key_value = clave
+        db.session.commit()
+    try:
+        with auth_client.session_transaction() as ses:
+            ses.update(current_proyecto_id=pid, current_proyecto_nombre='Cotizaciones')
+        contenido = b'%PDF-1.4 oferta'
+        subida = auth_client.post('/api/cotizacion/subir_cotizacion_proveedor', data={
+            'key': clave, 'adjunto': (io.BytesIO(contenido), 'oferta.pdf')})
+        assert subida.status_code == 200, subida.json
+        assert auth_client.get(subida.json['url']).data == contenido
+    finally:
+        with app.app_context():
+            fila = NucleusData.query.filter_by(proyecto_id=pid, key_value=clave).one()
+            fila.key_value = original
+            db.session.commit()

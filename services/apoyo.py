@@ -10,11 +10,13 @@ rutas HTTP oficiales, pero conserva helpers historicos usados por blueprints.
 import glob
 import json
 import os
+import shutil
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from flask import current_app, session
+from flask import current_app, session, abort
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageOps
 
@@ -35,6 +37,20 @@ EVIDENCIA_EXT_ALLOWED = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.hei
 
 def evidencia_folder(pid, key):
     return os.path.join(current_app.config['EVIDENCIA_DIR'], str(pid), secure_filename(str(key)))
+
+
+def guardar_archivo_atomico(origen, destino):
+    """Copia primero al disco de destino y sustituye solo al terminar."""
+    carpeta = os.path.dirname(destino)
+    os.makedirs(carpeta, exist_ok=True)
+    fd, temporal = tempfile.mkstemp(prefix='.subida-', dir=carpeta)
+    os.close(fd)
+    try:
+        shutil.copyfile(origen, temporal)
+        os.replace(temporal, destino)
+    finally:
+        if os.path.exists(temporal):
+            os.remove(temporal)
 
 
 def evidencia_limpiar_slot(pid, key, tipo, indice):
@@ -90,14 +106,24 @@ def b2_cliente():
     )
 
 
-def evidencia_eliminar_b2(key, tipo, indice):
+def comprobar_error_b2(error):
+    """No presentar una cuota agotada como si el usuario hubiese perdido el archivo."""
+    detalle = getattr(error, 'response', {}).get('Error', {})
+    codigo = str(detalle.get('Code', '')).lower()
+    mensaje = str(detalle.get('Message', '')).lower()
+    if 'cap_exceeded' in codigo or 'cap exceeded' in mensaje:
+        abort(503, 'El almacenamiento alcanzó su límite diario de descargas. El archivo no se ha eliminado; contacta al administrador.')
+
+
+def evidencia_eliminar_b2(key, tipo, indice, conservar=None):
     client = b2_cliente()
     bucket = current_app.config['B2_BUCKET']
     prefix = f'{key}/{tipo}_{int(indice)}.'
     try:
         resp = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
         for o in resp.get('Contents', []):
-            client.delete_object(Bucket=bucket, Key=o['Key'])
+            if o['Key'] != conservar:
+                client.delete_object(Bucket=bucket, Key=o['Key'])
     except Exception:
         pass
 
@@ -313,6 +339,15 @@ def _evidencia_migrar_legacy(d):
 
 
 # ── Lectura de evidencia (local/B2) y PEXT ────────────────────────────────
+def evidencia_claves(pid, key):
+    """Claves de almacenamiento actuales y antiguas para una URL saneada."""
+    claves = list(dict.fromkeys((str(key), secure_filename(str(key)))))
+    for (original,) in db.session.query(NucleusData.key_value).filter_by(proyecto_id=pid):
+        if secure_filename(str(original)) == secure_filename(str(key)) and original not in claves:
+            claves.append(original)
+    return claves
+
+
 def _evidencia_leer(pid, key, nombre):
     """Devuelve los bytes de un archivo de evidencia (local o B2), o None."""
     if evidencia_usa_b2():
@@ -320,7 +355,14 @@ def _evidencia_leer(pid, key, nombre):
             obj = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'], Key=f'{key}/{nombre}')
             return obj['Body'].read()
         except Exception:
-            return None
+            for original in evidencia_claves(pid, key):
+                if original == key:
+                    continue
+                try:
+                    obj = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'], Key=f'{original}/{nombre}')
+                    return obj['Body'].read()
+                except Exception:
+                    continue
     ruta = os.path.join(evidencia_folder(pid, key), nombre)
     try:
         with open(ruta, 'rb') as f:

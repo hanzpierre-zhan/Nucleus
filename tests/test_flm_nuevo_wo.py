@@ -40,7 +40,8 @@ def test_modulo_combinado_no_se_crea_ni_se_muestra(app):
 
 
 @pytest.mark.parametrize('nombre', ['FLM - CLARO', 'FLM - INTEGRATEL'])
-def test_contrata_no_puede_crear_wo(app, auth_client, nombre):
+def test_contrata_no_puede_crear_wo(app, auth_client, nombre, cambiar_rol):
+    cambiar_rol(auth_client, 'contrata')
     with app.app_context():
         pid = Proyecto.query.filter_by(nombre=nombre).one().id
     with auth_client.session_transaction() as sesion:

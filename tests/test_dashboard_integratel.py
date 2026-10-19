@@ -70,7 +70,7 @@ def test_dimensiones_operativas_y_fecha_diaria_usan_columnas_reales():
     assert row['prioridad'] == 'P1' and row['fault'] == 'Alta'
 
 
-def test_dashboard_respeta_departamentos_permitidos(app,auth_client):
+def test_dashboard_respeta_departamentos_permitidos(app,auth_client,cambiar_rol):
     import json
     import re
     from db import db
@@ -85,8 +85,9 @@ def test_dashboard_respeta_departamentos_permitidos(app,auth_client):
         for key,departamento in [('CM-DASH-LIMA','LIMA'),('CM-DASH-CUSCO','CUSCO')]:
             db.session.add(NucleusData(proyecto_id=pid,key_value=key,data_json=json.dumps({'Departamento':departamento,'Operate Phase':'close','Fecha de creación (WO Creation date)':'2026-10-01'})))
         db.session.commit()
+    cambiar_rol(auth_client, 'supervisor')
     with auth_client.session_transaction() as session:
-        session['rol']='supervisor';session['current_proyecto_id']=pid;session['current_proyecto_nombre']='FLM - INTEGRATEL'
+        session['current_proyecto_id']=pid;session['current_proyecto_nombre']='FLM - INTEGRATEL'
     response=auth_client.get('/analytics')
     assert response.status_code==200
     data=json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>',response.text,re.S).group(1))

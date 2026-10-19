@@ -1192,9 +1192,9 @@ def api_cotizacion_subir_correo():
     if ext in EXT_CORREO_BLOQUEADAS:
         return jsonify({'error': 'Formato no permitido (%s). Usa .msg, .pdf, .doc, JPG, PNG o WEBP.' % ext}), 400
 
-    key = secure_filename(key)
     if not NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first():
         return jsonify({'error': 'La cotización no existe.'}), 404
+    key = secure_filename(key)
     import uuid
     nombre = '%s_%s%s' % ('factura_proveedor' if es_factura else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
@@ -1245,7 +1245,9 @@ def api_cotizacion_correo(pid, key, nombre):
                             mimetype=mimetypes.guess_type(nombre)[0] or 'application/octet-stream')
             resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
             return resp
-        except Exception:
+        except Exception as error:
+            from services.apoyo import comprobar_error_b2
+            comprobar_error_b2(error)
             return jsonify({'error': 'No encontrado'}), 404
     folder = _cot_folder(pid, key)
     ruta = os.path.join(folder, nombre)

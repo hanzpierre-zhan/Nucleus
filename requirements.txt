@@ -10,3 +10,4 @@ pillow-heif
 boto3
 python-docx
 reportlab
+pypdf

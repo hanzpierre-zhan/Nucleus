@@ -7,6 +7,7 @@
 
 
 {% block content %}
+<script src="/static/js/orden-tablas.js?v=1"></script>
 
 {% if session.get('current_proyecto_nombre') in ['Material','SITE','Generadores'] %}<script defer src="/static/js/proyectos-catalogo.js?v=1"></script>{% endif %}
 {% if session.get('current_proyecto_nombre') == 'Dataper' %}<link rel="stylesheet" href="/static/css/personal.css?v=2"><script id="personal-registro-default" type="application/json">{{ {"rol":session.get("rol"),"supervisor":nombre_usuario_actual}|tojson }}</script><script defer src="/static/js/personal.js?v=1"></script>{% endif %}

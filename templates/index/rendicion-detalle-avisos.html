@@ -1946,7 +1946,7 @@ const EV_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
 
     '<text x="120" y="212" fill="#8E8E93" font-family="Arial,Helvetica,sans-serif" ' +
 
-    'font-size="17" font-weight="bold" text-anchor="middle">Drive</text></svg>');
+    'font-size="17" font-weight="bold" text-anchor="middle">Adjunto</text></svg>');
 
 function evImgFail(img) {
 
@@ -2020,13 +2020,11 @@ function evLbBox() {
 
                 '<i class="fa-solid fa-image"></i>' +
 
-                '<p>Google Drive no permite previsualizar este archivo desde aqui ' +
-
-                '(acceso restringido). Abre el original para verlo.</p>' +
+                '<p class="ev-lb-error">No se pudo cargar el adjunto. Abre el original para comprobar su disponibilidad.</p>' +
 
                 '<a class="ev-lb-cta ev-lb-href" href="#" target="_blank" rel="noopener">' +
 
-                'Abrir en Drive <i class="fa-solid fa-arrow-up-right-from-square"></i></a>' +
+                'Abrir original <i class="fa-solid fa-arrow-up-right-from-square"></i></a>' +
 
             '</div>' +
 
@@ -2083,6 +2081,10 @@ function evLbMuestra(i) {
     window.__evLbI = i;
 
     const it = EV_FOTOS[i];
+    if (/\.pdf(?:[?#]|$)/i.test(it.url)) {
+        window.open(evVerUrl(it.url), '_blank', 'noopener');
+        return;
+    }
 
     const b = evLbBox();
 
@@ -2113,6 +2115,9 @@ function evLbMuestra(i) {
     b.querySelector('.ev-lb-count').textContent = (i + 1) + ' / ' + n;
 
     const href = evVerUrl(it.url);
+    b.querySelector('.ev-lb-error').textContent = evDriveId(it.url)
+        ? 'No se pudo previsualizar el archivo de Google Drive. Abre el original para comprobar su disponibilidad y permisos.'
+        : 'No se pudo cargar el adjunto de Nucleus. Abre el original para comprobar si el archivo está disponible.';
 
     b.querySelectorAll('.ev-lb-href').forEach(a => { a.href = href; });
 
@@ -2320,9 +2325,10 @@ function rendAbrirDetalleEvidencia(key) {
 
                     escapeHtml(f.k) + '">' +
 
-                    '<img data-urls="' + escapeHtml(cadena.join('|||')) + '" data-i="0" src="' +
-
-                    escapeHtml(cadena[0]) + '" alt="" onerror="evImgFail(this)">' +
+                    (/\.pdf(?:[?#]|$)/i.test(f.url)
+                        ? '<span style="display:flex;align-items:center;justify-content:center;height:118px;gap:8px"><i class="fa-solid fa-file-pdf"></i> PDF</span>'
+                        : '<img data-urls="' + escapeHtml(cadena.join('|||')) + '" data-i="0" src="' +
+                          escapeHtml(cadena[0]) + '" alt="" onerror="evImgFail(this)">') +
 
                     '<span class="ev-f-cap">' + escapeHtml(f.k) + '</span></button>' +
 

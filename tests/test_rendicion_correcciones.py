@@ -52,8 +52,8 @@ def test_campos_y_etapas_protegidos(app,auth_client,solicitud):
     assert guardar(auth_client,{'Motivo de la solicitud':'Cambio'}).status_code==409
 
 
-def test_contrata_no_puede_corregir(auth_client,solicitud):
-    with auth_client.session_transaction() as s:s['rol']='contrata'
+def test_contrata_no_puede_corregir(auth_client,solicitud,cambiar_rol):
+    cambiar_rol(auth_client, 'contrata')
     assert guardar(auth_client,{'Motivo de la solicitud':'Cambio'}).status_code==403
 
 

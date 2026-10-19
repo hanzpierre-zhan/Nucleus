@@ -266,3 +266,60 @@ def test_plantilla_manual_avisa_el_error_en_vez_de_bajar_json(app, auth_client, 
             AppConfig.query.filter_by(proyecto_id=pid).delete()
             Proyecto.query.filter_by(id=pid).delete()
             db.session.commit()
+
+
+def test_rendicion_ordena_fechas_importadas_e_importes(app, auth_client, servidor):
+    """Ejercita la tabla real con fechas del formulario, no columnas manuales."""
+    muestras = [
+        ('SORT-9', '9/10/2026 23:59:59', 'S/ 9.50'),
+        ('SORT-10', '10/10/2026 10:58:36', '100'),
+        ('SORT-11', '11/10/2026 13:56:12', '20'),
+        ('SORT-NOV', '2/11/2026 00:00:01', 'S/ 1,200.50'),
+        ('SORT-1', '1/10/2026 00:00:00', '0'),
+        ('SORT-VACIO', '', ''),
+    ]
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Rendicion').one().id
+        schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').one()
+        schema_previo = schema.valor
+        schema.valor = json.dumps(list(dict.fromkeys(json.loads(schema.valor or '[]') + ['Marca temporal', 'PROYECTO'])))
+        ids = []
+        for key, fecha, monto in muestras:
+            fila = NucleusData(proyecto_id=pid, key_value=key, data_json=json.dumps({
+                'Marca temporal': fecha, 'MONTO PAGO': monto, 'PROYECTO': 'ENTEL', 'ESTADO': 'PENDIENTE'}))
+            db.session.add(fila); db.session.flush(); ids.append(fila.id)
+        db.session.commit()
+    try:
+        auth_client.get('/switch_project/%s' % pid)
+        cookie = auth_client.get_cookie('session')
+        with playwright_api.sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1600, 'height': 1000})
+                context.add_cookies([{'name':'session','value':cookie.value,'domain':'127.0.0.1','path':'/'}])
+                page = context.new_page()
+                errores = []
+                page.on('pageerror', lambda error: errores.append(str(error)))
+                page.goto(servidor + '/', wait_until='domcontentloaded')
+                page.wait_for_function("typeof table !== 'undefined' && table.getRows('active').length === 6")
+                def orden():
+                    return page.evaluate("table.getRows('active').map(r=>r.getData()._key)")
+                assert orden() == ['SORT-NOV','SORT-11','SORT-10','SORT-9','SORT-1','SORT-VACIO']
+                titulo = page.locator('.tabulator-col[tabulator-field="Marca temporal"] .tabulator-col-title')
+                titulo.click()
+                assert orden() == ['SORT-1','SORT-9','SORT-10','SORT-11','SORT-NOV','SORT-VACIO']
+                titulo.click()
+                assert orden() == ['SORT-NOV','SORT-11','SORT-10','SORT-9','SORT-1','SORT-VACIO']
+                page.evaluate("table.setSort('MONTO PAGO','asc')")
+                assert orden() == ['SORT-1','SORT-9','SORT-11','SORT-10','SORT-NOV','SORT-VACIO']
+                page.evaluate("table.setSort('MONTO PAGO','desc')")
+                assert orden() == ['SORT-NOV','SORT-10','SORT-11','SORT-9','SORT-1','SORT-VACIO']
+                assert errores == []
+                context.close()
+            finally:
+                browser.close()
+    finally:
+        with app.app_context():
+            AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').one().valor = schema_previo
+            NucleusData.query.filter(NucleusData.id.in_(ids)).delete(synchronize_session=False)
+            db.session.commit()

@@ -51,6 +51,32 @@ def client(app):
     return app.test_client()
 
 
+@pytest.fixture
+def cambiar_rol(app):
+    """Prueba permisos con el rol real, que el servidor refresca por solicitud."""
+    from db import db
+    from models import Usuario
+    previos = {}
+
+    def cambiar(cliente, rol):
+        with cliente.session_transaction() as ses:
+            uid = ses['user_id']
+            ses['rol'] = rol
+        with app.app_context():
+            usuario = db.session.get(Usuario, uid)
+            previos.setdefault(uid, usuario.rol)
+            usuario.rol = rol
+            db.session.commit()
+
+    yield cambiar
+    with app.app_context():
+        for uid, rol in previos.items():
+            usuario = db.session.get(Usuario, uid)
+            if usuario:
+                usuario.rol = rol
+        db.session.commit()
+
+
 @pytest.fixture()
 def auth_client(app):
     """Cliente ya autenticado como zeno (usuario creado por las migraciones)."""

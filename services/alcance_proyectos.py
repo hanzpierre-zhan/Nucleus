@@ -196,12 +196,18 @@ def comprobar_archivo(pid, key):
     if contexto() is None:
         return
     prefijos = ['/api/evidencia/foto/%s/%s/' % (pid, key),
+                '/api/rendicion/foto/%s/%s/' % (pid, key),
                 '/api/cotizacion/correo/%s/%s/' % (pid, key)]
     encontrado = NucleusData.query.filter(NucleusData.proyecto_id == pid, or_(
         NucleusData.key_value == key,
         *[NucleusData.data_json.contains(p, autoescape=True) for p in prefijos])).first()
     if not encontrado:
-        abort(404)
+        from werkzeug.utils import secure_filename
+        # Las URLs usan la clave saneada; la base conserva la original.
+        permitido = any(secure_filename(str(original)) == str(key)
+                        for (original,) in db.session.query(NucleusData.key_value).filter_by(proyecto_id=pid))
+        if not permitido:
+            abort(404)
 
 
 def _escrituras(sesion, *_):

@@ -1,6 +1,7 @@
 import io
 import json
 import pytest
+from pathlib import Path
 from db import db
 from models import Proyecto, NucleusData
 
@@ -102,3 +103,45 @@ def test_sesion_vencida_devuelve_json_sin_pagina_login(client, ruta):
     resultado = client.post(ruta, json={})
     assert resultado.status_code == 401
     assert resultado.json['login_required'] is True
+
+
+def test_correo_b2_sigue_disponible_sin_disco_local(app, auth_client, solicitud, monkeypatch, tmp_path):
+    import blueprints.rendicion as rend
+    monkeypatch.setattr(rend, '_correo_folder', lambda rid: str(tmp_path / str(rid)))
+    monkeypatch.setattr(rend, 'evidencia_usa_b2', lambda: True)
+    monkeypatch.setitem(app.config, 'B2_BUCKET', 'prueba')
+    objetos = {}
+    class B2:
+        def upload_file(self, ruta, bucket, clave):
+            objetos[clave] = Path(ruta).read_bytes()
+        def get_object(self, Bucket, Key):
+            return {'Body': io.BytesIO(objetos[Key])}
+        def head_object(self, Bucket, Key):
+            assert Key in objetos
+            return {}
+    monkeypatch.setattr(rend, 'b2_cliente', lambda: B2())
+    carga = auth_client.post('/api/rendicion/subir_correo', data={
+        'key': 'REND-CORREO-TEST', 'correo': (io.BytesIO(b'correo persistente'), 'validacion.msg')})
+    assert carga.status_code == 200, carga.json
+    nombre = carga.json['url'].rsplit('/', 1)[1]
+    (tmp_path / str(solicitud) / nombre).unlink()
+    assert auth_client.get(carga.json['url']).data == b'correo persistente'
+    resultado = auth_client.post('/api/rendicion/accion', json={
+        'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
+    assert resultado.status_code == 200, resultado.json
+
+
+def test_fallo_b2_no_guarda_url_de_correo_roto(app, auth_client, solicitud, monkeypatch, tmp_path):
+    import blueprints.rendicion as rend
+    monkeypatch.setattr(rend, '_correo_folder', lambda rid: str(tmp_path / str(rid)))
+    monkeypatch.setattr(rend, 'evidencia_usa_b2', lambda: True)
+    monkeypatch.setitem(app.config, 'B2_BUCKET', 'prueba')
+    class B2:
+        def upload_file(self, *args):
+            raise OSError('fallo simulado')
+    monkeypatch.setattr(rend, 'b2_cliente', lambda: B2())
+    carga = auth_client.post('/api/rendicion/subir_correo', data={
+        'key': 'REND-CORREO-TEST', 'correo': (io.BytesIO(b'correo'), 'validacion.msg')})
+    assert carga.status_code == 503
+    with app.app_context():
+        assert not json.loads(db.session.get(NucleusData, solicitud).data_json).get('ADJUNTO CORREO VALIDACION')

@@ -3052,18 +3052,6 @@ let _rendCambiandoVista = false;
 
             }
 
-            if (currentProjectNombre.trim().toLowerCase() === 'rendicion' && fieldName === 'Marca temporal') {
-                colDef.sorter = function(a, b) {
-                    function ordenFecha(valor) {
-                        const s = String(valor || '').trim();
-                        const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-                        if (m) return Number(m[3] + m[2].padStart(2, '0') + m[1].padStart(2, '0') + (m[4] || '0').padStart(2, '0') + (m[5] || '00') + (m[6] || '00'));
-                        const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-                        return iso ? Number(iso[1] + iso[2] + iso[3] + (iso[4] || '00') + (iso[5] || '00') + (iso[6] || '00')) : 0;
-                    }
-                    return ordenFecha(a) - ordenFecha(b);
-                };
-            }
             if (currentProjectNombre.trim().toLowerCase() === 'combustible' && fieldName === 'FECHA') {
 
                 // Orden cronológico con la misma regla del backend: los movimientos con
@@ -4549,6 +4537,8 @@ let _rendCambiandoVista = false;
     window.NucleusIdentity.columns(tableColumns);
     // Preferencia personal: se superpone al layout global del admin.
     if (!IS_RENDICION) _colVisAplicarColumnas(tableColumns, null);
+    // Aplicar a las columnas definitivas, incluidas las importadas del formulario.
+    window.NucleusOrden.configurar(tableColumns, manualColsConfig, currentProjectNombre);
     const table = new Tabulator("#data-grid", {
 
         data: rawData,

@@ -79,3 +79,60 @@ def test_descarga_despues_de_asignar_wo_a_codigo_interno(app,auth_client,monkeyp
     with zipfile.ZipFile(io.BytesIO(response.data)) as archive:
         assert archive.namelist()==['CM-ASIGNADO-QA/inicio_01.jpg']
         assert archive.read(archive.namelist()[0])==b'foto previa al WO'
+
+
+def test_foto_b2_legacy_clave_cruda_con_url_saneada(app, auth_client, monkeypatch):
+    import blueprints.evidencia as evidencia
+    from werkzeug.utils import secure_filename
+    key = 'QA WO con espacios'
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='FLM - INTEGRATEL').one().id
+        db.session.add(NucleusData(proyecto_id=pid, key_value=key, data_json='{}'))
+        db.session.commit()
+    with auth_client.session_transaction() as s:
+        s.update(current_proyecto_id=pid, current_proyecto_nombre='FLM - INTEGRATEL')
+    class B2:
+        def get_object(self, Bucket, Key):
+            if Key != key + '/inicio_0.jpg':
+                raise KeyError(Key)
+            return {'Body': io.BytesIO(b'foto antigua')}
+    monkeypatch.setattr(evidencia, 'evidencia_usa_b2', lambda: True)
+    monkeypatch.setattr(evidencia, 'b2_cliente', lambda: B2())
+    monkeypatch.setitem(app.config, 'B2_BUCKET', 'prueba')
+    try:
+        r = auth_client.get('/api/evidencia/foto/%s/%s/inicio_0.jpg' % (pid, secure_filename(key)))
+        assert r.status_code == 200
+        assert r.data == b'foto antigua'
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(proyecto_id=pid, key_value=key).delete()
+            db.session.commit()
+
+
+def test_fallo_subida_b2_wo_no_elimina_foto_existente(app, auth_client, monkeypatch):
+    import blueprints.evidencia as evidencia
+    key = 'QA-B2-REEMPLAZO'
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='FLM - INTEGRATEL').one().id
+        db.session.add(NucleusData(proyecto_id=pid, key_value=key, data_json='{}'))
+        db.session.commit()
+    with auth_client.session_transaction() as s:
+        s.update(current_proyecto_id=pid, current_proyecto_nombre='FLM - INTEGRATEL')
+    limpiezas = []
+    class B2:
+        def upload_file(self, *args):
+            raise OSError('fallo simulado')
+    monkeypatch.setattr(evidencia, 'evidencia_usa_b2', lambda: True)
+    monkeypatch.setattr(evidencia, 'b2_cliente', lambda: B2())
+    monkeypatch.setattr(evidencia, 'evidencia_eliminar_b2', lambda *a, **k: limpiezas.append(a))
+    monkeypatch.setattr(evidencia, 'evidencia_comprimir', lambda ruta: False)
+    monkeypatch.setitem(app.config, 'B2_BUCKET', 'prueba')
+    try:
+        r = auth_client.post('/api/evidencia/subir', data={
+            'key': key, 'tipo': 'inicio', 'indice': '0', 'foto': (io.BytesIO(b'nueva'), 'foto.jpg')})
+        assert r.status_code == 500
+        assert limpiezas == []
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(proyecto_id=pid, key_value=key).delete()
+            db.session.commit()
