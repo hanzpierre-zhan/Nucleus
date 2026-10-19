@@ -350,3 +350,15 @@ def test_admin_abre_modulos_originales_sin_tabla_generica(app,auth_client,piloto
     assert 'Espacios por proyecto</span>' not in html
     assert 'class="sidebar-link-text">Operación FLM</span>' not in html
     assert 'class="negocio-check"' in html and 'class="modulo-check"' in html
+
+
+def test_soporte_en_espacios_respeta_asignacion(app, piloto):
+    from services import espacios
+    with app.app_context():
+        db.session.get(Usuario, piloto['uid']).rol = 'suport'
+        db.session.commit()
+    c = piloto['cliente']
+    r = c.get('/api/espacios/personal/registros')
+    assert r.status_code == 200
+    assert {f['proyecto'] for f in r.json['registros']} == {'Claro'}
+    assert c.get('/api/espacios/personal/registros?proyecto=' + str(piloto['ids']['FLM - ENTEL'])).status_code == 403

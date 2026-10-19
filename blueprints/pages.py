@@ -88,7 +88,7 @@ def _get_site_map():
 def index():
     user_id, user_rol, pid = get_session_info()
     is_admin = user_rol == 'zeno'
-    is_privileged = user_rol in ['zeno', 'suport']
+    is_privileged = user_rol == 'zeno'
 
     if session.get('current_proyecto_nombre') == 'FLM - CLARO y INTEGRATEL':
         proyectos_activos = get_menu_proyectos(user_id, user_rol)
@@ -582,7 +582,7 @@ def analytics():
     if user_rol in ('contrata', 'gestor') or proy is None:
         return redirect(url_for('pages.index'))
     restricciones = {}
-    if user_rol not in ('zeno', 'suport'):
+    if user_rol != 'zeno':
         acceso = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy.id).first()
         if not acceso:
             return redirect(url_for('pages.index'))
@@ -616,12 +616,12 @@ def analytics_cotizaciones():
     user_id, user_rol, pid = get_session_info()
     proyectos = get_menu_proyectos(user_id, user_rol)
     proy = next((p for p in proyectos if str(p.nombre).strip().lower() == 'cotizaciones'), None)
-    if proy is None and user_rol in ('zeno', 'suport', 'admin'):
+    if proy is None and user_rol in ('zeno', 'admin'):
         proy = Proyecto.query.filter_by(nombre='Cotizaciones').first()
     if proy is None:
         return redirect(url_for('pages.analytics'))
     restricciones = {}
-    if user_rol not in ('zeno', 'suport'):
+    if user_rol != 'zeno':
         acceso = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy.id).first()
         if acceso:
             try:
@@ -653,12 +653,12 @@ def analytics_rendicion():
     user_id, user_rol, pid = get_session_info()
     proyectos = get_menu_proyectos(user_id, user_rol)
     proy = next((p for p in proyectos if str(p.nombre).strip().lower() == 'rendicion'), None)
-    if proy is None and user_rol in ('zeno', 'suport', 'admin'):
+    if proy is None and user_rol in ('zeno', 'admin'):
         proy = Proyecto.query.filter_by(nombre='Rendicion').first()
     if proy is None:
         return redirect(url_for('pages.analytics'))
     restricciones = {}
-    if user_rol not in ('zeno', 'suport'):
+    if user_rol != 'zeno':
         acceso = AccesoProyecto.query.filter_by(usuario_id=user_id, proyecto_id=proy.id).first()
         if acceso:
             try:
@@ -766,7 +766,7 @@ def mapa_site():
     if not proy_site:
         from flask import abort
         abort(404)
-    if user_rol not in ('zeno', 'suport'):
+    if user_rol != 'zeno':
         # Debe tener FLM para ver el mapa de sites
         has_flm = any(p.nombre in FLM_NOMBRES or p.id == proy_site.id for p in get_menu_proyectos(user_id, user_rol))
         if not has_flm:

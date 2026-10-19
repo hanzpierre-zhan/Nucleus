@@ -162,7 +162,7 @@ def cambiar_password_public():
 def switch_project(pid):
     session.pop('flm_resource_context',None)
     # Check permission
-    if session.get('rol') not in ['zeno', 'suport']:
+    if session.get('rol') != 'zeno':
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()
         from services.utilidades import get_menu_proyectos
         visible = any(p.id == pid for p in get_menu_proyectos(session.get('user_id'), session.get('rol')))

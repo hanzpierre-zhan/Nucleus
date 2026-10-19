@@ -74,10 +74,7 @@ def test_exportacion_y_urls_directas_no_revelan_otro_proyecto(app, client, unive
     with client.session_transaction() as s:
         s.update(user_id=uid, rol='supervisor', username='alcance-prueba', current_proyecto_id=ids['Cotizaciones'], current_proyecto_nombre='Cotizaciones')
     response = client.get('/api/import/manual_template')
-    assert response.status_code == 200
-    wb = load_workbook(io.BytesIO(response.data), read_only=True)
-    valores = str(list(wb.active.values)); wb.close()
-    assert 'SCOPE-Cotizaciones-CLARO' not in valores
+    assert response.status_code == 403
     pagina = client.get('/')
     assert pagina.status_code == 200
     assert 'SCOPE-Cotizaciones-ENTEL' in pagina.text and 'SCOPE-Cotizaciones-CLARO' not in pagina.text
@@ -186,3 +183,49 @@ def test_cache_de_opciones_no_se_comparte_con_otra_cuenta(app, client, auth_clie
     respuesta = client.get('/api/detalle/opciones')
     assert respuesta.status_code == 200
     assert 'SCOPE-CACHE-ENTEL' in respuesta.text and 'SCOPE-CACHE-CLARO' not in respuesta.text
+
+
+@pytest.mark.parametrize('rol', ['gestor', 'supervisor', 'contrata'])
+@pytest.mark.parametrize('metodo,ruta', [
+    ('get', '/api/import/manual_template'),
+    ('post', '/api/import/preview'),
+    ('post', '/api/import/process'),
+    ('get', '/api/cotizacion/items_template'),
+    ('post', '/api/cotizacion/items_import'),
+    ('get', '/api/master/template/materiales'),
+    ('post', '/api/master/bulk_import/materiales'),
+    ('post', '/api/rows/delete'),
+    ('post', '/api/cotizacion/eliminar'),
+    ('post', '/api/evidencia/eliminar'),
+])
+def test_roles_operativos_no_importan_ni_borran(app, client, universo, rol, metodo, ruta):
+    uid, ids, _ = universo
+    with app.app_context():
+        db.session.get(Usuario, uid).rol = rol
+        db.session.commit()
+    with client.session_transaction() as s:
+        # Incluso una cookie con el rol anterior no conserva permisos.
+        s.update(user_id=uid, rol='zeno', current_proyecto_id=ids['SITE'], current_proyecto_nombre='SITE')
+    assert getattr(client, metodo)(ruta, json={}).status_code == 403
+
+
+def test_soporte_solo_proyecto_asignado(app, client, universo):
+    from services.utilidades import get_menu_proyectos
+    uid, ids, _ = universo
+    asignar(app, universo, ['FLM - CLARO'])
+    with app.app_context():
+        db.session.get(Usuario, uid).rol = 'suport'
+        db.session.commit()
+    with app.test_request_context('/'):
+        session.update(user_id=uid, rol='suport')
+        assert ids['FLM - ENTEL'] not in {p.id for p in get_menu_proyectos(uid, 'suport')}
+        filas = NucleusData.query.filter_by(proyecto_id=ids['SITE']).all()
+        assert {r.key_value for r in filas if r.key_value.startswith('SCOPE-')} == {'SCOPE-SITE-CLARO'}
+    with client.session_transaction() as s:
+        s.update(user_id=uid, rol='suport', current_proyecto_id=ids['FLM - CLARO'], current_proyecto_nombre='FLM - CLARO')
+    client.get('/switch_project/%s' % ids['FLM - ENTEL'])
+    with client.session_transaction() as s:
+        assert s['current_proyecto_id'] != ids['FLM - ENTEL']
+    with client.session_transaction() as s:
+        s.update(current_proyecto_id=ids['FLM - ENTEL'], current_proyecto_nombre='FLM - ENTEL')
+    assert client.get('/api/import/manual_template').status_code == 403

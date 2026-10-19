@@ -43,6 +43,23 @@ def login_required(f):
             if request.path.startswith('/api/') or '/api/' in request.path:
                 return jsonify({'error': 'Tu sesión venció. Vuelve a iniciar sesión y reintenta.', 'login_required': True}), 401
             return redirect(url_for('auth.login'))
+        session['rol'] = usuario.rol
+        if usuario.rol not in ('zeno', 'suport', 'admin'):
+            ruta = request.path.lower()
+            restringida = (
+                request.blueprint == 'imports'
+                or '/template' in ruta or '_template' in ruta
+                or '/bulk_import/' in ruta or ruta.endswith('/items_import')
+                or request.method == 'DELETE'
+                or (request.method != 'GET' and any(
+                    parte in ('delete', 'eliminar') for parte in ruta.split('/')))
+            )
+            if restringida:
+                return jsonify({'error': 'Tu rol no permite importar, descargar plantillas ni eliminar.'}), 403
+        if usuario.rol == 'suport' and request.path.startswith('/api/') and request.blueprint != 'espacios':
+            pid = session.get('current_proyecto_id')
+            if pid and not any(p.id == pid for p in get_menu_proyectos(usuario.id, usuario.rol)):
+                return jsonify({'error': 'No tienes asignado este proyecto.'}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -77,17 +94,15 @@ def get_menu_proyectos(user_id, user_rol):
     from flask import request,has_request_context
     if not has_request_context():return _get_menu_proyectos(user_id,user_rol)
     cache=request.environ.setdefault('nucleus.menu_proyectos_cache',{})
-    # zeno/suport ven todos los proyectos, así que el menú no depende del
-    # usuario: con la clave (None, rol) se evita repetir la misma consulta una
-    # vez por usuario (al listar N usuarios eran N consultas idénticas).
-    key=(None,user_rol) if user_rol in ('zeno','suport') else (user_id,user_rol)
+    # Solo Zeno tiene menú global. Soporte conserva su asignación por usuario.
+    key=(None,user_rol) if user_rol == 'zeno' else (user_id,user_rol)
     if key not in cache:cache[key]=_get_menu_proyectos(user_id,user_rol)
     return list(cache[key])
 
 
 def _get_menu_proyectos(user_id, user_rol):
     """Proyectos visibles en el menú lateral según rol."""
-    if user_rol in ('zeno', 'suport'):
+    if user_rol == 'zeno':
         return Proyecto.query.filter(Proyecto.nombre.notin_(PROYECTOS_REMOVIDOS)).order_by(Proyecto.id).all()
 
     accesos = AccesoProyecto.query.filter_by(usuario_id=user_id).all()

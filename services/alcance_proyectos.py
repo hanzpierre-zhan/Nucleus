@@ -35,7 +35,7 @@ def contexto():
     if usuario is None:
         abort(401)
     piloto = current_app.config.get('ESPACIOS_HABILITADOS') and db.session.get(CuentaEspacio, session['user_id'])
-    if piloto or (usuario and usuario.rol in ('zeno', 'suport')):
+    if piloto or (usuario and usuario.rol == 'zeno'):
         resultado = None
     else:
         proyectos = {p.id: p.nombre for p in Proyecto.query.all()}

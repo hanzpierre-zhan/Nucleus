@@ -86,7 +86,7 @@ def nombre_negocio(valor):
 
 def es_admin():
     usuario = db.session.get(Usuario, session.get('user_id'))
-    return bool(usuario and usuario.rol in ('zeno', 'suport'))
+    return bool(usuario and usuario.rol == 'zeno')
 
 
 def proyectos():

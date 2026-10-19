@@ -519,12 +519,14 @@
 
             </button>
 
+            {% if session.get('rol') in ['zeno','suport','admin'] %}
             <a class="coti-gear-item" href="/api/import/manual_template" download onclick="cotiGearCerrar()">
 
                 <i class="fa-solid fa-download" style="color:#28A745;"></i> Plantilla
 
             </a>
 
+            {% endif %}
             <div class="coti-gear-group"><i class="fa-solid fa-table-columns"></i> Tabla</div>
 
             <button type="button" class="coti-gear-item" onclick="cotiGearAbrir('col')">
@@ -614,7 +616,7 @@
 
             <div class="mar-head-actions">
 
-                {% if proy_nombre == 'cotizaciones' and session.get('rol') != 'demo' %}
+                {% if proy_nombre == 'cotizaciones' and session.get('rol') in ['zeno','suport','admin'] %}
 
                 <a id="btn-mar-plantilla-coti" href="/api/cotizacion/items_template" download
 
@@ -1375,6 +1377,7 @@
 
                                 class="fa-solid fa-lock-open"></i></button>
 
+                        {% if session.get('rol') in ['zeno','suport','admin'] %}
                         <button type="button" id="btn-coti-eliminar" onclick="eliminarCotizacion()"
 
                             title="Eliminar cotización"
@@ -1382,6 +1385,7 @@
                             style="display:none; background:#FF3B30; color:#fff; border:none; border-radius:50%; width:36px; height:36px; font-size:15px; cursor:pointer; display:none; align-items:center; justify-content:center; flex-shrink:0; transition:opacity .15s;"><i
 
                                 class="fa-solid fa-trash-can"></i></button>
+                        {% endif %}
 
                         {% endif %}
 
@@ -1559,6 +1563,7 @@
 
         onclick="agregarFilaCobra()"><i class="fa-solid fa-plus"></i> Agregar item</button>
 
+    {% if session.get('rol') in ['zeno','suport','admin'] %}
     <button type="button" id="btn-wo-plantilla-coti" class="mar-btn-ghost"
 
         onclick="descargarPlantillaCotiItems()"
@@ -1578,6 +1583,7 @@
         style="background:linear-gradient(135deg,#30B0C7,#1a7f8f);color:#fff;border:none;border-radius:10px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
 
         <i class="fa-solid fa-file-import"></i> Importar</button>
+    {% endif %}
 
 </div>
 

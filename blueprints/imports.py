@@ -267,6 +267,23 @@ def api_import_process():
         # FLM: sin restricción de CATEGORY (acepta cualquier valor).
         proy_act = Proyecto.query.get(pid)
         proy_act_nombre = proy_act.nombre.strip().upper() if proy_act and proy_act.nombre else ''
+        if proy_act_nombre == 'SITE':
+            columna_proyecto = next((c for c in df.columns if c.strip().upper() == 'PROYECTO'), None)
+            if columna_proyecto is None:
+                return jsonify({'error': 'La plantilla de sites requiere PROYECTO: ENTEL, CLARO, INTEGRATEL o PEXT.'}), 400
+            df = df.rename(columns={columna_proyecto: 'PROYECTO'})
+            proyectos_site = df['PROYECTO'].fillna('').map(familia)
+            if not proyectos_site.all():
+                return jsonify({'error': 'Completa PROYECTO en todas las filas: ENTEL, CLARO, INTEGRATEL o PEXT.'}), 400
+            df['PROYECTO'] = proyectos_site
+            if df.groupby(file_key)['PROYECTO'].nunique().gt(1).any():
+                return jsonify({'error': 'Un mismo código de site no puede pertenecer a varios proyectos en el archivo.'}), 400
+            from services.alcance_proyectos import contexto as alcance_actual
+            alcance = alcance_actual()
+            if alcance is not None and not set(proyectos_site).issubset(alcance['familias']):
+                return jsonify({'error': 'El archivo contiene sites de proyectos no asignados.'}), 403
+            if columns_to_keep and 'PROYECTO' not in columns_to_keep:
+                columns_to_keep.append('PROYECTO')
         category_esperado = None
         if proy_act_nombre == 'PEXT':
             category_esperado = 'O&M PEXT'
@@ -396,6 +413,18 @@ def api_import_process():
             key_list = sorted(imported_keys)
             for i in range(0, len(key_list), 400):
                 chunk = key_list[i:i + 400]
+                if proy_act_nombre == 'SITE':
+                    # Comprobar colisiones incluso con sites fuera del alcance
+                    # del usuario; nunca crear un duplicado oculto ni moverlo.
+                    tabla = NucleusData.__table__
+                    anteriores = db.session.execute(db.select(tabla.c.key_value, tabla.c.data_json).where(
+                        tabla.c.proyecto_id == pid, tabla.c.key_value.in_(chunk))).all()
+                    for clave, datos_json in anteriores:
+                        anterior = json.loads(datos_json or '{}')
+                        proyecto_anterior = familia(anterior.get('PROYECTO') or 'ENTEL')
+                        nuevos = set(df.loc[df[file_key].astype(str).str.strip() == clave, 'PROYECTO'])
+                        if nuevos != {proyecto_anterior}:
+                            return jsonify({'error': 'El código de site %s ya pertenece a otro proyecto. Usa un código único para evitar sobrescribirlo.' % clave}), 400
                 chunk_records = NucleusData.query.filter(
                     NucleusData.proyecto_id == pid,
                     NucleusData.key_value.in_(chunk)
@@ -653,7 +682,7 @@ def api_import_process():
         
         # Absence-based Consolidation (Optimized to avoid SQLite parameter limits)
         absent_consolidated = 0
-        if import_type == 'base' and cons_cfg.get('auto_consolidate_missing'):
+        if import_type == 'base' and proy_act_nombre != 'SITE' and cons_cfg.get('auto_consolidate_missing'):
             # Consulta solo la columna key_value (no el data_json pesado)
             # para comparar las claves existentes contra las del archivo.
             all_existing_keys = [r[0] for r in db.session.query(NucleusData.key_value)

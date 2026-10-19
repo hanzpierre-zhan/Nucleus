@@ -189,7 +189,7 @@ def guardar_usuario_integrado():
             abort(404)
         if actual.rol == 'suport' and (rol == 'zeno' or (usuario and usuario.rol=='zeno')):
             abort(403)
-        if rol not in ('zeno','suport') and (not pids or not modulos):
+        if rol != 'zeno' and (not pids or not modulos):
             raise ValueError('Selecciona al menos un proyecto y un módulo.')
         clave = datos.get('password') or ''
         if not usuario and not clave:
@@ -203,7 +203,7 @@ def guardar_usuario_integrado():
             usuario.password_hash = generate_password_hash(clave)
         db.session.flush()
         AccesoEspacio.query.filter_by(usuario_id=usuario.id).delete()
-        if rol not in ('zeno','suport'):
+        if rol != 'zeno':
             permisos = {}
             for m in set(modulos):
                 acciones = ['consultar','exportar'] if rol!='contrata' else ['consultar']
@@ -393,7 +393,7 @@ def accion_rendicion(rid):
 def administracion():
     _admin()
     return jsonify(usuarios=[{'id': u.id, 'nombre': u.nombre or u.username, 'rol':u.rol,
-                             'administrador_global':u.rol in ('zeno','suport')}
+                             'administrador_global':u.rol == 'zeno'}
                             for u in usuarios_activos().order_by(Usuario.username)],
                    perfiles=[{'id': p.id, 'nombre': p.nombre, 'permisos': json.loads(p.permisos_json)}
                              for p in PerfilEspacio.query.order_by(PerfilEspacio.nombre)],
@@ -462,8 +462,8 @@ def asignar():
     if (not usuario or not set(pids).issubset({p.id for p in servicio.proyectos()})
             or not db.session.get(PerfilEspacio, perfil_id)):
         abort(400)
-    if usuario.rol in ('zeno','suport'):
-        abort(400, 'Zeno y soporte mantienen acceso global. Usa una cuenta operativa para limitar por proyecto.')
+    if usuario.rol == 'zeno':
+        abort(400, 'Zeno mantiene acceso global.')
     for pid in pids:
         acceso = AccesoEspacio.query.filter_by(usuario_id=uid, proyecto_id=pid).first()
         if acceso is None:

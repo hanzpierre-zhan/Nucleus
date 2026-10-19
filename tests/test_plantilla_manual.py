@@ -188,3 +188,38 @@ def test_plantilla_generica_sin_estilos(app, auth_client):
         with app.app_context():
             NucleusData.query.filter_by(key_value='GEN-PLANT-QA').delete()
             db.session.commit()
+
+
+def test_sites_importa_proyectos_sin_sobrescribir_otros(app, auth_client):
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='SITE').one().id
+        db.session.add(NucleusData(proyecto_id=pid, key_value='QA-SITE-ENTEL',
+                                   data_json=json.dumps({'Código': 'QA-SITE-ENTEL', 'Nombre': 'Original', 'PROYECTO': 'ENTEL'})))
+        db.session.commit()
+    try:
+        with auth_client.session_transaction() as s:
+            s.update(current_proyecto_id=pid, current_proyecto_nombre='SITE')
+        descarga = auth_client.get('/api/import/manual_template')
+        assert descarga.status_code == 200
+        hoja = openpyxl.load_workbook(io.BytesIO(descarga.data)).active
+        assert 'PROYECTO' in [c.value for c in hoja[1]]
+        def cargar(texto):
+            return auth_client.post('/api/import/process', data={
+                'type': 'manual_cols', 'file': (io.BytesIO(texto.encode('utf-8')), 'sites.csv')})
+        assert cargar('Código,Nombre\nQA-SITE-NUEVO,Sin proyecto\n').status_code == 400
+        for proyecto in ('CLARO', 'INTEGRATEL', 'PEXT'):
+            r = cargar('Código,Nombre,PROYECTO\nQA-SITE-%s,Nuevo,%s\n' % (proyecto, proyecto))
+            assert r.status_code == 200, r.json
+            assert r.json['added'] == 1
+        r = cargar('Código,Nombre,PROYECTO\nQA-SITE-ENTEL,Reemplazo,CLARO\n')
+        assert r.status_code == 400
+        with app.app_context():
+            original = NucleusData.query.filter_by(proyecto_id=pid, key_value='QA-SITE-ENTEL').one()
+            assert json.loads(original.data_json)['Nombre'] == 'Original'
+            for proyecto in ('CLARO', 'INTEGRATEL', 'PEXT'):
+                fila = NucleusData.query.filter_by(proyecto_id=pid, key_value='QA-SITE-' + proyecto).one()
+                assert json.loads(fila.data_json)['PROYECTO'] == proyecto
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.like('QA-SITE-%')).delete(synchronize_session=False)
+            db.session.commit()

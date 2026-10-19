@@ -119,7 +119,7 @@ let _rendCambiandoVista = false;
 
     const IS_WO_PROJECT = ['pext', 'flm - pext', 'flm - entel', 'flm - claro', 'flm - integratel', 'claro', 'integratel'].includes(_projNorm);
 
-    const MANUAL_PROJECT = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
+    const MANUAL_PROJECT = ['dataper', 'material', 'site', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase());
 
     const pkName = "{{ pk }}";
 
@@ -10492,7 +10492,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-    const IMPORT_TYPE = ['dataper', 'material', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
+    const IMPORT_TYPE = ['dataper', 'material', 'site', 'site name', 'generadores', 'combustible', 'cotizaciones'].includes(currentProjectNombre.trim().toLowerCase()) ? 'manual_cols' : 'base';
 
     let importFileToUpload = null;
 

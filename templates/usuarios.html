@@ -352,9 +352,9 @@
                                     </div>
                                 </td>
                                 <td><span class="role-badge {{ u.rol }}">{{ 'Contrata' if u.rol == 'contrata' else ('Gestor' if u.rol == 'gestor' else u.rol|capitalize) }}</span></td>
-                                {% if navegacion_negocio %}<td><div class="mod-badges">{% if u.rol in ['zeno','suport'] %}Todos los proyectos{% else %}{% for p in negocios_usuario %}{% if p.id in usuarios_ambitos[u.id].proyectos %}<span class="mod-badge">{{ p.nombre }}</span>{% endif %}{% endfor %}{% endif %}</div></td>{% endif %}
+                                {% if navegacion_negocio %}<td><div class="mod-badges">{% if u.rol == 'zeno' %}Todos los proyectos{% else %}{% for p in negocios_usuario %}{% if p.id in usuarios_ambitos[u.id].proyectos %}<span class="mod-badge">{{ p.nombre }}</span>{% endif %}{% endfor %}{% endif %}</div></td>{% endif %}
                                 <td>
-                                    {% if u.rol in ['zeno', 'suport'] %}
+                                    {% if u.rol == 'zeno' %}
                                         <span style="font-size:10px; color:var(--ios-gray-1); font-style:italic;">Todos los módulos</span>
                                     {% else %}
                                         <div class="mod-badges">
@@ -460,7 +460,7 @@ function cargarAmbitoUsuario(id){
     actualizarRolAmbito();
 }
 function actualizarRolAmbito(){
-    const global=['zeno','suport'].includes(document.getElementById('user-rol').value);
+    const global=document.getElementById('user-rol').value === 'zeno';
     document.querySelectorAll('.negocio-check,.modulo-check').forEach(b=>{b.disabled=global;});
     const aviso=document.getElementById('usuario-global');if(aviso)aviso.hidden=!global;
 }
@@ -533,7 +533,7 @@ async function crearUsuario() {
     if(document.getElementById('usuarios-ambitos')){
         payload.proyectos=[...document.querySelectorAll('.negocio-check:checked')].map(b=>Number(b.value));
         payload.modulos=[...document.querySelectorAll('.modulo-check:checked')].map(b=>b.value);
-        if(!['zeno','suport'].includes(r)&&(!payload.proyectos.length||!payload.modulos.length))return alert('Selecciona al menos un proyecto y un módulo.');
+        if(r !== 'zeno'&&(!payload.proyectos.length||!payload.modulos.length))return alert('Selecciona al menos un proyecto y un módulo.');
     }
     let method = 'POST';
 

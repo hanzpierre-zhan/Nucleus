@@ -506,6 +506,7 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
     if site_proy:
         site_proy.icono = 'fa-location-dot'
         site_cols = [
+            {'nombre': 'PROYECTO', 'tipo': 'lista', 'opciones': ['ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT']},
             {'nombre': 'Item', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Código', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Nombre', 'tipo': 'texto', 'opciones': []},
@@ -541,6 +542,17 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         if not AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first():
             db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor='[]'))
         db.session.commit()
+
+        # Los sites históricos de Render pertenecen exclusivamente a Entel.
+        # La marca evita atribuir futuras cargas incompletas automáticamente.
+        if not AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='site_proyecto_v1').first():
+            for fila in NucleusData.query.filter_by(proyecto_id=site_proy.id).yield_per(500):
+                datos = json.loads(fila.data_json or '{}')
+                if not any(str(datos.get(c) or '').strip() for c in ('PROYECTO', 'CLIENTE', 'Proyecto', 'Nombre del proyecto')):
+                    datos['PROYECTO'] = 'ENTEL'
+                    fila.data_json = json.dumps(datos, ensure_ascii=False)
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='site_proyecto_v1', valor='1'))
+            db.session.commit()
 
         # Deploy v2 (solo las 20 columnas del formato): limpieza ÚNICA de las
         # columnas viejas que había en app_schema (42) y column_layout (41) para
