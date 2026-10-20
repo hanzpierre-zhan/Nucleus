@@ -5870,6 +5870,8 @@ let _rendCambiandoVista = false;
 
         let msgs = [];
 
+        let hayNuevas = false;
+
         // Primero sincronizamos solicitudes
 
         fetch('/api/rendicion/sync', { credentials: 'same-origin' })
@@ -5883,6 +5885,8 @@ let _rendCambiandoVista = false;
                     msgs.push('Error Form: ' + (j.error || 'error desconocido'));
 
                 } else {
+
+                    if (j.nuevas > 0) hayNuevas = true;
 
                     msgs.push(j.nuevas > 0 ? `+${j.nuevas} forms` : 'Forms al día');
                     if (j.personal_pendiente_verificar) msgs.push(`${j.personal_pendiente_verificar} pendientes de verificar en Personal`);
@@ -5921,13 +5925,34 @@ let _rendCambiandoVista = false;
 
                 
 
-                if (typeof table !== 'undefined' && table && typeof table.replaceData === 'function') {
+                const resumen = msgs.join('\n');
+
+                const huboError = msgs.some(m => /^Error /.test(m));
+
+                const continuar = () => {
+
+                    if (huboError) return;
+
+                    // Si entraron solicitudes nuevas, abrir Validación para que se vean.
+                    // Si no, conservar la hoja en la que estaba el usuario tras recargar.
+                    const vista = hayNuevas ? 'validacion'
+                        : ((typeof _rendVista !== 'undefined' && _rendVista) ? _rendVista : 'validacion');
+
+                    try { sessionStorage.setItem('rend_vista_tras_sync', vista); } catch (e) {}
 
                     location.reload();
 
+                };
+
+                if (typeof nucleusAlert === 'function') {
+
+                    nucleusAlert(resumen).then(continuar);
+
                 } else {
 
-                    alert(msgs.join('\n'));
+                    alert(resumen);
+
+                    continuar();
 
                 }
 

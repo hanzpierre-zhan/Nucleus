@@ -2991,7 +2991,18 @@ function cotConfirmarModal() {
 }
 document.addEventListener('DOMContentLoaded', () => {
 
-    setTimeout(() => { rendCambiarVista('validacion'); rendActualizarContadores(); if (IS_RENDICION) enfocarCasoAnalytics(); }, 0);
+    setTimeout(() => {
+
+        let vistaInicial = 'validacion';
+
+        try {
+            vistaInicial = sessionStorage.getItem('rend_vista_tras_sync') || 'validacion';
+            sessionStorage.removeItem('rend_vista_tras_sync');
+        } catch (e) {}
+
+        rendCambiarVista(vistaInicial); rendActualizarContadores(); if (IS_RENDICION) enfocarCasoAnalytics();
+
+    }, 0);
 
     if (IS_COTIZACIONES) setTimeout(() => {
 
