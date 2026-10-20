@@ -298,6 +298,7 @@ def index():
     
     personal_rendicion = None
     if proy_actual_nombre.strip().lower() == 'rendicion':
+        columns_set.update(('N° COTIZACION', 'ENVIADO A TRANSITO POR', 'FECHA ENVIO TRANSITO'))
         from services.rendicion_personal import indice_personal, completar_personal
         personal_rendicion = indice_personal()
         columns_set.add('DEPARTAMENTO')

@@ -138,6 +138,7 @@ let _rendCambiandoVista = false;
     const REND_ESTADO_COLORS = {
 
         'PENDIENTE':  { bg: '#8E8E93', fg: '#fff' },
+        'TRANSITO': { bg: '#DC2626', fg: '#fff' },
 
         'VALIDADO':   { bg: '#007AFF', fg: '#fff' },
 
@@ -258,6 +259,7 @@ let _rendCambiandoVista = false;
     }
 
     const REND_VISTAS = {
+        transito: { estados: ['TRANSITO'], cols: ['_key','N° COTIZACION','Nombre del proyecto','Nombre de site','Motivo de la solicitud','Monto total del depósito','NUMERO WO','TIPO DE PRESUPUESTO','ENVIADO A TRANSITO POR','FECHA ENVIO TRANSITO','ESTADO'] },
 
         // Validación: muestra todo lo que cargó el técnico (sin restricción de cols)
 
@@ -332,6 +334,7 @@ let _rendCambiandoVista = false;
     // o vacío) cae aquí para que ninguna fila desaparezca de la vista.
 
     const IS_COTIZACIONES = _projNorm === 'cotizaciones';
+    const COT_ICONO_TRANSITO = '<svg viewBox="0 0 32 32" width="21" height="21" fill="currentColor" aria-hidden="true"><path d="m8 2 10 3-3 11 6 3 7 1c3 1 4 5 2 7l-3 2-17-6-4-4 4-10z"/><path d="m2 24 6 2-1 2-6-2zm-1-7 5 2-1 2-5-2z"/></svg>';
 
     const COT_VISTAS = {
         registro:  { estados: ['Pdt. Cotización'] },
@@ -3976,7 +3979,7 @@ let _rendCambiandoVista = false;
                 if (_cotVista === 'proveedor') {
                     mk('cot-btn-sus', '<i class="fa-solid fa-file-invoice"></i>', 'Completar factura y OC del proveedor', () => cotAbrirProveedor(key));
                     if(String(row['_SUSTENTO_APROBADO']||'')!=='1'){
-                        mk('cot-btn-rev', '<i class="fa-solid fa-money-bill-wave"></i>', 'Mover a caja chica: saca el caso de la pestaña Proveedor', () => cotCambiarTipoGasto(key, 'Caja chica'));
+                        mk('cot-btn-cancel', COT_ICONO_TRANSITO, 'Enviar a Rendición · Tránsito (Caja chica)', () => cotCambiarTipoGasto(key, 'Caja chica'));
                     }
                 } else if (pest === 'registro') {
                     // Boton principal: Generar cotizacion
@@ -4014,9 +4017,9 @@ let _rendCambiandoVista = false;
                        () => cotAbrirModalSustento(key));
                     if(String(row['_SUSTENTO_APROBADO']||'')!=='1'){
                         const _enProv = cotEnProveedor(row);
-                        mk(_enProv ? 'cot-btn-rev' : 'cot-btn-sus',
-                           _enProv ? '<i class="fa-solid fa-money-bill-wave"></i>' : '<i class="fa-solid fa-truck-field"></i>',
-                           _enProv ? 'Mover a caja chica: saca el caso de la pestaña Proveedor' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
+                        mk(_enProv ? 'cot-btn-cancel' : 'cot-btn-sus',
+                           _enProv ? COT_ICONO_TRANSITO : '<i class="fa-solid fa-truck-field"></i>',
+                           _enProv ? 'Enviar a Rendición · Tránsito (Caja chica)' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
                            () => cotCambiarTipoGasto(key, _enProv ? 'Caja chica' : 'Proveedor'));
                     }
                 } else if (pest === 'atendido') {
@@ -4027,9 +4030,9 @@ let _rendCambiandoVista = false;
                         mk('cot-btn-ok','<i class="fa-solid fa-check"></i>','Aprobar y bloquear el sustento',()=>cotRevisarSustento(key,true));
                         mk('cot-btn-cancel','<i class="fa-solid fa-xmark"></i>','Rechazar y devolver a Sustentar',()=>cotRevisarSustento(key,false));
                         const _enProvAt = cotEnProveedor(row);
-                        mk(_enProvAt ? 'cot-btn-rev' : 'cot-btn-sus',
-                           _enProvAt ? '<i class="fa-solid fa-money-bill-wave"></i>' : '<i class="fa-solid fa-truck-field"></i>',
-                           _enProvAt ? 'Mover a caja chica: saca el caso de la pestaña Proveedor' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
+                        mk(_enProvAt ? 'cot-btn-cancel' : 'cot-btn-sus',
+                           _enProvAt ? COT_ICONO_TRANSITO : '<i class="fa-solid fa-truck-field"></i>',
+                           _enProvAt ? 'Enviar a Rendición · Tránsito (Caja chica)' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
                            () => cotCambiarTipoGasto(key, _enProvAt ? 'Caja chica' : 'Proveedor'));
                     }
                 } else if (pest === 'cancelado') {

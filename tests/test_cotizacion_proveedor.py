@@ -43,6 +43,8 @@ def cotizacion(app, monkeypatch, tmp_path):
     with app.app_context():
         fila = NucleusData.query.filter_by(proyecto_id=pid, key_value='TEST-PROVEEDOR').first()
         if fila:
+            rendicion = Proyecto.query.filter_by(nombre='Rendicion').one()
+            NucleusData.query.filter_by(proyecto_id=rendicion.id, key_value='COT-'+str(fila.id)).delete()
             RefacturableDetalle.query.filter_by(origen_id=fila.id).delete()
         NucleusData.query.filter_by(proyecto_id=pid, key_value='TEST-PROVEEDOR').delete()
         db.session.commit()
@@ -325,3 +327,52 @@ def test_nombre_almacenado_prevalece_sobre_nombre_manipulado(auth_client,cotizac
         'adjunto_correo':subida.json['url'],'nombre_correo':'otro archivo.msg'})
     assert r.status_code==200
     assert r.json['newData']['NOMBRE CORREO CLIENTE']=='Aprobacion real.msg'
+
+
+@pytest.mark.parametrize('rol',['zeno','gestor','supervisor'])
+def test_envio_a_transito_vinculado_sin_duplicar(app,auth_client,cotizacion,rol):
+    from models import Usuario,AccesoProyecto
+    from services.rendicion_estados import etapa_de
+    pid,key=cotizacion
+    uid=None
+    with app.app_context():
+        origen=NucleusData.query.filter_by(proyecto_id=pid,key_value=key).one();origen_id=origen.id
+        origen.data_json=json.dumps({'ESTADO COTIZACION':'Aprobado','CLIENTE':'ENTEL','TIPO GASTO APROBACION':'Proveedor',
+            'MOTIVO':'Traslado de equipo','NOMBRE SITE':'Site de prueba','NUMERO WO':'WO-TEST','SUB TOTAL + FEE':'125.50','TIPO DE GASTO':'Refacturable'})
+        rend=Proyecto.query.filter_by(nombre='Rendicion').one().id
+        if rol!='zeno':
+            u=Usuario(username='transito-'+rol,password_hash='no-login',rol=rol)
+            db.session.add(u);db.session.flush();uid=u.id
+            flm=Proyecto.query.filter_by(nombre='FLM - ENTEL').one().id
+            for acceso in (pid,flm,rend):db.session.add(AccesoProyecto(usuario_id=uid,proyecto_id=acceso,restricciones='{}'))
+        db.session.commit()
+    if uid:
+        with auth_client.session_transaction() as s:s.update(user_id=uid,username='transito-'+rol,rol=rol)
+    try:
+        payload={'key':key,'accion':'cambiar_tipo_gasto','tipo_gasto_aprobacion':'Caja chica'}
+        for intento in range(2):
+            r=auth_client.post('/api/cotizacion/accion',json=payload)
+            assert r.status_code==200,r.text
+        enlace=r.json['newData']['_RENDICION_TRANSITO']
+        with app.app_context():
+            q=NucleusData.query.filter_by(proyecto_id=rend,key_value=enlace['key'])
+            assert q.count()==1
+            traslado=q.one();datos=json.loads(traslado.data_json)
+            assert etapa_de(datos)=='TRANSITO'
+            assert datos['N° COTIZACION']==key and datos['Monto total del depósito']=='125.50'
+            assert datos['Nombre del proyecto']=='ENTEL' and datos['Motivo de la solicitud']=='Traslado de equipo'
+            assert datos['_COTIZACION_ORIGEN']['id']==origen_id
+            # Un reintento no altera el trabajo realizado posteriormente en Rendición.
+            datos.update(ESTADO='VALIDADO',OBSERVACIONES='Conservar');traslado.data_json=json.dumps(datos);db.session.commit()
+        assert auth_client.post('/api/cotizacion/accion',json=payload).status_code==200
+        with app.app_context():
+            datos=json.loads(NucleusData.query.filter_by(proyecto_id=rend,key_value=enlace['key']).one().data_json)
+            assert datos['ESTADO']=='VALIDADO' and datos['OBSERVACIONES']=='Conservar'
+        auth_client.get('/switch_project/%s'%rend)
+        html=auth_client.get('/').text
+        assert 'rend-cnt-transito' in html
+    finally:
+        if uid:
+            with app.app_context():
+                AccesoProyecto.query.filter_by(usuario_id=uid).delete()
+                db.session.delete(db.session.get(Usuario,uid));db.session.commit()

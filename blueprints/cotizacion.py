@@ -1112,6 +1112,12 @@ def api_cotizacion_accion():
         tipo_gasto = str(data.get('tipo_gasto_aprobacion') or '').strip()
         if tipo_gasto not in ('Caja chica', 'Proveedor'):
             return jsonify({'error': 'El tipo de gasto debe ser Caja chica o Proveedor.'}), 400
+        if tipo_gasto == 'Caja chica':
+            from services.cotizacion_transito import enviar
+            try:
+                enviar(fila, row, usuario, ahora)
+            except ValueError as error:
+                return jsonify(error=str(error)), 409
         anterior = str(row.get('TIPO GASTO APROBACION') or '').strip() or '(sin definir)'
         if tipo_gasto != anterior:
             row['TIPO GASTO APROBACION'] = tipo_gasto

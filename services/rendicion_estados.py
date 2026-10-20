@@ -19,6 +19,7 @@ def etapa_de(row):
             "OBSERVADO": "EVIDENCIA",
         }.get(str(row.get("RECHAZADO DESDE") or "").strip().upper(), "ANULADO")
     return {
+        "TRANSITO": "TRANSITO",
         "PENDIENTE": "VALIDACION",
         "VALIDADO": "DEPOSITOS",
         "DEPOSITADO": "EVIDENCIA",

@@ -724,13 +724,14 @@ function rendActualizarContadores() {
 
     if (!IS_RENDICION) return;
 
-    const c = { validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0, rechazados: 0 };
+    const c = { transito: 0, validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0, rechazados: 0 };
 
     rawData.forEach(r => {
 
         const e = rendEstadoParaVista(r);
 
-        if (e === 'PENDIENTE') c.validacion++;
+        if (e === 'TRANSITO') c.transito++;
+        else if (e === 'PENDIENTE') c.validacion++;
 
         else if (e === 'VALIDADO') c.depositos++;
 
@@ -2549,7 +2550,7 @@ async function cotRevisarSustento(key,aprobar) {
 // La pestaña Proveedor es una vista derivada de TIPO GASTO APROBACION,
 // así que cambiar ese campo mete (o saca) el caso de dicha pestaña.
 async function cotCambiarTipoGasto(key, tipo) {
-    if(!await nucleusConfirm('¿Mover esta cotización a "' + tipo + '"?'))return;
+    if(!await nucleusConfirm(tipo === 'Caja chica' ? '¿Enviar esta cotización a Rendición → Tránsito y cambiarla a Caja chica?' : '¿Mover esta cotización a "' + tipo + '"?'))return;
     await cotAccionKey(key,'cambiar_tipo_gasto',{tipo_gasto_aprobacion:tipo});
 }
 

@@ -18,6 +18,7 @@ from services.dashboard_consulta import comunes, valor, proyecto, dia, espera
 
 # ── Estados → pestaña (idéntico a blueprints/rendicion.py::_etapa_de) ────────
 ETAPAS = (
+    ('TRANSITO', 'Tránsito'),
     ('VALIDACION', 'Validación'),
     ('DEPOSITOS', 'Depósitos'),
     ('EVIDENCIA', 'Evidencia'),
