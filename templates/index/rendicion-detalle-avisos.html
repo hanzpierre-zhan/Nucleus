@@ -2444,6 +2444,15 @@ function cotCambiarVista(vista) {
 
     _cotVista = vista;
     cotAplicarAnchos(vista);
+    // La forma de pago debe poder comprobarse en el seguimiento paralelo,
+    // incluso cuando un layout anterior la había dejado oculta.
+    if (vista === 'proveedor') {
+        const pago = table.getColumn('TIPO GASTO APROBACION');
+        if (pago) {
+            pago.show();
+            if (table.getColumn('TIPO DE GASTO')) table.moveColumn('TIPO GASTO APROBACION', 'TIPO DE GASTO', true);
+        }
+    }
 
     document.querySelectorAll('#cot-tabs .rend-tab').forEach(b => {
 
