@@ -9630,7 +9630,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         const generada = String(data['GENERADA'] || '') === '1';
 
-        const isAdmin = ["zeno", "suport"].includes("{{ session.get('rol') }}");
+        const isAdmin = ["zeno", "suport", "admin", "supervisor"].includes("{{ session.get('rol') }}");
 
         const woPendiente = !String(data['NUMERO WO'] || '').trim();
 
@@ -9639,28 +9639,6 @@ btnItem.onclick = () => cotRegAgregarFila();
         const _estCoti = String(data['ESTADO COTIZACION'] || '').trim();
 
         const liberada = _estCoti === 'Observado' || _estCoti === 'Rechazado';
-
-        if (generada && !isAdmin && !woPendiente && !liberada) {
-
-            try {
-
-                const r = await fetch('/api/cotizacion/registro_pdf', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
-
-                if (!r.ok) { const j = await r.json().catch(()=>({})); throw new Error(j.error||'No se pudo abrir la cotización'); }
-
-                const blob = await r.blob();
-
-                const url = URL.createObjectURL(blob);
-
-                window.open(url, '_blank');
-
-                setTimeout(()=> URL.revokeObjectURL(url), 60000);
-
-            } catch(e) { try{ nucleusAlert(e.message||'Error al previsualizar'); }catch(_e){ alert(e.message||'Error'); } }
-
-            return;
-
-        }
 
         cotiEditMode = true;
 
@@ -9792,11 +9770,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         }
 
-        // Si está GENERADA y pendiente (solo NUMERO WO editable para no-admin);
+        // Usuarios sin rol de gestión: datos de la solicitud en solo lectura.
 
-        // las liberadas (Observado/Rechazado) se editan completas.
+        // Solo se permite registrar el NUMERO WO si aún está pendiente.
 
-        if (generada && !isAdmin && woPendiente && !liberada) {
+        // Las liberadas (Observado/Rechazado) se editan completas para corregir.
+
+        if (!isAdmin && !liberada) {
 
             body.querySelectorAll('input, select, textarea, button').forEach(el => {
 
@@ -9810,7 +9790,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 const isDelBtn = el.classList.contains('wo-material-del');
 
-                if (isHidden || isNumWo) return;
+                if (isHidden || (isNumWo && woPendiente)) return;
 
                 if (isAddBtn || isDelBtn) {
 
@@ -9844,25 +9824,79 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         }
 
-        // Cambiar botones del header
-
-        const btnGuardar = document.getElementById('btn-mar-label-guardar');
-
-        const btnGenerar = document.getElementById('btn-mar-generar-coti');
-
-        if (btnGuardar) {
-
-            btnGuardar.title = 'Actualizar';
-
-            btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
-
-        }
-
-        if (btnGenerar) btnGenerar.style.display = ''; // permitir generar desde edición también
-
         // Restaura los botones del desglose y oculta el de "Solicitar Cotización".
 
         if (typeof _cotModoModal === 'function') _cotModoModal('desglose');
+
+        // Cambiar botones del header según el modo.
+
+        if (isAdmin || liberada) {
+
+            const btnGuardar = document.getElementById('btn-mar-label-guardar');
+
+            if (btnGuardar) {
+
+                btnGuardar.title = 'Actualizar';
+
+                btnGuardar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+
+                btnGuardar.style.display = '';
+
+            }
+
+            const btnGenerar = document.getElementById('btn-mar-generar-coti');
+
+            if (btnGenerar) btnGenerar.style.display = ''; // permitir generar desde edición también
+
+        } else {
+
+            // Vista de detalle para usuarios: sin botones de edición y con
+
+            // descarga de la cotización generada cuando ya existe.
+
+            ['btn-mar-plantilla-coti', 'btn-mar-importar-coti', 'btn-mar-generar-coti'].forEach(id => {
+
+                const b = document.getElementById(id);
+
+                if (b) b.style.display = 'none';
+
+            });
+
+            const btnGuardarUsuario = document.getElementById('btn-mar-label-guardar');
+
+            if (btnGuardarUsuario) btnGuardarUsuario.style.display = woPendiente ? '' : 'none';
+
+            const btnDescargar = document.getElementById('btn-mar-preview-coti');
+
+            if (btnDescargar) {
+
+                if (generada) {
+
+                    btnDescargar.style.display = '';
+
+                    btnDescargar.title = 'Descargar la cotización generada';
+
+                    btnDescargar.innerHTML = '<i class="fa-solid fa-download"></i>';
+
+                    btnDescargar.onclick = () => descargarCotizacionRegistroKey(key);
+
+                } else {
+
+                    btnDescargar.style.display = 'none';
+
+                }
+
+            }
+
+            const tituloCoti = document.querySelector('#modal-add-registro h3');
+
+            if (tituloCoti) tituloCoti.innerHTML = '<i class="fa-solid fa-file-invoice"></i> Detalle de la cotización';
+
+            const subtituloCoti = document.querySelector('#modal-add-registro .mar-header p');
+
+            if (subtituloCoti) subtituloCoti.textContent = 'Datos registrados en la solicitud.';
+
+        }
 
         document.getElementById('modal-add-registro').style.display = 'flex';
 
