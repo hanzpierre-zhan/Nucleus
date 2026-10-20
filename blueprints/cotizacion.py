@@ -8,6 +8,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
                    send_from_directory, send_file, Response, abort)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.http import dump_options_header
 from sqlalchemy import func
 from perezoso import pd
 from PIL import Image, ImageOps
@@ -1005,7 +1006,7 @@ def api_cotizacion_accion():
             row['ADJUNTO CORREO CLIENTE'] = adj
             # Nombre original del archivo (el enlace guarda un nombre técnico).
             # Los adjuntos antiguos no lo tienen; Liquidaciones cae al nombre del enlace.
-            nombre_adj = secure_filename(str(data.get('nombre_correo') or '').strip())
+            nombre_adj = _nombre_adjunto_original(row, adj) or _limpiar_nombre_adjunto(data.get('nombre_correo'))
             if nombre_adj:
                 row['NOMBRE CORREO CLIENTE'] = nombre_adj
         # La aprobación registra el ingreso a Liquidaciones en la misma transacción.
@@ -1166,6 +1167,20 @@ def api_cotizacion_proveedor():
     return jsonify({'success': True, 'newData': row})
 
 
+def _limpiar_nombre_adjunto(valor):
+    """Nombre de presentación, separado de la clave técnica de almacenamiento."""
+    nombre = str(valor or '').replace('\\', '/').rsplit('/', 1)[-1]
+    return ''.join(c for c in nombre if ord(c) >= 32 and ord(c) != 127).strip()[:255]
+
+
+def _nombre_adjunto_original(datos, url):
+    nombre = str(url or '').split('?', 1)[0].rsplit('/', 1)[-1]
+    original = (datos.get('_ADJUNTOS_NOMBRES') or {}).get(nombre)
+    if not original and nombre == str(datos.get('ADJUNTO CORREO CLIENTE') or '').split('?', 1)[0].rsplit('/', 1)[-1]:
+        original = datos.get('NOMBRE CORREO CLIENTE')
+    return _limpiar_nombre_adjunto(original)
+
+
 @bp.route('/api/cotizacion/subir_correo', methods=['POST'])
 @bp.route('/api/cotizacion/subir_cotizacion_proveedor', methods=['POST'])
 @bp.route('/api/cotizacion/subir_factura_proveedor', methods=['POST'])
@@ -1192,7 +1207,8 @@ def api_cotizacion_subir_correo():
     if ext in EXT_CORREO_BLOQUEADAS:
         return jsonify({'error': 'Formato no permitido (%s). Usa .msg, .pdf, .doc, JPG, PNG o WEBP.' % ext}), 400
 
-    if not NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first():
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
         return jsonify({'error': 'La cotización no existe.'}), 404
     key = secure_filename(key)
     import uuid
@@ -1216,7 +1232,14 @@ def api_cotizacion_subir_correo():
             return jsonify({'error': 'No se pudo subir el archivo: %s' % e}), 500
         url = '/api/cotizacion/correo/%d/%s/%s?v=%d' % (
             proy.id, key, nombre, int(time.time()))
-        return jsonify({'success': True, 'url': url, 'nombre': secure_filename(file.filename)})
+        original = _limpiar_nombre_adjunto(file.filename)
+        # Guardar el nombre al recibir el archivo, aunque después se cierre el
+        # modal. La aprobación enlaza el adjunto sin depender del dato del navegador.
+        datos = json.loads(fila.data_json or '{}')
+        datos.setdefault('_ADJUNTOS_NOMBRES', {})[nombre] = original
+        fila.data_json = safe_json_dumps(datos)
+        db.session.commit()
+        return jsonify({'success': True, 'url': url, 'nombre': original})
     finally:
         if os.path.exists(ruta_tmp):
             try:
@@ -1237,6 +1260,9 @@ def api_cotizacion_correo(pid, key, nombre):
     if not proy or int(pid) != int(proy.id):
         return jsonify({'error': 'No encontrado'}), 404
     nombre = os.path.basename(secure_filename(nombre))
+    fila = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
+    datos = json.loads(fila.data_json or '{}') if fila else {}
+    original = _nombre_adjunto_original(datos, nombre) or nombre
     if evidencia_usa_b2():
         try:
             obj = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'],
@@ -1244,6 +1270,8 @@ def api_cotizacion_correo(pid, key, nombre):
             resp = Response(obj['Body'].read(),
                             mimetype=mimetypes.guess_type(nombre)[0] or 'application/octet-stream')
             resp.headers['Cache-Control'] = 'private, max-age=604800, immutable'
+            from urllib.parse import quote
+            resp.headers['Content-Disposition'] = dump_options_header('attachment', {'filename': secure_filename(original) or nombre}) + "; filename*=UTF-8''" + quote(original, safe='')
             return resp
         except Exception as error:
             from services.apoyo import comprobar_error_b2
@@ -1253,7 +1281,7 @@ def api_cotizacion_correo(pid, key, nombre):
     ruta = os.path.join(folder, nombre)
     if not os.path.exists(ruta):
         return jsonify({'error': 'No encontrado'}), 404
-    return send_from_directory(folder, nombre, max_age=604800)
+    return send_from_directory(folder, nombre, max_age=604800, as_attachment=True, download_name=original)
 
 @bp.route('/api/cotizacion/migrar_antiguos', methods=['POST'])
 @login_required

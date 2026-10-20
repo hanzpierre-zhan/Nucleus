@@ -77,7 +77,7 @@ def test_aprobacion_guarda_el_nombre_original_del_correo(app, auth_client, cotiz
         'key': key, 'adjunto': (io.BytesIO(b'correo outlook'), 'RE Aprobacion cotizacion.msg'),
     })
     assert subida.status_code == 200, subida.json
-    assert subida.json['nombre'] == 'RE_Aprobacion_cotizacion.msg'
+    assert subida.json['nombre'] == 'RE Aprobacion cotizacion.msg'
     respuesta = auth_client.post('/api/cotizacion/accion', json={
         'key': key, 'accion': 'conformar_aprobacion',
         'adjunto_correo': subida.json['url'], 'nombre_correo': subida.json['nombre'],
@@ -86,7 +86,7 @@ def test_aprobacion_guarda_el_nombre_original_del_correo(app, auth_client, cotiz
     with app.app_context():
         datos = json.loads(NucleusData.query.filter_by(proyecto_id=pid, key_value=key).one().data_json)
         assert datos['ADJUNTO CORREO CLIENTE'] == subida.json['url']
-        assert datos['NOMBRE CORREO CLIENTE'] == 'RE_Aprobacion_cotizacion.msg'
+        assert datos['NOMBRE CORREO CLIENTE'] == 'RE Aprobacion cotizacion.msg'
 
 
 def test_pantalla_cotizaciones_carga_modal(auth_client, cotizacion):
@@ -292,3 +292,36 @@ def test_adjunto_cotizacion_con_clave_que_requiere_sanear(app, auth_client, coti
             fila = NucleusData.query.filter_by(proyecto_id=pid, key_value=clave).one()
             fila.key_value = original
             db.session.commit()
+
+
+
+def test_nombre_desde_subida_sin_depender_del_navegador(app,auth_client,cotizacion):
+    pid,key=cotizacion
+    original='RE Aprobación del cliente 2026.msg'
+    subida=auth_client.post('/api/cotizacion/subir_correo',data={
+        'key':key,'adjunto':(io.BytesIO(b'correo original'),original)})
+    assert subida.status_code==200 and subida.json['nombre']==original
+    with app.app_context():
+        datos=json.loads(NucleusData.query.filter_by(proyecto_id=pid,key_value=key).one().data_json)
+        assert original in datos['_ADJUNTOS_NOMBRES'].values()
+    respuesta=auth_client.post('/api/cotizacion/accion',json={
+        'key':key,'accion':'conformar_aprobacion','adjunto_correo':subida.json['url']})
+    assert respuesta.status_code==200,respuesta.text
+    assert respuesta.json['newData']['NOMBRE CORREO CLIENTE']==original
+    descarga=auth_client.get(subida.json['url'])
+    assert descarga.data==b'correo original'
+    assert "filename*=UTF-8''RE%20Aprobaci%C3%B3n%20del%20cliente%202026.msg" in descarga.headers['Content-Disposition']
+    auth_client.get('/switch_project/%s'%pid)
+    html=auth_client.get('/').text
+    assert 'Nombre del archivo del correo' in html
+    assert 'Correo de aprobación' in html
+
+
+def test_nombre_almacenado_prevalece_sobre_nombre_manipulado(auth_client,cotizacion):
+    pid,key=cotizacion
+    subida=auth_client.post('/api/cotizacion/subir_correo',data={
+        'key':key,'adjunto':(io.BytesIO(b'correo'),'Aprobacion real.msg')})
+    r=auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion',
+        'adjunto_correo':subida.json['url'],'nombre_correo':'otro archivo.msg'})
+    assert r.status_code==200
+    assert r.json['newData']['NOMBRE CORREO CLIENTE']=='Aprobacion real.msg'

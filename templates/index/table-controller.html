@@ -2127,6 +2127,28 @@ let _rendCambiandoVista = false;
             return;
         }
 
+        if (IS_COTIZACIONES && ['ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR'].includes(fieldName)) {
+            const titulos = {'ADJUNTO CORREO CLIENTE':'Correo de aprobación', 'ADJUNTO COTIZACION PROVEEDOR':'Cotización del proveedor', 'ADJUNTO FACTURA PROVEEDOR':'Factura del proveedor'};
+            colDef.title = titulos[fieldName];
+            colDef.width = 200;
+            colDef.editor = false;
+            colDef.editable = false;
+            colDef.headerFilter = false;
+            colDef.formatter = cell => {
+                const url = String(cell.getValue() || '');
+                if (!url.startsWith('/api/cotizacion/correo/') || /[<>"'\\\s]/.test(url)) return '—';
+                const row = cell.getRow().getData();
+                const nombre = fieldName === 'ADJUNTO CORREO CLIENTE' ? row['NOMBRE CORREO CLIENTE'] : '';
+                return `<a class="action-pill pill-blue" href="${escapeHtml(url)}" download title="${escapeHtml(nombre || titulos[fieldName])}"><i class="fa-solid fa-download"></i> Descargar</a>`;
+            };
+            restColumns.push(colDef);
+            return;
+        }
+        if (IS_COTIZACIONES && fieldName === 'NOMBRE CORREO CLIENTE') {
+            colDef.title = 'Nombre del archivo del correo';
+            colDef.editor = false;
+            colDef.editable = false;
+        }
         if (IS_RENDICION && fieldName === 'ADJUNTO CORREO VALIDACION') {
             colDef.title = 'CORREO DE VALIDACIÓN';
             colDef.width = 170;

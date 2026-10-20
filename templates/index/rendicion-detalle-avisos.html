@@ -2447,10 +2447,19 @@ function cotCambiarVista(vista) {
     // La forma de pago debe poder comprobarse en el seguimiento paralelo,
     // incluso cuando un layout anterior la había dejado oculta.
     if (vista === 'proveedor') {
+        for (const campo of ['ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR']) {
+            const columna = table.getColumn(campo);
+            if (columna) columna.show();
+        }
         const pago = table.getColumn('TIPO GASTO APROBACION');
         if (pago) {
             pago.show();
             if (table.getColumn('TIPO DE GASTO')) table.moveColumn('TIPO GASTO APROBACION', 'TIPO DE GASTO', true);
+        }
+        let anterior = pago ? 'TIPO GASTO APROBACION' : '_key';
+        for (const campo of ['ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR']) {
+            if (table.getColumn(campo) && table.getColumn(anterior)) table.moveColumn(campo, anterior, true);
+            anterior = campo;
         }
     }
 

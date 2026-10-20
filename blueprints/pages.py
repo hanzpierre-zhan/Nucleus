@@ -219,6 +219,9 @@ def index():
         from services.proyectos_catalogo import configurar as configurar_proyectos
         manual_cols_data = configurar_proyectos(manual_cols_data)
         columns_set.add('PROYECTO')
+    if proy_actual_nombre == 'Cotizaciones':
+        columns_set.update(('ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE',
+                            'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR'))
     if proy_actual_nombre in ('Generadores', 'Combustible'):
         dataper_proy = Proyecto.query.filter_by(nombre='Dataper').first()
         tecnicos_set = set()
