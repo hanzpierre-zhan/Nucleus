@@ -2130,7 +2130,7 @@ let _rendCambiandoVista = false;
         if (IS_COTIZACIONES && ['ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR'].includes(fieldName)) {
             const titulos = {'ADJUNTO CORREO CLIENTE':'Correo de aprobación', 'ADJUNTO COTIZACION PROVEEDOR':'Cotización del proveedor', 'ADJUNTO FACTURA PROVEEDOR':'Factura del proveedor'};
             colDef.title = titulos[fieldName];
-            colDef.width = 200;
+            colDef.width = 160;
             colDef.editor = false;
             colDef.editable = false;
             colDef.headerFilter = false;

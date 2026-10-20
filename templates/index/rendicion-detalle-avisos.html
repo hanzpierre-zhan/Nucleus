@@ -2456,8 +2456,10 @@ function cotCambiarVista(vista) {
             pago.show();
             if (table.getColumn('TIPO DE GASTO')) table.moveColumn('TIPO GASTO APROBACION', 'TIPO DE GASTO', true);
         }
-        let anterior = pago ? 'TIPO GASTO APROBACION' : '_key';
-        for (const campo of ['ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR']) {
+        // Los documentos deben quedar al inicio, junto al número del caso;
+        // después de los gastos se perdían fuera de la pantalla en el layout real.
+        let anterior = '_key';
+        for (const campo of ['ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR', 'NOMBRE CORREO CLIENTE']) {
             if (table.getColumn(campo) && table.getColumn(anterior)) table.moveColumn(campo, anterior, true);
             anterior = campo;
         }
