@@ -2841,16 +2841,7 @@ function cotAbrirProveedor(key) {
     const row = rawData.find(r => r._key === key);
     if (!row) return;
     _cotProveedorModal = {key, url: row['ADJUNTO FACTURA PROVEEDOR'] || '', subiendo: false};
-    const descargas = document.getElementById('cot-proveedor-descargas');
-    descargas.replaceChildren();
-    for (const [campos, titulo] of [[['CORREO DE VALIDACION','ADJUNTO CORREO VALIDACION'],'Correo de validación'],[['ADJUNTO CORREO CLIENTE'],'Correo de aprobación del cliente'],[['ADJUNTO COTIZACION PROVEEDOR'],'Cotización del proveedor'],[['ADJUNTO FACTURA PROVEEDOR'],'Factura del proveedor']]) {
-        const url = String(campos.map(campo=>row[campo]).find(Boolean) || '').trim();
-        const el = document.createElement(/^\/api\/(?:cotizacion|rendicion)\/correo\//.test(url) ? 'a' : 'span');
-        el.className = 'action-pill pill-neutral';
-        el.textContent = (el.tagName === 'A' ? '↓ ' : '') + titulo + (el.tagName === 'A' ? '' : ' · Sin adjunto');
-        if (el.tagName === 'A') {el.href = url; el.download = '';}
-        descargas.appendChild(el);
-    }
+    // El modal ya no muestra el bloque "Documentos adjuntos".
     document.getElementById('cot-proveedor-sub').textContent = 'Cotización: ' + key;
     document.getElementById('cot-factura-numero').value = row['NUMERO FACTURA PROVEEDOR'] || '';
     document.getElementById('cot-factura-subtotal').value = row['SUBTOTAL FACTURA PROVEEDOR'] ?? '';
