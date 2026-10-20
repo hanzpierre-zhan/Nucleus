@@ -5205,7 +5205,27 @@ let _rendCambiandoVista = false;
 
     };
 
+    let _tablaCasoLista = false;
+    function enfocarCasoAnalytics() {
+        const caso = new URLSearchParams(window.location.search).get('caso');
+        if (!caso || !_tablaCasoLista) return;
+        if (IS_COTIZACIONES && typeof cotCambiarVista !== 'function') return;
+        if (IS_RENDICION && typeof rendCambiarVista !== 'function') return;
+        const fila = rawData.find(r => String(r._key || '') === caso);
+        if (!fila) return;
+        if (IS_COTIZACIONES) cotCambiarVista(cotPestaniaDe(fila));
+        if (IS_RENDICION) {
+            const estado = rendEstadoParaVista(fila);
+            const vista = Object.keys(REND_VISTAS).find(k => REND_VISTAS[k].estados.includes(estado));
+            if (vista) rendCambiarVista(vista);
+        }
+        table.clearHeaderFilter();
+        table.addFilter('_key', '=', caso);
+    }
+
     table.on("tableBuilt", function(){
+        _tablaCasoLista = true;
+        enfocarCasoAnalytics();
 
         try{
 

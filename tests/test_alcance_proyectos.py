@@ -266,3 +266,16 @@ def test_supervisor_descarga_importa_y_elimina_solo_su_proyecto(app, client, uni
     with app.app_context():
         assert NucleusData.query.filter_by(proyecto_id=ids['SITE'], key_value='SCOPE-SUPERVISOR').first() is None
         assert NucleusData.query.filter_by(proyecto_id=ids['SITE'], key_value='SCOPE-SITE-ENTEL').first() is not None
+
+
+@pytest.mark.parametrize('modulo,ruta', [('Cotizaciones', 'cotizaciones'), ('Rendicion', 'rendicion')])
+def test_dashboard_respeta_proyectos_asignados(app, client, universo, modulo, ruta):
+    asignar(app, universo, ['FLM - ENTEL'])
+    uid, ids, _ = universo
+    with client.session_transaction() as s:
+        s.update(user_id=uid, rol='supervisor', username='alcance-prueba', current_proyecto_id=ids[modulo], current_proyecto_nombre=modulo)
+    response = client.get('/analytics/' + ruta)
+    assert response.status_code == 200
+    assert 'SCOPE-' + modulo + '-ENTEL' in response.text
+    for otro in ('CLARO', 'INTEGRATEL', 'PEXT'):
+        assert 'SCOPE-' + modulo + '-' + otro not in response.text

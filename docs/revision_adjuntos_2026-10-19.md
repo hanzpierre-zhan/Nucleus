@@ -62,8 +62,7 @@ antes de la reparación. No se imprimieron ni se incorporaron credenciales al re
   recuperadas o con su ruta corregida y 27 PDF recuperados conservando todas sus páginas.
 - 3.607 rutas de fotos de WO revisadas: 3.604 válidas y tres eliminadas con versión
   histórica disponible. El usuario autorizó restaurarlas: se respaldaron y validaron
-  las versiones históricas y se subieron nuevamente. Su lectura final está pendiente
-  por la cuota del proveedor.
+  las versiones históricas y se subieron nuevamente. Su lectura final quedó verificada después del reinicio del cupo del proveedor.
 - Los PDF se guardaron con extensión `.pdf`; se actualizaron únicamente sus enlaces
   en las filas correspondientes, con respaldo previo y comparación del valor original.
 - Se conservaron copias locales, hashes y diarios de las reparaciones bajo
@@ -76,8 +75,10 @@ habituales de la aplicación. No se modificaron los límites de gasto; se solici
 al usuario revisar Backblaze → B2 Cloud Storage → Caps & Alerts. No debe repetirse
 una auditoría masiva de descargas sin comprobar primero el presupuesto disponible.
 
-La conexión Render sigue pendiente para desplegar las correcciones preventivas
-y respaldar los correos que todavía solo residan en el disco de la instancia.
+Se confirmó el despliegue del ordenador: el archivo servido por Render coincide
+byte por byte con el commit a54a97d y el servicio responde. Sigue pendiente el acceso
+a la instancia para respaldar los correos históricos que solo residan en su disco;
+la comprobación de B2 no demuestra la conservación de esos correos.
 
 ## Orden de tablas
 
@@ -88,7 +89,7 @@ moneda, manteniendo vacíos al final en los dos sentidos.
 
 Prueba de navegador aprobada: orden inicial de más reciente a más antiguo, clics
 ascendente/descendente, cambio de mes, horas e importes. La corrección de tablas
-está local y requiere despliegue.
+ya se comprobó publicada en Render.
 
 ## Cierre previo al commit
 
@@ -96,3 +97,24 @@ Suite completa final: 457 pruebas aprobadas, incluidas las pruebas de navegador;
 no hubo pruebas omitidas. Continuación puntual programada para el 19 de octubre
 de 2026 a las 19:05, hora de Perú, tras el reinicio del cupo diario de B2.
 No se autorizaron cambios en los límites de gasto.
+
+## Verificación posterior a las 19:00
+
+El usuario pidió ejecutar la continuación manualmente. B2 volvió a permitir
+lecturas tras el reinicio del contador. Se realizaron únicamente cinco descargas:
+
+- CM-20260827-00000249/cierre_1.jpg: imagen válida y SHA-256 idéntico al respaldo restaurado.
+- CM-20260721-00000121/pex_7.jpg: imagen válida y SHA-256 idéntico al respaldo restaurado.
+- CM-20260913-00000111/pex_4.jpg: imagen válida y SHA-256 idéntico al respaldo restaurado.
+- COB-00031, sustento_form_001.jpg: imagen válida y SHA-256 idéntico al restaurado.
+- COB-00031, sustento_form_003.jpg: imagen válida y SHA-256 idéntico al restaurado.
+
+El servicio Render responde y `static/js/orden-tablas.js` coincide con el archivo
+del commit a54a97d. La comprobación programada de las 19:05 quedó pausada al haberse
+completado manualmente, evitando una ejecución duplicada. No se cambiaron cuotas,
+credenciales ni datos de solicitudes. No se tocó el trabajo de dashboards que
+actualmente está pendiente en el directorio compartido.
+
+La comprobación autenticada de la interfaz de producción y el respaldo de correos
+históricos que solo estén en Render siguen necesitando acceso a la aplicación o
+a la instancia; no se declaran verificados por esta revisión.

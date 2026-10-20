@@ -1,0 +1,27 @@
+<section class="di-card dq-panel" id="dq-panel" data-mode="{{ consulta_tipo }}" data-project-id="{{ proyecto_id }}">
+  <div class="dq-title"><h2>Consulta y filtros</h2><span id="dq-selection" aria-live="polite"></span></div>
+  <details><summary>Más filtros: fechas, departamento, estado y personas</summary><div class="dq-filters">
+    <label>Fecha de referencia<select id="dq-date"></select></label>
+    <label>Desde<input type="date" id="dq-from"></label><label>Hasta<input type="date" id="dq-to"></label>
+    <label>Departamento<select id="dq-department"><option value="">Todos</option></select></label>
+    <label>Estado guardado<select id="dq-state"><option value="">Todos</option></select></label>
+    <label>Situación del proceso<select id="dq-situation"><option value="">Todas</option></select></label>
+    {% if consulta_tipo == 'rendicion' %}
+    <label>Responsable de validación<select id="dq-assigned"><option value="">Todos</option></select></label>
+    <label>Validó efectivamente<select id="dq-validator"><option value="">Todos</option></select></label>
+    <label>Depositó<select id="dq-depositor"><option value="">Todos</option></select></label>
+    <label>Beneficiario<select id="dq-person"><option value="">Todos</option></select></label>
+    <label>Supervisor encargado<select id="dq-supervisor"><option value="">Todos</option></select></label>
+    <label>Tipo de gasto<select id="dq-expense"><option value="">Todos</option></select></label>
+    {% else %}
+    <label>Gasto de aprobación<select id="dq-approval"><option value="">Todos</option></select></label>
+    {% endif %}
+    <label>Usuario registrador<select id="dq-recorder"><option value="">Todos</option></select></label>
+    <label>Cerró / atendió<select id="dq-closer"><option value="">Todos</option></select></label>
+    <label>Nombre registrado<select id="dq-name"><option value="">Todos</option></select></label>
+    <label>Buscar caso, WO, site o persona<input type="search" id="dq-search" placeholder="Escribe para filtrar"></label>
+  </div></details>
+  <p id="dq-date-note"></p>
+  {% if consulta_tipo == 'rendicion' %}<div class="dq-summary" id="dq-summary" aria-live="polite"></div>{% endif %}
+  {% if consulta_tipo == 'cotizaciones' %}<p>No hay un campo de ingreso cobrado efectivo en Cotizaciones. Los montos cotizados, aprobados y las facturas de proveedor se muestran separados; ninguno acredita un cobro.</p>{% endif %}
+</section>

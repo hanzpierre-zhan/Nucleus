@@ -1,0 +1,14 @@
+  <details class="dq-analysis dq-panel di-order-details" id="dq-analysis"><summary>Ver concentración por proyecto, usuario y etapa · detalle para seguimiento</summary>
+  {% if consulta_tipo == 'cotizaciones' %}<div class="dq-summary" id="dq-summary" aria-live="polite"></div>{% endif %}
+  <div class="dq-title"><h2>Concentración de casos y montos por etapa</h2>
+    <label>Agrupar por<select id="dq-group"></select></label>
+    <label>Importe<select id="dq-money"></select></label>
+  </div>
+  <p>Ordenado por cantidad de peticiones. Cada caso cuenta una vez; seleccionar una celda muestra sus casos debajo. La atribución indica lo registrado, no demuestra quién causó una demora.</p>
+  <div class="di-table-scroll dq-scroll"><table><thead id="dq-matrix-head"></thead><tbody id="dq-matrix"></tbody><tfoot id="dq-matrix-total"></tfoot></table></div>
+  <details class="dq-cases"><summary>Casos para seguimiento <span id="dq-cases-count"></span></summary>
+    <p>La espera de etapa usa su transición o fecha específica registrada. Si falta, se indica «sin fecha»; los días desde solicitud se muestran aparte. No se estima una etapa con la fecha de creación.</p>
+    <div class="di-table-scroll dq-scroll"><table><thead><tr><th>Caso</th><th>Proyecto</th><th>Situación</th><th>Solicitó / registró</th><th>Referencia del proceso</th><th>Importe</th><th>Días en etapa</th><th>Fuente de fecha</th><th>Desde solicitud</th></tr></thead><tbody id="dq-cases"></tbody></table></div>
+    <div class="di-pagination"><button type="button" class="action-pill pill-neutral" id="dq-prev">Anterior</button><span id="dq-page"></span><button type="button" class="action-pill pill-neutral" id="dq-next">Siguiente</button><button type="button" class="action-pill pill-neutral" id="dq-reset-drill">Ver toda la selección</button></div>
+  </details>
+  </details>

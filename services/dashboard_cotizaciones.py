@@ -14,6 +14,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from services.dashboard_integratel import fecha as _fecha
+from services.dashboard_consulta import comunes, valor, proyecto, dia, validacion_sustento, espera, gasto
 
 
 # ── Pestaña de la fila — idéntico a blueprints/cotizacion.py ─────────────────
@@ -85,11 +86,24 @@ def indicadores(rows, hoy=None):
         monto = _money(row.get('SUB TOTAL + FEE'))
         monto_total += monto
         detalle.append({
+            **comunes(row),
+            **espera(row, hoy, {'registro': ['FECHA'] if estado.lower().startswith('pdt') else [],
+                              'cliente': ['FECHA ENVIO CLIENTE', 'FECHA COTIZADO'],
+                              'sustentar': ['FECHA APROBACION'], 'atendido': ['FECHA ATENCION']}.get(pest, []), cerrado=pest in ('atendido', 'cancelado')),
+            'cerrado': pest in ('atendido', 'cancelado'),
             'n': _txt(row.get('N° COTIZACION'), row.get('_key')),
             'key': _txt(row.get('_key')),
             'cliente': _txt(row.get('CLIENTE')) or 'Sin cliente',
             'proyecto': _txt(row.get('NOMBRE DE PROYECTO'), row.get('NOMBRE PROYECTO'), row.get('PROYECTO'), row.get('CLIENTE')) or 'Sin proyecto',
-            'gasto': _txt(row.get('TIPO DE GASTO')) or 'Sin clasificar',
+            'gasto': gasto(row.get('TIPO DE GASTO'), 'Sin clasificar'),
+            'gasto_aprobacion': gasto(row.get('TIPO GASTO APROBACION'), 'Sin definir'),
+            'proyecto_familia': proyecto(valor(row, 'CLIENTE', 'PROYECTO')),
+            'situacion': ('Sustentado · validado y atendido' if pest == 'atendido' and validacion_sustento(row)
+                         else 'Atendido · sin validación de sustento registrada' if pest == 'atendido'
+                         else 'Sustento validado · pendiente de cierre' if pest == 'sustentar' and validacion_sustento(row)
+                         else 'Aprobado · sustento sin validación registrada' if pest == 'sustentar'
+                         else 'En aprobación · pendiente del cliente' if pest == 'cliente'
+                         else 'Anulado' if pest == 'cancelado' else 'Registro'),
             'site': _txt(row.get('NOMBRE SITE')),
             'tipo': _txt(row.get('TIPO DE COTIZACION')) or 'Sin tipo',
             'gestor': gestor or 'Sin gestor',
@@ -101,16 +115,22 @@ def indicadores(rows, hoy=None):
             'proveedor': _en_proveedor(row),
             'generada': _flag(row.get('GENERADA')),
             'monto': monto,
+            'monto_registrado': bool(str(row.get('SUB TOTAL + FEE') if row.get('SUB TOTAL + FEE') is not None else '').strip()),
+            'facturado_registrado': bool(str(row.get('SUBTOTAL FACTURA PROVEEDOR') if row.get('SUBTOTAL FACTURA PROVEEDOR') is not None else '').strip()),
             'facturado': _money(row.get('SUBTOTAL FACTURA PROVEEDOR')),
             'mes': f_cre.strftime('%Y-%m') if f_cre else '',
             'dia': f_cre.isoformat()[:10] if f_cre else '',
+            'dia_solicitud': f_cre.isoformat()[:10] if f_cre else '',
+            'dia_cotizacion': dia(row.get('FECHA COTIZADO')),
+            'dia_aprobacion': dia(row.get('FECHA APROBACION')),
+            'dia_atencion': dia(row.get('FECHA ATENCION')),
             'f_cot': f_cot.isoformat() if f_cot else '',
             'f_apr': f_apr.isoformat() if f_apr else '',
             'f_ate': f_ate.isoformat() if f_ate else '',
             'mes_ate': f_ate.strftime('%Y-%m') if f_ate else '',
             # Aging solo tiene sentido en Sustentar (aprobada sin atender).
             'aging': (hoy - f_apr).days if (pest == 'sustentar' and f_apr) else None,
-            'sustento_ok': _flag(row.get('_SUSTENTO_VALIDADO')) or _flag(row.get('_SUSTENTO_APROBADO')),
+            'sustento_ok': validacion_sustento(row),
             'factura_ok': bool(_txt(row.get('ADJUNTO FACTURA PROVEEDOR'))),
             'cotprov_ok': bool(_txt(row.get('ADJUNTO COTIZACION PROVEEDOR'))),
             'correo_ok': bool(_txt(row.get('ADJUNTO CORREO CLIENTE'))),
@@ -126,4 +146,5 @@ def indicadores(rows, hoy=None):
         'total': len(detalle),
         'monto_total': round(monto_total, 2),
         'detalle': detalle,
+        'ingreso_disponible': False,
     }

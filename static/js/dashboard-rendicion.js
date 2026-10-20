@@ -3,12 +3,13 @@
     const data = JSON.parse(document.getElementById('di-data').textContent);
     const get = id => document.getElementById(id);
     const rows = data.detalle;
+    const consulta = window.NucleusDashboardConsulta.create(rows, data);
     let page = 0, visible = [];
 
     const num = v => new Intl.NumberFormat('es-PE').format(v);
     const _currency = new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' });
     const money = v => _currency.format(v || 0);
-    const moneyShort = v => 'S/ ' + new Intl.NumberFormat('es-PE', { maximumFractionDigits: 0 }).format(Math.round(v || 0));
+    const moneyShort = money; // Mantener céntimos también en resúmenes.
     const total = (items, k) => items.reduce((a, r) => a + (r[k] || 0), 0);
 
     const ETAPAS = [
@@ -31,7 +32,7 @@
     function fillDays() {
         const m = get('di-month').value, sel = get('di-day'), prev = sel.value;
         sel.disabled = !m;
-        sel.replaceChildren(new Option('Todos los días', ''));
+        sel.replaceChildren(new Option('Todos', ''));
         if (!m) return;
         const dias = [...new Set(rows.filter(r => r.mes === m && r.dia).map(r => r.dia.slice(8, 10)))].sort();
         dias.forEach(d => sel.add(new Option(d, d)));
@@ -43,30 +44,11 @@
             b = get('di-budget').value, o = get('di-owner').value;
         return rows.filter(r =>
             (!m || r.mes === m) && (!d || (r.dia || '').slice(8, 10) === d) &&
-            (!p || r.proyecto === p) && (!b || r.presupuesto === b) && (!o || r.solicito === o));
+            (!p || r.proyecto === p) && (!b || r.presupuesto === b) && (!o || r.solicito === o) && consulta.matches(r)
+            && (!get('dr-etapa-filtro').value || r.etapa === get('dr-etapa-filtro').value));
     }
 
-    function bars(id, values, opts) {
-        opts = opts || {};
-        const box = get(id); box.classList.add('di-ranking'); box.replaceChildren();
-        if (!values.length) {
-            const empty = document.createElement('p');
-            empty.className = 'di-empty'; empty.textContent = 'No hay registros para estos filtros.';
-            box.append(empty); return;
-        }
-        const max = Math.max(...values.map(v => v[1]), 1);
-        values.forEach(([label, value, hint]) => {
-            const row = document.createElement('div'); row.className = 'di-bar-row';
-            const name = document.createElement('span'); name.className = 'di-bar-name';
-            name.textContent = window.NucleusIdentity.text(label); name.title = label;
-            const track = document.createElement('div'); track.className = 'di-bar-track';
-            const fill = document.createElement('div'); fill.className = 'di-bar-fill';
-            fill.style.width = (100 * value / max) + '%'; track.append(fill);
-            const b = document.createElement('b'); b.textContent = opts.fmt ? opts.fmt(value) : value;
-            if (hint) row.title = hint;
-            row.append(name, track, b); box.append(row);
-        });
-    }
+    const bars = window.NucleusDashboardGraficos.render;
 
     function groupAgg(items, key) {
         const m = new Map();
@@ -104,9 +86,9 @@
         get('di-progress-fill').parentElement.title = atendidas + ' cerradas de ' + v.length;
     }
 
-    function months() {
+    function months(v) {
         const p = get('di-client').value, b = get('di-budget').value, o = get('di-owner').value;
-        const half = rows.filter(r => r.mes && (!p || r.proyecto === p) && (!b || r.presupuesto === b) && (!o || r.solicito === o));
+        const half = v.filter(r => r.mes);
         const porMes = new Map();
         half.forEach(r => {
             const e = porMes.get(r.mes) || { n: 0, atn: 0, monto: 0, pagado: 0 };
@@ -117,7 +99,7 @@
         const max = Math.max(0, ...lista.map(x => x[1].n), 1);
         const sel = get('di-month').value || data.mes_actual;
         const box = get('di-months'); box.replaceChildren();
-        const alto = Math.max(54, box.clientHeight - 32);
+        const alto = 110;
         lista.forEach(([mes, e]) => {
             const bar = document.createElement('div');
             bar.className = 'di-month' + (mes === sel ? ' di-month-selected' : '');
@@ -142,12 +124,12 @@
         const totalN = counts.reduce((a, b) => a + b, 0), max = Math.max(...counts, 1);
         get('di-daily-month').textContent = month;
         get('di-daily-caption').textContent = totalN
-            ? totalN + ' solicitudes · ' + money(montos.reduce((a, b) => a + b, 0)) + ' · por fecha de solicitud'
+            ? totalN + ' solicitudes · ' + money(montos.reduce((a, b) => a + b, 0)) + ' · ' + consulta.dateLabel()
             : 'Nada solicitado en este mes; elige otro mes para consultar el histórico';
         const ns = 'http://www.w3.org/2000/svg';
         const el = (tag, attrs, text) => { const e = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k, v2]) => e.setAttribute(k, v2)); if (text !== undefined) e.textContent = text; return e; };
         const box = get('di-daily');
-        const width = Math.max(320, box.clientWidth), height = Math.max(96, box.clientHeight);
+        const width = Math.max(320, box.clientWidth), height = 170;
         const left = 24, right = width - 6, bottom = height - 18;
         const svg = el('svg', { viewBox: '0 0 ' + width + ' ' + height, preserveAspectRatio: 'none', role: 'img', 'aria-label': totalN + ' rendiciones por día en ' + month });
         const step = (right - left) / days;
@@ -159,7 +141,7 @@
                 bar.append(el('title', {}, month + '-' + String(i + 1).padStart(2, '0') + ': ' + v2 + ' solicitudes · ' + money(montos[i]))); svg.append(bar);
                 svg.append(el('text', { x: x(i), y: y(v2) - 5, 'text-anchor': 'middle', class: 'di-daily-value' }, v2));
             }
-            svg.append(el('text', { x: x(i), y: height - 3, 'text-anchor': 'middle', class: 'di-daily-label' }, i + 1));
+            if (width >= 500 || i % 5 === 0 || i === days - 1) svg.append(el('text', { x: x(i), y: height - 3, 'text-anchor': 'middle', class: 'di-daily-label' }, i + 1));
         });
         box.replaceChildren(svg);
     }
@@ -169,20 +151,20 @@
 
         bars('dr-etapas', ETAPAS.map(([k, l]) => {
             const it = v.filter(r => r.etapa === k);
-            return [l, it.length, it.length + ' casos · ' + money(total(it, 'monto'))];
+            return [l, it.length, it.length + ' casos · ' + money(total(it, 'monto')), total(it, 'monto')];
         }));
         bars('dr-money', ETAPAS.map(([k, l]) => {
             const it = v.filter(r => r.etapa === k);
-            return [l, Math.round(total(it, 'monto')), money(total(it, 'monto'))];
-        }).filter(x => x[1] > 0), { fmt: moneyShort });
+            return [l, total(it, 'monto'), it.length + ' casos', undefined, it.length];
+        }).filter(x => x[1] > 0), { fmt: money });
 
-        bars('dr-owner', groupAgg(abiertas, 'solicito').slice(0, 8)
-            .map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' casos abiertos · ' + money(e.monto)]));
+        bars('dr-owner', groupAgg(abiertas, 'solicito')
+            .map(([k, e]) => [k, e.n, e.n + ' casos abiertos · ' + money(e.monto), e.monto]));
 
         // Validado pero sin depositar: lo que está frenado en Depósitos
         const pend = v.filter(r => r.etapa === 'DEPOSITOS');
-        bars('dr-pend', groupAgg(pend, 'valido_por').slice(0, 8)
-            .map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n, e.n + ' por depositar · ' + money(e.monto)]));
+        bars('dr-pend', groupAgg(pend, 'valido_por')
+            .map(([k, e]) => [k, e.n, e.n + ' por depositar · ' + money(e.monto), e.monto]));
         const chips = document.createElement('div');
         chips.className = 'dr-chips';
         chips.innerHTML = '<span class="dr-chip">Validado sin pagar: <strong>' + pend.length + '</strong></span>' +
@@ -199,8 +181,8 @@
         });
         bars('dr-aging', buckets);
 
-        bars('dr-budget', groupAgg(v, 'presupuesto').slice(0, 8).map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n]));
-        bars('dr-prov', groupAgg(v, 'proyecto').slice(0, 8).map(([k, e]) => [k + ' · ' + moneyShort(e.monto), e.n]));
+        bars('dr-budget', groupAgg(v, 'presupuesto').map(([k, e]) => [k, e.n, '', e.monto]));
+        bars('dr-prov', groupAgg(v, 'proyecto').map(([k, e]) => [k, e.n, '', e.monto]));
 
         const rech = new Map();
         v.forEach(r => { if (r.veces_rechazado) { const k = r.veces_rechazado + ' vez/veces'; rech.set(k, (rech.get(k) || 0) + 1); } });
@@ -223,8 +205,8 @@
         const tb = get('dr-orders'); tb.replaceChildren();
         subset.slice(page * 50, page * 50 + 50).forEach(r => {
             const tr = document.createElement('tr');
-            [r.codigo, r.proyecto, r.site || '—', r.beneficiario, money(r.pagado || r.monto), money(r.solicitado),
-             r.estado, ETAPA_LABEL[r.etapa], r.solicito, r.valido_por || '—', r.deposito_por || '—', r.dia || '—',
+            [r.codigo, r.proyecto, r.site || '—', r.beneficiario, r.pago_registrado ? money(r.pagado) : 'Sin importe registrado', money(r.solicitado),
+             r.estado, ETAPA_LABEL[r.etapa], r.solicito, r.valido_por || '—', r.deposito_por || '—', r.dia_solicitud || '—',
              r.foto_pago ? 'Sí' : '—']
                 .forEach((c, i) => {
                     const td = document.createElement('td');
@@ -247,21 +229,24 @@
         visible = filtered();
         const set = kpis(visible);
         story(visible, set);
-        months();
+        months(visible);
         daily(visible);
         paneles(visible);
+        consulta.render(visible);
         page = 0; table();
     }
 
     ['di-month', 'di-client', 'di-budget', 'di-owner'].forEach(id => get(id).addEventListener('change', () => { if (id === 'di-month') fillDays(); render(); }));
     get('di-day').addEventListener('change', render);
-    get('dr-etapa-filtro').addEventListener('change', () => { page = 0; table(); });
+    get('dr-etapa-filtro').addEventListener('change', render);
     get('di-clear').addEventListener('click', () => {
         ['di-month', 'di-day', 'di-client', 'di-budget', 'di-owner', 'dr-etapa-filtro'].forEach(id => get(id).value = '');
         fillDays(); render();
     });
     get('dr-prev').addEventListener('click', () => { page--; table(); });
     get('dr-next').addEventListener('click', () => { page++; table(); });
+    consulta.bind(render, fillDays);
     fillDays();
     render();
+    window.NucleusDashboardGraficos.observeWidth(document.getElementById('di-daily'), () => daily(visible));
 })();

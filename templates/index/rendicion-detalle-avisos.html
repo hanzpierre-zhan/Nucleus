@@ -2982,7 +2982,7 @@ function cotConfirmarModal() {
 }
 document.addEventListener('DOMContentLoaded', () => {
 
-    setTimeout(() => { rendCambiarVista('validacion'); rendActualizarContadores(); }, 0);
+    setTimeout(() => { rendCambiarVista('validacion'); rendActualizarContadores(); if (IS_RENDICION) enfocarCasoAnalytics(); }, 0);
 
     if (IS_COTIZACIONES) setTimeout(() => {
 
@@ -3003,6 +3003,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!COT_VISTAS[destino]) destino = 'registro';
 
         cotCambiarVista(destino);
+        enfocarCasoAnalytics();
 
     }, 0);
 

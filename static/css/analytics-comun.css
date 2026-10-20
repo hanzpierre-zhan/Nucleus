@@ -25,3 +25,7 @@
 .dark-mode .dash-switch-item.is-active{background:#91B9F3;border-color:#91B9F3;color:#10233f}
 @media(max-width:600px){.dash-switch{margin-top:5px}.dash-switch-item{font-size:10px;padding:3px 8px}.dash-switch-label{display:none}}
 @media(min-width:1101px) and (max-height:800px){.dash-switch{margin-top:5px}.dash-switch-item{padding:2px 8px;font-size:10px}}
+
+/* Barras legibles en ambos dashboards sin alterar su grilla. */
+.dc-page .di-ranking .di-bar-track,.dr-page .di-ranking .di-bar-track{height:10px;border-radius:5px}
+.dc-page .di-ranking .di-bar-row,.dr-page .di-ranking .di-bar-row{min-height:22px;height:auto}

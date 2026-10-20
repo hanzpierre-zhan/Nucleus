@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from services.dashboard_integratel import fecha as _fecha
 from services.dashboard_cotizaciones import _money
+from services.dashboard_consulta import comunes, valor, proyecto, dia, espera
 
 
 # ── Estados → pestaña (idéntico a blueprints/rendicion.py::_etapa_de) ────────
@@ -53,16 +54,25 @@ def indicadores(rows, hoy=None):
         etapa = _etapa_de(row)
         solicitado = _money(row.get('Monto total del depósito'))
         pagado = _money(row.get('MONTO PAGO'))
-        monto = pagado or solicitado
+        tiene_pago = str(row.get('MONTO PAGO') if row.get('MONTO PAGO') is not None else '').strip() != ''
+        monto = pagado if tiene_pago else solicitado
         monto_total += monto
         detalle.append({
+            **comunes(row),
+            **espera(row, hoy, {'PENDIENTE': ['Marca temporal'], 'VALIDADO': ['FECHA VALIDACION'],
+                              'DEPOSITADO': ['FECHA PAGO'], 'OBSERVADO': ['FECHA OBSERVACION'],
+                              'CON SUSTENTO': ['SUSTENTO_MARCA TEMPORAL'],
+                              'SUSTENTADO': ['FECHA SUSTENTO'], 'ARCHIVADO': ['FECHA ARCHIVO'],
+                              'RECHAZADO': ['FECHA RECHAZO']}.get(_estado_de(row), []), _estado_de(row), etapa in ETAPAS_CERRADAS),
+            'cerrado': etapa in ETAPAS_CERRADAS,
             'key': _txt(row.get('_key')),
             'codigo': _txt(row.get('Número CM / PM / PLM'), row.get('_key')),
             'site': _txt(row.get('Nombre de site')),
-            'proyecto': _txt(row.get('Nombre del proyecto')) or 'Sin proyecto',
+            'proyecto': proyecto(valor(row, 'Nombre del proyecto', 'PROYECTO', 'CLIENTE')),
             'beneficiario': _txt(row.get('Técnico beneficiario')) or 'Sin beneficiario',
-            'solicito': _txt(row.get('INTERACCION'), row.get('Responsable de la validación'),
-                             row.get('Supervisor encargado')) or 'Sin datos',
+            'solicito': _txt(valor(row, 'SOLICITADO POR', 'NOMBRE SOLICITANTE', 'Nombre del solicitante')) or 'Sin datos',
+            'ultimo_interactor': _txt(row.get('INTERACCION')),
+            'responsable_validacion': _txt(valor(row, 'Responsable de la validación')) or 'Sin responsable',
             'supervisor': _txt(row.get('Supervisor encargado')) or 'Sin supervisor',
             'estado': _estado_de(row),
             'etapa': etapa,
@@ -70,9 +80,20 @@ def indicadores(rows, hoy=None):
             'gasto': _txt(row.get('Tipo de gasto')) or 'Sin tipo',
             'monto': monto,
             'solicitado': solicitado,
+            'solicitado_registrado': bool(str(row.get('Monto total del depósito') if row.get('Monto total del depósito') is not None else '').strip()),
             'pagado': pagado,
+            'pago_registrado': tiene_pago,
+            'depositado': tiene_pago and etapa in ('EVIDENCIA', 'SUSTENTO', 'OBSERVADO', 'ATENDIDO', 'ARCHIVADO'),
+            'situacion': {'DEPOSITADO': 'Depositado · pendiente de sustento',
+                          'CON SUSTENTO': 'Sustento cargado · pendiente de validación',
+                          'SUSTENTADO': 'Sustentado · validado',
+                          'ARCHIVADO': 'Sustentado · archivado'}.get(_estado_de(row), _estado_de(row)),
             'mes': f_cre.strftime('%Y-%m') if f_cre else '',
             'dia': f_cre.isoformat()[:10] if f_cre else '',
+            'dia_solicitud': f_cre.isoformat()[:10] if f_cre else '',
+            'dia_pago': dia(row.get('FECHA PAGO')),
+            'dia_validacion': dia(row.get('FECHA VALIDACION')),
+            'dia_sustento': dia(row.get('FECHA SUSTENTO')),
             'f_pago': _txt(row.get('FECHA PAGO')),
             'f_valid': _txt(row.get('FECHA VALIDACION')),
             'f_sust': _txt(row.get('FECHA SUSTENTO')),
