@@ -110,7 +110,7 @@ def test_batch_invalido_no_guarda_parcialmente(app,equipo):
     assert c.post('/api/asistencia/dia',headers=equipo['headers'],json={'fecha':'mal','registros':[marca]}).status_code==400
 
 
-def test_contrata_no_marca_y_personal_con_asistencia_no_se_elimina(app,auth_client,equipo):
+def test_contrata_marca_solo_su_proyecto_y_personal_no_se_elimina(app,auth_client,equipo):
     c=equipo['c'];r=c.get('/api/asistencia/dia?fecha=2026-10-17').json['registros'][0]
     marca={k:r[k] for k in ('personal_id','proyecto_id','version')};marca.update(estado='PRESENTE',observacion='')
     assert c.post('/api/asistencia/dia',headers=equipo['headers'],json={'fecha':'2026-10-17','registros':[marca]}).status_code==200
@@ -118,5 +118,32 @@ def test_contrata_no_marca_y_personal_con_asistencia_no_se_elimina(app,auth_clie
     with app.app_context():key=db.session.get(NucleusData,marca['personal_id']).key_value
     assert auth_client.post('/api/rows/delete',json={'keys':[key]}).status_code==409
     with app.app_context():db.session.get(Usuario,equipo['uid']).rol='contrata';db.session.commit()
-    marca['version']=1;marca['estado']='FALTA'
-    assert c.post('/api/asistencia/dia',headers=equipo['headers'],json={'fecha':'2026-10-17','registros':[marca]}).status_code==403
+    plan=c.get('/api/asistencia/planilla?mes=2026-10').json
+    assert all(p['editar'] for p in plan['registros'])
+    for version,estado in enumerate(('FALTA','DESCANSO','PERMISO','LICENCIA','VACACIONES','PRESENTE'),1):
+        marca.update(version=version,estado=estado)
+        assert c.post('/api/asistencia/dia',headers=equipo['headers'],json={'fecha':'2026-10-17','registros':[marca]}).status_code==200
+    assert c.post('/api/asistencia/dia?proyecto='+str(equipo['ids']['FLM - ENTEL']),headers=equipo['headers'],json={'fecha':'2026-10-17','registros':[marca]}).status_code==403
+
+
+def test_contrata_respeta_revocacion_de_escritura(app,equipo):
+    c=equipo['c']
+    with app.app_context():
+        db.session.get(Usuario,equipo['uid']).rol='contrata'
+        cuenta=db.session.get(CuentaEspacio,equipo['uid'])
+        if cuenta:
+            acceso=AccesoEspacio.query.filter_by(usuario_id=equipo['uid']).first()
+            perfil=db.session.get(PerfilEspacio,acceso.perfil_id)
+            perfil.permisos_json=json.dumps({'personal':['consultar','exportar']})
+        else:
+            AccesoProyecto.query.filter_by(usuario_id=equipo['uid'],proyecto_id=equipo['ids']['FLM - CLARO']).delete()
+        db.session.commit()
+    plan=c.get('/api/asistencia/planilla?mes=2026-10').json['registros']
+    with app.app_context():cuenta=db.session.get(CuentaEspacio,equipo['uid'])
+    if cuenta:
+        assert all(not p['editar'] for p in plan)
+        p=plan[0]
+        marca={'personal_id':p['personal_id'],'proyecto_id':p['proyecto_id'],'version':0,'estado':'PRESENTE','observacion':''}
+        assert c.post('/api/asistencia/dia',headers=equipo['headers'],json={'fecha':'2026-10-18','registros':[marca]}).status_code==403
+    else:
+        assert all(p['proyecto_id']!=equipo['ids']['FLM - CLARO'] for p in plan)

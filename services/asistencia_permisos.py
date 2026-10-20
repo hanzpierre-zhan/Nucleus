@@ -18,7 +18,7 @@ def ambitos():
         lectura = espacios.ids_permitidos("personal")
         escritura = (
             espacios.ids_permitidos("personal", "editar")
-            if usuario.rol in ("gestor", "supervisor")
+            if usuario.rol in ("gestor", "supervisor", "contrata")
             else set()
         )
     else:
@@ -26,7 +26,7 @@ def ambitos():
         if not any((p.nombre == "Dataper" for p in menu)):
             return ({}, set())
         lectura = {p.id for p in menu if p.id in todos}
-        escritura = lectura if usuario.rol in ("gestor", "supervisor") else set()
+        escritura = lectura if usuario.rol in ("gestor", "supervisor", "contrata") else set()
     return ({k: p for k, p in todos.items() if k in lectura}, escritura)
 
 
