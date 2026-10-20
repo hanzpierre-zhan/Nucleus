@@ -4,6 +4,7 @@ La asignación a un módulo permite usarlo; los proyectos asignados delimitan
 sus registros. La política se aplica a consultas, exportaciones y escrituras.
 """
 import json
+from contextlib import contextmanager
 
 from flask import abort, current_app, has_request_context, request, session
 from sqlalchemy import JSON, and_, case, cast, event, exists, func, or_, select, true
@@ -24,6 +25,27 @@ ALIAS = {'ENTEL': ('flm', 'entel', 'flmentel'),
          'CLARO': ('claro', 'flmclaro'),
          'INTEGRATEL': ('integratel', 'flmintegratel'),
          'PEXT': ('pext', 'flmpext', 'entelpext', 'flmentelpext')}
+
+
+@contextmanager
+def importacion_rendicion():
+    """Trabajo global del importador, después de autorizar acceso al módulo.
+
+    No concede permisos de edición/validación al usuario. Solo Rendición se
+    escribe; Personal se consulta para el cruce por documento de la importación.
+    El indicador es interno a la solicitud y siempre se restaura.
+    """
+    clave = 'nucleus.importacion_rendicion'
+    anterior = request.environ.get(clave)
+    request.environ[clave] = {p.nombre: p.id for p in Proyecto.query.filter(
+        Proyecto.nombre.in_(('Rendicion', 'Dataper')))}
+    try:
+        yield
+    finally:
+        if anterior is None:
+            request.environ.pop(clave, None)
+        else:
+            request.environ[clave] = anterior
 
 
 def contexto():
@@ -149,7 +171,9 @@ def criterio(tabla=None):
                      or_(proyecto.in_(ctx['familias']), and_(proyecto.is_(None),
                          or_(vinculo, vinculo_gen, por_qr, _site_por_operacion(t, ctx)))))
     conocidos = set(operativos) | ctx['compartidos']
-    return or_(t.c.proyecto_id.in_(ctx['operacion']), compartido, ~t.c.proyecto_id.in_(conocidos))
+    importacion = request.environ.get('nucleus.importacion_rendicion', {})
+    return or_(t.c.proyecto_id.in_(ctx['operacion']), compartido,
+               ~t.c.proyecto_id.in_(conocidos), t.c.proyecto_id.in_(importacion.values()))
 
 
 def limitar_opciones(columnas):
@@ -216,6 +240,8 @@ def _escrituras(sesion, *_):
         return
     for fila in set(sesion.new) | set(sesion.dirty) | set(sesion.deleted):
         if not isinstance(fila, NucleusData):
+            continue
+        if fila.proyecto_id == request.environ.get('nucleus.importacion_rendicion', {}).get('Rendicion'):
             continue
         if fila.proyecto_id in ctx['compartidos']:
             datos = json.loads(fila.data_json or '{}')

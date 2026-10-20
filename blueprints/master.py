@@ -336,6 +336,8 @@ def manual_options():
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return jsonify({'error': 'Solicitud inválida.'}), 400
+    if project and project.nombre in ('Generadores', 'Combustible') and normalized(payload.get('nombre')) == normalized('TECNICO ASIGNADO'):
+        return jsonify({'error': 'Los técnicos se administran en Personal.'}), 400
     options = payload.get('opciones')
     if not isinstance(options, list) or len(options) > 500 or any(not isinstance(v, str) or not v.strip() or len(v) > 200 for v in options):
         return jsonify({'error': 'Ingresa opciones válidas, de hasta 200 caracteres.'}), 400

@@ -401,6 +401,11 @@ def api_rows_add():
             key_val = 'WO-TEMP-' + uuid4().hex
         
         # Auto-generate key if none provided (proyecto sin clave primaria definida)
+        if not key_val and proy_nombre_chk == 'Generadores':
+            # El máximo de las filas visibles no es un ID global: otra cuenta
+            # puede tener ese número en un proyecto distinto. Tampoco es seguro
+            # ante dos altas simultáneas. El QR sigue siendo el dato del equipo.
+            key_val = 'GEN-' + uuid4().hex
         if not key_val:
             existing = NucleusData.query.filter_by(proyecto_id=pid).all()
             nums = []

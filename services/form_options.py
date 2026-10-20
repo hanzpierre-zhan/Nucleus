@@ -54,6 +54,9 @@ def choices(columns, project_name):
     if project_name in ('FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'):
         for name, values in FLM_CHOICES.items():
             result.setdefault(normalized(name), {'nombre':name,'tipo':'lista','opciones':values,'configurada':False})
+    if project_name in ('Generadores', 'Combustible'):
+        # Esta lista proviene de Personal en pages.py, no de opciones manuales.
+        result.pop(normalized('TECNICO ASIGNADO'), None)
     if project_name == 'Cotizaciones':
         result.setdefault(normalized('CLIENTE'), {'nombre':'CLIENTE','tipo':'lista','opciones':['ENTEL','CLARO','INTEGRATEL','PEXT'],'configurada':False})
         result.setdefault(normalized('NOMBRE SITE'), {'nombre':'NOMBRE SITE','tipo':'lista','opciones':[],'configurada':False})

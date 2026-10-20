@@ -1068,13 +1068,19 @@ def api_rendicion_sync():
         autorizado_web = bool(
             session.get('user_id')
             and puede_rendicion(session.get('user_id'), session.get('rol'),
-                                session.get('current_proyecto_nombre'))
+                                None)
         )
         if not autorizado_web:
             if not key:
                 return jsonify({'error': 'Falta la key de sincronización.'}), 400
             return jsonify({'error': 'Key de sincronización inválida.'}), 403
 
+    from services.alcance_proyectos import importacion_rendicion
+    with importacion_rendicion():
+        return _importar_solicitudes()
+
+
+def _importar_solicitudes():
     proy = Proyecto.query.filter_by(nombre='Rendicion').first()
     if not proy:
         return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
@@ -1240,10 +1246,16 @@ def api_rendicion_sync_sustentos():
     """Sincroniza los sustentos desde la segunda hoja de Google Sheets."""
     autorizado = bool(session.get('user_id')
                        and puede_rendicion(session.get('user_id'), session.get('rol'),
-                                           session.get('current_proyecto_nombre')))
+                                           None))
     if not autorizado:
         return jsonify({'error': 'No autorizado.'}), 403
 
+    from services.alcance_proyectos import importacion_rendicion
+    with importacion_rendicion():
+        return _importar_sustentos()
+
+
+def _importar_sustentos():
     proy = Proyecto.query.filter_by(nombre='Rendicion').first()
     if not proy:
         return jsonify({'error': 'Módulo Rendicion no existe.'}), 404
