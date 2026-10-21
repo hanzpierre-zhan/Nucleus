@@ -83,7 +83,10 @@ def test_ruta_dashboard_rendicion(app, auth_client):
             r = auth_client.get('/analytics/rendicion')
             assert r.status_code == 200, r.status_code
             html = r.get_data(as_text=True)
-            assert 'Dónde se queda cada caso' in html
+            assert 'data-finance="rendicion"' in html
+            assert 'df-sust-budget-chart' in html
+            assert 'di-secondary' not in html
+            assert 'dq-panel' not in html
             assert 'DASH-REND-TEST' in html
             # El selector de dashboard y la hoja compartida deben estar en las tres vistas.
             assert 'dash-switch' in html

@@ -1,0 +1,70 @@
+/* Rendición y Cotizaciones: lectura financiera, con la paleta de Nucleus. */
+.di-finance { display:flex; flex-direction:column; gap:14px; padding:20px 22px; overflow:auto; }
+.df-head { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.df-head h1 { margin:3px 0 0; font-size:25px; letter-spacing:-.7px; }
+.df-toolbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:9px; }
+.di-finance .df-toolbar label { flex:1 1 140px; min-width:0; max-width:220px; gap:5px; font-size:11px; color:var(--ios-secondary); }
+.di-finance .df-toolbar select { width:100%; min-width:0; height:34px; font-size:12px; }
+.df-toolbar .action-pill { min-height:34px; }
+.df-kpis { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
+.df-kpis article { min-width:0; padding:14px 16px; background:var(--ios-card-bg); border:1px solid var(--ios-hairline); border-top:2px solid var(--df-accent,var(--di-blue)); border-radius:10px; }
+.df-kpis article:first-child { --df-accent:var(--di-green); background:linear-gradient(135deg,color-mix(in srgb,var(--di-green) 9%,var(--ios-card-bg)),var(--ios-card-bg)); }
+.df-kpis article:nth-child(3) { --df-accent:var(--di-blue); }
+.df-kpis article:nth-child(5) { --df-accent:var(--di-cyan); }
+.df-kpis span,.df-kpis small { display:block; color:var(--ios-secondary); font-size:11px; line-height:1.4; }
+.df-kpis strong { display:block; font-size:clamp(19px,1.8vw,30px); line-height:1.3; letter-spacing:-.6px; color:var(--df-accent,var(--ios-label)); font-variant-numeric:tabular-nums; white-space:nowrap; margin:5px 0 2px; }
+.finance-cotizaciones .df-kpis { grid-template-columns:minmax(240px,1.5fr) minmax(160px,1fr); width:min(560px,100%); }
+.df-grid { display:grid; gap:12px; flex:1 0 500px; min-height:500px; grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(230px,1fr)); }
+.finance-rendicion .df-grid { grid-template-areas:'budget pending people sustbudget' 'trend trend trend sustoperator'; }
+.finance-cotizaciones .df-grid { grid-template-areas:'operator expense approval people' 'trend trend types people'; }
+.df-budget { grid-area:budget; }.df-pending { grid-area:pending; }.df-people { grid-area:people; }.df-sust-budget { grid-area:sustbudget; }.df-trend { grid-area:trend; }.df-sust-operator { grid-area:sustoperator; }.df-operator { grid-area:operator; }.df-expense { grid-area:expense; }.df-approval { grid-area:approval; }.df-types { grid-area:types; }
+.di-finance .di-card { display:flex; flex-direction:column; min-width:0; min-height:0; padding:16px; border-radius:11px; overflow:hidden; }
+.di-finance .di-card h2 { font-size:13px; line-height:1.4; margin:0 0 3px; }
+.di-finance .di-card p { font-size:11px; line-height:1.45; margin:0 0 12px; }
+.df-chart { flex:1; position:relative; min-height:145px; min-width:0; }
+.df-chart canvas,.df-ring canvas { width:100%!important; height:100%!important; display:block; }
+.df-chart canvas[hidden],.df-ring canvas[hidden] { display:none!important; }
+.df-donut { display:flex; flex-direction:column; flex:1; min-height:0; gap:8px; }
+.df-ring { position:relative; min-height:130px; flex:1; }
+.df-ring-label { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
+.df-ring-label strong { font-size:18px; color:var(--ios-label); font-variant-numeric:tabular-nums; }
+.df-ring-label[hidden] { display:none; }
+.df-ring-label span { font-size:10px; color:var(--ios-secondary); margin-top:3px; }
+.df-donut ul { list-style:none; margin:0; padding:0; display:grid; gap:6px; font-size:10px; }
+.df-donut li { display:flex; gap:6px; align-items:center; }
+.df-donut i { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.df-donut li span { color:var(--ios-secondary); flex:1; }
+.df-donut li b { font-variant-numeric:tabular-nums; font-weight:600; }
+.di-finance .df-table-wrap { overflow:auto; flex:1; max-height:100%; scrollbar-width:thin; }
+.di-finance .df-table-wrap table { font-size:11px; }
+.di-finance .df-table-wrap th,.di-finance .df-table-wrap td { padding:10px 7px; }
+.di-finance .df-table-wrap td:nth-child(n+2),.di-finance .df-table-wrap th:nth-child(n+2) { text-align:right; font-variant-numeric:tabular-nums; }
+.di-finance .df-table-wrap tbody th { font-weight:500; color:var(--ios-label); position:static; white-space:normal; }
+.di-finance .df-table-wrap tfoot { position:sticky; bottom:0; background:var(--ios-card-bg); font-weight:700; }
+.di-finance .df-table-wrap tfoot th,.di-finance .df-table-wrap tfoot td { border-top:1px solid var(--ios-hairline); color:var(--di-blue); }
+.df-caption { margin:0; font-size:10px; color:var(--ios-secondary); }
+.df-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--ios-secondary); font-size:12px; text-align:center; padding:12px; }
+@media(min-width:1600px) { .df-ring { min-height:160px; }.df-donut { flex-direction:row; align-items:center; }.df-ring { width:58%; height:100%; }.df-donut ul { flex:1; } }
+@media(max-width:1150px) {
+  .df-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .df-grid { flex:none; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:280px; grid-template-rows:none; }
+  .finance-rendicion .df-grid { grid-template-areas:'budget pending' 'people sustbudget' 'trend trend' 'sustoperator sustoperator'; }
+  .finance-cotizaciones .df-grid { grid-template-areas:'operator expense' 'approval people' 'trend people' 'types types'; }
+  .df-kpis strong { font-size:25px; }
+}
+@media(max-width:650px) {
+  .di-finance { padding:16px 12px 90px; gap:12px; }
+  .df-head h1 { font-size:23px; }
+  .di-finance .df-toolbar label { flex-basis:42%; max-width:none; }
+  .df-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .df-kpis article { padding:11px; }.df-kpis strong { font-size:20px; }
+  .finance-cotizaciones .df-kpis { grid-template-columns:1.4fr 1fr; }
+  .df-grid { display:flex; flex-direction:column; min-height:0; }
+  .di-finance .di-card { min-height:270px; flex:0 0 auto; }
+  .di-finance .df-people { min-height:360px; }
+  .di-finance .df-chart { flex:none; height:205px; }
+  .di-finance .df-people .df-chart { height:290px; }
+  .df-ring { height:170px; flex:none; }
+  .df-donut { flex-direction:row; align-items:center; }.df-ring { width:58%; }.df-donut ul { flex:1; }
+  .di-finance .df-types { max-height:380px; }
+}

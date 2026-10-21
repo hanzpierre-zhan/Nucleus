@@ -103,7 +103,10 @@ def test_ruta_dashboard_cotizaciones(app, auth_client):
         try:
             r = auth_client.get('/analytics/cotizaciones')
             assert r.status_code == 200, r.status_code
-            assert 'Pipeline de cotizaciones' in r.get_data(as_text=True)
+            assert 'data-finance="cotizaciones"' in r.get_data(as_text=True)
+            assert 'df-types-body' in r.get_data(as_text=True)
+            assert 'dc-responsables' not in r.get_data(as_text=True)
+            assert 'dq-panel' not in r.get_data(as_text=True)
             assert 'DASH-COT-TEST' in r.get_data(as_text=True)
             # El dashboard operativo no cambia.
             r2 = auth_client.get('/analytics')
