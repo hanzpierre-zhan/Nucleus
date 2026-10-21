@@ -7,6 +7,11 @@ def estado_de(d):
 
 def etapa_de(row):
     estado = estado_de(row)
+    subestado = str(row.get('SUBESTADO') or '').strip().upper()
+    if subestado == 'ARCHIVADO' and estado == 'SUSTENTADO':
+        return 'ARCHIVADO'
+    if subestado == 'OBSERVADO' and estado in ('CON SUSTENTO', 'SUSTENTADO'):
+        return 'OBSERVADO'
     if estado == "RECHAZADO":
         destino = row.get("_RECHAZO_ETAPA")
         if destino in ("VALIDACION", "EVIDENCIA"):
@@ -17,6 +22,7 @@ def etapa_de(row):
             "DEPOSITADO": "EVIDENCIA",
             "CON SUSTENTO": "EVIDENCIA",
             "OBSERVADO": "EVIDENCIA",
+            "SUSTENTADO": "EVIDENCIA",
         }.get(str(row.get("RECHAZADO DESDE") or "").strip().upper(), "ANULADO")
     return {
         "TRANSITO": "TRANSITO",

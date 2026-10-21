@@ -80,3 +80,37 @@
  .di-executive .di-ranking .di-bar-metrics{grid-column:1;grid-row:2;text-align:left;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
  .di-executive .di-ranking .di-bar-track,.di-executive #dc-money .di-bar-track{grid-row:3}
 }
+
+/* ── Ejecutivo en pantalla ancha: la visualización se ajusta al alto restante ─
+   El área principal no se desplaza; el bloque de gráficas cede o gana altura
+   según el espacio disponible, de modo que las tarjetas nunca desbordan. */
+@media(min-width:1000px){
+ .di-page.di-executive{display:flex;flex-direction:column;overflow:hidden}
+ .di-page.di-executive>*{flex:0 0 auto}
+ .di-page.di-executive>#dc-visual{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:8px;margin:8px 0}
+ .di-page.di-executive>#dc-visual>.dc-viz-kpis{flex:0 0 auto;margin:0}
+ .di-page.di-executive>#dr-visual{flex:1 1 auto;min-height:0;margin:8px 0}
+ .di-page.di-executive .dc-viz-grid,
+ .di-page.di-executive .dr-viz-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));align-items:stretch;margin:0}
+ .di-page.di-executive>#dc-visual>.dc-viz-grid{flex:1 1 auto;min-height:0}
+ .di-page.di-executive .dc-viz-grid>.di-card,
+ .di-page.di-executive .dr-viz-grid>.di-card{display:flex;flex-direction:column;height:auto;min-height:0;max-height:none;overflow:hidden;padding:10px 12px}
+ .di-page.di-executive .dc-viz-grid>.di-card>h2,
+ .di-page.di-executive .dr-viz-grid>.di-card>h2{flex:0 0 auto;font-size:13px;line-height:1.2;margin:0 0 2px}
+ .di-page.di-executive .dc-viz-grid>.di-card>p,
+ .di-page.di-executive .dr-viz-grid>.di-card>p{flex:0 0 auto;font-size:11px;line-height:1.3;margin:0 0 6px}
+ .di-page.di-executive .dc-viz-grid>.di-card>:last-child,
+ .di-page.di-executive .dr-viz-grid>.di-card>:last-child{flex:1 1 auto;min-height:0}
+ .di-page.di-executive #dc-visual .dc-chart-wrap,
+ .di-page.di-executive #dr-visual .dr-chart-wrap{position:relative;height:auto;min-height:0;max-height:none}
+ .di-page.di-executive #dc-visual .dc-donut-layout,
+ .di-page.di-executive #dr-visual .dr-donut-layout{align-items:stretch;height:auto;min-height:0;max-height:none}
+ .di-page.di-executive #dc-visual .dc-donut-canvas,
+ .di-page.di-executive #dr-visual .dr-donut-canvas{height:100%}
+ .di-page.di-executive #dc-visual .dc-donut-legend,
+ .di-page.di-executive #dr-visual .dr-donut-legend{overflow:auto;max-height:100%}
+ .di-page.di-executive #dc-visual .dc-viz-table-wrap{max-height:none;overflow:auto}
+ .di-page.di-executive #dc-visual #dc-viz-responsable,
+ .di-page.di-executive #dr-visual #dr-viz-personas,
+ .di-page.di-executive #dr-visual #dr-viz-sust-clientes{overflow:auto}
+}

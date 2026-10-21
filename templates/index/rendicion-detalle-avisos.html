@@ -14,9 +14,7 @@ function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.disp
 
 
 
-// Rendición: genera el detalle del registro (las columnas que están en la tabla
-
-// de la hoja activa, en el mismo orden) dentro del contenedor indicado.
+// El detalle incluye todos los campos del registro, independientemente de la tabla.
 
 function rendPoblarDetalle(data, gridId) {
     const editable = gridId === 'rend-resumen-grid' && typeof _rendModal !== 'undefined' && _rendModal?.accion === 'validar'
@@ -40,7 +38,11 @@ function rendPoblarDetalle(data, gridId) {
 
     const cols = (typeof table !== 'undefined' && table && typeof table.getColumns === 'function')
 
-        ? table.getColumns() : [];
+        ? table.getColumns().slice() : [];
+    const definidos = new Set(cols.map(c => c.getDefinition()?.field));
+    Object.keys(data).concat(['SUBESTADO','MOTIVO RECHAZO']).forEach(f => {
+        if (!definidos.has(f)) cols.push({getDefinition: () => ({field:f, title:f})});
+    });
 
     cols.forEach(col => {
 
@@ -48,18 +50,13 @@ function rendPoblarDetalle(data, gridId) {
 
         const f = def.field;
 
-        if (!f || f === '_key' || f === '_accion' || seen.has(f)) return;
-
-        // Solo lo que se ve en la tabla (la hoja activa puede ocultar columnas)
-
-        const _forceShowDetalle = /motivo/i.test(f);
-        if (typeof col.isVisible === 'function' && !col.isVisible() && !_forceShowDetalle) return;
+        if (!f || f.startsWith('_') || seen.has(f)) return;
 
         seen.add(f);
 
         let label = (String(def.title || f).replace(/<[^>]*>/g, '').trim()) || f;
 
-        let raw = data[f];
+        let raw = f === 'MOTIVO RECHAZO' ? rendMotivoRechazo(data) : data[f];
 
         const val = (raw === null || raw === undefined) ? '' : String(raw).trim();
 
@@ -572,6 +569,8 @@ function _rendInitEstados() {
         est.visibles['VERIFICACIÓN PERSONAL'] = false;
         // Preferencia personal de la hoja: manda sobre el default del modulo.
         _colVisAplicarEstado(est, vista);
+        est.visibles['SUBESTADO'] = true;
+        est.visibles['MOTIVO RECHAZO'] = true;
         _rendEstadoVistas[vista] = est;
 
     });

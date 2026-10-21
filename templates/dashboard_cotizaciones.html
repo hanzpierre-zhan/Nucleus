@@ -3,9 +3,9 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=3">
-<link rel="stylesheet" href="/static/css/dashboard-cotizaciones.css?v=4">
+<link rel="stylesheet" href="/static/css/dashboard-cotizaciones.css?v=6">
 <link rel="stylesheet" href="/static/css/dashboard-consulta.css?v=1">
-<link rel="stylesheet" href="/static/css/dashboard-layout.css?v=3">
+<link rel="stylesheet" href="/static/css/dashboard-layout.css?v=4">
 <section class="di-page dc-page di-executive">
   <header class="di-head"><div><span class="di-eyebrow">COMERCIAL · {{ proyecto_nombre|upper }}</span><h1>Pipeline de cotizaciones</h1>{% include '_dash_switch.html' %}</div>
   <div class="di-filters">
@@ -32,27 +32,12 @@
     <article><span>4. Anulado</span><strong id="dc-kpi-anulado">0</strong><small id="dc-kpi-anulado-m">—</small></article>
     <article><span>5. Proveedor</span><strong id="dc-kpi-proveedor">0</strong><small id="dc-kpi-proveedor-m">—</small></article>
   </div>
-  <div class="di-charts di-main-charts">
-    <article class="di-card dc-cli-users"><h2>Cliente · sin aprobación, por usuario</h2><p>Quién generó la cotización que el cliente aún no aprueba</p><div id="dc-cli-users"></div></article>
-    <article class="di-card dc-money"><h2>Dinero por pestaña</h2><p>S/ cotizado acumulado en cada estado</p><div id="dc-money"></div></article>
-  </div>
-  <details class="di-order-details di-secondary" id="di-secondary"><summary>Más gráficos e indicadores: fechas, proyectos, responsables, operador, gasto e importe mensual</summary>
-  <div class="di-charts">
-    <article class="di-card di-month-card"><h2>Solicitudes por mes</h2><p>Creadas por mes de solicitud · el tooltip incluye atendidas y S/ cotizado</p><div id="di-months" class="di-month-bars"></div></article>
-    <article class="di-card di-daily-card"><h2>Cotizaciones por día <span id="di-daily-month"></span></h2><p id="di-daily-caption">Por fecha de solicitud · mes actual salvo filtro</p><div id="di-daily"></div></article>
-    <article class="di-card dc-cli-proy"><h2>Cliente · sin aprobación, por proyecto</h2><p>Pendientes de aprobación por nombre de proyecto</p><div id="dc-cli-proy"></div></article>
-    <article class="di-card dc-sus-users"><h2>Aprobados · pendientes de cierre</h2><p>Solicitante y validación registrada del sustento</p><div id="dc-sus-users"></div></article>
-    <article class="di-card dc-prov"><h2>Proveedor · archivos y cierre</h2><p id="dc-prov-caption"></p><div id="dc-prov"></div></article>
-    <article class="di-card dc-aging"><h2>Sustentar · antigüedad</h2><p>Días desde que el cliente aprobó</p><div id="dc-aging"></div></article>
-    <article class="di-card dc-types"><h2>Tipos de cotización</h2><p>Cantidad y S/ en la selección</p><div id="dc-types"></div></article>
-    <article class="di-card dc-estados"><h2>Estado exacto guardado</h2><p>Lo que dice la columna ESTADO COTIZACION</p><div id="dc-estados"></div></article>
-  </div>
   <div class="dc-viz" id="dc-visual">
     <div class="dc-viz-kpis" aria-live="polite">
       <article class="dc-viz-kpi dc-viz-kpi-money"><span>Importe total · SUB TOTAL + FEE</span><strong id="dc-viz-monto">S/ 0.00</strong><small>Suma de la selección filtrada</small></article>
       <article class="dc-viz-kpi dc-viz-kpi-count"><span>Cotizaciones</span><strong id="dc-viz-total">0</strong><small>Registros en la selección filtrada</small></article>
     </div>
-    <div class="di-charts dc-viz-grid">
+    <div class="di-charts di-main-charts dc-viz-grid">
       <article class="di-card dc-viz-card dc-viz-donut">
         <h2>Cotizaciones por operador</h2>
         <p>Participación de cada cliente en la selección</p>
@@ -93,6 +78,19 @@
       </article>
     </div>
   </div>
+  <details class="di-order-details di-secondary" id="di-secondary"><summary>Más indicadores: fechas, proyectos, responsables, operador, gasto y estados</summary>
+  <div class="di-charts">
+    <article class="di-card dc-cli-users"><h2>Cliente · sin aprobación, por usuario</h2><p>Quién generó la cotización que el cliente aún no aprueba</p><div id="dc-cli-users"></div></article>
+    <article class="di-card dc-money"><h2>Dinero por pestaña</h2><p>S/ cotizado acumulado en cada estado</p><div id="dc-money"></div></article>
+    <article class="di-card di-month-card"><h2>Solicitudes por mes</h2><p>Creadas por mes de solicitud · el tooltip incluye atendidas y S/ cotizado</p><div id="di-months" class="di-month-bars"></div></article>
+    <article class="di-card di-daily-card"><h2>Cotizaciones por día <span id="di-daily-month"></span></h2><p id="di-daily-caption">Por fecha de solicitud · mes actual salvo filtro</p><div id="di-daily"></div></article>
+    <article class="di-card dc-cli-proy"><h2>Cliente · sin aprobación, por proyecto</h2><p>Pendientes de aprobación por nombre de proyecto</p><div id="dc-cli-proy"></div></article>
+    <article class="di-card dc-sus-users"><h2>Aprobados · pendientes de cierre</h2><p>Solicitante y validación registrada del sustento</p><div id="dc-sus-users"></div></article>
+    <article class="di-card dc-prov"><h2>Proveedor · archivos y cierre</h2><p id="dc-prov-caption"></p><div id="dc-prov"></div></article>
+    <article class="di-card dc-aging"><h2>Sustentar · antigüedad</h2><p>Días desde que el cliente aprobó</p><div id="dc-aging"></div></article>
+    <article class="di-card dc-types"><h2>Tipos de cotización</h2><p>Cantidad y S/ en la selección</p><div id="dc-types"></div></article>
+    <article class="di-card dc-estados"><h2>Estado exacto guardado</h2><p>Lo que dice la columna ESTADO COTIZACION</p><div id="dc-estados"></div></article>
+  </div>
   </details>
   {% include '_dashboard_concentracion.html' %}
   <details class="di-order-details"><summary>Ver detalle por cotización <span id="dc-detail-count"></span></summary><article class="di-card"><div class="di-table-head"><div><h2>Cotizaciones de la selección</h2><p>Los filtros de arriba también aplican aquí.</p></div><label>Pestaña<select id="dc-pest"><option value="">Todas</option><option value="registro">1. Registro</option><option value="cliente">2. Cliente</option><option value="sustentar">3. Sustentar</option><option value="atendido">3. Atendido</option><option value="cancelado">4. Anulado</option><option value="proveedor">5. Proveedor</option></select></label></div>
@@ -112,5 +110,5 @@
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-graficos.js?v=3"></script>
 <script src="/static/js/dashboard-consulta.js?v=3"></script>
-<script src="/static/js/dashboard-cotizaciones.js?v=8"></script>
+<script src="/static/js/dashboard-cotizaciones.js?v=9"></script>
 {% endblock %}

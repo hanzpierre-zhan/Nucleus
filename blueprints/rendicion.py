@@ -8,9 +8,9 @@ from services.rendicion_estados import estado_de as _estado_de, etapa_de as _eta
    - VALIDADO      -> hoja Depositos
    - DEPOSITADO    -> hoja Evidencia
    - CON SUSTENTO -> hoja Sustento
-   - OBSERVADO    -> hoja Observado (pendiente de corrección)
+   - SUBESTADO OBSERVADO -> hoja Observado, conserva el estado principal
    - SUSTENTADO   -> hoja Atendido
-   - ARCHIVADO    -> hoja Archivar (regresa a Atendido al desarchivar)
+   - SUBESTADO ARCHIVADO -> hoja Archivar, conserva SUSTENTADO (Atendido)
    - RECHAZADO    -> Validación o Evidencia según la etapa de retorno
    - ANULADO      -> hoja Anulado (conserva los registros)
 """
@@ -426,6 +426,8 @@ def api_rendicion_accion():
 
     estado = _estado_de(row)
     etapa = _etapa_de(row)
+    subestado_anterior = row.get('SUBESTADO', '')
+    estado_accion = {'OBSERVADO': 'OBSERVADO', 'ARCHIVADO': 'ARCHIVADO'}.get(etapa, estado)
     # Reglas del flujo: cada acción solo desde la hoja que le corresponde.
     # 'revertir' no usa esta tabla: valida su propio mapa de estados más abajo.
     permitido = {
@@ -434,17 +436,19 @@ def api_rendicion_accion():
         'depositar': ('VALIDADO',),
         'sustentar': ('CON SUSTENTO', 'OBSERVADO'),
         'devolver': ('RECHAZADO',),
-        'observar': ('CON SUSTENTO', 'OBSERVADO'),
+        'observar': ('CON SUSTENTO', 'OBSERVADO', 'SUSTENTADO'),
         'archivar': ('SUSTENTADO',),
         'desarchivar': ('ARCHIVADO',),
     }
-    if accion in permitido and estado not in permitido[accion]:
+    if accion in permitido and estado_accion not in permitido[accion]:
         return jsonify({'error': 'No se puede "%s" una solicitud en estado %s.'
                                 % (accion, estado)}), 409
     if (accion == 'validar' and etapa != 'VALIDACION') or (
             accion == 'anular' and etapa not in ('VALIDACION', 'EVIDENCIA')) or (
             accion in ('revertir', 'devolver') and etapa == 'ANULADO'):
         return jsonify({'error': 'Esta acción no corresponde a la etapa actual.'}), 409
+    if accion == 'revertir' and etapa in ('ARCHIVADO', 'OBSERVADO'):
+        return jsonify({'error': 'Resuelve el subestado antes de revertir la solicitud.'}), 400
 
     ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     usuario_actual = audit_user() or 'Desconocido'
@@ -469,13 +473,15 @@ def api_rendicion_accion():
         motivo = str(data.get('observaciones') or '').strip()
         if not motivo:
             return jsonify({'error': 'Escribe qué debe corregirse en el sustento.'}), 400
-        row['ESTADO'] = 'OBSERVADO'
+        row['ESTADO'] = estado if estado != 'OBSERVADO' else 'CON SUSTENTO'
+        row['SUBESTADO'] = 'OBSERVADO'
         row['OBSERVACIONES'] = motivo
         row['OBSERVADO POR'] = usuario_actual
         row['FECHA OBSERVACION'] = ahora
 
     elif accion == 'archivar':
-        row['ESTADO'] = 'ARCHIVADO'
+        row['ESTADO'] = 'SUSTENTADO'
+        row['SUBESTADO'] = 'ARCHIVADO'
         row['ARCHIVADO POR'] = usuario_actual
         row['FECHA ARCHIVO'] = ahora
 
@@ -608,10 +614,13 @@ def api_rendicion_accion():
         row['FECHA DEVOLUCION'] = ahora
 
 
+    if accion not in ('observar', 'archivar'):
+        row['SUBESTADO'] = ''
     historial = row.get('_HISTORIAL_FLUJO')
     if not isinstance(historial, list):
         historial = []
     historial.append({'accion': accion, 'desde': estado, 'hasta': row['ESTADO'],
+                      'subestado_desde': subestado_anterior, 'subestado_hasta': row.get('SUBESTADO', ''),
                       'usuario': usuario_actual, 'fecha': ahora,
                       'motivo': str(data.get('observaciones') or '').strip()})
     row['_HISTORIAL_FLUJO'] = historial
@@ -1116,7 +1125,7 @@ def _importar_solicitudes():
         '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
         'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
         'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal',
-        'ESTADO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
+        'ESTADO', 'SUBESTADO', 'MOTIVO RECHAZO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
         'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',
         'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',
         'RECHAZADO POR', 'FECHA VALIDACION', 'VALIDADO POR',
@@ -1329,7 +1338,7 @@ def _importar_sustentos():
         estado_actual = str(target_dict.get('ESTADO', '')).strip().upper()
         from blueprints.rendicion import _etapa_de
         rechazo_evidencia = estado_actual == 'RECHAZADO' and _etapa_de(target_dict) == 'EVIDENCIA'
-        if estado_actual not in ('DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO') and not rechazo_evidencia:
+        if estado_actual not in ('DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO') and _etapa_de(target_dict) != 'OBSERVADO' and not rechazo_evidencia:
             omitidos += 1
             continue
 
@@ -1359,6 +1368,7 @@ def _importar_sustentos():
 
         if estado_actual == 'DEPOSITADO' or rechazo_evidencia:
             target_dict['ESTADO'] = 'CON SUSTENTO'
+            target_dict['SUBESTADO'] = ''
         if marca_actual:
             procesadas.add(marca_actual)
             target_dict['_SUSTENTO_MARCAS'] = ';'.join(sorted(procesadas))

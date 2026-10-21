@@ -31,12 +31,14 @@ def accion(client, nombre, **extra):
 def test_observacion_atencion_archivo_conservan_sustentos(auth_client, solicitud_flujo):
     assert accion(auth_client, 'observar').status_code == 400
     respuesta = accion(auth_client, 'observar', observaciones='Corregir el comprobante')
-    assert respuesta.status_code == 200 and respuesta.json['estado'] == 'OBSERVADO'
+    assert respuesta.status_code == 200 and respuesta.json['estado'] == 'CON SUSTENTO'
+    assert respuesta.json['newData']['SUBESTADO'] == 'OBSERVADO'
     assert accion(auth_client, 'archivar').status_code == 409
-    assert accion(auth_client, 'observar', observaciones='Aún pendiente').json['estado'] == 'OBSERVADO'
+    assert accion(auth_client, 'observar', observaciones='Aún pendiente').json['estado'] == 'CON SUSTENTO'
     assert accion(auth_client, 'sustentar', comentario='Corrección verificada').json['estado'] == 'SUSTENTADO'
     anterior = accion(auth_client, 'archivar')
-    assert anterior.status_code == 200 and anterior.json['estado'] == 'ARCHIVADO'
+    assert anterior.status_code == 200 and anterior.json['estado'] == 'SUSTENTADO'
+    assert anterior.json['newData']['SUBESTADO'] == 'ARCHIVADO'
     assert accion(auth_client, 'archivar').status_code == 409
     assert accion(auth_client, 'sustentar').status_code == 409
     assert accion(auth_client, 'observar', observaciones='Cambio').status_code == 409
@@ -61,6 +63,38 @@ def test_atencion_directa_y_permisos(app, auth_client, solicitud_flujo):
     assert accion(auth_client, 'archivar').status_code == 401  # La cuenta -999 no existe.
 
 
+def test_observar_atendido_conserva_estado_y_rechazo_limpia_subestado(app, auth_client, solicitud_flujo):
+    from services.rendicion_estados import etapa_de
+    assert accion(auth_client, 'sustentar', comentario='Conforme').status_code == 200
+    observado = accion(auth_client, 'observar', observaciones='Revisar factura').json['newData']
+    assert observado['ESTADO'] == 'SUSTENTADO'
+    assert observado['SUBESTADO'] == 'OBSERVADO'
+    assert etapa_de(observado) == 'OBSERVADO'
+    assert accion(auth_client, 'archivar').status_code == 409
+    rechazo = accion(auth_client, 'rechazar', observaciones='Factura incorrecta').json['newData']
+    assert rechazo['ESTADO'] == 'RECHAZADO'
+    assert rechazo['SUBESTADO'] == ''
+    assert rechazo['MOTIVO RECHAZO'] == 'Factura incorrecta'
+    assert etapa_de(rechazo) == 'EVIDENCIA'
+    assert rechazo['FOTO PAGO'] == observado['FOTO PAGO']
+
+
+def test_resolver_observacion_atendido_y_desarchivar(auth_client, solicitud_flujo):
+    from services.rendicion_estados import etapa_de
+    accion(auth_client, 'sustentar')
+    accion(auth_client, 'observar', observaciones='Revisar factura')
+    conforme = accion(auth_client, 'sustentar', comentario='Corregido').json['newData']
+    assert conforme['SUBESTADO'] == ''
+    assert etapa_de(conforme) == 'ATENDIDO'
+    archivado = accion(auth_client, 'archivar').json['newData']
+    assert archivado['ESTADO'] == 'SUSTENTADO'
+    assert etapa_de(archivado) == 'ARCHIVADO'
+    assert accion(auth_client, 'rechazar', observaciones='Cambio').status_code == 409
+    restaurado = accion(auth_client, 'desarchivar').json['newData']
+    assert restaurado['SUBESTADO'] == ''
+    assert etapa_de(restaurado) == 'ATENDIDO'
+
+
 def cambiar_estado(app, rid, estado, **datos):
     with app.app_context():
         fila = db.session.get(NucleusData, rid)
@@ -79,7 +113,7 @@ def test_rechazo_de_depositos_vuelve_validacion_y_puede_validar(app, auth_client
     assert accion(auth_client, 'validar', tiempo='No aplica').json['estado'] == 'VALIDADO'
 
 
-@pytest.mark.parametrize('origen', ['CON SUSTENTO', 'OBSERVADO'])
+@pytest.mark.parametrize('origen', ['CON SUSTENTO', 'OBSERVADO', 'SUSTENTADO'])
 def test_rechazo_sustento_vuelve_evidencia(app, auth_client, solicitud_flujo, origen):
     from blueprints.rendicion import _etapa_de
     cambiar_estado(app, solicitud_flujo, origen)

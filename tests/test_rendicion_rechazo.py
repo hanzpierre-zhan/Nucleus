@@ -9,6 +9,7 @@ Cubre los tres arreglos:
     que el navegador cortaba al abrirla.
 """
 import json
+import pytest
 
 from db import db
 from models import Proyecto, NucleusData, AppConfig
@@ -117,5 +118,31 @@ def test_migracion_rendicion_columna_backfill_y_urls(app):
             _migrar_rendicion(Proyecto, AppConfig, NucleusData)
             fila = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).one()
             assert json.loads(fila.data_json)['MOTIVO RECHAZO'] == 'Falta el comprobante'
+    finally:
+        _borrar(app, pid, key)
+
+
+@pytest.mark.parametrize('estado,extras,principal', [
+    ('OBSERVADO', {}, 'CON SUSTENTO'),
+    ('OBSERVADO', {'FECHA SUSTENTO': '2026-10-20'}, 'SUSTENTADO'),
+    ('ARCHIVADO', {}, 'SUSTENTADO'),
+])
+def test_migracion_separa_subestado_sin_perder_adjuntos(app, estado, extras, principal):
+    from migrations import _migrar_rendicion
+    from services.rendicion_estados import etapa_de
+    key = 'REND-SUBESTADO-MIGRA'
+    pid = _crear(app, key, {'ESTADO': estado, 'FOTO PAGO': '/pago.jpg', **extras})
+    try:
+        with app.app_context():
+            for _ in range(2):
+                _migrar_rendicion(Proyecto, AppConfig, NucleusData)
+                fila = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).one()
+                datos = json.loads(fila.data_json)
+                assert datos['ESTADO'] == principal
+                assert datos['SUBESTADO'] == estado
+                assert etapa_de(datos) == estado
+                assert datos['FOTO PAGO'] == '/pago.jpg'
+            cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').one()
+            assert 'SUBESTADO' in json.loads(cfg.valor)
     finally:
         _borrar(app, pid, key)

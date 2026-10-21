@@ -3,9 +3,9 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=3">
-<link rel="stylesheet" href="/static/css/dashboard-rendicion.css?v=1">
+<link rel="stylesheet" href="/static/css/dashboard-rendicion.css?v=3">
 <link rel="stylesheet" href="/static/css/dashboard-consulta.css?v=1">
-<link rel="stylesheet" href="/static/css/dashboard-layout.css?v=3">
+<link rel="stylesheet" href="/static/css/dashboard-layout.css?v=4">
 <section class="di-page dr-page di-executive">
   <header class="di-head"><div><span class="di-eyebrow">FLUJO DE PAGOS · {{ proyecto_nombre|upper }}</span><h1>Dónde se queda cada caso</h1>{% include '_dash_switch.html' %}</div>
   <div class="di-filters">
@@ -20,9 +20,31 @@
   {% set consulta_tipo = 'rendicion' %}{% include '_dashboard_consulta.html' %}
   {% if data_total > data_limite %}<p role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros. Los indicadores corresponden a ese conjunto.</p>{% endif %}
   <section class="di-story" aria-live="polite"><div><h2 id="di-story-title"></h2><p id="di-story-detail"></p></div><div class="di-progress" aria-label="Porcentaje atendido"><div id="di-progress-fill"></div></div></section>
-  <div class="di-charts di-main-charts">
-    <article class="di-card dr-etapas"><h2>Dónde se está quedando</h2><p>Cantidad y S/ por pestaña del flujo</p><div id="dr-etapas"></div></article>
-    <article class="di-card dr-pend"><h2>Pendiente de depósito</h2><p>Validado pero aún sin pagar</p><div id="dr-pend"></div></article>
+  <div class="di-kpis dr-viz-kpis" aria-live="polite">
+    <article class="dr-viz-kpi-money"><span>Total rendido · importe pagado</span><strong id="dr-viz-pagado">S/ 0.00</strong><small id="dr-viz-pagado-n">Sin pagos registrados</small></article>
+    <article><span>Total registros</span><strong id="dr-viz-registros">0</strong><small>En la selección filtrada</small></article>
+    <article><span>Total depositado</span><strong id="dr-viz-depositado">S/ 0.00</strong><small id="dr-viz-depositado-n">Sin depósitos</small></article>
+    <article><span>Registros depositados</span><strong id="dr-viz-dep-n">0</strong><small id="dr-viz-dep-pct">—</small></article>
+    <article><span>Total sustentado</span><strong id="dr-viz-sustentado">S/ 0.00</strong><small id="dr-viz-sustentado-n">Sin sustentos</small></article>
+    <article><span>Total registrado</span><strong id="dr-viz-registrado">S/ 0.00</strong><small>Monto total del depósito</small></article>
+  </div>
+  <div class="di-charts di-main-charts dr-viz-grid" id="dr-visual">
+    <article class="di-card dr-viz-card dr-viz-donut-card">
+      <h2>Pendiente sustento por cliente</h2>
+      <p>Depositado sin sustento cargado · monto por cliente</p>
+      <div class="dr-donut-layout">
+        <div class="dr-donut-canvas">
+          <canvas id="dr-chart-pend" role="img" aria-label="Dona de importe pendiente de sustento por cliente"></canvas>
+          <div class="dr-donut-center"><b id="dr-pend-total">S/ 0</b><span>por sustentar</span></div>
+        </div>
+        <ul class="dr-donut-legend" id="dr-pend-legend"></ul>
+      </div>
+    </article>
+    <article class="di-card dr-viz-card"><h2>Importe por tipo de presupuesto</h2><p>GASTO COBRA / REFACTURABLE en la selección</p><div class="dr-chart-wrap"><canvas id="dr-chart-presupuesto" role="img" aria-label="Barras de importe por tipo de presupuesto"></canvas></div></article>
+    <article class="di-card dr-viz-card"><h2>Total por solicitante</h2><p>Solicitante registrado; si falta, técnico beneficiario</p><div id="dr-viz-personas"></div></article>
+    <article class="di-card dr-viz-card"><h2>Solicitudes sustentadas por gasto</h2><p>Casos con sustento cargado o validado, por tipo de presupuesto</p><div class="dr-chart-wrap"><canvas id="dr-chart-sust-gasto" role="img" aria-label="Barras de solicitudes sustentadas por tipo de presupuesto"></canvas></div></article>
+    <article class="di-card dr-viz-card"><h2>Solicitudes sustentadas por cliente</h2><p>Casos con sustento cargado o validado, por cliente</p><div id="dr-viz-sust-clientes"></div></article>
+    <article class="di-card dr-viz-card"><h2>Importe pagado por día</h2><p>Gasto Cobra vs Refacturable · según fecha de pago</p><div class="dr-chart-wrap"><canvas id="dr-chart-pagado" role="img" aria-label="Línea de importe pagado por día"></canvas></div></article>
   </div>
   <details class="di-order-details di-secondary" id="di-secondary"><summary>Más gráficos e indicadores: fechas, proyectos y responsables</summary>
   <div class="di-kpis" aria-live="polite">
@@ -37,6 +59,8 @@
     <article><span>Anulado</span><strong id="dr-kpi-anulado">0</strong><small id="dr-kpi-anulado-m">—</small></article>
   </div>
   <div class="di-charts">
+    <article class="di-card dr-etapas"><h2>Dónde se está quedando</h2><p>Cantidad y S/ por pestaña del flujo</p><div id="dr-etapas"></div></article>
+    <article class="di-card dr-pend"><h2>Pendiente de depósito</h2><p>Validado pero aún sin pagar</p><div id="dr-pend"></div></article>
     <article class="di-card di-month-card"><h2>Solicitudes por mes</h2><p>Creadas por mes · el tooltip incluye cerradas y S/</p><div id="di-months" class="di-month-bars"></div></article>
     <article class="di-card di-daily-card"><h2>Solicitudes por día <span id="di-daily-month"></span></h2><p id="di-daily-caption">Por fecha de solicitud · mes actual salvo filtro</p><div id="di-daily"></div></article>
     <article class="di-card dr-money"><h2>Importe de referencia por etapa</h2><p>Pago registrado; si falta, solicitado. No es total depositado.</p><div id="dr-money"></div></article>
@@ -57,5 +81,5 @@
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-graficos.js?v=3"></script>
 <script src="/static/js/dashboard-consulta.js?v=3"></script>
-<script src="/static/js/dashboard-rendicion.js?v=5"></script>
+<script src="/static/js/dashboard-rendicion.js?v=6"></script>
 {% endblock %}

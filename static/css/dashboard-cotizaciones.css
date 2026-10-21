@@ -118,3 +118,15 @@
   .dc-page #dc-visual .dc-chart-wrap{height:200px;min-height:200px;max-height:200px}
 }
 
+/* ── La visualización ejecutiva vive en el área principal, siempre visible ─── */
+@media(min-width:1101px){
+  .dc-page .dc-viz-grid .di-card{height:auto;min-height:0;overflow:visible}
+  .dc-page .dc-viz-grid .di-bar-row{font-size:11px}
+}
+.dc-page .dc-viz-grid .di-card>div:last-child{overflow:hidden}
+.dc-page #dc-visual .dc-viz-table-wrap{max-height:220px}
+@media(max-width:600px){
+  .dc-page .dc-viz-grid .di-card{height:auto;min-height:0;overflow:visible}
+  .dc-page #dc-visual .dc-viz-table-wrap{max-height:240px}
+}
+

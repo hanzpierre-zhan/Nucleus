@@ -772,8 +772,9 @@ def _migrar_rendicion(Proyecto, AppConfig, NucleusData):
     if not isinstance(campos, list):
         campos = []
     bajos = {str(c).strip().lower() for c in campos}
-    if 'motivo rechazo' not in bajos:
-        campos.append('MOTIVO RECHAZO')
+    faltantes = [c for c in ('MOTIVO RECHAZO', 'SUBESTADO') if c.lower() not in bajos]
+    if faltantes:
+        campos.extend(faltantes)
         valor = json.dumps(campos, ensure_ascii=False)
         if cfg:
             cfg.valor = valor
@@ -797,6 +798,13 @@ def _migrar_rendicion(Proyecto, AppConfig, NucleusData):
         if not isinstance(d, dict):
             continue
         tocado = False
+        # Conserva el estado principal de los registros históricos.
+        estado_previo = str(d.get('ESTADO') or '').strip().upper()
+        if estado_previo in ('OBSERVADO', 'ARCHIVADO'):
+            d['SUBESTADO'] = estado_previo
+            d['ESTADO'] = ('SUSTENTADO' if estado_previo == 'ARCHIVADO'
+                           or d.get('FECHA SUSTENTO') or d.get('SUSTENTADO POR') else 'CON SUSTENTO')
+            tocado = True
         # motivo del rechazo historico -> columna propia
         if str(d.get('ESTADO') or '').strip().upper() == 'RECHAZADO':
             motivo = str(d.get('OBSERVACIONES') or '').strip()

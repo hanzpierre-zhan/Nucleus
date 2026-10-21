@@ -1,0 +1,68 @@
+{
+  "console": [],
+  "failed": [],
+  "pages": {
+    "cotizaciones": {
+      "canvasIds": [
+        "dc-chart-operador",
+        "dc-chart-gasto",
+        "dc-chart-aprobacion",
+        "dc-chart-mes"
+      ],
+      "dup": [],
+      "instances": 4,
+      "visibleCharts": 4,
+      "detailsOpen": [],
+      "detailCount": 6,
+      "scrollHeight": 900,
+      "filtro": {
+        "before": {
+          "c": 4,
+          "i": 4
+        },
+        "after": {
+          "c": 4,
+          "i": 4
+        }
+      }
+    },
+    "rendicion": {
+      "canvasIds": [
+        "dr-chart-pend",
+        "dr-chart-presupuesto",
+        "dr-chart-sust-gasto",
+        "dr-chart-pagado"
+      ],
+      "dup": [],
+      "instances": 4,
+      "visibleCharts": 4,
+      "detailsOpen": [],
+      "detailCount": 5,
+      "scrollHeight": 900,
+      "filtro": {
+        "before": {
+          "c": 4,
+          "i": 4
+        },
+        "after": {
+          "c": 4,
+          "i": 4
+        }
+      }
+    },
+    "cotizaciones-movil": {
+      "overflowX": false,
+      "bodyScrollWidth": 390,
+      "clientWidth": 390,
+      "canvasCount": 4,
+      "dup": []
+    },
+    "rendicion-movil": {
+      "overflowX": false,
+      "bodyScrollWidth": 390,
+      "clientWidth": 390,
+      "canvasCount": 4,
+      "dup": []
+    }
+  }
+}

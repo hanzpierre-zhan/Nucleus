@@ -22,6 +22,11 @@
     const ETAPA_COLOR = {};
     ETAPAS.forEach(([k, l, c]) => { ETAPA_LABEL[k] = l; ETAPA_COLOR[k] = c; });
     const CERRADAS = ['ATENDIDO', 'ARCHIVADO', 'ANULADO'];
+    const SUSTENTADAS = ['SUSTENTO', 'ATENDIDO', 'ARCHIVADO'];
+    const esSustentado = r => SUSTENTADAS.indexOf(r.etapa) >= 0;
+    // El formulario no siempre trae solicitante; se usa el beneficiario como persona real.
+    const persona = r => (r.solicito && r.solicito !== 'Sin datos') ? r.solicito
+        : (r.beneficiario && r.beneficiario !== 'Sin beneficiario' ? r.beneficiario : 'Sin datos');
 
     for (const [id, key] of [['di-client', 'proyecto'], ['di-budget', 'presupuesto'], ['di-owner', 'solicito']]) {
         [...new Set(rows.map(r => r[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b))
@@ -50,14 +55,240 @@
 
     const bars = window.NucleusDashboardGraficos.render;
 
-    function groupAgg(items, key) {
+    function agg(items, keyFn) {
         const m = new Map();
         items.forEach(r => {
-            const k = r[key] || 'Sin datos';
+            const k = keyFn(r) || 'Sin datos';
             const e = m.get(k) || { n: 0, monto: 0 };
             e.n++; e.monto += r.monto || 0; m.set(k, e);
         });
-        return [...m.entries()].sort((a, b) => b[1].n - a[1].n || b[1].monto - a[1].monto);
+        return [...m.entries()];
+    }
+
+    function groupAgg(items, key) {
+        return agg(items, r => r[key]).sort((a, b) => b[1].n - a[1].n || b[1].monto - a[1].monto);
+    }
+
+    // ── Chart.js: dona, barras y línea temporal ────────────────────────────────
+    const charts = new Map();
+    const compactMoney = new Intl.NumberFormat('es-PE', { notation: 'compact', maximumFractionDigits: 1 });
+    const chartFont = 'SF Pro Display, Segoe UI, Roboto, sans-serif';
+    const cssVar = name => getComputedStyle(document.querySelector('.dr-page') || document.body)
+        .getPropertyValue(name).trim();
+
+    function rgba(color, alpha) {
+        const hex = String(color || '').trim();
+        if (/^#([0-9a-f]{6})$/i.test(hex)) {
+            const n = parseInt(hex.slice(1), 16);
+            return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+        }
+        return hex;
+    }
+    function chartTheme() {
+        const accents = ['--di-blue', '--di-amber', '--di-green', '--di-cyan', '--di-purple'].map(cssVar).filter(Boolean);
+        return {
+            label: cssVar('--ios-label') || '#1C1C1E',
+            secondary: cssVar('--ios-secondary') || '#8E8E93',
+            hairline: cssVar('--ios-hairline') || '#E5E5EA',
+            card: cssVar('--ios-card-bg') || '#FFFFFF',
+            accents: accents.length ? accents : ['#356dcc'],
+        };
+    }
+    function palette(size) {
+        const base = chartTheme().accents;
+        const out = [];
+        for (let i = 0; out.length < size; i++) out.push(i % 2 ? rgba(base[(i >> 1) % base.length], 0.55) : base[i % base.length]);
+        return out;
+    }
+    function tooltipBase(theme) {
+        return {
+            backgroundColor: theme.card, titleColor: theme.label, bodyColor: theme.secondary,
+            borderColor: theme.hairline, borderWidth: 1, padding: 10, cornerRadius: 7, displayColors: true,
+        };
+    }
+    function destroyChart(id) {
+        const inst = charts.get(id);
+        if (inst) { inst.destroy(); charts.delete(id); }
+    }
+    function mountChart(id, config) {
+        if (!window.Chart) return;
+        const canvas = get(id);
+        if (!canvas) return;
+        destroyChart(id);
+        charts.set(id, new window.Chart(canvas.getContext('2d'), config));
+    }
+
+    function donutPend(v) {
+        const pend = v.filter(r => r.depositado && !esSustentado(r));
+        const entries = agg(pend, r => r.proyecto).filter(x => x[1].monto > 0)
+            .sort((a, b) => b[1].monto - a[1].monto);
+        const totalM = entries.reduce((a, x) => a + x[1].monto, 0);
+        const theme = chartTheme(), colors = palette(entries.length);
+        const legend = get('dr-pend-legend');
+        legend.replaceChildren();
+        entries.forEach(([name, e], i) => {
+            const li = document.createElement('li'), dot = document.createElement('i'),
+                label = document.createElement('span'), value = document.createElement('b');
+            dot.style.background = colors[i];
+            label.textContent = window.NucleusIdentity.text(name);
+            value.textContent = money(e.monto) + ' · ' + (totalM ? Math.round(e.monto / totalM * 1000) / 10 : 0) + '%';
+            li.title = name + ': ' + money(e.monto) + ' en ' + e.n + ' casos';
+            li.append(dot, label, value); legend.append(li);
+        });
+        if (!entries.length) {
+            const li = document.createElement('li');
+            li.textContent = 'Sin importes pendientes de sustento.';
+            legend.append(li);
+        }
+        get('dr-pend-total').textContent = 'S/ ' + compactMoney.format(totalM);
+        mountChart('dr-chart-pend', {
+            type: 'doughnut',
+            data: {
+                labels: entries.map(([name]) => window.NucleusIdentity.text(name)),
+                datasets: [{ data: entries.map(([, e]) => e.monto), backgroundColor: colors, borderColor: theme.card, borderWidth: 2, hoverOffset: 5 }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '64%', layout: { padding: 2 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: Object.assign(tooltipBase(theme), {
+                        callbacks: {
+                            label(ctx) {
+                                const e = entries[ctx.dataIndex][1];
+                                const pct = totalM ? Math.round(e.monto / totalM * 1000) / 10 : 0;
+                                return ' ' + money(e.monto) + ' · ' + e.n + ' casos (' + pct + '%)';
+                            },
+                        },
+                    }),
+                },
+            },
+        });
+    }
+
+    function verticalChart(id, entries, opts = {}) {
+        const theme = chartTheme(), colors = palette(entries.length);
+        const isMoney = opts.money !== false;
+        mountChart(id, {
+            type: 'bar',
+            data: {
+                labels: entries.map(([label]) => window.NucleusIdentity.text(label)),
+                datasets: [{ data: entries.map(([, e]) => isMoney ? e.monto : e.n), backgroundColor: colors, borderRadius: 4, maxBarThickness: 56 }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: theme.secondary, font: { size: 10, family: chartFont }, maxRotation: 32, minRotation: 0, autoSkip: false },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: theme.hairline },
+                        ticks: {
+                            precision: 0, color: theme.secondary, font: { size: 10, family: chartFont },
+                            callback: value => isMoney ? 'S/ ' + compactMoney.format(value) : value,
+                        },
+                    },
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: Object.assign(tooltipBase(theme), {
+                        callbacks: {
+                            label: ctx => ' ' + (isMoney ? money(ctx.parsed.y) : ctx.parsed.y + ' casos'),
+                            afterLabel: ctx => {
+                                const e = entries[ctx.dataIndex][1];
+                                return isMoney ? e.n + ' registros' : money(e.monto);
+                            },
+                        },
+                    }),
+                },
+            },
+        });
+    }
+
+    function pagadoLine(v) {
+        const pagos = v.filter(r => r.pago_registrado && r.dia_pago);
+        const days = [...new Set(pagos.map(r => r.dia_pago))].sort();
+        const series = [['GASTO COBRA', 'Gasto Cobra'], ['REFACTURABLE', 'Refacturable']];
+        const theme = chartTheme();
+        const totals = {};
+        const datasets = series.map(([key, label], i) => {
+            const byDay = new Map();
+            pagos.filter(r => r.presupuesto === key).forEach(r => byDay.set(r.dia_pago, (byDay.get(r.dia_pago) || 0) + (r.pagado || 0)));
+            totals[key] = [...byDay.values()].reduce((a, b) => a + b, 0);
+            const color = theme.accents[i] || theme.accents[0];
+            return {
+                label: label, data: days.map(d => byDay.get(d) || 0),
+                borderColor: color, backgroundColor: rgba(color, 0.16), borderWidth: 2,
+                fill: false, tension: 0.3, pointRadius: 2.5, pointHoverRadius: 5,
+                pointBackgroundColor: theme.card, pointBorderColor: color, pointBorderWidth: 2,
+            };
+        });
+        mountChart('dr-chart-pagado', {
+            type: 'line',
+            data: { labels: days.map(d => d.slice(5)), datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: theme.secondary, font: { size: 10, family: chartFont }, maxRotation: 32, autoSkip: true, maxTicksLimit: 12 },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: theme.hairline },
+                        ticks: { color: theme.secondary, font: { size: 10, family: chartFont }, callback: value => 'S/ ' + compactMoney.format(value) },
+                    },
+                },
+                plugins: {
+                    legend: {
+                        display: true, position: 'top', align: 'end',
+                        labels: { color: theme.secondary, boxWidth: 10, boxHeight: 10, usePointStyle: true, font: { size: 10, family: chartFont } },
+                    },
+                    tooltip: Object.assign(tooltipBase(theme), {
+                        callbacks: {
+                            title: ctx => days[ctx[0].dataIndex] || '',
+                            label: ctx => ' ' + ctx.dataset.label + ': ' + money(ctx.parsed.y),
+                        },
+                    }),
+                },
+            },
+        });
+    }
+
+    function vizKpis(v) {
+        const pagados = v.filter(r => r.pago_registrado);
+        const depositos = v.filter(r => r.depositado);
+        const sustentadas = v.filter(esSustentado);
+        const pct = v.length ? Math.round(depositos.length / v.length * 1000) / 10 : 0;
+        get('dr-viz-pagado').textContent = money(total(pagados, 'pagado'));
+        get('dr-viz-pagado-n').textContent = pagados.length + (pagados.length === 1 ? ' pago registrado' : ' pagos registrados');
+        get('dr-viz-registros').textContent = num(v.length);
+        get('dr-viz-depositado').textContent = money(total(depositos, 'pagado'));
+        get('dr-viz-depositado-n').textContent = depositos.length + (depositos.length === 1 ? ' depósito' : ' depósitos');
+        get('dr-viz-dep-n').textContent = num(depositos.length);
+        get('dr-viz-dep-pct').textContent = pct + '% de la selección';
+        get('dr-viz-sustentado').textContent = money(total(sustentadas, 'monto'));
+        get('dr-viz-sustentado-n').textContent = sustentadas.length + (sustentadas.length === 1 ? ' caso sustentado' : ' casos sustentados');
+        get('dr-viz-registrado').textContent = money(total(v, 'solicitado'));
+    }
+
+    function vizCharts(v) {
+        donutPend(v);
+        verticalChart('dr-chart-presupuesto',
+            agg(v, r => r.presupuesto).sort((a, b) => b[1].monto - a[1].monto), { money: true });
+        bars('dr-viz-personas', agg(v, persona)
+            .sort((a, b) => b[1].monto - a[1].monto || b[1].n - a[1].n)
+            .map(([k, e]) => [k, e.n, e.n + (e.n === 1 ? ' caso · ' : ' casos · ') + money(e.monto), e.monto]));
+
+        const sustentadas = v.filter(esSustentado);
+        verticalChart('dr-chart-sust-gasto',
+            agg(sustentadas, r => r.presupuesto).sort((a, b) => b[1].n - a[1].n), { money: false });
+        bars('dr-viz-sust-clientes', agg(sustentadas, r => r.proyecto)
+            .sort((a, b) => b[1].n - a[1].n || b[1].monto - a[1].monto)
+            .map(([k, e]) => [k, e.n, e.n + ' sustentadas · ' + money(e.monto), e.monto]));
+        pagadoLine(v);
     }
 
     function kpis(v) {
@@ -229,6 +460,8 @@
         visible = filtered();
         const set = kpis(visible);
         story(visible, set);
+        vizKpis(visible);
+        vizCharts(visible);
         months(visible);
         daily(visible);
         paneles(visible);
@@ -245,6 +478,8 @@
     });
     get('dr-prev').addEventListener('click', () => { page--; table(); });
     get('dr-next').addEventListener('click', () => { page++; table(); });
+    const themeToggle = get('theme-toggle');
+    if (themeToggle) themeToggle.addEventListener('click', () => setTimeout(() => vizCharts(visible), 80));
     consulta.bind(render, fillDays);
     fillDays();
     render();

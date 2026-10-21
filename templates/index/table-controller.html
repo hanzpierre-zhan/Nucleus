@@ -181,9 +181,16 @@ let _rendCambiandoVista = false;
     // Estado visible y etapa son distintos para los rechazos que retornan.
     function rendEstadoParaVista(row) {
         const estado = rendEstadoDe(row);
+        const subestado = String(row.SUBESTADO || '').trim().toUpperCase();
+        if (subestado === 'ARCHIVADO' && estado === 'SUSTENTADO') return 'ARCHIVADO';
+        if (subestado === 'OBSERVADO' && ['CON SUSTENTO','SUSTENTADO'].includes(estado)) return 'OBSERVADO';
         if (estado !== 'RECHAZADO') return estado;
-        const destino = row._RECHAZO_ETAPA || ({'VALIDADO':'VALIDACION','DEPOSITADO':'EVIDENCIA','CON SUSTENTO':'EVIDENCIA','OBSERVADO':'EVIDENCIA'}[String(row['RECHAZADO DESDE'] || '').trim().toUpperCase()]);
+        const destino = row._RECHAZO_ETAPA || ({'VALIDADO':'VALIDACION','DEPOSITADO':'EVIDENCIA','CON SUSTENTO':'EVIDENCIA','OBSERVADO':'EVIDENCIA','SUSTENTADO':'EVIDENCIA'}[String(row['RECHAZADO DESDE'] || '').trim().toUpperCase()]);
         return destino === 'VALIDACION' ? 'PENDIENTE' : destino === 'EVIDENCIA' ? 'DEPOSITADO' : 'ANULADO';
+    }
+
+    function rendMotivoRechazo(row) {
+        return row['MOTIVO RECHAZO'] || (rendEstadoDe(row) === 'RECHAZADO' ? row.OBSERVACIONES : '') || '';
     }
 
     // Botones del flujo: solo si el usuario tiene asignado el módulo Rendicion.
@@ -234,7 +241,7 @@ let _rendCambiandoVista = false;
     }
 
     const REND_ESENCIALES = {
-        base: ['_accion','ESTADO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Técnico beneficiario (Form)','Documento del beneficiario','Cruce de personal','Nombre de site','Número CM / PM / PLM'],
+        base: ['_accion','ESTADO','SUBESTADO','MOTIVO RECHAZO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Técnico beneficiario (Form)','Documento del beneficiario','Cruce de personal','Nombre de site','Número CM / PM / PLM'],
         validacion: ['Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Motivo de la solicitud','Criticidad - Prioridad','Responsable de la validación','Observaciones (Form)','OBSERVACIONES'],
         depositos: ['Monto total del depósito','Motivo de la solicitud','FECHA PAGO','MONTO PAGO','FOTO PAGO','ADJUNTO CORREO VALIDACION','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar'],
         evidencia: ['FECHA PAGO','MONTO PAGO','FOTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
@@ -2751,6 +2758,12 @@ let _rendCambiandoVista = false;
 
             }
 
+            if (IS_RENDICION && fieldName === 'MOTIVO RECHAZO') {
+                colDef.formatter = cell => escapeHtml(rendMotivoRechazo(cell.getRow().getData()));
+                colDef.minWidth = 220;
+                colDef.tooltip = (e, cell) => escapeHtml(rendMotivoRechazo(cell.getRow().getData()));
+            }
+
             if (IS_RENDICION && (fieldName === 'FOTO PAGO' || fieldName === 'FOTOS SUSTENTO')) {
 
                 const esSustento = fieldName === 'FOTOS SUSTENTO';
@@ -2987,7 +3000,7 @@ let _rendCambiandoVista = false;
 
         if (IS_RENDICION) {
 
-            const esSistema = (fieldName === 'CODIGO DEPOSITO' || fieldName === 'ESTADO');
+            const esSistema = ['CODIGO DEPOSITO', 'ESTADO', 'SUBESTADO', 'MOTIVO RECHAZO'].includes(fieldName);
 
             if (esSistema) {
 
@@ -3720,6 +3733,7 @@ let _rendCambiandoVista = false;
                     if (etapa === 'CON SUSTENTO') mk('rend-btn-dep', 'Observar', 'Registrar observación del sustento', () => rendObservar(key));
                     mk('rend-btn-no', 'Rechazado', 'Rechazar y regresar a Evidencia', () => rendAbrirRechazo(key));
                 } else if (etapa === 'SUSTENTADO') {
+                    mk('rend-btn-dep', 'Observar', 'Registrar observación conservando Atendido', () => rendObservar(key));
                     mk('rend-btn-rev', 'Archivar', 'Archivar solicitud atendida', () => rendArchivar(key, false));
                     mk('rend-btn-no', 'Rechazado', 'Rechazar y regresar a Evidencia', () => rendAbrirRechazo(key));
                 } else if (etapa === 'ARCHIVADO') {

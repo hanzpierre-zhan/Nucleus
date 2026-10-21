@@ -443,7 +443,6 @@
         foot.append(totalRow);
     }
 
-    let vizStale = true, vizFrame;
     function visual(v) {
         const setText = (id, text) => { const node = get(id); if (node) node.textContent = text; };
         setText('dc-viz-total', num(v.length));
@@ -451,17 +450,8 @@
         tipoTable(v);
         bars('dc-viz-responsable', groupAgg(v, 'genero')
             .map(([k, e]) => [k, e.n, e.n + ' cotizaciones · ' + money(e.monto), e.monto]));
-        const panel = get('di-secondary');
-        if (!panel || !panel.open) { vizStale = true; return; }
-        vizStale = false;
         donut(v); verticalBars('dc-chart-gasto', v, 'gasto');
         verticalBars('dc-chart-aprobacion', v, 'gasto_aprobacion'); monthlyLine(v);
-    }
-    function refreshVisual() {
-        const panel = get('di-secondary');
-        if (!panel || !panel.open || !vizStale) return;
-        cancelAnimationFrame(vizFrame);
-        vizFrame = requestAnimationFrame(() => visual(visible));
     }
 
     // ── Tabla detalle ──────────────────────────────────────────────────────────
@@ -515,12 +505,8 @@
     });
     get('dc-prev').addEventListener('click', () => { page--; table(); });
     get('dc-next').addEventListener('click', () => { page++; table(); });
-    get('di-secondary').addEventListener('toggle', () => {
-        if (!get('di-secondary').open) return;
-        vizStale = true; refreshVisual();
-    });
     const themeToggle = get('theme-toggle');
-    if (themeToggle) themeToggle.addEventListener('click', () => { vizStale = true; setTimeout(refreshVisual, 80); });
+    if (themeToggle) themeToggle.addEventListener('click', () => setTimeout(() => visual(visible), 80));
     consulta.bind(render, fillDays);
     fillDays();
     render();

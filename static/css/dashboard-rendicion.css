@@ -46,3 +46,60 @@
 .dr-chip{font-size:10px;padding:2px 8px;border-radius:999px;background:var(--ios-fill);color:var(--ios-secondary);border:1px solid var(--ios-hairline);white-space:nowrap}
 .dr-chip strong{color:var(--ios-label)}
 .dr-badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:6px;color:#fff;white-space:nowrap}
+
+/* ── KPIs grandes y rejilla ejecutiva siempre visible ─────────────────────── */
+.dr-page .dr-viz-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}
+@media(max-width:1100px){.dr-page .dr-viz-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.dr-page .dr-viz-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.dr-page .dr-viz-kpis article{padding:10px 12px;border-top-width:3px}
+.dr-page .dr-viz-kpis strong{font-size:clamp(18px,2.2vw,30px);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dr-page .dr-viz-kpis small{line-height:1.3;margin-top:2px}
+.dr-page .dr-viz-kpis article:nth-child(1){border-top-color:var(--di-green)}
+.dr-page .dr-viz-kpis article:nth-child(1) strong{color:var(--di-green)}
+.dr-page .dr-viz-kpis article:nth-child(2){border-top-color:var(--di-blue)}
+.dr-page .dr-viz-kpis article:nth-child(2) strong{color:var(--di-blue)}
+.dr-page .dr-viz-kpis article:nth-child(3){border-top-color:var(--di-cyan)}
+.dr-page .dr-viz-kpis article:nth-child(3) strong{color:var(--di-cyan)}
+.dr-page .dr-viz-kpis article:nth-child(4){border-top-color:var(--di-amber)}
+.dr-page .dr-viz-kpis article:nth-child(4) strong{color:var(--di-amber)}
+.dr-page .dr-viz-kpis article:nth-child(5){border-top-color:var(--di-purple)}
+.dr-page .dr-viz-kpis article:nth-child(5) strong{color:var(--di-purple)}
+.dr-page .dr-viz-kpis article:nth-child(6){border-top-color:var(--di-blue)}
+.dr-page .dr-viz-kpis article:nth-child(6) strong{color:var(--di-blue)}
+.dr-page .dr-viz-kpis article:first-child{
+  background:linear-gradient(180deg,color-mix(in srgb,var(--di-green) 7%,var(--ios-card-bg)),var(--ios-card-bg));
+}
+
+.dr-page .dr-viz-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1100px){.dr-page .dr-viz-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.dr-page .dr-viz-grid{grid-template-columns:minmax(0,1fr)}}
+@media(min-width:1101px){
+  .dr-page .dr-viz-grid .di-card{height:310px;min-height:310px;overflow:hidden}
+}
+.dr-page .dr-viz-grid .di-card{min-width:0}
+.dr-page .dr-viz-grid .di-bar-row{font-size:11px}
+.dr-page .dr-viz-card>div:last-child{overflow:hidden}
+.dr-page .dr-chart-wrap{position:relative;height:210px;min-height:210px;max-height:210px;min-width:0}
+.dr-page .dr-chart-wrap canvas{display:block;width:100%!important;height:100%!important}
+
+.dr-page .dr-donut-layout{display:flex;align-items:center;gap:14px;height:220px;min-height:220px;max-height:220px;min-width:0}
+.dr-page .dr-donut-canvas{position:relative;flex:1 1 55%;min-width:0;height:100%}
+.dr-page .dr-donut-canvas canvas{display:block;width:100%!important;height:100%!important}
+.dr-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
+.dr-donut-center b{font-size:20px;line-height:1.1;color:var(--di-cyan);font-variant-numeric:tabular-nums}
+.dr-donut-center span{font-size:10px;color:var(--ios-secondary)}
+.dr-donut-legend{list-style:none;margin:0;padding:0;flex:1 1 45%;min-width:0;max-height:100%;overflow:auto;display:grid;gap:5px;font-size:10px}
+.dr-donut-legend li{display:flex;align-items:center;gap:6px;min-width:0;color:var(--ios-secondary)}
+.dr-donut-legend i{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.dr-donut-legend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dr-donut-legend b{margin-left:auto;color:var(--ios-label);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+@media(max-width:600px){
+  .dr-page .dr-viz-kpis strong{font-size:clamp(15px,4.2vw,22px)}
+  .dr-page .dr-viz-grid .di-card{height:auto;min-height:0;overflow:visible}
+  .dr-page .dr-chart-wrap{height:200px;min-height:200px;max-height:200px}
+  .dr-page .dr-donut-layout{flex-direction:column;height:auto;min-height:0;max-height:none;align-items:stretch}
+  .dr-page .dr-donut-canvas{flex:none;height:190px;width:100%}
+  .dr-donut-legend{flex:none;width:100%;max-height:none;grid-template-columns:1fr}
+}
