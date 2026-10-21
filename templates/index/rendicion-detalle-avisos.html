@@ -2893,6 +2893,7 @@ async function cotGuardarProveedor() {
         const r = await fetch('/api/cotizacion/proveedor', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:modal.key,numero_factura:numero,numero_oc:oc,factura_proveedor:modal.url,subtotal_factura:subtotal})});
         const j = await r.json(); if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo guardar.');
         cotTrasAccion(j, modal.key); if (_cotProveedorModal === modal) cotCerrarProveedor();
+        window.location.href = '/liquidaciones/';
     } catch(e) {nucleusAlert(e.message);} finally {if (_cotProveedorModal === modal) {boton.disabled = false; boton.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Guardar documentos';}}
 }
 

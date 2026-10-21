@@ -2151,6 +2151,14 @@ let _rendCambiandoVista = false;
             colDef.title = 'Nombre del archivo del correo';
             colDef.editor = false;
             colDef.editable = false;
+            colDef.formatter = cell => {
+                const original = String(cell.getValue() || '');
+                const legible = /__/.test(original) ? original.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim() : original;
+                const span = document.createElement('span');
+                span.textContent = legible || '—';
+                span.title = original || '';
+                return span;
+            };
         }
         if (IS_RENDICION && fieldName === 'ADJUNTO CORREO VALIDACION') {
             colDef.title = 'CORREO DE VALIDACIÓN';

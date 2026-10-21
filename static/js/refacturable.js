@@ -62,8 +62,9 @@
     function fileNameFormatter(cell) {
         const nombre = String(cell.getValue() || '');
         if (!nombre) return '—';
+        const legible = /__/.test(nombre) ? nombre.replace(/_+/g, ' ').replace(/\s+/g, ' ').trim() : nombre;
         const span = document.createElement('span');
-        span.className = 'ref-file-name'; span.textContent = nombre; span.title = nombre;
+        span.className = 'ref-file-name'; span.textContent = legible; span.title = nombre;
         return span;
     }
     function documentButton(cell, kind) {

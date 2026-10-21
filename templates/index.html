@@ -41,8 +41,6 @@
     <!-- Pestañas del flujo: ocupan el espacio libre de la barra superior -->
 
     <div class="rend-tabs" id="rend-tabs">
-        <button type="button" class="rend-tab" data-vista="transito" onclick="rendCambiarVista('transito')"><i class="fa-solid fa-shoe-prints"></i> Tránsito <span class="rend-badge" id="rend-cnt-transito">0</span></button>
-
         <button type="button" class="rend-tab active" data-vista="validacion" onclick="rendCambiarVista('validacion')">
 
             <i class="fa-solid fa-clipboard-check"></i> Validación <span class="rend-badge" id="rend-cnt-validacion">0</span>
@@ -82,6 +80,8 @@
             <i class="fa-solid fa-ban"></i> Anulado <span class="rend-badge" id="rend-cnt-rechazados">0</span>
 
         </button>
+
+        <button type="button" class="rend-tab" data-vista="transito" onclick="rendCambiarVista('transito')"><i class="fa-solid fa-shoe-prints"></i> Tránsito <span class="rend-badge" id="rend-cnt-transito">0</span></button>
 
     </div>
 
