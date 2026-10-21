@@ -18,6 +18,7 @@
 .project-badge--claro { --project-badge-bg: #da291c; }
 .project-badge--entel { --project-badge-bg: #0057b8; }
 .project-badge--movistar { --project-badge-bg: #00a9e0; --project-badge-fg: #002f45; }
+.project-badge--integratel { --project-badge-bg: #66cd00; --project-badge-fg: #173400; }
 .project-badge--pext { --project-badge-bg: #ff9b35; --project-badge-fg: #4d2000; }
 /* En el detalle hay espacio para leer el nombre completo. */
 .rd-v .project-badge { white-space: normal; overflow-wrap: anywhere; }

@@ -10,7 +10,8 @@
         if (!words.length || words.some(w => !['FLM','CLARO','ENTEL','PEXT','INTEGRATEL','MOVISTAR'].includes(w))) return '';
         if (words.includes('PEXT')) return 'pext';
         if (words.includes('CLARO')) return 'claro';
-        if (words.includes('INTEGRATEL') || words.includes('MOVISTAR')) return 'movistar';
+        if (words.includes('INTEGRATEL')) return 'integratel';
+        if (words.includes('MOVISTAR')) return 'movistar';
         if (words.includes('ENTEL')) return 'entel';
         return '';
     }
