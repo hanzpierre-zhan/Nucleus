@@ -399,6 +399,7 @@ def api_columns_layout():
     clave = _clave_layout(data.get('vista'))
     config = AppConfig.query.filter_by(proyecto_id=pid, clave=clave).first()
     columns = data.get('columns') or []
+    anteriores = {c.get('field'): c for c in json.loads(config.valor or '[]')} if config else {}
     cleaned = []
     for c in columns:
         if not isinstance(c, dict):
@@ -406,7 +407,18 @@ def api_columns_layout():
         field = str(c.get('field', '')).strip()
         if not field:
             continue
-        cleaned.append({'field': field, 'visible': bool(c.get('visible', True))})
+        columna = {'field': field, 'visible': bool(c.get('visible', True))}
+        width = c.get('width', anteriores.get(field, {}).get('width'))
+        if width is not None:
+            try:
+                import math
+                numero = float(width)
+                if isinstance(width, bool) or not math.isfinite(numero) or not 40 <= numero <= 2000:
+                    raise ValueError()
+                columna['width'] = round(numero)
+            except (TypeError, ValueError, OverflowError):
+                return jsonify({'error': 'El ancho de columna debe estar entre 40 y 2000 píxeles.'}), 400
+        cleaned.append(columna)
     if cleaned:
         if config:
             config.valor = safe_json_dumps(cleaned)

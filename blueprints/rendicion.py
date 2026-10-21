@@ -420,9 +420,6 @@ def api_rendicion_accion():
     except Exception:
         row = {}
 
-    from services.rendicion_validadores import puede_validar
-    if accion == 'validar' and not puede_validar(row, session.get('user_id'), session.get('rol')):
-        return jsonify({'error': 'No estás asignado para validar este proyecto.'}), 403
 
     estado = _estado_de(row)
     etapa = _etapa_de(row)
@@ -977,32 +974,12 @@ def rendiciones_por_wo():
 @bp.route('/api/rendicion/validadores', methods=['GET', 'POST'])
 @login_required
 def configurar_validadores():
-    from models import Usuario
-    from services.rendicion_validadores import (ADMIN_ROLES, configuracion, guardar,
-                                                PROYECTOS, accesos_rendicion)
-    if session.get('rol') not in ADMIN_ROLES or not _puede_gestionar():
-        return jsonify({'error': 'Solo administración puede configurar validadores.'}), 403
-    if request.method == 'POST':
-        try:
-            return jsonify(success=True, configuracion=guardar(request.get_json(silent=True)))
-        except ValueError as error:
-            return jsonify(error=str(error)), 400
-    from services.usuarios import usuarios_activos
-    usuarios = usuarios_activos().order_by(Usuario.nombre, Usuario.username).all()
-    # El acceso de cada usuario se resuelve en bloque (antes: una consulta por
-    # usuario, ~90 en total para esta pantalla).
-    acceso_rendicion = accesos_rendicion(usuarios)
-    return jsonify(configuracion=configuracion(), proyectos=list(PROYECTOS), usuarios=[
-        {'id': u.id, 'nombre': u.nombre or u.username, 'username': u.username,
-         'admin': u.rol in ADMIN_ROLES, 'acceso_rendicion': acceso_rendicion[u.id]}
-        for u in usuarios
-        ])
+    return jsonify(error='Esta configuración ya no se utiliza. El acceso depende de los proyectos asignados.'), 410
 
 @bp.route('/api/rendicion/solicitud', methods=['PATCH'])
 @login_required
 def corregir_solicitud():
     from models import HistorialCambios
-    from services.rendicion_validadores import puede_validar
     from services.rendicion_correcciones import validar_cambios, normalizar
     from services.rendicion_personal import completar_personal, indice_personal, documento
     if not _puede_gestionar() or session.get('rol') not in ROLES_ACCION:
@@ -1015,8 +992,6 @@ def corregir_solicitud():
     if not fila:
         return jsonify(error='Solicitud no encontrada.'),404
     row=json.loads(fila.data_json or '{}')
-    if not puede_validar(row,session.get('user_id'),session.get('rol')):
-        return jsonify(error='No estás asignado para validar este proyecto.'),403
     if _etapa_de(row)!='VALIDACION':
         return jsonify(error='Solo puedes corregir la solicitud mientras esté en Validación.'),409
     if payload.get('revision',0)!=row.get('_CORRECCION_REV',0):

@@ -18,7 +18,7 @@ function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.disp
 
 function rendPoblarDetalle(data, gridId) {
     const editable = gridId === 'rend-resumen-grid' && typeof _rendModal !== 'undefined' && _rendModal?.accion === 'validar'
-        && ['gestor','supervisor','zeno','suport','admin'].includes(String(USER_ROLE).toLowerCase()) && rendPuedeValidarFila(data);
+        && ['gestor','supervisor','zeno','suport','admin'].includes(String(USER_ROLE).toLowerCase());
     if (gridId === 'rend-resumen-grid') {
         document.getElementById('rend-correccion-actions').style.display = editable ? 'block' : 'none';
         document.getElementById('rend-correccion-status').textContent = editable ? 'Corrige los datos y guarda antes de validar.' : '';
@@ -327,7 +327,23 @@ function _rendInitEstados() {
             });
             est.orden = [...orden, ...base.orden.filter(f => !orden.includes(f))];
         }
-        try { Object.assign(est.anchos, JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}')); } catch (_) {}
+        // Recupera una vez los anchos antiguos de zeno/suport; nunca reemplaza los compartidos.
+        if (isAdmin && Array.isArray(guardado) && guardado.length) {
+            let anteriores = {};
+            try { anteriores = JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}'); } catch (_) {}
+            let importado = false;
+            const migrado = guardado.map(c => {
+                const anterior = window.NucleusColumnLayout.width(anteriores[c.field]);
+                if (window.NucleusColumnLayout.width(c.width) !== null || anterior === null) return c;
+                est.anchos[c.field] = anterior;
+                importado = true;
+                return {...c, width: anterior};
+            });
+            if (importado) {
+                columnLayoutVistas[vista] = migrado;
+                persistColumnLayout(migrado, vista);
+            }
+        }
         _rendEstadoVistas[vista] = est;
     });
 }
@@ -367,6 +383,7 @@ function _rendAplicarEstado(est) {
             return def;
         });
         const sorters = table.getSorters().map(s => ({column:s.field, dir:s.dir}));
+        window.NucleusColumnLayout.apply(definitions, Object.entries(est.anchos).map(([field,width]) => ({field,width})), isAdmin);
         table.setColumns(definitions);
         if (sorters.length) table.setSort(sorters);
 
@@ -2197,6 +2214,7 @@ function cotCambiarVista(vista) {
     if (!IS_COTIZACIONES || !COT_VISTAS[vista]) return;
 
     _cotVista = vista;
+    cotAplicarColumnasVista(vista);
     cotAplicarAnchos(vista);
     // Cambiar de pestaña conserva el orden y la visibilidad del administrador.
     document.querySelectorAll('#cot-tabs .rend-tab').forEach(b => {

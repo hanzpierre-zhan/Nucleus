@@ -28,6 +28,8 @@
     <script src="/static/js/user-names.js?v=1"></script>
     <link rel="stylesheet" href="/static/css/project-badges.css?v=2">
     <script src="/static/js/project-badges.js?v=2"></script>
+    <script src="/static/js/column-layout.js?v=2"></script>
+    <link rel="stylesheet" href="/static/css/toast.css?v=1">
 </head>
 <body data-options-role="{{ session.get('rol', '') }}" data-options-user="{{ session.get('user_id', '') }}">
     <script>
@@ -208,6 +210,7 @@
 
     </script>
     <script src="{{ url_for('static', filename='js/api-response.js') }}?v=2"></script>
+    <script src="/static/js/toast.js?v=1"></script>
     <script src="{{ url_for('static', filename='js/catalogos-autocomplete.js') }}?v=1"></script>
 
     {% block scripts %}{% endblock %}

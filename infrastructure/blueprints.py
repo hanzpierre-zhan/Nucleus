@@ -43,13 +43,11 @@ def _register_blueprints(app):
     )
 
     @app.context_processor
-    def identidades_y_validacion():
+    def identidades():
         from flask import session
 
         if not session.get("user_id"):
-            return {"nombres_usuarios": {}, "rend_validadores_config": {}}
-        from models import Usuario
-        from services.rendicion_validadores import configuracion
+            return {"nombres_usuarios": {}}
         from services.identidades import nombres_usuarios
 
         nombres = nombres_usuarios()
@@ -57,11 +55,6 @@ def _register_blueprints(app):
             "nombres_usuarios": nombres,
             "nombre_usuario_actual": nombres.get(
                 session.get("username"), session.get("username")
-            ),
-            "rend_validadores_config": (
-                configuracion()
-                if session.get("current_proyecto_nombre") == "Rendicion"
-                else {}
             ),
         }
 

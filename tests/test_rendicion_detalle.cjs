@@ -47,6 +47,7 @@ const base = {visibles: {'ESTADO': true, 'SUBESTADO': true, 'MOTIVO RECHAZO': tr
 const saved = [{field: 'MOTIVO RECHAZO', visible: false}, {field: 'ESTADO', visible: true},
     {field: 'RECHAZADO POR', visible: true}, {field: 'DEPARTAMENTO', visible: false}];
 const layoutContext = vm.createContext({
+    isAdmin: false,
     _rendEstadoListo: false, _rendEstadoVistas: {}, _rendSnapshot: () => base,
     REND_VISTAS: {validacion: {showCols: ['SUBESTADO']}, evidencia: {showPrefijos: ['SUSTENTO_']}},
     columnLayoutVistas: {validacion: saved}, columnLayout: [{field: 'ESTADO', visible: false}],
@@ -65,4 +66,24 @@ assert.deepEqual(Array.from(vista.orden.slice(0, 4)), saved.map(c => c.field));
 assert.equal(layoutContext._rendEstadoVistas.evidencia.visibles.ESTADO, false);
 assert.equal(layoutContext._rendEstadoVistas.evidencia.visibles.SUSTENTO_NUEVO, false);
 assert.equal(base.visibles.DEPARTAMENTO, true, 'Inicializar no modifica la configuración original');
-console.log('OK: detalle solo visible y configuración de columnas respetada');
+// Un lector nunca aplica anchos privados; el administrador solo importa los que faltan.
+const helperSource = fs.readFileSync(path.join(root, 'static/js/column-layout.js'), 'utf8');
+vm.runInContext(helperSource, context);
+const imported = [];
+const ownerContext = vm.createContext({
+    window: context.window, isAdmin: true,
+    _rendEstadoListo: false, _rendEstadoVistas: {}, _rendSnapshot: () => base,
+    REND_VISTAS: {validacion: {}},
+    columnLayoutVistas: {validacion: [{field: 'ESTADO', visible: true, width: 180}, {field: 'MOTIVO RECHAZO', visible: false}]},
+    columnLayout: [], _rendEsColumnaDeVista: f => Boolean(f), _rendAnchosClave: () => 'anteriores',
+    localStorage: {getItem: () => JSON.stringify({'ESTADO': 900, 'MOTIVO RECHAZO': 333})},
+    persistColumnLayout: (columns, vista) => imported.push({columns, vista}),
+});
+vm.runInContext(detail.slice(detail.indexOf('function _rendInitEstados()'), detail.indexOf('// Reordena columnas al orden guardado')), ownerContext);
+ownerContext._rendInitEstados();
+assert.equal(ownerContext._rendEstadoVistas.validacion.anchos.ESTADO, 180);
+assert.equal(ownerContext._rendEstadoVistas.validacion.anchos['MOTIVO RECHAZO'], 333);
+assert.equal(imported.length, 1);
+assert.equal(imported[0].columns[1].visible, false);
+assert.equal(imported[0].columns[1].width, 333);
+console.log('OK: detalle visible, configuración compartida y recuperación de anchos');

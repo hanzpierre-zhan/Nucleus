@@ -8,6 +8,7 @@
     const clientesAutorizados = {{ familias_acceso | tojson }};
 
     const columnLayout = {{ column_layout | safe }} || [];
+    let _columnLayoutSaveQueue = Promise.resolve();
 
     // Rendicion: layout propio de cada hoja (validacion, depositos, ...)
 
@@ -199,15 +200,6 @@ let _rendCambiandoVista = false;
 
     const REND_PUEDE_GESTIONAR = {{ 'true' if puede_rendicion else 'false' }};
 
-    window.REND_VALIDADORES_CONFIG = {{ rend_validadores_config|default({})|tojson }};
-    function rendPuedeValidarFila(row) {
-        if (['zeno','suport','admin'].includes(USER_ROLE)) return true;
-        const cfg=window.REND_VALIDADORES_CONFIG;
-        if(!cfg.activo) return true;
-        const nombre=String(row['Nombre del proyecto'] || row['NOMBRE DEL PROYECTO'] || row.PROYECTO || row.CLIENTE || '').toUpperCase();
-        const matches=['ENTEL','INTEGRATEL','CLARO'].filter(p=>new RegExp('\\b'+p+'\\b').test(nombre));
-        return matches.length===1 && (cfg.asignaciones?.[{{ session.get('user_id')|tojson }}] || []).includes(matches[0]);
-    }
     function rendPuedeGestionar() {
 
         return IS_RENDICION && typeof REND_PUEDE_GESTIONAR !== 'undefined' && REND_PUEDE_GESTIONAR === true;
@@ -328,32 +320,48 @@ let _rendCambiandoVista = false;
     };
 
     let _cotVista = 'registro';
+    let _cotCambiandoColumnas = false;
+    let _cotLayoutGeneral = null;
+    function cotAplicarColumnasVista(vista) {
+        const helpers = window.NucleusColumnLayout;
+        if (!_cotLayoutGeneral) _cotLayoutGeneral = helpers.snapshot(table.getColumns());
+        let layout = _cotLayoutGeneral;
+        if (vista === 'proveedor') {
+            if (!columnLayoutVistas.proveedor?.length) columnLayoutVistas.proveedor = helpers.providerLayout(_cotLayoutGeneral);
+            layout = columnLayoutVistas.proveedor;
+        }
+        _cotCambiandoColumnas = true;
+        try {
+            const sorters = table.getSorters().map(s => ({column:s.field, dir:s.dir}));
+            table.setColumns(helpers.definitions(table.getColumns(), layout, isAdmin));
+            if (sorters.length) table.setSort(sorters);
+        } finally { _cotCambiandoColumnas = false; }
+    }
     let _cotCambiandoAnchos = false;
-    const _cotAnchosBase = {};
     function cotAnchosClave(vista) {
         return 'cot-anchos-' + {{ session.get('user_id') | tojson }} + '-' + {{ session.get('current_proyecto_id') | tojson }} + '-' + vista;
     }
-    function cotGuardarAnchos() {
-        if (!IS_COTIZACIONES || _cotCambiandoAnchos) return;
-        const anchos = {};
-        table.getColumns().forEach(c => { if (c.getField()) anchos[c.getField()] = c.getWidth(); });
-        try { localStorage.setItem(cotAnchosClave(_cotVista), JSON.stringify(anchos)); } catch (_) {}
-    }
     function cotAplicarAnchos(vista) {
-        let propios = {};
-        try { propios = JSON.parse(localStorage.getItem(cotAnchosClave(vista)) || '{}'); } catch (_) {}
+        let anteriores = {};
+        if (isAdmin) {
+            try { anteriores = JSON.parse(localStorage.getItem(cotAnchosClave(vista)) || '{}'); } catch (_) {}
+        }
+        const guardadas = new Map((vista === 'proveedor' ? columnLayoutVistas.proveedor || columnLayout : columnLayout).map(c => [c.field, c]));
+        let importado = false;
         _cotCambiandoAnchos = true;
         try {
             table.getColumns().forEach(c => {
-                const f = c.getField(); if (!f) return;
-                if (!_cotAnchosBase[f]) _cotAnchosBase[f] = c.getWidth();
-                const inicial = f === '_accion_cot'
-                    ? ({registro:160, cliente:160, sustentar:65, atendido:160, cancelado:110, proveedor:65}[vista] || 160)
-                    : _cotAnchosBase[f];
-                c.setWidth(Number(propios[f]) >= 40 ? Number(propios[f]) : inicial);
-                c.getDefinition().width = c.getWidth();
+                const f = c.getField();
+                const compartido = window.NucleusColumnLayout.width(guardadas.get(f)?.width);
+                const anterior = window.NucleusColumnLayout.width(anteriores[f]);
+                const ancho = compartido ?? anterior;
+                if (!f || ancho === null) return;
+                c.setWidth(ancho);
+                c.getDefinition().width = ancho;
+                if (compartido === null && anterior !== null) importado = true;
             });
         } finally { _cotCambiandoAnchos = false; }
+        if (importado) saveColumnLayout();
     }
 
     // Devuelve la pestaña ('registro'|'cotizado'|'cliente'|'atendido') a la que
@@ -3573,7 +3581,7 @@ let _rendCambiandoVista = false;
                     b.title = titulo;
                     b.setAttribute('aria-label', titulo);
 
-                    b.disabled = !puede || (texto === 'Validar' && !rendPuedeValidarFila(row));
+                    b.disabled = !puede;
 
                     b.onclick = (e) => { e.stopPropagation(); fn(); };
 
@@ -4452,6 +4460,7 @@ let _rendCambiandoVista = false;
     });
     // Aplicar a las columnas definitivas, incluidas las importadas del formulario.
     window.NucleusOrden.configurar(tableColumns, manualColsConfig, currentProjectNombre);
+    window.NucleusColumnLayout.apply(tableColumns, columnLayout, isAdmin);
     const table = new Tabulator("#data-grid", {
 
         data: rawData,
@@ -4474,7 +4483,7 @@ let _rendCambiandoVista = false;
         headerHeight: 90,
 
         rowHeight: 44,
-        columnDefaults: { vertAlign: "middle", minWidth: 48, resizable: true },
+        columnDefaults: { vertAlign: "middle", minWidth: 48, resizable: isAdmin },
 
         selectable: isAdmin,
 
@@ -5030,7 +5039,7 @@ let _rendCambiandoVista = false;
 
     if (isAdmin) {
 
-        table.on("columnMoved", function () { if (!orderApplying && !_rendCambiandoVista) saveColumnLayout(); });
+        table.on("columnMoved", function () { if (!orderApplying && !_rendCambiandoVista && !_cotCambiandoColumnas) saveColumnLayout(); });
 
     }
 
@@ -5038,37 +5047,19 @@ let _rendCambiandoVista = false;
 
     // Solo los cambios explícitos de zeno/suport se guardan para todos.
     table.on("columnVisibilityChanged", function () {
-        if (!isAdmin || orderApplying || _rendCambiandoVista) return;
+        if (!isAdmin || orderApplying || _rendCambiandoVista || _cotCambiandoColumnas) return;
         saveColumnLayout();
     });
 
 
 
-    // Anchos: cuando el usuario ajusta una columna a mano, ese ancho se graba en
-
-    // su definición. Así los reajustes internos de Tabulator (cambiar de hoja,
-
-    // reordenar, re-render) restauran el ancho DEL USUARIO y no el original.
-
+    // Los anchos ajustados por zeno/suport se guardan en el servidor para todos.
     table.on("columnResized", function (col) {
-
-        try {
-
-            const def = col.getDefinition();
-
-            if (def) def.width = col.getWidth();
-            if (IS_COTIZACIONES) cotGuardarAnchos();
-            if (IS_RENDICION && !_rendCambiandoVista && _rendEstadoListo) {
-                const estado = _rendSnapshot();
-                _rendEstadoVistas[_rendVista] = estado;
-                localStorage.setItem(_rendAnchosClave(_rendVista), JSON.stringify(estado.anchos));
-            }
-
-        } catch (e) { }
-
+        if (!isAdmin || _rendCambiandoVista || _cotCambiandoColumnas || _cotCambiandoAnchos || orderApplying) return;
+        col.getDefinition().width = col.getWidth();
+        if (IS_RENDICION && _rendEstadoListo) _rendEstadoVistas[_rendVista] = _rendSnapshot();
+        saveColumnLayout();
     });
-
-
 
     // Initial count on page load (fallback)
 
@@ -5364,61 +5355,36 @@ let _rendCambiandoVista = false;
 
 
 
-    async function saveColumnLayout(showToast) {
-
-        if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return;
-
-        // En Rendicion cada hoja guarda su propia vista (visibilidad + orden):
-
-        // se envia la hoja activa y el servidor la guarda aparte, de modo que
-
-        // todos los usuarios ven lo mismo que declaro el administrador.
-
-        let vista = null;
-
-        if (IS_RENDICION && typeof rendEstadoParaGuardar === 'function') {
-
-            rendEstadoParaGuardar();
-
-            vista = (typeof _rendVista !== 'undefined') ? _rendVista : null;
-
-        }
-
-        const cols = table.getColumns().map(c => {
-
-            const def = c.getDefinition();
-
-            if (!def.field) return null;
-
-            return { field: def.field, visible: c.isVisible() };
-
-        }).filter(Boolean);
-
-        fetch('/api/columns/layout' + (vista ? '?vista=' + encodeURIComponent(vista) : ''), {
-
-            method: 'POST',
-
-            headers: { 'Content-Type': 'application/json' },
-
-            body: JSON.stringify({ columns: cols, vista: vista || undefined })
-
-        }).then(r => r.json()).then(res => {
-
-            if (res.success && showToast) {
-
-                woToast(vista
-
-                    ? 'Vista de la hoja guardada: todos los usuarios la veran igual.'
-
-                    : 'Configuracion de columnas guardada para todos los usuarios.');
-
-            }
-
-        }).catch(() => { });
-
+    function persistColumnLayout(columns, vista, showToast) {
+        if (!isAdmin) return Promise.resolve(false);
+        const body = JSON.stringify({columns, vista: vista || undefined});
+        _columnLayoutSaveQueue = _columnLayoutSaveQueue.then(async () => {
+            const response = await fetch('/api/columns/layout', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || 'No se pudo guardar la vista.');
+            if (showToast) woToast('Orden, anchos y visibilidad guardados para todos los usuarios.');
+            return true;
+        }).catch(error => { woToast(error.message || 'No se pudo guardar la vista.'); return false; });
+        return _columnLayoutSaveQueue;
     }
 
-
+    function saveColumnLayout(showToast) {
+        if (!isAdmin) return Promise.resolve(false);
+        let vista = null;
+        if (IS_RENDICION && typeof rendEstadoParaGuardar === 'function') {
+            rendEstadoParaGuardar();
+            vista = _rendVista;
+        } else if (IS_COTIZACIONES && _cotVista === 'proveedor') vista = 'proveedor';
+        const columns = window.NucleusColumnLayout.snapshot(table.getColumns());
+        if (vista) columnLayoutVistas[vista] = columns;
+        else {
+            columnLayout.splice(0, columnLayout.length, ...columns);
+            if (IS_COTIZACIONES) _cotLayoutGeneral = columns;
+        }
+        return persistColumnLayout(columns, vista, showToast);
+    }
 
     async function woToast(msg) {
 
@@ -5465,9 +5431,9 @@ let _rendCambiandoVista = false;
 
             let tieneLayout = hasServerLayout;
 
-            if (IS_RENDICION && typeof _rendVista !== 'undefined') {
+            if ((IS_RENDICION && typeof _rendVista !== 'undefined') || (IS_COTIZACIONES && _cotVista === 'proveedor')) {
 
-                vista = _rendVista;
+                vista = IS_RENDICION ? _rendVista : 'proveedor';
 
                 const propia = (typeof columnLayoutVistas !== 'undefined' && columnLayoutVistas)
 
@@ -5713,6 +5679,7 @@ let _rendCambiandoVista = false;
 
         const btn = document.getElementById('btn-sync-rendicion');
 
+        if (btn?.disabled) return;
         const iconoOriginal = btn ? btn.innerHTML : '';
 
         if (btn) {
@@ -5731,7 +5698,7 @@ let _rendCambiandoVista = false;
 
         // Primero sincronizamos solicitudes
 
-        fetch('/api/rendicion/sync', { credentials: 'same-origin' })
+        return fetch('/api/rendicion/sync', { credentials: 'same-origin' })
 
             .then(r => nucleusLeerRespuestaJSON(r).then(j => ({ ok: r.ok, j })))
 
@@ -5784,33 +5751,18 @@ let _rendCambiandoVista = false;
 
                 const huboError = msgs.some(m => /^Error /.test(m));
 
-                const resumen = huboError ? msgs.join('\n') : 'Se actualizó satisfactoriamente';
-
-                const continuar = () => {
-
-                    if (huboError) return;
-
-                    // Si entraron solicitudes nuevas, abrir Validación para que se vean.
-                    // Si no, conservar la hoja en la que estaba el usuario tras recargar.
-                    const vista = hayNuevas ? 'validacion'
-                        : ((typeof _rendVista !== 'undefined' && _rendVista) ? _rendVista : 'validacion');
-
-                    try { sessionStorage.setItem('rend_vista_tras_sync', vista); } catch (e) {}
-
-                    location.reload();
-
-                };
-
-                if (typeof nucleusAlert === 'function') {
-
-                    nucleusAlert(resumen).then(continuar);
-
-                } else {
-
-                    alert(resumen);
-
-                    continuar();
-
+                if (huboError) {
+                    nucleusToast(msgs.filter(m => /^Error /.test(m)).join('\n'), {error: true});
+                    return;
+                }
+                const vista = hayNuevas ? 'validacion'
+                    : ((typeof _rendVista !== 'undefined' && _rendVista) ? _rendVista : 'validacion');
+                try { sessionStorage.setItem('rend_vista_tras_sync', vista); } catch (_) {}
+                const mensaje = 'Sincronización completada';
+                if (nucleusToastTrasRecargar(mensaje)) location.reload();
+                else {
+                    nucleusToast(mensaje);
+                    setTimeout(() => location.reload(), 1600);
                 }
 
             })
@@ -5825,7 +5777,7 @@ let _rendCambiandoVista = false;
 
                 }
 
-                alert('Error de red al sincronizar. Revisa tu conexión.');
+                nucleusToast('No se pudo sincronizar. Revisa tu conexión e inténtalo de nuevo.', {error: true});
 
             });
 

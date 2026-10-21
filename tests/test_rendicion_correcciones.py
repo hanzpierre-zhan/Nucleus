@@ -57,6 +57,5 @@ def test_contrata_no_puede_corregir(auth_client,solicitud,cambiar_rol):
     assert guardar(auth_client,{'Motivo de la solicitud':'Cambio'}).status_code==403
 
 
-def test_correccion_respeta_asignacion(auth_client,solicitud,monkeypatch):
-    monkeypatch.setattr('services.rendicion_validadores.puede_validar',lambda *a:False)
-    assert guardar(auth_client,{'Motivo de la solicitud':'No permitido'}).status_code==403
+def test_correccion_sigue_disponible_sin_panel_de_validadores(auth_client,solicitud):
+    assert guardar(auth_client,{'Motivo de la solicitud':'Corregido'}).status_code==200

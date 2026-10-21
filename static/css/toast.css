@@ -1,0 +1,45 @@
+.nucleus-toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: max-content;
+    max-width: min(360px, calc(100vw - 32px));
+    box-sizing: border-box;
+    padding: 13px 16px;
+    border: 1px solid var(--ios-hairline, #dce2e7);
+    border-radius: 12px;
+    background: var(--ios-card-bg, #fff);
+    color: var(--ios-label, #202b38);
+    box-shadow: 0 5px 24px #0002;
+    font: 500 13px/1.45 system-ui, sans-serif;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    animation: nucleus-toast-in .18s ease-out;
+}
+.nucleus-toast[hidden] { display: none; }
+.nucleus-toast-icon {
+    flex: 0 0 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #dcfce7;
+    color: #166534;
+    text-align: center;
+    line-height: 22px;
+    font-weight: 800;
+}
+.nucleus-toast.is-error .nucleus-toast-icon { background: #fee2e2; color: #991b1b; }
+@keyframes nucleus-toast-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 650px) {
+    .nucleus-toast { right: 16px; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .nucleus-toast { animation: none; }
+}

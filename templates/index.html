@@ -581,14 +581,13 @@
             {% if session.get('rol') in ['zeno', 'suport'] %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('col')"><i class="fa-solid fa-table-columns"></i> Columnas</button>{% endif %}
             {% if session.get('rol') in ['zeno', 'suport'] %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('order')"><i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar</button>{% endif %}
             <div class="coti-gear-group">Acciones del módulo</div>
-            {% if proy_nombre_flow == 'rendicion' and session.get('rol') in ['zeno','suport','admin'] %}<button type="button" class="coti-gear-item" onclick="abrirValidadoresRendicion()"><i class="fa-solid fa-user-check"></i> Validadores por proyecto</button>{% endif %}
             <div id="module-settings-actions"></div>
         </div>
     </div>
     {% endif %}
 </div>
 
-{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=1"></script>{% include '_rendicion_formularios.html' %}{% if session.get('rol') in ['zeno','suport','admin'] %}{% include '_rendicion_validadores.html' %}{% endif %}{% endif %}
+{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=1"></script>{% include '_rendicion_formularios.html' %}{% endif %}
 
 <div id="data-stats" class="data-stats"></div>
 
