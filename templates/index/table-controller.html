@@ -5958,9 +5958,9 @@ let _rendCambiandoVista = false;
 
                 
 
-                const resumen = msgs.join('\n');
-
                 const huboError = msgs.some(m => /^Error /.test(m));
+
+                const resumen = huboError ? msgs.join('\n') : 'Se actualizó satisfactoriamente';
 
                 const continuar = () => {
 

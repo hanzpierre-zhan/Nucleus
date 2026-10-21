@@ -211,14 +211,14 @@ def test_liquidacion_visible_desde_creacion_y_conserva_caso(app, auth_client, co
     assert len(registros())==1 and registros()[0]['estado_cotizacion']=='Cancelado'
 
 
-@pytest.mark.parametrize('tipo',['Caja chica','Proveedor'])
-def test_tipo_gasto_en_aprobacion(auth_client,cotizacion,tipo):
+@pytest.mark.parametrize('tipo,esperado',[('Caja chica','Caja Chica'),('Proveedor','Proveedor')])
+def test_tipo_gasto_en_aprobacion(auth_client,cotizacion,tipo,esperado):
     pid,key=cotizacion
     r=auth_client.post('/api/cotizacion/accion',json={'key':key,'accion':'conformar_aprobacion','tipo_gasto_aprobacion':tipo})
     assert r.status_code==200
-    assert r.json['newData']['TIPO GASTO APROBACION']==tipo
+    assert r.json['newData']['TIPO GASTO APROBACION']==esperado
     registros=auth_client.get('/liquidaciones/api/registros').json['registros']
-    assert next(fila for fila in registros if fila['cotizacion']==key)['tipo_gasto']==tipo
+    assert next(fila for fila in registros if fila['cotizacion']==key)['tipo_gasto']==esperado
 
 
 def test_tipo_gasto_aprobacion_invalido(auth_client,cotizacion):
@@ -258,7 +258,7 @@ def test_cambiar_tipo_gasto_mueve_entre_caja_chica_y_proveedor(app, auth_client,
     a_caja = auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'cambiar_tipo_gasto', 'tipo_gasto_aprobacion': 'Caja chica'})
     assert a_caja.status_code == 200, a_caja.json
     datos = a_caja.json['newData']
-    assert datos['TIPO GASTO APROBACION'] == 'Caja chica'
+    assert datos['TIPO GASTO APROBACION'] == 'Caja Chica'
     assert datos['_PROVEEDOR_PARALELO'] is False
     assert not _cot_en_proveedor(datos)
     assert datos['_TIPO_GASTO_MODIFICADO']['anterior'] == 'Proveedor'

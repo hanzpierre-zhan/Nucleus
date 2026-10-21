@@ -985,8 +985,9 @@ def api_cotizacion_accion():
         if pestania != 'cliente':
             return jsonify({'error': 'La aprobación solo aplica a una cotización "En Aprobación" (pestaña Cliente).'}), 409
         tipo_gasto = str(data.get('tipo_gasto_aprobacion', row.get('TIPO GASTO APROBACION')) or '').strip()
-        if tipo_gasto and tipo_gasto not in ('Caja chica', 'Proveedor'):
-            return jsonify({'error': 'El tipo de gasto debe ser Caja chica o Proveedor.'}), 400
+        tipo_gasto = {'caja chica': 'Caja Chica', 'proveedor': 'Proveedor'}.get(tipo_gasto.casefold(), tipo_gasto)
+        if tipo_gasto and tipo_gasto not in ('Caja Chica', 'Proveedor'):
+            return jsonify({'error': 'El tipo de gasto debe ser Caja Chica o Proveedor.'}), 400
         row['TIPO GASTO APROBACION'] = tipo_gasto
         row['ESTADO COTIZACION'] = ESTADO_SUSTENTO
         row['_PROVEEDOR_PARALELO'] = tipo_gasto == 'Proveedor'
@@ -1110,9 +1111,10 @@ def api_cotizacion_accion():
         if pestania not in ('sustentar', 'atendido'):
             return jsonify({'error': 'El tipo de gasto solo se puede cambiar en cotizaciones aprobadas (Pdt. Sustento o Atendido).'}), 409
         tipo_gasto = str(data.get('tipo_gasto_aprobacion') or '').strip()
-        if tipo_gasto not in ('Caja chica', 'Proveedor'):
-            return jsonify({'error': 'El tipo de gasto debe ser Caja chica o Proveedor.'}), 400
-        if tipo_gasto == 'Caja chica':
+        tipo_gasto = {'caja chica': 'Caja Chica', 'proveedor': 'Proveedor'}.get(tipo_gasto.casefold(), tipo_gasto)
+        if tipo_gasto not in ('Caja Chica', 'Proveedor'):
+            return jsonify({'error': 'El tipo de gasto debe ser Caja Chica o Proveedor.'}), 400
+        if tipo_gasto == 'Caja Chica':
             from services.cotizacion_transito import enviar
             try:
                 enviar(fila, row, usuario, ahora)
