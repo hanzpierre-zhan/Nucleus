@@ -1225,18 +1225,7 @@ def _importar_solicitudes():
     else:
         db.session.add(AppConfig(proyecto_id=proy.id, clave='app_schema',
                                  valor=safe_json_dumps(sorted(schema_cols))))
-    # Podar el layout: quitar entradas de columnas de form que ya no existen
-    # (quitadas o renombradas) para que no queden fantasmas en la tabla.
-    try:
-        layout_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='column_layout').first()
-        if layout_cfg and layout_cfg.valor:
-            layout = json.loads(layout_cfg.valor)
-            quitadas = set(columnas_quitadas)
-            layout_filtrado = [e for e in layout if e.get('field') not in quitadas]
-            if len(layout_filtrado) != len(layout):
-                layout_cfg.valor = safe_json_dumps(layout_filtrado)
-    except Exception:
-        pass
+    # La sincronización actualiza el esquema, pero conserva las vistas del administrador.
     db.session.commit()
 
     return jsonify({

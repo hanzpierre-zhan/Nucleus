@@ -131,7 +131,7 @@
 
 
 
-    {% if rol_es_admin %}
+    {% if session.get('rol') in ['zeno', 'suport'] %}
 
     <div class="col-visibility-wrap" id="col-wrap">
 
@@ -529,6 +529,7 @@
             </a>
 
             {% endif %}
+            {% if session.get('rol') in ['zeno', 'suport'] %}
             <div class="coti-gear-group"><i class="fa-solid fa-table-columns"></i> Tabla</div>
 
             <button type="button" class="coti-gear-item" onclick="cotiGearAbrir('col')">
@@ -543,6 +544,7 @@
 
             </button>
 
+            {% endif %}
             <div class="coti-gear-group"><i class="fa-solid fa-table-list"></i> Registros</div>
 
             {% if session.get('rol') in ['zeno', 'suport', 'supervisor'] %}
@@ -576,11 +578,10 @@
         <div id="module-settings-menu" class="col-visibility-menu">
             <div class="coti-gear-head"><i class="fa-solid fa-gear"></i> Menu</div>
             <div class="coti-gear-group">Tabla</div>
-            {% if rol_es_admin %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('col')"><i class="fa-solid fa-table-columns"></i> Columnas</button>{% endif %}
+            {% if session.get('rol') in ['zeno', 'suport'] %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('col')"><i class="fa-solid fa-table-columns"></i> Columnas</button>{% endif %}
             {% if session.get('rol') in ['zeno', 'suport'] %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('order')"><i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar</button>{% endif %}
             <div class="coti-gear-group">Acciones del módulo</div>
             {% if proy_nombre_flow == 'rendicion' and session.get('rol') in ['zeno','suport','admin'] %}<button type="button" class="coti-gear-item" onclick="abrirValidadoresRendicion()"><i class="fa-solid fa-user-check"></i> Validadores por proyecto</button>{% endif %}
-            {% if proy_nombre_flow == 'rendicion' %}<label class="coti-gear-item"><input id="rend-extra-columns" type="checkbox" onchange="localStorage.setItem('rend-columnas-adicionales',this.checked?'1':'0');location.reload()"> Mostrar columnas adicionales</label><script>document.getElementById('rend-extra-columns').checked=localStorage.getItem('rend-columnas-adicionales')==='1';</script>{% endif %}
             <div id="module-settings-actions"></div>
         </div>
     </div>

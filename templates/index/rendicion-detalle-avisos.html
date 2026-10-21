@@ -14,7 +14,7 @@ function cerrarNDetalle(){ document.getElementById('modal-n-detalle').style.disp
 
 
 
-// El detalle incluye todos los campos del registro, independientemente de la tabla.
+// El detalle respeta exclusivamente las columnas visibles de la hoja activa.
 
 function rendPoblarDetalle(data, gridId) {
     const editable = gridId === 'rend-resumen-grid' && typeof _rendModal !== 'undefined' && _rendModal?.accion === 'validar'
@@ -32,18 +32,12 @@ function rendPoblarDetalle(data, gridId) {
     data = data || {};
 
     const items = [];
-    const editables = [];
 
     const seen = new Set();
 
     const cols = (typeof table !== 'undefined' && table && typeof table.getColumns === 'function')
 
         ? table.getColumns().slice() : [];
-    const definidos = new Set(cols.map(c => c.getDefinition()?.field));
-    Object.keys(data).concat(['SUBESTADO','MOTIVO RECHAZO']).forEach(f => {
-        if (!definidos.has(f)) cols.push({getDefinition: () => ({field:f, title:f})});
-    });
-
     cols.forEach(col => {
 
         const def = (col && col.getDefinition) ? col.getDefinition() : {};
@@ -51,6 +45,7 @@ function rendPoblarDetalle(data, gridId) {
         const f = def.field;
 
         if (!f || f.startsWith('_') || seen.has(f)) return;
+        if (typeof col.isVisible !== 'function' || !col.isVisible()) return;
 
         seen.add(f);
 
@@ -99,14 +94,11 @@ function rendPoblarDetalle(data, gridId) {
                 : `<input type="text" ${attrs} value="${escapeHtml(val)}">`;
         }
         const html = `<div class="rd-k">${escapeHtml(label)}</div><div class="rd-v">${valHtml}</div>`;
-        if (editable && rendCampoCorregible(f)) editables.push({field:f,html});
-        else items.push(html);
+        items.push(html);
 
     });
 
-    const prioritarios = ['DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','Motivo de la solicitud','Número CM / PM / PLM'];
-    editables.sort((a,b)=>(prioritarios.includes(a.field)?prioritarios.indexOf(a.field):99)-(prioritarios.includes(b.field)?prioritarios.indexOf(b.field):99));
-    grid.innerHTML = editables.map(x=>x.html).concat(items).join('') || '<div class="rd-k">Registro</div><div class="rd-v">Sin datos</div>';
+    grid.innerHTML = items.join('') || '<div class="rd-k">Registro</div><div class="rd-v">Sin datos</div>';
 
 }
 
@@ -276,42 +268,10 @@ function rendRevertir(key) {
 
 
 
-// Columnas que no participan en el orden por hoja (fijas / KPI).
-
-// _evidencia_btn (botón "Ver" de comprobantes) SÍ participa: es una columna
-
-// de cara al usuario y su orden/visibilidad se guarda con la hoja.
-
+// Toda columna con campo conserva el orden guardado para la hoja.
 function _rendEsColumnaDeVista(f) {
-
-    if (f === '_accion' || f === '_evidencia_btn') return true;
-    return !!f && f !== '_key' && f !== '_evidencia_btn'
-
-        && String(f).indexOf('_') !== 0
-
-        && String(f).indexOf('KPI_') !== 0;
-
+    return Boolean(f);
 }
-
-
-
-// Rastro interno del flujo: prefijo "_" salvo _accion (esa es la columna
-
-// Flujo, con los botones Validar/Depositar/Sustentar): esa NUNCA se oculta.
-
-// Tampoco _evidencia_btn: se puede mostrar/ocultar desde Columnas y se
-
-// persiste en el layout de la hoja (antes se reseteaba y "desaparecia").
-
-function _rendEsColInterna(f) {
-
-    if (f === '_evidencia_btn') return false;
-
-    return (String(f).indexOf('_') === 0 && f !== '_accion') || REND_COLS_OCULTAS.has(f);
-
-}
-
-
 
 
 
@@ -333,20 +293,6 @@ function _rendSnapshot() {
 
         if (!f) return;
 
-        // Columnas internas del flujo (prefijo "_") y rastros de la hoja de
-
-        // rechazo: nunca se persisten en el layout, quedan ocultas por defecto.
-
-        // _accion (Flujo) sí se respeta: es la que trae los botones del flujo.
-
-        if (_rendEsColInterna(f)) {
-
-            visibles[f] = false;
-
-            return;
-
-        }
-
         visibles[f] = c.isVisible();
         anchos[f] = c.getWidth() || c.getDefinition().width;
 
@@ -360,225 +306,31 @@ function _rendSnapshot() {
 
 
 
-// Visibilidad por defecto: la del layout general del modulо.
-
-function _rendVisPorDefecto(f) {
-
-    // Columnas del 2.º formulario (Sustento): ocultas por defecto, solo las
-
-    // pestañas Evidencia y Rendición las muestran (showPrefijos).
-
-    if (String(f).indexOf('SUSTENTO_') === 0) return false;
-
-    // Columnas internas del flujo y rastros de la hoja de rechazo: ocultas.
-
-    // _accion (Flujo) queda fuera: siempre visible.
-
-    if (IS_RENDICION && _rendEsColInterna(f)) return false;
-
-    const lay = (typeof columnLayout !== 'undefined' && columnLayout) ? columnLayout : [];
-
-    for (let i = 0; i < lay.length; i++) {
-
-        if (lay[i] && lay[i].field === f) return lay[i].visible !== false;
-
-    }
-
-    // El botón de Evidencia no es una columna de datos: oculto por defecto en
-
-    // cualquier hoja que no lo tenga guardado en su layout.
-
-    if (f === '_evidencia_btn') return false;
-
-    return true;
-
-}
-
-
-
-// Una sola vez: arma la vista de cada hoja con lo GUARDADO para esa hoja
-
-// (column_layout__hoja en el servidor, asi lo ven todos los usuarios) o, si la
-
-// hoja nunca se toco, con el default de la hoja sobre la vista del modulo.
-
+// La hoja guardada manda; si no existe, se hereda el layout general.
 function _rendInitEstados() {
-
     if (_rendEstadoListo) return;
-
     _rendEstadoListo = true;
-
     const base = _rendSnapshot();
-
-    const vistas = (typeof REND_VISTAS !== 'undefined' && REND_VISTAS) ? REND_VISTAS : {};
-
-    Object.keys(vistas).forEach(vista => {
-
-        const cfg = vistas[vista] || {};
-
-        const guardado = (typeof columnLayoutVistas !== 'undefined' && columnLayoutVistas)
-
-            ? columnLayoutVistas[vista] : null;
-
-        let est;
-
-        let camposGuardados = null;
-
-        if (guardado && guardado.length) {
-
-            camposGuardados = new Set(guardado.map(c => (c && c.field) || '').filter(Boolean));
-
-            est = { visibles: {}, orden: [], anchos: {} };
-
+    Object.keys(REND_VISTAS).forEach(vista => {
+        const propia = columnLayoutVistas[vista];
+        const guardado = Array.isArray(propia) && propia.length ? propia : columnLayout;
+        const est = {visibles: {...base.visibles}, orden: base.orden.slice(), anchos: {...base.anchos}};
+        if (Array.isArray(guardado) && guardado.length) {
+            // Solo lo declarado por zeno/suport. Nuevas columnas: ocultas al final.
+            Object.keys(est.visibles).forEach(f => { est.visibles[f] = false; });
+            const orden = [];
             guardado.forEach(c => {
-
-                if (!c || !c.field) return;
-
+                if (!c?.field) return;
                 est.visibles[c.field] = c.visible !== false;
                 if (Number(c.width) >= 40) est.anchos[c.field] = Number(c.width);
-
-                if (_rendEsColumnaDeVista(c.field) && est.orden.indexOf(c.field) < 0) est.orden.push(c.field);
-
+                if (_rendEsColumnaDeVista(c.field) && !orden.includes(c.field)) orden.push(c.field);
             });
-
-            // Columnas nuevas (aparecieron despues de guardar): visibilidad por
-
-            // defecto y orden en la misma posicion que ocupan en la vista base
-
-            // del modulo. Antes se empujaban AL FINAL y quedaban pegadas al
-
-            // extremo derecho de la tabla, de donde ya no era facil sacarlas.
-
-            // Si la hoja declara showCols/hideCols, eso manda sobre el default
-
-            // del modulo (p.ej. el boton de Evidencia en la hoja Rendicion).
-
-            Object.keys(base.visibles).forEach(f => {
-
-                if (Object.prototype.hasOwnProperty.call(est.visibles, f)) return;
-
-                let v = _rendVisPorDefecto(f);
-
-                if (cfg.showCols && cfg.showCols.indexOf(f) >= 0) v = true;
-
-                if (cfg.hideCols && cfg.hideCols.indexOf(f) >= 0) v = false;
-
-                est.visibles[f] = v;
-
-            });
-
-            base.orden.forEach((f, i) => {
-
-                if (est.orden.indexOf(f) >= 0) return;
-
-                let pos = est.orden.length;
-
-                for (let j = 0; j < est.orden.length; j++) {
-
-                    if (base.orden.indexOf(est.orden[j]) > i) { pos = j; break; }
-
-                }
-
-                est.orden.splice(pos, 0, f);
-
-            });
-
-        } else {
-
-            est = { visibles: Object.assign({}, base.visibles), orden: base.orden.slice(), anchos: Object.assign({}, base.anchos) };
-
-            if (cfg.cols) {
-
-                const set = cfg.cols;
-
-                Object.keys(est.visibles).forEach(f => { est.visibles[f] = set.indexOf(f) >= 0; });
-
-            }
-
-            if (cfg.showCols) cfg.showCols.forEach(f => { est.visibles[f] = true; });
-
-            if (cfg.hideCols) cfg.hideCols.forEach(f => { est.visibles[f] = false; });
-
+            est.orden = [...orden, ...base.orden.filter(f => !orden.includes(f))];
         }
-
-        // Prefijos que esta hoja quiere ver (SUSTENTO_* en Evidencia y Rendición).
-
-        if (cfg.showPrefijos && cfg.showPrefijos.length) {
-
-            cfg.showPrefijos.forEach(pre => {
-
-                Object.keys(est.visibles).forEach(f => {
-
-                    if (String(f).indexOf(pre) !== 0) return;
-
-                    if (camposGuardados && camposGuardados.has(f)) return;
-
-                    est.visibles[f] = true;
-
-                });
-
-            });
-
-        }
-
-        // Prefijos que esta hoja quiere OCULTAR expresamente.
-
-        if (cfg.hidePrefijos && cfg.hidePrefijos.length) {
-
-            cfg.hidePrefijos.forEach(pre => {
-
-                Object.keys(est.visibles).forEach(f => {
-
-                    if (String(f).indexOf(pre) === 0) {
-
-                        est.visibles[f] = false;
-
-                    }
-
-                });
-
-            });
-
-        }
-
-        // Rastros internos del flujo: ocultos siempre, aunque un layout viejo
-
-        // los tenga guardados como visibles. _accion (Flujo) no es rastro.
-
-        Object.keys(est.visibles).forEach(f => {
-
-            if (_rendEsColInterna(f)) {
-
-                est.visibles[f] = false;
-
-                const i = est.orden.indexOf(f);
-
-                if (i >= 0) est.orden.splice(i, 1);
-
-            }
-
-        });
-
-        est.anchos = Object.assign({}, base.anchos, est.anchos || {});
         try { Object.assign(est.anchos, JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}')); } catch (_) {}
-        if (!guardado || !guardado.some(c => c.field === '_accion' && c.width)) {
-            let propios = {};
-            try { propios = JSON.parse(localStorage.getItem(_rendAnchosClave(vista)) || '{}'); } catch (_) {}
-            if (!propios._accion) est.anchos._accion = ({validacion:160, depositos:260, evidencia:70, rendicion:280, observado:180, cerrado:95, archivado:115, rechazados:70})[vista] || 160;
-        }
-        rendAplicarColumnasEsenciales(est, vista);
-        est.visibles['DEPARTAMENTO'] = true;
-        est.visibles['VERIFICACIÓN PERSONAL'] = false;
-        // Preferencia personal de la hoja: manda sobre el default del modulo.
-        _colVisAplicarEstado(est, vista);
-        est.visibles['SUBESTADO'] = true;
-        est.visibles['MOTIVO RECHAZO'] = true;
         _rendEstadoVistas[vista] = est;
-
     });
-
 }
-
 
 
 // Reordena columnas al orden guardado de la hoja.
@@ -2446,27 +2198,7 @@ function cotCambiarVista(vista) {
 
     _cotVista = vista;
     cotAplicarAnchos(vista);
-    // La forma de pago debe poder comprobarse en el seguimiento paralelo,
-    // incluso cuando un layout anterior la había dejado oculta.
-    if (vista === 'proveedor') {
-        for (const campo of ['ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR']) {
-            const columna = table.getColumn(campo);
-            if (columna) columna.show();
-        }
-        const pago = table.getColumn('TIPO GASTO APROBACION');
-        if (pago) {
-            pago.show();
-            if (table.getColumn('TIPO DE GASTO')) table.moveColumn('TIPO GASTO APROBACION', 'TIPO DE GASTO', true);
-        }
-        // Los documentos deben quedar al inicio, junto al número del caso;
-        // después de los gastos se perdían fuera de la pantalla en el layout real.
-        let anterior = '_key';
-        for (const campo of ['ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR', 'NOMBRE CORREO CLIENTE']) {
-            if (table.getColumn(campo) && table.getColumn(anterior)) table.moveColumn(campo, anterior, true);
-            anterior = campo;
-        }
-    }
-
+    // Cambiar de pestaña conserva el orden y la visibilidad del administrador.
     document.querySelectorAll('#cot-tabs .rend-tab').forEach(b => {
 
         b.classList.toggle('active', b.getAttribute('data-vista') === vista);

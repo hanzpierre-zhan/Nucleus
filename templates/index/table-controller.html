@@ -240,31 +240,6 @@ let _rendCambiandoVista = false;
 
     }
 
-    const REND_ESENCIALES = {
-        base: ['_accion','ESTADO','SUBESTADO','MOTIVO RECHAZO','Marca temporal','CODIGO DEPOSITO','Nombre del proyecto','DEPARTAMENTO','Técnico beneficiario','Técnico beneficiario (Form)','Documento del beneficiario','Cruce de personal','Nombre de site','Número CM / PM / PLM'],
-        validacion: ['Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Motivo de la solicitud','Criticidad - Prioridad','Responsable de la validación','Observaciones (Form)','OBSERVACIONES'],
-        depositos: ['Monto total del depósito','Motivo de la solicitud','FECHA PAGO','MONTO PAGO','FOTO PAGO','ADJUNTO CORREO VALIDACION','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar'],
-        evidencia: ['FECHA PAGO','MONTO PAGO','FOTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
-        rendicion: ['FECHA PAGO','MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
-        observado: ['MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','COMENTARIOS SUSTENTO','OBSERVACIONES'],
-        cerrado: ['FECHA PAGO','MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','FECHA SUSTENTO','COMENTARIOS SUSTENTO'],
-        archivado: ['MONTO PAGO','_evidencia_btn','FOTOS SUSTENTO','FECHA SUSTENTO'],
-        rechazados: ['Monto total del depósito','MONTO PAGO','OBSERVACIONES','MOTIVO RECHAZO','FECHA ANULACION']
-    };
-    function rendColumnasAdicionales() {
-        try { return localStorage.getItem('rend-columnas-adicionales') === '1'; } catch (_) { return false; }
-    }
-    function rendAplicarColumnasEsenciales(est, vista) {
-        if (rendColumnasAdicionales()) return;
-        const normal = x => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9_]/g,'');
-        const preferidas = [...REND_ESENCIALES.base, ...(REND_ESENCIALES[vista] || [])];
-        const existentes = Object.keys(est.visibles);
-        const orden = preferidas.map(f => existentes.find(e => normal(e) === normal(f))).filter(Boolean);
-        const visibles = new Set(orden);
-        existentes.forEach(f => { est.visibles[f] = visibles.has(f); });
-        est.orden = [...orden, ...(est.orden || []).filter(f=>!visibles.has(f))];
-    }
-
     const REND_VISTAS = {
         transito: { estados: ['TRANSITO'], cols: ['_key','N° COTIZACION','Nombre del proyecto','Nombre de site','Motivo de la solicitud','Monto total del depósito','NUMERO WO','TIPO DE PRESUPUESTO','ENVIADO A TRANSITO POR','FECHA ENVIO TRANSITO','ESTADO'] },
 
@@ -1931,126 +1906,6 @@ let _rendCambiandoVista = false;
             return ia - ib;
 
         });
-
-    }
-
-
-
-    // ── Preferencia PERSONAL de visibilidad de columnas ──────────────────────
-
-    // Se guarda en localStorage por usuario+proyecto (y por hoja en Rendicion) y
-
-    // se superpone al layout global del servidor sin tocar la config del admin.
-
-    // Asi el mostrar/ocultar de cada usuario se conserva al navegar y volver.
-
-    function _colVisClave(vista) {
-
-        let clave = 'nucleus-colvis-' + {{ session.get('user_id') | tojson }}
-
-            + '-' + {{ session.get('current_proyecto_id') | tojson }};
-
-        if (vista) {
-
-            clave += '-' + String(vista).toLowerCase();
-
-            // En Rendicion "columnas adicionales" agrupa sus propias preferencias.
-
-            try { if (rendColumnasAdicionales()) clave += '-extra'; } catch (_) {}
-
-        }
-
-        return clave;
-
-    }
-
-    function _colVisPersistible(field) {
-
-        if (!field) return false;
-
-        if (field === '_key' || field === '_accion') return false;
-
-        if (String(field).indexOf('KPI_') === 0) return false;
-
-        if (MANUAL_PROJECT && field === pkName) return false;
-
-        return true;
-
-    }
-
-    function _colVisLeer(vista) {
-
-        try {
-
-            const crudo = JSON.parse(localStorage.getItem(_colVisClave(vista)) || '{}');
-
-            return (crudo && typeof crudo === 'object') ? crudo : {};
-
-        } catch (_) { return {}; }
-
-    }
-
-    // Superpone la preferencia personal sobre las definiciones de columna.
-
-    function _colVisAplicarColumnas(tableColumns, vista) {
-
-        const guardado = _colVisLeer(vista);
-
-        if (!Object.keys(guardado).length) return;
-
-        tableColumns.forEach(def => {
-
-            if (!def || !_colVisPersistible(def.field)) return;
-
-            if (Object.prototype.hasOwnProperty.call(guardado, def.field)) {
-
-                def.visible = guardado[def.field] !== false;
-
-            }
-
-        });
-
-    }
-
-    // Superpone la preferencia personal al estado de una hoja de Rendicion.
-
-    function _colVisAplicarEstado(est, vista) {
-
-        const guardado = _colVisLeer(vista);
-
-        Object.keys(guardado).forEach(f => {
-
-            if (!_colVisPersistible(f)) return;
-
-            if (Object.prototype.hasOwnProperty.call(est.visibles, f)) {
-
-                est.visibles[f] = guardado[f] !== false;
-
-            }
-
-        });
-
-    }
-
-    // Guarda la visibilidad actual del usuario (hoja activa en Rendicion).
-
-    function _colVisGuardar(vista) {
-
-        if (typeof table === 'undefined' || !table) return;
-
-        const visibles = {};
-
-        table.getColumns().forEach(c => {
-
-            const f = c.getField();
-
-            if (!_colVisPersistible(f)) return;
-
-            visibles[f] = c.isVisible();
-
-        });
-
-        try { localStorage.setItem(_colVisClave(vista), JSON.stringify(visibles)); } catch (_) {}
 
     }
 
@@ -4577,7 +4432,7 @@ let _rendCambiandoVista = false;
     }
     if (IS_COTIZACIONES) {
         const index = tableColumns.findIndex(c=>c.field==='TIPO DE GASTO');
-        if (index >= 0 && !layoutVisibleMap.has('TIPO DE GASTO')) {
+        if (!hasServerLayout && index >= 0) {
             const gasto = tableColumns.splice(index,1)[0];
             gasto.visible = true;
             const cliente = tableColumns.findIndex(c=>c.field==='CLIENTE');
@@ -4591,8 +4446,10 @@ let _rendCambiandoVista = false;
         if (manual && definition.editor === 'list' && typeof window.nucleusManualListEditor === 'function') definition.editor = window.nucleusManualListEditor;
     }
     window.NucleusIdentity.columns(tableColumns);
-    // Preferencia personal: se superpone al layout global del admin.
-    if (!IS_RENDICION) _colVisAplicarColumnas(tableColumns, null);
+    // La configuración compartida es la única fuente de visibilidad.
+    if (hasServerLayout) tableColumns.forEach(c => {
+        if (c.field) c.visible = layoutVisibleMap.has(c.field) && layoutVisibleMap.get(c.field);
+    });
     // Aplicar a las columnas definitivas, incluidas las importadas del formulario.
     window.NucleusOrden.configurar(tableColumns, manualColsConfig, currentProjectNombre);
     const table = new Tabulator("#data-grid", {
@@ -4662,7 +4519,7 @@ let _rendCambiandoVista = false;
 
         history: true,
 
-        movableColumns: true,
+        movableColumns: isAdmin,
 
         persistence: { columns: ["width"] },
 
@@ -5179,26 +5036,10 @@ let _rendCambiandoVista = false;
 
 
 
-    // Visibilidad: SIEMPRE se guarda como preferencia personal (localStorage, por
-
-    // usuario+proyecto+hoja). zeno/suport ademas la guardan global en el servidor.
-
+    // Solo los cambios explícitos de zeno/suport se guardan para todos.
     table.on("columnVisibilityChanged", function () {
-
-        if (orderApplying || _rendCambiandoVista) return;
-
-        let vista = null;
-
-        if (IS_RENDICION) {
-
-            try { vista = _rendVista; } catch (_) { return; }
-
-        }
-
-        _colVisGuardar(vista);
-
-        if (isAdmin) saveColumnLayout();
-
+        if (!isAdmin || orderApplying || _rendCambiandoVista) return;
+        saveColumnLayout();
     });
 
 
@@ -5308,6 +5149,7 @@ let _rendCambiandoVista = false;
     // Column Management Methods
 
     function toggleVisibilityMenu() {
+        if (!isAdmin) return;
 
         const menu = document.getElementById('col-menu');
 
@@ -5380,6 +5222,7 @@ let _rendCambiandoVista = false;
 
 
     function toggleColumnAuto(field) {
+        if (!isAdmin) return;
 
         table.toggleColumn(field);
 
@@ -5390,6 +5233,7 @@ let _rendCambiandoVista = false;
 
 
     function setAllColumns(visible) {
+        if (!isAdmin) return;
 
         table.getColumns().forEach(col => {
 
@@ -5430,6 +5274,7 @@ let _rendCambiandoVista = false;
 
 
     async function toggleManualColumns(cb) {
+        if (!isAdmin) return;
 
         const show = cb.checked;
 
@@ -5497,47 +5342,6 @@ let _rendCambiandoVista = false;
 
 
 
-    async function applyManualColumnsState() {
-
-        if (!["zeno", "suport"].includes("{{ session.get('rol') }}")) return; // Los no-admin siempre ven lo que define el admin (servidor o por defecto)
-
-        // Si el usuario ya tiene su visibilidad personal guardada, esa manda:
-
-        // no re-aplicar el auto-mostrado de columnas manuales del administrador.
-
-        let _vistaPersonal = null;
-
-        if (IS_RENDICION) { try { _vistaPersonal = _rendVista; } catch (_) { _vistaPersonal = null; } }
-
-        if (Object.keys(_colVisLeer(_vistaPersonal)).length) return;
-        if (hasServerLayout) return; // La visibilidad la define el layout del admin (servidor)
-
-        const saved = localStorage.getItem('nucleus-manual-cols-visible');
-
-        const cb = document.getElementById('manual-cols-toggle');
-
-        if (!cb) return;
-
-        cb.checked = saved === '1';
-
-        if (saved === '1') {
-
-            table.getColumns().forEach(col => {
-
-                const field = col.getDefinition().field;
-
-                if (MANUAL_PROJECT && field === pkName) return; // protect duplicate PK
-
-                if (manualNamesSet.has(field) && !col.isVisible()) col.show();
-
-            });
-
-        }
-
-    }
-
-
-
     async function applyImportCambiosState() {
 
         const saved = localStorage.getItem('nucleus-import-cambios');
@@ -5554,7 +5358,7 @@ let _rendCambiandoVista = false;
 
 
 
-    applyManualColumnsState();
+
 
     applyImportCambiosState();
 
@@ -5645,6 +5449,7 @@ let _rendCambiandoVista = false;
 
 
     async function resetLayout() {
+        if (!isAdmin) return;
 
         if (await nucleusConfirm('¿Restaurar orden y visibilidad de las columnas al estado por defecto original?')) {
 
@@ -5671,10 +5476,6 @@ let _rendCambiandoVista = false;
                 if (propia && propia.length) tieneLayout = true;
 
             }
-
-            // La preferencia personal de visibilidad tambien se restaura.
-
-            try { localStorage.removeItem(_colVisClave(vista)); } catch (_) {}
 
             if (isAdmin && tieneLayout) {
 

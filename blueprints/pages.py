@@ -457,10 +457,6 @@ def index():
     # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
     layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
-    if proy_actual_nombre == 'Dataper' and column_layout and not any(c.get('field')=='SUPERVISOR' for c in column_layout):
-        column_layout.append({'field':'SUPERVISOR','visible':True})
-    if proy_actual_nombre in ('Material','SITE','Generadores') and column_layout and not any(c.get('field')=='PROYECTO' for c in column_layout):
-        column_layout.append({'field':'PROYECTO','visible':True})
     # En Rendicion cada hoja guarda su propia vista: column_layout__depositos, etc.
     column_layout_vistas = {}
     try:
