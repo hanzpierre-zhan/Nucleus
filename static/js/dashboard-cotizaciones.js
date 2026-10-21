@@ -240,6 +240,230 @@
         bars('dc-estados', groupAgg(v, 'estado').map(([k, e]) => [k, e.n, e.n + ' casos · ' + money(e.monto), e.monto]));
     }
 
+    // ── Visualización ejecutiva: dona, barras, línea y tabla ──────────────────
+    const charts = new Map();
+    const compactMoney = new Intl.NumberFormat('es-PE', { notation: 'compact', maximumFractionDigits: 1 });
+    const chartFont = 'SF Pro Display, Segoe UI, Roboto, sans-serif';
+    const cssVar = name => getComputedStyle(get('dc-visual') || document.body).getPropertyValue(name).trim();
+
+    function rgba(color, alpha) {
+        const hex = String(color || '').trim();
+        if (/^#([0-9a-f]{6})$/i.test(hex)) {
+            const n = parseInt(hex.slice(1), 16);
+            return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+        }
+        return hex;
+    }
+    function chartTheme() {
+        const accents = ['--di-blue', '--di-amber', '--di-green', '--di-cyan', '--di-purple'].map(cssVar).filter(Boolean);
+        return {
+            label: cssVar('--ios-label') || '#1C1C1E',
+            secondary: cssVar('--ios-secondary') || '#8E8E93',
+            hairline: cssVar('--ios-hairline') || '#E5E5EA',
+            card: cssVar('--ios-card-bg') || '#FFFFFF',
+            accents: accents.length ? accents : ['#356dcc'],
+        };
+    }
+    function palette(size) {
+        const base = chartTheme().accents;
+        const out = [];
+        for (let i = 0; out.length < size; i++) out.push(i % 2 ? rgba(base[(i >> 1) % base.length], 0.55) : base[i % base.length]);
+        return out;
+    }
+    function tooltipBase(theme) {
+        return {
+            backgroundColor: theme.card, titleColor: theme.label, bodyColor: theme.secondary,
+            borderColor: theme.hairline, borderWidth: 1, padding: 10, cornerRadius: 7, displayColors: true,
+        };
+    }
+    function destroyChart(id) {
+        const inst = charts.get(id);
+        if (inst) { inst.destroy(); charts.delete(id); }
+    }
+    function mountChart(id, config) {
+        if (!window.Chart) return;
+        const canvas = get(id);
+        if (!canvas) return;
+        destroyChart(id);
+        charts.set(id, new window.Chart(canvas.getContext('2d'), config));
+    }
+
+    function donut(v) {
+        const groups = groupAgg(v, 'cliente').map(([name, e]) => ({ name, n: e.n }));
+        let items = groups;
+        if (items.length > 6) {
+            const rest = items.slice(6).reduce((a, x) => a + x.n, 0);
+            items = items.slice(0, 6);
+            if (rest) items.push({ name: 'Otros operadores', n: rest });
+        }
+        const totalN = items.reduce((a, x) => a + x.n, 0);
+        const theme = chartTheme(), colors = palette(items.length);
+        const legend = get('dc-donut-legend');
+        legend.replaceChildren();
+        items.forEach((item, i) => {
+            const li = document.createElement('li'), dot = document.createElement('i'),
+                name = document.createElement('span'), value = document.createElement('b');
+            dot.style.background = colors[i];
+            name.textContent = window.NucleusIdentity.text(item.name);
+            value.textContent = num(item.n) + ' · ' + (totalN ? Math.round(item.n / totalN * 1000) / 10 : 0) + '%';
+            li.title = item.name + ': ' + item.n + ' cotizaciones';
+            li.append(dot, name, value); legend.append(li);
+        });
+        if (!items.length) {
+            const li = document.createElement('li');
+            li.textContent = 'Sin registros para estos filtros.'; legend.append(li);
+        }
+        get('dc-donut-total').textContent = num(v.length);
+        mountChart('dc-chart-operador', {
+            type: 'doughnut',
+            data: {
+                labels: items.map(x => window.NucleusIdentity.text(x.name)),
+                datasets: [{ data: items.map(x => x.n), backgroundColor: colors, borderColor: theme.card, borderWidth: 2, hoverOffset: 5 }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '64%', layout: { padding: 2 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: Object.assign(tooltipBase(theme), {
+                        callbacks: {
+                            label(ctx) {
+                                const item = items[ctx.dataIndex];
+                                const pct = totalN ? Math.round(item.n / totalN * 1000) / 10 : 0;
+                                return ' ' + num(item.n) + ' cotizaciones (' + pct + '%)';
+                            },
+                        },
+                    }),
+                },
+            },
+        });
+    }
+
+    function verticalBars(id, v, key) {
+        const entries = groupAgg(v, key).sort((a, b) => b[1].monto - a[1].monto || b[1].n - a[1].n);
+        const theme = chartTheme(), colors = palette(entries.length);
+        mountChart(id, {
+            type: 'bar',
+            data: {
+                labels: entries.map(([label]) => window.NucleusIdentity.text(label)),
+                datasets: [{ data: entries.map(([, e]) => e.monto), backgroundColor: colors, borderRadius: 4, maxBarThickness: 52 }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: theme.secondary, font: { size: 10, family: chartFont }, maxRotation: 32, minRotation: 0, autoSkip: false },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: theme.hairline },
+                        ticks: { color: theme.secondary, font: { size: 10, family: chartFont }, callback: value => 'S/ ' + compactMoney.format(value) },
+                    },
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: Object.assign(tooltipBase(theme), {
+                        callbacks: {
+                            label: ctx => ' ' + money(ctx.parsed.y),
+                            afterLabel: ctx => entries[ctx.dataIndex][1].n + ' cotizaciones',
+                        },
+                    }),
+                },
+            },
+        });
+    }
+
+    function monthlyLine(v) {
+        if (!window.Chart) return;
+        const canvas = get('dc-chart-mes');
+        if (!canvas) return;
+        const porMes = new Map();
+        v.filter(r => r.mes).forEach(r => porMes.set(r.mes, (porMes.get(r.mes) || 0) + (r.monto || 0)));
+        const entries = [...porMes.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        const theme = chartTheme(), accent = theme.accents[0];
+        destroyChart('dc-chart-mes');
+        const ctx = canvas.getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, 220);
+        gradient.addColorStop(0, rgba(accent, 0.28));
+        gradient.addColorStop(1, rgba(accent, 0));
+        charts.set('dc-chart-mes', new window.Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: entries.map(([mes]) => mes),
+                datasets: [{
+                    data: entries.map(([, monto]) => monto), borderColor: accent, backgroundColor: gradient,
+                    borderWidth: 2, fill: true, tension: 0.32, pointRadius: 3, pointHoverRadius: 5,
+                    pointBackgroundColor: theme.card, pointBorderColor: accent, pointBorderWidth: 2,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: theme.secondary, font: { size: 10, family: chartFont }, maxRotation: 32, autoSkip: true },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: theme.hairline },
+                        ticks: { color: theme.secondary, font: { size: 10, family: chartFont }, callback: value => 'S/ ' + compactMoney.format(value) },
+                    },
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: Object.assign(tooltipBase(theme), { callbacks: { label: ctx => ' ' + money(ctx.parsed.y) } }),
+                },
+            },
+        }));
+    }
+
+    function tipoTable(v) {
+        const body = get('dc-viz-tipos'), foot = get('dc-viz-tipos-total');
+        if (!body || !foot) return;
+        body.replaceChildren(); foot.replaceChildren();
+        const entries = groupAgg(v, 'tipo').sort((a, b) => b[1].monto - a[1].monto || b[1].n - a[1].n || a[0].localeCompare(b[0]));
+        const addCell = (tag, text, scope) => {
+            const cell = document.createElement(tag);
+            if (scope) cell.scope = scope;
+            cell.textContent = text;
+            return cell;
+        };
+        entries.forEach(([label, e]) => {
+            const tr = document.createElement('tr');
+            tr.append(addCell('th', window.NucleusIdentity.text(label), 'row'),
+                addCell('td', num(e.n)), addCell('td', money(e.monto)));
+            body.append(tr);
+        });
+        if (!entries.length) {
+            const tr = document.createElement('tr'), td = addCell('td', 'Sin registros para estos filtros.');
+            td.colSpan = 3; tr.append(td); body.append(tr);
+        }
+        const totalRow = document.createElement('tr');
+        totalRow.append(addCell('th', 'Total', 'row'), addCell('td', num(v.length)), addCell('td', money(total(v, 'monto'))));
+        foot.append(totalRow);
+    }
+
+    let vizStale = true, vizFrame;
+    function visual(v) {
+        const setText = (id, text) => { const node = get(id); if (node) node.textContent = text; };
+        setText('dc-viz-total', num(v.length));
+        setText('dc-viz-monto', money(total(v, 'monto')));
+        tipoTable(v);
+        bars('dc-viz-responsable', groupAgg(v, 'genero')
+            .map(([k, e]) => [k, e.n, e.n + ' cotizaciones · ' + money(e.monto), e.monto]));
+        const panel = get('di-secondary');
+        if (!panel || !panel.open) { vizStale = true; return; }
+        vizStale = false;
+        donut(v); verticalBars('dc-chart-gasto', v, 'gasto');
+        verticalBars('dc-chart-aprobacion', v, 'gasto_aprobacion'); monthlyLine(v);
+    }
+    function refreshVisual() {
+        const panel = get('di-secondary');
+        if (!panel || !panel.open || !vizStale) return;
+        cancelAnimationFrame(vizFrame);
+        vizFrame = requestAnimationFrame(() => visual(visible));
+    }
+
     // ── Tabla detalle ──────────────────────────────────────────────────────────
     function table() {
         const pest = get('dc-pest').value;
@@ -275,6 +499,7 @@
         months(visible);
         daily(visible);
         paneles(visible);
+        visual(visible);
         matrix(visible);
         consulta.render(visible);
         page = 0; table();
@@ -290,6 +515,12 @@
     });
     get('dc-prev').addEventListener('click', () => { page--; table(); });
     get('dc-next').addEventListener('click', () => { page++; table(); });
+    get('di-secondary').addEventListener('toggle', () => {
+        if (!get('di-secondary').open) return;
+        vizStale = true; refreshVisual();
+    });
+    const themeToggle = get('theme-toggle');
+    if (themeToggle) themeToggle.addEventListener('click', () => { vizStale = true; setTimeout(refreshVisual, 80); });
     consulta.bind(render, fillDays);
     fillDays();
     render();

@@ -475,15 +475,15 @@
 
         <button type="button" id="btn-coti-gear" class="action-pill pill-neutral" onclick="cotiGearToggle()"
 
-            title="Configuración: Correlativo, PDFs, Excel, Plantilla, Columnas, Ordenar, Importar y Eliminar">
+            title="Menu: Correlativo, PDFs, Excel, Plantilla, Columnas, Ordenar, Importar y Eliminar">
 
-            <i class="fa-solid fa-gear"></i><span class="pill-txt"> Configuración</span>
+            <i class="fa-solid fa-gear"></i><span class="pill-txt"> Menu</span>
 
         </button>
 
         <div id="coti-gear-menu" class="col-visibility-menu" style="min-width:272px; padding:8px;">
 
-            <div class="coti-gear-head"><i class="fa-solid fa-gear"></i> Configuración</div>
+            <div class="coti-gear-head"><i class="fa-solid fa-gear"></i> Menu</div>
 
             {% if session.get('rol') in ['zeno', 'suport', 'admin'] %}
 
@@ -572,9 +572,9 @@
     {% with flm_inline=true %}{% include '_flm_recursos.html' %}{% endwith %}
     {% if proy_nombre != 'cotizaciones' %}
     <div class="col-visibility-wrap" id="module-settings-wrap">
-        <button type="button" class="action-pill pill-neutral" id="btn-module-settings" aria-expanded="false" onclick="moduleSettingsToggle()"><i class="fa-solid fa-gear"></i> Configuración</button>
+        <button type="button" class="action-pill pill-neutral" id="btn-module-settings" aria-expanded="false" onclick="moduleSettingsToggle()"><i class="fa-solid fa-gear"></i> Menu</button>
         <div id="module-settings-menu" class="col-visibility-menu">
-            <div class="coti-gear-head"><i class="fa-solid fa-gear"></i> Configuración</div>
+            <div class="coti-gear-head"><i class="fa-solid fa-gear"></i> Menu</div>
             <div class="coti-gear-group">Tabla</div>
             {% if rol_es_admin %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('col')"><i class="fa-solid fa-table-columns"></i> Columnas</button>{% endif %}
             {% if session.get('rol') in ['zeno', 'suport'] %}<button type="button" class="coti-gear-item" onclick="moduleSettingsPanel('order')"><i class="fa-solid fa-arrow-down-wide-short"></i> Ordenar</button>{% endif %}

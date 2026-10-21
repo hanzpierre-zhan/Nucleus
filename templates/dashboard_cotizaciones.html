@@ -3,7 +3,7 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=3">
-<link rel="stylesheet" href="/static/css/dashboard-cotizaciones.css?v=3">
+<link rel="stylesheet" href="/static/css/dashboard-cotizaciones.css?v=4">
 <link rel="stylesheet" href="/static/css/dashboard-consulta.css?v=1">
 <link rel="stylesheet" href="/static/css/dashboard-layout.css?v=3">
 <section class="di-page dc-page di-executive">
@@ -24,7 +24,7 @@
   {% if data_total > data_limite %}<p role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros. Los indicadores corresponden a ese conjunto.</p>{% endif %}
   <section class="di-story" aria-live="polite"><div><h2 id="di-story-title"></h2><p id="di-story-detail"></p></div><div class="di-progress" aria-label="Porcentaje atendido"><div id="di-progress-fill"></div></div></section>
   <div class="di-kpis" aria-live="polite">
-    <article><span>Total cotizaciones</span><strong id="dc-kpi-total">0</strong><small id="dc-kpi-total-m">—</small></article>
+    <article class="dc-kpi-hero"><span>Total cotizaciones · SUB TOTAL + FEE</span><strong id="dc-kpi-total">0</strong><small id="dc-kpi-total-m">—</small></article>
     <article><span>1. Pendientes de cotizar</span><strong id="dc-kpi-registro">0</strong><small id="dc-kpi-registro-m">—</small><small id="dc-kpi-registro-users"></small></article>
     <article><span>2. Sin aprobación del cliente</span><strong id="dc-kpi-cliente">0</strong><small id="dc-kpi-cliente-m">—</small><small id="dc-kpi-cliente-users"></small></article>
     <article><span>3. Aprobados · pendientes de cierre</span><strong id="dc-kpi-sustentar">0</strong><small id="dc-kpi-sustentar-m">—</small><small id="dc-kpi-sustentar-users"></small></article>
@@ -36,7 +36,7 @@
     <article class="di-card dc-cli-users"><h2>Cliente · sin aprobación, por usuario</h2><p>Quién generó la cotización que el cliente aún no aprueba</p><div id="dc-cli-users"></div></article>
     <article class="di-card dc-money"><h2>Dinero por pestaña</h2><p>S/ cotizado acumulado en cada estado</p><div id="dc-money"></div></article>
   </div>
-  <details class="di-order-details di-secondary" id="di-secondary"><summary>Más gráficos e indicadores: fechas, proyectos y responsables</summary>
+  <details class="di-order-details di-secondary" id="di-secondary"><summary>Más gráficos e indicadores: fechas, proyectos, responsables, operador, gasto e importe mensual</summary>
   <div class="di-charts">
     <article class="di-card di-month-card"><h2>Solicitudes por mes</h2><p>Creadas por mes de solicitud · el tooltip incluye atendidas y S/ cotizado</p><div id="di-months" class="di-month-bars"></div></article>
     <article class="di-card di-daily-card"><h2>Cotizaciones por día <span id="di-daily-month"></span></h2><p id="di-daily-caption">Por fecha de solicitud · mes actual salvo filtro</p><div id="di-daily"></div></article>
@@ -46,6 +46,52 @@
     <article class="di-card dc-aging"><h2>Sustentar · antigüedad</h2><p>Días desde que el cliente aprobó</p><div id="dc-aging"></div></article>
     <article class="di-card dc-types"><h2>Tipos de cotización</h2><p>Cantidad y S/ en la selección</p><div id="dc-types"></div></article>
     <article class="di-card dc-estados"><h2>Estado exacto guardado</h2><p>Lo que dice la columna ESTADO COTIZACION</p><div id="dc-estados"></div></article>
+  </div>
+  <div class="dc-viz" id="dc-visual">
+    <div class="dc-viz-kpis" aria-live="polite">
+      <article class="dc-viz-kpi dc-viz-kpi-money"><span>Importe total · SUB TOTAL + FEE</span><strong id="dc-viz-monto">S/ 0.00</strong><small>Suma de la selección filtrada</small></article>
+      <article class="dc-viz-kpi dc-viz-kpi-count"><span>Cotizaciones</span><strong id="dc-viz-total">0</strong><small>Registros en la selección filtrada</small></article>
+    </div>
+    <div class="di-charts dc-viz-grid">
+      <article class="di-card dc-viz-card dc-viz-donut">
+        <h2>Cotizaciones por operador</h2>
+        <p>Participación de cada cliente en la selección</p>
+        <div class="dc-donut-layout">
+          <div class="dc-donut-canvas">
+            <canvas id="dc-chart-operador" role="img" aria-label="Dona de cotizaciones por operador"></canvas>
+            <div class="dc-donut-center"><b id="dc-donut-total">0</b><span>cotizaciones</span></div>
+          </div>
+          <ul class="dc-donut-legend" id="dc-donut-legend"></ul>
+        </div>
+      </article>
+      <article class="di-card dc-viz-card">
+        <h2>Importe por tipo de gasto</h2>
+        <p>SUB TOTAL + FEE agrupado por gasto de solicitud</p>
+        <div class="dc-chart-wrap"><canvas id="dc-chart-gasto" role="img" aria-label="Barras de importe por tipo de gasto"></canvas></div>
+      </article>
+      <article class="di-card dc-viz-card">
+        <h2>Importe por gasto de aprobación</h2>
+        <p>Proveedor y caja chica dentro de la selección</p>
+        <div class="dc-chart-wrap"><canvas id="dc-chart-aprobacion" role="img" aria-label="Barras de importe por gasto de aprobación"></canvas></div>
+      </article>
+      <article class="di-card dc-viz-card">
+        <h2>Importe por mes</h2>
+        <p>Evolución mensual del importe cotizado</p>
+        <div class="dc-chart-wrap"><canvas id="dc-chart-mes" role="img" aria-label="Línea de importe por mes"></canvas></div>
+      </article>
+      <article class="di-card dc-viz-card dc-viz-table-card">
+        <h2>Tipo de cotización</h2>
+        <p>Conteo e importe, ordenado por importe</p>
+        <div class="dc-viz-table-wrap">
+          <table class="dc-viz-table"><thead><tr><th>Tipo</th><th>Cotizaciones</th><th>Importe</th></tr></thead><tbody id="dc-viz-tipos"></tbody><tfoot id="dc-viz-tipos-total"></tfoot></table>
+        </div>
+      </article>
+      <article class="di-card dc-viz-card">
+        <h2>Cotizaciones por responsable</h2>
+        <p>Usuario que generó la cotización · cantidad e importe</p>
+        <div id="dc-viz-responsable"></div>
+      </article>
+    </div>
   </div>
   </details>
   {% include '_dashboard_concentracion.html' %}
@@ -66,5 +112,5 @@
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-graficos.js?v=3"></script>
 <script src="/static/js/dashboard-consulta.js?v=3"></script>
-<script src="/static/js/dashboard-cotizaciones.js?v=7"></script>
+<script src="/static/js/dashboard-cotizaciones.js?v=8"></script>
 {% endblock %}

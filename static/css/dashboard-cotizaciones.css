@@ -66,3 +66,55 @@
 .dc-page #dc-money .di-bar-name{grid-column:1;grid-row:1}
 .dc-page #dc-money .di-bar-row>b{grid-column:2;grid-row:1;white-space:nowrap;font-size:12px;line-height:1.4;font-variant-numeric:tabular-nums}
 .dc-page #dc-money .di-bar-track{grid-column:1/-1;grid-row:2;width:100%}
+
+/* ── Visualización ejecutiva: KPIs grandes y gráficas Chart.js ─────────────── */
+.dc-page .di-kpis article.dc-kpi-hero{
+  border-top-width:3px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--di-green) 7%,var(--ios-card-bg)),var(--ios-card-bg));
+}
+.dc-page .di-kpis #dc-kpi-total{color:var(--di-green)}
+.dc-page .di-kpis #dc-kpi-total-m{font-size:18px;font-weight:700;color:var(--di-green)}
+.dc-page .di-kpis article.dc-kpi-hero span{color:var(--ios-secondary)}
+
+.dc-viz-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 10px}
+.dc-viz-kpi{background:var(--ios-card-bg);border:1px solid var(--ios-hairline);border-top:3px solid var(--di-blue);border-radius:9px;padding:10px 14px;min-width:0}
+.dc-viz-kpi span,.dc-viz-kpi small{display:block;font-size:10px;color:var(--ios-secondary);line-height:1.35}
+.dc-viz-kpi strong{display:block;font-size:clamp(24px,2.4vw,34px);line-height:1.15;margin:4px 0;letter-spacing:-.6px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-viz-kpi-money{border-top-color:var(--di-green)}
+.dc-viz-kpi-money strong{color:var(--di-green)}
+.dc-viz-kpi-count strong{color:var(--di-blue)}
+
+.dc-viz-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dc-viz-grid .dc-viz-card{min-width:0}
+.dc-page #dc-visual .dc-chart-wrap{position:relative;height:220px;min-height:220px;max-height:220px;min-width:0}
+.dc-page #dc-visual .dc-chart-wrap canvas,.dc-page #dc-visual .dc-donut-canvas canvas{display:block;width:100%!important;height:100%!important}
+
+.dc-page #dc-visual .dc-donut-layout{display:flex;align-items:center;gap:14px;height:240px;min-height:240px;max-height:240px;min-width:0}
+.dc-page #dc-visual .dc-donut-canvas{position:relative;flex:1 1 55%;min-width:0;height:100%}
+.dc-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
+.dc-donut-center b{font-size:26px;line-height:1.1;color:var(--di-blue);font-variant-numeric:tabular-nums}
+.dc-donut-center span{font-size:10px;color:var(--ios-secondary)}
+.dc-donut-legend{list-style:none;margin:0;padding:0;flex:1 1 45%;min-width:0;max-height:100%;overflow:auto;display:grid;gap:5px;font-size:10px}
+.dc-donut-legend li{display:flex;align-items:center;gap:6px;min-width:0;color:var(--ios-secondary)}
+.dc-donut-legend i{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.dc-donut-legend span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc-donut-legend b{margin-left:auto;color:var(--ios-label);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.dc-page #dc-visual .dc-viz-table-wrap{max-height:320px;overflow:auto;border:1px solid var(--ios-hairline);border-radius:7px}
+.dc-page .dc-viz-table{width:100%;border-collapse:collapse;font-size:11px}
+.dc-page .dc-viz-table th,.dc-page .dc-viz-table td{padding:6px 8px;border-bottom:1px solid var(--ios-hairline);text-align:right;white-space:nowrap}
+.dc-page .dc-viz-table th:first-child{text-align:left;white-space:normal;min-width:120px}
+.dc-page .dc-viz-table thead th{position:sticky;top:0;z-index:1;background:var(--ios-card-bg);color:var(--ios-secondary);font-size:10px}
+.dc-page .dc-viz-table tfoot{position:sticky;bottom:0;background:var(--ios-card-bg);font-weight:700}
+.dc-page .dc-viz-table tbody th{font-weight:500;color:var(--ios-label)}
+.dc-page .dc-viz-table td{color:var(--ios-label);font-variant-numeric:tabular-nums}
+
+@media(max-width:600px){
+  .dc-viz-kpis{grid-template-columns:minmax(0,1fr)}
+  .dc-viz-grid{grid-template-columns:minmax(0,1fr)}
+  .dc-page #dc-visual .dc-donut-layout{flex-direction:column;height:auto;min-height:0;max-height:none;align-items:stretch}
+  .dc-page #dc-visual .dc-donut-canvas{flex:none;height:200px;width:100%}
+  .dc-donut-legend{flex:none;width:100%;max-height:none;grid-template-columns:1fr 1fr}
+  .dc-page #dc-visual .dc-chart-wrap{height:200px;min-height:200px;max-height:200px}
+}
+
