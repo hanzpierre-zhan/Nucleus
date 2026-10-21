@@ -25,7 +25,11 @@ def instalar():
             else:
                 cfg=AppConfig(proyecto_id=proyecto.id,clave=clave);db.session.add(cfg)
             cfg.valor=valor if isinstance(valor,str) else json.dumps(valor,ensure_ascii=False)
-        db.session.add(AppConfig(proyecto_id=proyecto.id,clave=VERSION+'_respaldo',valor=json.dumps(anteriores,ensure_ascii=False)))
+        respaldo=AppConfig.query.filter_by(proyecto_id=proyecto.id,clave=VERSION+'_respaldo').first()
+        if respaldo:
+            respaldo.valor=json.dumps(anteriores,ensure_ascii=False)
+        else:
+            db.session.add(AppConfig(proyecto_id=proyecto.id,clave=VERSION+'_respaldo',valor=json.dumps(anteriores,ensure_ascii=False)))
         db.session.add(AppConfig(proyecto_id=proyecto.id,clave=VERSION,valor=perfil['origen']))
     db.session.commit()
 

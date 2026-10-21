@@ -375,17 +375,20 @@ def run_migrations(app, database_url=''):
                     continue
                 _schema_p = AppConfig.query.filter_by(proyecto_id=proy_g_obj.id, clave='app_schema').first()
                 try:
-                    _schema_set = set(json.loads(_schema_p.valor)) if _schema_p and _schema_p.valor else set()
+                    _schema_lista = json.loads(_schema_p.valor) if _schema_p and _schema_p.valor else []
                 except Exception:
-                    _schema_set = set()
-                for _col in ('EDITADO POR', 'GESTOR'):
-                    if _col not in _schema_set:
-                        _schema_set.add(_col)
+                    _schema_lista = []
+                if not isinstance(_schema_lista, list):
+                    _schema_lista = []
+                # Orden determinista (sin `set`): el mismo contenido produce el
+                # mismo JSON en cada arranque y solo se escribe si hubo cambios.
+                _schema_final = sorted({str(c) for c in _schema_lista if str(c).strip()} | {'EDITADO POR', 'GESTOR'})
                 if _schema_p:
-                    _schema_p.valor = json.dumps(list(_schema_set), ensure_ascii=False)
+                    if _schema_lista != _schema_final:
+                        _schema_p.valor = json.dumps(_schema_final, ensure_ascii=False)
                 else:
                     db.session.add(AppConfig(proyecto_id=proy_g_obj.id, clave='app_schema',
-                                             valor=json.dumps(list(_schema_set), ensure_ascii=False)))
+                                             valor=json.dumps(_schema_final, ensure_ascii=False)))
                 for r in NucleusData.query.filter_by(proyecto_id=proy_g_obj.id).all():
                     try:
                         d = json.loads(r.data_json)
@@ -446,6 +449,37 @@ def run_migrations(app, database_url=''):
             pass
 
 
+def _fusionar_columnas(valor_actual, por_defecto):
+    """Fusiona columnas SIN pisar la configuración del admin.
+
+    Conserva el orden y las opciones que el admin ya haya guardado y solo
+    agrega las columnas por defecto que falten (comparadas por nombre, sin
+    distinguir mayúsculas). 'N° ORDEN' queda siempre primero si está entre las
+    columnas por defecto. Si el valor guardado es ilegible, reconstruye las
+    columnas por defecto.
+    """
+    por_defecto = [dict(c) for c in (por_defecto or [])]
+    if not por_defecto:
+        return []
+    try:
+        actual = json.loads(valor_actual) if valor_actual else []
+    except Exception:
+        return por_defecto
+    if not isinstance(actual, list):
+        return por_defecto
+    actual = [c for c in actual if isinstance(c, dict) and str(c.get('nombre', '')).strip()]
+    if not actual:
+        return por_defecto
+    nombres = {str(c.get('nombre', '')).strip().lower() for c in actual}
+    for col in por_defecto:
+        if str(col.get('nombre', '')).strip().lower() not in nombres:
+            actual.append(dict(col))
+            nombres.add(str(col.get('nombre', '')).strip().lower())
+    if any(str(c.get('nombre', '')).strip().lower() == 'n° orden' for c in por_defecto):
+        actual.sort(key=lambda c: 0 if str(c.get('nombre', '')).strip().lower() == 'n° orden' else 1)
+    return actual
+
+
 def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, TablaMaestra):
     """Configura las columnas y PKs de los proyectos de apoyo (Dataper, Material, SITE, Generadores, etc.)"""
     import json
@@ -465,7 +499,7 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         ]
         mc_cfg = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='manual_columns').first()
         if mc_cfg:
-            mc_cfg.valor = json.dumps(dataper_cols, ensure_ascii=False)
+            mc_cfg.valor = json.dumps(_fusionar_columnas(mc_cfg.valor, dataper_cols), ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=dataper.id, clave='manual_columns',
                                      valor=json.dumps(dataper_cols, ensure_ascii=False)))
@@ -488,7 +522,7 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         ]
         mc = AppConfig.query.filter_by(proyecto_id=material_proy.id, clave='manual_columns').first()
         if mc:
-            mc.valor = json.dumps(material_cols, ensure_ascii=False)
+            mc.valor = json.dumps(_fusionar_columnas(mc.valor, material_cols), ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=material_proy.id, clave='manual_columns',
                                      valor=json.dumps(material_cols, ensure_ascii=False)))
@@ -530,7 +564,7 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         ]
         mc = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
         if mc:
-            mc.valor = json.dumps(site_cols, ensure_ascii=False)
+            mc.valor = json.dumps(_fusionar_columnas(mc.valor, site_cols), ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=site_proy.id, clave='manual_columns',
                                      valor=json.dumps(site_cols, ensure_ascii=False)))
@@ -583,7 +617,7 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         ]
         mc = AppConfig.query.filter_by(proyecto_id=gen_proy.id, clave='manual_columns').first()
         if mc:
-            mc.valor = json.dumps(gen_cols, ensure_ascii=False)
+            mc.valor = json.dumps(_fusionar_columnas(mc.valor, gen_cols), ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=gen_proy.id, clave='manual_columns',
                                      valor=json.dumps(gen_cols, ensure_ascii=False)))
@@ -617,15 +651,7 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
         ]
         mc = AppConfig.query.filter_by(proyecto_id=comb_proy.id, clave='manual_columns').first()
         if mc:
-            try:
-                existing = json.loads(mc.valor)
-                if not any(c.get('nombre') == 'N° ORDEN' for c in existing):
-                    existing = [{'nombre': 'N° ORDEN', 'tipo': 'texto', 'opciones': []}] + existing
-                    mc.valor = json.dumps(existing, ensure_ascii=False)
-                else:
-                    mc.valor = json.dumps(comb_cols, ensure_ascii=False)
-            except Exception:
-                mc.valor = json.dumps(comb_cols, ensure_ascii=False)
+            mc.valor = json.dumps(_fusionar_columnas(mc.valor, comb_cols), ensure_ascii=False)
         else:
             db.session.add(AppConfig(proyecto_id=comb_proy.id, clave='manual_columns',
                                      valor=json.dumps(comb_cols, ensure_ascii=False)))

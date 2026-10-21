@@ -436,48 +436,13 @@ def index():
                 cols.insert(0, 'N° ORDEN')
     except Exception:
         pass
-    # Si es Cotizaciones o Combustible y no hay layout guardado, forzar orden N° ORDEN primero
+    # Si es Cotizaciones o Combustible y NO hay layout guardado, crearlo una
+    # sola vez con el orden por defecto (N° ORDEN primero). Un layout existente
+    # NUNCA se reescribe aquí: el orden y la visibilidad que configuró el admin
+    # con "Ordenar columnas" mandan y no deben cambiar en cada carga.
     _proj_nombre_for_layout = proy_actual_nombre.lower()
     if _proj_nombre_for_layout in ('cotizaciones', 'combustible') and 'N° ORDEN' in cols:
-        # Asegurar que el layout guardado refleje este orden para futuras cargas
         try:
-            _layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
-            if _layout_cfg and _layout_cfg.valor:
-                _layout = json.loads(_layout_cfg.valor)
-                # Reordenar para que N° ORDEN esté primero
-                _order = {c['field']: i for i, c in enumerate(_layout)}
-                if 'N° ORDEN' in _order and '_key' in _order:
-                    # Si N° ORDEN está después de _key, moverlo antes
-                    if _order['N° ORDEN'] > _order['_key']:
-                        # Extraer y reinsertar
-                        _item_ord = next((x for x in _layout if x['field'] == 'N° ORDEN'), None)
-                        _item_key = next((x for x in _layout if x['field'] == '_key'), None)
-                        if _item_ord and _item_key:
-                            _layout = [x for x in _layout if x['field'] not in ('N° ORDEN', '_key')]
-                            _layout.insert(0, _item_ord)
-                            _layout.insert(1, _item_key)
-                            _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
-                            db.session.commit()
-                elif 'N° ORDEN' not in _order:
-                    _layout.insert(0, {'field': 'N° ORDEN', 'visible': True})
-                    _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
-                    db.session.commit()
-                # Asegurar que _key esté justo después de N° ORDEN (posición 1)
-                _order2 = {c['field']: i for i, c in enumerate(json.loads(_layout_cfg.valor))}
-                if 'N° ORDEN' in _order2 and '_key' in _order2 and _order2['_key'] != 1:
-                    _layout = json.loads(_layout_cfg.valor)
-                    _item_key = next((x for x in _layout if x['field'] == '_key'), None)
-                    if _item_key:
-                        _layout = [x for x in _layout if x['field'] != '_key']
-                        _layout.insert(1, _item_key)
-                        _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
-                        db.session.commit()
-                elif 'N° ORDEN' in _order2 and '_key' not in _order2:
-                    _layout = json.loads(_layout_cfg.valor)
-                    _layout.insert(1, {'field': '_key', 'visible': True})
-                    _layout_cfg.valor = json.dumps(_layout, ensure_ascii=False)
-                    db.session.commit()
-            # Si no hay layout, crearlo con N° ORDEN primero
             _layout_cfg2 = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
             if not _layout_cfg2 or not _layout_cfg2.valor or _layout_cfg2.valor.strip() in ('', '[]'):
                 _new_layout = [{'field': c, 'visible': True} for c in cols]
@@ -489,21 +454,6 @@ def index():
         except Exception:
             pass
 
-    # FIX: N antes de N° COTIZACION/QR para Cotizaciones/Combustible (corrige layout guardado al revés)
-    try:
-        _pn_fix = proy_actual_nombre.lower()
-        if _pn_fix in ('cotizaciones','combustible'):
-            _cfg_fix = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
-            if _cfg_fix and _cfg_fix.valor:
-                _lyt = json.loads(_cfg_fix.valor)
-                _fields = [c['field'] for c in _lyt]
-                if 'N° ORDEN' in _fields and '_key' in _fields and _fields.index('N° ORDEN') > _fields.index('_key'):
-                    _lyt = [c for c in _lyt if c['field'] not in ('N° ORDEN','_key')]
-                    _lyt.insert(0, {'field':'N° ORDEN','visible':True})
-                    _lyt.insert(1, {'field':'_key','visible':True})
-                    _cfg_fix.valor = json.dumps(_lyt, ensure_ascii=False)
-                    db.session.commit()
-    except: pass
     # Layout de columnas definido por el admin (orden + visibilidad) para todos los usuarios.
     layout_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='column_layout').first()
     column_layout = json.loads(layout_cfg.valor) if layout_cfg and layout_cfg.valor else []
