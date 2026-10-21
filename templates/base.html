@@ -26,6 +26,8 @@
     <link rel="stylesheet" href="/static/css/brand-lockup.css?v=4">
     <script id="nucleus-user-names" type="application/json">{{ nombres_usuarios|default({})|tojson }}</script>
     <script src="/static/js/user-names.js?v=1"></script>
+    <link rel="stylesheet" href="/static/css/project-badges.css?v=1">
+    <script src="/static/js/project-badges.js?v=1"></script>
 </head>
 <body data-options-role="{{ session.get('rol', '') }}" data-options-user="{{ session.get('user_id', '') }}">
     <script>

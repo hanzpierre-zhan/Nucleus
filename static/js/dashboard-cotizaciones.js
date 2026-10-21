@@ -471,7 +471,8 @@
                         const s = document.createElement('span');
                         s.className = 'dc-badge'; s.style.background = PEST_COLOR[r.pestania]; s.textContent = c;
                         td.append(s);
-                    } else td.textContent = window.NucleusIdentity.display(c);
+                    } else if (i === 1 || i === 2) td.innerHTML = window.NucleusProjectBadge.html(c);
+                    else td.textContent = window.NucleusIdentity.display(c);
                     tr.append(td);
                 });
             tb.append(tr);

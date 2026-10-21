@@ -3529,6 +3529,15 @@ let _rendCambiandoVista = false;
         if (window.nucleusTipoCatalogo(fieldName) && colDef.editor !== false) {
             colDef.editor = window.nucleusCatalogEditor;
         }
+        if (window.NucleusProjectBadge.isProjectField(fieldName)) {
+            const previousFormatter = colDef.formatter;
+            colDef.formatter = function (cell, params, onRendered) {
+                const value = cell.getValue();
+                if (window.NucleusProjectBadge.brand(value)) return window.NucleusProjectBadge.html(value);
+                return typeof previousFormatter === 'function'
+                    ? previousFormatter(cell, params, onRendered) : escapeHtml(value ?? '');
+            };
+        }
         restColumns.push(colDef);
 
     });

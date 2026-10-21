@@ -445,7 +445,8 @@
                         const s = document.createElement('span');
                         s.className = 'dr-badge'; s.style.background = ETAPA_COLOR[r.etapa]; s.textContent = c;
                         td.append(s);
-                    } else td.textContent = window.NucleusIdentity.display(c);
+                    } else if (i === 1) td.innerHTML = window.NucleusProjectBadge.html(c);
+                    else td.textContent = window.NucleusIdentity.display(c);
                     tr.append(td);
                 });
             tb.append(tr);

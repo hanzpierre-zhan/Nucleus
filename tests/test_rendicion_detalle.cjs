@@ -11,6 +11,7 @@ const columns = ['ESTADO', 'Campo oculto', 'MOTIVO RECHAZO'].map(field => ({
     getDefinition: () => ({field, title: field}), isVisible: () => false,
 }));
 const context = vm.createContext({
+    window: {},
     document: {getElementById: () => grid},
     table: {getColumns: () => columns},
     escapeHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),

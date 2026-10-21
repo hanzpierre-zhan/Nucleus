@@ -1,0 +1,23 @@
+/* Colores inspirados en cada operador; el texto conserva el nombre original. */
+.project-badge {
+    display: inline-block;
+    box-sizing: border-box;
+    max-width: 100%;
+    padding: 2px 9px;
+    border-radius: 10px;
+    background: var(--project-badge-bg);
+    color: var(--project-badge-fg, #fff);
+    font-size: 11px;
+    line-height: 1.45;
+    font-weight: 700;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.project-badge--claro { --project-badge-bg: #da291c; }
+.project-badge--entel { --project-badge-bg: #0057b8; }
+.project-badge--movistar { --project-badge-bg: #00a9e0; --project-badge-fg: #002f45; }
+.project-badge--pext { --project-badge-bg: #ff9b35; --project-badge-fg: #4d2000; }
+/* En el detalle hay espacio para leer el nombre completo. */
+.rd-v .project-badge { white-space: normal; overflow-wrap: anywhere; }

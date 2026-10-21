@@ -114,7 +114,11 @@
                 [r.proyecto_familia || r.proyecto, r.situacion, identity(r.solicito) + ' / ' + identity(r.registrador), responsable,
                     amountPresent(r, get('dq-money').value) ? money(r[get('dq-money').value]) : 'Sin importe registrado', r.cerrado ? 'Cerrado' : r.dias_etapa === null ? 'Sin fecha válida de etapa' : r.dias_etapa + ' días',
                     (r.fecha_etapa || '—') + ' · ' + r.fuente_fecha_etapa, dias === null || dias < 0 ? 'Sin fecha válida' : dias + ' días']
-                    .forEach(value => tr.append(el('td', value)));
+                    .forEach((value, i) => {
+                        const cell = el('td', value);
+                        if (i === 0) cell.innerHTML = window.NucleusProjectBadge.html(value);
+                        tr.append(cell);
+                    });
                 body.append(tr);
             });
             if (!v.length) { const tr = el('tr'), td = el('td', 'No hay casos para esta selección.'); td.colSpan = 9; tr.append(td); body.append(tr); }

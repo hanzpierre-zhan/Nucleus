@@ -78,6 +78,8 @@ function rendPoblarDetalle(data, gridId) {
 
                 : escapeHtml(est);
 
+        } else if (window.NucleusProjectBadge?.isProjectField(f) && window.NucleusProjectBadge.brand(val)) {
+            valHtml = window.NucleusProjectBadge.html(val);
         } else if (_camposMonto.includes(f) && val) {
 
             valHtml = `<span style="background:linear-gradient(135deg,#28A745,#1e8a38);color:#fff;padding:3px 12px;border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 1px 4px rgba(40,167,69,.35);letter-spacing:.3px;">S/ ${escapeHtml(val)}</span>`;
