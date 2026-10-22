@@ -86,7 +86,7 @@
                    propia quien NO puede ver Combustible (p. ej. Gestor/Contrata), para no
                    dejarlo sin acceso a sus generadores. #}
                 {% set _ve_combustible = (proyectos_list | selectattr('nombre', 'equalto', 'Combustible') | list) | length > 0 %}
-                {% for nombre, etiqueta, icono in [('Dataper','Personal','fa-users'),('Material','Material','fa-boxes-stacked'),('SITE','Sites','fa-location-dot'),('Generadores','Generadores','fa-bolt'),('Combustible','Combustible','fa-gas-pump'),('Cotizaciones','Cotizaciones','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet')] %}
+                {% for nombre, etiqueta, icono in [('Dataper','Personal','fa-users'),('Material','Material','fa-boxes-stacked'),('SITE','Sites','fa-location-dot'),('Generadores','Generadores','fa-bolt'),('Combustible','Combustible','fa-gas-pump'),('Cotizaciones','Cotizaciones','fa-file-invoice-dollar'),('Rendicion','Caja Chica','fa-wallet')] %}
                 {% if nombre != 'Generadores' or not _ve_combustible %}
                 {% for p in proyectos_list %}{% if p.nombre == nombre %}
                 {% set _submodulo = (nombre == 'Combustible' and not flm_resource_context and (session.get('current_proyecto_nombre') or '') == 'Generadores') or (nombre == 'SITE' and request.path in ['/mapa', '/mapa-site']) %}

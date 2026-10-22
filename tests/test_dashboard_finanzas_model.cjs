@@ -23,13 +23,18 @@ const line = model.trend(rendicion, 'rendicion');
 assert.deepEqual(Array.from(line.periods), ['2026-10-01']);
 assert.equal(line.series.reduce((sum, s) => sum + s.values[0], 0), 120, 'Un pago sin fecha no se asigna a un día inventado');
 const cotizaciones = [
-    {monto: 100, proveedor: true, cliente: 'ENTEL', genero: 'Ana', tipo: 'Servicio', gasto: 'Refacturable', mes: '2026-09'},
-    {monto: 50, proveedor: true, cliente: 'CLARO', genero: 'Bea', tipo: 'Sin tipo', gasto: 'Gasto Cobra', mes: '2026-10'},
+    {monto: 100, proveedor: true, cliente: 'ENTEL', genero: 'Ana', tipo: 'Servicio', gasto: 'Refacturable', mes: '2026-09', dia: '2026-09-10', estado: 'Aprobado', gasto_aprobacion: 'Proveedor', proyecto: 'Obra Norte'},
+    {monto: 50, proveedor: true, cliente: 'CLARO', genero: 'Bea', tipo: 'Sin tipo', gasto: 'Gasto Cobra', mes: '2026-10', dia: '2026-10-02', estado: 'En Aprobación', gasto_aprobacion: 'Caja Chica', proyecto: 'Obra Sur'},
 ];
 const cot = model.summary(cotizaciones, 'cotizaciones');
 assert.equal(cot.count, 2);
 assert.equal(cot.amount, 150, 'La vista paralela de Proveedor no duplica solicitudes');
 assert.equal(cot.types.find(t => t.label === 'Sin clasificar').amount, 50);
-assert.deepEqual(Array.from(model.trend(cotizaciones, 'cotizaciones').periods), ['2026-09', '2026-10']);
+assert.equal(cot.states.find(s => s.label === 'Aprobado').count, 1, 'Estados para el gráfico de barras');
+assert.deepEqual(Array.from(model.trend(cotizaciones, 'cotizaciones').periods), ['2026-09-10', '2026-10-02'], 'La evolución es diaria');
+assert.equal(model.filter(cotizaciones, 'cotizaciones', {day: '2026-10-02'}).length, 1);
+assert.equal(model.filter(cotizaciones, 'cotizaciones', {approval: 'Proveedor'}).length, 1);
+assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: 'Obra Sur'}).length, 1);
+assert.equal(model.filter(cotizaciones, 'cotizaciones', {type: 'Sin clasificar'}).length, 1, 'El tipo vacío se filtra con la etiqueta que ve el usuario');
 assert.equal(model.summary([], 'rendicion').amount, 0);
 console.log('OK: importes registrados, filtros, sustentos y evolución sin duplicados');

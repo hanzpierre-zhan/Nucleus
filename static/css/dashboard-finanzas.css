@@ -15,9 +15,9 @@
 .df-kpis strong { display:block; font-size:clamp(19px,1.8vw,30px); line-height:1.3; letter-spacing:-.6px; color:var(--df-accent,var(--ios-label)); font-variant-numeric:tabular-nums; white-space:nowrap; margin:5px 0 2px; }
 .finance-cotizaciones .df-kpis { grid-template-columns:minmax(240px,1.5fr) minmax(160px,1fr); width:min(560px,100%); }
 .df-grid { display:grid; gap:12px; flex:1 0 500px; min-height:500px; grid-template-columns:repeat(4,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(230px,1fr)); }
-.finance-rendicion .df-grid { grid-template-areas:'budget pending people sustbudget' 'trend trend trend sustoperator'; }
-.finance-cotizaciones .df-grid { grid-template-areas:'operator expense approval people' 'trend trend types people'; }
-.df-budget { grid-area:budget; }.df-pending { grid-area:pending; }.df-people { grid-area:people; }.df-sust-budget { grid-area:sustbudget; }.df-trend { grid-area:trend; }.df-sust-operator { grid-area:sustoperator; }.df-operator { grid-area:operator; }.df-expense { grid-area:expense; }.df-approval { grid-area:approval; }.df-types { grid-area:types; }
+.finance-rendicion .df-grid { grid-template-areas:'budget pending people sustbudget' 'trend trend states sustoperator'; }
+.finance-cotizaciones .df-grid { grid-template-areas:'operator expense approval people' 'trend trend states people' 'types types types types'; grid-template-rows:repeat(2,minmax(230px,1fr)) minmax(190px,auto); }
+.df-budget { grid-area:budget; }.df-pending { grid-area:pending; }.df-people { grid-area:people; }.df-sust-budget { grid-area:sustbudget; }.df-trend { grid-area:trend; }.df-sust-operator { grid-area:sustoperator; }.df-operator { grid-area:operator; }.df-expense { grid-area:expense; }.df-approval { grid-area:approval; }.df-states { grid-area:states; }.df-types { grid-area:types; }
 .di-finance .di-card { display:flex; flex-direction:column; min-width:0; min-height:0; padding:16px; border-radius:11px; overflow:hidden; }
 .di-finance .di-card h2 { font-size:13px; line-height:1.4; margin:0 0 3px; }
 .di-finance .di-card p { font-size:11px; line-height:1.45; margin:0 0 12px; }
@@ -43,13 +43,28 @@
 .di-finance .df-table-wrap tfoot { position:sticky; bottom:0; background:var(--ios-card-bg); font-weight:700; }
 .di-finance .df-table-wrap tfoot th,.di-finance .df-table-wrap tfoot td { border-top:1px solid var(--ios-hairline); color:var(--di-blue); }
 .df-caption { margin:0; font-size:10px; color:var(--ios-secondary); }
+.df-active { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.df-active[hidden] { display:none; }
+.df-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; border:1px solid color-mix(in srgb,var(--di-blue) 45%,var(--ios-hairline)); background:color-mix(in srgb,var(--di-blue) 12%,transparent); color:var(--ios-label); border-radius:999px; font-size:10px; line-height:1.4; cursor:pointer; }
+.df-chip span { color:var(--ios-secondary); }
+.df-chip b { font-weight:600; }
+.df-chip i { font-style:normal; font-size:12px; line-height:1; }
+.df-chip:hover { border-color:var(--di-blue); }
+.df-chip-clear { background:transparent; border-color:var(--ios-hairline); color:var(--ios-secondary); }
+.df-donut li { cursor:pointer; border-radius:4px; }
+.df-donut li:hover span { color:var(--ios-label); }
+.df-donut li.is-dim { opacity:.45; }
+.di-finance .df-table-wrap tbody tr { cursor:pointer; }
+.di-finance .df-table-wrap tbody tr:hover { background:color-mix(in srgb,var(--di-blue) 8%,transparent); }
+.di-finance .df-table-wrap tbody tr.is-active { background:color-mix(in srgb,var(--di-blue) 15%,transparent); }
+.di-finance .df-table-wrap tbody tr.is-active th { font-weight:700; }
 .df-empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--ios-secondary); font-size:12px; text-align:center; padding:12px; }
 @media(min-width:1600px) { .df-ring { min-height:160px; }.df-donut { flex-direction:row; align-items:center; }.df-ring { width:58%; height:100%; }.df-donut ul { flex:1; } }
 @media(max-width:1150px) {
   .df-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); }
   .df-grid { flex:none; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:280px; grid-template-rows:none; }
-  .finance-rendicion .df-grid { grid-template-areas:'budget pending' 'people sustbudget' 'trend trend' 'sustoperator sustoperator'; }
-  .finance-cotizaciones .df-grid { grid-template-areas:'operator expense' 'approval people' 'trend people' 'types types'; }
+  .finance-rendicion .df-grid { grid-template-areas:'budget pending' 'people sustbudget' 'trend trend' 'states states' 'sustoperator sustoperator'; }
+  .finance-cotizaciones .df-grid { grid-template-areas:'operator expense' 'approval people' 'trend people' 'states states' 'types types'; }
   .df-kpis strong { font-size:25px; }
 }
 @media(max-width:650px) {

@@ -269,13 +269,15 @@ def test_supervisor_descarga_importa_y_elimina_solo_su_proyecto(app, client, uni
 
 
 @pytest.mark.parametrize('modulo,ruta', [('Cotizaciones', 'cotizaciones'), ('Rendicion', 'rendicion')])
-def test_dashboard_respeta_proyectos_asignados(app, client, universo, modulo, ruta):
+def test_dashboard_muestra_todos_los_proyectos(app, client, universo, modulo, ruta):
+    # Analytics es una vista global: el dashboard muestra todos los proyectos
+    # aunque el usuario solo tenga familia ENTEL asignada (los módulos siguen
+    # restringiendo por proyecto).
     asignar(app, universo, ['FLM - ENTEL'])
     uid, ids, _ = universo
     with client.session_transaction() as s:
         s.update(user_id=uid, rol='supervisor', username='alcance-prueba', current_proyecto_id=ids[modulo], current_proyecto_nombre=modulo)
     response = client.get('/analytics/' + ruta)
     assert response.status_code == 200
-    assert 'SCOPE-' + modulo + '-ENTEL' in response.text
-    for otro in ('CLARO', 'INTEGRATEL', 'PEXT'):
-        assert 'SCOPE-' + modulo + '-' + otro not in response.text
+    for familia in ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'):
+        assert 'SCOPE-' + modulo + '-' + familia in response.text

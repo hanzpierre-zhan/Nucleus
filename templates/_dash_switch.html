@@ -1,16 +1,16 @@
 {% set _dash_actual = 'cobranza' if request.path.startswith('/analytics/cobranza') else ('cotizaciones' if request.path.startswith('/analytics/cotizaciones') else ('rendicion' if request.path.startswith('/analytics/rendicion') else 'operativo')) %}
+{# Mantener aquí el orden común al incorporar nuevos dashboards. #}
+{% set _dashboards = [
+    ('operativo', '/analytics', 'fa-gauge-high', 'Flm - Entel'),
+    ('cotizaciones', '/analytics/cotizaciones', 'fa-file-invoice-dollar', 'Cotizaciones'),
+    ('rendicion', '/analytics/rendicion', 'fa-money-bill-transfer', 'Caja Chica'),
+    ('cobranza', '/analytics/cobranza', 'fa-sack-dollar', 'Cobranza')
+] %}
 <nav class="dash-switch" aria-label="Elegir dashboard">
     <span class="dash-switch-label">Dashboard:</span>
-    <a href="/analytics" class="dash-switch-item {% if _dash_actual == 'operativo' %}is-active{% endif %}">
-        <i class="fa-solid fa-gauge-high"></i> Producción y seguimiento
+    {% for key, url, icon, label in _dashboards %}
+    <a href="{{ url }}" class="dash-switch-item {% if _dash_actual == key %}is-active{% endif %}"{% if _dash_actual == key %} aria-current="page"{% endif %}>
+        <i class="fa-solid {{ icon }}" aria-hidden="true"></i> {{ label }}
     </a>
-    <a href="/analytics/cotizaciones" class="dash-switch-item {% if _dash_actual == 'cotizaciones' %}is-active{% endif %}">
-        <i class="fa-solid fa-file-invoice-dollar"></i> Cotizaciones
-    </a>
-    <a href="/analytics/rendicion" class="dash-switch-item {% if _dash_actual == 'rendicion' %}is-active{% endif %}">
-        <i class="fa-solid fa-money-bill-transfer"></i> Rendición
-    </a>
-    <a href="/analytics/cobranza" class="dash-switch-item {% if _dash_actual == 'cobranza' %}is-active{% endif %}">
-        <i class="fa-solid fa-sack-dollar"></i> Cobranza
-    </a>
+    {% endfor %}
 </nav>

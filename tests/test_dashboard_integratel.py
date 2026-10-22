@@ -77,7 +77,7 @@ def test_dashboard_respeta_departamentos_permitidos(app,auth_client,cambiar_rol)
     from models import Proyecto,NucleusData,AccesoProyecto
     with auth_client.session_transaction() as session: uid=session['user_id']
     with app.app_context():
-        proyecto=Proyecto.query.filter_by(nombre='FLM - INTEGRATEL').one();pid=proyecto.id
+        proyecto=Proyecto.query.filter_by(nombre='FLM - ENTEL').one();pid=proyecto.id
         acceso=AccesoProyecto.query.filter_by(usuario_id=uid,proyecto_id=pid).first()
         if acceso is None:
             acceso=AccesoProyecto(usuario_id=uid,proyecto_id=pid);db.session.add(acceso)
@@ -87,7 +87,7 @@ def test_dashboard_respeta_departamentos_permitidos(app,auth_client,cambiar_rol)
         db.session.commit()
     cambiar_rol(auth_client, 'supervisor')
     with auth_client.session_transaction() as session:
-        session['current_proyecto_id']=pid;session['current_proyecto_nombre']='FLM - INTEGRATEL'
+        session['current_proyecto_id']=pid;session['current_proyecto_nombre']='FLM - ENTEL'
     response=auth_client.get('/analytics')
     assert response.status_code==200
     data=json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>',response.text,re.S).group(1))
@@ -108,12 +108,11 @@ def test_analytics_usa_flm_seleccionado_sin_mezclar_operadores(app, auth_client)
     auth_client.get(f'/switch_project/{entel}')
     response = auth_client.get('/analytics')
     assert response.status_code == 200
-    assert 'Producción y seguimiento' in response.text
+    assert '<h1>Flm - Entel</h1>' in response.text
     assert 'Producción: Operate Phase' not in response.text
     assert '<nav class="flm-resource-bar"' not in response.text
     data = json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>', response.text, re.S).group(1))
     assert 'ENTEL-DASH-QA' in {row['wo'] for row in data['detalle']}
-    assert 'CM-DASH-LIMA' not in {row['wo'] for row in data['detalle']}
     assert 'OPERACIÓN · FLM - ENTEL' in response.text
     with auth_client.session_transaction() as session:
         assert session['current_proyecto_id'] == entel
@@ -131,3 +130,25 @@ def test_dashboard_desde_catalogo_usa_su_flm_de_origen(app, auth_client):
     response = auth_client.get('/analytics')
     assert response.status_code == 200
     assert 'OPERACIÓN · FLM - ENTEL' in response.text
+
+
+def test_dashboard_entel_no_consulta_el_flm_anterior(app, auth_client):
+    import json
+    import re
+    from models import Proyecto, NucleusData
+    from db import db
+    with app.app_context():
+        entel = Proyecto.query.filter_by(nombre='FLM - ENTEL').one().id
+        integratel = Proyecto.query.filter_by(nombre='FLM - INTEGRATEL').one().id
+        db.session.add(NucleusData(proyecto_id=entel, key_value='ENTEL-INDEPENDIENTE', data_json=json.dumps({'Operate Phase':'close','FECHA DE CREACION':'2026-10-01'})))
+        db.session.add(NucleusData(proyecto_id=integratel, key_value='OTRO-OPERADOR', data_json='{}'))
+        db.session.commit()
+    auth_client.get(f'/switch_project/{integratel}')
+    response = auth_client.get('/analytics')
+    assert response.status_code == 200
+    data = json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>', response.text, re.S).group(1))
+    keys = {r['wo'] for r in data['detalle']}
+    assert 'ENTEL-INDEPENDIENTE' in keys and 'OTRO-OPERADOR' not in keys
+    assert data['produccion'] >= 1
+    with auth_client.session_transaction() as session:
+        assert session['current_proyecto_id'] == integratel

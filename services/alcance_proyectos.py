@@ -48,6 +48,27 @@ def importacion_rendicion():
             request.environ[clave] = anterior
 
 
+@contextmanager
+def vista_global():
+    """Dashboards de Analytics: la data del módulo se muestra completa.
+
+    Cotizaciones y Rendición son vistas de análisis compartidas por todos
+    los usuarios; este indicador suspende el alcance por proyecto solo en
+    las consultas de lectura de la solicitud actual. Las escrituras
+    siguen validándose con el alcance normal.
+    """
+    clave = 'nucleus.vista_global'
+    anterior = request.environ.get(clave)
+    request.environ[clave] = True
+    try:
+        yield
+    finally:
+        if anterior is None:
+            request.environ.pop(clave, None)
+        else:
+            request.environ[clave] = anterior
+
+
 def contexto():
     if not has_request_context() or not session.get('user_id'):
         return None
@@ -191,6 +212,8 @@ def limitar_opciones(columnas):
 
 def _consultas(estado):
     if not has_request_context() or not session.get('user_id'):
+        return
+    if request.environ.get('nucleus.vista_global'):
         return
     modelos = {m.class_ for m in estado.all_mappers}
     # Query.count() envuelve el SELECT ORM en una subconsulta y no expone
