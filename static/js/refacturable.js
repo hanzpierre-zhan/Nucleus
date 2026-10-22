@@ -141,19 +141,22 @@
 
         ]
     });
-    function updateCount() {
-        const count = table.getDataCount('active');
-        const badge = document.getElementById('ref-count');
-        badge.textContent = `${count} / ${total}`;
-        badge.title = `${count} registros visibles de ${total} en total`;
+    function etiquetasPaginacion(raiz) {
         const labels = {first: ['«', 'Primera página'], prev: ['‹', 'Página anterior'], next: ['›', 'Página siguiente'], last: ['»', 'Última página']};
-        document.querySelectorAll('#ref-pagination .tabulator-page').forEach(button => {
+        document.querySelectorAll(raiz + ' .tabulator-page').forEach(button => {
             const key = button.dataset.page || (button.textContent || '').trim().toLowerCase();
             if (labels[key]) {
                 button.textContent = labels[key][0];
                 button.title = labels[key][1]; button.setAttribute('aria-label', labels[key][1]);
             }
         });
+    }
+    function updateCount(visibles) {
+        const count = Array.isArray(visibles) ? visibles.length : table.getDataCount('active');
+        const badge = document.getElementById('ref-count');
+        badge.textContent = `${count} / ${total}`;
+        badge.title = `${count} registros visibles de ${total} en total`;
+        etiquetasPaginacion('#ref-pagination');
     }
     const ESTADOS_ORDEN = ['Pdt. Cotización', 'En Aprobación', 'Aprobado', 'Atendido', 'Validado', 'Rechazado', 'Cancelado', 'Anulado'];
     function estadoTipo(estado) {
@@ -172,6 +175,21 @@
         const actual = String(columna.getHeaderFilterValue() || '');
         columna.setHeaderFilterValue(estado && actual !== estado ? estado : '');
     }
+    function tarjetaResumen(titulo, count, monto, clases, activo, alElegir, ayuda) {
+        const card = document.createElement('div');
+        card.className = 'ref-card ' + (clases || '') + (activo ? ' is-active' : '');
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.title = ayuda;
+        card.addEventListener('click', alElegir);
+        card.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); alElegir(); }
+        });
+        const t = document.createElement('span'); t.className = 'ref-card-title'; t.textContent = titulo;
+        const c = document.createElement('span'); c.className = 'ref-card-count'; c.textContent = count + (count === 1 ? ' caso' : ' casos');
+        const m = document.createElement('span'); m.className = 'ref-card-money'; m.textContent = 'S/ ' + money.format(monto);
+        card.append(t, m, c); return card;
+    }
     function renderCards(rows) {
         const cont = document.getElementById('ref-cards');
         if (!cont) return;
@@ -189,21 +207,8 @@
             return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
         });
         const activo = String(table.getColumn('estado_cotizacion')?.getHeaderFilterValue() || '');
-        const tarjeta = (titulo, count, monto, clases, estado) => {
-            const card = document.createElement('div');
-            card.className = 'ref-card ' + (clases || '') + (estado && estado === activo ? ' is-active' : '');
-            card.tabIndex = 0;
-            card.setAttribute('role', 'button');
-            card.title = estado ? 'Filtrar por ' + estado : 'Quitar el filtro de estado';
-            card.addEventListener('click', () => filtrarPorEstado(estado));
-            card.addEventListener('keydown', event => {
-                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); filtrarPorEstado(estado); }
-            });
-            const t = document.createElement('span'); t.className = 'ref-card-title'; t.textContent = titulo;
-            const c = document.createElement('span'); c.className = 'ref-card-count'; c.textContent = count + (count === 1 ? ' caso' : ' casos');
-            const m = document.createElement('span'); m.className = 'ref-card-money'; m.textContent = 'S/ ' + money.format(monto);
-            card.append(t, c, m); return card;
-        };
+        const tarjeta = (titulo, count, monto, clases, estado) => tarjetaResumen(titulo, count, monto, clases, Boolean(estado && estado === activo),
+            () => filtrarPorEstado(estado), estado ? 'Filtrar por ' + estado : 'Quitar el filtro de estado');
         cont.replaceChildren();
         for (const estado of estados) {
             const g = grupos.get(estado);
@@ -261,8 +266,9 @@
         XLSX.writeFile(book, 'Liquidaciones.xlsx');
     });
     table.on('dataFiltered', (filtros, filas) => {
-        renderCards((filas || []).map(fila => fila.getData ? fila.getData() : fila));
-        updateCount();
+        const datos = (filas || []).map(fila => fila.getData ? fila.getData() : fila);
+        renderCards(datos);
+        updateCount(datos);
     }); table.on('pageLoaded', updateCount);
     table.on('tableBuilt', async () => {
         await table.getColumn('cotizacion').updateDefinition({formatter: quoteFormatter});
@@ -271,4 +277,191 @@
         if (gestor) { const def = {field:'GESTOR'}; window.NucleusIdentity.columns([def]); await gestor.updateDefinition({formatter:def.formatter}); }
         await load();
     });
+
+    // ── Pestaña Rendición: casos GASTO COBRA con depósito registrado ─────────
+    const rendMessage = document.getElementById('rend-message');
+    const ESTADOS_REND_ORDEN = ['PENDIENTE', 'VALIDADO', 'DEPOSITADO', 'CON SUSTENTO', 'SUSTENTADO', 'RECHAZADO', 'ANULADO'];
+    let rendTable = null, rendTotal = 0;
+
+    function fotoEnlace(url, alt) {
+        const link = document.createElement('a');
+        link.href = url; link.target = '_blank'; link.rel = 'noopener';
+        if (/^\/(?!\/)/.test(url)) {
+            const image = document.createElement('img');
+            image.src = url; image.alt = alt; image.loading = 'lazy';
+            link.appendChild(image);
+        } else {
+            link.className = 'ref-ext-link';
+            link.textContent = alt + ' (enlace externo)';
+        }
+        return link;
+    }
+    function rendEstadoTipo(estado) {
+        const e = String(estado || '').toLowerCase();
+        if (/rechaz|anulad/.test(e)) return 'danger';
+        if (/sustentad|depositad/.test(e)) return 'success';
+        if (/pendient|validado|sustento/.test(e)) return 'warning';
+        return 'info';
+    }
+    function rendStatusFormatter(cell) {
+        const text = String(cell.getValue() || '');
+        if (!text) return '';
+        const pill = document.createElement('span');
+        pill.className = 'ref-status ref-status-' + rendEstadoTipo(text);
+        pill.textContent = text; return pill;
+    }
+    function evidencesFormatter(cell) {
+        const row = cell.getRow().getData();
+        const hay = safeUrl(row.foto_pago) || (row.fotos || []).some(safeUrl);
+        if (!hay) {
+            const span = document.createElement('span');
+            span.className = 'ref-status ref-status-neutral'; span.textContent = 'Sin evidencias'; return span;
+        }
+        const button = document.createElement('button');
+        button.type = 'button'; button.className = 'action-pill pill-blue'; button.textContent = 'Ver evidencias';
+        button.addEventListener('click', () => showEvidencias(row));
+        return button;
+    }
+    function showEvidencias(row) {
+        const body = document.getElementById('liq-sustento-body'); body.replaceChildren();
+        document.getElementById('liq-sustento-title').textContent = 'Evidencias · ' + (row.codigo || row.key);
+        const meta = document.createElement('p');
+        meta.textContent = `Estado: ${row.estado || '—'} · Fecha de pago: ${row.fecha_pago || '—'} · Monto pagado: S/ ${money.format(Number(row.monto) || 0)}`;
+        body.appendChild(meta);
+        const deposito = document.createElement('section'); deposito.className = 'ref-section';
+        const tituloDeposito = document.createElement('h3'); tituloDeposito.textContent = 'Foto del depósito'; deposito.appendChild(tituloDeposito);
+        const galeriaDeposito = document.createElement('div'); galeriaDeposito.className = 'liq-gallery';
+        if (safeUrl(row.foto_pago)) galeriaDeposito.appendChild(fotoEnlace(row.foto_pago, 'Foto del depósito'));
+        if (galeriaDeposito.children.length) deposito.appendChild(galeriaDeposito);
+        else { const p = document.createElement('p'); p.className = 'liq-comment'; p.textContent = 'Sin foto de depósito.'; deposito.appendChild(p); }
+        body.appendChild(deposito);
+        const sustento = document.createElement('section'); sustento.className = 'ref-section';
+        const tituloSustento = document.createElement('h3'); tituloSustento.textContent = 'Sustento'; sustento.appendChild(tituloSustento);
+        const comentario = document.createElement('p'); comentario.className = 'liq-comment'; comentario.textContent = row.comentario || 'Sin comentarios'; sustento.appendChild(comentario);
+        if (row.fecha_sustento) {
+            const fecha = document.createElement('p'); fecha.className = 'liq-comment';
+            fecha.textContent = 'Sustentado el ' + row.fecha_sustento; sustento.appendChild(fecha);
+        }
+        const galeria = document.createElement('div'); galeria.className = 'liq-gallery';
+        for (const url of row.fotos || []) if (safeUrl(url)) galeria.appendChild(fotoEnlace(url, 'Foto de sustento'));
+        if (galeria.children.length) sustento.appendChild(galeria);
+        else { const p = document.createElement('p'); p.className = 'liq-comment'; p.textContent = 'Sin fotos de sustento.'; sustento.appendChild(p); }
+        body.appendChild(sustento);
+        document.getElementById('liq-sustento').showModal();
+    }
+    function filtrarRendPorEstado(estado) {
+        const columna = rendTable?.getColumn('estado');
+        if (!columna) return;
+        const actual = String(columna.getHeaderFilterValue() || '');
+        columna.setHeaderFilterValue(estado && actual !== estado ? estado : '');
+    }
+    function renderRendCards(rows) {
+        const cont = document.getElementById('rend-cards');
+        if (!cont) return;
+        const grupos = new Map();
+        let totalCasos = 0, totalMonto = 0;
+        for (const row of rows) {
+            const estado = String(row.estado || 'SIN ESTADO').trim() || 'SIN ESTADO';
+            const monto = Number(row.monto) || 0;
+            const grupo = grupos.get(estado) || {count: 0, money: 0};
+            grupo.count += 1; grupo.money += monto; grupos.set(estado, grupo);
+            totalCasos += 1; totalMonto += monto;
+        }
+        const estados = [...grupos.keys()].sort((a, b) => {
+            const ia = ESTADOS_REND_ORDEN.indexOf(a), ib = ESTADOS_REND_ORDEN.indexOf(b);
+            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+        });
+        const activo = String(rendTable?.getColumn('estado')?.getHeaderFilterValue() || '');
+        cont.replaceChildren();
+        for (const estado of estados) {
+            const grupo = grupos.get(estado);
+            cont.appendChild(tarjetaResumen(estado, grupo.count, grupo.money, 'ref-card-' + rendEstadoTipo(estado),
+                estado === activo, () => filtrarRendPorEstado(estado), 'Filtrar por ' + estado));
+        }
+        cont.appendChild(tarjetaResumen('Total', totalCasos, totalMonto, 'is-total', false, () => filtrarRendPorEstado(''), 'Quitar el filtro de estado'));
+    }
+    function updateRendCount(visibles) {
+        if (!rendTable) return;
+        const count = Array.isArray(visibles) ? visibles.length : rendTable.getDataCount('active');
+        const badge = document.getElementById('rend-count');
+        badge.textContent = `${count} / ${rendTotal}`;
+        badge.title = `${count} registros visibles de ${rendTotal} en total`;
+        etiquetasPaginacion('#rend-pagination');
+    }
+    async function loadRend() {
+        if (!rendTable) return;
+        rendMessage.textContent = 'Cargando casos de rendición…';
+        try {
+            const response = await fetch('/liquidaciones/api/rendiciones');
+            const data = await nucleusLeerRespuestaJSON(response);
+            if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los casos de rendición.');
+            rendTotal = data.registros.length;
+            renderRendCards(data.registros);
+            await rendTable.replaceData(data.registros);
+            updateRendCount(); rendMessage.textContent = '';
+        } catch (error) { rendMessage.textContent = error.message; }
+    }
+    function exportar(tabla, nombre) {
+        if (!tabla) return;
+        const columns = tabla.getColumns().map(col => col.getDefinition()).filter(col => col.field);
+        const rows = tabla.getData('active').map(row => Object.fromEntries(columns.map(col => [col.title, row[col.field] ?? ''])));
+        const sheet = rows.length ? XLSX.utils.json_to_sheet(rows) : XLSX.utils.aoa_to_sheet([columns.map(col => col.title)]);
+        const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, nombre);
+        XLSX.writeFile(book, nombre + '.xlsx');
+    }
+    function buildRendTable() {
+        rendTable = new Tabulator('#rend-grid', {
+            layout: 'fitData', rowHeight: 44,
+            movableColumns: true,
+            persistence: {columns: true}, persistenceMode: 'local',
+            persistenceID: 'liquidaciones-rendicion-' + document.getElementById('rend-grid').dataset.user,
+            pagination: true, paginationMode: 'local', paginationSize: 200,
+            paginationSizeSelector: [100, 200, 500, 1000], paginationButtonCount: 1,
+            paginationElement: document.getElementById('rend-pagination'),
+            placeholder: 'No hay casos de GASTO COBRA con depósito registrado.',
+            columnDefaults: {vertAlign: 'middle', minWidth: 48, resizable: true},
+            columns: [
+                column('CÓDIGO DE DEPÓSITO', 'codigo', {width: 175, formatter: cell => {
+                    const span = document.createElement('span'); span.className = 'ref-code'; span.textContent = cell.getValue() || ''; return span;
+                }}),
+                column('ESTADO', 'estado', {width: 155, formatter: rendStatusFormatter}),
+                column('ETAPA', 'etapa', {width: 140}),
+                column('FECHA DE PAGO', 'fecha_pago', {width: 140}),
+                column('MONTO PAGADO', 'monto', {width: 150, hozAlign: 'right', formatter: moneyFormatter}),
+                column('DEPOSITADO POR', 'depositado_por', {width: 185}),
+                column('PROYECTO', 'nombre_proyecto', {width: 170}),
+                column('SITE', 'site', {width: 150}),
+                column('TÉCNICO BENEFICIARIO', 'tecnico', {width: 195}),
+                column('DOCUMENTO', 'documento', {width: 145}),
+                column('TIPO DE GASTO', 'tipo_gasto', {width: 165}),
+                column('TIPO DE PRESUPUESTO', 'tipo_liquidacion', {width: 185}),
+                column('MOTIVO DE LA SOLICITUD', 'motivo', {width: 260}),
+                column('CM / PM / PLM', 'cm', {width: 145}),
+                column('EVIDENCIAS', 'fotos', {headerFilter: false, width: 175, formatter: evidencesFormatter}),
+                column('COMENTARIO DE SUSTENTO', 'comentario', {width: 280}),
+                column('FECHA DE SUSTENTO', 'fecha_sustento', {width: 150}),
+            ]
+        });
+        rendTable.on('dataFiltered', (filtros, filas) => {
+            const datos = (filas || []).map(fila => fila.getData ? fila.getData() : fila);
+            renderRendCards(datos);
+            updateRendCount(datos);
+        });
+        rendTable.on('pageLoaded', updateRendCount);
+        rendTable.on('tableBuilt', loadRend);
+    }
+    const tabs = [...document.querySelectorAll('[data-ref-tab]')];
+    const panels = [...document.querySelectorAll('[data-ref-panel]')];
+    function activarPestana(nombre) {
+        tabs.forEach(tab => {
+            const activo = tab.dataset.refTab === nombre;
+            tab.classList.toggle('is-active', activo);
+            tab.setAttribute('aria-selected', String(activo));
+        });
+        panels.forEach(panel => panel.classList.toggle('is-active', panel.dataset.refPanel === nombre));
+        if (nombre === 'rendicion') { if (!rendTable) buildRendTable(); else rendTable.redraw(); }
+        else table.redraw();
+    }
+    tabs.forEach(tab => tab.addEventListener('click', () => activarPestana(tab.dataset.refTab)));
+    document.getElementById('rend-export').addEventListener('click', () => exportar(rendTable, 'Rendicion'));
 })();

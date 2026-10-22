@@ -490,30 +490,57 @@ function rendAplicarFiltro() {
 
 // ── Conteos por hoja ──
 
+// Monto de una fila: el pagado manda; si no hay pago, el monto solicitado.
+// Se aceptan formatos como 'S/ 1,234.56', '100. 00' o '40 soles'.
+function rendMontoNumero(valor) {
+    let t = String(valor == null ? '' : valor).trim();
+    if (!t) return 0;
+    t = t.replace(/[Ss]\/\s*/g, '').replace(/[^\d,.\-]/g, '');
+    if (t.includes(',') && t.includes('.')) {
+        t = t.lastIndexOf(',') < t.lastIndexOf('.') ? t.replace(/,/g, '') : t.replace(/\./g, '').replace(',', '.');
+    } else if (t.includes(',')) t = t.replace(',', '.');
+    const n = parseFloat(t);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function rendMontoFila(row) {
+    const pago = row['MONTO PAGO'];
+    if (pago !== null && pago !== undefined && String(pago).trim() !== '') return rendMontoNumero(pago);
+    return rendMontoNumero(row['Monto total del depósito'] || row['Monto'] || row['Monto total']);
+}
+
+function rendSoles(valor) {
+    return 'S/ ' + new Intl.NumberFormat('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(valor || 0);
+}
+
 function rendActualizarContadores() {
 
     if (!IS_RENDICION) return;
 
     const c = { transito: 0, validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0, rechazados: 0 };
 
+    const m = { depositos: 0, evidencia: 0, sustentos: 0, cerrado: 0, archivado: 0 };
+
     rawData.forEach(r => {
 
         const e = rendEstadoParaVista(r);
 
+        const monto = rendMontoFila(r);
+
         if (e === 'TRANSITO') c.transito++;
         else if (e === 'PENDIENTE') c.validacion++;
 
-        else if (e === 'VALIDADO') c.depositos++;
+        else if (e === 'VALIDADO') { c.depositos++; m.depositos += monto; }
 
-        else if (e === 'DEPOSITADO') c.evidencia++;
+        else if (e === 'DEPOSITADO') { c.evidencia++; m.evidencia += monto; }
 
-        else if (e === 'CON SUSTENTO') c.sustentos++;
+        else if (e === 'CON SUSTENTO') { c.sustentos++; m.sustentos += monto; }
 
-        else if (e === 'SUSTENTADO') c.cerrado++;
+        else if (e === 'SUSTENTADO') { c.cerrado++; m.cerrado += monto; }
 
         else if (e === 'ANULADO') c.rechazados++;
         else if (e === 'OBSERVADO') c.observado++;
-        else if (e === 'ARCHIVADO') c.archivado++;
+        else if (e === 'ARCHIVADO') { c.archivado++; m.archivado += monto; }
 
     });
 
@@ -522,6 +549,18 @@ function rendActualizarContadores() {
         const el = document.getElementById('rend-cnt-' + k);
 
         if (el) el.textContent = c[k];
+
+    });
+
+    Object.keys(m).forEach(k => {
+
+        const monto = document.querySelector('[data-rend-monto="' + k + '"]');
+
+        if (monto) monto.textContent = rendSoles(m[k]);
+
+        const cant = document.querySelector('[data-rend-cnt="' + k + '"]');
+
+        if (cant) cant.textContent = c[k];
 
     });
 

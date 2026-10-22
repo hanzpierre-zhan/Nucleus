@@ -1,20 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Liquidaciones · Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/refacturable.css') }}?v=9">
-<div class="ref-toolbar">
-    <span id="ref-count" class="topbar-badge" title="Registros visibles / total">0 / 0</span>
-    <div id="ref-pagination" aria-label="Paginación"></div>
-    <div class="ref-settings-wrap">
-        <button type="button" id="ref-settings-toggle" class="action-pill pill-neutral" aria-expanded="false"><i class="fa-solid fa-gear"></i> Menu</button>
-        <div id="ref-settings" class="col-visibility-menu">
-            <button type="button" id="ref-export" class="ref-menu-item"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/refacturable.css') }}?v=11">
+<nav class="ref-tabs" role="tablist" aria-label="Módulos de liquidación">
+    <button type="button" class="ref-tab is-active" role="tab" aria-selected="true" data-ref-tab="cotizaciones"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Cotizaciones</button>
+    <button type="button" class="ref-tab" role="tab" aria-selected="false" data-ref-tab="rendicion"><i class="fa-solid fa-wallet" aria-hidden="true"></i> Rendición</button>
+</nav>
+<section class="ref-panel is-active" data-ref-panel="cotizaciones" role="tabpanel" aria-label="Cotizaciones">
+    <div class="ref-toolbar">
+        <span id="ref-count" class="topbar-badge" title="Registros visibles / total">0 / 0</span>
+        <div id="ref-pagination" class="ref-pagination" aria-label="Paginación"></div>
+        <div class="ref-settings-wrap">
+            <button type="button" id="ref-settings-toggle" class="action-pill pill-neutral" aria-expanded="false"><i class="fa-solid fa-gear"></i> Menu</button>
+            <div id="ref-settings" class="col-visibility-menu">
+                <button type="button" id="ref-export" class="ref-menu-item"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
+            </div>
         </div>
     </div>
-</div>
-<div id="ref-cards" class="ref-cards" aria-label="Resumen por estado"></div>
-<div id="ref-message" role="status" aria-live="polite"></div>
-<div id="ref-grid" class="excel-grid" data-user="{{ session.get('user_id', 0) }}"></div>
+    <div id="ref-cards" class="ref-cards" aria-label="Resumen por estado"></div>
+    <div id="ref-message" class="ref-message" role="status" aria-live="polite"></div>
+    <div id="ref-grid" class="excel-grid ref-grid" data-user="{{ session.get('user_id', 0) }}"></div>
+</section>
+<section class="ref-panel" data-ref-panel="rendicion" role="tabpanel" aria-label="Rendición">
+    <div class="ref-toolbar">
+        <span id="rend-count" class="topbar-badge" title="Registros visibles / total">0 / 0</span>
+        <div id="rend-pagination" class="ref-pagination" aria-label="Paginación"></div>
+        <div class="ref-settings-wrap">
+            <button type="button" id="rend-export" class="action-pill pill-neutral"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
+        </div>
+    </div>
+    <div id="rend-cards" class="ref-cards" aria-label="Resumen por estado"></div>
+    <div id="rend-message" class="ref-message" role="status" aria-live="polite"></div>
+    <div id="rend-grid" class="excel-grid ref-grid" data-user="{{ session.get('user_id', 0) }}"></div>
+</section>
 <dialog id="ref-editor" aria-labelledby="ref-editor-title">
     <form id="ref-form">
         <header class="ref-modal-header"><div><h2 id="ref-editor-title">Seguimiento de liquidación</h2><p id="ref-cotizacion"></p></div><button type="button" class="ref-close" aria-label="Cerrar">×</button></header>
@@ -34,4 +52,4 @@
 </dialog>
 <dialog id="liq-sustento" aria-labelledby="liq-sustento-title"><header class="ref-modal-header"><h2 id="liq-sustento-title">Sustento de obra</h2><button type="button" id="liq-sustento-close" class="action-pill" aria-label="Cerrar">×</button></header><div id="liq-sustento-body" class="ref-modal-body"></div></dialog>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/refacturable.js') }}?v=14"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/refacturable.js') }}?v=19"></script>{% endblock %}

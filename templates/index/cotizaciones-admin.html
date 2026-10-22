@@ -2,8 +2,8 @@
 (function(){
   var _ADMIN_ROL="{{session.get('rol')}}";
   window._ADMIN_ES_ADMIN=['zeno','suport'].includes(_ADMIN_ROL);
-  var _ESTADOS=['Pdt. Cotización','En Aprobación','Atendido','Cancelado','Cotizado','En proceso','Observado','Rechazado','Validado'];
-  var _BADGES={'Pdt. Cotización':'#8E8E93','En Aprobación':'#FF9500','Atendido':'#34C759','Cancelado':'#6B7280','Cotizado':'#5AC8FA','En proceso':'#173E76','Observado':'#FF6B00','Rechazado':'#FF3B30','Validado':'#30D158'};
+  var _ESTADOS=['Pdt. Cotización','En Aprobación','Aprobado','Atendido','Cancelado','Rechazado'];
+  var _BADGES={'Pdt. Cotización':'#8E8E93','En Aprobación':'#FF9500','Aprobado':'#173E76','Atendido':'#34C759','Cancelado':'#6B7280','Cotizado':'#5AC8FA','En proceso':'#173E76','Observado':'#FF6B00','Rechazado':'#FF3B30','Validado':'#30D158'};
   window.adminCotAbrir=function(){
     if(!window._ADMIN_ES_ADMIN)return;
     var m=document.getElementById('admin-cot-modal');

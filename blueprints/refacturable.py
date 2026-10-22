@@ -238,6 +238,107 @@ def registros():
     return jsonify({'registros': _registros()})
 
 
+def _fotos_sustento(datos):
+    """Todas las evidencias del sustento.
+
+    Las fotos se guardan por tipo de gasto en claves ``SUSTENTO_FOTO <TIPO>``
+    (texto con la URL), en ``_SUSTENTO_FOTOS_FORM`` (JSON) y, en registros
+    nuevos, en ``FOTOS SUSTENTO`` (lista JSON). Se juntan todas sin repetir.
+    """
+    urls = []
+
+    def agregar(valor):
+        if isinstance(valor, str):
+            texto = valor.strip()
+            if not texto:
+                return
+            if texto[:1] in '[{':
+                try:
+                    agregar(json.loads(texto))
+                except (ValueError, TypeError):
+                    urls.append(texto)
+                return
+            urls.append(texto)
+        elif isinstance(valor, list):
+            for item in valor:
+                agregar(item)
+        elif isinstance(valor, dict):
+            for item in valor.values():
+                agregar(item)
+
+    agregar(datos.get('FOTOS SUSTENTO'))
+    agregar(datos.get('_SUSTENTO_FOTOS_FORM'))
+    for clave, valor in datos.items():
+        if str(clave).upper().startswith('SUSTENTO_FOTO'):
+            agregar(valor)
+    limpias = []
+    for url in urls:
+        if url not in limpias:
+            limpias.append(url)
+    return limpias
+
+
+def _rendiciones():
+    """Casos de Rendición con presupuesto GASTO COBRA que ya tienen depósito.
+
+    Un caso entra a esta pestaña en el momento en que se registra el depósito
+    (la acción 'depositar' guarda CODIGO DEPOSITO y ESTADO='DEPOSITADO'). Desde
+    ahí viaja en paralelo con sus evidencias: foto del depósito, fotos de
+    sustento y comentarios.
+    """
+    from services.rendicion_estados import estado_de, etapa_de
+
+    proyecto = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not proyecto:
+        return []
+    casos = []
+    for fila in NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id.desc()).all():
+        try:
+            datos = json.loads(fila.data_json or '{}')
+        except (ValueError, TypeError):
+            continue
+        if str(datos.get('Tipo de presupuesto') or '').strip().upper() != 'GASTO COBRA':
+            continue
+        codigo = str(datos.get('CODIGO DEPOSITO') or '').strip()
+        if not codigo:
+            continue
+        monto = _monto(datos.get('MONTO PAGO'))
+        if monto is None:
+            monto = _monto(datos.get('Monto total del depósito'))
+        casos.append({
+            'id': fila.id,
+            'key': fila.key_value,
+            'codigo': codigo,
+            'estado': estado_de(datos),
+            'etapa': etapa_de(datos),
+            'fecha_pago': str(datos.get('FECHA PAGO') or '').replace('T', ' ')[:16],
+            'monto': _importe(monto),
+            'depositado_por': str(datos.get('DEPOSITADO POR') or ''),
+            'tipo_presupuesto': str(datos.get('Tipo de presupuesto') or ''),
+            # En liquidación estos casos se cobran al cliente como refacturables.
+            'tipo_liquidacion': 'REFACTURABLE',
+            'tipo_gasto': str(datos.get('Tipo de gasto') or ''),
+            'motivo': str(datos.get('Motivo de la solicitud') or ''),
+            'nombre_proyecto': str(datos.get('Nombre del proyecto') or ''),
+            'site': str(datos.get('Nombre de site') or ''),
+            'tecnico': str(datos.get('Técnico beneficiario') or ''),
+            'documento': str(datos.get('Documento del beneficiario') or ''),
+            'cm': str(datos.get('Número CM / PM / PLM') or ''),
+            'foto_pago': str(datos.get('FOTO PAGO') or ''),
+            'fotos': _fotos_sustento(datos),
+            'comentario': str(datos.get('COMENTARIOS SUSTENTO') or ''),
+            'fecha_sustento': str(datos.get('FECHA SUSTENTO') or ''),
+        })
+    return casos
+
+
+@bp.route('/api/rendiciones')
+@login_required
+def rendiciones():
+    _autorizar()
+    return jsonify({'registros': _rendiciones()})
+
+
 CAMPOS_MANUALES = {
     'monto_cobra', 'numero_expense',
     'estado_expense', 'observacion', 'mes_cierre', 'numero_po', 'codigo_ajb_ejb', 'estado_liquidacion',

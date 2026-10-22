@@ -398,6 +398,8 @@ let _rendCambiandoVista = false;
 
         'En Aprobación':   { bg: '#FF9500', fg: '#fff' },   /* naranja        */
 
+        'Aprobado':        { bg: '#173E76', fg: '#fff' },   /* azul           */
+
         'En proceso':      { bg: '#173E76', fg: '#fff' },   /* violeta        */
 
         'Observado':       { bg: '#FF6B00', fg: '#fff' },   /* naranja quemado*/
@@ -2588,8 +2590,9 @@ let _rendCambiandoVista = false;
             // Cotizaciones: ESTADO COTIZACION → badge de color
             if (IS_COTIZACIONES && fieldName === 'ESTADO COTIZACION') {
                 colDef.editor = false;
-                colDef.headerFilter = listaHeaderFilter(manualDef ? manualDef.opciones : [
-                    'Pdt. Cotización','En proceso','Cotizado','En Aprobación','Observado','Rechazado','Atendido','Cancelado','Anulada'
+                // Lista fija del flujo (ignora la config manual para no arrastrar estados legado)
+                colDef.headerFilter = listaHeaderFilter([
+                    'Pdt. Cotización','En Aprobación','Aprobado','Atendido','Cancelado','Rechazado'
                 ]);
                 colDef.formatter = function (cell) {
                     const rawEst = String(cell.getValue() || '').trim();
@@ -9508,7 +9511,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         setVal('SUPERVISOR', data['SUPERVISOR'] || '');
 
-        setVal('ESTADO COTIZACION', data['ESTADO COTIZACION'] || 'En proceso');
+        setVal('ESTADO COTIZACION', data['ESTADO COTIZACION'] || 'Pdt. Cotización');
 
         setVal('MOTIVO', data['MOTIVO'] || '');
 
