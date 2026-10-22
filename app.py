@@ -138,6 +138,8 @@ def create_app(config_object=None):
     from services.legacy_columns import install, clean_existing_config
 
     install()
+    from services.rendicion_presupuesto import instalar as instalar_presupuesto
+    instalar_presupuesto()
 
     # Migraciones de base de datos (idempotentes)
     from migrations import run_migrations

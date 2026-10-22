@@ -789,6 +789,16 @@ def _migrar_rendicion(Proyecto, AppConfig, NucleusData):
         return patron.sub(
             lambda m: m.group(1) + secure_filename(m.group(2)) + m.group(3), texto)
 
+    from services.rendicion_presupuesto import corregir_fila, corregir_opciones
+    opciones_cfg = AppConfig.query.filter_by(proyecto_id=proy.id, clave='manual_columns').first()
+    if opciones_cfg:
+        try:
+            opciones = json.loads(opciones_cfg.valor or '[]')
+        except (ValueError, TypeError):
+            opciones = []
+        if corregir_opciones(opciones):
+            opciones_cfg.valor = json.dumps(opciones, ensure_ascii=False)
+            db.session.commit()
     cambios = 0
     for fila in NucleusData.query.filter_by(proyecto_id=proy.id).all():
         try:
@@ -797,7 +807,7 @@ def _migrar_rendicion(Proyecto, AppConfig, NucleusData):
             continue
         if not isinstance(d, dict):
             continue
-        tocado = False
+        tocado = corregir_fila(d)
         # Conserva el estado principal de los registros históricos.
         estado_previo = str(d.get('ESTADO') or '').strip().upper()
         if estado_previo in ('OBSERVADO', 'ARCHIVADO'):
