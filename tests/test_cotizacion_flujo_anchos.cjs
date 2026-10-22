@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const root=path.join(__dirname,'..'),source=fs.readFileSync(path.join(root,'templates/index/table-controller.html'),'utf8');
+const calls=[],flow={width:152},other={width:400};
+function col(field,data){return {getField:()=>field,setWidth:w=>{data.width=w;},getDefinition:()=>data};}
+const context=vm.createContext({window:{},isAdmin:false,_cotVista:'sustentar',_cotCambiandoAnchos:false,COT_VISTAS:{sustentar:{},atendido:{}},columnLayout:[{field:'_accion_cot',width:152},{field:'N° COTIZACION',width:400}],columnLayoutVistas:{proveedor:[{field:'_accion_cot',width:180}]},table:{getColumns:()=>[col('_accion_cot',flow),col('N° COTIZACION',other)]},cotAnchosClave:()=>'',localStorage:{getItem:()=>null},saveColumnLayout:()=>{throw Error('No se deben guardar ajustes automáticos');},persistColumnLayout:(columns,vista)=>{calls.push({columns,vista});return Promise.resolve(true);}});
+vm.runInContext(fs.readFileSync(path.join(root,'static/js/column-layout.js'),'utf8'),context);
+const start=source.indexOf('    function cotFlujoClave('),end=source.indexOf('    // Devuelve la pestaña',start);
+vm.runInContext(source.slice(start,end),context);
+context.cotAplicarAnchos('sustentar');assert.equal(flow.width,56);assert.equal(other.width,400);
+context.cotAplicarAnchos('atendido');assert.equal(flow.width,168);
+context.cotAplicarAnchos('registro');assert.equal(flow.width,152);
+context.cotAplicarAnchos('proveedor');assert.equal(flow.width,180);
+context.isAdmin=true;context.cotGuardarAnchoFlujo(72);
+assert.equal(calls[0].vista,'flujo_sustentar');assert.equal(calls[0].columns.length,1);
+context._cotVista='atendido';context.cotGuardarAnchoFlujo(220);
+context.cotAplicarAnchos('sustentar');assert.equal(flow.width,72);
+context.cotAplicarAnchos('atendido');assert.equal(flow.width,220);
+assert.equal(other.width,400);assert.equal(context.columnLayout[0].width,152);
+context.isAdmin=false;context.cotGuardarAnchoFlujo(900);assert.equal(calls.length,2);
+console.log('OK: Flujo independiente por pestaña, configuración anterior conservada y permisos respetados');

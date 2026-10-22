@@ -341,6 +341,26 @@ let _rendCambiandoVista = false;
     function cotAnchosClave(vista) {
         return 'cot-anchos-' + {{ session.get('user_id') | tojson }} + '-' + {{ session.get('current_proyecto_id') | tojson }} + '-' + vista;
     }
+    function cotFlujoClave(vista) { return 'flujo_' + vista; }
+    function cotAnchoFlujo(vista) {
+        const helper = window.NucleusColumnLayout;
+        const propia = columnLayoutVistas[cotFlujoClave(vista)] || [];
+        const guardado = helper.width(propia.find(c => c.field === '_accion_cot')?.width);
+        if (guardado !== null) return guardado;
+        // Conserva los ajustes históricos de Registro y Proveedor.
+        const anterior = vista === 'registro' ? columnLayout : vista === 'proveedor' ? columnLayoutVistas.proveedor || [] : [];
+        const heredado = helper.width(anterior.find(c => c.field === '_accion_cot')?.width);
+        return heredado ?? ({registro:128, cliente:128, sustentar:56, atendido:168, cancelado:104, proveedor:92}[vista] || 128);
+    }
+    function cotGuardarAnchoFlujo(ancho) {
+        if (!isAdmin || !COT_VISTAS[_cotVista]) return Promise.resolve(false);
+        const width = window.NucleusColumnLayout.width(ancho);
+        if (width === null) return Promise.resolve(false);
+        const clave = cotFlujoClave(_cotVista);
+        const columns = [{field:'_accion_cot', width, visible:true}];
+        columnLayoutVistas[clave] = columns;
+        return persistColumnLayout(columns, clave);
+    }
     function cotAplicarAnchos(vista) {
         let anteriores = {};
         if (isAdmin) {
@@ -352,6 +372,11 @@ let _rendCambiandoVista = false;
         try {
             table.getColumns().forEach(c => {
                 const f = c.getField();
+                if (f === '_accion_cot') {
+                    const ancho = cotAnchoFlujo(vista);
+                    c.setWidth(ancho); c.getDefinition().width = ancho;
+                    return;
+                }
                 const compartido = window.NucleusColumnLayout.width(guardadas.get(f)?.width);
                 const anterior = window.NucleusColumnLayout.width(anteriores[f]);
                 const ancho = compartido ?? anterior;
@@ -5057,6 +5082,7 @@ let _rendCambiandoVista = false;
     table.on("columnResized", function (col) {
         if (!isAdmin || _rendCambiandoVista || _cotCambiandoColumnas || _cotCambiandoAnchos || orderApplying) return;
         col.getDefinition().width = col.getWidth();
+        if (IS_COTIZACIONES && col.getField() === '_accion_cot') { cotGuardarAnchoFlujo(col.getWidth()); return; }
         if (IS_RENDICION && _rendEstadoListo) _rendEstadoVistas[_rendVista] = _rendSnapshot();
         saveColumnLayout();
     });
@@ -5378,6 +5404,12 @@ let _rendCambiandoVista = false;
             vista = _rendVista;
         } else if (IS_COTIZACIONES && _cotVista === 'proveedor') vista = 'proveedor';
         const columns = window.NucleusColumnLayout.snapshot(table.getColumns());
+        if (IS_COTIZACIONES) {
+            // Guardar otra columna no propaga el ancho de Flujo a otras pestañas.
+            const source = vista === 'proveedor' ? columnLayoutVistas.proveedor || [] : columnLayout;
+            const flujo = columns.find(c => c.field === '_accion_cot');
+            if (flujo) flujo.width = window.NucleusColumnLayout.width(source.find(c => c.field === '_accion_cot')?.width) ?? 152;
+        }
         if (vista) columnLayoutVistas[vista] = columns;
         else {
             columnLayout.splice(0, columnLayout.length, ...columns);
@@ -5419,6 +5451,10 @@ let _rendCambiandoVista = false;
 
         if (await nucleusConfirm('¿Restaurar orden y visibilidad de las columnas al estado por defecto original?')) {
 
+            if (IS_COTIZACIONES) {
+                await persistColumnLayout([], cotFlujoClave(_cotVista));
+                delete columnLayoutVistas[cotFlujoClave(_cotVista)];
+            }
             localStorage.removeItem('tabulator-nucleus-layout');
 
             const done = () => location.reload();
