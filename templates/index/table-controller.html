@@ -4531,9 +4531,8 @@ let _rendCambiandoVista = false;
 
         movableColumns: isAdmin,
 
-        persistence: { columns: ["width"] },
-
-        persistenceID: "nucleus-layout-{{ proyecto_id }}-v5"
+        // Sin persistencia de Tabulator: los anchos se guardan por pestaña en
+        // column_layout_vistas, así cada pestaña conserva su propio ajuste.
 
     });
 

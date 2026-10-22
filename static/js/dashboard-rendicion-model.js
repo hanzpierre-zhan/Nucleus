@@ -14,6 +14,8 @@
  function snapshot(rows,period='day'){
   const pending=rows.filter(row=>row.estado==='DEPOSITADO');
   const supportedRows=rows.filter(row=>['CON SUSTENTO','SUSTENTADO'].includes(row.estado));
+  const archivedRows=supportedRows.filter(row=>base.normalize(row.subestado)==='ARCHIVADO');
+  const awaitingRows=supportedRows.filter(row=>base.normalize(row.subestado)!=='ARCHIVADO');
   const clients=grouped(pending,client,client);
   const budgets=base.group(pending,budget,amount);
   const people=grouped(pending,row=>base.person(row,'rendicion'),row=>row.beneficiario||'Sin beneficiario');
@@ -27,6 +29,10 @@
    invalidDocuments:pending.filter(row=>row.documento_valido===false).length,
    unpaid:pending.filter(row=>!row.pago_registrado).length,
    supported:base.sum(supportedRows,amount),
+   awaitingValidation:base.sum(awaitingRows,amount),awaitingCount:awaitingRows.length,
+   awaitingClients:grouped(awaitingRows,client,client),awaitingBudgetNames:[...new Set(awaitingRows.map(budget))].sort(),
+   archived:base.sum(archivedRows,amount),archivedCount:archivedRows.length,
+   archivedClients:grouped(archivedRows,client,client),archivedBudgetNames:[...new Set(archivedRows.map(budget))].sort(),
    supportedClients:grouped(supportedRows,client,client),supportedCount:supportedRows.length,
    supportedBudgetNames:[...new Set(supportedRows.map(budget))].sort(),
    clients,budgets,people,byClient,applicants:grouped(pending,applicant,applicant),budgetNames,periods,trend,undated:pending.length-dated.length};

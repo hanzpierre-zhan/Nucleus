@@ -2,19 +2,20 @@
 {% block title %}Dashboard {{ proyecto_nombre }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
-<link rel="stylesheet" href="/static/css/analytics-comun.css?v=4">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
 <link rel="stylesheet" href="/static/css/dashboard-operativo-width.css?v=1">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
 <script src="/static/js/dashboard-visual.js?v=1"></script>
 <section class="di-page">
-  <header class="di-head dash-header"><div class="dash-heading"><span class="di-eyebrow">OPERACIÓN · {{ proyecto_nombre }}</span><h1>Flm - Entel</h1>{% include '_dash_switch.html' %}</div>
+  {% from '_dashboard_header.html' import dashboard_header with context %}
+  {% call dashboard_header('Flm - Entel', 'Producción y seguimiento', 'Operación · ' ~ proyecto_nombre, 3) %}
   <div class="di-filters">
     <label>Mes de creación<select id="di-month"><option value="">Todos los meses</option></select></label>
     <label>Departamento<select id="di-department"><option value="">Todos los departamentos</option></select></label>
     <label>Tipo WO<select id="di-type"><option value="">Todos los tipos</option><option>CM</option><option>PM</option><option>PLM</option><option>Otros</option></select></label>
     <button type="button" id="di-clear" class="action-pill pill-neutral">Limpiar filtros</button>
   </div>
-  </header>
+  {% endcall %}
   {% if data_total > data_limite %}<p role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros. Los indicadores corresponden a ese conjunto.</p>{% endif %}
   {% if dashboard.sin_fecha %}<p role="status" class="di-data-notice">{{ dashboard.total }} WO registrados en {{ proyecto_nombre }}. {{ dashboard.sin_fecha }} sin fecha de creación: se cuentan en el total y se muestran en seguimiento, pero no pueden asignarse a un mes.</p>{% endif %}
   <section class="di-story" aria-live="polite"><div><h2 id="di-story-title"></h2><p id="di-story-detail"></p></div><div class="di-progress" aria-label="Distribución de órdenes"><div id="di-progress-fill"></div></div></section>

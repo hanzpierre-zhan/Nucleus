@@ -1,13 +1,12 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
-<link rel="stylesheet" href="/static/css/analytics-comun.css?v=4">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
 <link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=3">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
-<link rel="stylesheet" href="/static/css/dashboard-rendicion-ejecutivo.css?v=3">
+<link rel="stylesheet" href="/static/css/dashboard-rendicion-ejecutivo.css?v=5">
 <script src="/static/js/dashboard-visual.js?v=1"></script>
 <section class="di-page di-finance finance-rendicion rend-executive" data-finance="rendicion">
-  <header class="df-head dash-header">
-    <div class="dash-heading"><span class="di-eyebrow">{{ 'FLUJO DE PAGOS' if modo == 'rendicion' else 'GESTIÓN COMERCIAL' }}</span><h1>{{ 'Caja Chica' if modo == 'rendicion' else 'Cotizaciones' }}</h1>
-    {% include '_dash_switch.html' %}</div>
+  {% from '_dashboard_header.html' import dashboard_header with context %}
+  {% call dashboard_header('Caja Chica', 'Depósitos pendientes de sustento', 'Estado 3.DEPOSITADO · importes de MONTO PAGO', 4) %}
   <div class="df-toolbar" aria-label="Filtros del dashboard">
     <label>Mes de solicitud<select id="df-month"><option value="">Todos los meses</option></select></label>
     <label>Operador<select id="df-operator"><option value="">Todos los operadores</option></select></label>
@@ -17,24 +16,22 @@
     {% if modo == 'cotizaciones' %}<label>Proyecto<select id="df-project"><option value="">Todos los proyectos</option></select></label>{% endif %}
     <button type="button" id="df-clear" class="action-pill pill-neutral" title="Limpiar filtros"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Limpiar</span></button>
   </div>
-  </header>
-
-  <div class="re-heading"><div><span class="re-eyebrow">CONTROL DE RENDICIONES</span><h2>Depósitos pendientes de sustento</h2><p>Solicitudes en estado 3.DEPOSITADO · importes de MONTO PAGO</p></div><div class="re-key"><span><i class="re-cobra"></i>Gasto Cobra</span><span><i class="re-refact"></i>Refacturable</span></div></div>
-  <div class="df-active" id="df-active" aria-live="polite" hidden></div>
+  {% endcall %}
   <div class="df-kpis" id="df-kpis" aria-live="polite"></div>
   <div class="re-grid">
-    <article class="di-card re-applicants"><div class="re-card-heading"><div><h2>Total sin sustento por solicitante</h2><p>Responsable de la validación · 10 principales</p></div><span class="re-icon"><i class="fa-solid fa-users"></i></span></div><div class="df-chart"><canvas id="re-applicants" role="img" aria-label="Monto sin sustento por solicitante y presupuesto"></canvas></div></article>
     <article class="di-card re-clients"><h2>Sin sustento por cliente</h2><p>Participación del importe pendiente</p><div class="re-ring"><canvas id="re-clients" role="img" aria-label="Importe sin sustento por cliente"></canvas><div class="re-ring-total" aria-hidden="true"><strong id="re-clients-total"></strong><small>sin sustento</small></div></div><ul class="re-legend" id="re-clients-legend"></ul></article>
     <article class="di-card re-budgets"><h2>Sin sustento por presupuesto</h2><p>Distribución de MONTO PAGO</p><div class="re-ring"><canvas id="re-budgets" role="img" aria-label="Importe sin sustento por presupuesto"></canvas><div class="re-ring-total" aria-hidden="true"><strong id="re-budgets-total"></strong><small>importe pendiente</small></div></div><ul class="re-legend" id="re-budgets-legend"></ul></article>
+    <article class="di-card re-applicants"><div class="re-card-heading"><div><h2>Total sin sustento por solicitante</h2><p>Responsable de la validación · 10 principales</p></div><span class="re-icon"><i class="fa-solid fa-users"></i></span></div><div class="df-chart"><canvas id="re-applicants" role="img" aria-label="Monto sin sustento por solicitante y presupuesto"></canvas></div></article>
     <article class="di-card re-trend"><div class="re-card-heading"><div><h2>Evolución sin sustento</h2><p>Fecha de solicitud · por presupuesto</p></div><label class="re-period">Ver por<select id="re-period"><option value="day">Día</option><option value="month">Mes</option></select></label></div><div class="df-chart re-trend-scroll"><div class="re-trend-inner" id="re-trend-inner"><canvas id="re-trend" role="img" aria-label="Evolución del importe sin sustento por fecha de solicitud"></canvas></div></div><small class="re-scroll-hint">Desliza el gráfico para consultar todas las fechas.</small></article>
     {% for cliente, slug in [('Entel','entel'),('Claro','claro'),('Integratel','integratel')] %}
     <article class="di-card re-beneficiary re-{{ slug }}"><div class="re-card-heading"><div><span class="re-client-label re-brand-{{ slug }}">{{ cliente }}</span><div class="re-ranking-title" title="10 mayores importes · agrupados por DNI"><h2>Sin sustento por beneficiario</h2><span>Top 10</span></div></div></div><div class="re-panel-total"><strong id="re-{{ slug }}-total"></strong><small id="re-{{ slug }}-count"></small></div><div class="df-chart"><canvas id="re-{{ slug }}" role="img" aria-label="Importe sin sustento por técnico beneficiario de {{ cliente }}"></canvas></div></article>
     {% endfor %}
-    <article class="di-card re-comparison"><div class="re-card-heading"><div><h2>Total sustentado por cliente</h2><p>CON SUSTENTO y SUSTENTADO · por presupuesto</p></div><span class="re-icon"><i class="fa-solid fa-chart-column"></i></span></div><div class="re-panel-total"><strong id="re-comparison-total"></strong><small>Total de MONTO PAGO sustentado</small></div><div class="df-chart"><canvas id="re-comparison" role="img" aria-label="Importe total sustentado por cliente y presupuesto"></canvas></div><div class="re-comparison-note" id="re-comparison-note"></div></article>
+    <article class="di-card re-comparison"><div class="re-card-heading"><div><h2>Sustento por validar</h2><p>Por cliente y presupuesto · sin archivados</p></div><span class="re-icon"><i class="fa-solid fa-chart-column"></i></span></div><div class="re-panel-total"><strong id="re-comparison-total"></strong><small>MONTO PAGO · por validar</small></div><div class="df-chart"><canvas id="re-comparison" role="img" aria-label="Sustento por validar por cliente y presupuesto, excluyendo archivados"></canvas></div><div class="re-comparison-note" id="re-comparison-note"></div></article>
+    <article class="di-card re-archived"><div class="re-card-heading"><div><h2>Sustentos archivados</h2><p>Por cliente y presupuesto · solo archivados</p></div><span class="re-icon"><i class="fa-solid fa-box-archive"></i></span></div><div class="re-panel-total"><strong id="re-archived-total"></strong><small>MONTO PAGO · archivado</small></div><div class="df-chart"><canvas id="re-archived" role="img" aria-label="Sustentos archivados por cliente y presupuesto"></canvas></div><div class="re-comparison-note" id="re-archived-note"></div></article>
   </div>
   <p class="df-caption" id="df-caption" role="status"></p>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-finanzas-model.js?v=4"></script>
-<script src="/static/js/dashboard-rendicion-model.js?v=2"></script>
-<script src="/static/js/dashboard-rendicion-ejecutivo.js?v=3"></script>
+<script src="/static/js/dashboard-rendicion-model.js?v=3"></script>
+<script src="/static/js/dashboard-rendicion-ejecutivo.js?v=6"></script>

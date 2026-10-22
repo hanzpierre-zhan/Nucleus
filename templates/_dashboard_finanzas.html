@@ -1,12 +1,11 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
-<link rel="stylesheet" href="/static/css/analytics-comun.css?v=4">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
 <link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=3">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
 <script src="/static/js/dashboard-visual.js?v=1"></script>
 <section class="di-page di-finance finance-{{ modo }}" data-finance="{{ modo }}">
-  <header class="df-head dash-header">
-    <div class="dash-heading"><span class="di-eyebrow">{{ 'FLUJO DE PAGOS' if modo == 'rendicion' else 'GESTIÓN COMERCIAL' }}</span><h1>{{ 'Caja Chica' if modo == 'rendicion' else 'Cotizaciones' }}</h1>
-    {% include '_dash_switch.html' %}</div>
+  {% from '_dashboard_header.html' import dashboard_header with context %}
+  {% call dashboard_header('Caja Chica' if modo == 'rendicion' else 'Cotizaciones', 'Flujo de pagos' if modo == 'rendicion' else 'Gestión comercial', 'Importes de MONTO PAGO' if modo == 'rendicion' else 'Importes de SUB TOTAL + FEE', 5 if modo == 'rendicion' else 7) %}
   <div class="df-toolbar" aria-label="Filtros del dashboard">
     <label>Mes de solicitud<select id="df-month"><option value="">Todos los meses</option></select></label>
     <label>Estado<select id="df-state"><option value="">Todos los estados</option></select></label>
@@ -17,8 +16,7 @@
     {% if modo == 'cotizaciones' %}<label>Proyecto<select id="df-project"><option value="">Todos los proyectos</option></select></label>{% endif %}
     <button type="button" id="df-clear" class="action-pill pill-neutral" title="Limpiar filtros"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Limpiar</span></button>
   </div>
-  </header>
-  <div class="df-active" id="df-active" aria-live="polite" hidden></div>
+  {% endcall %}
   {% if data_total > data_limite %}<p class="di-data-notice" role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros.</p>{% endif %}
   <div class="df-kpis" id="df-kpis" aria-live="polite"></div>
   <div class="df-grid">
@@ -44,4 +42,4 @@
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-finanzas-model.js?v=4"></script>
-<script src="/static/js/dashboard-finanzas.js?v=6"></script>
+<script src="/static/js/dashboard-finanzas.js?v=8"></script>

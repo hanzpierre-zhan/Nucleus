@@ -1,0 +1,9 @@
+{# Cabecera compartida: añadir futuros dashboards con el mismo macro. #}
+{% macro dashboard_header(title, subtitle='', context_text='', filter_count=4) -%}
+<header class="dash-header dashboard-header" style="--dash-filter-count:{{ filter_count }}">
+  <div class="dash-heading dashboard-title-line"><h1>{{ title }}</h1>{% if subtitle %}<span>{{ subtitle }}</span>{% endif %}</div>
+  {{ caller() }}
+  {% include '_dash_switch.html' %}
+  {% if context_text %}<p class="dashboard-header-context">{{ context_text }}</p>{% endif %}
+</header>
+{%- endmacro %}

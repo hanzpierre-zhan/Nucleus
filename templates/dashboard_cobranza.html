@@ -2,12 +2,13 @@
 {% block title %}Cuadro de Control · Cobranza{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
-<link rel="stylesheet" href="/static/css/analytics-comun.css?v=4">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
 <link rel="stylesheet" href="/static/css/dashboard-cobranza.css?v=1">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
 <script src="/static/js/dashboard-visual.js?v=1"></script>
 <section class="di-page cb-page">
-  <header class="di-head dash-header"><div class="dash-heading"><span class="di-eyebrow">SEGUIMIENTO DE COBRO · {{ proyecto_nombre|upper }}</span><h1>Cuadro de control de cobranza</h1>{% include '_dash_switch.html' %}</div>
+  {% from '_dashboard_header.html' import dashboard_header with context %}
+  {% call dashboard_header('Cobranza', 'Cuadro de control', 'Seguimiento de cobro · ' ~ proyecto_nombre, 4) %}
   <div class="di-filters">
     <label>Cliente<select id="di-client"><option value="">Todos</option></select></label>
     <label>Número Expense<select id="di-expense"><option value="">Todos</option><option value="con">Con Expense</option><option value="sin">Sin Expense</option></select></label>
@@ -15,7 +16,7 @@
     <label>Avance<select id="di-cien"><option value="">Todos</option><option value="100">Al 100%</option><option value="no100">Menos de 100%</option></select></label>
     <button type="button" id="di-clear" class="action-pill pill-neutral">Limpiar filtros</button>
   </div>
-  </header>
+  {% endcall %}
   {% if data_total > data_limite %}<p role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros. Los indicadores corresponden a ese conjunto.</p>{% endif %}
   <section class="di-story" aria-live="polite"><div><h2 id="di-story-title"></h2><p id="di-story-detail"></p></div><div class="di-progress" aria-label="Porcentaje con Número Expense"><div id="di-progress-fill"></div></div></section>
   <div class="di-kpis" aria-live="polite">

@@ -210,25 +210,7 @@
             while (figure.scrollWidth > figure.clientWidth && size > 10) figure.style.fontSize = (--size) + 'px';
         });
     }
-    function chips() {
-        const box = get('df-active');
-        if (!box) return;
-        const active = KEYS.filter(key => state[key]);
-        box.hidden = !active.length;
-        box.replaceChildren();
-        active.forEach(key => {
-            const chip = node('button'), title = node('span', TITLES[key] + ': '), value = node('b', labelFor(key, state[key]));
-            chip.type = 'button'; chip.className = 'df-chip'; chip.title = 'Quitar filtro';
-            chip.append(title, value, node('i', '×'));
-            chip.addEventListener('click', () => { state[key] = ''; const select = get('df-' + key); if (select) select.value = ''; render(); });
-            box.append(chip);
-        });
-        if (active.length > 1) {
-            const clear = node('button', 'Limpiar todo'); clear.type = 'button'; clear.className = 'df-chip df-chip-clear';
-            clear.addEventListener('click', clearAll); box.append(clear);
-        }
-    }
-    function values(key) {
+        function values(key) {
         const map = {month: row => row.mes, state: row => row.estado, operator: row => model.operator(row, mode),
             budget: row => mode === 'rendicion' ? row.presupuesto : row.gasto, type: row => model.type(row), person: row => model.person(row, mode),
             project: row => row.proyecto || 'Sin proyecto', approval: row => row.gasto_aprobacion,
@@ -254,7 +236,7 @@
         }
         bars('df-states-chart', [...summary.states].sort((a, b) => b.count - a.count || b.amount - a.amount),
             {horizontal: true, limit: 12, measure: 'count', filterKey: 'state'});
-        chips();
+
         const undated = filtered.filter(row => !(mode === 'rendicion' ? row.dia_pago : row.dia)).length;
         get('df-caption').textContent = number(filtered.length) + ' registros en la selección'
             + (undated ? ' · ' + number(undated) + ' sin fecha para la evolución' : '')

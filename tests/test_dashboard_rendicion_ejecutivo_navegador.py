@@ -15,6 +15,7 @@ def test_panel_ejecutivo_reconcilia_y_se_adapta(app,auth_client,servidor,tmp_pat
             technician=['Carlos Mendoza','Juan Pérez','María Torres','Luis García','José Ramírez','Ana Castillo','Pedro Sánchez','Rosa Medina'][n//4%8]
             data={'Nombre del proyecto':client,'Documento del beneficiario':str(10000000+n%32),
                 'Técnico beneficiario':technician,'ESTADO':'DEPOSITADO' if n<88 else 'SUSTENTADO',
+                'SUBESTADO':'ARCHIVADO' if n>=92 else '',
                 'Responsable de la validación':['Rosmeri','Mónica','Edwin','Luz','Héctor'][n%5],
                 'Tipo de presupuesto':'GASTO COBRA' if n%3 else 'REFACTURABLE','MONTO PAGO':str(100+n*37.5),
                 'Marca temporal':f'2026-{9+n%2:02d}-{1+n%21:02d}','FECHA PAGO':f'2026-10-{1+n%21:02d}'}
@@ -31,16 +32,21 @@ def test_panel_ejecutivo_reconcilia_y_se_adapta(app,auth_client,servidor,tmp_pat
                 page=context.new_page();errors=[]
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(servidor+'/analytics/rendicion',wait_until='networkidle')
-                page.wait_for_function('Object.keys(Chart.instances).length===8')
+                page.wait_for_function('Object.keys(Chart.instances).length===9')
                 assert page.locator('.re-beneficiary').count()==3
                 assert page.locator('#re-comparison-total').inner_text()
                 assert 'CON SUSTENTO' in page.locator('#re-comparison-note').inner_text()
                 assert page.locator('#re-clients-legend').inner_text().count('S/')==4
                 assert page.evaluate('()=>Chart.getChart("re-applicants").config.plugins.some(p=>p.id==="executiveAmounts")')
                 assert page.evaluate('()=>Chart.getChart("re-trend").config.plugins.some(p=>p.id==="trendAmounts")')
-                paid_total=sum(100+n*37.5 for n in range(88,96))
+                paid_total=sum(100+n*37.5 for n in range(88,92))
                 assert page.evaluate('()=>Chart.getChart("re-comparison").data.datasets.reduce((s,d)=>s+d.data.reduce((a,b)=>a+b,0),0)')==paid_total
                 assert page.locator('#df-kpis article').count()==6
+                assert 'Técnicos beneficiarios' not in page.locator('#df-kpis').inner_text()
+                assert 'Total con sustento por validar' in page.locator('#df-kpis').inner_text()
+                assert 'Total archivado' in page.locator('#df-kpis').inner_text()
+                assert page.evaluate('()=>Chart.getChart("re-applicants").options.indexAxis')=='y'
+                assert page.evaluate('()=>Chart.getChart("re-archived").data.datasets.reduce((s,d)=>s+d.data.reduce((a,b)=>a+b,0),0)')==sum(100+n*37.5 for n in range(92,96))
                 names=page.evaluate('()=>Chart.getChart("re-entel").data.labels')
                 assert names and all(not str(n).isdigit() for n in names)
                 for dark in (False,True):
@@ -61,11 +67,15 @@ def test_panel_ejecutivo_reconcilia_y_se_adapta(app,auth_client,servidor,tmp_pat
                 page.set_viewport_size({'width':1920,'height':1200})
                 page.locator('#re-period').select_option('month')
                 assert len(page.evaluate('()=>Chart.getChart("re-trend").data.labels'))==2
+                page.locator('#df-month').select_option('2026-10')
+                assert page.locator('#df-active').count()==0
+                assert page.locator('.re-header-context .re-key').count()==0
+                page.locator('#df-month').select_option('')
                 page.locator('#df-operator').select_option('ENTEL')
-                assert 'ENTEL' in page.locator('#df-active').inner_text()
+                assert page.locator('#df-operator').input_value()=='ENTEL'
                 assert page.evaluate('()=>Chart.getChart("re-clients").data.labels')==['ENTEL']
                 page.locator('#df-clear').click()
-                assert page.evaluate('()=>Object.keys(Chart.instances).length')==8
+                assert page.evaluate('()=>Object.keys(Chart.instances).length')==9
                 assert not errors,errors
             finally:
                 browser.close()

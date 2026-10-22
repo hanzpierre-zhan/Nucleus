@@ -459,6 +459,7 @@
             tab.setAttribute('aria-selected', String(activo));
         });
         panels.forEach(panel => panel.classList.toggle('is-active', panel.dataset.refPanel === nombre));
+        document.querySelectorAll('[data-ref-toolbar]').forEach(bar => { bar.hidden = bar.dataset.refToolbar !== nombre; });
         if (nombre === 'rendicion') { if (!rendTable) buildRendTable(); else rendTable.redraw(); }
         else table.redraw();
     }

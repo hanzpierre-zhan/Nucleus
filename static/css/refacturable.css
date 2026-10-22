@@ -103,8 +103,11 @@ body.dark-mode .ref-status-danger{color:#f87171}
 .ref-grid .ref-file-name{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--ios-label)}
 
 /* Pestañas del módulo: Cotizaciones (grilla actual) y Rendición (GASTO COBRA). */
-.ref-tabs{display:flex;align-items:center;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--ios-hairline);background:var(--ios-bg);flex-shrink:0}
-.ref-tabs .ref-tab{display:inline-flex!important;align-items:center;gap:7px;min-height:32px!important;padding:7px 14px!important;border:1px solid transparent!important;border-bottom:0!important;border-radius:9px 9px 0 0!important;background:transparent!important;color:var(--ios-secondary)!important;box-shadow:none!important;font:inherit;font-size:12px!important;font-weight:600!important;cursor:pointer}
+.ref-topbar{display:flex;align-items:center;gap:10px;padding:0 12px;min-height:46px;border-bottom:1px solid var(--ios-hairline);background:var(--ios-bg);flex-shrink:0;flex-wrap:wrap}
+.ref-topbar .ref-toolbar{border-bottom:0;padding:0;min-height:0;flex:1 1 auto;flex-wrap:nowrap;gap:8px}
+.ref-topbar .ref-toolbar[hidden]{display:none}
+.ref-tabs{display:flex;align-items:center;gap:4px;padding:0;background:transparent;flex-shrink:0}
+.ref-tabs .ref-tab{display:inline-flex!important;align-items:center;gap:7px;min-height:30px!important;padding:6px 12px!important;border:1px solid transparent!important;border-radius:9px!important;background:transparent!important;color:var(--ios-secondary)!important;box-shadow:none!important;font:inherit;font-size:12px!important;font-weight:600!important;cursor:pointer}
 .ref-tabs .ref-tab:hover{background:var(--ios-fill)!important;color:var(--ios-label)!important}
 .ref-tabs .ref-tab.is-active{background:var(--ios-card-bg)!important;border-color:var(--ios-hairline)!important;color:var(--ios-label)!important;box-shadow:inset 0 -2px 0 var(--ios-blue)!important}
 .ref-tabs .ref-tab:focus-visible{outline:2px solid var(--ios-blue);outline-offset:-2px}
