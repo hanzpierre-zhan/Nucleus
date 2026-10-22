@@ -19,7 +19,8 @@
     const monthLabel = value => new Intl.DateTimeFormat('es-PE', {month: 'long', year: 'numeric'}).format(new Date(value + '-15T12:00:00'));
     const dayLabel = value => new Intl.DateTimeFormat('es-PE', {day: 'numeric', month: 'short', year: 'numeric'}).format(new Date(value + 'T12:00:00'));
     const shortDay = value => new Intl.DateTimeFormat('es-PE', {day: 'numeric', month: 'short'}).format(new Date(value + 'T12:00:00'));
-    const labelFor = (key, value) => key === 'month' ? monthLabel(value) : key === 'day' ? dayLabel(value) : name(value);
+    const stateLabel = value => mode === 'rendicion' ? window.NucleusRendicionStates.label(value) : name(value);
+    const labelFor = (key, value) => key === 'state' ? stateLabel(value) : key === 'month' ? monthLabel(value) : key === 'day' ? dayLabel(value) : name(value);
     const TITLES = {month: 'Mes', state: 'Estado', operator: 'Operador', budget: mode === 'rendicion' ? 'Presupuesto' : 'Tipo de gasto',
         type: 'Tipo', person: mode === 'rendicion' ? 'Solicitante' : 'Responsable', project: 'Proyecto',
         approval: 'Destino', day: 'Día'};
@@ -124,7 +125,7 @@
             });
             ctx.restore();
         }};
-        mount(id, {type: 'bar', plugins: [labels], data: {labels: items.map(item => name(item.label)), datasets: [{
+        mount(id, {type: 'bar', plugins: [labels], data: {labels: items.map(item => filterKey === 'state' ? stateLabel(item.label) : name(item.label)), datasets: [{
             data: items.map(valueOf),
             backgroundColor: items.map((item, index) => alpha(color(item.label, index, kind), selected && item.label !== selected ? .28 : 1)),
             borderRadius: 4, maxBarThickness: horizontal ? 26 : 54, barPercentage: .72,

@@ -2612,7 +2612,7 @@ let _rendCambiandoVista = false;
 
                 colDef.editor = false; // la gestiona el flujo, no se edita a mano
 
-                colDef.headerFilter = listaHeaderFilter(Object.keys(REND_ESTADO_COLORS));
+                colDef.headerFilter = listaHeaderFilter(Object.keys(REND_ESTADO_COLORS), window.NucleusRendicionStates.label);
 
                 colDef.formatter = function (cell) {
 
@@ -2620,7 +2620,7 @@ let _rendCambiandoVista = false;
 
                     const c = REND_ESTADO_COLORS[est] || REND_ESTADO_COLORS['PENDIENTE'];
 
-                    return `<span style="background:${c.bg};color:${c.fg};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">${est}</span>`;
+                    return `<span style="background:${c.bg};color:${c.fg};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">${window.NucleusRendicionStates.label(est)}</span>`;
 
                 };
 
@@ -4037,7 +4037,7 @@ let _rendCambiandoVista = false;
 
     // "Todos" = sin filtro) en lugar del combo con escritura libre.
 
-    function listaHeaderFilter(opciones) {
+    function listaHeaderFilter(opciones, etiqueta = value => value) {
 
         return function (headerValue, onRendered, success) {
 
@@ -4075,7 +4075,7 @@ let _rendCambiandoVista = false;
 
                 op.value = o;
 
-                op.textContent = o;
+                op.textContent = etiqueta(o);
 
                 sel.appendChild(op);
 

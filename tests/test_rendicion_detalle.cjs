@@ -16,6 +16,7 @@ const context = vm.createContext({
     table: {getColumns: () => columns},
     escapeHtml: value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
 });
+vm.runInContext(fs.readFileSync(path.join(root, 'static/js/rendicion-estados-labels.js'), 'utf8'), context);
 vm.runInContext(controller.slice(controller.indexOf('    function rendEstadoDe('), controller.indexOf('    // Botones del flujo:')), context);
 vm.runInContext(detail.slice(detail.indexOf('function rendPoblarDetalle('), detail.indexOf('let _textoAmplioTarget')), context);
 
