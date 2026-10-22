@@ -4,7 +4,7 @@
     const sum = (rows, value) => rows.reduce((total, row) => total + numeric(value(row)), 0);
     const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
     const person = (row, mode) => mode === 'cotizaciones' ? row.genero || 'Sin datos'
-        : row.solicito && row.solicito !== 'Sin datos' ? row.solicito : row.beneficiario || 'Sin datos';
+        : row.beneficiario_id || row.beneficiario || 'Sin beneficiario';
     const operator = (row, mode) => mode === 'cotizaciones' ? row.cliente || 'Sin operador' : row.proyecto || 'Sin operador';
     const amount = (row, mode) => mode === 'cotizaciones' ? numeric(row.monto) : row.pago_registrado ? numeric(row.pagado) : 0;
     const type = row => row.tipo === 'Sin tipo' ? 'Sin clasificar' : row.tipo;
@@ -33,6 +33,7 @@
     }
     function summary(rows, mode) {
         const value = row => amount(row, mode);
+        const peopleNames = new Map(rows.map(row => [person(row, mode), row.beneficiario]));
         const budget = row => mode === 'rendicion' ? row.presupuesto : row.gasto;
         const paid = rows.filter(row => row.pago_registrado);
         const deposited = rows.filter(row => row.depositado);
@@ -44,7 +45,8 @@
             budgets: group(rows, budget, value),
             operators: group(mode === 'rendicion' ? rows.filter(row => row.etapa === 'EVIDENCIA') : rows,
                 row => operator(row, mode), value),
-            people: group(rows, row => person(row, mode), value),
+            people: group(rows, row => person(row, mode), value).map(item => mode === 'rendicion'
+                ? {...item, key: item.label, label: peopleNames.get(item.label) || 'Sin beneficiario'} : item),
             supportedBudgets: group(sustained, budget, value),
             supportedOperators: group(sustained, row => operator(row, mode), value),
             approval: group(rows, row => row.gasto_aprobacion, value),

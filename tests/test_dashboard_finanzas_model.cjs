@@ -6,9 +6,9 @@ const context = vm.createContext({window: {}});
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../static/js/dashboard-finanzas-model.js'), 'utf8'), context);
 const model = context.window.NucleusFinanceModel;
 const rendicion = [
-    {mes: '2026-10', estado: 'DEPOSITADO', etapa: 'EVIDENCIA', presupuesto: 'GASTO COBRA', proyecto: 'ENTEL', solicito: 'Ana', pago_registrado: true, depositado: true, pagado: 100, dia_pago: '2026-10-01'},
-    {mes: '2026-10', estado: 'PENDIENTE', etapa: 'VALIDACION', presupuesto: 'GASTO COBRA', proyecto: 'ENTEL', solicito: 'Ana', pago_registrado: false, solicitado: 9000},
-    {mes: '2026-10', estado: 'SUSTENTADO', etapa: 'OBSERVADO', presupuesto: 'REFACTURABLE', proyecto: 'CLARO', solicito: 'Bea', pago_registrado: true, depositado: true, pagado: 20, dia_pago: '2026-10-01'},
+    {mes: '2026-10', estado: 'DEPOSITADO', etapa: 'EVIDENCIA', presupuesto: 'GASTO COBRA', proyecto: 'ENTEL', beneficiario: 'Ana', pago_registrado: true, depositado: true, pagado: 100, dia_pago: '2026-10-01'},
+    {mes: '2026-10', estado: 'PENDIENTE', etapa: 'VALIDACION', presupuesto: 'GASTO COBRA', proyecto: 'ENTEL', beneficiario: 'Ana', pago_registrado: false, solicitado: 9000},
+    {mes: '2026-10', estado: 'SUSTENTADO', etapa: 'OBSERVADO', presupuesto: 'REFACTURABLE', proyecto: 'CLARO', beneficiario: 'Bea', pago_registrado: true, depositado: true, pagado: 20, dia_pago: '2026-10-01'},
     {mes: '2026-10', estado: 'SUSTENTADO', etapa: 'ARCHIVADO', presupuesto: 'REFACTURABLE', proyecto: 'CLARO', pago_registrado: true, depositado: true, pagado: 10},
 ];
 const rend = model.summary(rendicion, 'rendicion');
@@ -38,3 +38,19 @@ assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: 'Obra Sur'}).l
 assert.equal(model.filter(cotizaciones, 'cotizaciones', {type: 'Sin clasificar'}).length, 1, 'El tipo vacío se filtra con la etiqueta que ve el usuario');
 assert.equal(model.summary([], 'rendicion').amount, 0);
 console.log('OK: importes registrados, filtros, sustentos y evolución sin duplicados');
+
+const beneficiaries=[
+ {beneficiario_id:'dni:00123456',beneficiario:'Juan Perez',solicito:'Otra persona',pago_registrado:true,pagado:100},
+ {beneficiario_id:'dni:00123456',beneficiario:'Juan Perez',pago_registrado:true,pagado:50},
+ {beneficiario_id:'dni:87654321',beneficiario:'Juan Perez',pago_registrado:true,pagado:20},
+ {beneficiario_id:'sin-dni:3',beneficiario:'Juan Perez',pago_registrado:true,pagado:7},
+ {beneficiario_id:'sin-dni:4',beneficiario:'Juan Perez',pago_registrado:true,pagado:3},
+];
+const people=model.summary(beneficiaries,'rendicion').people;
+assert.equal(people.length,4);
+assert.equal(people[0].key,'dni:00123456');
+assert.equal(people[0].label,'Juan Perez');
+assert.equal(people[0].amount,150);assert.equal(people[0].count,2);
+assert.equal(model.filter(beneficiaries,'rendicion',{person:'dni:00123456'}).length,2);
+assert.equal(model.filter(beneficiaries,'rendicion',{person:'dni:87654321'}).length,1);
+console.log('OK: beneficiarios por DNI, homónimos separados y filtros por identidad');

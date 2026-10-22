@@ -22,7 +22,7 @@ def test_tarjetas_legibles_en_temas_y_anchos(app, auth_client, servidor, modo, t
             if modo == 'rendicion':
                 row = {'Nombre del proyecto': 'ENTEL', 'ESTADO': ('PENDIENTE', 'VALIDADO', 'DEPOSITADO', 'CON SUSTENTO')[n % 4],
                        'Marca temporal': '2026-10-17', 'FECHA PAGO': '2026-10-18', 'Tipo de presupuesto': 'Gasto Cobra', 'SOLICITADO POR': label, 'VALIDADO POR': label,
-                       'Monto total del depósito': '123456789.89', 'MONTO PAGO': '123456789.89'}
+                       'Monto total del depósito': '123456789.89', 'MONTO PAGO': '123456789.89', 'Documento del beneficiario': str(10000000+n), 'Técnico beneficiario': label}
             else:
                 row = {'CLIENTE': 'ENTEL', 'ESTADO COTIZACION': ('En Aprobación', 'Aprobado')[n % 2],
                        'N° COTIZACION': key, 'FECHA': '2026-10-17', 'SUB TOTAL + FEE': '123456789.89',
@@ -53,7 +53,7 @@ def test_tarjetas_legibles_en_temas_y_anchos(app, auth_client, servidor, modo, t
                             .every(e => e.scrollWidth <= e.clientWidth + 1)''')
                         metrics = page.locator('.di-finance').evaluate('(e) => ({width:e.clientWidth, scrollWidth:e.scrollWidth})')
                         assert metrics['scrollWidth'] <= metrics['width'] + 1, (modo, dark, width, metrics)
-                        for canvas in page.locator('.df-grid canvas:visible').all():
+                        for canvas in page.locator('.df-grid canvas:visible,.re-grid canvas:visible').all():
                             assert canvas.evaluate('(e) => e.width > 0 && e.height > 0')
                         page.screenshot(path=str(folder / (modo + '-' + str(dark) + '-' + str(width) + '.png')))
                 # Los filtros actualizan totales sin acumular instancias de gráficos.

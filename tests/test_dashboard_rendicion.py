@@ -84,7 +84,7 @@ def test_ruta_dashboard_rendicion(app, auth_client):
             assert r.status_code == 200, r.status_code
             html = r.get_data(as_text=True)
             assert 'data-finance="rendicion"' in html
-            assert 'df-sust-budget-chart' in html
+            assert 're-entel' in html and 're-claro' in html and 're-integratel' in html
             assert 'di-secondary' not in html
             assert 'dq-panel' not in html
             assert 'DASH-REND-TEST' in html
@@ -114,3 +114,17 @@ def test_ruta_dashboard_rendicion(app, auth_client):
 def test_ruta_dashboard_rendicion_login_requerido(client):
     r = client.get('/analytics/rendicion')
     assert r.status_code in (301, 302)
+
+
+def test_beneficiarios_por_documento_y_nombre_mas_frecuente():
+    from services.dashboard_rendicion import indicadores
+    rows=[{'Documento del beneficiario':doc,'Técnico beneficiario (Formulario)':name,'MONTO PAGO':str(amount),'ESTADO':'DEPOSITADO'}
+          for doc,name,amount in [('00123456','Juan Perez',100),('00.123.456','J. Perez',20),('00123456','Juan Perez',30),('87654321','Juan Perez',50),('','Juan Perez',7),('','Juan Perez',3),('ALQUILER','Otro',5)]]
+    result=indicadores(rows)['detalle']
+    assert {r['beneficiario_id'] for r in result[:3]} == {'dni:00123456'}
+    assert {r['beneficiario'] for r in result[:3]} == {'Juan Perez'}
+    assert sum(r['pagado'] for r in result[:3]) == 150
+    assert result[3]['beneficiario_id'] == 'dni:87654321'
+    assert len({r['beneficiario_id'] for r in result[4:]}) == 3
+    assert all(not r['documento_valido'] for r in result[4:])
+    assert rows[1]['Técnico beneficiario (Formulario)'] == 'J. Perez'

@@ -1,0 +1,78 @@
+/* Rendición: composición ejecutiva, compartiendo la cabecera de Analytics. */
+.rend-executive{--re-cobra:#167c85;--re-refact:#96b94c;gap:16px;}
+.dark-mode .rend-executive{--re-cobra:#55c5cc;--re-refact:#b9d976;}
+.re-heading{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-top:5px;}
+.re-heading h2{font-size:22px;letter-spacing:-.6px;line-height:1.3;margin:3px 0 5px;}
+.re-heading p{font-size:11px;color:var(--ios-secondary);margin:0;}
+.re-eyebrow{font-size:9px;letter-spacing:.13em;font-weight:700;color:var(--re-cobra);}
+.re-key{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ios-secondary);}
+.re-key span{display:flex;align-items:center;gap:7px;white-space:nowrap;}
+.re-key i{width:9px;height:9px;border-radius:3px;}
+.re-cobra{background:var(--re-cobra);}.re-refact{background:var(--re-refact);}
+.di-page.rend-executive .df-kpis{margin:0;gap:12px;}
+.di-page.rend-executive .df-kpis article{min-height:104px;box-sizing:border-box;padding:16px;}
+.di-page.rend-executive .df-kpis article:first-child{background:linear-gradient(120deg,#0b555d,#167b82);}
+.di-page.rend-executive .df-kpis article:nth-child(2){background:color-mix(in srgb,var(--re-refact) 18%,var(--ios-card-bg));border-color:color-mix(in srgb,var(--re-refact) 35%,var(--ios-hairline));}
+.di-page.rend-executive .df-kpis article:nth-child(2) strong{color:var(--ios-label);}
+.di-page.rend-executive .df-kpis article:nth-child(4) strong{color:var(--re-cobra);}
+.di-page.rend-executive .df-kpis article:nth-child(5) strong{color:var(--re-refact);}
+.re-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;grid-template-areas:'app clients budgets trend' 'entel claro integratel compare';grid-template-rows:340px 510px;}
+.re-applicants{grid-area:app;}.re-clients{grid-area:clients;}.re-budgets{grid-area:budgets;}.re-trend{grid-area:trend;}.re-entel{grid-area:entel;}.re-claro{grid-area:claro;}.re-integratel{grid-area:integratel;}.re-comparison{grid-area:compare;}
+.di-page.rend-executive .re-grid .di-card{border-radius:20px;padding:19px;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.re-grid .re-card-heading{display:flex;justify-content:space-between;gap:8px;align-items:start;flex:none;}
+.re-card-heading>div{min-width:0;}
+.di-page.rend-executive .re-grid h2{font-size:13px;line-height:1.45;}
+.di-page.rend-executive .re-grid p{font-size:10px;margin-bottom:14px;}
+.re-icon{display:grid;place-items:center;width:27px;height:27px;border-radius:9px;background:color-mix(in srgb,var(--re-cobra) 9%,transparent);color:var(--re-cobra);flex:none;font-size:12px;}
+.re-period{font-size:9px!important;flex:none;}
+.re-period select{min-width:58px!important;height:26px!important;font-size:10px!important;}
+.di-page.rend-executive .df-chart{flex:1;min-height:0;position:relative;width:100%;}
+.re-grid canvas{display:block;width:100%!important;height:100%!important;}
+.re-ring{position:relative;flex:1;min-height:130px;max-height:185px;width:100%;}
+.re-ring-total{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;pointer-events:none;}
+.re-ring-total strong{font-size:18px;letter-spacing:-.6px;font-variant-numeric:tabular-nums;max-width:75%;white-space:nowrap;}
+.re-ring-total small{font-size:9px;color:var(--ios-secondary);margin-top:4px;}
+.re-legend{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:8px;font-size:10px;}
+.re-legend button{width:100%;display:flex;align-items:center;gap:6px;background:transparent;border:0;padding:0;color:var(--ios-secondary);font:inherit;text-align:left;cursor:pointer;}
+.re-legend button:hover{color:var(--ios-label);}
+.re-legend i{width:7px;height:7px;border-radius:50%;flex:none;}
+.re-legend span{flex:1;}.re-legend b{color:var(--ios-label);font-size:10px;font-variant-numeric:tabular-nums;}
+.re-client-label{display:inline-block;font-size:9px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;border-radius:6px;padding:4px 7px;margin-bottom:9px;}
+.re-brand-entel{color:#0873da;background:#007aff15;}.dark-mode .re-brand-entel{color:#7bbaff;}
+.re-brand-claro{color:#bf261a;background:#da291c12;}.dark-mode .re-brand-claro{color:#ff8a80;}
+.re-brand-integratel{color:#4c8200;background:#66cd0018;}.dark-mode .re-brand-integratel{color:#a1df58;}
+.re-panel-total{display:flex;flex-direction:column;gap:3px;padding-bottom:15px;margin-bottom:12px;border-bottom:1px solid var(--ios-hairline);flex:none;}
+.re-panel-total strong{font-size:23px;letter-spacing:-.7px;font-variant-numeric:tabular-nums;}
+.re-panel-total small{font-size:10px;color:var(--ios-secondary);}
+.re-comparison-note{font-size:10px;color:var(--ios-secondary);line-height:1.5;margin-top:14px;}
+@media(min-width:1600px){.re-grid{grid-template-columns:repeat(5,minmax(0,1fr));grid-template-areas:'app clients budgets trend trend' 'entel claro integratel compare compare';grid-template-rows:330px 500px;}}
+@media(max-width:1199px){.re-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:'app clients' 'budgets trend' 'entel claro' 'integratel compare';grid-template-rows:330px 330px 490px 490px;}.re-heading{align-items:start;}.di-page.rend-executive .df-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:650px){
+ .re-heading{flex-direction:column;gap:12px;}.re-heading h2{font-size:20px;}
+ .di-page.rend-executive .df-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;}
+ .di-page.rend-executive .df-kpis article{padding:13px;min-height:100px;}
+ .re-grid{display:flex;flex-direction:column;gap:13px;}
+ .di-page.rend-executive .re-grid .di-card{padding:18px;height:345px;min-height:345px;flex:none;}
+ .di-page.rend-executive .re-grid .re-beneficiary{height:520px;min-height:520px;}
+ .di-page.rend-executive .re-grid .re-comparison{height:390px;}
+ .di-page.rend-executive .df-chart{height:auto;flex:1;min-height:0;}
+ .re-ring{min-height:150px;max-height:180px;}.re-legend{gap:7px;}
+}
+
+.re-ring-total[hidden]{display:none;}
+
+/* La leyenda completa debe caber incluso con los cuatro clientes. */
+.di-page.rend-executive .re-ring{min-height:100px;max-height:155px;}
+.di-page.rend-executive .re-legend{flex:none;gap:6px;}
+.di-page.rend-executive .re-legend button{min-height:14px!important;height:auto!important;padding:1px 0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;font-size:10px!important;line-height:1.3!important;}
+
+.re-beneficiary .re-card-heading,.re-beneficiary .re-card-heading>div{width:100%;}
+.re-ranking-title{display:flex;align-items:baseline;justify-content:space-between;gap:7px;margin-bottom:12px;}
+.di-page.rend-executive .re-ranking-title h2{font-size:clamp(10px,.78vw,13px);white-space:nowrap;letter-spacing:-.2px;margin:0;}
+.re-ranking-title>span{font-size:9px;white-space:nowrap;color:var(--ios-secondary);}
+@media(max-width:1199px){.di-page.rend-executive .re-ranking-title h2{font-size:12px;}}
+
+.di-page.rend-executive .re-trend-scroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;}
+.re-trend-inner{position:relative;width:100%;height:100%;}
+.re-scroll-hint{font-size:9px;color:var(--ios-secondary);margin-top:7px;}
+.re-legend b{white-space:nowrap;}

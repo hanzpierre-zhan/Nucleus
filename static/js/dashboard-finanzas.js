@@ -20,9 +20,10 @@
     const dayLabel = value => new Intl.DateTimeFormat('es-PE', {day: 'numeric', month: 'short', year: 'numeric'}).format(new Date(value + 'T12:00:00'));
     const shortDay = value => new Intl.DateTimeFormat('es-PE', {day: 'numeric', month: 'short'}).format(new Date(value + 'T12:00:00'));
     const stateLabel = value => mode === 'rendicion' ? window.NucleusRendicionStates.label(value) : name(value);
-    const labelFor = (key, value) => key === 'state' ? stateLabel(value) : key === 'month' ? monthLabel(value) : key === 'day' ? dayLabel(value) : name(value);
+    const personLabels = new Map(rows.map(row => [model.person(row, mode), mode === 'rendicion' ? row.beneficiario : row.genero]));
+    const labelFor = (key, value) => key === 'person' ? name(personLabels.get(value) || value) : key === 'state' ? stateLabel(value) : key === 'month' ? monthLabel(value) : key === 'day' ? dayLabel(value) : name(value);
     const TITLES = {month: 'Mes', state: 'Estado', operator: 'Operador', budget: mode === 'rendicion' ? 'Presupuesto' : 'Tipo de gasto',
-        type: 'Tipo', person: mode === 'rendicion' ? 'Solicitante' : 'Responsable', project: 'Proyecto',
+        type: 'Tipo', person: mode === 'rendicion' ? 'Beneficiario' : 'Responsable', project: 'Proyecto',
         approval: 'Destino', day: 'Día'};
     function theme() {
         const css = getComputedStyle(page), value = key => css.getPropertyValue(key).trim();
@@ -93,7 +94,8 @@
             ticks: {color: t.muted, font: {size: 10}, autoSkip: false}};
         if (horizontal) labelAxis.ticks.callback = function (value) {
             const label = this.getLabelForValue(value);
-            return label.length > 26 ? label.slice(0, 25) + '…' : label;
+            const short = label.length > 26 ? label.slice(0, 25) + '…' : label;
+            return short;
         };
         options.indexAxis = horizontal ? 'y' : 'x';
         options.scales = horizontal ? {x: moneyAxis, y: labelAxis} : {x: labelAxis, y: moneyAxis};
@@ -103,7 +105,7 @@
                 : money(item.amount) + ' · ' + number(item.count) + ' registros';
         };
         if (filterKey) options.onClick = (event, elements) => {
-            if (elements.length) setFilter(filterKey, items[elements[0].index].label);
+            if (elements.length) setFilter(filterKey, (items[elements[0].index].key || items[elements[0].index].label));
         };
         const labels = {id: 'financeValues', afterDatasetsDraw(chart) {
             const ctx = chart.ctx; ctx.save(); ctx.font = '600 10px system-ui';
@@ -127,7 +129,7 @@
         }};
         mount(id, {type: 'bar', plugins: [labels], data: {labels: items.map(item => filterKey === 'state' ? stateLabel(item.label) : name(item.label)), datasets: [{
             data: items.map(valueOf),
-            backgroundColor: items.map((item, index) => alpha(color(item.label, index, kind), selected && item.label !== selected ? .28 : 1)),
+            backgroundColor: items.map((item, index) => alpha(color(item.label, index, kind), selected && (item.key || item.label) !== selected ? .28 : 1)),
             borderRadius: 4, maxBarThickness: horizontal ? 26 : 54, barPercentage: .72,
         }]}, options}, items.some(item => valueOf(item) !== 0));
     }
@@ -260,7 +262,7 @@
     }
     function initialize() {
         selectKeys.forEach(key => {
-            const select = get('df-' + key), list = values(key);
+            const select = get('df-' + key), list = values(key).sort((a,b) => labelFor(key,a).localeCompare(labelFor(key,b)));
             list.forEach(value => select.add(new Option(labelFor(key, value), value)));
             if (key === 'project' && list.filter(value => value !== 'Sin proyecto').length < 1) select.closest('label').hidden = true;
             select.addEventListener('change', event => { state[key] = event.target.value; render(); });

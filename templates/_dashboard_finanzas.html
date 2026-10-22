@@ -13,7 +13,7 @@
     <label>Operador<select id="df-operator"><option value="">Todos los operadores</option></select></label>
     <label>{{ 'Presupuesto' if modo == 'rendicion' else 'Tipo de gasto' }}<select id="df-budget"><option value="">Todos</option></select></label>
     {% if modo == 'cotizaciones' %}<label>Tipo de cotización<select id="df-type"><option value="">Todos</option></select></label>{% endif %}
-    <label>{{ 'Solicitante' if modo == 'rendicion' else 'Generó cotización' }}<select id="df-person"><option value="">Todos</option></select></label>
+    <label>{{ 'Beneficiario' if modo == 'rendicion' else 'Generó cotización' }}<select id="df-person"><option value="">Todos</option></select></label>
     {% if modo == 'cotizaciones' %}<label>Proyecto<select id="df-project"><option value="">Todos los proyectos</option></select></label>{% endif %}
     <button type="button" id="df-clear" class="action-pill pill-neutral" title="Limpiar filtros"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Limpiar</span></button>
   </div>
@@ -25,7 +25,7 @@
   {% if modo == 'rendicion' %}
     <article class="di-card df-budget"><h2>Tipo de presupuesto</h2><p>Importe pagado por presupuesto</p><div class="df-chart"><canvas id="df-budget-chart" role="img" aria-label="Importe pagado por tipo de presupuesto"></canvas></div></article>
     <article class="di-card df-pending"><h2>Pendiente de sustento</h2><p>Importe por operador · etapa Evidencia</p><div class="df-donut"><div class="df-ring"><canvas id="df-operator-chart" role="img" aria-label="Importe pendiente de sustento por operador"></canvas><div class="df-ring-label"><strong id="df-ring-total"></strong><span>por sustentar</span></div></div><ul id="df-legend"></ul></div></article>
-    <article class="di-card df-people"><h2>Total por solicitante</h2><p>Importe pagado · 8 principales</p><div class="df-chart"><canvas id="df-person-chart" role="img" aria-label="Importe pagado por solicitante"></canvas></div></article>
+    <article class="di-card df-people"><h2>Total por beneficiario</h2><p>Agrupado por DNI · solicitudes e importe pagado · 8 principales</p><div class="df-chart"><canvas id="df-person-chart" role="img" aria-label="Solicitudes e importe pagado por beneficiario agrupado por DNI"></canvas></div></article>
     <article class="di-card df-sust-budget"><h2>Sustentado por presupuesto</h2><p>Importe pagado con sustento cargado</p><div class="df-chart"><canvas id="df-sust-budget-chart" role="img" aria-label="Importe sustentado por presupuesto"></canvas></div></article>
     <article class="di-card df-trend"><h2>Evolución de pagos</h2><p>Importe diario por presupuesto · fecha de pago</p><div class="df-chart"><canvas id="df-trend-chart" role="img" aria-label="Evolución de pagos por fecha y presupuesto"></canvas></div></article>
     <article class="di-card df-states"><h2>Caja Chica por estado</h2><p>Cantidad de registros en cada estado</p><div class="df-chart"><canvas id="df-states-chart" role="img" aria-label="Cantidad de registros por estado"></canvas></div></article>
@@ -43,5 +43,5 @@
   <p class="df-caption" id="df-caption" role="status"></p>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-finanzas-model.js?v=3"></script>
-<script src="/static/js/dashboard-finanzas.js?v=5"></script>
+<script src="/static/js/dashboard-finanzas-model.js?v=4"></script>
+<script src="/static/js/dashboard-finanzas.js?v=6"></script>

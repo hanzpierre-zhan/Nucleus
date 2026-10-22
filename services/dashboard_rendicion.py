@@ -7,6 +7,9 @@ El mapa de estados→pestaña replica el de blueprints/rendicion.py, y hay un te
 que verifica que ambos sigan idénticos.
 """
 from datetime import datetime
+from collections import Counter, defaultdict
+import re
+import unicodedata
 from services.rendicion_estados import estado_de as _estado_de, etapa_de as _etapa_de
 from services.normalizacion import primer_texto as _txt
 from zoneinfo import ZoneInfo
@@ -44,6 +47,27 @@ def _int(v):
         return 0
 
 
+def _agrupar_beneficiarios(detalle):
+    nombres = defaultdict(Counter)
+    variantes = defaultdict(Counter)
+    for i, row in enumerate(detalle):
+        doc = re.sub(r'[\s.\-]', '', row['documento_beneficiario'])
+        valido = bool(re.fullmatch(r'[0-9]{8}', doc)) and doc != '00000000'
+        row['beneficiario_id'] = 'dni:' + doc if valido else 'sin-dni:' + str(i)
+        nombre = ' '.join(row['beneficiario'].split())
+        if nombre and nombre != 'Sin beneficiario':
+            normal = unicodedata.normalize('NFKD', nombre).encode('ascii', 'ignore').decode().casefold()
+            nombres[row['beneficiario_id']][normal] += 1
+            variantes[(row['beneficiario_id'], normal)][nombre] += 1
+    for row in detalle:
+        key = row['beneficiario_id']
+        if nombres[key]:
+            normal = min(nombres[key], key=lambda n: (-nombres[key][n], n))
+            forms = variantes[(key, normal)]
+            row['beneficiario'] = min(forms, key=lambda n: (-forms[n], n))
+        row['documento_valido'] = key.startswith('dni:')
+
+
 def indicadores(rows, hoy=None):
     hoy = hoy or datetime.now(ZoneInfo('America/Lima')).date()
     detalle = []
@@ -70,7 +94,8 @@ def indicadores(rows, hoy=None):
             'codigo': _txt(row.get('Número CM / PM / PLM'), row.get('_key')),
             'site': _txt(row.get('Nombre de site')),
             'proyecto': proyecto(valor(row, 'Nombre del proyecto', 'PROYECTO', 'CLIENTE')),
-            'beneficiario': _txt(row.get('Técnico beneficiario')) or 'Sin beneficiario',
+            'beneficiario': _txt(valor(row, 'Técnico beneficiario (Formulario)', 'Técnico beneficiario (Form)', 'Técnico beneficiario', 'Técnico beneficiario (Dataper)')) or 'Sin beneficiario',
+            'documento_beneficiario': _txt(valor(row, 'Documento del beneficiario', 'Documento del beneficiario (Form)', 'Documento del beneficiario (Formulario)')),
             'solicito': _txt(valor(row, 'SOLICITADO POR', 'NOMBRE SOLICITANTE', 'Nombre del solicitante')) or 'Sin datos',
             'ultimo_interactor': _txt(row.get('INTERACCION')),
             'responsable_validacion': _txt(valor(row, 'Responsable de la validación')) or 'Sin responsable',
@@ -110,6 +135,7 @@ def indicadores(rows, hoy=None):
                                             row.get('SUSTENTO_ADJUNTAR COMPROBANTE'))),
             'aging': (hoy - f_cre).days if (f_cre and etapa not in ETAPAS_CERRADAS) else None,
         })
+    _agrupar_beneficiarios(detalle)
     return {
         'mes_actual': hoy.strftime('%Y-%m'),
         'hoy': hoy.isoformat(),
