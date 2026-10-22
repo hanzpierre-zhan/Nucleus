@@ -72,7 +72,7 @@
             const empty = node('span', 'Sin datos para esta selección'); empty.className = 'df-empty'; parent.append(empty);
             return;
         }
-        charts.set(id, new Chart(canvas, config));
+        charts.set(id, new Chart(canvas, window.NucleusDashVisual?.prepare(config) || config));
     }
     function common() {
         const t = theme();

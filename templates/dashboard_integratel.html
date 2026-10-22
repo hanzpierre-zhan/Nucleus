@@ -4,6 +4,8 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=4">
 <link rel="stylesheet" href="/static/css/dashboard-operativo-width.css?v=1">
+<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
+<script src="/static/js/dashboard-visual.js?v=1"></script>
 <section class="di-page">
   <header class="di-head dash-header"><div class="dash-heading"><span class="di-eyebrow">OPERACIÓN · {{ proyecto_nombre }}</span><h1>Flm - Entel</h1>{% include '_dash_switch.html' %}</div>
   <div class="di-filters">
@@ -43,5 +45,5 @@
   </article></details>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-integratel.js?v=7"></script>
+<script src="/static/js/dashboard-integratel.js?v=8"></script>
 {% endblock %}

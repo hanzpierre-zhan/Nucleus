@@ -26,9 +26,10 @@
         counts.forEach((v,i)=>{
             const bar=el('rect',{x:x(i)-step*0.32,y:y(v),width:step*0.64,height:Math.max(1,bottom-y(v)),rx:2,class:'di-daily-dot'});
             bar.append(el('title',{},`${month}-${String(i+1).padStart(2,'0')}: ${v} WO close`));svg.append(bar);
-            svg.append(el('text',{x:x(i),y:y(v)-5,'text-anchor':'middle',class:'di-daily-value'},v));
+            if(v) svg.append(el('text',{x:x(i),y:y(v)-5,'text-anchor':'middle',class:'di-daily-value'},v));
             svg.append(el('text',{x:x(i),y:height-3,'text-anchor':'middle',class:'di-daily-label'},i+1));
         });
+        window.NucleusDashVisual?.daily(svg,counts,x,y,bottom);
         get('daily').replaceChildren(svg);
     }
     const count=(items,key)=>{const result=new Map();items.forEach(r=>result.set(r[key],(result.get(r[key])||0)+1));return [...result].sort((a,b)=>b[1]-a[1]);};
@@ -52,6 +53,7 @@
             }
             const number=document.createElement('b');number.textContent=value;row.append(name,track,number);box.append(row);
         });
+        if(id==='priority'||id==='fault')window.NucleusDashVisual?.distribution(box,values);
     }
     function table(){
         const group=get('group').value, subset=visible.filter(r=>r.grupo!=='Producción'&&(!group||r.grupo===group));
@@ -86,6 +88,7 @@
         const months=count(monthlyClosed,'mes').sort((a,b)=>a[0].localeCompare(b[0])),max=Math.max(...months.map(v=>v[1]),1);get('months').replaceChildren();
         months.forEach(([month,value])=>{const bar=document.createElement('div');bar.className='di-month'+(month===(get('month').value||data.mes_actual)?' di-month-selected':'');bar.title=`${month}: ${value} WO cerrados por fecha de creación`;const number=document.createElement('b');number.textContent=value;const fill=document.createElement('i');fill.style.height=value/max*Math.max(54,get('months').clientHeight-32)+'px';const label=document.createElement('span');label.textContent=month;bar.append(number,fill,label);get('months').append(bar);});
         if(!months.length){get('months').textContent='No hay producción con fecha para estos filtros.';}
+        window.NucleusDashVisual?.months(get('months'));
         const percentage=visible.length?closed.length/visible.length*100:0;
         get('story-title').textContent=visible.length?`El ${number(percentage)}% de los WO está cerrado`:'Sin órdenes para esta selección';
         const backlog=open.filter(r=>r.grupo==='Backlog');
@@ -108,5 +111,9 @@
     }
     ['month','department','type'].forEach(id=>get(id).addEventListener('change',render));get('group').addEventListener('change',()=>{page=0;table();});
     get('clear').addEventListener('click',()=>{['month','department','type','group'].forEach(id=>get(id).value='');render();});
-    get('prev').addEventListener('click',()=>{page--;table();});get('next').addEventListener('click',()=>{page++;table();});render();
+    get('prev').addEventListener('click',()=>{page--;table();});get('next').addEventListener('click',()=>{page++;table();});
+    new MutationObserver(render).observe(document.body,{attributes:true,attributeFilter:['class']});
+    let chartWidth=0;
+    new ResizeObserver(entries=>{const width=entries[0].contentRect.width;if(Math.abs(width-chartWidth)>1){chartWidth=width;render();}}).observe(get('daily'));
+    render();
 })();

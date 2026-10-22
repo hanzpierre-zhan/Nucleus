@@ -74,7 +74,7 @@ def test_tarjetas_legibles_en_temas_y_anchos(app, auth_client, servidor, modo, t
 
 
 @pytest.mark.parametrize('modo', ['produccion', 'cobranza'])
-def test_modulos_restaurados_conservan_diseno_previo(app, auth_client, servidor, modo):
+def test_modulos_comparten_acabado_y_grilla(app, auth_client, servidor, modo, tmp_path):
     cookie = auth_client.get_cookie('session')
     with playwright_api.sync_playwright() as p:
         browser = p.chromium.launch()
@@ -87,8 +87,8 @@ def test_modulos_restaurados_conservan_diseno_previo(app, auth_client, servidor,
             assert page.locator('link[href*="dashboard-layout.css"]').count() == 0
             assert page.locator('script[src*="dashboard-graficos.js"]').count() == 0
             assert len(page.locator('.di-charts').evaluate('(e) => getComputedStyle(e).gridTemplateColumns').split()) == 4
-            assert page.locator('.di-charts .di-card').first.evaluate('(e) => parseFloat(getComputedStyle(e).height)') <= 240
-            folder = Path('C:/Users/Hanz/Documents/Codex/2026-10-19/realtime-voice-chat/outputs')
+            assert page.locator('.di-charts .di-card').first.evaluate('(e) => parseFloat(getComputedStyle(e).height)') <= 310
+            folder = tmp_path
             page.screenshot(path=str(folder / (modo + '-restaurado-1352x674.png')))
             assert not errors, errors
         finally:

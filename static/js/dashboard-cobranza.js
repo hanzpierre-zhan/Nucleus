@@ -127,6 +127,7 @@
             const label = document.createElement('span'); label.textContent = mes;
             bar.append(b, fill, label); box.append(bar);
         });
+        window.NucleusDashVisual?.months(box);
         if (!lista.length) box.textContent = 'No hay casos con mes de cierre para esta selección.';
     }
 
