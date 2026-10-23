@@ -68,5 +68,21 @@
         });
         return {periods, series};
     }
-    window.NucleusFinanceModel = {numeric, sum, normalize, person, operator, amount, type, group, filter, summary, trend};
+    function cotizaciones(rows) {
+        const amount = row => numeric(row.monto);
+        const pending = rows.filter(row => row.pestania === 'cliente');
+        const approved = rows.filter(row => row.pestania === 'sustentar');
+        const attended = rows.filter(row => row.pestania === 'atendido');
+        const destination = row => row.gasto_aprobacion || 'Sin definir';
+        return {
+            pending, approved, attended,
+            budgets: group(pending, row => row.gasto, amount),
+            managers: group(pending, row => row.gestor, amount),
+            attendedGroups: group(attended, row => (row.gasto || 'Sin clasificar') + ' · ' + destination(row), amount),
+            cobra: group(approved.filter(row => normalize(row.gasto) === 'GASTO COBRA'), destination, amount),
+            refacturable: group(approved.filter(row => normalize(row.gasto) === 'REFACTURABLE'), destination, amount),
+            trend: group(pending.filter(row => row.dia), row => row.dia, amount).sort((a,b) => a.label.localeCompare(b.label)),
+        };
+    }
+    window.NucleusFinanceModel = {numeric, sum, normalize, person, operator, amount, type, group, filter, summary, trend, cotizaciones};
 }());

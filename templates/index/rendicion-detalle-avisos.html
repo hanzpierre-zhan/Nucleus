@@ -1039,7 +1039,7 @@ function rendConfirmarModal() {
         if (!op) { alert('Selecciona una opción de tiempo de respuesta.'); return; }
 
         if (_rendModal.subiendoCorreo) { alert('Espera a que termine de cargar el correo.'); return; }
-        if (_rendModal.refacturable && !_rendModal.correo) { alert('Adjunta el correo de aprobación en formato .msg.'); return; }
+        // El servidor comprueba el adjunto durable aunque la tabla tenga un enlace desactualizado.
 
         extra.tiempo = op.value;
 
@@ -2311,9 +2311,10 @@ async function cotSeleccionarSustentoWo(index,guardar=true) {
         document.getElementById('wo-panel-evidencia').prepend(tabs);
         document.getElementById('cot-btn-guardar-sustento')?.remove();
         if(!ctx.aprobado && !elegido.legacy && cotPuedeGestionar()){
-            const button=document.createElement('button');button.id='cot-btn-guardar-sustento';button.className='mar-btn-primary';button.textContent='Validar sustento';button.style.cssText='margin-top:16px;width:100%;';
+            const button=document.createElement('button');button.type='button';button.id='cot-btn-guardar-sustento';button.className='mar-btn-primary';button.textContent='Validar sustento';button.style.cssText='width:auto;padding:0 12px;flex-shrink:0;';
             button.onclick=async()=>{button.disabled=true;try{await cotGuardarSustentoSeleccionado(true);cerrarWoModal();}catch(error){nucleusAlert(error.message);}finally{button.disabled=false;}};
-            document.getElementById('evidencia-inicio-proceso-cierre').appendChild(button);
+            const copyButton=document.getElementById('btn-wo-copiar');
+            copyButton.parentElement.insertBefore(button,copyButton);
         }
     }catch(error){nucleusAlert(error.message);}
 }

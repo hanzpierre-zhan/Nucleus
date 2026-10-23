@@ -54,3 +54,21 @@ assert.equal(people[0].amount,150);assert.equal(people[0].count,2);
 assert.equal(model.filter(beneficiaries,'rendicion',{person:'dni:00123456'}).length,2);
 assert.equal(model.filter(beneficiaries,'rendicion',{person:'dni:87654321'}).length,1);
 console.log('OK: beneficiarios por DNI, homónimos separados y filtros por identidad');
+
+const stages = [
+ {pestania:'cliente',monto:100,gasto:'GASTO COBRA',gestor:'Ana',genero:'Bea',dia:'2026-10-01'},
+ {pestania:'cliente',monto:50,gasto:'REFACTURABLE',gestor:'Ana',dia:'2026-10-02'},
+ {pestania:'cliente',monto:7,gasto:'REFACTURABLE',gestor:'Bea',dia:''},
+ {pestania:'sustentar',monto:25,gasto:'GASTO COBRA',gasto_aprobacion:'Proveedor'},
+ {pestania:'sustentar',monto:40,gasto:'REFACTURABLE',gasto_aprobacion:'Caja Chica'},
+ {pestania:'atendido',monto:30,gasto:'REFACTURABLE',gasto_aprobacion:'Proveedor'},
+ {pestania:'cancelado',monto:999,gasto:'REFACTURABLE'}
+];
+const executive=model.cotizaciones(stages);
+assert.equal(executive.managers.find(x=>x.label==='Ana').amount,150,'Gestor, no usuario que generó');
+assert.equal(executive.budgets.reduce((s,x)=>s+x.amount,0),157,'Solo pendientes de aprobación');
+assert.equal(executive.cobra[0].amount,25);
+assert.equal(executive.refacturable[0].amount,40);
+assert.equal(executive.attendedGroups[0].amount,30,'Atendidas separadas de aprobadas');
+assert.equal(executive.trend.reduce((s,x)=>s+x.amount,0),150,'Sin fecha no se inventa período');
+console.log('OK: etapas comerciales, gestores y destinos separados');

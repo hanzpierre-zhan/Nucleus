@@ -10,6 +10,7 @@ from flask import (Blueprint, request, jsonify, session, redirect, url_for,
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from perezoso import pd
 from PIL import Image, ImageOps
 try:
@@ -713,11 +714,41 @@ def api_rows_delete():
             for registro in NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).all():
                 if not validar_fila_catalogo(json.loads(registro.data_json or '{}')):
                     return jsonify({'error': 'No se pueden eliminar registros de otro FLM.'}), 403
+        if proy_nombre == 'Cotizaciones':
+            from models import RefacturableDetalle, LiquidacionNumero
+            filas = NucleusData.query.filter(
+                NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).with_for_update().all()
+            ids = [fila.id for fila in filas]
+            detalles = {d.origen_id: d for d in RefacturableDetalle.query.filter(
+                RefacturableDetalle.origen_id.in_(ids)).with_for_update().all()} if ids else {}
+            numeros = {n.origen_id: n.id for n in LiquidacionNumero.query.filter(
+                LiquidacionNumero.origen_id.in_(ids)).all()} if ids else {}
+            # Respaldo de la cotización y su seguimiento en la misma transacción.
+            for fila in filas:
+                detalle = detalles.get(fila.id)
+                respaldo = {'origen_id': fila.id, 'registro_json': fila.data_json,
+                            'numero_liquidacion': numeros.get(fila.id),
+                            'liquidacion_json': detalle.data_json if detalle else None,
+                            'liquidacion_actualizada_por': detalle.actualizado_por if detalle else None,
+                            'liquidacion_actualizada_en': detalle.actualizado_en.isoformat() if detalle and detalle.actualizado_en else None}
+                db.session.add(HistorialCambios(
+                    proyecto_id=pid, usuario_id=session.get('user_id'), username=audit_user(),
+                    key_value=fila.key_value, campo_modificado='_REGISTRO_ELIMINADO',
+                    valor_anterior=safe_json_dumps(respaldo), valor_nuevo='Eliminado'))
+            if ids:
+                # La FK exige retirar el detalle antes de eliminar el origen.
+                RefacturableDetalle.query.filter(RefacturableDetalle.origen_id.in_(ids)).delete(synchronize_session=False)
+            # La numeración de Liquidaciones se conserva: nunca se reutiliza.
+
         # Delete records
         NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).delete(synchronize_session=False)
         db.session.commit()
         
         return jsonify({'success': True})
+    except IntegrityError:
+        db.session.rollback()
+        current_app.logger.exception('No se pudo eliminar el registro por datos vinculados')
+        return jsonify({'error': 'No se pudo eliminar porque el registro tiene datos vinculados. No se eliminó ningún registro; recarga la tabla e inténtalo nuevamente.'}), 409
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

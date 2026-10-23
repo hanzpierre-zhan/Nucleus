@@ -55,6 +55,17 @@ class NucleusData(db.Model):
     __table_args__ = (db.UniqueConstraint('proyecto_id', 'key_value', name='_proj_key_uc'),)
 
 
+class RendicionCorreo(db.Model):
+    """Copia durable del correo, fuera del JSON que alimenta las tablas."""
+    __tablename__ = 'rendicion_correos'
+    id = db.Column(db.Integer, primary_key=True)
+    origen_id = db.Column(db.Integer, db.ForeignKey('nucleus_data.id', ondelete='CASCADE'), nullable=False, index=True)
+    nombre = db.Column(db.String(80), nullable=False)
+    nombre_original = db.Column(db.String(255), nullable=False)
+    contenido = db.deferred(db.Column(db.LargeBinary, nullable=False))
+    __table_args__ = (db.UniqueConstraint('origen_id', 'nombre', name='_rend_correo_origen_nombre_uc'),)
+
+
 class NucleusHistory(db.Model):
     __tablename__ = 'nucleus_history'
     id = db.Column(db.Integer, primary_key=True)

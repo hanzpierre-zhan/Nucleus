@@ -127,7 +127,7 @@
             });
             ctx.restore();
         }};
-        mount(id, {type: 'bar', plugins: [labels], data: {labels: items.map(item => filterKey === 'state' ? stateLabel(item.label) : name(item.label)), datasets: [{
+        mount(id, {type: 'bar', plugins: [labels], data: {labels: items.map(item => filterKey === 'state' ? stateLabel(item.label) : !horizontal && item.label.includes(' · ') ? item.label.split(' · ').map(name) : name(item.label)), datasets: [{
             data: items.map(valueOf),
             backgroundColor: items.map((item, index) => alpha(color(item.label, index, kind), selected && (item.key || item.label) !== selected ? .28 : 1)),
             borderRadius: 4, maxBarThickness: horizontal ? 26 : 54, barPercentage: .72,
@@ -143,7 +143,7 @@
             dot.style.background = color(item.label, i, 'operator');
             li.className = selected && item.label !== selected ? 'is-dim' : '';
             li.title = 'Clic para filtrar por ' + name(item.label) + ' · ' + money(item.amount) + ' · ' + number(item.count) + ' registros';
-            li.append(dot, label, node('b', number(Math.round(item.amount / total * 1000) / 10) + '%'));
+            li.append(dot, label, node('b', compact(item.amount) + ' · ' + number(Math.round(item.amount / total * 1000) / 10) + '%'));
             li.addEventListener('click', () => setFilter('operator', item.label));
             legend.append(li);
         });
@@ -186,7 +186,29 @@
         mount('df-trend-chart', {type: barsMode ? 'bar' : 'line', data: {labels, datasets}, options},
             trend.periods.length > 0 && series.length > 0);
     }
-    function kpis(summary) {
+    function cotTrend(entries) {
+        const options = common(), t = theme();
+        options.layout = {padding: {top: 22, right: 32, left: 12}};
+        options.scales = {
+            x: {grid: {display: false}, border: {display: false}, ticks: {color: t.muted, font: {size: 10}, maxRotation: 0}},
+            y: {beginAtZero: true, border: {display: false}, grid: {color: t.grid}, grace: '15%', ticks: {color: t.muted, font: {size: 10}, callback: compact, maxTicksLimit: 5}}
+        };
+        options.plugins.tooltip.callbacks.title = ctx => dayLabel(entries[ctx[0].dataIndex].label);
+        options.plugins.tooltip.callbacks.label = ctx => money(ctx.parsed.y);
+        options.onClick = (event, elements) => { if (elements.length) setFilter('day', entries[elements[0].index].label); };
+        const labels = {id: 'cotTrendValues', afterDatasetsDraw(chart) {
+            const ctx = chart.ctx; ctx.save(); ctx.fillStyle = t.text; ctx.font = '600 10px system-ui'; ctx.textAlign = 'center';
+            chart.getDatasetMeta(0).data.forEach((point, i) => {
+                if (entries[i].amount) ctx.fillText(compact(entries[i].amount), point.x, point.y - (i % 2 ? 18 : 7));
+            }); ctx.restore();
+        }};
+        const holder = get('df-trend-chart').parentElement;
+        holder.style.minWidth = entries.length > 10 ? entries.length * 62 + 'px' : '';
+        mount('df-trend-chart', {type: 'line', plugins: [labels], data: {labels: entries.map(e => shortDay(e.label)), datasets: [{
+            label: 'Pendiente de aprobación', data: entries.map(e => e.amount), borderColor: t.colors[2], pointRadius: 3,
+        }]}, options}, entries.length > 0);
+    }
+    function kpis(summary, commercial, visibleRows) {
         const items = mode === 'rendicion' ? [
             ['Total rendido', money(summary.amount), 'Importe pagado registrado'],
             ['Total registros', number(summary.count), 'Solicitudes de la selección'],
@@ -195,7 +217,11 @@
             ['Total sustentado', money(summary.supported), 'Importe pagado con sustento'],
             ['Registros sustentados', number(summary.supportedCount), 'Incluye sustentos por revisar'],
         ] : [['SUB TOTAL + FEE', money(summary.amount), 'Importe total cotizado'],
-            ['Total cotizaciones', number(summary.count), 'Solicitudes de la selección']];
+            ['Total cotizaciones', number(summary.count), 'Solicitudes de la selección'],
+            ['Pendiente de aprobación', money(model.sum(commercial.pending, r => r.monto)), number(commercial.pending.length) + ' cotizaciones'],
+            ['Aprobadas por ejecutar', money(model.sum(commercial.approved, r => r.monto)), number(commercial.approved.length) + ' cotizaciones'],
+            ['Atendidas y ejecutadas', money(model.sum(commercial.attended, r => r.monto)), number(commercial.attended.length) + ' cotizaciones'],
+            ['Anuladas', money(model.sum(visibleRows.filter(r => r.pestania === 'cancelado'), r => r.monto)), 'Fuera de las etapas activas']];
         const container = get('df-kpis'); container.replaceChildren();
         items.forEach(([title, value, hint]) => {
             const card = node('article'), figure = node('strong', value); figure.title = value;
@@ -223,19 +249,24 @@
     }
     function render() {
         const filtered = model.filter(rows, mode, state), summary = model.summary(filtered, mode);
-        kpis(summary); donut(summary.operators);
-        bars('df-budget-chart', summary.budgets, {filterKey: 'budget'});
-        bars('df-person-chart', summary.people, {horizontal: true, limit: mode === 'rendicion' ? 8 : 10, filterKey: 'person'});
-        trendChart(filtered);
-        if (mode === 'rendicion') {
+        const commercial = mode === 'cotizaciones' ? model.cotizaciones(filtered) : null;
+        kpis(summary, commercial, filtered); donut(summary.operators);
+        if (mode === 'cotizaciones') {
+            bars('df-budget-chart', commercial.budgets);
+            bars('df-person-chart', commercial.managers, {horizontal: true, limit: 10});
+            bars('df-attended-chart', commercial.attendedGroups);
+            bars('df-cobra-chart', commercial.cobra);
+            bars('df-refacturable-chart', commercial.refacturable);
+            bars('df-states-chart', [...summary.states].sort((a,b) => b.count-a.count), {horizontal: true, limit: 12, measure: 'count', filterKey: 'state'});
+            cotTrend(commercial.trend);
+        } else {
+            bars('df-budget-chart', summary.budgets, {filterKey: 'budget'});
+            bars('df-person-chart', summary.people, {horizontal: true, limit: 8, filterKey: 'person'});
+            trendChart(filtered);
             bars('df-sust-budget-chart', summary.supportedBudgets);
             bars('df-sust-operator-chart', summary.supportedOperators, {horizontal: true, kind: 'operator'});
-        } else {
-            bars('df-approval-chart', summary.approval, {filterKey: 'approval'});
-            bars('df-types-chart', summary.types, {horizontal: true, limit: 12, measure: 'count', filterKey: 'type'});
+            bars('df-states-chart', [...summary.states].sort((a,b) => b.count-a.count), {horizontal: true, limit: 12, measure: 'count', filterKey: 'state'});
         }
-        bars('df-states-chart', [...summary.states].sort((a, b) => b.count - a.count || b.amount - a.amount),
-            {horizontal: true, limit: 12, measure: 'count', filterKey: 'state'});
 
         const undated = filtered.filter(row => !(mode === 'rendicion' ? row.dia_pago : row.dia)).length;
         get('df-caption').textContent = number(filtered.length) + ' registros en la selección'

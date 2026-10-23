@@ -104,7 +104,9 @@ def test_ruta_dashboard_cotizaciones(app, auth_client):
             r = auth_client.get('/analytics/cotizaciones')
             assert r.status_code == 200, r.status_code
             assert 'data-finance="cotizaciones"' in r.get_data(as_text=True)
-            assert 'df-types-chart' in r.get_data(as_text=True)
+            assert 'df-attended-chart' in r.get_data(as_text=True)
+            assert 'df-cobra-chart' in r.get_data(as_text=True)
+            assert 'df-refacturable-chart' in r.get_data(as_text=True)
             assert 'dc-responsables' not in r.get_data(as_text=True)
             assert 'dq-panel' not in r.get_data(as_text=True)
             assert 'DASH-COT-TEST' in r.get_data(as_text=True)

@@ -24,7 +24,7 @@ from flask import (Blueprint, request, jsonify, session, current_app,
 from werkzeug.utils import secure_filename
 
 from db import db
-from models import Proyecto, NucleusData, AppConfig, Notificacion
+from models import Proyecto, NucleusData, AppConfig, Notificacion, RendicionCorreo
 from services.apoyo import guardar_archivo_atomico, comprobar_error_b2
 from services import (
     login_required,
@@ -493,6 +493,11 @@ def api_rendicion_accion():
         if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica'):
             return jsonify({'error': 'Selecciona una opción de tiempo de respuesta.'}), 400
         if _requiere_correo_validacion(row):
+            # La asociación durable prevalece si una edición antigua perdió el enlace del JSON.
+            adjunto = RendicionCorreo.query.filter_by(origen_id=fila.id).order_by(RendicionCorreo.id.desc()).first()
+            if adjunto:
+                row['ADJUNTO CORREO VALIDACION'] = '/api/rendicion/correo/%s/%s' % (fila.id, adjunto.nombre)
+                row['NOMBRE CORREO VALIDACION'] = adjunto.nombre_original
             correo = str(row.get('ADJUNTO CORREO VALIDACION') or '')
             prefijo = '/api/rendicion/correo/%s/' % fila.id
             nombre = correo[len(prefijo):] if correo.startswith(prefijo) else ''
@@ -849,6 +854,8 @@ def _correo_folder(origen_id):
 
 
 def _correo_existe(origen_id, nombre):
+    if RendicionCorreo.query.filter_by(origen_id=origen_id, nombre=nombre).first():
+        return True
     if os.path.isfile(os.path.join(_correo_folder(origen_id), nombre)):
         return True
     if evidencia_usa_b2():
@@ -868,11 +875,11 @@ def subir_correo_validacion():
         return jsonify({'error': 'No tienes permisos para gestionar las rendiciones.'}), 403
     proy = _proy()
     key = str(request.form.get('key') or '').strip()
-    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first() if proy else None
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).with_for_update().first() if proy else None
     if not fila:
         return jsonify({'error': 'Solicitud no encontrada.'}), 404
     row = json.loads(fila.data_json or '{}')
-    if _estado_de(row) != 'PENDIENTE' or not _requiere_correo_validacion(row):
+    if _etapa_de(row) != 'VALIDACION' or not _requiere_correo_validacion(row):
         return jsonify({'error': 'Este correo corresponde a una solicitud pendiente que requiere correo de validación.'}), 409
     archivo = request.files.get('correo')
     if not archivo or not archivo.filename or os.path.splitext(archivo.filename)[1].lower() != '.msg':
@@ -896,6 +903,8 @@ def subir_correo_validacion():
             return jsonify({'error': 'No se pudo guardar el correo. Reintenta la subida.'}), 503
     row['ADJUNTO CORREO VALIDACION'] = '/api/rendicion/correo/%s/%s' % (fila.id, nombre)
     row['NOMBRE CORREO VALIDACION'] = secure_filename(archivo.filename)
+    db.session.add(RendicionCorreo(origen_id=fila.id, nombre=nombre,
+                                  nombre_original=row['NOMBRE CORREO VALIDACION'], contenido=contenido))
     fila.data_json = json.dumps(row, ensure_ascii=False)
     try:
         db.session.commit()
@@ -918,6 +927,10 @@ def descargar_correo_validacion(origen_id, nombre):
     row = json.loads(fila.data_json or '{}')
     if row.get('ADJUNTO CORREO VALIDACION') != '/api/rendicion/correo/%s/%s' % (origen_id, nombre):
         return jsonify({'error': 'Correo no encontrado.'}), 404
+    adjunto = RendicionCorreo.query.filter_by(origen_id=origen_id, nombre=nombre).first()
+    if adjunto:
+        return send_file(io.BytesIO(adjunto.contenido), as_attachment=True,
+                         download_name=adjunto.nombre_original, mimetype='application/vnd.ms-outlook')
     if evidencia_usa_b2():
         try:
             objeto = b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'],

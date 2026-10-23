@@ -24,8 +24,10 @@ def test_tarjetas_legibles_en_temas_y_anchos(app, auth_client, servidor, modo, t
                        'Marca temporal': '2026-10-17', 'FECHA PAGO': '2026-10-18', 'Tipo de presupuesto': 'Gasto Cobra', 'SOLICITADO POR': label, 'VALIDADO POR': label,
                        'Monto total del depósito': '123456789.89', 'MONTO PAGO': '123456789.89', 'Documento del beneficiario': str(10000000+n), 'Técnico beneficiario': label}
             else:
-                row = {'CLIENTE': 'ENTEL', 'ESTADO COTIZACION': ('En Aprobación', 'Aprobado')[n % 2],
-                       'N° COTIZACION': key, 'FECHA': '2026-10-17', 'SUB TOTAL + FEE': '123456789.89',
+                row = {'CLIENTE': 'ENTEL', 'ESTADO COTIZACION': ('En Aprobación', 'Aprobado', 'Atendido', 'Anulado')[n % 4],
+                       'N° COTIZACION': key, 'FECHA': '2026-10-%02d' % (n+1), 'SUB TOTAL + FEE': '123456789.89',
+                       'TIPO DE GASTO': 'Gasto Cobra' if (n//4)%2 else 'Refacturable',
+                       'TIPO GASTO APROBACION': 'Caja Chica' if n%3 else 'Proveedor', 'GESTOR': label,
                        'SOLICITADO POR': label, 'COTIZADO POR': label, 'TIPO DE COTIZACION': label}
             f = NucleusData(proyecto_id=pid, key_value=key, data_json=json.dumps(row))
             db.session.add(f); db.session.flush(); ids.append(f.id)
@@ -41,6 +43,8 @@ def test_tarjetas_legibles_en_temas_y_anchos(app, auth_client, servidor, modo, t
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.goto(servidor + '/analytics/' + modo, wait_until='networkidle')
                 page.wait_for_function('window.Chart && Object.keys(Chart.instances).length > 0')
+                if modo == 'cotizaciones':
+                    assert page.locator('.df-grid canvas:visible').count() == 8
                 folder = tmp_path
                 for dark in (False, True):
                     page.evaluate('(dark) => document.body.classList.toggle("dark-mode", dark)', dark)
@@ -63,7 +67,7 @@ def test_tarjetas_legibles_en_temas_y_anchos(app, auth_client, servidor, modo, t
                     playwright_api.expect(page.locator('#df-caption')).to_contain_text('registros')
                     page.get_by_role('button', name='Limpiar', exact=True).click()
                     playwright_api.expect(page.get_by_role('combobox', name='Estado', exact=True)).to_have_value('')
-                assert page.locator('#df-kpis article').count() == (6 if modo == 'rendicion' else 2)
+                assert page.locator('#df-kpis article').count() == 6
                 assert not errors, errors
             finally:
                 browser.close()

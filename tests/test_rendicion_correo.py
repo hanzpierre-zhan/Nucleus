@@ -3,7 +3,7 @@ import json
 import pytest
 from pathlib import Path
 from db import db
-from models import Proyecto, NucleusData
+from models import Proyecto, NucleusData, RendicionCorreo
 
 @pytest.mark.parametrize('presupuesto,gasto,requiere', [
     ('Refacturable', 'Viáticos', False),
@@ -45,6 +45,7 @@ def solicitud(app, auth_client, monkeypatch):
     auth_client.get('/switch_project/%s' % pid)
     yield origen_id
     with app.app_context():
+        RendicionCorreo.query.filter_by(origen_id=origen_id).delete()
         NucleusData.query.filter_by(id=origen_id).delete(); db.session.commit()
 
 
@@ -145,3 +146,49 @@ def test_fallo_b2_no_guarda_url_de_correo_roto(app, auth_client, solicitud, monk
     assert carga.status_code == 503
     with app.app_context():
         assert not json.loads(db.session.get(NucleusData, solicitud).data_json).get('ADJUNTO CORREO VALIDACION')
+
+
+def test_correo_persistente_tras_perder_disco_y_almacen_externo(app, auth_client, solicitud, monkeypatch, tmp_path):
+    import blueprints.rendicion as rend
+    monkeypatch.setattr(rend, '_correo_folder', lambda rid: str(tmp_path / str(rid)))
+    monkeypatch.setattr(rend, 'evidencia_usa_b2', lambda: False)
+    carga = auth_client.post('/api/rendicion/subir_correo', data={
+        'key': 'REND-CORREO-TEST', 'correo': (io.BytesIO(b'correo durable'), 'validacion.msg')})
+    assert carga.status_code == 200
+    nombre = carga.json['url'].rsplit('/', 1)[1]
+    (tmp_path / str(solicitud) / nombre).unlink()
+    monkeypatch.setattr(rend, 'evidencia_usa_b2', lambda: True)
+    monkeypatch.setattr(rend, 'b2_cliente', lambda: (_ for _ in ()).throw(OSError('No disponible')))
+    assert auth_client.get(carga.json['url']).data == b'correo durable'
+    resultado = auth_client.post('/api/rendicion/accion', json={
+        'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
+    assert resultado.status_code == 200, resultado.json
+
+
+def test_correo_en_rechazada_devuelta_a_validacion(auth_client, app, solicitud):
+    with app.app_context():
+        fila = db.session.get(NucleusData, solicitud)
+        fila.data_json = json.dumps({'ESTADO': 'RECHAZADO', '_RECHAZO_ETAPA': 'VALIDACION',
+                                    'TIPO DE PRESUPUESTO': 'REFACTURABLE'})
+        db.session.commit()
+    carga = auth_client.post('/api/rendicion/subir_correo', data={
+        'key': 'REND-CORREO-TEST', 'correo': (io.BytesIO(b'correo'), 'validacion.msg')})
+    assert carga.status_code == 200, carga.json
+    assert auth_client.post('/api/rendicion/accion', json={
+        'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'}).status_code == 200
+
+
+def test_validar_recupera_enlace_perdido_sin_pedir_otro_correo(auth_client, app, solicitud):
+    carga = auth_client.post('/api/rendicion/subir_correo', data={
+        'key': 'REND-CORREO-TEST', 'correo': (io.BytesIO(b'adjunto confirmado'), 'validacion.msg')})
+    assert carga.status_code == 200
+    with app.app_context():
+        fila = db.session.get(NucleusData, solicitud)
+        row = json.loads(fila.data_json)
+        row.pop('ADJUNTO CORREO VALIDACION')
+        fila.data_json = json.dumps(row)
+        db.session.commit()
+    respuesta = auth_client.post('/api/rendicion/accion', json={
+        'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
+    assert respuesta.status_code == 200, respuesta.json
+    assert respuesta.json['newData']['ADJUNTO CORREO VALIDACION'] == carga.json['url']
