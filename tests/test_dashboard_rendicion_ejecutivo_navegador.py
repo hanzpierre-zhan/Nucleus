@@ -13,7 +13,7 @@ def test_panel_ejecutivo_reconcilia_y_se_adapta(app,auth_client,servidor,tmp_pat
         for n in range(96):
             client=['Entel','Claro','Integratel','Entel - Pext'][n%4]
             technician=['Carlos Mendoza','Juan Pérez','María Torres','Luis García','José Ramírez','Ana Castillo','Pedro Sánchez','Rosa Medina'][n//4%8]
-            data={'Nombre del proyecto':client,'Documento del beneficiario':str(10000000+n%32),
+            data={'Nombre del proyecto':client,'Documento del beneficiario':str(10000000+n),
                 'Técnico beneficiario':technician,'ESTADO':'DEPOSITADO' if n<88 else 'SUSTENTADO',
                 'SUBESTADO':'ARCHIVADO' if n>=92 else '',
                 'Responsable de la validación':['Rosmeri','Mónica','Edwin','Luz','Héctor'][n%5],
@@ -48,7 +48,14 @@ def test_panel_ejecutivo_reconcilia_y_se_adapta(app,auth_client,servidor,tmp_pat
                 assert page.evaluate('()=>Chart.getChart("re-applicants").options.indexAxis')=='y'
                 assert page.evaluate('()=>Chart.getChart("re-archived").data.datasets.reduce((s,d)=>s+d.data.reduce((a,b)=>a+b,0),0)')==sum(100+n*37.5 for n in range(92,96))
                 names=page.evaluate('()=>Chart.getChart("re-entel").data.labels')
-                assert names and all(not str(n).isdigit() for n in names)
+                assert len(names)==22 and all(not str(n).isdigit() for n in names)
+                for slug in ('entel','claro','integratel'):
+                    assert page.evaluate('(slug)=>Chart.getChart("re-"+slug).data.labels.length',slug)==22
+                    scroll=page.locator('.re-'+slug+' .re-beneficiary-scroll')
+                    assert scroll.evaluate('(e)=>e.scrollHeight>e.clientHeight')
+                    assert page.evaluate('(slug)=>Chart.getChart("re-"+slug).getDatasetMeta(0).data[0].height',slug)>=14
+                    scroll.evaluate('(e)=>e.scrollTop=e.scrollHeight')
+                    assert scroll.evaluate('(e)=>e.scrollTop>0')
                 for dark in (False,True):
                     page.evaluate('(dark)=>document.body.classList.toggle("dark-mode",dark)',dark)
                     for width in (1920,1352,768,390):

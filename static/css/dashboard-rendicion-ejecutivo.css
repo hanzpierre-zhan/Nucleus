@@ -16,7 +16,7 @@
 .di-page.rend-executive .df-kpis article:nth-child(2) strong{color:var(--ios-label);}
 .di-page.rend-executive .df-kpis article:nth-child(4) strong{color:var(--re-cobra);}
 .di-page.rend-executive .df-kpis article:nth-child(5) strong{color:var(--re-refact);}
-.re-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:13px;grid-template-areas:'clients budgets app trend trend' 'entel claro integratel compare archived';grid-template-rows:340px 470px;}
+.re-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:13px;grid-template-areas:'clients budgets app trend trend' 'entel claro integratel compare archived';grid-template-rows:repeat(2,330px);}
 .re-applicants{grid-area:app;}.re-clients{grid-area:clients;}.re-budgets{grid-area:budgets;}.re-trend{grid-area:trend;}.re-entel{grid-area:entel;}.re-claro{grid-area:claro;}.re-integratel{grid-area:integratel;}.re-comparison{grid-area:compare;}.re-archived{grid-area:archived;}
 .di-page.rend-executive .re-grid .di-card{border-radius:20px;padding:19px;min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
 .re-grid .re-card-heading{display:flex;justify-content:space-between;gap:8px;align-items:start;flex:none;}
@@ -45,16 +45,16 @@
 .re-panel-total strong{font-size:23px;letter-spacing:-.7px;font-variant-numeric:tabular-nums;}
 .re-panel-total small{font-size:10px;color:var(--ios-secondary);}
 .re-comparison-note{font-size:10px;color:var(--ios-secondary);line-height:1.5;margin-top:14px;}
-@media(min-width:1600px){.re-grid{grid-template-columns:repeat(5,minmax(0,1fr));grid-template-areas:'clients budgets app trend trend' 'entel claro integratel compare archived';grid-template-rows:330px 450px;}}
-@media(max-width:1199px){.re-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:'clients budgets' 'app trend' 'entel claro' 'integratel integratel' 'compare archived';grid-template-rows:330px 330px 460px 460px 400px;}.re-heading{align-items:start;}.di-page.rend-executive .df-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(min-width:1600px){.re-grid{grid-template-columns:repeat(5,minmax(0,1fr));grid-template-areas:'clients budgets app trend trend' 'entel claro integratel compare archived';grid-template-rows:repeat(2,330px);}}
+@media(max-width:1199px){.re-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:'clients budgets' 'app trend' 'entel claro' 'integratel integratel' 'compare archived';grid-template-rows:repeat(5,330px);}.re-heading{align-items:start;}.di-page.rend-executive .df-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media(max-width:650px){
  .re-heading{flex-direction:column;gap:12px;}.re-heading h2{font-size:20px;}
  .di-page.rend-executive .df-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;}
  .di-page.rend-executive .df-kpis article{padding:13px;min-height:100px;}
  .re-grid{display:flex;flex-direction:column;gap:13px;}
  .di-page.rend-executive .re-grid .di-card{padding:18px;height:345px;min-height:345px;flex:none;}
- .di-page.rend-executive .re-grid .re-beneficiary{height:520px;min-height:520px;}
- .di-page.rend-executive .re-grid .re-comparison,.di-page.rend-executive .re-grid .re-archived{height:390px;}
+ .di-page.rend-executive .re-grid .re-beneficiary{height:345px;min-height:345px;}
+ .di-page.rend-executive .re-grid .re-comparison,.di-page.rend-executive .re-grid .re-archived{height:345px;min-height:345px;}
  .di-page.rend-executive .df-chart{height:auto;flex:1;min-height:0;}
  .re-ring{min-height:150px;max-height:180px;}.re-legend{gap:7px;}
 }
@@ -91,3 +91,19 @@
 .di-page.rend-executive .df-kpis article:nth-child(4) strong{color:var(--re-refact);}
 .di-page.rend-executive .df-kpis article:nth-child(5) strong{color:var(--ios-label);}
 .di-page.rend-executive .df-kpis article:nth-child(6){background:color-mix(in srgb,var(--di-amber) 8%,var(--ios-card-bg));}
+
+/* Una misma cabecera de dos filas para los cinco paneles inferiores. */
+.di-page.rend-executive .re-grid .re-compact-heading{height:26px;min-height:26px;align-items:center;gap:6px;margin-bottom:3px;}
+.di-page.rend-executive .re-compact-heading h2{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(10px,.76vw,12px);margin:0;line-height:1.3;}
+.re-compact-heading .re-client-label{flex:none;margin:0;padding:3px 5px;font-size:8px;}
+.re-compact-heading .re-icon{width:23px;height:23px;border-radius:7px;font-size:10px;}
+.di-page.rend-executive :is(.re-beneficiary,.re-comparison,.re-archived) .re-panel-total{flex-direction:row;align-items:center;justify-content:space-between;gap:8px;height:34px;min-height:34px;box-sizing:content-box;padding-bottom:6px;margin-bottom:6px;}
+.di-page.rend-executive :is(.re-beneficiary,.re-comparison,.re-archived) .re-panel-total strong{font-size:20px;line-height:1.2;white-space:nowrap;}
+.di-page.rend-executive :is(.re-beneficiary,.re-comparison,.re-archived) .re-panel-total small{max-width:48%;text-align:right;font-size:9px;line-height:1.25;}
+@media(min-width:1200px){.rend-executive .re-grid{grid-template-rows:repeat(2,330px);}}
+@media(max-width:650px){.di-page.rend-executive .re-compact-heading h2{font-size:12px;}}
+
+/* Todos los beneficiarios, con espacio estable para cada par de barras. */
+.di-page.rend-executive .re-beneficiary-scroll{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--ios-secondary) transparent;}
+.re-beneficiary-inner{position:relative;width:100%;min-height:180px;}
+.re-beneficiary-scroll:focus-visible{outline:2px solid var(--re-cobra);outline-offset:2px;border-radius:6px;}
