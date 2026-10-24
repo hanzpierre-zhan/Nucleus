@@ -421,7 +421,7 @@ def api_import_process():
                         tabla.c.proyecto_id == pid, tabla.c.key_value.in_(chunk))).all()
                     for clave, datos_json in anteriores:
                         anterior = json.loads(datos_json or '{}')
-                        proyecto_anterior = familia(anterior.get('PROYECTO') or 'ENTEL')
+                        proyecto_anterior = familia(anterior.get('Proyecto') or anterior.get('PROYECTO') or 'ENTEL')
                         nuevos = set(df.loc[df[file_key].astype(str).str.strip() == clave, 'PROYECTO'])
                         if nuevos != {proyecto_anterior}:
                             return jsonify({'error': 'El código de site %s ya pertenece a otro proyecto. Usa un código único para evitar sobrescribirlo.' % clave}), 400
@@ -504,6 +504,8 @@ def api_import_process():
 
         for idx, row in df.iterrows():
             row_dict = row.to_dict()
+            if proy_act_nombre == 'SITE' and 'PROYECTO' in row_dict:
+                row_dict['Proyecto'] = 'FLM - ' + row_dict.pop('PROYECTO')
             key_val = str(row_dict.get(file_key, '')).strip()
             if not key_val: continue
             imported_keys.add(key_val)

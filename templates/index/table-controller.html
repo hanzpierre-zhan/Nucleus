@@ -14643,6 +14643,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
     function abrirWoModal(row) {
+        window.cotLimpiarFichaSustento?.();
         document.getElementById('cot-fechas-obra')?.remove();
         document.getElementById('cot-btn-guardar-sustento')?.remove();
         const pendingButton = document.getElementById('wo-asignar-pendiente');
@@ -18333,6 +18334,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
     function cerrarWoModal() {
+        window.cotLimpiarFichaSustento?.();
         _cotSustentoContext = null;
         document.getElementById('cot-sustento-wo-tabs')?.remove();
 

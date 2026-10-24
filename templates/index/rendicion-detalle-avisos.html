@@ -2281,7 +2281,7 @@ async function cotAbrirModalSustento(key) {
         const lista=res.wos.length ? res.wos : [{wo:'',encontrado:true,proyecto_id:currentProjectId,wo_data:res.cotizacion_data,bloqueado:res.sustento_aprobado}];
         if(res.wos.length>1 && ['INICIO','PROCESO','CIERRE'].some(t=>parseEvidenciaArr(res.cotizacion_data['_EVIDENCIA_'+t]).some(Boolean))) lista.push({wo:'Sustento anterior (sin WO asignado)',encontrado:true,proyecto_id:currentProjectId,wo_data:{...res.cotizacion_data,_key:key},bloqueado:true,legacy:true});
         const index=lista.findIndex(w=>w.encontrado);if(index<0)throw new Error('Primero registra los WOs en el FLM correspondiente.');
-        _cotSustentoContext={key,lista,index:null,aprobado:res.sustento_aprobado,uploads:0};
+        _cotSustentoContext={key,lista,index:null,aprobado:res.sustento_aprobado,uploads:0,cotData:res.cotizacion_data,items:res.items||[],lpu:res.lpu||[]};
         await cotSeleccionarSustentoWo(index,false);
     }catch(error){nucleusAlert(error.message);}
 }
@@ -2302,20 +2302,8 @@ async function cotSeleccionarSustentoWo(index,guardar=true) {
         document.getElementById('btn-wo-save').style.display=woEditable?'':'none';
         cambiarWoTab('evidencia');
         document.getElementById('cot-sustento-wo-tabs')?.remove();
-        const tabs=document.createElement('div');tabs.id='cot-sustento-wo-tabs';tabs.className='cot-wo-sustento-tabs';tabs.setAttribute('aria-label','Sustento por WO');
-        ctx.lista.forEach((w,i)=>{
-            const b=document.createElement('button');b.type='button';b.className='action-pill'+(i===index?' pill-blue':'');
-            b.textContent=w.wo||'Sustento sin WO';b.disabled=!w.encontrado;b.setAttribute('aria-pressed',String(i===index));
-            b.title=w.encontrado?'Ver evidencia de este WO':'WO pendiente de registro en FLM';b.onclick=()=>cotSeleccionarSustentoWo(i);tabs.appendChild(b);
-        });
-        document.getElementById('wo-panel-evidencia').prepend(tabs);
-        document.getElementById('cot-btn-guardar-sustento')?.remove();
-        if(!ctx.aprobado && !elegido.legacy && cotPuedeGestionar()){
-            const button=document.createElement('button');button.type='button';button.id='cot-btn-guardar-sustento';button.className='mar-btn-primary';button.textContent='Validar sustento';button.style.cssText='width:auto;padding:0 12px;flex-shrink:0;';
-            button.onclick=async()=>{button.disabled=true;try{await cotGuardarSustentoSeleccionado(true);cerrarWoModal();}catch(error){nucleusAlert(error.message);}finally{button.disabled=false;}};
-            const copyButton=document.getElementById('btn-wo-copiar');
-            copyButton.parentElement.insertBefore(button,copyButton);
-        }
+        if(cotSustentoUsaFicha(ctx,elegido))cotMontarFichaSustento(ctx,elegido,data,woEditable);
+        else cotMontarSustentoAnterior(ctx,elegido);
     }catch(error){nucleusAlert(error.message);}
 }
 async function cotGuardarSustentoSeleccionado(finalizar) {
@@ -2327,9 +2315,12 @@ async function cotGuardarSustentoSeleccionado(finalizar) {
     ['inicio','proceso','cierre'].forEach(fase=>{evidencia['_EVIDENCIA_'+fase.toUpperCase()]=JSON.stringify(evidenciaState?.[fase]?.fotos||[]);evidencia['_BITACORA_'+fase.toUpperCase()]=document.getElementById('evidencia-bitacora-'+fase).value;});
     evidencia['INICIO EJECUCION']=fromDatetimeLocal(document.getElementById('wo-inicio-ejecucion').value);
     evidencia['FIN EJECUCION']=fromDatetimeLocal(document.getElementById('wo-fin-ejecucion').value);
-    const r=await fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia})});
+    const r=await fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia,...(cotSustentoUsaFicha(ctx,entry)?{manual:cotLeerFichaSustento()}: {})})});
     const j=await nucleusLeerRespuestaJSON(r);if(!r.ok||!j.success)throw new Error(j.error||'No se pudo guardar.');
-    entry.wo_data={...j.wo_data,_key:woKey};cotTrasAccion(j,ctx.key);return j;
+    entry.wo_data={...j.wo_data,_key:woKey};
+    entry.wo=j.wo??entry.wo;ctx.cotData=j.newData;
+    const tab=document.querySelectorAll('#cot-sustento-wo-tabs button')[ctx.index];if(tab)tab.textContent=entry.wo||'Sustento sin WO';
+    cotTrasAccion(j,ctx.key);return j;
 }
 async function cotRevisarSustento(key,aprobar) {
     if(aprobar){if(!await nucleusConfirm('¿Aprobar el sustento? Sus evidencias quedarán bloqueadas para edición.'))return;}

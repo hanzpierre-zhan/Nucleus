@@ -143,8 +143,8 @@ def _site_por_operacion(t, ctx):
     # esta CTE compartida y evita decodificar cada WO por cada site del maestro.
     base = select(fuente.c.proyecto_id, nombre.label('nombre'), codigo(nombre).label('codigo')).where(
         fuente.c.proyecto_id.in_(set(otros) | ctx['operacion'])).cte('alcance_sites_base')
-    site = func.lower(_primero(t.c.data_json, ('NOMBRE DE SITE', 'Nombre de Site', 'Nombre', 'NOMBRE SITE')))
-    cod = func.lower(_primero(t.c.data_json, ('Código', 'CODIGO', 'Código Site', 'CODIGO SITE')))
+    site = func.lower(_primero(t.c.data_json, ('Site','Nombre del sitio | Site name','NOMBRE DE SITE', 'Nombre de Site', 'Nombre', 'NOMBRE SITE')))
+    cod = func.lower(_primero(t.c.data_json, ('Código del sitio | Site ID','Código', 'CODIGO', 'Código Site', 'CODIGO SITE')))
 
     def coincidencia(pids):
         nombres = select(base.c.nombre).where(base.c.proyecto_id.in_(pids), base.c.nombre != '')

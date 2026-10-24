@@ -115,6 +115,7 @@ def _registros():
     from blueprints.cotizacion import _PROYECTOS_WO_SUSTENTO, _split_wos
     from services.recursos_flm import familia as _familia
     from services.sustento import SustentoAdicional
+    from services.cotizacion_ficha import fuente as fuente_ficha
     from models import LiquidacionNumero
     from services.liquidacion_numero import numero_liquidacion
     from sqlalchemy import func as _func
@@ -132,7 +133,7 @@ def _registros():
             casos.append((registro, datos))
             for wo in _split_wos(datos.get('NUMERO WO')):
                 if wo.strip():
-                    wos_buscados.add(wo.strip().lower())
+                    wos_buscados.add(fuente_ficha(datos, wo).strip().lower())
 
     # 2) Filas de WO necesarias en UNA consulta. Antes se consultaba la base por
     #    cada WO de cada registro (N+1), lo que volvía la carga muy lenta.
@@ -166,15 +167,19 @@ def _registros():
         obras_registro = {}
         for wo in wos:
             clave = wo.lower()
-            if wo.strip().casefold() in adicionales:
-                obras_registro[clave] = (proyecto, SustentoAdicional(registro, wo))
+            original = fuente_ficha(datos, wo)
+            if not original:
+                obras_registro[clave] = (proyecto, registro)
+                continue
+            if original.strip().casefold() in adicionales:
+                obras_registro[clave] = (proyecto, SustentoAdicional(registro, original))
                 continue
             elegido = None
-            for par in obras.get(clave, ()):
+            for par in obras.get(original.lower(), ()):
                 if not fam or _familia(par[0].nombre) == fam:
                     elegido = par
                     break
-            obras_registro[clave] = elegido or (proyecto, SustentoAdicional(registro, wo))
+            obras_registro[clave] = elegido or (proyecto, SustentoAdicional(registro, original))
         trabajos = [_datos_fuente(datos, obras_registro[w.lower()][1]) for w in wos]
         inicios = [str(w.get('INICIO EJECUCION'))[:10] for w in trabajos if w.get('INICIO EJECUCION')]
         finales = [str(w.get('FIN EJECUCION'))[:10] for w in trabajos if w.get('FIN EJECUCION')]
@@ -562,3 +567,84 @@ def descargar_expediente(origen_id):
         archivo.close()
         current_app.logger.exception('No se pudo preparar el expediente %s', origen_id)
         return jsonify({'error': 'No se pudo preparar el expediente. Intenta nuevamente.'}), 500
+
+
+# Catálogo LPU: gestión disponible a quienes tienen acceso al módulo.
+@bp.route('/lpu')
+@login_required
+def lpu_pagina():
+    _autorizar()
+    return render_template('lpu.html',proyectos_list=get_menu_proyectos(session.get('user_id'),session.get('rol')))
+
+
+@bp.route('/api/lpu',methods=['GET','POST'])
+@login_required
+def lpu_registros():
+    _autorizar()
+    from services.lpu import listado,validar,serialize
+    from models import LpuRegistro
+    if request.method=='GET':return jsonify(registros=listado())
+    try:datos=validar(request.get_json(silent=True))
+    except ValueError as error:return jsonify(error=str(error)),400
+    if LpuRegistro.query.filter_by(code=datos['code']).first():return jsonify(error='Ese código ya existe.'),409
+    row=LpuRegistro(**datos,actualizado_por=audit_user() or '');db.session.add(row)
+    from sqlalchemy.exc import IntegrityError
+    try:db.session.commit()
+    except IntegrityError:db.session.rollback();return jsonify(error='Ese código ya existe.'),409
+    return jsonify(registro=serialize(row)),201
+
+
+@bp.route('/api/lpu/<int:registro_id>',methods=['PATCH','DELETE'])
+@login_required
+def lpu_editar(registro_id):
+    _autorizar()
+    from models import LpuRegistro
+    from services.lpu import validar,serialize
+    row=db.session.get(LpuRegistro,registro_id)
+    if not row:return jsonify(error='Registro LPU no encontrado.'),404
+    if request.method=='DELETE':db.session.delete(row);db.session.commit();return jsonify(success=True)
+    try:datos=validar(request.get_json(silent=True),parcial=True)
+    except ValueError as error:return jsonify(error=str(error)),400
+    for field,value in datos.items():setattr(row,field,value)
+    row.actualizado_por=audit_user() or ''
+    from sqlalchemy.exc import IntegrityError
+    try:db.session.commit()
+    except IntegrityError:db.session.rollback();return jsonify(error='Ese código ya existe.'),409
+    return jsonify(registro=serialize(row))
+
+
+@bp.route('/api/lpu/importar',methods=['POST'])
+@login_required
+def lpu_importar():
+    _autorizar()
+    from services.lpu import leer_excel
+    from models import LpuRegistro
+    archivo=request.files.get('archivo')
+    if not archivo or not archivo.filename.lower().endswith('.xlsx'):return jsonify(error='Selecciona un archivo .xlsx.'),400
+    content=archivo.read(20*1024*1024+1)
+    if len(content)>20*1024*1024:return jsonify(error='El archivo supera 20 MB.'),400
+    try:items=leer_excel(content)
+    except ValueError as error:return jsonify(error=str(error)),400
+    except Exception:return jsonify(error='No se pudo leer el Excel. Usa la plantilla LPU.'),400
+    existing={r.code:r for r in LpuRegistro.query.all()};creados=actualizados=0
+    for item in items:
+        row=existing.get(item['code'])
+        if row:actualizados+=1
+        else:row=LpuRegistro();db.session.add(row);creados+=1
+        for field,value in item.items():setattr(row,field,value)
+        row.actualizado_por=audit_user() or ''
+    from sqlalchemy.exc import IntegrityError
+    try:db.session.commit()
+    except IntegrityError:db.session.rollback();return jsonify(error='Otro usuario modificó un código. Reintenta la importación.'),409
+    return jsonify(success=True,creados=creados,actualizados=actualizados)
+
+
+@bp.route('/api/lpu/plantilla')
+@bp.route('/api/lpu/exportar')
+@login_required
+def lpu_excel():
+    _autorizar()
+    from flask import send_file
+    from services.lpu import excel
+    plantilla=request.path.endswith('/plantilla')
+    return send_file(excel(plantilla),as_attachment=True,download_name='Plantilla_LPU.xlsx' if plantilla else 'LPU.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

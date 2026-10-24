@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}LPU · Liquidaciones{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/refacturable.css?v=12">
+<link rel="stylesheet" href="/static/css/lpu.css?v=2">
+<section class="lpu-page">
+ <header class="lpu-header"><div><a href="/liquidaciones/" class="action-pill pill-neutral">← Liquidaciones</a><h1>LPU</h1><span id="lpu-count" class="topbar-badge"></span><div id="lpu-pagination" class="ref-pagination" aria-label="Paginación LPU"></div></div><div class="lpu-actions">
+ <a href="/liquidaciones/api/lpu/plantilla" class="action-pill pill-neutral">Descargar plantilla</a>
+ <label class="action-pill pill-neutral">Importar Excel<input id="lpu-import" type="file" accept=".xlsx" hidden></label>
+ <a href="/liquidaciones/api/lpu/exportar" class="action-pill pill-neutral">Exportar Excel</a>
+ <button id="lpu-add" type="button" class="action-pill pill-teal">+ Agregar</button></div></header>
+ <p id="lpu-status" role="status">Edita una celda para guardar sus cambios. La importación actualiza los códigos existentes y agrega los nuevos.</p>
+ <div id="lpu-grid" class="excel-grid ref-grid"></div>
+</section>
+<dialog id="lpu-dialog"><form id="lpu-form"><header class="ref-modal-header"><h2>Agregar registro LPU</h2><button type="button" id="lpu-close" class="action-pill pill-neutral">Cerrar</button></header>
+<div class="ref-modal-body"><label>Código único<input name="code" required maxlength="100"></label><label>Unidad<input name="unit" maxlength="100"></label><label>Descripción de la partida (Esp)<textarea name="description_es" rows="3" maxlength="5000"></textarea></label><label>LPU description (Eng)<textarea name="description_en" rows="3" maxlength="5000"></textarea></label><label>Descripción de la actividad | Description of the activity<textarea name="activity" rows="3" maxlength="10000"></textarea></label><p id="lpu-error" role="alert"></p></div>
+<footer class="ref-modal-footer"><button type="submit" class="action-pill pill-teal">Guardar</button></footer></form></dialog>
+{% endblock %}
+{% block scripts %}<script src="/static/js/lpu.js?v=2"></script>{% endblock %}

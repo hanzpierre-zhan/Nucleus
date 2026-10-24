@@ -32,8 +32,8 @@ def familias_permitidas():
 def filtrar_catalogo(datos):
     ctx=contexto_recursos()
     familias={ctx['familia']} if ctx else familias_permitidas()
-    filtrados = [d for d in datos if familia(d.get('PROYECTO')) in familias]
-    return [{**d, 'PROYECTO': ctx['flm_nombre']} for d in filtrados] if ctx else filtrados
+    filtrados = [d for d in datos if familia(d.get('PROYECTO') or d.get('Proyecto')) in familias]
+    return [{**d, ('Proyecto' if 'Proyecto' in d else 'PROYECTO'): ctx['flm_nombre']} for d in filtrados] if ctx else filtrados
 
 def validar_fila_catalogo(datos):
-    return familia(datos.get('PROYECTO')) in ({contexto_recursos()['familia']} if contexto_recursos() else familias_permitidas())
+    return familia(datos.get('PROYECTO') or datos.get('Proyecto')) in ({contexto_recursos()['familia']} if contexto_recursos() else familias_permitidas())

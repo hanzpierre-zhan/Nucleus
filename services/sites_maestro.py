@@ -13,7 +13,7 @@ from models import NucleusData, Proyecto
 # Claves (=columnas) que pueden contener el nombre del site, en orden de
 # preferencia. Se comparan sin distinguir mayúsculas ni acentos por la vía de
 # `str.upper()`; "NOMBRE" es la columna real del maestro.
-CLAVES_NOMBRE = ('NOMBRE', 'NOMBRE SITE', 'NOMBRE DE SITE', 'NOMBRE DEL SITE',
+CLAVES_NOMBRE = ('SITE', 'NOMBRE', 'NOMBRE SITE', 'NOMBRE DE SITE', 'NOMBRE DEL SITE',
                  'SITE', 'SITE NAME')
 
 

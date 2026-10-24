@@ -1,0 +1,1500 @@
+[
+  {
+    "code": "8828126700",
+    "description_es": "Alquiler de equipo generador de 8KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 8KW to 10KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 8KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126701",
+    "description_es": "Alquiler de equipo generador de 120KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 101KW to 120KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 120KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126702",
+    "description_es": "Alquiler de equipo generador de 12KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 11KW to 15KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 12KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126703",
+    "description_es": "Alquiler de equipo generador de 20KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 16KW to 20KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 20KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126704",
+    "description_es": "Alquiler de equipo generador de 30KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 21KW to 35KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 30KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126705",
+    "description_es": "Alquiler de equipo generador de 40KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 36KW to 50KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 40KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126706",
+    "description_es": "Alquiler de equipo generador de 60KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 51KW to 80KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 60KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126707",
+    "description_es": "Alquiler de equipo generador de 100KW, incluyendo cables y conectores, por día.",
+    "description_en": "Rental of generator equipment from 81KW to 100KW, including cables and connectors, per day.",
+    "unit": "DAY",
+    "activity": "Alquiler de equipo generador de 100KW, incluyendo cables y conectores, por día."
+  },
+  {
+    "code": "8828126708",
+    "description_es": "Suministro de filtro de combustible para GE hasta 38 kW.",
+    "description_en": "Supply of fuel filter for GE up to 38 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de combustible para GE hasta 38 kW."
+  },
+  {
+    "code": "8828126709",
+    "description_es": "Suministro de filtro de combustible para GE de 38 a 80 kW.",
+    "description_en": "Supply of fuel filter for GE from 38 to 80 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de combustible para GE de 38 a 80 kW."
+  },
+  {
+    "code": "8828126710",
+    "description_es": "Suministro de filtro de combustible para GE de 81 a 150 kW.",
+    "description_en": "Supply of fuel filter for GE from 81 to 150 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de combustible para GE de 81 a 150 kW."
+  },
+  {
+    "code": "8828126711",
+    "description_es": "Suministro de filtro de combustible para GE de 151 a 500 kW.",
+    "description_en": "Supply of fuel filter for GE from 151 to 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de combustible para GE de 151 a 500 kW."
+  },
+  {
+    "code": "8828126712",
+    "description_es": "Suministro de filtro de combustible para GE de más de 500 kW.",
+    "description_en": "Supply of fuel filter for GE above 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de combustible para GE de más de 500 kW."
+  },
+  {
+    "code": "8828126713",
+    "description_es": "Suministro de filtro de aceite para GE hasta 38 kW.",
+    "description_en": "Supply of oil filter for GE up to 38 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aceite para GE hasta 38 kW."
+  },
+  {
+    "code": "8828126714",
+    "description_es": "Suministro de filtro de aceite para GE de 38 a 80 kW.",
+    "description_en": "Supply of oil filter for GE from 38 to 80 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aceite para GE de 38 a 80 kW."
+  },
+  {
+    "code": "8828126715",
+    "description_es": "Suministro de filtro de combustible para GE de 81 a 150 kW.",
+    "description_en": "Supply of fuel filter for GE from 81 to 150 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de combustible para GE de 81 a 150 kW."
+  },
+  {
+    "code": "8828126716",
+    "description_es": "Suministro de filtro de aceite para GE de 151 a 500 kW.",
+    "description_en": "Supply of oil filter for GE from 151 to 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aceite para GE de 151 a 500 kW."
+  },
+  {
+    "code": "8828126717",
+    "description_es": "Suministro de filtro de aceite para GE de más de 500 kW.",
+    "description_en": "Supply of oil filter for GE above 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aceite para GE de más de 500 kW."
+  },
+  {
+    "code": "8828126718",
+    "description_es": "Suministro de faja de ventilador para GE hasta 38 kW.",
+    "description_en": "Supply of fan belt for GE up to 38 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de faja de ventilador para GE hasta 38 kW."
+  },
+  {
+    "code": "8828126719",
+    "description_es": "Suministro de faja de ventilador para GE de 38 a 80 kW.",
+    "description_en": "Supply of fan belt for GE from 38 to 80 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de faja de ventilador para GE de 38 a 80 kW."
+  },
+  {
+    "code": "8828126720",
+    "description_es": "Suministro de faja de ventilador para GE de 81 a 150 kW.",
+    "description_en": "Supply of fan belt for GE from 81 to 150 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de faja de ventilador para GE de 81 a 150 kW."
+  },
+  {
+    "code": "8828126721",
+    "description_es": "Suministro de faja de ventilador para GE de 151 a 500 kW.",
+    "description_en": "Supply of fan belt for GE from 151 to 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de faja de ventilador para GE de 151 a 500 kW."
+  },
+  {
+    "code": "8828126722",
+    "description_es": "Suministro de faja de ventilador para GE de más de 500 kW.",
+    "description_en": "Supply of fan belt for GE over 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de faja de ventilador para GE de más de 500 kW."
+  },
+  {
+    "code": "8828126723",
+    "description_es": "Suministro de filtro de aire para GE hasta 38 kW.",
+    "description_en": "Supply of air filter for GE up to 38 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aire para GE hasta 38 kW."
+  },
+  {
+    "code": "8828126724",
+    "description_es": "Suministro de filtro de aire para GE de 38 a 80 kW.",
+    "description_en": "Supply of air filter for GE from 38 to 80 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aire para GE de 38 a 80 kW."
+  },
+  {
+    "code": "8828126725",
+    "description_es": "Suministro de filtro de aire para GE de 81 a 150 kW.",
+    "description_en": "Supply of air filter for GE from 81 to 150 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aire para GE de 81 a 150 kW."
+  },
+  {
+    "code": "8828126726",
+    "description_es": "Suministro de filtro de aire para GE de 151 a 500 kW.",
+    "description_en": "Supply of air filter for GE from 151 to 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aire para GE de 151 a 500 kW."
+  },
+  {
+    "code": "8828126727",
+    "description_es": "Suministro de filtro de aire para GE de más de 500 kW.",
+    "description_en": "Supply of air filter for GE above 500 kW.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de aire para GE de más de 500 kW."
+  },
+  {
+    "code": "8828126728",
+    "description_es": "Suministro de filtro de gasolina GE.",
+    "description_en": "Supply of GE gasoline filter.",
+    "unit": "PCS",
+    "activity": "Suministro de filtro de gasolina GE."
+  },
+  {
+    "code": "8828128199",
+    "description_es": "Suministro de refrigerante GE por galón.",
+    "description_en": "Supply of GE refrigerant per gallon.",
+    "unit": "GLN",
+    "activity": "Suministro de refrigerante GE por galón."
+  },
+  {
+    "code": "8828126729",
+    "description_es": "Suministro de batería de 12 V con 15 placas, incluyendo conexión y prueba.",
+    "description_en": "Supply of 12 V battery with 15 plates, including connection and testing.",
+    "unit": "EACH",
+    "activity": "Suministro de batería de 12 V con 15 placas, incluyendo conexión y prueba."
+  },
+  {
+    "code": "8828100050",
+    "description_es": "Suministro de batería de 12 V con 17 placas, incluyendo conexión y prueba.",
+    "description_en": "Supply of 12 V battery with 17 plates, including connection and testing.",
+    "unit": "EACH",
+    "activity": "Suministro de batería de 12 V con 17 placas, incluyendo conexión y prueba."
+  },
+  {
+    "code": "8828100090",
+    "description_es": "Suministro de batería de 12 V con 27 placas, incluyendo conexión y prueba.",
+    "description_en": "Supply of 12 V battery with 27 plates, including connection and testing.",
+    "unit": "EACH",
+    "activity": "Suministro de batería de 12 V con 27 placas, incluyendo conexión y prueba."
+  },
+  {
+    "code": "8828098794",
+    "description_es": "Suministro de módulo de control Deep Sea 704.",
+    "description_en": "Supply of Deep Sea 704 control module.",
+    "unit": "PCS",
+    "activity": "Suministro de módulo de control Deep Sea 704."
+  },
+  {
+    "code": "8828126730",
+    "description_es": "Suministro de bomba eléctrica de transferencia de aceite 6 GPM.",
+    "description_en": "Supply of oil transfer electric pump 6 GPM.",
+    "unit": "EACH",
+    "activity": "Suministro de bomba eléctrica de transferencia de aceite 6 GPM."
+  },
+  {
+    "code": "8828126731",
+    "description_es": "Transporte de carga mayor a 150 kg, para distancias superiores a 150 km",
+    "description_en": "Land transportation of loads over 150 kg, for distances greater than 150 km",
+    "unit": "EACH",
+    "activity": "Transporte de carga mayor a 150 kg, para distancias superiores a 150 km"
+  },
+  {
+    "code": "8828126732",
+    "description_es": "Transporte de carga entre 51 kg y 150 kg, para distancias superiores a 150 km",
+    "description_en": "Land transportation of loads from 51 kg to 150 kg, for distances greater than 150 km",
+    "unit": "EACH",
+    "activity": "Transporte de carga entre 51 kg y 150 kg, para distancias superiores a 150 km"
+  },
+  {
+    "code": "8828126733",
+    "description_es": "Transporte terrestre de carga hasta 50 kg, para distancias superiores a 150 km",
+    "description_en": "Land transportation of loads up to 50 kg, for distances greater than 150 km",
+    "unit": "EACH",
+    "activity": "Transporte terrestre de carga hasta 50 kg, para distancias superiores a 150 km"
+  },
+  {
+    "code": "8828126734",
+    "description_es": "Transporte terrestre de carga mayor a 150 kg, para distancias entre 30 km y 150 km",
+    "description_en": "Land transportation of loads over 150 kg, for distances between 30 km and 150 km",
+    "unit": "EACH",
+    "activity": "Transporte terrestre de carga mayor a 150 kg, para distancias entre 30 km y 150 km"
+  },
+  {
+    "code": "8828126735",
+    "description_es": "Transporte terrestre de carga entre 51 kg y 150 kg, para distancias entre 30 km y 150 km",
+    "description_en": "Land transportation of loads from 51 kg to 150 kg, for distances between 30 km and 150 km",
+    "unit": "EACH",
+    "activity": "Transporte terrestre de carga entre 51 kg y 150 kg, para distancias entre 30 km y 150 km"
+  },
+  {
+    "code": "8828126736",
+    "description_es": "Transporte terrestre de carga hasta 50 kg, para distancias entre 30 km y 150 km",
+    "description_en": "Land transportation of loads up to 50 kg, for distances between 30 km and 150 km",
+    "unit": "EACH",
+    "activity": "Transporte terrestre de carga hasta 50 kg, para distancias entre 30 km y 150 km"
+  },
+  {
+    "code": "8828126737",
+    "description_es": "Transporte terrestre de carga mayor a 150 kg, para distancias de 0 a 30 km",
+    "description_en": "Land transportation of loads over 150 kg, for distances from 0 to 30 km",
+    "unit": "EACH",
+    "activity": "Transporte terrestre de carga mayor a 150 kg, para distancias de 0 a 30 km"
+  },
+  {
+    "code": "8828126738",
+    "description_es": "Transporte terrestre de carga entre 51 kg y 150 kg, para distancias de 0 a 30 km",
+    "description_en": "Land transportation of loads from 51 kg to 150 kg, for distances from 0 to 30 km",
+    "unit": "EACH",
+    "activity": "Transporte terrestre de carga entre 51 kg y 150 kg, para distancias de 0 a 30 km"
+  },
+  {
+    "code": "8828126739",
+    "description_es": "Transporte terrestre de carga hasta 50 kg, para distancias de 0 a 30 km",
+    "description_en": "Land transportation of loads up to 50 kg, for distances from 0 to 30 km",
+    "unit": "EACH",
+    "activity": "Transporte terrestre de carga hasta 50 kg, para distancias de 0 a 30 km"
+  },
+  {
+    "code": "8828126740",
+    "description_es": "Servicio de transporte fluvial de carga hasta 30 km.",
+    "description_en": "River transportation service up to 30 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte fluvial de carga hasta 30 km."
+  },
+  {
+    "code": "8828126741",
+    "description_es": "Servicio de transporte fluvial de carga de 30 a 150 km.",
+    "description_en": "River transportation service from 30 km to 150 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte fluvial de carga de 30 a 150 km."
+  },
+  {
+    "code": "8828126742",
+    "description_es": "Servicio de transporte fluvial de carga por más de 150 km.",
+    "description_en": "River transportation service over 150 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte fluvial de carga por más de 150 km."
+  },
+  {
+    "code": "8828126743",
+    "description_es": "Provisión de alquiler de camioneta 4x4, incluyendo seguro y combustible.",
+    "description_en": "Provide 4x4 pickup truck rental, including insurance and fuel.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de camioneta 4x4, incluyendo seguro y combustible."
+  },
+  {
+    "code": "8828126744",
+    "description_es": "Provisión de alquiler de cargamono, por día, incluyendo combustible y seguro.",
+    "description_en": "Provide cargamono pickup rental, per day, including fuel and insurance.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de cargamono, por día, incluyendo combustible y seguro."
+  },
+  {
+    "code": "8828126745",
+    "description_es": "Provisión de alquiler de camioneta certificada para mina por día, incluyendo equipos de seguridad y seguro.",
+    "description_en": "Provide mine-certified pickup truck rental per day, including safety equipment and insurance.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de camioneta certificada para mina por día, incluyendo equipos de seguridad y seguro."
+  },
+  {
+    "code": "8828126746",
+    "description_es": "Servicio de transporte de carga o acarreo de 0 a 50 kg hasta 3 km.",
+    "description_en": "Transport service or haulage for loads from 0 to 50 kg, up to 3 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte de carga o acarreo de 0 a 50 kg hasta 3 km."
+  },
+  {
+    "code": "8828126747",
+    "description_es": "Servicio de transporte de carga o acarreo de 0 a 50 kg a más de 3 km.",
+    "description_en": "Transport service or haulage for loads from 0 to 50 kg, more than 3 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte de carga o acarreo de 0 a 50 kg a más de 3 km."
+  },
+  {
+    "code": "8828126748",
+    "description_es": "Servicio de transporte de carga o acarreo de 51 a 100 kg hasta 3 km.",
+    "description_en": "Transport service or haulage for loads from 51 to 100 kg, up to 3 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte de carga o acarreo de 51 a 100 kg hasta 3 km."
+  },
+  {
+    "code": "8828126749",
+    "description_es": "Servicio de transporte de carga o acarreode 51 a 100 kg a más de 3 km.",
+    "description_en": "Transport service or haulage for loads from 51 to 100 kg, more than 3 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte de carga o acarreode 51 a 100 kg a más de 3 km."
+  },
+  {
+    "code": "8828126750",
+    "description_es": "Servicio de transporte de carga o acarreode más de 100 kg hasta 3 km.",
+    "description_en": "Transport service or haulage for loads over 100 kg, up to 3 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte de carga o acarreode más de 100 kg hasta 3 km."
+  },
+  {
+    "code": "8828126751",
+    "description_es": "Servicio de transporte de carga o acarreo de más de 100 kg a más de 3 km.",
+    "description_en": "Transport service or haulage for loads over 100 kg, more than 3 km.",
+    "unit": "EACH",
+    "activity": "Servicio de transporte de carga o acarreo de más de 100 kg a más de 3 km."
+  },
+  {
+    "code": "8828127965",
+    "description_es": "Provisión de recurso técnico especializado para ejecución de actividades correctivas y preventivas en telecomunicaciones, energía y sistemas de media/baja tensión, segun perfil Active FME.\nIncluye: EPP, herramientas, ejecución de actividades correctivas/preventivas, etc. Reportes en sistemas Huawei/Telefónica (OT/Ticket firmado + fotos georreferenciadas). Resolucion de actividades en telecom (troubleshooting, upgrades, instalación/desinstalación HW, mantenimiento radio bases, routers, switches, SDH/PDH/IP, enlaces satelitales, Core, TX-BH).\nExcluye: movilidad urbana, interurbana o rural, repuestos y equipos pesados.",
+    "description_en": "Provision of specialized technical resource for the execution of corrective and preventive activities in telecommunications, power, and MV/LV systems, according to the Active FME profile.\nIncludes: PPE, tools, execution of corrective/preventive activities, reporting in Huawei/Telefónica systems (signed WO/Ticket + georeferenced photos). Telecom activities such as troubleshooting, upgrades, HW installation/uninstallation, maintenance of radio bases, routers, switches, SDH/PDH/IP, satellite links, Core, TX-BH.\nExcludes: urban, interurban or rural mobility, spare parts, and heavy equipment.",
+    "unit": "DAY",
+    "activity": "Provisión de recurso técnico especializado para ejecución de actividades correctivas y preventivas en telecomunicaciones, energía y sistemas de media/baja tensión, segun perfil Active FME.\nIncluye: EPP, herramientas, ejecución de actividades correctivas/preventivas, etc. Reportes en sistemas Huawei/Telefónica (OT/Ticket firmado + fotos georreferenciadas). Resolucion de actividades en telecom (troubleshooting, upgrades, instalación/desinstalación HW, mantenimiento radio bases, routers, switches, SDH/PDH/IP, enlaces satelitales, Core, TX-BH).\nExcluye: movilidad urbana, interurbana o rural, repuestos y equipos pesados."
+  },
+  {
+    "code": "8828127966",
+    "description_es": "Provisión de recurso técnico especializado para ejecución de actividades correctivas y preventivas en telecomunicaciones, energía y sistemas de media/baja tensión, segun perfil Passive FME\nIncluye: EPP, herramientas, ejecución de actividades correctivas/preventivas, etc. Reportes en sistemas Huawei/Telefónica (OT/Ticket firmado + fotos georreferenciadas). Resolucion de actividades como reparación de motores eléctricos, sistemas de refrigeración y compresores, reparaciones mecánico/eléctrico en DC, GEP, TTA, TTS, switchgear, fuel systems, experto en sistemas UPS (línea y bypass) y tableros AC/LMT/BT.\nExcluye: movilidad urbana, interurbana o rural, repuestos y equipos pesados.",
+    "description_en": "Provision of specialized technical resource for the execution of corrective and preventive activities in telecommunications, power, and MV/LV systems, according to the Passive FME profile.\nIncludes: PPE, tools, execution of corrective/preventive activities, reporting in Huawei/Telefónica systems (signed WO/Ticket + georeferenced photos). Activities such as repair of electric motors, cooling systems and compressors, mechanical/electrical repairs in DC, GEP, TTA, TTS, switchgear, fuel systems, and expertise in UPS systems (line and bypass) and AC/LMT/BT panels.\nExcludes: urban, interurban or rural mobility, spare parts, and heavy equipment.",
+    "unit": "DAY",
+    "activity": "Provisión de recurso técnico especializado para ejecución de actividades correctivas y preventivas en telecomunicaciones, energía y sistemas de media/baja tensión, segun perfil Passive FME\nIncluye: EPP, herramientas, ejecución de actividades correctivas/preventivas, etc. Reportes en sistemas Huawei/Telefónica (OT/Ticket firmado + fotos georreferenciadas). Resolucion de actividades como reparación de motores eléctricos, sistemas de refrigeración y compresores, reparaciones mecánico/eléctrico en DC, GEP, TTA, TTS, switchgear, fuel systems, experto en sistemas UPS (línea y bypass) y tableros AC/LMT/BT.\nExcluye: movilidad urbana, interurbana o rural, repuestos y equipos pesados."
+  },
+  {
+    "code": "8828126752",
+    "description_es": "Provisión de recurso técnico para trabajos de infraestructura civil/electromecánica menor en sitio.\nIncluye: reparaciones menores civiles, sanitarias y electricas, cimentaciones, resanes, canalizaciones, impermiabilizados, pintado, cambio de artefactos electricos-eletromecanicos,  y limpieza técnica, con EPP, herramientas y reportes (OT/Ticket firmado + fotos).\nExcluye: movilidad urbana, interurbana o rural, repuestos y equipos pesados.",
+    "description_en": "Provision of technical resource for minor civil/electromechanical infrastructure works on-site.\nIncludes: minor repairs, small foundations, ducting, and technical cleaning, with PPE, tools, and reporting (signed WO/Ticket + photos).\nExcludes: urban, interurban or rural mobility, spare parts, and heavy equipment.",
+    "unit": "DAY",
+    "activity": "Provisión de recurso técnico para trabajos de infraestructura civil/electromecánica menor en sitio.\nIncluye: reparaciones menores civiles, sanitarias y electricas, cimentaciones, resanes, canalizaciones, impermiabilizados, pintado, cambio de artefactos electricos-eletromecanicos,  y limpieza técnica, con EPP, herramientas y reportes (OT/Ticket firmado + fotos).\nExcluye: movilidad urbana, interurbana o rural, repuestos y equipos pesados."
+  },
+  {
+    "code": "8828126753",
+    "description_es": "Servicio de grúa para izaje y maniobras controladas en sitio.",
+    "description_en": "Crane service for lifting and controlled maneuvers on site.",
+    "unit": "Hour",
+    "activity": "Servicio de grúa para izaje y maniobras controladas en sitio."
+  },
+  {
+    "code": "8828126754",
+    "description_es": "Servicio de control de accesos y seguridad en instalaciones.",
+    "description_en": "Access control and security service at facilities.",
+    "unit": "DAY",
+    "activity": "Servicio de control de accesos y seguridad en instalaciones."
+  },
+  {
+    "code": "8828098263",
+    "description_es": "Actualización de información energética y de instalaciones por local (inventario, planos, archivo único).",
+    "description_en": "Update of energy and facility information by site (inventory, plans, single-file).",
+    "unit": "EACH",
+    "activity": "Actualización de información energética y de instalaciones por local (inventario, planos, archivo único)."
+  },
+  {
+    "code": "8828126755",
+    "description_es": "Servicio documental, incluye negociaciones con concesionaria, obtención de conformidad contractual, actualización legal y entrega en CD.",
+    "description_en": "Document service, including negotiations with concessionaire, contract compliance, legal conformity update, and CD delivery.",
+    "unit": "EACH",
+    "activity": "Servicio documental, incluye negociaciones con concesionaria, obtención de conformidad contractual, actualización legal y entrega en CD."
+  },
+  {
+    "code": "8828100186",
+    "description_es": "Preparación de expediente técnico de obra, incluye visitas, levantamiento de información y transporte.",
+    "description_en": "Preparation of technical work file, including site visits, data collection, and transportation.",
+    "unit": "EACH",
+    "activity": "Preparación de expediente técnico de obra, incluye visitas, levantamiento de información y transporte."
+  },
+  {
+    "code": "8828126756",
+    "description_es": "Provisión de viático para atención de tickets fuera de la oficina FM, por día.",
+    "description_en": "Allowance for ticket attention outside FM office, per day.",
+    "unit": "DAY",
+    "activity": "Provisión de viático para atención de tickets fuera de la oficina FM, por día."
+  },
+  {
+    "code": "8828126757",
+    "description_es": "Gastos misceláneos reembolsables de O&M debidamente documentados.",
+    "description_en": "O&M miscellaneous reimbursable expenses, duly documented.",
+    "unit": "EACH",
+    "activity": "Gastos misceláneos reembolsables de O&M debidamente documentados."
+  },
+  {
+    "code": "8828101839",
+    "description_es": "Gestion de acarreo de combustible (Incluye galoneras, bidones, etc).",
+    "description_en": "Fuel hauling management (Includes fuel cans, jerrycans, and related containers).",
+    "unit": "EACH",
+    "activity": "Gestion de acarreo de combustible (Incluye galoneras, bidones, etc)."
+  },
+  {
+    "code": "8828126758",
+    "description_es": "Suministro de extractor axial de 300 CFM, incluyendo soportes y conexiones.",
+    "description_en": "Supply of 300 CFM axial air exhaust, including brackets and connections.",
+    "unit": "EACH",
+    "activity": "Suministro de extractor axial de 300 CFM, incluyendo soportes y conexiones."
+  },
+  {
+    "code": "8828126759",
+    "description_es": "Suministro de extractor centrífugo de 400 CFM, incluyendo soportes y conexiones.",
+    "description_en": "Supply of 400 CFM centrifugal air exhaust, including brackets and connections.",
+    "unit": "EACH",
+    "activity": "Suministro de extractor centrífugo de 400 CFM, incluyendo soportes y conexiones."
+  },
+  {
+    "code": "8828126760",
+    "description_es": "Suministro de extractor/inyector de aire 1HP, 550 rpm, monofásico/trifásico 220V, con correa.",
+    "description_en": "Supply of air extractor/injector 1HP, 550 rpm, single/three-phase 220V, with belt.",
+    "unit": "EACH",
+    "activity": "Suministro de extractor/inyector de aire 1HP, 550 rpm, monofásico/trifásico 220V, con correa."
+  },
+  {
+    "code": "8828097123",
+    "description_es": "Suministro de aceite Emkarate, galón x 1.",
+    "description_en": "Supply of Emkarate oil, 1 gallon x1.",
+    "unit": "EACH",
+    "activity": "Suministro de aceite Emkarate, galón x 1."
+  },
+  {
+    "code": "8828126761",
+    "description_es": "Suministro y recarga de nitrógeno, incluye servicio.",
+    "description_en": "Supply and refill of nitrogen, including service.",
+    "unit": "cu.m.",
+    "activity": "Suministro y recarga de nitrógeno, incluye servicio."
+  },
+  {
+    "code": "8828126762",
+    "description_es": "Suministro de gas refrigerante R32, 1 balón = 1 unidad.",
+    "description_en": "Supply of refrigerant gas R32, 1 cylinder = 1 unit.",
+    "unit": "PCS",
+    "activity": "Suministro de gas refrigerante R32, 1 balón = 1 unidad."
+  },
+  {
+    "code": "8828126763",
+    "description_es": "Suministro de gas refrigerante R407c, 1 balón = 1 unidad.",
+    "description_en": "Supply of refrigerant gas R407c, 1 cylinder = 1 unit.",
+    "unit": "PCS",
+    "activity": "Suministro de gas refrigerante R407c, 1 balón = 1 unidad."
+  },
+  {
+    "code": "8828126764",
+    "description_es": "Suministro de gas refrigerante R410a, 1 balón = 1 unidad.",
+    "description_en": "Supply of refrigerant gas R410a, 1 cylinder = 1 unit.",
+    "unit": "PCS",
+    "activity": "Suministro de gas refrigerante R410a, 1 balón = 1 unidad."
+  },
+  {
+    "code": "8828126765",
+    "description_es": "Suministro de barra de tierra con 18 perforaciones y aisladores.",
+    "description_en": "Supply of earth bar with 18 holes and insulators.",
+    "unit": "EACH",
+    "activity": "Suministro de barra de tierra con 18 perforaciones y aisladores."
+  },
+  {
+    "code": "8828099245",
+    "description_es": "Suministro de cable eléctrico 1x35 mm² THW o 2 AWG, con terminaciones.",
+    "description_en": "Supply of 1x35 mm² THW or 2 AWG electrical cable, with terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable eléctrico 1x35 mm² THW o 2 AWG, con terminaciones."
+  },
+  {
+    "code": "8828099234",
+    "description_es": "Suministro de cable eléctrico 1x50 mm² THW o 1/0 AWG, con terminaciones.",
+    "description_en": "Supply of 1x50 mm² THW or 1/0 AWG electrical cable, with terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable eléctrico 1x50 mm² THW o 1/0 AWG, con terminaciones."
+  },
+  {
+    "code": "8828126766",
+    "description_es": "Suministro de contactor de 400 A LC1F400, incluyendo pruebas.",
+    "description_en": "Supply of 400 A contactor LC1F400, including testing.",
+    "unit": "EACH",
+    "activity": "Suministro de contactor de 400 A LC1F400, incluyendo pruebas."
+  },
+  {
+    "code": "8828126767",
+    "description_es": "Suministro de contactor de 500 A LC1F500, incluyendo pruebas.",
+    "description_en": "Supply of 500 A contactor LC1F500, including testing.",
+    "unit": "EACH",
+    "activity": "Suministro de contactor de 500 A LC1F500, incluyendo pruebas."
+  },
+  {
+    "code": "8828126768",
+    "description_es": "Suministro de contactor de 630 A LC1F630, incluyendo pruebas.",
+    "description_en": "Supply of 630 A contactor LC1F630, including testing.",
+    "unit": "EACH",
+    "activity": "Suministro de contactor de 630 A LC1F630, incluyendo pruebas."
+  },
+  {
+    "code": "8828126769",
+    "description_es": "Suministro de bobina para contactor de 500 A.",
+    "description_en": "Supply of coil for 500 A contactor.",
+    "unit": "PCS",
+    "activity": "Suministro de bobina para contactor de 500 A."
+  },
+  {
+    "code": "8828126770",
+    "description_es": "Suministro de bobina para contactor de 400 A.",
+    "description_en": "Supply of coil for 400 A contactor.",
+    "unit": "PCS",
+    "activity": "Suministro de bobina para contactor de 400 A."
+  },
+  {
+    "code": "8828126771",
+    "description_es": "Suministro de interruptor termomagnético C1251 N STR25DE, 3 polos, rango ajustable de 500 a 1250 A, incluyendo pruebas de operación y puesta en servicio.",
+    "description_en": "Supply of circuit breaker C1251 N STR25DE, 3-pole, adjustable range from 500 to 1250 A, including operational testing and commissioning.",
+    "unit": "PCS",
+    "activity": "Suministro de interruptor termomagnético C1251 N STR25DE, 3 polos, rango ajustable de 500 a 1250 A, incluyendo pruebas de operación y puesta en servicio."
+  },
+  {
+    "code": "8828099118",
+    "description_es": "Suministro de cable 3×1x10 mm² NYY 6/1 kV, incluyendo terminaciones.",
+    "description_en": "Supply of 3×1x19 mm² NYY 6/1 kV cable, including terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable 3×1x10 mm² NYY 6/1 kV, incluyendo terminaciones."
+  },
+  {
+    "code": "8828099110",
+    "description_es": "Suministro de cable 3×1x16 mm² NYY 6/1 kV, incluyendo terminaciones.",
+    "description_en": "Supply of 3×1x16 mm² NYY 6/1 kV cable, including terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable 3×1x16 mm² NYY 6/1 kV, incluyendo terminaciones."
+  },
+  {
+    "code": "8828099068",
+    "description_es": "Suministro de cable 3×1x185 mm² NYY 6/1 kV, incluyendo terminaciones.",
+    "description_en": "Supply of 3×1x185 mm² NYY 6/1 kV cable, including terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable 3×1x185 mm² NYY 6/1 kV, incluyendo terminaciones."
+  },
+  {
+    "code": "8828099102",
+    "description_es": "Suministro de cable eléctrico 3×1x25 mm² NYY 0.6/1 kV, con terminaciones.",
+    "description_en": "Supply of 3×1x25 mm² NYY 0.6/1 kV electrical cable, with terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable eléctrico 3×1x25 mm² NYY 0.6/1 kV, con terminaciones."
+  },
+  {
+    "code": "8828099092",
+    "description_es": "Suministro de cable eléctrico 3×1x35 mm² NYY 0.6/1 kV, con terminaciones.",
+    "description_en": "Supply of 3×1x35 mm² NYY 0.6/1 kV electrical cable, with terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable eléctrico 3×1x35 mm² NYY 0.6/1 kV, con terminaciones."
+  },
+  {
+    "code": "8828099084",
+    "description_es": "Suministro de cable eléctrico 3×1x70 mm² NYY 0.6/1 kV, con terminaciones.",
+    "description_en": "Supply of 3×1x70 mm² NYY 0.6/1 kV electrical cable, with terminations.",
+    "unit": "M",
+    "activity": "Suministro de cable eléctrico 3×1x70 mm² NYY 0.6/1 kV, con terminaciones."
+  },
+  {
+    "code": "8828098796",
+    "description_es": "Suministro de poste CAC 13/400.",
+    "description_en": "Supply of CAC post 13/400.",
+    "unit": "EACH",
+    "activity": "Suministro de poste CAC 13/400."
+  },
+  {
+    "code": "8828126772",
+    "description_es": "Suministro de tablero eléctrico con interruptor principal regulable hasta 1250 A.",
+    "description_en": "Supply of electrical board with main switch up to 1250 A, adjustable.",
+    "unit": "PCS",
+    "activity": "Suministro de tablero eléctrico con interruptor principal regulable hasta 1250 A."
+  },
+  {
+    "code": "8828126773",
+    "description_es": "Suministro de tablero eléctrico con interruptor principal regulable hasta 2000 A.",
+    "description_en": "Supply of electrical board with main switch up to 2000 A, adjustable.",
+    "unit": "PCS",
+    "activity": "Suministro de tablero eléctrico con interruptor principal regulable hasta 2000 A."
+  },
+  {
+    "code": "8828126774",
+    "description_es": "Suministro de FS-195 con tira en caja.",
+    "description_en": "Supply of FS-195 with strip, in box.",
+    "unit": "PCS",
+    "activity": "Suministro de FS-195 con tira en caja."
+  },
+  {
+    "code": "8828126775",
+    "description_es": "Suministro de kit de cabeza terminal 10 kV.",
+    "description_en": "Supply of 10 kV terminal head kit.",
+    "unit": "EACH",
+    "activity": "Suministro de kit de cabeza terminal 10 kV."
+  },
+  {
+    "code": "8828099313",
+    "description_es": "Suministro de aisladores de resina para 1 kV.",
+    "description_en": "Supply of resin insulators for 1 kV.",
+    "unit": "PCS",
+    "activity": "Suministro de aisladores de resina para 1 kV."
+  },
+  {
+    "code": "8828099468",
+    "description_es": "Suministro de cable de cobre suave 1x35 mm² o 2 AWG.",
+    "description_en": "Supply of soft bare Cu cable 1x35 mm² or 2 AWG.",
+    "unit": "M",
+    "activity": "Suministro de cable de cobre suave 1x35 mm² o 2 AWG."
+  },
+  {
+    "code": "8828127967",
+    "description_es": "Suministro de supresores de transientes (TVSS) 110–600 V.",
+    "description_en": "Supply of transient suppressors (TVSS) 110–600 V.",
+    "unit": "EACH",
+    "activity": "Suministro de supresores de transientes (TVSS) 110–600 V."
+  },
+  {
+    "code": "8828126776",
+    "description_es": "Suministro e instalación de batería con sistema antirrobo, incluye materiales y pruebas de funcionamiento.",
+    "description_en": "Supply and installation of anti-theft battery, including materials and functional testing.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de batería con sistema antirrobo, incluye materiales y pruebas de funcionamiento."
+  },
+  {
+    "code": "8828126777",
+    "description_es": "Alquiler y operación de Colt/Mini Trailer/Mobile Rack (Microcolt), incluye operación, combustible, consumibles y pago de energía en AC.",
+    "description_en": "Rental and operation of Colt/Mini Trailer/Mobile Rack (Microcolt), including operation, fuel, consumables, and AC energy payment.",
+    "unit": "EACH",
+    "activity": "Alquiler y operación de Colt/Mini Trailer/Mobile Rack (Microcolt), incluye operación, combustible, consumibles y pago de energía en AC."
+  },
+  {
+    "code": "8828126778",
+    "description_es": "Suministro de tablero eléctrico con interruptor principal regulable hasta 630 A.",
+    "description_en": "Supply of electrical board with main switch up to 630 A, adjustable.",
+    "unit": "EACH",
+    "activity": "Suministro de tablero eléctrico con interruptor principal regulable hasta 630 A."
+  },
+  {
+    "code": "8828126779",
+    "description_es": "Suministro e instalación de bomba sumergible Electromba 250 gpm, 5 HP, con sistema de control.",
+    "description_en": "Supply and installation of Electromba submersible pump 250 gpm, 5 HP, with control part.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de bomba sumergible Electromba 250 gpm, 5 HP, con sistema de control."
+  },
+  {
+    "code": "8828126780",
+    "description_es": "Suministro de medidor electrónico tipo A1-R con doble registro de energía activa y reactiva, incluye terminales y cables de conexión.",
+    "description_en": "Supply of electronic meter type A1-R with double registration of active and reactive energy, including terminals and connection cables.",
+    "unit": "PCS",
+    "activity": "Suministro de medidor electrónico tipo A1-R con doble registro de energía activa y reactiva, incluye terminales y cables de conexión."
+  },
+  {
+    "code": "8828126781",
+    "description_es": "Suministro e instalación de bomba eléctrica de levante para grupo electrógeno, incluye montaje, conexionado, pruebas de operación y verificación de funcionamiento en carga.",
+    "description_en": "Supply and installation of genset lift electrical pump, including mounting, wiring, operational testing, and load performance verification.",
+    "unit": "PCS",
+    "activity": "Suministro e instalación de bomba eléctrica de levante para grupo electrógeno, incluye montaje, conexionado, pruebas de operación y verificación de funcionamiento en carga."
+  },
+  {
+    "code": "8828099287",
+    "description_es": "Suministro de interruptor termomagnético trifásico NS regulable 252A–630A.",
+    "description_en": "Supply of ITM three-phase NS series circuit breaker, adjustable 252A–630A.",
+    "unit": "EACH",
+    "activity": "Suministro de interruptor termomagnético trifásico NS regulable 252A–630A."
+  },
+  {
+    "code": "8828098981",
+    "description_es": "Suministro de interruptor termomagnético trifásico riel 40 A.",
+    "description_en": "Supply of ITM three-phase rail type 40 A circuit breaker.",
+    "unit": "PCS",
+    "activity": "Suministro de interruptor termomagnético trifásico riel 40 A."
+  },
+  {
+    "code": "8828126782",
+    "description_es": "Suministro de interruptor NB250N 225A 3P.",
+    "description_en": "Supply of NB250N 225A 3P circuit breaker.",
+    "unit": "PCS",
+    "activity": "Suministro de interruptor NB250N 225A 3P."
+  },
+  {
+    "code": "8828126783",
+    "description_es": "Suministro de energizador Spedrite de alta potencia 1500 W.",
+    "description_en": "Supply Spedrite high powered energizer 1500 W.",
+    "unit": "PCS",
+    "activity": "Suministro de energizador Spedrite de alta potencia 1500 W."
+  },
+  {
+    "code": "8828126784",
+    "description_es": "Suministro e instalación de cargador de potencia para telecomunicaciones.",
+    "description_en": "Supply and installation of telecom power charger.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de cargador de potencia para telecomunicaciones."
+  },
+  {
+    "code": "8828099240",
+    "description_es": "Suministro de voltímetro conmutador R,S,T,Q,L.",
+    "description_en": "Supply of voltmeter switch R,S,T,Q,L.",
+    "unit": "PCS",
+    "activity": "Suministro de voltímetro conmutador R,S,T,Q,L."
+  },
+  {
+    "code": "8828098806",
+    "description_es": "Desmontaje y retiro de transformador de 100 a 160 kVA, incluye desconexión y disposición.",
+    "description_en": "Dismantling and removal of transformer from 100 to 160 kVA, including disconnection and disposal.",
+    "unit": "EACH",
+    "activity": "Desmontaje y retiro de transformador de 100 a 160 kVA, incluye desconexión y disposición."
+  },
+  {
+    "code": "8828126785",
+    "description_es": "Desmontaje e instalación de transformador de potencia de 10 a 15 kVA.",
+    "description_en": "Disassembly and installation of power transformer 10 to 15 kVA.",
+    "unit": "EACH",
+    "activity": "Desmontaje e instalación de transformador de potencia de 10 a 15 kVA."
+  },
+  {
+    "code": "8828126786",
+    "description_es": "Desmontaje e instalación de transformador de potencia de 25 a 37.5 kVA.",
+    "description_en": "Disassembly and installation of power transformer 25 to 37.5 kVA.",
+    "unit": "EACH",
+    "activity": "Desmontaje e instalación de transformador de potencia de 25 a 37.5 kVA."
+  },
+  {
+    "code": "8828126787",
+    "description_es": "Desmontaje e instalación de transformador de potencia de 100 a 160 kVA.",
+    "description_en": "Disassembly and installation of power transformer 100 to 160 kVA.",
+    "unit": "EACH",
+    "activity": "Desmontaje e instalación de transformador de potencia de 100 a 160 kVA."
+  },
+  {
+    "code": "8828126788",
+    "description_es": "Desmontaje e instalación de transformador de potencia de 50 a 80 kVA.",
+    "description_en": "Disassembly and installation of power transformer 50 to 80 kVA.",
+    "unit": "EACH",
+    "activity": "Desmontaje e instalación de transformador de potencia de 50 a 80 kVA."
+  },
+  {
+    "code": "8828127968",
+    "description_es": "Suministro de jumpers ópticos de 15 m (LC/PC – FC/PC), fibra dúplex monomodo.",
+    "description_en": "Supply of 15 m optical jumpers (LC/PC – FC/PC), single-mode duplex fiber.",
+    "unit": "EACH",
+    "activity": "Suministro de jumpers ópticos de 15 m (LC/PC – FC/PC), fibra dúplex monomodo."
+  },
+  {
+    "code": "8828098252",
+    "description_es": "Instalación de antena y prueba de punto cero utilizando equipos de prueba provistos por el contratista.",
+    "description_en": "Installation of antenna and zero-point test using test equipment provided by the contractor.",
+    "unit": "EACH",
+    "activity": "Instalación de antena y prueba de punto cero utilizando equipos de prueba provistos por el contratista."
+  },
+  {
+    "code": "8828098193",
+    "description_es": "Desmontaje de radioenlace Minilink o similar de hasta 1.2 m, incluye mano de obra, retiro de equipos IDU/ODU, antena y cable IF.",
+    "description_en": "Dismantling of Minilink radio link or similar up to 1.2 m, including labor, removal of IDU/ODU equipment, antenna, and IF cable.",
+    "unit": "EACH",
+    "activity": "Desmontaje de radioenlace Minilink o similar de hasta 1.2 m, incluye mano de obra, retiro de equipos IDU/ODU, antena y cable IF."
+  },
+  {
+    "code": "8828126789",
+    "description_es": "Suministro de tableros TTA de 2500 A a 5000 A, incluyendo todos los accesorios y puesta en marcha",
+    "description_en": "Supply TTA panels from 2500 A to 5000 A, including all accessories and commissioning",
+    "unit": "EACH",
+    "activity": "Suministro de tableros TTA de 2500 A a 5000 A, incluyendo todos los accesorios y puesta en marcha"
+  },
+  {
+    "code": "8828126790",
+    "description_es": "Ejecución de perforación e instalación de un pozo a tierra con varilla de cobre y Thor Gel, incluyendo accesorios e interconexión al SPAT.",
+    "description_en": "Execute drilling and installation of one ground well with copper rod and Thor Gel, including accessories and interconnection to SPAT",
+    "unit": "EACH",
+    "activity": "Ejecución de perforación e instalación de un pozo a tierra con varilla de cobre y Thor Gel, incluyendo accesorios e interconexión al SPAT."
+  },
+  {
+    "code": "8828126791",
+    "description_es": "Suministro, transporte e instalación de banco de paneles solares con estructuras de soporte y seguro antirrobo.",
+    "description_en": "Supply, transportation, and installation of solar panel bank with support structures and anti-theft insurance.",
+    "unit": "EACH",
+    "activity": "Suministro, transporte e instalación de banco de paneles solares con estructuras de soporte y seguro antirrobo."
+  },
+  {
+    "code": "8828127969",
+    "description_es": "Recarga, transporte e instalación de extintor de CO₂ de 10 lbs en sitio.",
+    "description_en": "Recharge, transport, and installation of 10 lbs CO₂ fire extinguisher at site.",
+    "unit": "EACH",
+    "activity": "Recarga, transporte e instalación de extintor de CO₂ de 10 lbs en sitio."
+  },
+  {
+    "code": "8828126792",
+    "description_es": "Mantenimiento, recarga y transporte de extintor de globo FM-200 de 105 lbs.",
+    "description_en": "Maintenance, recharge, and transportation of FM-200 balloon fire extinguisher 105 lbs.",
+    "unit": "EACH",
+    "activity": "Mantenimiento, recarga y transporte de extintor de globo FM-200 de 105 lbs."
+  },
+  {
+    "code": "8828126793",
+    "description_es": "Provisión de alquiler de andamios, incluyendo transporte y armado/desarmado.",
+    "description_en": "Provide scaffold rental, including transport and assembly/dismantling.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de andamios, incluyendo transporte y armado/desarmado."
+  },
+  {
+    "code": "8828126794",
+    "description_es": "Recarga, transporte e instalación de extintor PQS de 5/6 kg en sitio.",
+    "description_en": "Recharge, transport, and installation of 5/6 kg PQS fire extinguisher at site.",
+    "unit": "EACH",
+    "activity": "Recarga, transporte e instalación de extintor PQS de 5/6 kg en sitio."
+  },
+  {
+    "code": "8828126795",
+    "description_es": "Suministro e instalación de postes de concreto de 9 m y 11 m, incluyendo accesorios.",
+    "description_en": "Supply and installation of 9 m and 11 m concrete posts, including accessories.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de postes de concreto de 9 m y 11 m, incluyendo accesorios."
+  },
+  {
+    "code": "8828126796",
+    "description_es": "Suministro e instalación de lámpara fluorescente 36W BE-L 1X36W_AF.",
+    "description_en": "Supply and installation of 36W fluorescent lamp BE-L 1X36W_AF.",
+    "unit": "PCS",
+    "activity": "Suministro e instalación de lámpara fluorescente 36W BE-L 1X36W_AF."
+  },
+  {
+    "code": "8828098014",
+    "description_es": "Suministro e instalación aérea de cable BT en poste de aluminio, 3×1x35 mm² NYY 0.6/1 kV, incluye accesorios.",
+    "description_en": "Supply and aerial installation of BT cable on aluminum pole, 3×1x35 mm² NYY 0.6/1 kV, including accessories.",
+    "unit": "M",
+    "activity": "Suministro e instalación aérea de cable BT en poste de aluminio, 3×1x35 mm² NYY 0.6/1 kV, incluye accesorios."
+  },
+  {
+    "code": "8828126797",
+    "description_es": "Transporte y disposición de material excedente mediante equipo, incluye residuos de obra civil.",
+    "description_en": "Carrying and disposal of surplus material with equipment, including civil works waste.",
+    "unit": "cu.m.",
+    "activity": "Transporte y disposición de material excedente mediante equipo, incluye residuos de obra civil."
+  },
+  {
+    "code": "8828127970",
+    "description_es": "Suministro e instalación de canal con división 40×25 mm x 2 m.",
+    "description_en": "Supply and installation of channel with division 40×25 mm x 2 m.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de canal con división 40×25 mm x 2 m."
+  },
+  {
+    "code": "8828126798",
+    "description_es": "Servicio de limpieza de salas técnicas, incluye retiro de polvo, residuos y desinfección básica.",
+    "description_en": "Cleaning service of technical rooms, including removal of dust, waste, and basic disinfection.",
+    "unit": "M*M",
+    "activity": "Servicio de limpieza de salas técnicas, incluye retiro de polvo, residuos y desinfección básica."
+  },
+  {
+    "code": "8828126799",
+    "description_es": "Servicio de reparación de concertinas, incluye suministro de materiales y mano de obra para instalación.",
+    "description_en": "Concertina repair service, including supply of materials and labor for installation.",
+    "unit": "M",
+    "activity": "Servicio de reparación de concertinas, incluye suministro de materiales y mano de obra para instalación."
+  },
+  {
+    "code": "8828126800",
+    "description_es": "Servicio de mantenimiento preventivo de concertinas y tripuntas, incluye revisión, ajuste y limpieza.",
+    "description_en": "Preventive maintenance service for barbed wire concertinas and tripuntas, including inspection, adjustment, and cleaning.",
+    "unit": "M",
+    "activity": "Servicio de mantenimiento preventivo de concertinas y tripuntas, incluye revisión, ajuste y limpieza."
+  },
+  {
+    "code": "8828126801",
+    "description_es": "Suministro de cruceta de concreto LBT/MT.",
+    "description_en": "Supply of LBT/MT concrete cross arm.",
+    "unit": "EACH",
+    "activity": "Suministro de cruceta de concreto LBT/MT."
+  },
+  {
+    "code": "8828126802",
+    "description_es": "Suministro de caja de registro de concreto con tapa, para SPAT.",
+    "description_en": "Supply of concrete registration box with lid, for SPAT.",
+    "unit": "EACH",
+    "activity": "Suministro de caja de registro de concreto con tapa, para SPAT."
+  },
+  {
+    "code": "8828128200",
+    "description_es": "Suministro de tubería conduit de 1”.",
+    "description_en": "Supply of 1” diameter conduit pipe.",
+    "unit": "M",
+    "activity": "Suministro de tubería conduit de 1”."
+  },
+  {
+    "code": "8828097364",
+    "description_es": "Construcción en terreno de corte y roca fija, con ancho de 1.00 m, incluye excavación, conformación y disposición de material.",
+    "description_en": "Construction work in cut soil and fixed rock, width 1.00 m, including excavation, shaping, and material disposal.",
+    "unit": "M",
+    "activity": "Construcción en terreno de corte y roca fija, con ancho de 1.00 m, incluye excavación, conformación y disposición de material."
+  },
+  {
+    "code": "8828126803",
+    "description_es": "Construcción de muro o nicho para suministro en baja tensión, incluye caja, cuello de ganso, tarrajeo, pintura y limpieza del área.",
+    "description_en": "Construction of wall or niche for LV supply, including box, gooseneck, plastering, painting, and site cleaning.",
+    "unit": "EACH",
+    "activity": "Construcción de muro o nicho para suministro en baja tensión, incluye caja, cuello de ganso, tarrajeo, pintura y limpieza del área."
+  },
+  {
+    "code": "8828126804",
+    "description_es": "Mantenimiento correctivo de torre monoposte, poste o mástil, incluye inspección, reparación, trabajo de pintura (Incluir prueba de adherencia y verificacion con micrometro por cuerpo).\nIncluye: Pintado 3 capas, Base, Sub base y Acabados. Pintura Homologada",
+    "description_en": "Corrective maintenance of monopole tower, pole or mast, including inspection, repair, and painting works (including adhesion test and verification with micrometer per section).\nIncludes: 3-coat painting, base, sub-base, and finishing. Homologated paint.",
+    "unit": "M",
+    "activity": "Mantenimiento correctivo de torre monoposte, poste o mástil, incluye inspección, reparación, trabajo de pintura (Incluir prueba de adherencia y verificacion con micrometro por cuerpo).\nIncluye: Pintado 3 capas, Base, Sub base y Acabados. Pintura Homologada"
+  },
+  {
+    "code": "8828126805",
+    "description_es": "Mantenimiento correctivo de torre autosoportada de más de 35 m, incluye inspección, trabajo de pintura (Incluir prueba de adherencia y verificacion con micrometro por cuerpo).\nIncluye: Pintado 3 capas, Base, Sub base y Acabados. Pintura Homologada",
+    "description_en": "Corrective maintenance of self-supported tower over 35 m, including inspection, repair, and painting works (including adhesion test and verification with micrometer per section).\nIncludes: 3-coat painting, base, sub-base, and finishing. Homologated paint.",
+    "unit": "EACH",
+    "activity": "Mantenimiento correctivo de torre autosoportada de más de 35 m, incluye inspección, trabajo de pintura (Incluir prueba de adherencia y verificacion con micrometro por cuerpo).\nIncluye: Pintado 3 capas, Base, Sub base y Acabados. Pintura Homologada"
+  },
+  {
+    "code": "8828126806",
+    "description_es": "Mantenimiento correctivo de torre autosoportada de hasta 35 m, incluye inspección, trabajo de pintura (Incluir prueba de adherencia y verificacion con micrometro por cuerpo)\nIncluye: Pintado 3 capas, Base, Sub base y Acabados. Pintura Homologada",
+    "description_en": "Corrective maintenance of self-supported tower up to 35 m, including inspection, repair, and painting works (including adhesion test and verification with micrometer per section).\nIncludes: 3-coat painting, base, sub-base, and finishing. Approved paint.",
+    "unit": "EACH",
+    "activity": "Mantenimiento correctivo de torre autosoportada de hasta 35 m, incluye inspección, trabajo de pintura (Incluir prueba de adherencia y verificacion con micrometro por cuerpo)\nIncluye: Pintado 3 capas, Base, Sub base y Acabados. Pintura Homologada"
+  },
+  {
+    "code": "8828098068",
+    "description_es": "Suministro e instalación de cobertura con plancha Fibrafote tipo Superforte, e=2.7 mm, incluyendo elementos de fijación, accesorios y montaje.",
+    "description_en": "Supply and installation of Fibrafote plate coverage, Superforte type, e=2.7 mm, including fixing elements, accessories, and installation.",
+    "unit": "M*M",
+    "activity": "Suministro e instalación de cobertura con plancha Fibrafote tipo Superforte, e=2.7 mm, incluyendo elementos de fijación, accesorios y montaje."
+  },
+  {
+    "code": "8828099158",
+    "description_es": "Suministro e instalación de cobertura con plancha Fibrafote tipo Superforte, e=2.7 mm, incluyendo elementos de sujeción y accesorios.",
+    "description_en": "Supply and installation of Fibrafote plate coverage, Superforte type, e=2.7 mm, including fastening elements and accessories.",
+    "unit": "M*M",
+    "activity": "Suministro e instalación de cobertura con plancha Fibrafote tipo Superforte, e=2.7 mm, incluyendo elementos de sujeción y accesorios."
+  },
+  {
+    "code": "8828097998",
+    "description_es": "Suministro e instalación de cobertura con calamina galvanizada, incluyendo elementos de fijación, accesorios y montaje.",
+    "description_en": "Supply and installation of galvanized steel calamine coverage, including fixing elements, accessories, and installation.",
+    "unit": "M*M",
+    "activity": "Suministro e instalación de cobertura con calamina galvanizada, incluyendo elementos de fijación, accesorios y montaje."
+  },
+  {
+    "code": "8828127971",
+    "description_es": "Suministro de cartucho CP – 25 W.",
+    "description_en": "Supply of CP – 25 W cartridge.",
+    "unit": "PCS",
+    "activity": "Suministro de cartucho CP – 25 W."
+  },
+  {
+    "code": "8828098851",
+    "description_es": "Suministro e instalación de puerta con FG, tubos, perfiles y malla galvanizada N°10 de 1x1”, incluye accesorios.",
+    "description_en": "Supply and installation of door with FG, tubes, profiles, and galvanized mesh #10, 1x1”, including accessories.",
+    "unit": "M*M",
+    "activity": "Suministro e instalación de puerta con FG, tubos, perfiles y malla galvanizada N°10 de 1x1”, incluye accesorios."
+  },
+  {
+    "code": "8828126807",
+    "description_es": "Servicio de saneamiento ambiental EBC: fumigación, desinfección, desinsectación y desratización, incluye limpieza, disposición y transporte.",
+    "description_en": "EBC environmental sanitation service: fumigation, disinfection, disinfestation, and deratization, including cleaning, disposal, and transportation.",
+    "unit": "EACH",
+    "activity": "Servicio de saneamiento ambiental EBC: fumigación, desinfección, desinsectación y desratización, incluye limpieza, disposición y transporte."
+  },
+  {
+    "code": "8828126808",
+    "description_es": "Suministro de medidor para cerco eléctrico.",
+    "description_en": "Supply of electric fence meter.",
+    "unit": "EACH",
+    "activity": "Suministro de medidor para cerco eléctrico."
+  },
+  {
+    "code": "8828126809",
+    "description_es": "Suministro e instalación de luces de emergencia, balizas y estroboscópicas, incluye montaje.",
+    "description_en": "Supply and installation of emergency lights, marker lights, and strobe lights, including installation.",
+    "unit": "PCS",
+    "activity": "Suministro e instalación de luces de emergencia, balizas y estroboscópicas, incluye montaje."
+  },
+  {
+    "code": "8828099465",
+    "description_es": "Suministro y aplicación de pintura epóxica anticorrosiva sobre superficie metálica.",
+    "description_en": "Supply and application of epoxy anti-corrosive paint on metal surface.",
+    "unit": "M*M",
+    "activity": "Suministro y aplicación de pintura epóxica anticorrosiva sobre superficie metálica."
+  },
+  {
+    "code": "8828126810",
+    "description_es": "Suministro y aplicación de pintura esmalte epóxico en carpintería metálica, incluye servicio.",
+    "description_en": "Supply and application of epoxy enamel paint in metal carpentry, including service.",
+    "unit": "M*M",
+    "activity": "Suministro y aplicación de pintura esmalte epóxico en carpintería metálica, incluye servicio."
+  },
+  {
+    "code": "8828126811",
+    "description_es": "Suministro de sistema de acceso por tarjeta magnética, incluye cajas, tuberías, terminales y accesorios.",
+    "description_en": "Supply of magnetic card access system, including boxes, pipes, terminals, and accessories.",
+    "unit": "EACH",
+    "activity": "Suministro de sistema de acceso por tarjeta magnética, incluye cajas, tuberías, terminales y accesorios."
+  },
+  {
+    "code": "8828098737",
+    "description_es": "Suministro de cerco con tubos de fierro, perfiles y malla galvanizada N°10 de 1”.",
+    "description_en": "Supply of fence with iron tubes, profiles, and galvanized wire mesh No.10, 1 inch.",
+    "unit": "M*M",
+    "activity": "Suministro de cerco con tubos de fierro, perfiles y malla galvanizada N°10 de 1”."
+  },
+  {
+    "code": "8828126812",
+    "description_es": "Suministro, instalación y desinstalación de asta de bandera.",
+    "description_en": "Supply, installation, and uninstallation of flagpole.",
+    "unit": "EACH",
+    "activity": "Suministro, instalación y desinstalación de asta de bandera."
+  },
+  {
+    "code": "8828126813",
+    "description_es": "Suministro e instalación de concertina galvanizada cilíndrica, incluye accesorios de sujeción en postes.",
+    "description_en": "Supply and installation of cylindrical galvanized wire concertina, including accessories for holding poles.",
+    "unit": "M",
+    "activity": "Suministro e instalación de concertina galvanizada cilíndrica, incluye accesorios de sujeción en postes."
+  },
+  {
+    "code": "8828100248",
+    "description_es": "Suministro de pass box metálico pesado 300x300x150 mm.",
+    "description_en": "Supply of heavy type metal pass box 300x300x150 mm.",
+    "unit": "EACH",
+    "activity": "Suministro de pass box metálico pesado 300x300x150 mm."
+  },
+  {
+    "code": "8828126814",
+    "description_es": "Suministro e instalación de luminaria hermética LED 2x36 W, incluye servicio.",
+    "description_en": "Supply and installation of hermetic LED 2x36 W, including service.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de luminaria hermética LED 2x36 W, incluye servicio."
+  },
+  {
+    "code": "8828126815",
+    "description_es": "Suministro e instalación de salida de agua caliente con tubería PVC, incluye servicio (1 punto = 1 unidad).",
+    "description_en": "Supply and installation of hot water outlet with PVC pipe, including service (1 point = 1 unit).",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de salida de agua caliente con tubería PVC, incluye servicio (1 punto = 1 unidad)."
+  },
+  {
+    "code": "8828126816",
+    "description_es": "Suministro e instalación de poste de concreto de más de 13 m.",
+    "description_en": "Supply and installation of concrete post greater than 13 m.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de poste de concreto de más de 13 m."
+  },
+  {
+    "code": "8828098987",
+    "description_es": "Suministro e instalación de pozo a tierra con cemento conductivo, incluye accesorios e interconexión al SPAT.",
+    "description_en": "Supply and installation of ground well with conductive cement, including accessories and interconnection to SPAT.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de pozo a tierra con cemento conductivo, incluye accesorios e interconexión al SPAT."
+  },
+  {
+    "code": "8828097715",
+    "description_es": "Instalación de luminarias adosadas al techo (no incluye luminaria, andamio y/o escalera).",
+    "description_en": "Installation of lights attached to the ceiling (fixture, scaffold, and/or ladder not included).",
+    "unit": "EACH",
+    "activity": "Instalación de luminarias adosadas al techo (no incluye luminaria, andamio y/o escalera)."
+  },
+  {
+    "code": "8828126817",
+    "description_es": "Instalación de equipos RF exteriores tipo Small Cell o Repeater, incluye cables de interconexión.",
+    "description_en": "Installation of outdoor RF equipment, Small Cell or Repeater type, including interconnection cables.",
+    "unit": "EACH",
+    "activity": "Instalación de equipos RF exteriores tipo Small Cell o Repeater, incluye cables de interconexión."
+  },
+  {
+    "code": "8828126818",
+    "description_es": "Suministro e instalación de rejilla metálica para protección de medidor de energía AC, incluye pintura y provision de 7 candados.",
+    "description_en": "Supply and installation of iron grid for AC energy meter protection, including painting and provision of 7 padlocks.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de rejilla metálica para protección de medidor de energía AC, incluye pintura y provision de 7 candados."
+  },
+  {
+    "code": "8828126819",
+    "description_es": "Suministro y aplicación de pintura látex para muros exteriores, incluye servicio.",
+    "description_en": "Supply and application of latex paint for exterior walls, including service.",
+    "unit": "M*M",
+    "activity": "Suministro y aplicación de pintura látex para muros exteriores, incluye servicio."
+  },
+  {
+    "code": "8828126820",
+    "description_es": "Suministro de pararrayos.",
+    "description_en": "Supply of lightning conductors.",
+    "unit": "EACH",
+    "activity": "Suministro de pararrayos."
+  },
+  {
+    "code": "8828126821",
+    "description_es": "Suministro e instalación de poste de madera LMT/LBT de 13 m/300 m, incluye servicio.",
+    "description_en": "Supply and installation of LMT/LBT wooden pole 13 m/300 m, including service.",
+    "unit": "PCS",
+    "activity": "Suministro e instalación de poste de madera LMT/LBT de 13 m/300 m, incluye servicio."
+  },
+  {
+    "code": "8828126822",
+    "description_es": "Suministro e instalación de cerraduras, incluye servicio y limpieza.",
+    "description_en": "Supply and installation of locks, including service and cleaning.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de cerraduras, incluye servicio y limpieza."
+  },
+  {
+    "code": "8828098950",
+    "description_es": "Suministro e instalación de sistema corredizo metálico en portón de acceso, incluye placa metálica embebida en el piso y accesorios.",
+    "description_en": "Supply and installation of lower metal running system in entrance gate, including embedded floor metal plate and accessories.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de sistema corredizo metálico en portón de acceso, incluye placa metálica embebida en el piso y accesorios."
+  },
+  {
+    "code": "8828098534",
+    "description_es": "Servicio de limpieza de piso de mármol, incluye insumos y mano de obra.",
+    "description_en": "Marble floor cleaning service, including supplies and labor.",
+    "unit": "M*M",
+    "activity": "Servicio de limpieza de piso de mármol, incluye insumos y mano de obra."
+  },
+  {
+    "code": "8828097935",
+    "description_es": "Servicio de mantenimiento de carpintería metálica, incluye reparación y pintura.",
+    "description_en": "Metal carpentry maintenance service, including repair and painting.",
+    "unit": "M*M",
+    "activity": "Servicio de mantenimiento de carpintería metálica, incluye reparación y pintura."
+  },
+  {
+    "code": "8828098760",
+    "description_es": "Suministro e instalación de cerco metálico con malla galvanizada tipo “Razor” de 19 mm, tubos, elementos de fijación, accesorios, pintura anticorrosiva y esmalte epóxico. Incluye mano de obra.",
+    "description_en": "Supply and installation of metal fence with galvanized “Razor” wire mesh 19 mm, tubes, fastening elements, accessories, anti-corrosive paint and epoxy enamel. Labor included.",
+    "unit": "M*M",
+    "activity": "Suministro e instalación de cerco metálico con malla galvanizada tipo “Razor” de 19 mm, tubos, elementos de fijación, accesorios, pintura anticorrosiva y esmalte epóxico. Incluye mano de obra."
+  },
+  {
+    "code": "8828126823",
+    "description_es": "Suministro e instalación de piso técnico falso metálico modelo Al-I, incluye baldosas de aglomerado e=3 cm con lámina vinílica y de aluminio, paneles, soportes y servicio de instalación.",
+    "description_en": "Supply and installation of National Metal False Technical Floor, Model Al-I, including chipboard tiles E=3 cm with vinyl and aluminum sheet, panels, supports, and installation services.",
+    "unit": "M*M",
+    "activity": "Suministro e instalación de piso técnico falso metálico modelo Al-I, incluye baldosas de aglomerado e=3 cm con lámina vinílica y de aluminio, paneles, soportes y servicio de instalación."
+  },
+  {
+    "code": "8828100028",
+    "description_es": "Servicio de apertura y cierre de zanjas en caminos y sendas, incluye retiro de material.",
+    "description_en": "Service for opening and closing ditches on tracks and trails, including material removal.",
+    "unit": "M",
+    "activity": "Servicio de apertura y cierre de zanjas en caminos y sendas, incluye retiro de material."
+  },
+  {
+    "code": "8828100239",
+    "description_es": "Suministro e instalación de bomba eléctrica de impulsión 0.5 HP, incluye base de concreto, flotador eléctrico, tuberías de instalación, protección metálica, cable vulcanizado 3x2.5 mm², caja 1000x555x50 mm y mano de obra general.",
+    "description_en": "Supply and installation of 0.5 HP impulsion electric pump, includes concrete base, electric float, installation pipes, metal protection, 3x2.5 mm² vulcanized cable, 1000x555x50 mm box, and general labor.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de bomba eléctrica de impulsión 0.5 HP, incluye base de concreto, flotador eléctrico, tuberías de instalación, protección metálica, cable vulcanizado 3x2.5 mm², caja 1000x555x50 mm y mano de obra general."
+  },
+  {
+    "code": "8828127972",
+    "description_es": "Suministro y aplicación de pintura epóxica anticorrosiva en carpintería metálica, incluye materiales y pintado.",
+    "description_en": "Supply and application of epoxy anticorrosive paint on metal carpentry, including materials and painting.",
+    "unit": "M*M",
+    "activity": "Suministro y aplicación de pintura epóxica anticorrosiva en carpintería metálica, incluye materiales y pintado."
+  },
+  {
+    "code": "8828126824",
+    "description_es": "Suministro y aplicación de pintura de poliuretano, incluye servicio.",
+    "description_en": "Supply and application of polyurethane paint, including service.",
+    "unit": "M*M",
+    "activity": "Suministro y aplicación de pintura de poliuretano, incluye servicio."
+  },
+  {
+    "code": "8828126825",
+    "description_es": "Desmontaje e instalación de transformador de potencia de 80 a 120 kVA.",
+    "description_en": "Disassembly and installation of power transformer 80 to 120 kVA.",
+    "unit": "EACH",
+    "activity": "Desmontaje e instalación de transformador de potencia de 80 a 120 kVA."
+  },
+  {
+    "code": "8828126826",
+    "description_es": "Desmontaje e instalación de transformador de potencia de 120 a 150 kVA.",
+    "description_en": "Disassembly and installation of power transformer 120 to 150 kVA.",
+    "unit": "EACH",
+    "activity": "Desmontaje e instalación de transformador de potencia de 120 a 150 kVA."
+  },
+  {
+    "code": "8828126827",
+    "description_es": "Suministro y aplicación de Radcom Fórmula #7 (1 litro) o aditivo impermeabilizante Sikasill, incluye servicio.",
+    "description_en": "Supply and application of Radcom Formula #7 (1 liter) or Sikasill waterproofing additive, including service.",
+    "unit": "EACH",
+    "activity": "Suministro y aplicación de Radcom Fórmula #7 (1 litro) o aditivo impermeabilizante Sikasill, incluye servicio."
+  },
+  {
+    "code": "8828126828",
+    "description_es": "Retiro de alambre de púas, concertinas y mallas, incluye carga, transporte y disposición final.",
+    "description_en": "Removal of barbed wire, concertina barriers, and mesh, including loading, transportation, and final disposal.",
+    "unit": "M",
+    "activity": "Retiro de alambre de púas, concertinas y mallas, incluye carga, transporte y disposición final."
+  },
+  {
+    "code": "8828100054",
+    "description_es": "Reparación de senderos y caminos, incluye nivelación, compactación y disposición de excedentes.",
+    "description_en": "Repair of tracks and paths, including leveling, compaction, and disposal of surplus material.",
+    "unit": "M",
+    "activity": "Reparación de senderos y caminos, incluye nivelación, compactación y disposición de excedentes."
+  },
+  {
+    "code": "8828126829",
+    "description_es": "Ejecución de trabajos de reparación de muros, columnas, vigas y estructuras en general, incluyendo suministro de materiales y mano de obra.",
+    "description_en": "Execution of repair works for walls, columns, beams, and structures, including supply of materials and labor.",
+    "unit": "DAY",
+    "activity": "Ejecución de trabajos de reparación de muros, columnas, vigas y estructuras en general, incluyendo suministro de materiales y mano de obra."
+  },
+  {
+    "code": "8828100642",
+    "description_es": "Suministro de cemento conductivo San-Earth MRC (25 kg).",
+    "description_en": "Supply of San-Earth MRC conductive cement (25 kg).",
+    "unit": "EACH",
+    "activity": "Suministro de cemento conductivo San-Earth MRC (25 kg)."
+  },
+  {
+    "code": "8828127973",
+    "description_es": "Suministro de sensores fotoeléctricos para uso exterior/interior, modelo IRE-200 (emisor + receptor).",
+    "description_en": "Supply of photoelectric sensors for external/internal use, model IRE-200 (emitter + receiver).",
+    "unit": "EACH",
+    "activity": "Suministro de sensores fotoeléctricos para uso exterior/interior, modelo IRE-200 (emisor + receptor)."
+  },
+  {
+    "code": "8828126830",
+    "description_es": "Suministro e instalación de controlador solar, incluye accesorios y servicio.",
+    "description_en": "Supply and installation of solar controller, including accessories and service.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de controlador solar, incluye accesorios y servicio."
+  },
+  {
+    "code": "8828099086",
+    "description_es": "Suministro e instalación de escalera tipo caracol con estructura y accesos, acabados de fierro, diámetro 1.80 m.",
+    "description_en": "Supply and installation of spiral staircase with structure and access, iron finishes, diameter 1.80 m.",
+    "unit": "M",
+    "activity": "Suministro e instalación de escalera tipo caracol con estructura y accesos, acabados de fierro, diámetro 1.80 m."
+  },
+  {
+    "code": "8828098920",
+    "description_es": "Suministro e instalación de tablero eléctrico trifásico de 100 a 200 A, incluye accesorios según normativa nacional.",
+    "description_en": "Supply and installation of three-phase electrical board from 100 to 200 A, including all accessories according to national electrical code.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de tablero eléctrico trifásico de 100 a 200 A, incluye accesorios según normativa nacional."
+  },
+  {
+    "code": "8828098926",
+    "description_es": "Suministro e instalación de tablero eléctrico trifásico mayor a 200 A, incluye accesorios según normativa nacional.",
+    "description_en": "Supply and installation of three-phase electrical board above 200 A, including all accessories according to national electrical code.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de tablero eléctrico trifásico mayor a 200 A, incluye accesorios según normativa nacional."
+  },
+  {
+    "code": "8828098912",
+    "description_es": "Suministro e instalación de tablero eléctrico trifásico hasta 100 A, incluye accesorios según normativa nacional.",
+    "description_en": "Supply and installation of three-phase electrical board up to 100 A, including all accessories according to national electrical code.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de tablero eléctrico trifásico hasta 100 A, incluye accesorios según normativa nacional."
+  },
+  {
+    "code": "8828126831",
+    "description_es": "Suministro e instalación de herrajes de grado estructural y accesorios, incluye servicio.",
+    "description_en": "Supply and installation of structural grade hardware and accessories, including service.",
+    "unit": "KG",
+    "activity": "Suministro e instalación de herrajes de grado estructural y accesorios, incluye servicio."
+  },
+  {
+    "code": "8828098633",
+    "description_es": "Servicio de tala de árboles con disposición final, incluye transporte de herramientas.",
+    "description_en": "Tree felling and disposal service, including tool transportation.",
+    "unit": "EACH",
+    "activity": "Servicio de tala de árboles con disposición final, incluye transporte de herramientas."
+  },
+  {
+    "code": "8828099119",
+    "description_es": "Servicio de instalación de cableado aéreo trifásico de media tensión por metro lineal.",
+    "description_en": "Service for three-phase medium-voltage overhead wiring installation per linear meter.",
+    "unit": "M",
+    "activity": "Servicio de instalación de cableado aéreo trifásico de media tensión por metro lineal."
+  },
+  {
+    "code": "8828097892",
+    "description_es": "Suministro e instalación de torre o mástil, incluye cimentación y accesorios.",
+    "description_en": "Supply and installation of tower or mast, including foundation and accessories.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de torre o mástil, incluye cimentación y accesorios."
+  },
+  {
+    "code": "8828126832",
+    "description_es": "Servicio de saneamiento ambiental ERD: fumigación, desinfección y desratización, incluye limpieza, disposición y transporte.",
+    "description_en": "ERD environmental sanitation service: fumigation, disinfection, and deratization, including cleaning, disposal, and transportation.",
+    "unit": "EACH",
+    "activity": "Servicio de saneamiento ambiental ERD: fumigación, desinfección y desratización, incluye limpieza, disposición y transporte."
+  },
+  {
+    "code": "8828097352",
+    "description_es": "Servicio de demolición/retiro de muro, incluye materiales y mano de obra.",
+    "description_en": "Wall removal service, including materials and installation.",
+    "unit": "M*M",
+    "activity": "Servicio de demolición/retiro de muro, incluye materiales y mano de obra."
+  },
+  {
+    "code": "8828126833",
+    "description_es": "Provisión de servicio de bombeo para retiro de agua, incluyendo bomba, accesorios y operador.",
+    "description_en": "Provide pumping service for water removal, including pump, accessories, and operator.",
+    "unit": "DAY",
+    "activity": "Provisión de servicio de bombeo para retiro de agua, incluyendo bomba, accesorios y operador."
+  },
+  {
+    "code": "8828126834",
+    "description_es": "Servicio de deshierbo y retiro de maleza, arbustos y otros de fácil extracción en áreas mayores a 300 m², incluyendo transporte de herramientas.",
+    "description_en": "Service for weeding and removal of bushes, weeds, and other easy extractions in areas larger than 300 m², including tool transportation.",
+    "unit": "M*M",
+    "activity": "Servicio de deshierbo y retiro de maleza, arbustos y otros de fácil extracción en áreas mayores a 300 m², incluyendo transporte de herramientas."
+  },
+  {
+    "code": "8828126835",
+    "description_es": "Servicio de deshierbo y retiro de maleza, arbustos y otros de fácil extracción en áreas de hasta 300 m², incluyendo transporte de herramientas.",
+    "description_en": "Service for weeding and removal of bushes, weeds, and other easy extractions in areas up to 300 m², including tool transportation.",
+    "unit": "M*M",
+    "activity": "Servicio de deshierbo y retiro de maleza, arbustos y otros de fácil extracción en áreas de hasta 300 m², incluyendo transporte de herramientas."
+  },
+  {
+    "code": "8828126836",
+    "description_es": "Suministro e instalación de candado Yale N.º 60, incluye limpieza y verificación de funcionamiento.",
+    "description_en": "Supply and installation of Yale No. 60 padlock, including cleaning and functional check.",
+    "unit": "EACH",
+    "activity": "Suministro e instalación de candado Yale N.º 60, incluye limpieza y verificación de funcionamiento."
+  },
+  {
+    "code": "8828126837",
+    "description_es": "Provisión de alquiler de escalera de fibra de vidrio de 12 pasos, incluyendo entrega e inspección de seguridad.",
+    "description_en": "Provide rental of 12-step fiberglass ladder, including delivery and safety inspection.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de escalera de fibra de vidrio de 12 pasos, incluyendo entrega e inspección de seguridad."
+  },
+  {
+    "code": "8828126838",
+    "description_es": "Provisión de alquiler de escalera de madera de 12 pasos, incluyendo entrega e inspección de seguridad.",
+    "description_en": "Provide rental of 12-step wooden stepladder, including delivery and safety inspection.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de escalera de madera de 12 pasos, incluyendo entrega e inspección de seguridad."
+  },
+  {
+    "code": "8828126839",
+    "description_es": "Provisión de alquiler de escalera de fibra de vidrio de 28 pasos, incluyendo entrega e inspección de seguridad.",
+    "description_en": "Provision of 28-step fiberglass ladder rental, including delivery and safety inspection.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de escalera de fibra de vidrio de 28 pasos, incluyendo entrega e inspección de seguridad."
+  },
+  {
+    "code": "8828126840",
+    "description_es": "Provisión de alquiler de escalera de fibra de vidrio de 36 pasos, incluyendo entrega e inspección de seguridad.",
+    "description_en": "Provision of 36-step fiberglass ladder rental, including delivery and safety inspection.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de escalera de fibra de vidrio de 36 pasos, incluyendo entrega e inspección de seguridad."
+  },
+  {
+    "code": "8828126841",
+    "description_es": "Provisión de alquiler de escalera portátil, incluyendo entrega, transporte y recolección.",
+    "description_en": "Provision of plugable ladder rental, including delivery, transportation, and pick-up.",
+    "unit": "DAY",
+    "activity": "Provisión de alquiler de escalera portátil, incluyendo entrega, transporte y recolección."
+  },
+  {
+    "code": "8828099221",
+    "description_es": "Servicio de limpieza de locales EBC, URD(Incluye todos los ambientes y eliminacion de residuos)",
+    "description_en": "Cleaning Service for EBC and URD Sites (Includes all areas and waste disposal)",
+    "unit": "EACH",
+    "activity": "Servicio de limpieza de locales EBC, URD(Incluye todos los ambientes y eliminacion de residuos)"
+  },
+  {
+    "code": "8828126842",
+    "description_es": "Suministro de gas refrigerante R22, 1 balón = 1 unidad.",
+    "description_en": "Supply of refrigerant gas R22, 1 cylinder = 1 unit.",
+    "unit": "PCS",
+    "activity": "Suministro de gas refrigerante R22, 1 balón = 1 unidad."
+  },
+  {
+    "code": "8828126843",
+    "description_es": "Suministro de gas refrigerante R410, 1 balón = 1 unidad.",
+    "description_en": "Supply of refrigerant gas R410, 1 cylinder = 1 unit.",
+    "unit": "PCS",
+    "activity": "Suministro de gas refrigerante R410, 1 balón = 1 unidad."
+  },
+  {
+    "code": "8828126844",
+    "description_es": "Servicio de certificación de equipos de medición, incluye pruebas y entrega de certificado.",
+    "description_en": "Measurement equipment certification service, including tests and certificate delivery.",
+    "unit": "EACH",
+    "activity": "Servicio de certificación de equipos de medición, incluye pruebas y entrega de certificado."
+  },
+  {
+    "code": "8828127974",
+    "description_es": "Suministro de kit de arrastre para vehículo 4×4.",
+    "description_en": "Supply of haulage kit for 4×4 vehicle.",
+    "unit": "EACH",
+    "activity": "Suministro de kit de arrastre para vehículo 4×4."
+  },
+  {
+    "code": "8828126845",
+    "description_es": "Suministro de motor de 1/4 HP, incluye pruebas.",
+    "description_en": "Supply of 1/4 HP motor, including testing.",
+    "unit": "EACH",
+    "activity": "Suministro de motor de 1/4 HP, incluye pruebas."
+  },
+  {
+    "code": "8828126846",
+    "description_es": "Suministro de motor de 1/2 HP, incluye pruebas.",
+    "description_en": "Supply of 1/2 HP motor, including testing.",
+    "unit": "EACH",
+    "activity": "Suministro de motor de 1/2 HP, incluye pruebas."
+  },
+  {
+    "code": "8828126693",
+    "description_es": "Suministro de motor de 1/6 HP, incluye pruebas.",
+    "description_en": "Supply of 1/6 HP motor, including testing.",
+    "unit": "EACH",
+    "activity": "Suministro de motor de 1/6 HP, incluye pruebas."
+  },
+  {
+    "code": "8828126694",
+    "description_es": "Suministro de motor de 3/4 HP, incluye pruebas.",
+    "description_en": "Supply of 3/4 HP motor, including testing.",
+    "unit": "EACH",
+    "activity": "Suministro de motor de 3/4 HP, incluye pruebas."
+  },
+  {
+    "code": "8828126695",
+    "description_es": "Suministro de motor de ventilador, incluye servicio de instalación.",
+    "description_en": "Supply of fan motor, including installation service.",
+    "unit": "EACH",
+    "activity": "Suministro de motor de ventilador, incluye servicio de instalación."
+  }
+]

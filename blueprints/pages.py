@@ -218,7 +218,7 @@ def index():
     if proy_actual_nombre in ('Material','SITE','Generadores'):
         from services.proyectos_catalogo import configurar as configurar_proyectos
         manual_cols_data = configurar_proyectos(manual_cols_data)
-        columns_set.add('PROYECTO')
+        columns_set.update(c['nombre'] for c in manual_cols_data)
     if proy_actual_nombre == 'Cotizaciones':
         columns_set.update(('ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE',
                             'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR'))

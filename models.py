@@ -282,3 +282,15 @@ class ConciliacionOrigen(db.Model):
     original_json = db.Column(db.Text, nullable=False)
     creado_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     __table_args__ = (db.UniqueConstraint('fuente_sha256','origen_id',name='uq_conciliacion_origen'),)
+
+
+class LpuRegistro(db.Model):
+    __tablename__ = 'lpu_catalogo'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(100), nullable=False, unique=True)
+    unit = db.Column(db.String(100), nullable=False, default='')
+    description_es = db.Column(db.Text, nullable=False, default='')
+    description_en = db.Column(db.Text, nullable=False, default='')
+    activity = db.Column(db.Text, nullable=False, default='')
+    actualizado_por = db.Column(db.String(100), nullable=False, default='')
+    actualizado_en = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

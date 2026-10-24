@@ -7,25 +7,29 @@ CATALOGOS = ('Material', 'SITE', 'Generadores')
 def configurar(columnas):
     columnas=[dict(c) for c in columnas]
     definicion={'nombre':'PROYECTO','tipo':'lista','opciones':proyectos_permitidos()}
-    existente=next((c for c in columnas if c.get('nombre')=='PROYECTO'),None)
+    existente=next((c for c in columnas if str(c.get('nombre','')).upper()=='PROYECTO'),None)
     if existente is None:columnas.append(definicion)
-    else:existente.update(definicion)
+    else:
+        definicion['nombre']=existente['nombre']
+        existente.update(definicion)
     return columnas
 
 def presentar(datos):
     datos=dict(datos)
-    valor=datos.get('PROYECTO')
-    datos['PROYECTO']=NOMBRES.get(familia(valor),valor or '')
+    key='Proyecto' if 'Proyecto' in datos else 'PROYECTO'
+    valor=datos.get(key)
+    datos[key]=NOMBRES.get(familia(valor),valor or '')
     return datos
 
 def validar(datos,nuevo=False):
     datos=dict(datos)
-    if nuevo or 'PROYECTO' in datos:
+    key='Proyecto' if 'Proyecto' in datos else 'PROYECTO'
+    if nuevo or key in datos:
         permitidos=proyectos_permitidos()
         ctx=contexto_recursos()
-        valor=datos.get('PROYECTO') or (ctx['flm_nombre'] if ctx else '')
+        valor=datos.get(key) or (ctx['flm_nombre'] if ctx else '')
         if not valor and len(permitidos)==1:valor=permitidos[0]
         nombre=NOMBRES.get(familia(valor),'')
         if nombre not in permitidos:raise ValueError('Selecciona uno de tus proyectos autorizados.')
-        datos['PROYECTO']=nombre
+        datos[key]=nombre
     return datos

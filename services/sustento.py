@@ -34,7 +34,8 @@ def registro_evidencia(pid,key):
     if not cot:return None
     from blueprints.cotizacion import _split_wos
     for wo in _split_wos(json.loads(cot.data_json or '{}').get('NUMERO WO')):
-        registro=SustentoAdicional(cot,wo)
+        from services.cotizacion_ficha import fuente
+        registro=SustentoAdicional(cot,fuente(json.loads(cot.data_json or '{}'),wo))
         if registro.key_value==key:return registro
     return None
 
@@ -42,7 +43,7 @@ def bloqueado(datos):
     return any(str(datos.get(c) or '').strip() not in ('','0') for c in MARCAS)
 
 def cambio_bloqueado(datos,cambios):
-    if '_SUSTENTOS_ADICIONALES' in cambios:return True
+    if any(k in cambios for k in ('_SUSTENTOS_ADICIONALES','_SUSTENTO_FICHAS','_SUSTENTO_ORIGENES','_SUSTENTO_MANUAL')):return True
     if any(c in cambios for c in MARCAS): return True
     if not bloqueado(datos): return False
     for campo in CAMPOS:
@@ -71,7 +72,7 @@ def acceso_desde_cotizacion(pid,wo,cot_key,lectura=False):
     if not cot:return False
     d=json.loads(cot.data_json or '{}')
     if (bloqueado(d) and not lectura) or str(d.get('ESTADO COTIZACION') or '') not in ('Aprobado','Atendido','Validado'):return False
-    for codigo in _split_wos(d.get('NUMERO WO')):
+    for codigo in (_split_wos(d.get('NUMERO WO')) or ['']):
         origen=_resolver_sustento_cot(cot,codigo,d)
         if origen[0].id==pid and origen[1].key_value.casefold()==wo.casefold():return True
     return False

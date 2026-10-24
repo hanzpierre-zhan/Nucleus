@@ -470,18 +470,18 @@ def api_sites():
         if lat == 0 and lng == 0:
             continue
         site_entry = {
-            'codigo': d.get('Código', '') or d.get('Código Site', '') or d.get('Codigo', '') or key_value,
-            'nombre': d.get('Nombre', '') or d.get('Nombre Site', ''),
+            'codigo': d.get('Código del sitio | Site ID') or d.get('Código', '') or d.get('Código Site', '') or d.get('Codigo', '') or key_value,
+            'nombre': d.get('Nombre del sitio | Site name') or d.get('Nombre', '') or d.get('Nombre Site', ''),
             'lat': lat,
             'lng': lng,
             'estado': d.get('Estado', '') or d.get('ESTADO', ''),
             'prioridad': d.get('Prioridad', '') or d.get('PRIORIDAD', ''),
             'contrata': d.get('Contrata', '') or d.get('CONTRATA', ''),
             'departamento': d.get('Departamento', ''),
-            'provincia': d.get('Provincia', ''),
-            'distrito': d.get('Distrito', ''),
-            'direccion': d.get('Dirección', '') or d.get('Direccion', ''),
-            'region': d.get('Región', '') or d.get('Region', ''),
+            'provincia': d.get('Provincia | Provincia') or d.get('Provincia', ''),
+            'distrito': d.get('Distrito | District') or d.get('Distrito', ''),
+            'direccion': d.get('Ubicación del sitio | Site address') or d.get('Dirección', '') or d.get('Direccion', ''),
+            'region': d.get('Region | Region') or d.get('Región', '') or d.get('Region', ''),
             'supervisor': d.get('SUPERVISOR', '') or d.get('Supervisor', ''),
         }
         sites.append(site_entry)

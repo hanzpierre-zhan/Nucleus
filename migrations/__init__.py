@@ -54,6 +54,8 @@ def run_migrations(app, database_url=''):
             has_old = True
 
         db.create_all()
+        from services.lpu import seed as seed_lpu
+        seed_lpu()
 
         # ── Índices de rendimiento ─────────────────────────────────────────
         _perf_indexes = [
@@ -285,6 +287,12 @@ def run_migrations(app, database_url=''):
 
         # ── Configurar proyectos de apoyo (Dataper, Material, SITE, etc.) ─
         _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, TablaMaestra)
+        from services.sites_general import aplicar as aplicar_sites_general
+        aplicar_sites_general()
+        from services.sites_general import completar_existentes as completar_fichas_sites
+        completar_fichas_sites()
+        from services.sites_general import respetar_columnas_excel
+        respetar_columnas_excel()
 
         # ── Rendicion: columna del motivo de rechazo + URLs de foto viejas ─
         try:
@@ -562,6 +570,11 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
             {'nombre': 'Tipo de Site', 'tipo': 'texto', 'opciones': []},
             {'nombre': 'Contrata', 'tipo': 'lista', 'opciones': ['COBRA', 'FUERA DE CONTRATA']},
         ]
+        from services.sites_general import VERSION as sites_version, columnas as columnas_sites
+        from models import TokenStore
+        nuevo_maestro = TokenStore.query.filter_by(clave=sites_version).first() is not None
+        if nuevo_maestro:
+            site_cols = columnas_sites()
         mc = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='manual_columns').first()
         if mc:
             mc.valor = json.dumps(_fusionar_columnas(mc.valor, site_cols), ensure_ascii=False)
@@ -570,9 +583,9 @@ def _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, Tabla
                                      valor=json.dumps(site_cols, ensure_ascii=False)))
         pk = AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='primary_key').first()
         if pk:
-            pk.valor = 'Código'
+            pk.valor = 'Site' if nuevo_maestro else 'Código'
         else:
-            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='Código'))
+            db.session.add(AppConfig(proyecto_id=site_proy.id, clave='primary_key', valor='Site' if nuevo_maestro else 'Código'))
         if not AppConfig.query.filter_by(proyecto_id=site_proy.id, clave='app_schema').first():
             db.session.add(AppConfig(proyecto_id=site_proy.id, clave='app_schema', valor='[]'))
         db.session.commit()

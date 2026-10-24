@@ -1028,7 +1028,7 @@ def api_cotizacion_accion():
             return jsonify({'error':'La revisión del sustento solo aplica en Atendido.'}),409
         if accion == 'aprobar_sustento':
             destinos=[]
-            for wo in _split_wos(row.get('NUMERO WO')):
+            for wo in (_split_wos(row.get('NUMERO WO')) or ['']):
                 destino=_resolver_sustento_cot(fila,wo,row)
                 if not destino:return jsonify({'error':'No se encontró el WO '+wo}),409
                 destinos.append(destino)
@@ -1369,6 +1369,9 @@ def _leer_evidencia_wo(fila):
 
 def _resolver_sustento_cot(cot,wo,datos):
     from services.sustento import SustentoAdicional
+    from services.cotizacion_ficha import fuente
+    wo = fuente(datos, wo)
+    if not wo: return _cot_proyecto(), cot
     # Si ya se sustentó como adicional, conserva esa fuente al aparecer luego en FLM.
     if wo.strip().casefold() not in datos.get('_SUSTENTOS_ADICIONALES',{}):
         origen=_resolver_wo_sustento(wo,datos.get('CLIENTE'))
@@ -1397,7 +1400,7 @@ def api_cotizacion_sustento():
         d = {}
     wos = _split_wos(d.get('NUMERO WO'))
     info, total = [], 0
-    for wo in wos:
+    for wo in (wos or ['']):
         r = _resolver_sustento_cot(fila,wo,d)
         if not r:
             info.append({'wo': wo, 'encontrado': False})
@@ -1413,6 +1416,8 @@ def api_cotizacion_sustento():
         try:
             wf_data = json.loads(wf.data_json)
             wf_data = efectivos(d,wf_data,len(wos)==1)
+            from services.cotizacion_ficha import ficha
+            wf_data['_SUSTENTO_MANUAL'] = ficha(d, wo)
             wf_data['_key'] = wf.key_value
             fotos = {t.lower(): json.loads(wf_data.get('_EVIDENCIA_'+t) or '[]') for t in ('INICIO','PROCESO','CIERRE')}
             bit = {t.lower(): str(wf_data.get('_BITACORA_'+t) or '') for t in ('INICIO','PROCESO','CIERRE')}
@@ -1428,7 +1433,9 @@ def api_cotizacion_sustento():
             'bloqueado': bloqueado,
             'wo_data': wf_data
         })
-    return jsonify({'success': True, 'wos': info, 'total_fotos': total,
+    from services.cotizacion_ficha import items_cotizacion,usa_ficha
+    from services.lpu import listado
+    return jsonify({'success': True, 'wos': info, 'items':items_cotizacion(d), 'lpu':listado() if usa_ficha(d) else [], 'total_fotos': total,
                     'estado': d.get('ESTADO COTIZACION'), 'pestania': _cot_pestania(d),
                     'sin_wo': not wos, 'cotizacion_data': d, 'sustento_aprobado': str(d.get('_SUSTENTO_APROBADO') or '') == '1'})
 
@@ -1438,7 +1445,7 @@ def _guardar_sustento(datos, finalizar=False):
         return jsonify({'error':'No tienes permisos para guardar el sustento.'}),403
     p=_cot_proyecto()
     key=str(datos.get('key') or '').strip()
-    cot=NucleusData.query.filter_by(proyecto_id=p.id,key_value=key).first() if p else None
+    cot=NucleusData.query.filter_by(proyecto_id=p.id,key_value=key).with_for_update().first() if p else None
     if not cot:return jsonify({'error':'Cotización no encontrada.'}),404
     d=json.loads(cot.data_json or '{}')
     if bloqueado(d):return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
@@ -1450,9 +1457,16 @@ def _guardar_sustento(datos, finalizar=False):
     if claves and not wo:return jsonify({'error':'Selecciona el WO cuyo sustento deseas guardar.'}),400
     if wo and wo.casefold() not in [c.casefold() for c in claves]:
         return jsonify({'error':'El WO no pertenece a esta cotización.'}),400
-    resultado=_resolver_sustento_cot(cot,wo,d) if wo else (p,cot)
+    from services.cotizacion_ficha import validar as validar_ficha, guardar as guardar_ficha
+    manual = None
+    if 'manual' in datos:
+        try: manual = validar_ficha(d, wo, claves, datos['manual'])
+        except ValueError as error: return jsonify({'error':str(error)}),400
+    resultado=_resolver_sustento_cot(cot,wo,d)
     if not resultado:return jsonify({'error':'Primero registra este WO en el FLM correspondiente.'}),409
     proyecto,fila=resultado
+    from services.cotizacion_ficha import usa_ficha
+    if manual is not None and not usa_ficha(d,proyecto.nombre):return jsonify(error='FLM - PEXT conserva el formulario de sustento anterior.'),400
     actual=json.loads(fila.data_json or '{}')
     if bloqueado(actual) or _evidencia_aprobacion_bloquea(proyecto.id,fila.key_value):return jsonify({'error':'El sustento de este WO ya fue aprobado o está bloqueado para tu rol.'}),403
     nuevo=efectivos(d,actual,len(claves)==1)
@@ -1490,6 +1504,8 @@ def _guardar_sustento(datos, finalizar=False):
         for campo in ('INICIO EJECUCION','FIN EJECUCION'):
             nombre='FECHA INICIO OBRA' if campo.startswith('INICIO') else 'FECHA FIN OBRA'
             d[nombre]=str(nuevo.get(campo) or '')[:10]
+    wo_definida = guardar_ficha(d, wo, claves, manual) if manual is not None else wo
+    if manual is not None: nuevo['_SUSTENTO_MANUAL'] = manual
     if finalizar:
         d['ESTADO COTIZACION']='Atendido'
         d['_SUSTENTO_VALIDADO']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -1497,7 +1513,7 @@ def _guardar_sustento(datos, finalizar=False):
     cot.data_json=safe_json_dumps(d)
     db.session.commit()
     if finalizar:_avisar_cambio_estado(p.id,key,anterior,d,audit_user() or '')
-    return jsonify({'success':True,'newData':d,'wo_data':nuevo,'estado':d.get('ESTADO COTIZACION'),'pestania':_cot_pestania(d),'guardados':1,'errores':[]})
+    return jsonify({'success':True,'newData':d,'wo_data':nuevo,'wo':wo_definida,'estado':d.get('ESTADO COTIZACION'),'pestania':_cot_pestania(d),'guardados':1,'errores':[]})
 
 
 @bp.route('/api/cotizacion/sustento/wo',methods=['POST'])
@@ -1510,3 +1526,150 @@ def api_sustento_wo_guardar():
 @login_required
 def api_cotizacion_sustento_guardar():
     return _guardar_sustento(request.get_json(silent=True) or {},finalizar=True)
+
+
+@bp.route('/api/cotizacion/sustento/sites')
+@login_required
+def sustento_catalogo_sites():
+    if not _puede_cotizaciones():return jsonify(error='Sin permisos.'),403
+    from services.cotizacion_ficha import sitios
+    return jsonify(sites=sitios(request.args.get('q',''),request.args.get('field',''),request.args.get('proyecto','')))
+
+
+def _ubicacion_folder(cot_id):
+    return os.path.join(current_app.config.get('EVIDENCIA_DIR') or os.path.join(BASE_DIR,'static','evidencia'), 'cot_ubicacion', str(cot_id))
+
+
+@bp.route('/api/cotizacion/sustento/ubicacion', methods=['POST'])
+@login_required
+def sustento_ubicacion_subir(item=False):
+    if not _puede_cotizaciones():return jsonify(error='Sin permisos.'),403
+    p=_cot_proyecto()
+    cot=NucleusData.query.filter_by(proyecto_id=p.id,key_value=request.form.get('key','')).with_for_update().first() if p else None
+    if not cot:return jsonify(error='Cotización no encontrada.'),404
+    d=json.loads(cot.data_json or '{}');wo=request.form.get('wo','').strip()
+    if bloqueado(d) or _cot_pestania(d) not in ('sustentar','atendido'):return jsonify(error='Este sustento no permite cambios.'),403
+    if wo.casefold() not in [c.casefold() for c in (_split_wos(d.get('NUMERO WO')) or [''])]:return jsonify(error='WO no pertenece a esta cotización.'),400
+    origen,registro=_resolver_sustento_cot(cot,wo,d)
+    from services.cotizacion_ficha import usa_ficha
+    if not usa_ficha(d,origen.nombre):return jsonify(error='FLM - PEXT conserva el formulario de sustento anterior.'),400
+    if bloqueado(json.loads(registro.data_json or '{}')) or _evidencia_aprobacion_bloquea(origen.id,registro.key_value):return jsonify(error='El sustento está aprobado o bloqueado.'),403
+    item_key=request.form.get('item_key','')
+    photo_index=None
+    phase=request.form.get('phase','before')
+    if item:
+        if phase not in ('before','during','after'):return jsonify(error='Etapa de foto inválida.'),400
+        from services.cotizacion_ficha import items_cotizacion
+        if item_key not in {i['key'] for i in items_cotizacion(d)}:return jsonify(error='El ítem no pertenece a esta cotización.'),400
+        anteriores=d.get('_SUSTENTO_FICHAS',{}).get(wo.casefold(),{}).get('item_photos',{}).get(item_key,[])
+        if request.form.get('photo_index') is not None:
+            try:photo_index=int(request.form['photo_index'])
+            except (TypeError,ValueError):return jsonify(error='Foto inválida.'),400
+            if photo_index<0 or photo_index>=len(anteriores):return jsonify(error='Foto no encontrada.'),400
+    archivo=request.files.get('foto')
+    if not archivo:return jsonify(error='Selecciona una imagen.'),400
+    contenido=archivo.read(20*1024*1024+1)
+    if len(contenido)>20*1024*1024:return jsonify(error='La imagen supera los 20 MB.'),400
+    from uuid import uuid4
+    nombre=uuid4().hex+'.jpg';folder=_ubicacion_folder(cot.id);os.makedirs(folder,exist_ok=True)
+    ruta=os.path.join(folder,nombre)
+    try:
+        with Image.open(io.BytesIO(contenido)) as imagen:
+            imagen=ImageOps.exif_transpose(imagen).convert('RGB');imagen.thumbnail((2400,2400));imagen.save(ruta,'JPEG',quality=88)
+    except Exception:
+        return jsonify(error='El archivo no es una imagen válida.'),400
+    if evidencia_usa_b2():
+        try:b2_cliente().upload_file(ruta,current_app.config['B2_BUCKET'],f'cot_ubicacion/{cot.id}/{nombre}')
+        except Exception:
+            os.remove(ruta);return jsonify(error='No se pudo guardar la foto. Reintenta.'),503
+    url=f'/api/cotizacion/sustento/{"foto" if item else "ubicacion"}/{cot.id}/{nombre}'
+    ficha=d.setdefault('_SUSTENTO_FICHAS',{}).setdefault(wo.casefold(),{})
+    if item:
+        fotos=ficha.setdefault('item_photos',{}).setdefault(item_key,[])
+        adjunto={'url':url,'nombre':secure_filename(archivo.filename or 'foto.jpg'),'phase':phase}
+        if photo_index is None:fotos.append(adjunto)
+        else:fotos[photo_index]=adjunto
+    else:ficha['location_picture']=url
+    cot.data_json=safe_json_dumps(d);db.session.commit()
+    return jsonify(success=True,url=url,photos=ficha.get('item_photos',{}).get(item_key,[]))
+
+
+@bp.route('/api/cotizacion/sustento/foto/<int:cot_id>/<nombre>')
+@bp.route('/api/cotizacion/sustento/ubicacion/<int:cot_id>/<nombre>')
+@login_required
+def sustento_ubicacion_ver(cot_id,nombre):
+    if not _puede_cotizaciones():return jsonify(error='Sin permisos.'),403
+    p=_cot_proyecto();cot=NucleusData.query.filter_by(id=cot_id,proyecto_id=p.id).first() if p else None
+    if not cot or secure_filename(nombre)!=nombre:return jsonify(error='Foto no encontrada.'),404
+    url=request.path
+    fichas=json.loads(cot.data_json or '{}').get('_SUSTENTO_FICHAS',{})
+    referencias=[f.get('location_picture') for f in fichas.values()]
+    referencias.extend(foto.get('url') for f in fichas.values() for grupo in f.get('item_photos',{}).values() for foto in grupo if isinstance(foto,dict))
+    if url not in referencias:return jsonify(error='Foto no encontrada.'),404
+    if evidencia_usa_b2():
+        try:
+            objeto=b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'],Key=f'cot_ubicacion/{cot_id}/{nombre}')
+            return send_file(io.BytesIO(objeto['Body'].read()),mimetype='image/jpeg')
+        except Exception:
+            if not os.path.isfile(os.path.join(_ubicacion_folder(cot_id),nombre)):return jsonify(error='Foto temporalmente no disponible.'),503
+    return send_from_directory(_ubicacion_folder(cot_id),nombre)
+
+
+@bp.route('/api/cotizacion/sustento/item-foto',methods=['POST'])
+@login_required
+def sustento_item_foto_subir():
+    return sustento_ubicacion_subir(item=True)
+
+
+@bp.route('/api/cotizacion/sustento/responsables',methods=['GET','PATCH'])
+@login_required
+def sustento_responsables():
+    if not _puede_cotizaciones():return jsonify(error='Sin permisos.'),403
+    proyecto=_cot_proyecto()
+    if not proyecto:return jsonify(error='Cotizaciones no existe.'),404
+    config=AppConfig.query.filter_by(proyecto_id=proyecto.id,clave='cot_work_responsibles').first()
+    if request.method=='GET':return jsonify(opciones=json.loads(config.valor) if config else [])
+    if session.get('rol') not in ('zeno','suport','supervisor'):return jsonify(error='No tienes permisos para administrar opciones.'),403
+    values=(request.get_json(silent=True) or {}).get('opciones')
+    if not isinstance(values,list) or len(values)>500 or any(not isinstance(v,str) or not v.strip() or len(v)>200 for v in values):
+        return jsonify(error='Ingresa nombres válidos, de hasta 200 caracteres.'),400
+    values=list(dict.fromkeys(v.strip() for v in values))
+    if not config:
+        config=AppConfig(proyecto_id=proyecto.id,clave='cot_work_responsibles');db.session.add(config)
+    config.valor=json.dumps(values,ensure_ascii=False);db.session.commit()
+    return jsonify(opciones=values)
+
+
+@bp.route('/api/cotizacion/sustento/expediente')
+@login_required
+def sustento_expediente():
+    if not _puede_cotizaciones():return jsonify(error='Sin permisos.'),403
+    proyecto=_cot_proyecto()
+    cot=NucleusData.query.filter_by(proyecto_id=proyecto.id,key_value=request.args.get('key','')).first() if proyecto else None
+    if not cot:return jsonify(error='Cotización no encontrada.'),404
+    datos=json.loads(cot.data_json or '{}');wo=request.args.get('wo','').strip()
+    if wo.casefold() not in [v.casefold() for v in (_split_wos(datos.get('NUMERO WO')) or [''])]:
+        return jsonify(error='WO no pertenece a esta cotización.'),400
+    from services.cotizacion_ficha import usa_ficha,ficha
+    if not usa_ficha(datos):return jsonify(error='Este expediente no aplica a FLM - PEXT.'),400
+    origen,registro=_resolver_sustento_cot(cot,wo,datos)
+    from services.sustento import efectivos
+    evidencia=efectivos(datos,json.loads(registro.data_json or '{}'),len(_split_wos(datos.get('NUMERO WO')))<=1)
+    def read_photo(url):
+        match=re.fullmatch(r'/api/cotizacion/sustento/(?:foto|ubicacion)/'+str(cot.id)+r'/([a-f0-9]{32}\.jpg)',str(url))
+        if not match:raise ValueError('Una foto tiene una referencia inválida. Revisa los adjuntos del sustento.')
+        name=match.group(1);path=os.path.join(_ubicacion_folder(cot.id),name)
+        if os.path.isfile(path):
+            with open(path,'rb') as source:return source.read()
+        if evidencia_usa_b2():
+            try:return b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'],Key=f'cot_ubicacion/{cot.id}/{name}')['Body'].read()
+            except Exception:pass
+        raise ValueError('No se pudo recuperar una foto. Reintenta antes de generar el expediente.')
+    from services.cotizacion_expediente import generar
+    datos['_key']=cot.key_value
+    try:output=generar(datos,ficha(datos,wo),evidencia,wo,read_photo,ahora_peru())
+    except (ValueError,OSError) as error:return jsonify(error=str(error)),400
+    filename=secure_filename('Expediente_'+str(datos.get('N° COTIZACION') or cot.key_value)+'_'+(wo or 'sin_WO'))+'.xlsx'
+    response=send_file(output,as_attachment=True,download_name=filename,mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response.headers['Cache-Control']='private, no-store'
+    return response
