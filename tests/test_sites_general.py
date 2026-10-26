@@ -4,6 +4,25 @@ from db import db
 from models import Proyecto,NucleusData,TokenStore,AppConfig
 from services import sites_general as maestro
 
+def test_postgres_actualiza_en_dos_lotes_no_1001_viajes(app,monkeypatch):
+    from unittest.mock import MagicMock
+    import psycopg2.extras
+    updates=[(i,json.dumps({'Nombre del sitio | Site name':f'Site {i}'})) for i in range(1001)]
+    execute=MagicMock()
+    monkeypatch.setattr(psycopg2.extras,'execute_values',execute)
+    connection=MagicMock()
+    with app.app_context():maestro.actualizar_postgres(connection,updates)
+    assert execute.call_count==3
+    assert [len(c.args[2]) for c in execute.call_args_list]==[500,500,1]
+    assert [row for call in execute.call_args_list for row in call.args[2]]==updates
+    assert all('WHERE target.id = source.id' in c.args[1] for c in execute.call_args_list)
+
+def test_formato_excel_no_reescribe_las_filas_ya_migradas():
+    row=maestro.cargar()['rows'][0]
+    first=maestro.datos_excel(row)
+    assert list(first)==maestro.EXCEL_KEYS
+    assert maestro.datos_excel(first)==first
+
 def test_archivo_completo_y_clave_que_no_descarta_codigos_repetidos():
     rows=maestro.cargar()['rows']
     assert Counter(r['PROYECTO'] for r in rows)=={'ENTEL':5583,'CLARO':9022,'INTEGRATEL':3999}

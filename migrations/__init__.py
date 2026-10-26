@@ -286,13 +286,17 @@ def run_migrations(app, database_url=''):
                 pass
 
         # ── Configurar proyectos de apoyo (Dataper, Material, SITE, etc.) ─
+        app.logger.warning('[startup] Configurando proyectos de apoyo')
         _configurar_proyectos_apoyo(db, app, Proyecto, AppConfig, NucleusData, TablaMaestra)
         from services.sites_general import aplicar as aplicar_sites_general
+        app.logger.warning('[startup] Comprobando reemplazo del maestro Site General')
         aplicar_sites_general()
         from services.sites_general import completar_existentes as completar_fichas_sites
         completar_fichas_sites()
         from services.sites_general import respetar_columnas_excel
+        app.logger.warning('[startup] Comprobando encabezados del maestro SITE')
         respetar_columnas_excel()
+        app.logger.warning('[startup] Maestro SITE listo')
 
         # ── Rendicion: columna del motivo de rechazo + URLs de foto viejas ─
         try:

@@ -5,6 +5,7 @@ from pathlib import Path
 from collections import defaultdict
 from db import db
 from models import Proyecto, NucleusData, AppConfig, TokenStore
+from flask import current_app
 
 VERSION = 'sites_general_20261023_v1'
 BACKUP = 'sites_antes_general_20261023'
@@ -15,6 +16,34 @@ def columnas():
     return [{'nombre': k, 'tipo': 'lista' if k == 'Proyecto' else 'texto',
              'opciones': ['FLM - ENTEL','FLM - CLARO','FLM - INTEGRATEL','FLM - PEXT'] if k == 'Proyecto' else []} for k in EXCEL_KEYS]
 
+def datos_excel(data):
+    result={dest:data.get(dest,data.get(src,'')) for src,dest in zip(KEYS,EXCEL_KEYS)}
+    if result['Proyecto'] in ('ENTEL','CLARO','INTEGRATEL','PEXT'):
+        result['Proyecto']='FLM - '+result['Proyecto']
+    result.update({k:v for k,v in data.items() if k not in KEYS and k not in EXCEL_KEYS})
+    return result
+
+def actualizar_postgres(connection,changes):
+    from psycopg2.extras import execute_values
+    with connection.cursor() as cursor:
+        for offset in range(0,len(changes),500):
+            batch=changes[offset:offset+500]
+            execute_values(cursor,
+                'UPDATE nucleus_data AS target SET data_json = source.data_json '
+                'FROM (VALUES %s) AS source(id, data_json) WHERE target.id = source.id',
+                batch,page_size=500)
+            current_app.logger.warning('[startup] Sites actualizados: %d/%d',min(offset+500,len(changes)),len(changes))
+
+def guardar_cambios_sites(changes):
+    """Una ida a Postgres por lote, no una por cada uno de los 18 604 sites."""
+    if not changes:return
+    if db.engine.dialect.name=='postgresql':
+        connection=db.session.connection().connection.driver_connection
+        actualizar_postgres(connection,changes)
+    else:
+        db.session.execute(db.text('UPDATE nucleus_data SET data_json=:data WHERE id=:row_id'),
+            [{'row_id':row_id,'data':data} for row_id,data in changes])
+
 def respetar_columnas_excel():
     marker='sites_columnas_excel_v2'
     if db.engine.dialect.name == 'postgresql':
@@ -22,13 +51,15 @@ def respetar_columnas_excel():
     if TokenStore.query.filter_by(clave=marker).first():return
     proyecto=Proyecto.query.filter_by(nombre='SITE').one()
     try:
-        for row in NucleusData.query.filter_by(proyecto_id=proyecto.id).all():
-            d=json.loads(row.data_json)
-            nuevo={dest:d.get(dest,d.get(src,'')) for src,dest in zip(KEYS,EXCEL_KEYS)}
-            value=str(nuevo['Proyecto'])
-            if value in ('ENTEL','CLARO','INTEGRATEL','PEXT'):nuevo['Proyecto']='FLM - '+value
-            nuevo.update({k:v for k,v in d.items() if k not in KEYS and k not in EXCEL_KEYS})
-            row.data_json=json.dumps(nuevo,ensure_ascii=False)
+        changes=[]
+        rows=db.session.query(NucleusData.id,NucleusData.data_json).filter_by(proyecto_id=proyecto.id).all()
+        for row_id,data_json in rows:
+            d=json.loads(data_json)
+            nuevo=datos_excel(d)
+            updated=json.dumps(nuevo,ensure_ascii=False)
+            if updated!=data_json:changes.append((row_id,updated))
+        current_app.logger.warning('[startup] Migrando columnas de %d sites por lotes',len(changes))
+        guardar_cambios_sites(changes)
         values={'manual_columns':json.dumps(columnas(),ensure_ascii=False),'app_schema':'[]',
                 'column_layout':json.dumps([{'field':'_key' if k=='Site' else k,'visible':True} for k in EXCEL_KEYS],ensure_ascii=False)}
         backup={}
@@ -67,7 +98,7 @@ def aplicar():
         # Conservar las filas originales en BD antes de sustituir el catálogo.
         NucleusData.query.filter_by(proyecto_id=proyecto.id).delete(synchronize_session=False)
         db.session.bulk_insert_mappings(NucleusData,[{'proyecto_id':proyecto.id,'key_value':r['Site'],
-            'data_json':json.dumps(r,ensure_ascii=False)} for r in source['rows']])
+            'data_json':json.dumps(datos_excel(r),ensure_ascii=False)} for r in source['rows']])
         for key, value in {'primary_key':'Site','manual_columns':json.dumps(columnas(),ensure_ascii=False),
                            'app_schema':'[]','column_layout':'[]'}.items():
             config = next((r for r in configs if r.clave==key),None)

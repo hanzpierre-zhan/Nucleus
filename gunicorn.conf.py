@@ -17,4 +17,4 @@ def when_ready(server):
 
 
 def post_worker_init(worker):
-    worker.log.info('Nucleus: aplicación inicializada y lista para responder.')
+    worker.log.info('Nucleus: worker listo; /healthz verificará la inicialización de la aplicación.')
