@@ -18,6 +18,7 @@ Estructura del proyecto:
 """
 
 import os
+from time import perf_counter
 import mimetypes
 from flask import Flask
 
@@ -115,6 +116,9 @@ def create_app(config_object=None):
     """Construye la app con la configuración indicada (útil para tests)."""
     config = config_object or get_default_config()
     app = Flask(__name__)
+    startup_started = perf_counter()
+    def startup_stage(name):
+        app.logger.warning('[startup] %s (%.1f s)', name, perf_counter()-startup_started)
     app.config.from_object(config)
     app.config["SQLALCHEMY_DATABASE_URI"] = config.get_sqlalchemy_uri()
     # connect_args de Postgres (connect_timeout) no existen en sqlite3;
@@ -137,27 +141,34 @@ def create_app(config_object=None):
     _register_blueprints(app)
     from services.legacy_columns import install, clean_existing_config
 
+    startup_stage('Configurando columnas históricas')
     install()
     from services.rendicion_presupuesto import instalar as instalar_presupuesto
+    startup_stage('Configurando presupuesto de rendición')
     instalar_presupuesto()
 
     # Migraciones de base de datos (idempotentes)
     from migrations import run_migrations
 
     database_url = os.environ.get("DATABASE_URL", "")
+    startup_stage('Ejecutando migraciones de base de datos')
     run_migrations(app, database_url)
     with app.app_context():
         from services.columnas_fuente import instalar as instalar_columnas_fuente
 
+        startup_stage('Configurando columnas de proyectos')
         instalar_columnas_fuente()
         from services.form_options import instalar_pext
 
         instalar_pext()
+        startup_stage('Normalizando configuración')
         clean_existing_config()
         from services.liquidacion_numero import numerar_historicos
 
+        startup_stage('Comprobando numeración histórica')
         numerar_historicos()
 
+    startup_stage('Aplicación lista')
     return app
 
 
