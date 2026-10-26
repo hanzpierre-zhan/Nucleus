@@ -83,3 +83,7 @@ clean_sla.py
 # Entorno virtual de verificación de las pruebas (NUNCA subir: pesa cientos de MB
 # e incluye el navegador de Playwright). Se recrea con requirements-dev.txt.
 /scratch/verify-rendicion-env/
+
+# Dependencias y material local de revisión del expediente (no se despliegan).
+node_modules/
+/scratch/expediente/
