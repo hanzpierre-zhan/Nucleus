@@ -1,3 +1,5 @@
 import fs from 'node:fs/promises';import {FileBlob,SpreadsheetFile} from '@oai/artifact-tool';
-const w=await SpreadsheetFile.importXlsx(await FileBlob.load('C:/Users/Hanz/AppData/Local/Temp/pytest-of-Hanz/pytest-179/test_plantilla_por_cliente_y_f0/expediente-CLARO.xlsx'));
+try {const w=await SpreadsheetFile.importXlsx(await FileBlob.load('C:/Users/Hanz/AppData/Local/Temp/pytest-of-Hanz/pytest-185/test_plantilla_por_cliente_y_f0/expediente-CLARO.xlsx'));
 for(const [sheetName,name] of [['Carátula','caratula'],['Información general','general'],['Partidas','partidas']]){const b=await w.render({sheetName,range:sheetName==='Partidas'?'A1:N17':sheetName==='Carátula'?'A1:N46':'A1:N14',scale:1,format:'png'});await fs.writeFile(name+'.png',new Uint8Array(await b.arrayBuffer()));console.log(name);}
+
+}catch(e){console.log(String(e.message||e).slice(-2500));}

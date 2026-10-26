@@ -39,12 +39,15 @@ def test_plantilla_por_cliente_y_fotos_completas_sin_formulas_rotas(client,manag
     assert book['Detalles']['B3'].value=='Antecedentes'
     assert len(general._images)==1 and len(book['Carátula']._images)==2
     parts=book['Partidas']
-    assert [parts.cell(r,13).value for r in (9,18,27,36)]==[1,1,1,2]
-    assert [parts.cell(r,8).value for r in (10,19,28,37)]==[1,1,1,1]
+    assert [parts.cell(r,13).value for r in (9,18)]==[1,2]
+    assert [parts.cell(r,8).value for r in (10,19)]==[1,1]
+    assert [b.id for b in parts.row_breaks.brk]==[17]
+    assert parts.max_row<=26
     assert parts['E13'].value=='Compra de cable'
     assert parts['E16'].value=='Actividad realizada 1'
-    assert loaded==['ubicacion','foto-0','foto-1','durante','despues','foto-2','foto-3','foto-4']
-    assert len(parts._images)==5
+    assert loaded==['ubicacion','foto-0','foto-1','foto-2','foto-3','foto-4','durante','despues']
+    assert len(parts._images)==7
+    assert all(image.anchor._from.row==14 for image in parts._images)
     for sheet in book:
         for row in sheet:
             assert all(c.data_type not in ('f','e') for c in row),sheet.title
@@ -86,3 +89,66 @@ def test_catalogo_responsables_persistente_y_sin_cambiar_opciones_supervisor(app
     assert auth_client.get('/api/cotizacion/sustento/responsables').json['opciones']==result.json['opciones']
     assert auth_client.patch('/api/cotizacion/sustento/responsables',json={'opciones':['']}).status_code==400
     assert app.test_client().get('/api/cotizacion/sustento/expediente').status_code in (302,401)
+
+@pytest.mark.parametrize('count',[1,2,3,4,5,6,13,30])
+def test_fotos_independientes_ordenadas_sin_solaparse_ni_salir_del_espacio(count):
+    from openpyxl import Workbook
+    from services.cotizacion_expediente import fotos_independientes,width
+    sheet=Workbook().active
+    sheet.row_dimensions[15].height=199.5
+    contents=[]
+    sizes=[(900,450),(400,900),(640,640)]
+    for index in range(count):
+        content=io.BytesIO();Image.new('RGB',sizes[index%3],(index*7%255,40,100)).save(content,'PNG')
+        contents.append(content.getvalue())
+    fotos_independientes(sheet,contents,6,15,250,266)
+    assert len(sheet._images)==count
+    rects=[]
+    for index,image in enumerate(sheet._images):
+        anchor=image.anchor
+        x=sum(width(sheet,c,c) for c in range(6,anchor._from.col+1))+anchor._from.colOff/9525
+        y=anchor._from.rowOff/9525
+        w=anchor.ext.cx/9525;h=anchor.ext.cy/9525
+        assert anchor._from.col>=5 and anchor._from.row==14
+        assert anchor._from.colOff/9525<width(sheet,anchor._from.col+1,anchor._from.col+1)
+        assert x>=0 and y>=0 and x+w<=250 and y+h<=266
+        assert abs(w/h-sizes[index%3][0]/sizes[index%3][1])<0.08
+        with Image.open(io.BytesIO(image._data())) as original:assert original.size==sizes[index%3]
+        rects.append((x,y,x+w,y+h))
+    for i,a in enumerate(rects):
+        for b in rects[i+1:]:assert a[2]<=b[0] or b[2]<=a[0] or a[3]<=b[1] or b[3]<=a[1]
+
+@pytest.mark.parametrize('size',[(1600,900),(900,1600)])
+def test_ubicacion_aprovecha_el_espacio_sin_deformar_ni_recortar(size):
+    from services.cotizacion_expediente import width
+    content=io.BytesIO();Image.new('RGB',size,'teal').save(content,'PNG')
+    output=generar({'CLIENTE':'ENTEL','ITEMS_JSON':json.dumps([{'texto':'Trabajo'}])},
+        {'location_picture':'foto'}, {},'',lambda url:content.getvalue(),datetime(2026,10,26))
+    sheet=load_workbook(output)['Información general']
+    image=sheet._images[0];anchor=image.anchor
+    x=sum(width(sheet,c,c) for c in range(2,anchor._from.col+1))+anchor._from.colOff/9525
+    y=anchor._from.rowOff/9525
+    w=anchor.ext.cx/9525;h=anchor.ext.cy/9525
+    available_width=width(sheet,2,13);available_height=sheet.row_dimensions[13].height*96/72
+    assert x+w<=available_width and y+h<=available_height
+    assert y>=28
+    assert abs(w/h-size[0]/size[1])<0.01
+    assert sheet.row_dimensions[13].height==253.5
+    assert min(available_width-w,available_height-28-h)<=9
+
+def test_dos_verticales_y_una_horizontal_como_el_ejemplo(tmp_path):
+    from services.cotizacion_expediente import distribuir_fotos
+    rectangles=distribuir_fotos(['vertical1','vertical2','horizontal'],[0.5,0.5,2.4],330,333)
+    first,second,last=rectangles
+    assert abs(first[1]-second[1])<1
+    assert first[0]+first[2]<=second[0]
+    assert last[1]>=first[1]+first[3]
+    assert last[2]>first[2]+second[2]
+    images={}
+    for name,size,color in [('vertical1',(400,800),'teal'),('vertical2',(400,800),'navy'),('horizontal',(1200,500),'darkred')]:
+        content=io.BytesIO();Image.new('RGB',size,color).save(content,'PNG');images[name]=content.getvalue()
+    datos={'CLIENTE':'ENTEL','ITEMS_JSON':json.dumps([{'texto':'Fotos de orientaciones mixtas'}])}
+    item=items_cotizacion(datos)[0]
+    output=generar(datos,{'location_picture':'horizontal','item_photos':{item['key']:[{'url':key,'phase':'during'} for key in images]}},
+        {},'',lambda url:images[url],datetime(2026,10,26))
+    (tmp_path/'ejemplo-mixto.xlsx').write_bytes(output.getvalue())

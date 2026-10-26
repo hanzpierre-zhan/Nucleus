@@ -102,7 +102,7 @@ def test_ficha_ampliada_guarda_y_restaura_modal(app,auth_client,servidor,caso,mo
             report=load_workbook(str(tmp_path/'expediente-desde-boton.xlsx'))
             assert report['Información general']['K5'].value=='Responsable de prueba'
             assert report['Carátula']['E45'].value=='COT-SUST-TEST'
-            assert len(report['Partidas']._images)==4
+            assert len(report['Partidas']._images)==5
             saved=page.evaluate('cotGuardarSustentoSeleccionado(false)')
             assert saved['success'] and saved['wo_data']['_SUSTENTO_MANUAL']['expense']=='EXP-2026-028'
             assert saved['wo_data']['_SUSTENTO_MANUAL']['site_name']=='Sitio manual prueba'
