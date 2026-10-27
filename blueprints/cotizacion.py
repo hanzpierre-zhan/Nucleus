@@ -519,19 +519,19 @@ def api_cotizacion_generar():
     cot_existente = None
     if cid:
         cot_existente = Cotizacion.query.filter_by(proyecto_id=pid, key_value=key, id=cid).first()
-        if cot_existente and cot_existente.bloqueada and user_rol not in ('zeno', 'suport'):
-            # Liberación por estado: en Observado/Rechazado se puede regenerar
-            # aunque la cotización siga marcada como bloqueada.
-            _liberada = False
+        if cot_existente and user_rol not in ('zeno', 'suport'):
+            # Mientras la cotización espera la conformidad del cliente puede
+            # regenerarse. El bloqueo definitivo empieza con la aprobación.
             _rec = NucleusData.query.filter_by(proyecto_id=pid, key_value=key).first()
-            if _rec:
-                try:
-                    _d_est = json.loads(_rec.data_json or '{}')
-                except Exception:
-                    _d_est = {}
-                _liberada = str(_d_est.get('ESTADO COTIZACION', '') or '').strip() in ('Observado', 'Rechazado')
-            if not _liberada:
-                return jsonify({'error': 'La cotización ya fue generada y está bloqueada. Solo admin puede modificarla.'}), 403
+            try:
+                _d_est = json.loads(_rec.data_json or '{}') if _rec else {}
+            except Exception:
+                _d_est = {}
+            _estado = str(_d_est.get('ESTADO COTIZACION', '') or '').strip()
+            _aprobada = (_estado in ('Aprobado', 'Atendido', 'Validado', 'Cancelado')
+                         or bool(str(_d_est.get('FECHA APROBACION', '') or '').strip()))
+            if _aprobada:
+                return jsonify({'error': 'La cotización ya fue aprobada y está bloqueada. Solo admin puede modificarla.'}), 403
 
     numero = data.get('numero', '').strip()
     nota = data.get('nota', '').strip()
@@ -1256,6 +1256,55 @@ def api_cotizacion_subir_correo():
                 pass
 
 
+@bp.route('/api/cotizacion/adjunto/eliminar', methods=['POST'])
+@login_required
+def api_cotizacion_adjunto_eliminar():
+    """Quita un adjunto cargado por error y borra su archivo almacenado."""
+    if not _cot_puede_gestionar():
+        return jsonify({'error': 'No tienes permisos para eliminar adjuntos.'}), 403
+    proy = _cot_proyecto()
+    if not proy:
+        return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
+    data = request.get_json(silent=True) or {}
+    key = str(data.get('key') or '').strip()
+    campo = str(data.get('campo') or '').strip().upper()
+    campos = ('ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR')
+    if not key or campo not in campos:
+        return jsonify({'error': 'Datos incompletos o adjunto no válido.'}), 400
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    if not fila:
+        return jsonify({'error': 'La cotización no existe.'}), 404
+    row = json.loads(fila.data_json or '{}')
+    if bloqueado(row):
+        return jsonify({'error': 'El sustento ya fue aprobado y sus adjuntos no pueden modificarse.'}), 403
+    url = str(row.get(campo) or '').strip()
+    if not url:
+        return jsonify({'success': True, 'newData': row})
+    prefijo = '/api/cotizacion/correo/%d/%s/' % (proy.id, secure_filename(key))
+    nombre = os.path.basename(url.split('?', 1)[0])
+    if not url.startswith(prefijo) or not nombre or secure_filename(nombre) != nombre:
+        return jsonify({'error': 'El adjunto no corresponde a esta cotización.'}), 400
+    try:
+        if evidencia_usa_b2():
+            b2_cliente().delete_object(Bucket=current_app.config['B2_BUCKET'],
+                                       Key='%s/%s' % (secure_filename(key), nombre))
+        else:
+            ruta = os.path.join(_cot_folder(proy.id, secure_filename(key)), nombre)
+            if os.path.isfile(ruta):
+                os.remove(ruta)
+    except Exception:
+        current_app.logger.exception('adjunto_eliminar: no se pudo borrar el archivo')
+    row.pop(campo, None)
+    if campo == 'ADJUNTO CORREO CLIENTE':
+        row.pop('NOMBRE CORREO CLIENTE', None)
+    nombres = row.get('_ADJUNTOS_NOMBRES')
+    if isinstance(nombres, dict):
+        nombres.pop(nombre, None)
+    fila.data_json = safe_json_dumps(row)
+    db.session.commit()
+    return jsonify({'success': True, 'newData': row})
+
+
 @bp.route('/api/cotizacion/correo/<int:pid>/<path:key>/<path:nombre>')
 @login_required
 def api_cotizacion_correo(pid, key, nombre):
@@ -1592,6 +1641,56 @@ def sustento_ubicacion_subir(item=False):
     else:ficha['location_picture']=url
     cot.data_json=safe_json_dumps(d);db.session.commit()
     return jsonify(success=True,url=url,photos=ficha.get('item_photos',{}).get(item_key,[]))
+
+
+@bp.route('/api/cotizacion/sustento/foto/eliminar', methods=['POST'])
+@login_required
+def sustento_foto_eliminar():
+    """Elimina una foto de ubicación o de un ítem del sustento."""
+    if not _puede_cotizaciones(): return jsonify(error='Sin permisos.'),403
+    p=_cot_proyecto()
+    datos=request.get_json(silent=True) or {}
+    cot=NucleusData.query.filter_by(proyecto_id=p.id,key_value=str(datos.get('key') or '').strip()).with_for_update().first() if p else None
+    if not cot:return jsonify(error='Cotización no encontrada.'),404
+    d=json.loads(cot.data_json or '{}');wo=str(datos.get('wo') or '').strip()
+    if bloqueado(d) or _cot_pestania(d) not in ('sustentar','atendido'):return jsonify(error='Este sustento no permite cambios.'),403
+    if wo.casefold() not in [c.casefold() for c in (_split_wos(d.get('NUMERO WO')) or [''])]:return jsonify(error='WO no pertenece a esta cotización.'),400
+    origen,registro=_resolver_sustento_cot(cot,wo,d)
+    if not origen:return jsonify(error='Primero registra este WO en el FLM correspondiente.'),409
+    from services.cotizacion_ficha import usa_ficha
+    if not usa_ficha(d,origen.nombre):return jsonify(error='FLM - PEXT conserva el formulario de sustento anterior.'),400
+    if bloqueado(json.loads(registro.data_json or '{}')) or _evidencia_aprobacion_bloquea(origen.id,registro.key_value):return jsonify(error='El sustento está aprobado o bloqueado.'),403
+    item_key=str(datos.get('item_key') or '').strip()
+    url=str(datos.get('url') or '').strip()
+    ficha=d.get('_SUSTENTO_FICHAS',{}).get(wo.casefold(),{})
+    if item_key:
+        from services.cotizacion_ficha import items_cotizacion
+        if item_key not in {i['key'] for i in items_cotizacion(d)}:return jsonify(error='El ítem no pertenece a esta cotización.'),400
+        fotos=ficha.get('item_photos',{}).get(item_key,[])
+        indice=next((i for i,foto in enumerate(fotos) if isinstance(foto,dict) and foto.get('url')==url),None)
+        if indice is None:return jsonify(error='Foto no encontrada.'),404
+        fotos.pop(indice)
+        if not fotos:ficha.get('item_photos',{}).pop(item_key,None)
+    else:
+        if not url or ficha.get('location_picture')!=url:return jsonify(error='Foto no encontrada.'),404
+        ficha.pop('location_picture',None)
+    nombre=os.path.basename(url.split('?',1)[0])
+    prefijo='/api/cotizacion/sustento/%s/%s/'%('foto' if item_key else 'ubicacion',cot.id)
+    if not url.startswith(prefijo) or not nombre or secure_filename(nombre)!=nombre:
+        return jsonify(error='La foto no corresponde a esta cotización.'),400
+    referencias=[f.get('location_picture') for f in d.get('_SUSTENTO_FICHAS',{}).values()]
+    referencias.extend(foto.get('url') for f in d.get('_SUSTENTO_FICHAS',{}).values() for grupo in f.get('item_photos',{}).values() for foto in grupo if isinstance(foto,dict))
+    if url not in referencias:
+        try:
+            if evidencia_usa_b2():
+                b2_cliente().delete_object(Bucket=current_app.config['B2_BUCKET'],Key=f'cot_ubicacion/{cot.id}/{nombre}')
+            else:
+                ruta=os.path.join(_ubicacion_folder(cot.id),nombre)
+                if os.path.isfile(ruta):os.remove(ruta)
+        except Exception:
+            current_app.logger.exception('sustento_foto_eliminar: no se pudo borrar el archivo')
+    cot.data_json=safe_json_dumps(d);db.session.commit()
+    return jsonify(success=True,photos=ficha.get('item_photos',{}).get(item_key,[]) if item_key else [])
 
 
 @bp.route('/api/cotizacion/sustento/foto/<int:cot_id>/<nombre>')

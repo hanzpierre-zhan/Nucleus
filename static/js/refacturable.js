@@ -98,6 +98,7 @@
     const table = new Tabulator('#ref-grid', {
         layout: 'fitData', rowHeight: 44,
         movableColumns: true,
+        selectableRows: true,
         persistence: {columns: true}, persistenceMode: 'local',
         persistenceID: 'liquidaciones-' + document.getElementById('ref-grid').dataset.user,
         pagination: true, paginationMode: 'local', paginationSize: 200,
@@ -106,6 +107,7 @@
         placeholder: 'No hay cotizaciones aprobadas para mostrar.',
         columnDefaults: {vertAlign: 'middle', minWidth: 48, resizable: true},
         columns: [
+            {title:'', field:'_seleccion', width:44, minWidth:44, maxWidth:44, hozAlign:'center', headerSort:false, headerFilter:false, resizable:false, formatter:'rowSelection', titleFormatter:'rowSelection', cssClass:'ref-select-cell'},
             column('N', 'correlativo', {width: 185, minWidth: 48, formatter: expedienteFormatter}),
             column('N° COTIZACIÓN', 'cotizacion', {width:185, formatter: quoteFormatter}),
             column('ESTADO DE COTIZACIÓN', 'estado_cotizacion', {width: 185, formatter: statusFormatter}),
@@ -141,6 +143,55 @@
 
         ]
     });
+    const downloadSelectedButton = document.getElementById('ref-download-selected');
+    let descargandoSeleccion = false;
+    function actualizarSeleccion(seleccionadas) {
+        if (!downloadSelectedButton || descargandoSeleccion) return;
+        const count = Array.isArray(seleccionadas) ? seleccionadas.length : table.getSelectedRows().length;
+        downloadSelectedButton.disabled = count === 0;
+        downloadSelectedButton.innerHTML = count
+            ? `<i class="fa-solid fa-file-zipper"></i> Descargar seleccionados (${count})`
+            : '<i class="fa-solid fa-file-zipper"></i> Descargar seleccionados (ZIP)';
+        downloadSelectedButton.title = count
+            ? `Descargar ${count} expediente(s) en un solo ZIP`
+            : 'Selecciona uno o más expedientes para descargarlos en un solo ZIP';
+    }
+    async function descargarSeleccionados() {
+        const ids = table.getSelectedData().map(row => row.id);
+        if (!ids.length || descargandoSeleccion) return;
+        descargandoSeleccion = true;
+        const contenido = downloadSelectedButton.innerHTML;
+        downloadSelectedButton.disabled = true;
+        downloadSelectedButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Preparando ZIP…';
+        message.textContent = `Preparando ${ids.length} expediente(s) en un solo ZIP…`;
+        try {
+            const response = await fetch('/liquidaciones/api/registros/expedientes', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids})
+            });
+            if (!response.ok) {
+                const data = await nucleusLeerRespuestaJSON(response);
+                throw new Error(data.error || 'No se pudo preparar el ZIP de expedientes.');
+            }
+            const blob = await response.blob();
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const match = /filename\*?=(?:UTF-8'')?["']?([^"';]+)/i.exec(disposition);
+            const nombre = match ? decodeURIComponent(match[1].trim()) : `Expedientes_${ids.length}.zip`;
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url; link.download = nombre; link.hidden = true;
+            document.body.appendChild(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 60000);
+            message.textContent = `${ids.length} expediente(s) descargados en un solo ZIP.`;
+        } catch (error) {
+            message.textContent = error.message;
+        } finally {
+            descargandoSeleccion = false;
+            downloadSelectedButton.innerHTML = contenido;
+            actualizarSeleccion();
+        }
+    }
+    downloadSelectedButton?.addEventListener('click', descargarSeleccionados);
+    table.on('rowSelectionChanged', (_data, _rows, seleccionadas) => actualizarSeleccion(seleccionadas));
     function etiquetasPaginacion(raiz) {
         const labels = {first: ['«', 'Primera página'], prev: ['‹', 'Página anterior'], next: ['›', 'Página siguiente'], last: ['»', 'Última página']};
         document.querySelectorAll(raiz + ' .tabulator-page').forEach(button => {
@@ -225,6 +276,7 @@
             total = data.registros.length;
             renderCards(data.registros);
             await table.replaceData(data.registros);
+            actualizarSeleccion([]);
             updateCount(); message.textContent = '';
         } catch (error) { message.textContent = error.message; }
     }
@@ -271,6 +323,9 @@
         updateCount(datos);
     }); table.on('pageLoaded', updateCount);
     table.on('tableBuilt', async () => {
+        const seleccion = table.getColumn('_seleccion');
+        if (seleccion) { await seleccion.show(); table.moveColumn('_seleccion', 0); }
+        actualizarSeleccion([]);
         await table.getColumn('cotizacion').updateDefinition({formatter: quoteFormatter});
         await table.getColumn('correlativo').updateDefinition({formatter: expedienteFormatter});
         const gestor = table.getColumn('gestor');

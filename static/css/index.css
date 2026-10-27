@@ -2461,6 +2461,33 @@ body.light #modal-add-registro .cot-items-mode #btn-mar-generar-coti {
   color: var(--ios-blue);
   text-underline-offset: 3px;
 }
+:is(#cot-modal, #cot-proveedor-modal) .cot-file-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+:is(#cot-modal, #cot-proveedor-modal) .cot-file-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #FF3B30 35%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, #FF3B30 10%, transparent);
+  color: #FF3B30;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+:is(#cot-modal, #cot-proveedor-modal) .cot-file-remove:hover {
+  background: #FF3B30;
+  border-color: #FF3B30;
+  color: #fff;
+}
+:is(#cot-modal, #cot-proveedor-modal) .cot-file-remove:disabled { opacity: .5; cursor: wait; }
 :is(#cot-modal, #cot-proveedor-modal) .cot-comment-field {
   grid-column: 1/-1;
 }

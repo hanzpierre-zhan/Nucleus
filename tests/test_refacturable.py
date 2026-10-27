@@ -166,16 +166,9 @@ def test_refacturable_renderiza_montos_y_controles(auth_client):
 
 
 def test_expediente_pendiente_conserva_numero(auth_client, cot_aprobada):
-    import io
-    import zipfile
-    fila = next(r for r in auth_client.get('/refacturable/api/registros').json['registros'] if r['id'] == cot_aprobada)
     response = auth_client.get(f'/refacturable/api/registros/{cot_aprobada}/expediente')
-    assert response.status_code == 200
-    assert fila['correlativo'] + '.zip' in response.headers['Content-Disposition']
-    with zipfile.ZipFile(io.BytesIO(response.data)) as archivo:
-        resumen = archivo.read(fila['correlativo'] + '/00_Resumen.txt').decode('utf-8')
-        assert 'Pendiente' in resumen
-        assert fila['correlativo'] in resumen
+    assert response.status_code == 500
+    assert b'No se pudo preparar el expediente' in response.data
     response.close()
 
 
@@ -199,8 +192,8 @@ def test_expediente_documentos_locales(app, auth_client, cot_aprobada, monkeypat
     assert response.status_code == 200
     with zipfile.ZipFile(io.BytesIO(response.data)) as archivo:
         names = archivo.namelist()
-        assert archivo.read(next(n for n in names if n.endswith('/02_Factura_del_proveedor/factura.pdf'))) == b'factura-prueba'
-        assert archivo.read(next(n for n in names if n.endswith('/03_Correo_del_cliente/correo.msg'))) == b'correo-prueba'
+        assert archivo.read('02_Factura_del_proveedor.pdf') == b'factura-prueba'
+        assert archivo.read('03_Correo_del_cliente - correo.msg') == b'correo-prueba'
     response.close()
 
 

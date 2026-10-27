@@ -46,13 +46,17 @@
 .cot-item-heading h4{font-size:13px;line-height:1.5;margin:0;color:var(--ios-label);overflow-wrap:anywhere;}
 .cot-item-meta{font-size:10px;color:var(--ios-secondary);margin:5px 0 12px;}
 .cot-item-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
-.cot-item-photo{min-width:0;margin:0;border:1px solid var(--ios-hairline);border-radius:9px;overflow:hidden;}
+.cot-item-photo{position:relative;min-width:0;margin:0;border:1px solid var(--ios-hairline);border-radius:9px;overflow:hidden;}
 .cot-item-photo>a{display:block;}
 .cot-item-photo img{display:block;width:100%;height:150px;object-fit:cover;}
 .cot-item-upload{min-height:150px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--ios-secondary);border-radius:9px;padding:10px;box-sizing:border-box;font-size:12px;color:var(--ios-label);cursor:pointer;}
 .cot-item-upload:hover{border-color:var(--ios-teal);background:color-mix(in srgb,var(--ios-teal) 6%,transparent);}
 .cot-item-photo .cot-item-upload{min-height:34px;border:0;border-top:1px solid var(--ios-hairline);border-radius:0;font-size:11px;}
 .cot-item-upload.is-disabled{opacity:.5;cursor:wait;}
+.cot-item-remove,.cot-ficha-picture-remove{position:absolute;top:8px;right:8px;z-index:2;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:rgba(20,20,24,.78);color:#fff;font-size:13px;line-height:1;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.25);}
+.cot-item-remove:hover,.cot-ficha-picture-remove:hover{background:#FF3B30;}
+.cot-item-remove:focus-visible,.cot-ficha-picture-remove:focus-visible{outline:2px solid var(--ios-teal);outline-offset:2px;}
+.cot-ficha-picture-remove{top:12px;right:12px;width:32px;height:32px;font-size:14px;}
 #cot-btn-generar-expediente:disabled{opacity:.55;cursor:not-allowed;}
 @media(max-width:600px){.cot-item-heading{flex-direction:column;gap:3px;}.cot-item-photos{grid-template-columns:repeat(2,minmax(0,1fr));}.cot-item-photo img{height:115px;}.cot-item-upload{min-height:115px;}.cot-ficha-wo-selector{flex-direction:column;align-items:start;}}
 

@@ -2443,6 +2443,65 @@ let _cotAdjuntoNombre = '';
 let _cotProveedorUrl = '';
 let _cotProveedorSubiendo = false;
 
+function cotBotonEliminarAdjunto(key, campo, nombre, alEliminar) {
+    const boton = document.createElement('button');
+    boton.type = 'button';
+    boton.className = 'cot-file-remove';
+    boton.title = 'Eliminar adjunto';
+    boton.setAttribute('aria-label', 'Eliminar adjunto');
+    boton.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+    boton.addEventListener('click', async event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!await nucleusConfirm('¿Eliminar el adjunto' + (nombre ? ' "' + nombre + '"' : '') + '?')) return;
+        boton.disabled = true;
+        try {
+            const r = await fetch('/api/cotizacion/adjunto/eliminar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key, campo })
+            });
+            const j = await nucleusLeerRespuestaJSON(r);
+            if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo eliminar el adjunto.');
+            const fila = (typeof rawData !== 'undefined' ? rawData : []).find(x => x._key === key);
+            if (fila && j.newData) {
+                Object.assign(fila, j.newData);
+                if (typeof fila.reformat === 'function') fila.reformat();
+            }
+            if (alEliminar) alEliminar();
+        } catch (error) {
+            nucleusAlert(error.message);
+        } finally {
+            boton.disabled = false;
+        }
+    });
+    return boton;
+}
+
+function cotMostrarAdjuntoCorreo() {
+    const ok = document.getElementById('cot-adjunto-ok');
+    if (!ok) return;
+    ok.replaceChildren();
+    if (!_cotAdjuntoUrl) {
+        ok.style.display = 'none';
+        return;
+    }
+    ok.style.display = 'flex';
+    ok.style.color = '#28A745';
+    const texto = document.createElement('span');
+    texto.innerHTML = '<i class="fa-solid fa-check"></i> Archivo .msg cargado' +
+        (_cotAdjuntoNombre ? ' · ' + escapeHtml(_cotAdjuntoNombre) : '') +
+        '. Clic para reemplazar.';
+    texto.style.cursor = 'pointer';
+    texto.addEventListener('click', () => cotElegirAdjunto());
+    ok.append(texto, cotBotonEliminarAdjunto(_cotModal ? _cotModal.key : '', 'ADJUNTO CORREO CLIENTE',
+        _cotAdjuntoNombre, () => {
+            _cotAdjuntoUrl = '';
+            _cotAdjuntoNombre = '';
+            cotMostrarAdjuntoCorreo();
+        }));
+}
+
 function cotResumen(row) {
     if (typeof rendPoblarDetalle === 'function') {
         rendPoblarDetalle(row, 'cot-resumen-grid');
@@ -2487,16 +2546,7 @@ function cotAbrirModal(key, pestania, accionDef) {
     });
 
     // Estado adjunto
-    const ok = document.getElementById('cot-adjunto-ok');
-    if (ok) {
-        ok.style.display = _cotAdjuntoUrl ? 'block' : 'none';
-        ok.style.color = '#28A745';
-        ok.innerHTML = _cotAdjuntoUrl
-            ? '<i class="fa-solid fa-check"></i> Archivo .msg cargado' +
-              (_cotAdjuntoNombre ? ' · ' + escapeHtml(_cotAdjuntoNombre) : '') +
-              '. Clic para reemplazar.'
-            : '';
-    }
+    cotMostrarAdjuntoCorreo();
 
     cotSeleccionarAccion(pestania === 'registro' ? accionDef || 'rechazado' : accionDef || 'aprobado');
 
@@ -2605,8 +2655,7 @@ function cotElegirAdjunto() {
                 }
                 _cotAdjuntoUrl = j.url;
                 _cotAdjuntoNombre = j.nombre || f.name;
-                if (ok) { ok.style.color = '#28A745';
-                          ok.innerHTML = '<i class="fa-solid fa-check"></i> ' + escapeHtml(f.name); }
+                cotMostrarAdjuntoCorreo();
             })
             .catch(() => {
                 if (ok) { ok.style.display = 'block'; ok.style.color = '#FF3B30';
@@ -2643,8 +2692,15 @@ function cotCerrarProveedor() {
 function cotMostrarFactura() {
     const estado = document.getElementById('cot-factura-estado'); estado.replaceChildren();
     if (!_cotProveedorModal || !_cotProveedorModal.url) return;
+    estado.style.display = 'flex';
     const link = document.createElement('a'); link.href = _cotProveedorModal.url;
-    link.download = ''; link.className = 'action-pill pill-blue'; link.textContent = 'Descargar factura adjunta'; estado.appendChild(link);
+    link.download = ''; link.className = 'action-pill pill-blue'; link.textContent = 'Descargar factura adjunta';
+    estado.append(link, cotBotonEliminarAdjunto(_cotProveedorModal.key, 'ADJUNTO FACTURA PROVEEDOR', '', () => {
+        if (!_cotProveedorModal) return;
+        _cotProveedorModal.url = '';
+        cotMostrarFactura();
+        document.getElementById('cot-factura-caption').textContent = 'Adjuntar factura del proveedor';
+    }));
 }
 async function cotSubirFactura(input) {
     const modal = _cotProveedorModal, archivo = input.files[0];
@@ -2683,12 +2739,17 @@ function cotMostrarProveedorAdjunto() {
     const estado = document.getElementById('cot-proveedor-ok');
     estado.replaceChildren();
     if (!_cotProveedorUrl) return;
+    estado.style.display = 'flex';
     const link = document.createElement('a');
     link.href = _cotProveedorUrl;
     link.target = '_blank';
     link.rel = 'noopener';
     link.textContent = 'Ver cotización del proveedor adjunta';
-    estado.appendChild(link);
+    estado.append(link, cotBotonEliminarAdjunto(_cotModal ? _cotModal.key : '', 'ADJUNTO COTIZACION PROVEEDOR',
+        '', () => {
+            _cotProveedorUrl = '';
+            cotMostrarProveedorAdjunto();
+        }));
 }
 
 async function cotSubirCotizacionProveedor(input) {

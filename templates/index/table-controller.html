@@ -18404,27 +18404,33 @@ btnItem.onclick = () => cotRegAgregarFila();
 
     function _aplicarEstadoCotizacion(bloqueada) {
 
-        // Si la cotización está bloqueada pero el WO está en estado liberada
+        // La cotización se puede corregir hasta "Confirmar Aprobación".
 
-        // (Observado/Rechazado), se permite editar y volver a generar.
+        // A partir de la aprobación queda bloqueada (salvo administradores).
 
-        let _esLiberada = false;
+        let _estWo = '';
 
-        if (bloqueada && typeof woRow !== 'undefined' && woRow) {
+        let _fechaAprob = '';
+
+        if (typeof woRow !== 'undefined' && woRow) {
 
             try {
 
                 const _woD = woRow.getData();
 
-                const _estWo = String(_woD['ESTADO COTIZACION'] || '').trim();
+                _estWo = String(_woD['ESTADO COTIZACION'] || '').trim();
 
-                _esLiberada = _estWo === 'Observado' || _estWo === 'Rechazado';
+                _fechaAprob = String(_woD['FECHA APROBACION'] || '').trim();
 
             } catch (e) { }
 
         }
 
-        const bloqueadaEfectiva = bloqueada && !_esLiberada;
+        const _esAprobada = ['Aprobado', 'Atendido', 'Validado', 'Cancelado'].includes(_estWo) || !!_fechaAprob;
+
+        const _esAdmin = ['zeno', 'suport'].includes(String(USER_ROLE || '').trim().toLowerCase());
+
+        const bloqueadaEfectiva = _esAprobada && !_esAdmin;
 
         _cotiIsBloqueada = bloqueadaEfectiva;
 
@@ -18490,33 +18496,15 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         } else {
 
-            // Desbloqueada o liberada por estado Rechazado/Observado
+            // Editable: todavía no se confirmó la aprobación del cliente.
 
             if (badge) {
 
-                if (_esLiberada && bloqueada) {
+                badge.style.display = 'none';
 
-                    // Mostrar badge amarillo indicando que es editable por rechazo
+                badge.style.background = '';
 
-                    badge.style.display = 'inline-flex';
-
-                    badge.style.alignItems = 'center';
-
-                    badge.style.justifyContent = 'center';
-
-                    badge.style.background = '#FF9500';
-
-                    badge.title = 'Cotización liberada para re-generación (estado: Rechazado/Observado)';
-
-                } else {
-
-                    badge.style.display = 'none';
-
-                    badge.style.background = '';
-
-                    badge.title = 'Cotización bloqueada';
-
-                }
+                badge.title = 'Cotización bloqueada';
 
             }
 
@@ -18524,7 +18512,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             if (btnGenerar) btnGenerar.style.display = '';
 
-            if (btnRedownload) btnRedownload.style.display = _esLiberada && bloqueada ? '' : 'none';
+            if (btnRedownload) btnRedownload.style.display = bloqueada ? '' : 'none';
 
             if (notaEl) notaEl.disabled = false;
 
@@ -19065,7 +19053,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-        if (!await nucleusConfirm(`¿Generar y guardar la cotización ${numero}?\n\nUna vez generada, los datos quedarán BLOQUEADOS.\nSolo el administrador podrá modificarlos. Se liberará automáticamente si pasa a Observado o Rechazado.`)) return;
+        if (!await nucleusConfirm(`¿Generar y guardar la cotización ${numero}?\n\nPodrás seguir editándola hasta confirmar la aprobación.\nDespués de la aprobación quedará BLOQUEADA y solo el administrador podrá modificarla.`)) return;
 
 
 

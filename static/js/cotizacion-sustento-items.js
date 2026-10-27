@@ -42,13 +42,25 @@
     finally{ctx.uploads--;card.removeAttribute('aria-busy');render();}
    }
    function picker(text,phase,index,multiple=false){const label=el('label','cot-item-upload',text),input=el('input');input.type='file';input.accept='image/jpeg,image/png,image/webp,image/heic,image/heif';input.multiple=multiple;input.hidden=true;input.disabled=!editable||ctx.uploads>0;input.setAttribute('aria-label',text+' · '+phase+' · ítem '+item.numero);label.tabIndex=input.disabled?-1:0;label.setAttribute('role','button');label.addEventListener('keydown',event=>{if(!input.disabled&&(event.key==='Enter'||event.key===' ')){event.preventDefault();input.click();}});input.addEventListener('change',()=>upload([...input.files],phase,index));label.append(input);if(input.disabled)label.classList.add('is-disabled');return label;}
+   async function remove(index){
+    if(!editable||ctx.uploads||!await nucleusConfirm('¿Eliminar esta foto del sustento?'))return;
+    ctx.uploads++;card.setAttribute('aria-busy','true');status.textContent='Eliminando foto…';render();
+    try{
+     const response=await fetch('/api/cotizacion/sustento/foto/eliminar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,item_key:item.key,url:(photos[item.key]||[])[index]?.url})});
+     const result=await nucleusLeerRespuestaJSON(response);
+     if(!response.ok||!result.success)throw Error(result.error||'No se pudo eliminar la foto.');
+     photos[item.key]=result.photos||[];entry.wo_data._SUSTENTO_MANUAL={...(entry.wo_data._SUSTENTO_MANUAL||{}),item_photos:photos};
+     status.textContent='Foto eliminada.';
+    }catch(error){status.textContent=error.message;}
+    finally{ctx.uploads--;card.removeAttribute('aria-busy');render();}
+   }
    function render(){
     grid.replaceChildren();const images=photos[item.key]||[];
     for(const [phase,title] of [['before','Antes | Before'],['during','Durante | During'],['after','Después | After']]){
      const section=el('section','cot-item-phase');section.dataset.phase=phase;section.append(el('h5',null,title));
      const list=el('div','cot-item-photos');section.append(list);grid.append(section);
      const selected=images.map((photo,i)=>({photo,i})).filter(({photo})=>(photo.phase||'before')===phase);
-     selected.forEach(({photo,i})=>{const figure=el('figure','cot-item-photo'),link=el('a'),img=el('img');link.href=photo.url;link.target='_blank';link.rel='noopener';img.src=photo.url;img.alt=title+' · foto '+(i+1)+' del ítem '+item.numero;img.loading='lazy';link.append(img);figure.append(link);if(editable)figure.append(picker('Reemplazar foto',phase,i));list.append(figure);});
+     selected.forEach(({photo,i})=>{const figure=el('figure','cot-item-photo'),link=el('a'),img=el('img');link.href=photo.url;link.target='_blank';link.rel='noopener';img.src=photo.url;img.alt=title+' · foto '+(i+1)+' del ítem '+item.numero;img.loading='lazy';link.append(img);figure.append(link);if(editable){const del=el('button','cot-item-remove');del.type='button';del.title='Eliminar foto';del.setAttribute('aria-label','Eliminar foto '+(i+1)+' del ítem '+item.numero);del.innerHTML='<i class="fa-solid fa-xmark" aria-hidden="true"></i>';del.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();remove(i);});figure.append(del);figure.append(picker('Reemplazar foto',phase,i));}list.append(figure);});
      if(editable)list.append(picker(selected.length?'+ Agregar foto':'+ Subir foto',phase,undefined,true));
      else if(!selected.length)list.append(el('p','cot-ficha-status','Sin fotos registradas.'));
     }

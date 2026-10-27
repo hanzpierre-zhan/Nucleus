@@ -186,13 +186,16 @@ def api_rows_update():
                     return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
                 else:
                     return jsonify({'success': True})
-            # Una cotización en Observado/Rechazado queda LIBERADA: puede editarse
-            # (los gestores incluidos) para corregirla y volver a generar el PDF
-            # con el mismo N°. En los demás estados, el bloqueo por GENERADA sigue.
+            # La cotización puede corregirse mientras espera la conformidad del
+            # cliente (En Aprobación), aunque ya se haya generado el PDF. El
+            # bloqueo definitivo empieza con la APROBACIÓN: desde ese momento
+            # solo el administrador puede modificarla.
             # El bloqueo aplica solo a cambios REALES: reenviar un valor igual al
             # guardado (p. ej. la cadena campo por campo del modal) no se bloquea.
             _est_cot = str(row_dict.get('ESTADO COTIZACION', '') or '').strip()
             _liberada = _est_cot in ('Observado', 'Rechazado')
+            _aprobada = (_est_cot in ('Aprobado', 'Atendido', 'Validado', 'Cancelado')
+                         or bool(str(row_dict.get('FECHA APROBACION', '') or '').strip()))
             _ant = row_dict.get(field)
             _valor_igual = str(_ant if _ant is not None else '') == str(value if value is not None else '')
             if field == 'ESTADO COTIZACION':
@@ -220,12 +223,11 @@ def api_rows_update():
                 if _liberada and _nuevo_est != _est_cot:
                     row_dict['GENERADA'] = ''
             elif (session.get('rol') not in ('zeno', 'suport')
-                    and str(row_dict.get('GENERADA', '') or '') == '1'
-                    and not _liberada and not _valor_igual):
+                    and _aprobada and not _valor_igual):
                 if field == 'NUMERO WO' and not str(row_dict.get('NUMERO WO', '') or '').strip():
                     pass
                 else:
-                    return jsonify({'error': 'Esta cotización ya fue GENERADA y está bloqueada. Solo el administrador puede editarla.'}), 403
+                    return jsonify({'error': 'Esta cotización ya fue APROBADA y está bloqueada. Solo el administrador puede editarla.'}), 403
         
         # Guardar en el historial de cambios (solo si el valor realmente cambió)
         valor_anterior = row_dict.get(field, '')
