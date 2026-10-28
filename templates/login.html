@@ -53,11 +53,14 @@
             --glow-a:rgba(23,62,118,.20);
             --glow-b:rgba(23,62,118,.14);
         }
-        html,body{margin:0;padding:0;min-height:100%;font-family:'Geist Sans','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+        html,body{margin:0;padding:0;min-height:0;font-family:'Geist Sans','Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
         .vl-glow{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0}
         .vl-glow-a{width:440px;height:440px;top:-180px;right:-140px;background:radial-gradient(circle,var(--glow-a),transparent 65%)}
         .vl-glow-b{width:400px;height:400px;bottom:-160px;left:-140px;background:radial-gradient(circle,var(--glow-b),transparent 65%)}
-        .vl-page{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}
+        .vl-page{position:relative;z-index:1;min-height:100vh;display:grid;grid-template-columns:minmax(0,1.8fr) minmax(440px,1fr)}
+        .vl-banner{min-width:0;display:flex;align-items:center;justify-content:center;background:#050d12;overflow:hidden;position:relative;border-right:1px solid var(--border)}
+        .vl-banner img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:center}
+        .vl-center{background:var(--bg)}
         .vl-center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px 72px}
         .vl-logo{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);margin-bottom:28px}
         .vl-logo svg{color:var(--brand)}
@@ -120,6 +123,12 @@
             body{zoom:.75}
             .vl-page{min-height:calc(100dvh / .75)}
         }
+        @media(max-width:900px){
+            .vl-page{display:flex;flex-direction:column}
+            .vl-banner{flex:none;border-right:0;border-bottom:1px solid var(--border)}
+            .vl-banner{height:240px}
+            .vl-banner img{object-position:center}
+        }
         @media(max-width:480px){.vl-box{padding:25px 20px}.vl-policy{padding:14px}.vl-center{padding-top:24px}.vl-policy-links{gap:6px}.vl-policy-links a{flex:1;justify-content:center}}
         @media (prefers-reduced-motion:reduce){
             *{transition:none!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
@@ -132,6 +141,12 @@
     <div class="vl-glow vl-glow-a"></div>
     <div class="vl-glow vl-glow-b"></div>
     <div class="vl-page">
+        <aside class="vl-banner" aria-label="Nucleus: Conecta. Gestiona. Avanza.">
+            <picture>
+                <source media="(max-width:900px)" srcset="/static/img/nucleus-login-banner.png?v=1">
+                <img src="/static/img/nucleus-login-panel-refined.png?v=1" alt="Nucleus — Conecta. Gestiona. Avanza." width="1536" height="1024" fetchpriority="high">
+            </picture>
+        </aside>
         <div class="vl-center">
             {% set brand_location = 'login' %}{% include '_brand_lockup.html' %}
             <div class="vl-box">
