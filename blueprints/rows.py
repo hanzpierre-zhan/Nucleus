@@ -679,6 +679,10 @@ def api_rows_delete():
         keys = [str(k).strip() for k in keys if str(k or '').strip()]
         keys = list(dict.fromkeys(keys))  # dedup preservando orden
         if not keys: return jsonify({'error': 'No se especificaron registros para eliminar'}), 400
+        if proy_nombre == 'Rendicion':
+            return jsonify({'error': 'En Rendición no se permite eliminar solicitudes definitivamente: '
+                                     'el formulario de origen las volvería a importar como pendientes. '
+                                     'Usa Anular para conservar su estado y su historial.'}), 409
         if proy_nombre == 'Dataper':
             from models import AsistenciaDiaria
             personas=[r.id for r in NucleusData.query.filter(NucleusData.proyecto_id==pid,NucleusData.key_value.in_(keys))]
