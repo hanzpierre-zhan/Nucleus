@@ -177,11 +177,18 @@ def generar(datos,manual,evidencia,wo,read_photo,report_date):
         logo=archive.read('xl/media/image1.png')
     picture(cover,logo,6,25,width(cover,6,9),180)
     client=str(datos.get('CLIENTE') or '').upper()
+    # Las fechas de ejecución mandan desde la evidencia del WO; si el WO no las
+    # tiene se recuperan de la cotización para que el reporte nunca las omita.
+    def fecha(campo, obra):
+        valor=evidencia.get(campo) or datos.get(campo) or datos.get(obra)
+        valor=str(valor or '').strip()
+        return valor+' 00:00:00' if len(valor)==10 else valor
     fixed={'E3':'COBRA PERU S.A.C.','E4':'20253881438','E5':'Av. Argentina 1295, Cercado de Lima',
            'K3':'Hector Pujada' if 'ENTEL' in client else 'Dennis Unton',
            'K4':'Hector Pujada' if 'ENTEL' in client else 'Dennis Unton',
-           'K5':manual.get('work_responsible'),'E6':evidencia.get('INICIO EJECUCION'),
-           'K6':evidencia.get('FIN EJECUCION'),
+           'K5':manual.get('work_responsible'),
+           'E6':fecha('INICIO EJECUCION','FECHA INICIO OBRA'),
+           'K6':fecha('FIN EJECUCION','FECHA FIN OBRA'),
            'E9':manual.get('site_name'),'K9':manual.get('site_id'),'E10':manual.get('site_address'),
            'E11':manual.get('site_type'),'K11':manual.get('district'),'E12':manual.get('province'),
            'K12':manual.get('region')}

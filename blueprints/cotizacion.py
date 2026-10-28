@@ -1550,9 +1550,12 @@ def _guardar_sustento(datos, finalizar=False):
     anterior=_cot_estado_guardado(d)
     if not wo:d=nuevo
     if len(claves)<=1:
-        for campo in ('INICIO EJECUCION','FIN EJECUCION'):
-            nombre='FECHA INICIO OBRA' if campo.startswith('INICIO') else 'FECHA FIN OBRA'
-            d[nombre]=str(nuevo.get(campo) or '')[:10]
+        # Con un solo WO la cotización conserva también la fecha/hora completa:
+        # es el respaldo del reporte si el WO deja de tenerla (sync, reimport…).
+        for campo,nombre in (('INICIO EJECUCION','FECHA INICIO OBRA'),('FIN EJECUCION','FECHA FIN OBRA')):
+            valor=str(nuevo.get(campo) or '').strip()
+            d[campo]=valor
+            d[nombre]=valor[:10]
     wo_definida = guardar_ficha(d, wo, claves, manual) if manual is not None else wo
     if manual is not None: nuevo['_SUSTENTO_MANUAL'] = manual
     if finalizar:

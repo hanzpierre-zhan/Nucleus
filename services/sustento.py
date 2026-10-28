@@ -79,11 +79,22 @@ def acceso_desde_cotizacion(pid,wo,cot_key,lectura=False):
 
 def efectivos(cot,wo,unico):
     out=dict(wo)
-    if unico and not wo.get('_COT_EVIDENCIA_MIGRADA'):
-        for campo in CAMPOS:
-            if not out.get(campo) and cot.get(campo):out[campo]=cot[campo]
-        for fuente,destino in [('FECHA INICIO OBRA','INICIO EJECUCION'),('FECHA FIN OBRA','FIN EJECUCION')]:
-            if not out.get(destino) and cot.get(fuente):out[destino]=str(cot[fuente])+' 00:00:00'
+    # `_COT_EVIDENCIA_MIGRADA` protege las fotos y bitácoras antiguas (no
+    # pertenecen a un WO concreto). Las fechas de ejecución sí son datos del
+    # trabajo: si el WO no las tiene, se recuperan de la cotización aunque su
+    # evidencia ya esté migrada. Así el reporte nunca pierde lo que se ingresó.
+    if unico:
+        if not wo.get('_COT_EVIDENCIA_MIGRADA'):
+            for campo in CAMPOS:
+                if not out.get(campo) and cot.get(campo):out[campo]=cot[campo]
+        for fuente,destino in [('INICIO EJECUCION','INICIO EJECUCION'),('FIN EJECUCION','FIN EJECUCION'),
+                               ('FECHA INICIO OBRA','INICIO EJECUCION'),('FECHA FIN OBRA','FIN EJECUCION')]:
+            if not out.get(destino) and cot.get(fuente):
+                valor=str(cot[fuente]).strip()
+                # La obra guarda solo la fecha (YYYY-MM-DD): se completa la hora
+                # para que el campo datetime-local no quede vacío.
+                if len(valor)==10:valor+=' 00:00:00'
+                out[destino]=valor
     return out
 
 def actualizar_slot(pid,key,tipo,indice,url):

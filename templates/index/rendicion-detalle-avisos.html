@@ -513,15 +513,81 @@ function rendSoles(valor) {
     return 'S/ ' + new Intl.NumberFormat('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(valor || 0);
 }
 
+// ── Proyecto de las tarjetas de resumen ──
+// El nombre se normaliza igual que en el servidor (services/dashboard_consulta.py):
+// 'Entel', 'FLM - ENTEL' y 'FLM' son el mismo proyecto. El desplegable vive en
+// _rendicion_formularios.html; si no existe (otro módulo) todo sigue igual.
+const REND_PROYECTOS_CONOCIDOS = ['FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'FLM - PEXT'];
+
+let _rendProyecto = '';   // '' = todos los proyectos
+
+function rendProyectoDe(row) {
+    const texto = String((row && (row['Nombre del proyecto'] || row.PROYECTO || row.CLIENTE)) || '').trim();
+    const clave = texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const familia = {
+        ENTEL: 'ENTEL', FLM: 'ENTEL', FLMENTEL: 'ENTEL',
+        CLARO: 'CLARO', FLMCLARO: 'CLARO',
+        INTEGRATEL: 'INTEGRATEL', FLMINTEGRATEL: 'INTEGRATEL',
+        PEXT: 'PEXT', FLMPEXT: 'PEXT', ENTELPEXT: 'PEXT', FLMENTELPEXT: 'PEXT'
+    }[clave];
+    return familia ? 'FLM - ' + familia : (texto || 'Sin proyecto');
+}
+
+function rendFilaEnProyecto(row) {
+    return !_rendProyecto || rendProyectoDe(row) === _rendProyecto;
+}
+
+function rendProyectoOpciones() {
+    const sel = document.getElementById('rend-proyecto');
+    if (!sel) return;
+    const grupos = new Map();
+    rawData.forEach(r => {
+        const nombre = rendProyectoDe(r);
+        grupos.set(nombre, (grupos.get(nombre) || 0) + 1);
+    });
+    const nombres = [...grupos.keys()].sort((a, b) => {
+        const ia = REND_PROYECTOS_CONOCIDOS.indexOf(a), ib = REND_PROYECTOS_CONOCIDOS.indexOf(b);
+        if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        return a.localeCompare(b, 'es');
+    });
+    const firma = nombres.map(nombre => nombre + '|' + grupos.get(nombre)).join('§');
+    if (sel.dataset.firma !== firma) {
+        const anterior = sel.value || _rendProyecto || '';
+        sel.replaceChildren(
+            new Option('Todos los proyectos', ''),
+            ...nombres.map(nombre => new Option(nombre + ' · ' + grupos.get(nombre), nombre))
+        );
+        sel.dataset.firma = firma;
+        sel.value = grupos.has(anterior) ? anterior : '';
+    }
+    if (!sel.dataset.iniciado) {
+        sel.dataset.iniciado = '1';
+        let guardado = '';
+        try { guardado = sessionStorage.getItem('rend_filtro_proyecto') || ''; } catch (error) {}
+        if (guardado && grupos.has(guardado)) sel.value = guardado;
+    }
+    _rendProyecto = sel.value || '';
+}
+
+function rendCambiarProyectoFiltro(valor) {
+    _rendProyecto = String(valor || '');
+    try { sessionStorage.setItem('rend_filtro_proyecto', _rendProyecto); } catch (error) {}
+    rendActualizarContadores();
+}
+
 function rendActualizarContadores() {
 
     if (!IS_RENDICION) return;
+
+    rendProyectoOpciones();
 
     const c = { transito: 0, validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0, rechazados: 0 };
 
     const m = { depositos: 0, evidencia: 0, sustentos: 0, cerrado: 0, archivado: 0 };
 
     rawData.forEach(r => {
+
+        if (!rendFilaEnProyecto(r)) return;
 
         const e = rendEstadoParaVista(r);
 

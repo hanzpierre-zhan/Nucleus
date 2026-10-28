@@ -1,7 +1,7 @@
 # DOCUMENTACIÓN TÉCNICA — NUCLEUS
 
 > Referencia completa del sistema para modificar/agregar criterios, reglas y funcionalidad.
-> Última actualización: 03/10/2026.
+> Última actualización: 28/10/2026.
 
 ---
 
@@ -343,6 +343,30 @@ cada proyecto muestra las vistas que sus columnas permiten y sus propias tarjeta
   debe pedirse consentimiento previo instalando el mismo aviso.
 - Prueba: `Temp\opencode\legal_test.py` (rutas 200 sin sesión, banner visible → acepta →
   no vuelve a aparecer, enlaces en login y sidebar).
+
+### 7.8 Rendición: tarjetas de resumen por proyecto
+
+- El bloque **Formularios** (`templates/_rendicion_formularios.html`) muestra los dos
+  formularios, cinco tarjetas (Depósitos, Evidencia, Sustento, Atendido, Archivado) y el
+  desplegable **Proyecto de las tarjetas**.
+- El desplegable solo filtra las tarjetas: `rendActualizarContadores()`
+  (`templates/index/rendicion-detalle-avisos.html`) recorre `rawData` y suma importes y casos
+  del proyecto elegido. La tabla no se filtra. El nombre se normaliza igual que
+  `services/dashboard_consulta.proyecto()` (`Entel`, `FLM` y `FLM - ENTEL` = `FLM - ENTEL`)
+  y la elección se recuerda en `sessionStorage` (`rend_filtro_proyecto`).
+- Los casos de cada opción son el total de filas de ese proyecto (`Nombre del proyecto`,
+  con `PROYECTO`/`CLIENTE` como respaldo).
+
+### 7.9 Reporte de sustento (expediente): fechas de ejecución
+
+- El expediente XLSX escribe **Fecha de inicio** en `E6` y **Fecha de fin** en `K6` de la
+  hoja *Información general* (`services/cotizacion_expediente.generar`).
+- Al guardar el sustento con un solo WO, la cotización conserva la fecha/hora completa en
+  `INICIO EJECUCION`/`FIN EJECUCION` además de `FECHA INICIO OBRA`/`FECHA FIN OBRA`
+  (`blueprints/cotizacion.py::_guardar_sustento`).
+- `services/sustento.efectivos` recupera esas fechas desde la cotización aunque el WO esté
+  marcado `_COT_EVIDENCIA_MIGRADA` (esa marca solo protege fotos y bitácoras antiguas) y
+  `generar` vuelve a intentarlo desde `datos` antes de dejar la celda vacía.
 
 ---
 
