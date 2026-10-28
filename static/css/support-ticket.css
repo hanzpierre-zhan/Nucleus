@@ -1,0 +1,6 @@
+.nucleus-support{position:fixed;right:18px;bottom:calc(38px + env(safe-area-inset-bottom,0px));z-index:80;display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:9px 13px;border:1px solid #348d9a;border-radius:12px;background:#123e4a;color:#ecffff;font:600 12px/1.2 system-ui,sans-serif;text-decoration:none;box-shadow:0 4px 16px #0003;transition:background .15s,box-shadow .15s}
+.nucleus-support:hover{background:#195564;color:#fff;box-shadow:0 6px 20px #0004}
+.nucleus-support:focus-visible{outline:3px solid #52c8d0;outline-offset:3px}
+.nucleus-support-external{font-size:10px;opacity:.75}
+@media(max-width:600px){.nucleus-support{right:12px;bottom:calc(42px + env(safe-area-inset-bottom,0px));padding:10px;min-width:42px;min-height:42px;justify-content:center}.nucleus-support span,.nucleus-support-external{display:none}}
+@media(prefers-reduced-motion:reduce){.nucleus-support{transition:none}}

@@ -31,6 +31,7 @@
     <script src="/static/js/column-layout.js?v=2"></script>
     <script src="/static/js/rendicion-estados-labels.js?v=1"></script>
     <link rel="stylesheet" href="/static/css/toast.css?v=1">
+    <link rel="stylesheet" href="/static/css/support-ticket.css?v=1">
 </head>
 <body data-options-role="{{ session.get('rol', '') }}" data-options-user="{{ session.get('user_id', '') }}">
     <script>
@@ -387,5 +388,6 @@
     </script>
     <script>document.addEventListener('DOMContentLoaded',function(){var o=document.getElementById('nucleus-dialog'),m=document.getElementById('nucleus-dialog-message');if(o&&m&&!m.textContent.trim()){o.classList.remove('show');o.style.display='none'}});</script>
     {% include 'cookie_banner.html' %}
+    {% include '_support_ticket.html' %}
 </body>
 </html>
