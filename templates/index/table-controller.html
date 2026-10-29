@@ -2148,11 +2148,16 @@ let _rendCambiandoVista = false;
 
                 if (!IS_WO_PROJECT && !_isCot && !isManualClickable) return escapeHtml(v);
 
-                return `<span class="wo-link">${escapeHtml(v)}</span>`;
+                const label = _isCot ? (cell.getRow().getData()['N° COTIZACION'] || v) : v;
+                const original = _isCot && String(label) !== String(v) ? ` title="Número original: ${escapeHtml(v)} · Recuperada"` : '';
+                return `<span class="wo-link"${original}>${escapeHtml(label)}</span>`;
 
             };
 
             keyColumn = colDef;
+            if (currentProjectNombre.trim().toLowerCase() === 'cotizaciones') {
+                colDef.headerFilterFunc = (search, value, row) => String(row['N° COTIZACION'] || value || '').toLowerCase().includes(String(search || '').toLowerCase());
+            }
 
             return;
 

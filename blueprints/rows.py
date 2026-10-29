@@ -127,6 +127,8 @@ def api_rows_update():
         # N° ORDEN correlativo: no editable una vez asignado
         if field == 'N° ORDEN':
             cur_ord = str(row_dict.get('N° ORDEN', '') or '').strip()
+            if session.get('current_proyecto_nombre') == 'Cotizaciones' and str(value).strip() != cur_ord:
+                return jsonify({'error': 'La orden de cotización se asigna automáticamente y no se puede editar.'}), 400
             if cur_ord and str(value).strip() != cur_ord and session.get('rol') not in ('zeno', 'suport'):
                 return jsonify({'error': 'El N° de orden es correlativo automático y no se puede editar.'}), 403
         # Combustible: el gestor solo puede completar información pendiente (campos
@@ -182,7 +184,7 @@ def api_rows_update():
                 else:
                     return jsonify({'success': True})
             if field == 'N° COTIZACION':
-                if str(value).strip() != str(key_val).strip():
+                if str(value).strip() != str(row_dict.get(field) or key_val).strip():
                     return jsonify({'error': 'El N° de cotización es la llave del registro y no se puede editar.'}), 400
                 else:
                     return jsonify({'success': True})
@@ -338,6 +340,8 @@ def api_rows_edit_key():
         if contexto_recursos() and session.get('current_proyecto_nombre') in ('Dataper', 'Material') and not validar_fila_catalogo(detalle_actual):
             return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
         proyecto_actual = db.session.get(Proyecto, pid)
+        if proyecto_actual and proyecto_actual.nombre == 'Cotizaciones':
+            return jsonify({'error': 'La clave de una cotización es permanente; conserva sus documentos y referencias.'}), 400
         asignar_pendiente = bool(proyecto_actual and proyecto_actual.nombre in ('FLM - CLARO', 'FLM - PEXT', 'FLM - INTEGRATEL') and detalle_actual.get('_WO_PENDIENTE'))
         if session.get('rol') != 'zeno' and not (asignar_pendiente and session.get('rol') in ('suport', 'admin', 'supervisor', 'gestor')):
             return jsonify({'error': 'No tienes permisos para cambiar este WO.'}), 403
@@ -479,91 +483,28 @@ def api_rows_add():
             if not str(row_data.get('CLIENTE', '') or '').strip():
                 row_data['CLIENTE'] = 'ENTEL'
             fecha_numero = ahora_peru()
-            yr = str(fecha_numero.year)
-            mes = f'{fecha_numero.month:02d}'
             cliente = str(row_data['CLIENTE']).strip().upper()
             prefijo_coti = {'ENTEL':'EN', 'CLARO':'CL', 'INTEGRATEL':'IN', 'PEXT':'PX'}.get(cliente)
             if not prefijo_coti:
                 return jsonify({'error':'Proyecto de cotización inválido.'}), 400
             row_data['CLIENTE'] = cliente
-            # Serializar altas en PostgreSQL usando la configuración compartida.
-            cfg_locked = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_seq').with_for_update().first()
-            user_coti = str(row_data.get('N° COTIZACION', '') or '').strip()
-            # Si el usuario proveyó un N° válido y no duplicado, respétalo (maleable)
-            match_coti = re.fullmatch(r'(?:HW|EN|CL|IN|PX)-(\d{4})-(?:(0[1-9]|1[0-2])-)?(\d{6,7})', user_coti)
-            if match_coti:
-                user_coti = f"{prefijo_coti}-{yr}-{mes}-{int(match_coti[3]):06d}"
-                equivalentes = [user_coti] + [f"{prefix}-{yr}-{int(match_coti[3]):07d}" for prefix in ('HW','EN','CL','IN')] + [f"{prefix}-{yr}-{mes}-{int(match_coti[3]):06d}" for prefix in ('EN','CL','IN')]
-                if not NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(equivalentes)).first():
-                    key_val = user_coti
-                    row_data['N° COTIZACION'] = key_val
-                else:
-                    # Duplicado -> genera siguiente
-                    user_coti = ''
-            _need_hw = (not user_coti or not re.match(r'^(?:EN|CL|IN)-\d{4}-(?:0[1-9]|1[0-2])-\d{6,7}$', user_coti))
-            _need_ord = proy_nombre in ('Cotizaciones', 'Combustible')
-            # Un solo recorrido de la tabla para ambos correlativos
-            # (antes: hasta 2 full-scans + parses JSON por cada alta).
-            if _need_hw:
-                cfg = cfg_locked
-                try:
-                    cfg_n = int(str(cfg.valor).strip()) if cfg and cfg.valor and str(cfg.valor).strip().isdigit() else 30
-                except Exception:
-                    cfg_n = 30
-                maxn = max(29, cfg_n - 1)
-            else:
-                cfg, maxn = None, 0
-            max_ord = 0
-            if _need_hw or _need_ord:
-                for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
-                    try:
-                        d2 = json.loads(rec.data_json)
-                    except Exception:
-                        continue
-                    if _need_hw:
-                        k2 = str(d2.get('N° COTIZACION', '') or rec.key_value or '')
-                        m = re.match(r'^(?:HW|EN|CL|IN|PX)-(\d{4})-(?:(?:0[1-9]|1[0-2])-)?(\d{6,7})$', k2)
-                        if m and m.group(1) == yr:
-                            n = int(m.group(2))
-                            if n > maxn:
-                                maxn = n
-                    if _need_ord:
-                        v = str(d2.get('N° ORDEN', '') or '').strip()
-                        if v.isdigit() and int(v) > max_ord:
-                            max_ord = int(v)
-            if _need_hw:
-                next_n = maxn + 1
-                key_val = f"{prefijo_coti}-{yr}-{mes}-{next_n:06d}"
-                row_data['N° COTIZACION'] = key_val
-                while NucleusData.query.filter_by(proyecto_id=pid, key_value=key_val).first():
-                    next_n += 1
-                    key_val = f"{prefijo_coti}-{yr}-{mes}-{next_n:06d}"
-                    row_data['N° COTIZACION'] = key_val
-                try:
-                    nxt_val = str(next_n + 1)
-                    if cfg:
-                        cfg.valor = nxt_val
-                    else:
-                        db.session.add(AppConfig(proyecto_id=pid, clave='cotizacion_next_seq', valor=nxt_val))
-                except Exception:
-                    pass
-            else:
-                key_val = user_coti
+            from services.cotizacion_numeracion import reservar
+            key_val, orden_cotizacion = reservar(
+                pid, prefijo_coti, fecha_numero, row_data.get('N° COTIZACION', ''))
+            row_data['N° COTIZACION'] = key_val
+            row_data['N° ORDEN'] = orden_cotizacion
 
-        # N° ORDEN correlativo para Cotizaciones y Combustible (siempre recalculado).
-        # Cotizaciones ya calculó max_ord arriba en el mismo recorrido; Combustible
-        # necesita su propio scan (el N° ORDEN vive dentro del JSON).
-        if proy_nombre in ('Cotizaciones', 'Combustible'):
-            if proy_nombre == 'Combustible':
-                max_ord = 0
-                for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
-                    try:
-                        d2 = json.loads(rec.data_json)
-                        v = str(d2.get('N° ORDEN', '') or '').strip()
-                        if v.isdigit() and int(v) > max_ord:
-                            max_ord = int(v)
-                    except Exception:
-                        continue
+        # Cotizaciones reserva su orden dentro del mismo bloqueo de numeración.
+        if proy_nombre == 'Combustible':
+            max_ord = 0
+            for rec in NucleusData.query.filter_by(proyecto_id=pid).all():
+                try:
+                    d2 = json.loads(rec.data_json)
+                    v = str(d2.get('N° ORDEN', '') or '').strip()
+                    if v.isdigit() and int(v) > max_ord:
+                        max_ord = int(v)
+                except Exception:
+                    continue
             row_data['N° ORDEN'] = str(max_ord + 1)
 
         # Alta manual de WO (FLM/PEXT) por el gestor: exige el CM, fija CATEGORY,
@@ -653,6 +594,12 @@ def api_rows_add():
             db.session.commit()
 
         return jsonify({'success': True, 'key': key_val})
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': 'El correlativo ya fue reservado por otra solicitud. Actualiza la tabla y vuelve a registrar el caso.'}), 409
+    except ValueError as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500

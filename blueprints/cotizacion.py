@@ -360,11 +360,8 @@ def api_cotizacion_next_seq():
     if not cot_proy:
         return jsonify({'error': 'Módulo Cotizaciones no existe'}), 404
     if request.method == 'GET':
-        cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
-        try:
-            val = int(cfg.valor) if cfg and cfg.valor else 30
-        except Exception:
-            val = 30
+        from services.cotizacion_numeracion import siguiente
+        val = siguiente(cot_proy.id, ahora_peru().year)
         return jsonify({'next': val})
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo el admin puede configurar el correlativo'}), 403
@@ -375,12 +372,13 @@ def api_cotizacion_next_seq():
             raise ValueError
     except Exception:
         return jsonify({'error': 'Valor inválido (1-9999999)'}), 400
-    cfg = AppConfig.query.filter_by(proyecto_id=cot_proy.id, clave='cotizacion_next_seq').first()
-    if not cfg:
-        cfg = AppConfig(proyecto_id=cot_proy.id, clave='cotizacion_next_seq', valor=str(nxt))
-        db.session.add(cfg)
-    else:
-        cfg.valor = str(nxt)
+    from services.cotizacion_numeracion import bloquear_config, siguiente
+    cfg = bloquear_config(cot_proy.id)
+    minimo = siguiente(cot_proy.id, ahora_peru().year)
+    if nxt < minimo:
+        db.session.rollback()
+        return jsonify({'error': f'El siguiente correlativo no puede ser menor que {minimo}.', 'minimum': minimo}), 400
+    cfg.valor = str(nxt)
     db.session.commit()
     return jsonify({'success': True, 'next': nxt})
 
