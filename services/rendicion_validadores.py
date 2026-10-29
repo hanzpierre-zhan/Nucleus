@@ -19,6 +19,12 @@ def error_edicion(proyecto_id, row, cambios, rol):
     proyecto = db.session.get(Proyecto, proyecto_id)
     if not proyecto or proyecto.nombre != 'Rendicion':
         return None
+    if 'Tipo de gasto' in cambios:
+        from services.rendicion_gastos import validar_manual
+        try:
+            validar_manual(cambios['Tipo de gasto'])
+        except ValueError as error:
+            return str(error)
     if 'ESTADO' in cambios and str(cambios['ESTADO'] or '').strip().upper() != str(row.get('ESTADO') or 'PENDIENTE').strip().upper():
         return 'El estado se cambia únicamente con los botones del flujo.'
     if rol not in ADMIN_ROLES:

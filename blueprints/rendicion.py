@@ -1110,6 +1110,7 @@ def _importar_solicitudes():
     # Claves que escribe el sistema/flujo del módulo: si el form trajera un
     # encabezado idéntico, se desplaza con sufijo ' (Form)' para no pisarlas.
     claves_sistema = {
+        '_TIPO_GASTO_HOMOLOGACION',
         '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
         'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
         'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal',
@@ -1183,6 +1184,8 @@ def _importar_solicitudes():
         if id_sol in existentes:
             omitidas += 1
             continue
+        from services.rendicion_gastos import clasificar as homologar_gasto
+        datos = homologar_gasto(datos)
         completar_personal(datos, personal)
         if datos['VERIFICACIÓN PERSONAL'] == 'Verificado':
             verificadas += 1
