@@ -684,7 +684,7 @@ def usuarios_page():
 
 @bp.route('/healthz')
 def healthz():
-    return 'OK', 200
+    return 'OK', 200, {'X-Nucleus-Cotizacion-Sequence': 'v2'}
 
 
 @bp.route('/mapa-site')

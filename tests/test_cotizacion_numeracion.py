@@ -72,6 +72,17 @@ def test_numero_manual_futuro_avanza_para_todos_los_clientes(app, proyecto_numer
         db.session.rollback()
 
 
+def test_eliminar_ultimo_caso_no_reutiliza_numero_ni_orden(app, proyecto_numeracion):
+    with app.app_context():
+        pid = proyecto_numeracion
+        key, orden = reservar(pid, 'CL', datetime(2026, 10, 29))
+        guardar(pid, key, orden)
+        NucleusData.query.filter_by(proyecto_id=pid, key_value=key).delete()
+        db.session.commit()
+        assert reservar(pid, 'PX', datetime(2026, 10, 29)) == ('PX-2026-10-000031', '2')
+        db.session.rollback()
+
+
 def test_configuracion_no_baja_y_numero_recuperado_no_rompe_editor(app, auth_client):
     from services.utilidades import ahora_peru
     year = ahora_peru().year
@@ -99,3 +110,9 @@ def test_configuracion_no_baja_y_numero_recuperado_no_rompe_editor(app, auth_cli
             NucleusData.query.filter_by(proyecto_id=pid, key_value=key).delete()
             AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_seq').one().valor = original
             db.session.commit()
+
+
+def test_health_identifica_el_despliegue_compatible(client):
+    response = client.get('/healthz')
+    assert response.status_code == 200
+    assert response.headers['X-Nucleus-Cotizacion-Sequence'] == 'v2'

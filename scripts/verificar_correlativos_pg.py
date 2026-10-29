@@ -27,6 +27,9 @@ def main():
                       SQLALCHEMY_ENGINE_OPTIONS={'pool_size': 8, 'max_overflow': 0})
     db.init_app(app)
     with app.app_context():
+        from migrations.cotizacion_correlativos import instalar
+        instalar()
+        assert instalar() == []  # Los siguientes arranques no vuelven a conciliar.
         pid = Proyecto.query.filter_by(nombre='Cotizaciones').one().id
         fecha = datetime(2026, 10, 29)
         inicio = siguiente(pid, fecha.year)

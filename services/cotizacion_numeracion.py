@@ -52,6 +52,11 @@ def reservar(pid, prefijo, fecha, sugerido=''):
     """El bloqueo dura hasta el commit de la fila; nunca confirma por separado."""
     cfg = bloquear_config(pid)
     minimo, orden = limites(pid, fecha.year)
+    cfg_orden = AppConfig.query.filter_by(proyecto_id=pid, clave='cotizacion_next_order').first()
+    if cfg_orden is None:
+        cfg_orden = AppConfig(proyecto_id=pid, clave='cotizacion_next_order', valor=str(orden))
+        db.session.add(cfg_orden)
+    orden = max(orden, _entero(cfg_orden.valor, 1))
     numero = max(minimo, _entero(cfg.valor, 30))
     match = NUMERO.fullmatch(str(sugerido or '').strip())
     # Una sugerencia vieja o con sufijo nunca hace retroceder el consecutivo.
@@ -60,5 +65,6 @@ def reservar(pid, prefijo, fecha, sugerido=''):
     if numero > 9999999:
         raise ValueError('Se agotó el rango del correlativo de cotizaciones.')
     cfg.valor = str(numero + 1)
+    cfg_orden.valor = str(orden + 1)
     key = f'{prefijo}-{fecha.year}-{fecha.month:02d}-{numero:06d}'
     return key, str(orden)

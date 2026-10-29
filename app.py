@@ -167,6 +167,10 @@ def create_app(config_object=None):
 
         startup_stage('Comprobando numeración histórica')
         numerar_historicos()
+        from migrations.cotizacion_correlativos import instalar as instalar_correlativos
+
+        startup_stage('Comprobando correlativos de cotizaciones')
+        instalar_correlativos()
 
     startup_stage('Aplicación lista')
     return app
