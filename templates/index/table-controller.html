@@ -4487,6 +4487,15 @@ let _rendCambiandoVista = false;
     // Aplicar a las columnas definitivas, incluidas las importadas del formulario.
     window.NucleusOrden.configurar(tableColumns, manualColsConfig, currentProjectNombre);
     window.NucleusColumnLayout.apply(tableColumns, columnLayout, isAdmin);
+    // Validación necesita sus acciones incluso con layouts históricos incompletos.
+    if (IS_RENDICION) {
+        const index = tableColumns.findIndex(c => c.field === '_accion');
+        if (index >= 0) {
+            const flow = tableColumns.splice(index, 1)[0];
+            flow.visible = true;
+            tableColumns.splice(tableColumns[0]?.field ? 0 : 1, 0, flow);
+        }
+    }
     const table = new Tabulator("#data-grid", {
 
         data: rawData,

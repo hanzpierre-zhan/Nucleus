@@ -363,6 +363,12 @@ function _rendAplicarEstado(est) {
 
     if (!est || !table) return;
 
+    // La acción de validar nunca debe desaparecer por un layout guardado.
+    if (_rendVista === 'validacion') {
+        est.visibles._accion = true;
+        est.orden = ['_accion', ...(est.orden || []).filter(f => f !== '_accion')];
+    }
+
     _rendCambiandoVista = true;
 
     try {
