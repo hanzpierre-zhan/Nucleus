@@ -66,7 +66,7 @@ def test_reserva_no_se_confirma_si_falla_el_alta(app, proyecto_numeracion):
 def test_numero_manual_futuro_avanza_para_todos_los_clientes(app, proyecto_numeracion):
     with app.app_context():
         pid = proyecto_numeracion
-        key, orden = reservar(pid, 'PX', datetime(2026, 10, 29), 'PX-2026-10-000550')
+        key, orden = reservar(pid, 'PX', datetime(2026, 10, 29), 'PX-2026-10-000550', manual=True)
         guardar(pid, key, orden)
         assert reservar(pid, 'CL', datetime(2026, 10, 29)) == ('CL-2026-10-000551', '2')
         db.session.rollback()

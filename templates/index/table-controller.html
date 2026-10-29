@@ -8297,6 +8297,9 @@ let _rendCambiandoVista = false;
         mkSel('PROYECTO', 'CLIENTE', clientesAutorizados,
 
             '— Seleccione Proyecto —', { required: true });
+        const numeroSolicitud = mkTxt('N° COTIZACION', 'N° COTIZACION', 'Consultando disponible…');
+        CotizacionNumeracion.configurarCampo(numeroSolicitud,
+            body.querySelector('[data-field="CLIENTE"]'), prefijoCotizacion);
 
 
 
@@ -8509,21 +8512,14 @@ let _rendCambiandoVista = false;
 
 
 
-        fetch('/api/rows/add', {
-
-            method: 'POST',
-
-            headers: { 'Content-Type': 'application/json' },
-
-            body: JSON.stringify({ key: '', data: data })
-
-        })
-
-            .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, j })))
+        const numeracionModo = document.querySelector('#mar-fields [data-field="N° COTIZACION"]')?.dataset.numeracionModo || 'automatico';
+        CotizacionNumeracion.crear({key: '', data: data, numeracion_modo: numeracionModo})
+            .then(j => ({ok: true, status: 200, j}))
 
             .then(({ ok, status, j }) => {
 
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Solicitar Cotización'; }
+                if (!j) return;
 
                 if (!ok || !j.success) {
 
@@ -8539,6 +8535,7 @@ let _rendCambiandoVista = false;
 
                 try { sessionStorage.removeItem('cot_vista_tras'); } catch (e) { }
 
+                CotizacionNumeracion.confirmar(j);
                 cerrarModalRegistro();
 
                 location.reload();
@@ -8680,9 +8677,11 @@ let _rendCambiandoVista = false;
         inpCoti.placeholder = prefijoCotizacion(selClienteCoti.value) + '0000000';
         selClienteCoti.addEventListener('change',()=>{if(!cotiEditMode){const digits=inpCoti.value.match(/(\d{6,7})$/)?.[1]||_sugerirCorrelativoCotiReg();inpCoti.value=prefijoCotizacion(selClienteCoti.value)+digits;}});
 
-        inpCoti.title = 'Editable. Se asigna definitivo al generar.';
+        inpCoti.title = cotiEditMode ? 'Número registrado.' : 'Número provisional; se asigna al guardar.';
 
         mkField('N° COTIZACION', inpCoti, 'N° COTIZACION');
+        if (cotiEditMode) inpCoti.readOnly = true;
+        else CotizacionNumeracion.configurarCampo(inpCoti, selClienteCoti, prefijoCotizacion);
 
 
 
@@ -10235,6 +10234,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
     function cerrarModalRegistro() {
+        CotizacionNumeracion.detener();
 
         const modal = document.getElementById('modal-add-registro');
 
@@ -10597,6 +10597,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         const data = {};
 
         let key = '';
+        let numeracionModo = 'automatico';
 
         let ok = true;
 
@@ -10605,6 +10606,7 @@ btnItem.onclick = () => cotRegAgregarFila();
         inputs.forEach(inp => {
 
             const field = inp.dataset.field;
+            if (!field) return;
 
             const isPk = inp.dataset.pk === '1';
 
@@ -10660,19 +10662,13 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             } else {
 
-                let cotiVal = data['N° COTIZACION'] || data['_COT_NUM_DIGITS'] || key || '';
-
+                const campoNumero = document.querySelector('#mar-fields [data-field="N° COTIZACION"]');
+                numeracionModo = campoNumero?.dataset.numeracionModo || 'automatico';
                 delete data['_COT_NUM_DIGITS'];
-
-                const match = cotiVal.match(/(\d+)$/);
-
-                const digits = match ? match[1] : cotiVal.replace(/\D/g, '');
-
-                if (!digits) { alert('Ingrese el correlativo del N° de cotización.'); return; }
-
-                data['N° COTIZACION'] = prefijoCotizacion(data['CLIENTE']) + digits.padStart(6, '0');
-
-                key = data['N° COTIZACION'];
+                if (numeracionModo === 'manual' && !String(data['N° COTIZACION'] || '').trim()) {
+                    alert('Ingrese el número manual de cotización.'); return;
+                }
+                key = ''; // La sugerencia visual nunca es una reserva.
 
             }
 
@@ -10938,17 +10934,36 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-        fetch('/api/rows/add', {
+        const esCotAlta = currentProjectNombre.trim().toLowerCase() === 'cotizaciones';
+        const botonesAlta = esCotAlta ? Array.from(document.querySelectorAll('#btn-mar-label-guardar, #btn-mar-generar-coti')) : [];
+        botonesAlta.forEach(btn => { btn.disabled = true; });
+        const alta = esCotAlta
+            ? CotizacionNumeracion.crear({key: '', data, numeracion_modo: numeracionModo})
+            : fetch('/api/rows/add', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({key, data})}).then(r => r.json());
+        alta.then(res => {
+            if (!res) return;
 
-            method: 'POST',
-
-            headers: { 'Content-Type': 'application/json' },
-
-            body: JSON.stringify({ key: key, data: data })
-
-        }).then(r => r.json()).then(res => {
 
             if (res.success) {
+                if (esCotAlta) {
+                    key = res.key; // PDF y acciones usan siempre la clave confirmada.
+                    cotiEditMode = true;
+                    cotiEditKey = res.key;
+                    cotiEditData = {...data, 'N° COTIZACION': res.numero || res.key, _key: res.key};
+                    const inputNumero = document.querySelector('#mar-fields [data-field="N° COTIZACION"]');
+                    if (inputNumero) {
+                        inputNumero.value = res.numero || res.key;
+                        inputNumero.readOnly = true;
+                        const manual = inputNumero.parentElement.querySelector('input[type="checkbox"]');
+                        if (manual) manual.disabled = true;
+                        const ayuda = inputNumero.parentElement.querySelector('small');
+                        if (ayuda) ayuda.textContent = 'Número definitivo registrado.';
+                    }
+                    CotizacionNumeracion.detener();
+                    CotizacionNumeracion.confirmar(res);
+                }
+
 
                 if (esGenerar) {
 
@@ -11012,7 +11027,8 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             }
 
-        }).catch(err => { if (err && err.message) alert(err.message); });
+        }).catch(err => { if (err && err.message) alert(err.message); })
+            .finally(() => { botonesAlta.forEach(btn => { btn.disabled = false; }); });
 
     }
 

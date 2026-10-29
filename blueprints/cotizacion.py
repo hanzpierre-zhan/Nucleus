@@ -361,8 +361,11 @@ def api_cotizacion_next_seq():
         return jsonify({'error': 'Módulo Cotizaciones no existe'}), 404
     if request.method == 'GET':
         from services.cotizacion_numeracion import siguiente
-        val = siguiente(cot_proy.id, ahora_peru().year)
-        return jsonify({'next': val})
+        fecha = ahora_peru()
+        val = siguiente(cot_proy.id, fecha.year)
+        response = jsonify({'next': val, 'year': fecha.year, 'month': fecha.month})
+        response.headers['Cache-Control'] = 'no-store'
+        return response
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'Solo el admin puede configurar el correlativo'}), 403
     data = request.json or {}

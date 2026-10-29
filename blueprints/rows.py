@@ -413,7 +413,11 @@ def api_rows_add():
             # puede tener ese número en un proyecto distinto. Tampoco es seguro
             # ante dos altas simultáneas. El QR sigue siendo el dato del equipo.
             key_val = 'GEN-' + uuid4().hex
-        if not key_val:
+        if proy_nombre_chk == 'Cotizaciones':
+            # El número que trae el formulario puede haber quedado obsoleto.
+            # Se valida/asigna dentro de la transacción global de Cotizaciones.
+            key_val = ''
+        elif not key_val:
             existing = NucleusData.query.filter_by(proyecto_id=pid).all()
             nums = []
             for rec in existing:
@@ -488,11 +492,18 @@ def api_rows_add():
             if not prefijo_coti:
                 return jsonify({'error':'Proyecto de cotización inválido.'}), 400
             row_data['CLIENTE'] = cliente
-            from services.cotizacion_numeracion import reservar
-            key_val, orden_cotizacion = reservar(
-                pid, prefijo_coti, fecha_numero, row_data.get('N° COTIZACION', ''))
-            row_data['N° COTIZACION'] = key_val
-            row_data['N° ORDEN'] = orden_cotizacion
+            from services.cotizacion_numeracion import crear, NumeroNoDisponible, NumeracionOcupada
+            modo = data.get('numeracion_modo', 'automatico')
+            if modo not in ('automatico', 'manual'):
+                return jsonify(error='Modo de numeración inválido.'), 400
+            try:
+                return jsonify(crear(pid, prefijo_coti, fecha_numero, row_data, manual=modo == 'manual'))
+            except NumeroNoDisponible as error:
+                db.session.rollback()
+                return jsonify(error=str(error), code='COTIZACION_NUMERO_NO_DISPONIBLE',
+                               suggested=error.sugerido, datos_conservados=True), 409
+            except NumeracionOcupada as error:
+                return jsonify(error=str(error), code='COTIZACION_NUMERACION_OCUPADA', datos_conservados=True), 503
 
         # Cotizaciones reserva su orden dentro del mismo bloqueo de numeración.
         if proy_nombre == 'Combustible':
@@ -594,9 +605,12 @@ def api_rows_add():
             db.session.commit()
 
         return jsonify({'success': True, 'key': key_val})
-    except IntegrityError:
+    except IntegrityError as error:
         db.session.rollback()
-        return jsonify({'error': 'El correlativo ya fue reservado por otra solicitud. Actualiza la tabla y vuelve a registrar el caso.'}), 409
+        restriccion = getattr(getattr(error.orig, 'diag', None), 'constraint_name', 'desconocida')
+        current_app.logger.error('Alta rechazada por integridad: proyecto=%s, restriccion=%s', pid, restriccion)
+        return jsonify({'error': 'No se guardó el registro por un conflicto de integridad. Tus datos siguen en el formulario.',
+                        'code': 'REGISTRO_INTEGRIDAD'}), 409
     except ValueError as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 400
