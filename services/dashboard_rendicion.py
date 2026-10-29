@@ -94,7 +94,7 @@ def indicadores(rows, hoy=None):
             'codigo': _txt(row.get('Número CM / PM / PLM'), row.get('_key')),
             'site': _txt(row.get('Nombre de site')),
             'proyecto': proyecto(valor(row, 'Nombre del proyecto', 'PROYECTO', 'CLIENTE')),
-            'beneficiario': _txt(valor(row, 'Técnico beneficiario (Formulario)', 'Técnico beneficiario (Form)', 'Técnico beneficiario', 'Técnico beneficiario (Dataper)')) or 'Sin beneficiario',
+            'beneficiario': _txt(valor(row, 'Técnico beneficiario', 'Técnico beneficiario (Dataper)', 'Técnico beneficiario (Formulario)', 'Técnico beneficiario (Form)')) or 'Sin beneficiario',
             'documento_beneficiario': _txt(valor(row, 'Documento del beneficiario', 'Documento del beneficiario (Form)', 'Documento del beneficiario (Formulario)')),
             'solicito': _txt(valor(row, 'SOLICITADO POR', 'NOMBRE SOLICITANTE', 'Nombre del solicitante')) or 'Sin datos',
             'ultimo_interactor': _txt(row.get('INTERACCION')),

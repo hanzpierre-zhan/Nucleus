@@ -5,6 +5,21 @@ from services.normalizacion import normalizar
 from models import Proyecto, NucleusData
 
 
+def _homologar(datos):
+    from flask import has_app_context, has_request_context, request
+    if not has_app_context():
+        return datos
+    from models import AppConfig
+    from services.rendicion_homologacion import aplicar
+    cache = request.environ if has_request_context() else {}
+    clave = 'nucleus.rendicion_nombres_homologados'
+    if clave not in cache:
+        proyecto = Proyecto.query.filter_by(nombre='Rendicion').first()
+        cfg = AppConfig.query.filter_by(proyecto_id=proyecto.id, clave='rendicion_nombres_homologados').first() if proyecto else None
+        cache[clave] = json.loads(cfg.valor) if cfg else {}
+    return aplicar(datos, cache[clave])
+
+
 
 
 def documento(valor):
@@ -85,4 +100,4 @@ def completar_personal(datos, indice):
                 estado = 'SIN DEPARTAMENTO EN PERSONAL'
     datos['VERIFICACIÓN PERSONAL'] = 'Verificado' if estado == 'VERIFICADO' else 'Pendiente de verificar'
     datos['_PERSONAL_CRUCE'] = {'estado': estado, 'criterio': 'DOCUMENTO', 'documento': doc, 'fuente': 'Dataper'}
-    return _exponer_cruce(datos, estado)
+    return _homologar(_exponer_cruce(datos, estado))
