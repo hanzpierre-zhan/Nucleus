@@ -51,6 +51,11 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
                 page.evaluate("Object.defineProperty(navigator.clipboard,'writeText',{value:async t=>{window.copiedTest=t},configurable:true});copiarRendicionTSV()")
                 assert 'SUSTENTO_' not in page.evaluate('window.copiedTest.split(\'\\n\')[0]')
                 assert '12.50' not in page.evaluate('window.copiedTest')
+                copied=page.evaluate('window.copiedTest').splitlines()
+                assert copied[1].split('\t')[copied[0].split('\t').index('ESTADO')]=='4.CON SUSTENTO'
+                exported=page.evaluate("(()=>{let rows;const old=XLSX.writeFile;XLSX.writeFile=wb=>{rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})};try{descargarExcel()}finally{XLSX.writeFile=old}return rows})()")
+                assert exported[1][exported[0].index('ESTADO')]=='4.CON SUSTENTO'
+                assert page.evaluate('(key)=>rawData.find(r=>r._key===key).ESTADO',key)=='CON SUSTENTO'
                 headers=page.evaluate("(()=>{let headers;const old=XLSX.writeFile;XLSX.writeFile=wb=>{headers=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})[0]};try{descargarExcel()}finally{XLSX.writeFile=old}return headers})()")
                 assert headers and not any(str(h).startswith('SUSTENTO_') for h in headers)
                 assert not any(f in headers for f in excluded)

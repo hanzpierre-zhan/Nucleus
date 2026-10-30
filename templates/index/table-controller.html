@@ -5988,6 +5988,9 @@ let _rendCambiandoVista = false;
             rowsTsv.push(exportCols.map(c => {
 
                 let val = r[c];
+                if (esRendicion && String(c).trim().toUpperCase() === 'ESTADO') {
+                    val = NucleusRendicionStates.label(rendEstadoDe(r));
+                }
 
                 // Mostrar nombre completo en vez de usuario en columnas de auditoría ("X POR", GESTOR, etc.)
                 if (/ POR$/i.test(String(c).trim()) || /^(GESTOR|EDITADO POR|_ultimo_usuario_manual)$/i.test(String(c).trim())) {
@@ -6578,17 +6581,8 @@ let _rendCambiandoVista = false;
                 }
 
                 if (up === 'ESTADO' && esRendicion) {
-
-                    // Mismo criterio que la tabla (rendEstadoDe): vacío = PENDIENTE.
-
-                    v = (v === null || v === undefined) ? '' : v;
-
-                    if (!String(v).trim()) {
-
-                        v = (typeof rendEstadoDe === 'function') ? rendEstadoDe(r) : 'PENDIENTE';
-
-                    }
-
+                    // Misma etiqueta numerada que la tabla, sin modificar el código almacenado.
+                    v = NucleusRendicionStates.label(rendEstadoDe(r));
                 } else if (/FECHA/i.test(up) || /MARCA\s+TEMPORAL/i.test(up)) {
 
                     // Fecha real (no texto): en Excel se puede filtrar y ordenar.
