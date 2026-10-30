@@ -30,6 +30,10 @@ def validar_cambios(cambios, row):
         if not isinstance(valor, str) or len(valor)>4000:
             raise ValueError('Los valores deben ser texto de hasta 4000 caracteres.')
         valor=valor.strip()
+        if normalizar(campo) in ('tipodepresupuesto','tipopresupuesto'):
+            if valor.upper() not in ('GASTO COBRA','REFACTURABLE'):
+                raise ValueError('Elige GASTO COBRA o REFACTURABLE.')
+            valor=valor.upper()
         if campo == 'Tipo de gasto':
             from services.rendicion_gastos import validar_manual
             validar_manual(valor)

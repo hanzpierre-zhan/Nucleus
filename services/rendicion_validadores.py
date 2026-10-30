@@ -25,6 +25,8 @@ def error_edicion(proyecto_id, row, cambios, rol):
             validar_manual(cambios['Tipo de gasto'])
         except ValueError as error:
             return str(error)
+    if set(cambios) & {'PRESUPUESTO','N° COTIZACION'}:
+        return 'Asocia el presupuesto y la cotización desde Validar solicitud.'
     if 'ESTADO' in cambios and str(cambios['ESTADO'] or '').strip().upper() != str(row.get('ESTADO') or 'PENDIENTE').strip().upper():
         return 'El estado se cambia únicamente con los botones del flujo.'
     if rol not in ADMIN_ROLES:

@@ -5891,3 +5891,14 @@ body.theme-vercel .mar-modal.ev-modal { width:min(1680px,calc(100vw - 48px)); ma
 .ev-modal .ev-attachment strong { font-size:12px; }
 .ev-modal .ev-attachment small { font-size:10px; }
 .ev-modal .ev-file-link { text-decoration:none; cursor:pointer; }
+
+.rend-presupuesto-inputs{display:grid;grid-template-columns:1fr 1.5fr;gap:12px;margin-bottom:10px}
+.rend-presupuesto-inputs input{box-sizing:border-box;width:100%;height:36px;padding:7px 10px;border:1px solid var(--ios-hairline);border-radius:8px;background:var(--ios-fill);color:var(--ios-label);font:inherit}
+.rend-presupuesto-control:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.rend-presupuesto-control>div{display:flex;flex-direction:column;gap:5px;padding:10px;border:1px solid var(--ios-hairline);border-radius:8px}
+.rend-presupuesto-control span,.rend-presupuesto-note{font-size:11px;color:var(--ios-secondary)}
+.rend-presupuesto-note{display:block;margin:8px 0 16px;line-height:1.5}
+#rend-cotizacion-status{font-size:12px;line-height:1.5}
+#rend-cotizacion-status[data-estado=dentro]{color:#30a46c}
+#rend-cotizacion-status[data-estado=excede],#rend-cotizacion-status[data-estado=revisar]{color:#d97706}
+@media(max-width:600px){.rend-presupuesto-inputs{grid-template-columns:1fr}}

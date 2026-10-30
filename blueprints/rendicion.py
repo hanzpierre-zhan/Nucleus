@@ -396,6 +396,26 @@ def _persistir_fotos_form(proy_id, key, row):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+@bp.route('/api/rendicion/cotizacion', methods=['GET'])
+@login_required
+def consultar_presupuesto_cotizacion():
+    from services.rendicion_presupuesto_cotizacion import catalogo, encontrar, resumen
+    if not _puede_gestionar():
+        return jsonify(error='No tienes permiso para consultar esta solicitud.'),403
+    proy=_proy()
+    fila=NucleusData.query.filter_by(proyecto_id=proy.id,key_value=str(request.args.get('key') or '')).first() if proy else None
+    if not fila:return jsonify(error='Solicitud no encontrada.'),404
+    row=json.loads(fila.data_json or '{}');consulta=str(request.args.get('q') or '').strip()[:100]
+    opciones=catalogo(row,consulta)
+    result={'opciones':[{'numero':c['numero']} for c in opciones[:20]],'encontrada':False}
+    if consulta:
+        try:
+            cot=encontrar(row,consulta,opciones)
+            result.update(encontrada=True,control=resumen(row,fila.key_value,cot,request.args.get('monto')))
+        except ValueError as error:result['mensaje']=str(error)
+    return jsonify(result)
+
+
 @bp.route('/api/rendicion/accion', methods=['POST'])
 @login_required
 def api_rendicion_accion():
@@ -488,6 +508,12 @@ def api_rendicion_accion():
         row['FECHA DESARCHIVO'] = ahora
 
     elif accion == 'validar':
+        antes_presupuesto={campo:row.get(campo,'') for campo in ('PRESUPUESTO','N° COTIZACION')}
+        from services.rendicion_presupuesto_cotizacion import preparar
+        try:
+            row.update(preparar(row,key,data))
+        except ValueError as error:
+            return jsonify(error=str(error)),400
         # El modal exige elegir una de las 3 opciones de tiempo de respuesta.
         tiempo = str(data.get('tiempo') or '').strip()
         if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica'):
@@ -503,6 +529,12 @@ def api_rendicion_accion():
             nombre = correo[len(prefijo):] if correo.startswith(prefijo) else ''
             if not nombre or secure_filename(nombre) != nombre or not _correo_existe(fila.id, nombre):
                 return jsonify({'error': 'Adjunta el correo .msg para validar esta solicitud.'}), 400
+        from models import HistorialCambios
+        for campo,anterior in antes_presupuesto.items():
+            if str(anterior)!=str(row.get(campo,'')):
+                db.session.add(HistorialCambios(proyecto_id=proy.id,usuario_id=session.get('user_id'),
+                    username=usuario_actual,key_value=key,campo_modificado=campo,
+                    valor_anterior=str(anterior),valor_nuevo=str(row.get(campo,''))))
         row['ESTADO'] = 'VALIDADO'
         row['TIEMPO DE RESPUESTA'] = tiempo
         row['FECHA VALIDACION'] = ahora
@@ -1114,6 +1146,7 @@ def _importar_solicitudes():
         '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
         'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
         'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal',
+        'PRESUPUESTO', 'N° COTIZACION', '_COTIZACION_VINCULO', '_CONTROL_COTIZACION',
         'ESTADO', 'SUBESTADO', 'MOTIVO RECHAZO', 'INTERACCION', 'CODIGO DEPOSITO', 'OBSERVACIONES',
         'FECHA PAGO', 'MONTO PAGO', 'FOTO PAGO', 'FOTOS SUSTENTO',
         'COMENTARIOS SUSTENTO', 'FECHA SUSTENTO', 'FECHA RECHAZO',

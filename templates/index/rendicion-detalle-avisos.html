@@ -89,7 +89,10 @@ function rendPoblarDetalle(data, gridId) {
 
         if (editable && rendCampoCorregible(f)) {
             const attrs = `data-rend-campo="${escapeHtml(f)}" aria-label="${escapeHtml(label)}" maxlength="4000" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--ios-hairline);border-radius:7px;background:var(--ios-fill);color:var(--ios-label);font:inherit;"`;
-            valHtml = /motivo|observaci/i.test(f)
+            if (['tipodepresupuesto','tipopresupuesto'].includes(f.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,''))) {
+                const selected = val.toUpperCase();
+                valHtml = `<select ${attrs}><option value="">Seleccionar…</option>${['GASTO COBRA','REFACTURABLE'].map(option => `<option value="${option}" ${selected === option ? 'selected' : ''}>${option}</option>`).join('')}</select>`;
+            } else valHtml = /motivo|observaci/i.test(f)
                 ? `<textarea ${attrs} rows="3">${escapeHtml(val)}</textarea>`
                 : `<input type="text" ${attrs} value="${escapeHtml(val)}">`;
         }
@@ -840,6 +843,7 @@ function rendValidar(key) {
         'rend-val-form'
 
     );
+    rendIniciarPresupuesto(row);
 
 }
 
@@ -1114,6 +1118,7 @@ function rendConfirmarModal() {
         // El servidor comprueba el adjunto durable aunque la tabla tenga un enlace desactualizado.
 
         extra.tiempo = op.value;
+        Object.assign(extra, rendLeerPresupuesto());
 
         extra.observaciones = document.getElementById('rend-val-obs').value.trim();
 

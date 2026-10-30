@@ -587,7 +587,7 @@
     {% endif %}
 </div>
 
-{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=1"></script>{% include '_rendicion_formularios.html' %}{% endif %}
+{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=2"></script><script src="/static/js/rendicion-presupuesto.js?v=1"></script>{% include '_rendicion_formularios.html' %}{% endif %}
 
 <div id="data-stats" class="data-stats"></div>
 
@@ -596,7 +596,7 @@
 
 
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css', v=3) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css', v=4) }}">
 
 
 
@@ -2262,6 +2262,19 @@
         <div id="rend-val-form" class="rend-form-card" style="display:none;">
           <h4><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Validación de la solicitud</h4>
 
+          <div class="rend-presupuesto-inputs">
+            <div><label for="rend-val-presupuesto">Presupuesto (S/)</label><input id="rend-val-presupuesto" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+            <div><label for="rend-val-cotizacion">N° COTIZACION</label><input id="rend-val-cotizacion" type="text" list="rend-val-cotizaciones" maxlength="100" autocomplete="off" placeholder="Buscar cotización del proyecto"><datalist id="rend-val-cotizaciones"></datalist></div>
+          </div>
+          <p id="rend-cotizacion-status" role="status" aria-live="polite">Ingresa una cotización para consultar el monto acumulado.</p>
+          <div id="rend-cotizacion-control" class="rend-presupuesto-control" hidden>
+            <div><span>Cotizado · subtotal + FEE</span><strong data-rend-control="cotizado"></strong></div>
+            <div><span>Otras solicitudes activas</span><strong data-rend-control="otras_solicitudes"></strong></div>
+            <div><span>Esta solicitud</span><strong data-rend-control="solicitud_actual"></strong></div>
+            <div><span>Total solicitado acumulado</span><strong data-rend-control="acumulado"></strong></div>
+            <div><span>Saldo / exceso</span><strong data-rend-control="saldo"></strong></div>
+          </div>
+          <small class="rend-presupuesto-note">Suma los importes solicitados de las rendiciones activas de esta cotización. Excluye anulados y rechazos definitivos. El resultado es informativo.</small>
           <label>Tiempo de respuesta *</label>
 
           <div class="rend-opciones" id="rend-val-ops">
