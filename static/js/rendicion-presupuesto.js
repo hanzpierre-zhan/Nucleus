@@ -3,6 +3,20 @@
     let timer,abort;
     const byId=id=>document.getElementById(id);
     const money=value=>'S/ '+new Intl.NumberFormat('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(value));
+    let tipoInicial='';
+    window.rendActualizarObligacionCotizacion=()=>{
+        const tipo=document.querySelector('#rend-resumen-grid [data-rend-campo="Tipo de presupuesto"]')?.value??tipoInicial;
+        const required=String(tipo).trim().toUpperCase()==='REFACTURABLE';
+        const input=byId('rend-val-cotizacion');
+        input.required=required;
+        document.querySelector('label[for="rend-val-cotizacion"]').textContent='N° COTIZACION'+(required?' *':' (opcional)');
+        return required;
+    };
+    window.rendValidarCotizacionObligatoria=()=>{
+        const required=rendActualizarObligacionCotizacion(),input=byId('rend-val-cotizacion');
+        if(required&&!input.value.trim()){input.focus();input.reportValidity();return false;}
+        return true;
+    };
     window.rendLeerPresupuesto=()=>({presupuesto:byId('rend-val-presupuesto').value.trim(),cotizacion:byId('rend-val-cotizacion').value.trim()});
     window.rendConsultarPresupuesto=async function(){
         clearTimeout(timer);if(abort)abort.abort();
@@ -28,13 +42,19 @@
         }catch(error){if(error.name!=='AbortError')status.textContent=error.message;}
     };
     window.rendIniciarPresupuesto=row=>{
+        tipoInicial=row['Tipo de presupuesto']||row['TIPO DE PRESUPUESTO']||'';
+        rendActualizarObligacionCotizacion();
         byId('rend-val-presupuesto').value=row.PRESUPUESTO??'';
         byId('rend-val-cotizacion').value=row['N° COTIZACION']??'';
         rendConsultarPresupuesto();
     };
     document.addEventListener('input',event=>{
+        if(event.target.dataset.rendCampo==='Tipo de presupuesto')rendActualizarObligacionCotizacion();
         if(event.target.id==='rend-val-cotizacion'||event.target.dataset.rendCampo==='Monto total del depósito'){
             clearTimeout(timer);timer=setTimeout(rendConsultarPresupuesto,250);
         }
+    });
+    document.addEventListener('change',event=>{
+        if(event.target.dataset.rendCampo==='Tipo de presupuesto')rendActualizarObligacionCotizacion();
     });
 })();

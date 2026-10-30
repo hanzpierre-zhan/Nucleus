@@ -78,6 +78,35 @@ def test_no_acepta_cotizacion_falsa_ni_monto_invalido(app,auth_client,escenarios
         assert stored['ESTADO']=='PENDIENTE' and 'PRESUPUESTO' not in stored
 
 
+@pytest.mark.parametrize('tipo,codigo,esperado',[
+    ('REFACTURABLE','',400),
+    ('REFACTURABLE','   ',400),
+    ('REFACTURABLE','INEXISTENTE',400),
+    ('REFACTURABLE','PRES-2026-001',200),
+    ('GASTO COBRA','',200),
+])
+def test_cotizacion_obligatoria_solo_refacturable(app,auth_client,escenarios,tipo,codigo,esperado):
+    with app.app_context():
+        registro=NucleusData.query.filter_by(proyecto_id=escenarios,key_value='PRES-ACTUAL').one()
+        row=json.loads(registro.data_json);row['Tipo de presupuesto']=tipo
+        registro.data_json=json.dumps(row);db.session.commit()
+    response=auth_client.post('/api/rendicion/accion',json={'key':'PRES-ACTUAL','accion':'validar','tiempo':'No aplica','cotizacion':codigo})
+    assert response.status_code==esperado,response.json
+    with app.app_context():
+        row=json.loads(NucleusData.query.filter_by(proyecto_id=escenarios,key_value='PRES-ACTUAL').one().data_json)
+        assert row['ESTADO']==('VALIDADO' if esperado==200 else 'PENDIENTE')
+
+
+def test_refacturable_no_omite_control_sin_payload_cotizacion(app,auth_client,escenarios):
+    with app.app_context():
+        registro=NucleusData.query.filter_by(proyecto_id=escenarios,key_value='PRES-ACTUAL').one()
+        row=json.loads(registro.data_json);row['Tipo de presupuesto']='REFACTURABLE'
+        registro.data_json=json.dumps(row);db.session.commit()
+    response=auth_client.post('/api/rendicion/accion',json={'key':'PRES-ACTUAL','accion':'validar','tiempo':'No aplica'})
+    assert response.status_code==200,response.json
+    assert response.json['newData']['_CONTROL_COTIZACION']['acumulado']=='750.00'
+
+
 @pytest.mark.parametrize('raw,expected',[('1,234.56','1234.56'),('1.234,56','1234.56'),('25,50','25.50'),('0','0.00')])
 def test_importes(raw,expected):assert str(importe(raw))==expected
 

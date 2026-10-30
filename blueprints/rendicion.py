@@ -508,6 +508,13 @@ def api_rendicion_accion():
         row['FECHA DESARCHIVO'] = ahora
 
     elif accion == 'validar':
+        tipo_presupuesto = str(row.get('Tipo de presupuesto') or row.get('TIPO DE PRESUPUESTO') or '').strip().upper()
+        cotizacion = str(data.get('cotizacion', row.get('N° COTIZACION')) or '').strip()
+        if tipo_presupuesto == 'REFACTURABLE' and not cotizacion:
+            return jsonify(error='La cotización es obligatoria para solicitudes REFACTURABLES.'), 400
+        if tipo_presupuesto == 'REFACTURABLE' and 'cotizacion' not in data:
+            data['cotizacion'] = cotizacion
+            data.setdefault('presupuesto', row.get('PRESUPUESTO', ''))
         antes_presupuesto={campo:row.get(campo,'') for campo in ('PRESUPUESTO','N° COTIZACION')}
         from services.rendicion_presupuesto_cotizacion import preparar
         try:

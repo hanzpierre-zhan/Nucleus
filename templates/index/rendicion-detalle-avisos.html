@@ -1112,6 +1112,7 @@ function rendConfirmarModal() {
 
     if (accion === 'validar') {
         if (rendHayCorrecciones()) { alert('Guarda las correcciones de la solicitud antes de validar.'); return; }
+        if (!rendValidarCotizacionObligatoria()) return;
 
         const op = document.querySelector('#rend-val-ops input[name="rend-val-op"]:checked');
 
