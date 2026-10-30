@@ -15,6 +15,7 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
               'SUSTENTO_PRECIO COMPRAS':'12.50',
               'SUSTENTO_FOTO COMPRAS':'/static/img/brand-symbol.svg',
               'FOTO PAGO':'/static/img/brand-symbol.svg?pago=1',
+              'SUSTENTO_DOCUMENTO':'00123456','SUSTENTO_MOTO TOTAL DE LO GASTADO':'50',
               'SUSTENTO_ADJUNTAR COMPROBANTE':'/static/documento.pdf, /static/reporte.docx',
               'SUSTENTO_PRECIO PEAJE':'7.80','SUSTENTO_RUC PEAJE':'20517252558',
               'SUSTENTO_TIPO DOCUMENTO PEAJE':'Factura',
@@ -63,13 +64,15 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
                 pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('12.50')
                 pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('F2. PRECIO COMPRAS')
                 assert page.locator('.ev-trabajo .ev-f').count()==3
-                assert page.locator('.ev-comprobantes .ev-f').count()==5
+                assert page.locator('.ev-comprobantes .ev-f').count()==6
+                assert page.locator('.ev-comprobantes-grid > .ev-card').first.get_attribute('data-cat')=='GENERAL'
+                assert page.locator('.ev-card[data-cat="GENERAL"] img').get_attribute('src').endswith('?pago=1')
                 assert page.locator('#ev-stats').count()==0
                 assert page.locator('.ev-card[data-cat="PAGO"]').count()==0
                 assert page.locator('.ev-section-title').count()==0
                 pw.expect(page.locator('.ev-file-link').first).to_contain_text('Adjunto · PDF')
                 pw.expect(page.locator('.ev-file-link').last).to_contain_text('Adjunto · Word')
-                assert page.evaluate("EV_FOTOS.length") == 6
+                assert page.evaluate("EV_FOTOS.length") == 7
                 for width in [1500,390]:
                     page.set_viewport_size({'width':width,'height':950})
                     photos=page.locator('.ev-card[data-cat="PEAJE"] .ev-f-wrap')

@@ -2032,9 +2032,9 @@ function rendAbrirDetalleEvidencia(key) {
 
 
 
-    const CATS = ['PAGO', 'PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
+    const CATS = ['GENERAL', 'PAGO', 'PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
 
-                  'HOSPEDAJE', 'COCHERA', 'OTROS', 'COMPROBANTE', 'GENERAL', 'TRABAJO'];
+                  'HOSPEDAJE', 'COCHERA', 'OTROS', 'COMPROBANTE', 'TRABAJO'];
 
     const data = {};
 
@@ -2087,7 +2087,8 @@ function rendAbrirDetalleEvidencia(key) {
 
 
 
-    // El comprobante de depósito se consulta desde su campo propio, no en este detalle.
+    // La foto del pago va debajo de Datos generales, en la primera tarjeta.
+    if (String(row['FOTO PAGO'] || '').trim()) addFotos('GENERAL', 'Comprobante del pago', row['FOTO PAGO']);
 
     if (row['FOTOS SUSTENTO']) addFotos('TRABAJO', 'Foto de sustento', row['FOTOS SUSTENTO']);
 
