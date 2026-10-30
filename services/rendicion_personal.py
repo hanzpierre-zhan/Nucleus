@@ -101,3 +101,28 @@ def completar_personal(datos, indice):
     datos['VERIFICACIÓN PERSONAL'] = 'Verificado' if estado == 'VERIFICADO' else 'Pendiente de verificar'
     datos['_PERSONAL_CRUCE'] = {'estado': estado, 'criterio': 'DOCUMENTO', 'documento': doc, 'fuente': 'Dataper'}
     return _homologar(_exponer_cruce(datos, estado))
+
+
+def presentar_beneficiario_dataper(datos, indice, solo_meta=False):
+    """Vista estricta por documento; nunca reescribe históricos ni el formulario."""
+    result=dict(datos)
+    doc_key=campo(datos,['Documento del beneficiario','DOCUMENTO','DNI','Numero de documento','Documento de identidad'])
+    doc=documento(datos.get(doc_key) or datos.get('Documento del beneficiario (Form)'))
+    candidatos=indice.get(doc,[]) if doc else []
+    nombres={}
+    for nombre,_departamento in candidatos:
+        nombre=str(nombre or '').strip()
+        if nombre:nombres.setdefault(normalizar(nombre),nombre)
+    if len(nombres)==1:
+        nombre=next(iter(nombres.values()));estado='VERIFICADO'
+    elif len(nombres)>1:
+        nombre='DNI DUPLICADO EN DATAPER';estado='DOCUMENTO DUPLICADO'
+    else:
+        nombre='NO REGISTRADO EN DATAPER';estado='NO ENCONTRADO' if doc else 'SIN DOCUMENTO'
+    original=datos.get('_PERSONAL_ORIGINAL') or {}
+    result.setdefault('Técnico beneficiario (Form)',original.get('tecnico') or datos.get('Técnico beneficiario',''))
+    result.setdefault('Documento del beneficiario (Form)',original.get('documento') or datos.get(doc_key,''))
+    result['_DATAPER_BENEFICIARIO']=nombre
+    result['_DATAPER_RESULTADO']={'documento':doc,'estado':estado,'fuente':'Dataper'}
+    if not solo_meta:result['Técnico beneficiario']=nombre
+    return result

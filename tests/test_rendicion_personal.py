@@ -113,3 +113,72 @@ def test_expone_columnas_de_auditoria_del_cruce():
     manual = completar_personal({'Documento del beneficiario':'00123456','Técnico beneficiario':'x','_PERSONAL_CORRECCION_MANUAL':True}, indice)
     assert manual['Cruce de personal'] == 'CORREGIDO MANUALMENTE'
     assert manual['Técnico beneficiario (Form)'] == 'x'
+
+
+def test_vista_dataper_no_reutiliza_nombre_formulario_ni_manual():
+    from services.rendicion_personal import presentar_beneficiario_dataper
+    original={'Documento del beneficiario':'00-123-456','Técnico beneficiario':'Nombre homologado',
+              'Técnico beneficiario (Form)':'Nombre escrito en formulario','_PERSONAL_CORRECCION_MANUAL':True}
+    result=presentar_beneficiario_dataper(original,{'00123456':[('Nombre del catálogo','LIMA'),('Nombre del catálogo','ICA')]})
+    assert result['Técnico beneficiario']=='Nombre del catálogo'
+    assert result['Técnico beneficiario (Form)']=='Nombre escrito en formulario'
+    assert original['Técnico beneficiario']=='Nombre homologado'
+    assert result['_DATAPER_RESULTADO']['documento']=='00123456'
+    no_match=presentar_beneficiario_dataper(original,{})
+    assert no_match['Técnico beneficiario']=='NO REGISTRADO EN DATAPER'
+    assert no_match['Técnico beneficiario (Form)']=='Nombre escrito en formulario'
+    fallback=presentar_beneficiario_dataper({'Documento del beneficiario (Form)':'00123456','Técnico beneficiario':'Original'}, {'00123456':[('Nombre del catálogo','LIMA')]})
+    assert fallback['Técnico beneficiario']=='Nombre del catálogo'
+
+
+def test_vista_dataper_no_elige_un_duplicado_ambiguo():
+    from services.rendicion_personal import presentar_beneficiario_dataper
+    result=presentar_beneficiario_dataper({'DNI':'00123456'}, {'00123456':[('Persona Uno','LIMA'),('Persona Dos','LIMA')]})
+    assert result['Técnico beneficiario']=='DNI DUPLICADO EN DATAPER'
+
+
+from test_e2e_navegador import servidor
+
+
+def test_navegador_muestra_cruce_estricto_y_no_registrado(app,auth_client,servidor):
+    from playwright.sync_api import sync_playwright,expect
+    previous={}
+    with app.app_context():
+        pid=Proyecto.query.filter_by(nombre='Rendicion').one().id
+        personal=Proyecto.query.filter_by(nombre='Dataper').one().id
+        records=[NucleusData(proyecto_id=personal,key_value='DNI-VISTA-PERSONAL',data_json=json.dumps({'PROYECTO':'ENTEL','DOCUMENTO':'00123456','TECNICO':'NOMBRE OFICIAL DATAPER','DEPARTAMENTO':'LIMA'}))]
+        for key,doc in [('DNI-VISTA-ENCONTRADO','00123456'),('DNI-VISTA-FALTANTE','87654321')]:
+            records.append(NucleusData(proyecto_id=pid,key_value=key,data_json=json.dumps({'ESTADO':'PENDIENTE','Nombre del proyecto':'Entel','Documento del beneficiario':doc,'Técnico beneficiario':'Nombre formulario','_PERSONAL_CORRECCION_MANUAL':True})))
+        db.session.add_all(records)
+        for key,value in [('app_schema',['ESTADO','Técnico beneficiario','Documento del beneficiario']),('column_layout__validacion',[{'field':'Técnico beneficiario','visible':True},{'field':'Técnico beneficiario (Form)','visible':True}])]:
+            cfg=AppConfig.query.filter_by(proyecto_id=pid,clave=key).first();previous[key]=cfg.valor if cfg else None
+            if not cfg:cfg=AppConfig(proyecto_id=pid,clave=key);db.session.add(cfg)
+            cfg.valor=json.dumps(value)
+        db.session.commit();ids=[r.id for r in records]
+    try:
+        auth_client.get('/switch_project/'+str(pid));cookie=auth_client.get_cookie('session')
+        with sync_playwright() as p:
+            browser=p.chromium.launch()
+            try:
+                context=browser.new_context(viewport={'width':1500,'height':900})
+                context.add_cookies([{'name':'session','value':cookie.value,'domain':'127.0.0.1','path':'/'}])
+                page=context.new_page();page.goto(servidor+'/',wait_until='networkidle')
+                page.wait_for_function("typeof _rendFiltroFn==='function'")
+                names=page.evaluate("Object.fromEntries(rawData.filter(r=>r._key.startsWith('DNI-VISTA')).map(r=>[r._key,r['Técnico beneficiario']]))")
+                assert names=={'DNI-VISTA-ENCONTRADO':'NOMBRE OFICIAL DATAPER','DNI-VISTA-FALTANTE':'NO REGISTRADO EN DATAPER'}
+                expect(page.locator('.tabulator-cell[tabulator-field="Técnico beneficiario"]').filter(has_text='NOMBRE OFICIAL DATAPER')).to_be_visible()
+                expect(page.locator('.tabulator-cell[tabulator-field="Técnico beneficiario"]').filter(has_text='NO REGISTRADO EN DATAPER')).to_be_visible()
+                page.evaluate("rendTrasAccion({newData:{'Técnico beneficiario':'Nombre equivocado','_DATAPER_BENEFICIARIO':'NOMBRE OFICIAL DATAPER'}},'DNI-VISTA-ENCONTRADO')")
+                assert page.evaluate("rawData.find(r=>r._key==='DNI-VISTA-ENCONTRADO')['Técnico beneficiario']")=='NOMBRE OFICIAL DATAPER'
+            finally:browser.close()
+        with app.app_context():
+            stored=json.loads(NucleusData.query.filter_by(proyecto_id=pid,key_value='DNI-VISTA-ENCONTRADO').one().data_json)
+            assert stored['Técnico beneficiario']=='Nombre formulario'
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.id.in_(ids)).delete(synchronize_session=False)
+            for key,value in previous.items():
+                cfg=AppConfig.query.filter_by(proyecto_id=pid,clave=key).one()
+                if value is None:db.session.delete(cfg)
+                else:cfg.valor=value
+            db.session.commit()

@@ -299,7 +299,7 @@ def index():
     personal_rendicion = None
     if proy_actual_nombre.strip().lower() == 'rendicion':
         columns_set.update(('N° COTIZACION', 'ENVIADO A TRANSITO POR', 'FECHA ENVIO TRANSITO'))
-        from services.rendicion_personal import indice_personal, completar_personal
+        from services.rendicion_personal import indice_personal, completar_personal, presentar_beneficiario_dataper
         personal_rendicion = indice_personal()
         columns_set.add('DEPARTAMENTO')
         columns_set.discard('VERIFICACIÓN PERSONAL')
@@ -326,6 +326,7 @@ def index():
         d = json.loads(data_json)
         if personal_rendicion is not None:
             completar_personal(d, personal_rendicion)
+            d = presentar_beneficiario_dataper(d, personal_rendicion)
         d = presentar_columnas_fuente(d, proy_actual_nombre, key_value)
         if proy_actual_nombre == 'Dataper':
             d = presentar_personal(d)

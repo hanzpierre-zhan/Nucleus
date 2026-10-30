@@ -664,7 +664,8 @@ def api_rendicion_accion():
     # Aviso para todos los que tengan el módulo ("Jessica depositó S/ 100 ...")
     _aviso = 'rebote' if (accion == 'rechazar' and row.get('ESTADO') == 'DEPOSITADO') else accion
     _avisar_flujo(proy.id, _aviso, row, usuario_actual)
-    respuesta = {'success': True, 'estado': row['ESTADO'], 'newData': row}
+    from services.rendicion_personal import presentar_beneficiario_dataper, indice_personal
+    respuesta = {'success': True, 'estado': row['ESTADO'], 'newData': presentar_beneficiario_dataper(row,indice_personal(),solo_meta=True)}
     if wa_deposito:
         respuesta['wa'] = wa_deposito
     return jsonify(respuesta)
@@ -1026,7 +1027,7 @@ def configurar_validadores():
 def corregir_solicitud():
     from models import HistorialCambios
     from services.rendicion_correcciones import validar_cambios, normalizar
-    from services.rendicion_personal import completar_personal, indice_personal, documento
+    from services.rendicion_personal import completar_personal, indice_personal, documento, presentar_beneficiario_dataper
     if not _puede_gestionar() or session.get('rol') not in ROLES_ACCION:
         return jsonify(error='No tienes permiso para corregir solicitudes.'),403
     payload=request.get_json(silent=True) or {}
@@ -1064,14 +1065,14 @@ def corregir_solicitud():
                 username=audit_user() or '',key_value=fila.key_value,campo_modificado=campo,
                 valor_anterior=str(row.get(campo) or ''),valor_nuevo=str(valor or '')))
     if not auditoria:
-        return jsonify(success=True,newData={**row,'_key':fila.key_value})
+        return jsonify(success=True,newData=presentar_beneficiario_dataper({**row,'_key':fila.key_value},indice_personal(),solo_meta=True))
     nuevos['_CORRECCION_REV']=row.get('_CORRECCION_REV',0)+1
     nuevos['_CORREGIDO_POR']=audit_user() or ''
     nuevos['_FECHA_CORRECCION']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     db.session.add_all(auditoria)
     fila.data_json=json.dumps(nuevos,ensure_ascii=False)
     db.session.commit()
-    return jsonify(success=True,newData={**nuevos,'_key':fila.key_value})
+    return jsonify(success=True,newData=presentar_beneficiario_dataper({**nuevos,'_key':fila.key_value},indice_personal(),solo_meta=True))
 
 
 RENDICION_CSV_TEMPLATE = 'https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}'

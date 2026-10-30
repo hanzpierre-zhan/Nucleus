@@ -2,7 +2,7 @@
     'use strict';
     let base = null, saving = false;
     const norm = field => String(field).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
-    const campos = new Set(['DEPARTAMENTO','Técnico beneficiario','Documento del beneficiario','Motivo de la solicitud','Número CM / PM / PLM','Nombre de site','Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar','Supervisor encargado','Observaciones (Form)','Criticidad - Prioridad'].map(norm));
+    const campos = new Set(['DEPARTAMENTO','Documento del beneficiario','Motivo de la solicitud','Número CM / PM / PLM','Nombre de site','Monto total del depósito','Tipo de gasto','Tipo de presupuesto','Titular de la cuenta','Número de cuenta o CCI','Número de celular o CCI','Numero de Yape/Plin','Tipo de billetera digital','Tipo de depósito a realizar','Supervisor encargado','Observaciones (Form)','Criticidad - Prioridad'].map(norm));
     window.rendCampoCorregible = field => campos.has(norm(field));
     window.rendIniciarCorrecciones = data => { base = {...data}; };
     function cambios() {

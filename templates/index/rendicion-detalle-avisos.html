@@ -678,6 +678,9 @@ function rendAccion(key, accion, extra) {
 // Tras la acción la fila cambia de hoja: se actualiza en memoria y se re-filtra.
 
 function rendTrasAccion(j, key) {
+    if (j.newData && Object.prototype.hasOwnProperty.call(j.newData,'_DATAPER_BENEFICIARIO')) {
+        j.newData = {...j.newData, 'Técnico beneficiario': j.newData._DATAPER_BENEFICIARIO};
+    }
 
     const i = rawData.findIndex(r => r._key === key);
 
