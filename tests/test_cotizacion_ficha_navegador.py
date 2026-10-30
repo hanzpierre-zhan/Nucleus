@@ -7,6 +7,41 @@ from db import db
 from models import NucleusData
 
 
+def test_enviar_atendido_conserva_fotos_y_sale_de_sustentar(app,auth_client,servidor,caso):
+    from test_sustento_por_wo import cargar
+    auth_client.get('/switch_project/%s'%caso['cot'])
+    upload=cargar(auth_client,caso)
+    assert upload.status_code==200,upload.json
+    with app.app_context():
+        before={rid:json.loads(db.session.get(NucleusData,rid).data_json) for rid in caso['ids']}
+    cookie=auth_client.get_cookie('session')
+    with playwright_api.sync_playwright() as p:
+        browser=p.chromium.launch()
+        try:
+            context=browser.new_context(viewport={'width':1600,'height':1000})
+            context.add_cookies([{'name':'session','value':cookie.value,'domain':'127.0.0.1','path':'/'}])
+            page=context.new_page();page.goto(servidor+'/',wait_until='networkidle')
+            page.evaluate("cotCambiarVista('sustentar');cotAbrirModalSustento('COT-SUST-TEST')")
+            button=page.locator('#cot-btn-enviar-atendido')
+            playwright_api.expect(button).to_be_visible()
+            with page.expect_response('**/api/cotizacion/sustento/guardar') as response:
+                button.click()
+            assert response.value.status==200
+            playwright_api.expect(page.locator('#modal-wo')).to_be_hidden()
+            assert page.evaluate("rawData.find(r=>r._key==='COT-SUST-TEST')['ESTADO COTIZACION']")=='Atendido'
+            assert page.evaluate("table.getData('active').some(r=>r._key==='COT-SUST-TEST')") is False
+            page.evaluate("cotCambiarVista('atendido')")
+            assert page.evaluate("table.getData('active').some(r=>r._key==='COT-SUST-TEST')") is True
+        finally:browser.close()
+    with app.app_context():
+        for rid in caso['ids']:
+            after=json.loads(db.session.get(NucleusData,rid).data_json)
+            for campo,valor in before[rid].items():
+                if campo.startswith(('_EVIDENCIA_','_SUSTENTO_ITEMS','_BITACORA_')):
+                    assert after[campo]==valor
+    assert auth_client.get(upload.json['url']).status_code==200
+
+
 def test_ficha_ampliada_guarda_y_restaura_modal(app,auth_client,servidor,caso,monkeypatch,tmp_path):
     import blueprints.cotizacion as cot
     monkeypatch.setattr(cot,'evidencia_usa_b2',lambda:False)

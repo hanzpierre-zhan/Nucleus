@@ -49,6 +49,11 @@
   if(legacy.length){const previous=el('details','cot-ficha-photos');previous.append(el('summary',null,'Evidencias anteriores sin ítem asignado'));const images=el('div','cot-item-photos');legacy.forEach(url=>{const link=el('a','cot-item-photo'),img=el('img');link.href=url;link.target='_blank';link.rel='noopener';img.src=url;img.alt='Evidencia anterior';link.append(img);images.append(link);});previous.append(images);form.append(previous);}
   const copyButton=document.getElementById('btn-wo-copiar'),copyDisplay=copyButton.style.display;copyButton.style.display='none';moves.push(()=>copyButton.style.display=copyDisplay);
   document.getElementById('cot-btn-guardar-sustento')?.remove();
+  if(editable&&!ctx.aprobado&&!entry.legacy&&cotPuedeGestionar()){
+   const finish=el('button','mar-btn-primary','Enviar a Atendido');finish.id='cot-btn-enviar-atendido';finish.type='button';finish.style.cssText='width:auto;padding:0 12px;white-space:nowrap;';
+   document.getElementById('btn-wo-save').before(finish);moves.push(()=>finish.remove());
+   finish.addEventListener('click',async()=>{finish.disabled=true;try{await cotGuardarSustentoSeleccionado(true);cerrarWoModal();}catch(error){nucleusAlert(error.message);}finally{finish.disabled=false;}},{signal:events.signal});
+  }
   const dossier=el('button','mar-btn-ghost','Generar expediente');dossier.id='cot-btn-generar-expediente';dossier.type='button';dossier.disabled=!ctx.items?.length;dossier.title='Descargar expediente fotográfico en Excel';dossier.style.cssText='width:auto;padding:0 12px;white-space:nowrap;';document.getElementById('btn-wo-save').before(dossier);moves.push(()=>dossier.remove());
   dossier.addEventListener('click',async()=>{dossier.disabled=true;dossier.textContent='Generando…';try{
    if(editable)await cotGuardarSustentoSeleccionado(false);
