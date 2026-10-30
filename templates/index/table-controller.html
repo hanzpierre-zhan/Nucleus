@@ -1959,6 +1959,8 @@ let _rendCambiandoVista = false;
     rawCols.forEach(col => {
 
         const fieldName = col;
+        // El segundo formulario se consulta únicamente desde Evidencia.
+        if (IS_RENDICION && String(fieldName).startsWith('SUSTENTO_')) return;
 
         const _isCot = currentProjectNombre.trim().toLowerCase() === 'cotizaciones';
 
@@ -5925,7 +5927,8 @@ let _rendCambiandoVista = false;
 
             presentes.forEach(c => { if (!descartadosRend[c] && enOrden.indexOf(c) < 0) enOrden.push(c); });
 
-            exportCols = enOrden;
+            // Conserva el formulario completo en rawData para el detalle de Evidencia.
+            exportCols = enOrden.filter(c => !String(c).startsWith('SUSTENTO_'));
 
             dataToExport = rawData;
 
@@ -6369,7 +6372,8 @@ let _rendCambiandoVista = false;
 
             presentes.forEach(c => { if (!descartadosRend[c] && enOrden.indexOf(c) < 0) enOrden.push(c); });
 
-            exportCols = enOrden;
+            // Conserva el formulario completo en rawData para el detalle de Evidencia.
+            exportCols = enOrden.filter(c => !String(c).startsWith('SUSTENTO_'));
 
             dataToExport = rawData;
 
