@@ -12,6 +12,7 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
     with app.app_context():
         pid=Proyecto.query.filter_by(nombre='Rendicion').one().id
         data={'ESTADO':'CON SUSTENTO','Nombre del proyecto':'Claro','MONTO PAGO':'50',
+              'Marca temporal':'29/9/2026 15:45:43','FECHA PAGO':'2026-10-01 09:10:00',
               'SUSTENTO_PRECIO COMPRAS':'12.50',
               'SUSTENTO_FOTO COMPRAS':'/static/img/brand-symbol.svg',
               'FOTO PAGO':'/static/img/brand-symbol.svg?pago=1',
@@ -55,6 +56,13 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
                 assert copied[1].split('\t')[copied[0].split('\t').index('ESTADO')]=='4.CON SUSTENTO'
                 exported=page.evaluate("(()=>{let rows;const old=XLSX.writeFile;XLSX.writeFile=wb=>{rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})};try{descargarExcel()}finally{XLSX.writeFile=old}return rows})()")
                 assert exported[1][exported[0].index('ESTADO')]=='4.CON SUSTENTO'
+                assert 'F1.Fecha Solicitud' in exported[0]
+                for campo,valor in [('Mes Solicitud','9.Septiembre'),('Día Solicitud',29),('Mes Pago','10.Octubre'),('Día Pago',1)]:
+                    assert exported[1][exported[0].index(campo)]==valor
+                    assert copied[1].split('\t')[copied[0].split('\t').index(campo)]==str(valor)
+                assert page.locator('.tabulator-col[tabulator-field="Marca temporal"]').inner_text().startswith('F1.Fecha Solicitud')
+                parts=page.evaluate("['01/01/2026','2026-02-28','31/02/2026','',null].map(v=>[rendParteFechaExport({'Marca temporal':v},'Mes Solicitud'),rendParteFechaExport({'Marca temporal':v},'Día Solicitud')])")
+                assert parts==[['1.Enero',1],['2.Febrero',28],['',''],['',''],['','']]
                 assert page.evaluate('(key)=>rawData.find(r=>r._key===key).ESTADO',key)=='CON SUSTENTO'
                 headers=page.evaluate("(()=>{let headers;const old=XLSX.writeFile;XLSX.writeFile=wb=>{headers=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})[0]};try{descargarExcel()}finally{XLSX.writeFile=old}return headers})()")
                 assert headers and not any(str(h).startswith('SUSTENTO_') for h in headers)

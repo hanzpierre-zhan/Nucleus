@@ -138,8 +138,33 @@ let _rendCambiandoVista = false;
     const REND_FORM1_FIELDS = new Set(["Marca temporal", "Nombre del proyecto", "Nombre de site", "Número CM / PM / PLM", "Tipo de Ticket", "Tipo de gasto", "Tipo de presupuesto", "Motivo de la solicitud", "Monto total del depósito", "Técnico beneficiario", "Documento del beneficiario", "Técnico beneficiario (Form)", "Documento del beneficiario (Form)", "Supervisor encargado", "Tipo de billetera digital", "Numero de Yape/Plin", "Número de cuenta o CCI", "Número de celular o CCI", "Titular de la cuenta", "Observaciones (Form)", "Responsable de la validación", "ESTADO (Form)", "CODIGO DEPOSITO (Form)", "MONTO PAGO (Form)", "Criticidad - Prioridad", "Tipo de depósito a realizar"]);
     function rendNombreColumna(field) {
         const name = String(field || '');
+        if (name === 'VALIDADO POR') return 'Usuario validador';
+        if (name === 'Marca temporal') return 'F1.Fecha Solicitud';
         if (name.startsWith('SUSTENTO_')) return 'F2. ' + name.slice(9);
         return REND_FORM1_FIELDS.has(name) ? 'F1. ' + name : name;
+    }
+    const REND_FECHAS_EXPORT = {
+        'Mes Solicitud': ['Marca temporal', 'mes'], 'Día Solicitud': ['Marca temporal', 'dia'],
+        'Mes Pago': ['FECHA PAGO', 'mes'], 'Día Pago': ['FECHA PAGO', 'dia']
+    };
+    function rendColumnasFechaExport(cols) {
+        return cols.flatMap(c => c === 'Marca temporal' ? [c,'Mes Solicitud','Día Solicitud'] :
+            c === 'FECHA PAGO' ? [c,'Mes Pago','Día Pago'] : [c]);
+    }
+    function rendParteFechaExport(row, campo) {
+        const [origen, parte] = REND_FECHAS_EXPORT[campo], value = row[origen];
+        let dia, mes, anio;
+        if (value instanceof Date) { dia=value.getDate(); mes=value.getMonth()+1; anio=value.getFullYear(); }
+        else {
+            const s=String(value??'').trim();
+            let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:$|[ T])/);
+            if(m){dia=+m[1];mes=+m[2];anio=+m[3];}
+            else {m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:$|[ T])/);if(!m)return '';anio=+m[1];mes=+m[2];dia=+m[3];}
+        }
+        const d=new Date(anio,mes-1,dia,12);
+        if(d.getFullYear()!==anio||d.getMonth()+1!==mes||d.getDate()!==dia)return '';
+        const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        return parte==='dia'?dia:mes+'.'+meses[mes-1];
     }
     const REND_CAMPOS_SOLO_DATOS = new Set([
         'Cruce de personal', 'DEPARTAMENTO', 'Documento del beneficiario',
@@ -419,8 +444,13 @@ let _rendCambiandoVista = false;
     }
 
     function cotEnProveedor(row) {
+        const documentosGuardados = ['NUMERO FACTURA PROVEEDOR','NUMERO OC PROVEEDOR','ADJUNTO FACTURA PROVEEDOR']
+            .every(campo => String(row[campo] ?? '').trim())
+            && String(row['SUBTOTAL FACTURA PROVEEDOR'] ?? '').trim() !== ''
+            && Number.isFinite(Number(row['SUBTOTAL FACTURA PROVEEDOR']))
+            && Number(row['SUBTOTAL FACTURA PROVEEDOR']) >= 0;
         return String(row['TIPO GASTO APROBACION'] || '').trim().toLowerCase() === 'proveedor'
-            && ['sustentar', 'atendido'].includes(cotPestaniaDe(row));
+            && ['sustentar', 'atendido'].includes(cotPestaniaDe(row)) && !documentosGuardados;
     }
 
     function cotEstadoDe(row) {
@@ -4502,7 +4532,9 @@ let _rendCambiandoVista = false;
     }
     window.NucleusIdentity.columns(tableColumns);
     if (IS_RENDICION) tableColumns.forEach(def => {
-        if (REND_FORM1_FIELDS.has(def.field)) def.title = 'F1. ' + (def.title || def.field);
+        if (def.field === 'VALIDADO POR') def.title = 'Usuario validador';
+        if (def.field === 'Marca temporal') def.title = 'F1.Fecha Solicitud';
+        else if (REND_FORM1_FIELDS.has(def.field)) def.title = 'F1. ' + (def.title || def.field);
     });
     // La configuración compartida es la única fuente de visibilidad.
     if (hasServerLayout) tableColumns.forEach(c => {
@@ -5981,6 +6013,7 @@ let _rendCambiandoVista = false;
 
         const rowsTsv = [];
 
+        if(esRendicion) exportCols=rendColumnasFechaExport(exportCols);
         rowsTsv.push(exportCols.map(c => esc(esRendicion ? rendNombreColumna(c) : c)).join('\t'));
 
         (Array.isArray(dataToExport) ? dataToExport : []).forEach(r => {
@@ -5988,6 +6021,7 @@ let _rendCambiandoVista = false;
             rowsTsv.push(exportCols.map(c => {
 
                 let val = r[c];
+                if(esRendicion && REND_FECHAS_EXPORT[c]) val=rendParteFechaExport(r,c);
                 if (esRendicion && String(c).trim().toUpperCase() === 'ESTADO') {
                     val = NucleusRendicionStates.label(rendEstadoDe(r));
                 }
@@ -6549,6 +6583,7 @@ let _rendCambiandoVista = false;
 
         const rows = [];
 
+        if(esRendicion) exportCols=rendColumnasFechaExport(exportCols);
         const headers = exportCols.map(c => {
 
             if (c === '_key') return isWoExport ? 'Numero WO' : String(c).trim();
@@ -6572,6 +6607,7 @@ let _rendCambiandoVista = false;
                 const up = String(c).trim().toUpperCase();
 
                 let v = r[c];
+                if(esRendicion && REND_FECHAS_EXPORT[c]) v=rendParteFechaExport(r,c);
                 // Mostrar nombre completo en vez de usuario en columnas de auditoría ("X POR", GESTOR, etc.)
                 if (/ POR$/i.test(String(c).trim()) || /^(GESTOR|EDITADO POR|_ultimo_usuario_manual)$/i.test(String(c).trim())) {
                     try {
@@ -9042,7 +9078,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         selTipo.className = 'wo-cobra-tipo';
 
-        ['', 'REEMBOLSABLE', 'LPU'].forEach(o => {
+        ['', 'REEMBOLSABLE', 'LPU', 'GASTO COBRA'].forEach(o => {
 
             const opt = document.createElement('option');
 
@@ -16181,7 +16217,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         selTipo.className = 'wo-cobra-tipo';
 
-        ['', 'REEMBOLSABLE', 'LPU'].forEach(o => {
+        ['', 'REEMBOLSABLE', 'LPU', 'GASTO COBRA'].forEach(o => {
 
             const opt = document.createElement('option');
 

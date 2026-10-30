@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'../templates/index/table-controller.html'),'utf8');
+const context=vm.createContext({cotPestaniaDe:r=>r.tab});
+vm.runInContext(source.slice(source.indexOf('    function cotEnProveedor(row)'),source.indexOf('    function cotEstadoDe(row)')),context);
+const base={'TIPO GASTO APROBACION':'Proveedor',tab:'sustentar'};
+assert.equal(context.cotEnProveedor(base),true);
+const uploaded={...base,'ADJUNTO FACTURA PROVEEDOR':'/factura.pdf'};
+assert.equal(context.cotEnProveedor(uploaded),true);
+const saved={...uploaded,'NUMERO FACTURA PROVEEDOR':'F001','NUMERO OC PROVEEDOR':'OC1','SUBTOTAL FACTURA PROVEEDOR':'90.25'};
+assert.equal(context.cotEnProveedor(saved),false);
+assert.equal(context.cotEnProveedor({...saved,tab:'atendido'}),false);
+assert.equal(context.cotEnProveedor({...saved,'SUBTOTAL FACTURA PROVEEDOR':0}),false);
+assert.equal(context.cotEnProveedor({...saved,'NUMERO OC PROVEEDOR':''}),true);
+assert.equal(context.cotEnProveedor({...saved,'ADJUNTO FACTURA PROVEEDOR':''}),true);
+assert.equal(context.cotEnProveedor({...uploaded,tab:'cancelado'}),false);
+console.log('OK: Proveedor muestra pendientes y retira documentos completos, sin cambiar el estado de sustento');

@@ -7,6 +7,19 @@ from db import db
 from models import Proyecto, NucleusData, RefacturableDetalle
 from blueprints.cotizacion import _cot_en_proveedor
 
+
+def test_items_importa_gasto_cobra_y_plantilla(auth_client):
+    from openpyxl import load_workbook
+    plantilla=auth_client.get('/api/cotizacion/items_template')
+    assert plantilla.status_code==200
+    wb=load_workbook(io.BytesIO(plantilla.data))
+    assert any('GASTO COBRA' in str(v.formula1) for v in wb.active.data_validations.dataValidation)
+    csv=b'TIPO,TEXTO EXPLICATIVO,UND,CANTIDAD,VALOR UNITARIO\nGASTO COBRA,Trabajo,Und,2,100\n'
+    response=auth_client.post('/api/cotizacion/items_import',data={'file':(io.BytesIO(csv),'items.csv')})
+    assert response.status_code==200,response.json
+    assert response.json['items'][0]['tipo']=='GASTO COBRA'
+    assert response.json['items'][0]['valor_total']=='200.0'
+
 def test_aviso_cambio_estado_y_lectura(app, auth_client, cotizacion):
     from models import Notificacion
     pid, key = cotizacion

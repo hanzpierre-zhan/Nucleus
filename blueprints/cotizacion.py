@@ -644,7 +644,7 @@ def api_cotizacion_items_template():
     import io as _io
     # Columnas exactas solicitadas
     cols = ['CORRELATIVO', 'TIPO', 'TEXTO EXPLICATIVO', 'UND', 'CANTIDAD', 'VALOR UNITARIO', 'FEE %', 'VALOR TOTAL', 'COMENTARIOS']
-    tipos_validos = ['REEMBOLSABLE', 'LPU']
+    tipos_validos = ['REEMBOLSABLE', 'LPU', 'GASTO COBRA']
     und_validos = ['Glb', 'Und', 'm', 'm2', 'Hr', 'Día', 'Mes', 'Viaje', 'Km']
     ejemplo = {
         'CORRELATIVO': 1,
@@ -677,7 +677,7 @@ def api_cotizacion_items_template():
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             # Validación de TIPO (col B)
             dv_tipo = DataValidation(type='list', formula1='"' + ','.join(tipos_validos) + '"', allow_blank=True, showErrorMessage=True)
-            dv_tipo.error = 'Elige REEMBOLSABLE o LPU'
+            dv_tipo.error = 'Elige REEMBOLSABLE, LPU o GASTO COBRA'
             dv_tipo.errorTitle = 'Tipo inválido'
             ws.add_data_validation(dv_tipo)
             dv_tipo.add('B2:B1000')
@@ -764,7 +764,7 @@ def api_cotizacion_items_import():
         if not texto and not cant_raw and not vu_raw:
             continue
         tipo_raw = str(row[col_tipo] if col_tipo else '').strip().upper()
-        tipo = tipo_raw if tipo_raw in ('REEMBOLSABLE', 'LPU') else ''
+        tipo = tipo_raw if tipo_raw in ('REEMBOLSABLE', 'LPU', 'GASTO COBRA') else ''
         und = str(row[col_und] if col_und else '').strip()
         comentarios = str(row[col_com] if col_com else '').strip()
         try:
