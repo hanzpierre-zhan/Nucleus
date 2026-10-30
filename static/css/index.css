@@ -918,16 +918,22 @@ body.dark-mode .rend-aviso-close:hover {
   background: var(--ios-bg);
 }
 
-.ev-modal #evidencia-contenedor {
-  /* Masonry por columnas: las tarjetas se rellenan de arriba a abajo sin
-           dejar huecos muertos. Va con .ev-modal para ganar a la regla de
-           themes.css que lo ponía en 2 columnas estiradas. */
-
-  columns: 3 360px;
-  column-gap: 14px;
-  display: block;
-  align-items: initial;
-}
+.ev-modal #evidencia-contenedor { columns: auto; display: flex; flex-direction: column; gap: 18px; }
+.ev-comprobantes-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,290px),1fr)); gap: 14px; align-items: start; }
+.ev-section-title { display:flex; align-items:center; gap:9px; margin:0 0 12px; font-size:14px; color:var(--ios-label); }
+.ev-section-title i { color:var(--ios-blue); }
+.ev-section-sub { margin:-4px 0 12px; color:var(--ios-gray-1); font-size:11px; }
+.ev-modal .ev-card { margin:0; }
+.ev-modal .ev-textos { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+.ev-modal .ev-t { flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:5px; padding:8px; }
+.ev-modal .ev-t > span:last-child { text-align:left; max-width:100%; }
+.ev-modal .ev-t > span:first-child { font-size:9px; overflow-wrap:anywhere; }
+.ev-modal .ev-fotos { grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr)); }
+.ev-modal .ev-f img { height:160px; object-fit:contain; }
+.ev-modal .ev-trabajo .ev-fotos { grid-template-columns:repeat(auto-fill,minmax(min(100%,170px),1fr)); }
+.ev-modal .ev-trabajo .ev-f img { height:150px; }
+@media(max-width:1100px) { .ev-comprobantes-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:650px) { .ev-comprobantes-grid { grid-template-columns:minmax(0,1fr); } .ev-modal .ev-trabajo .ev-fotos { grid-template-columns:repeat(2,minmax(0,1fr)); } .ev-hint { display:block; margin:5px 0 0; } }
 
 .ev-card {
   background: var(--ios-card-bg);
@@ -5863,3 +5869,12 @@ body.light #modal-add-registro .cot-items-mode #btn-mar-generar-coti {
     transition: none;
   }
 }
+
+/* Distribución aprobada: comprobantes arriba y evidencias debajo, también con tema Vercel. */
+body.theme-vercel .mar-modal.ev-modal { width:min(1680px,calc(100vw - 48px)); max-width:1680px!important; }
+.ev-modal .ev-comprobantes-grid > .ev-card:last-child:nth-child(odd) { grid-column:auto; }
+.ev-modal .ev-f { aspect-ratio:auto; }
+.ev-modal .ev-f img { height:160px; padding:6px 6px 34px; box-sizing:content-box; width:calc(100% - 12px); }
+.ev-modal .ev-trabajo .ev-f img { height:150px; }
+.ev-modal .ev-f-cap { white-space:normal; font-size:10px; line-height:1.3; }
+@media(max-width:650px) { body.theme-vercel .mar-modal.ev-modal { width:calc(100vw - 16px); } }

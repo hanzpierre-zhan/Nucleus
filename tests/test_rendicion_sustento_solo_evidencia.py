@@ -7,13 +7,17 @@ from test_e2e_navegador import servidor
 pw=pytest.importorskip('playwright.sync_api')
 
 
-def test_sustento_solo_en_evidencia(app,auth_client,servidor):
+def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
     key='SUSTENTO-SOLO-EVIDENCIA-TEST';previous={}
     with app.app_context():
         pid=Proyecto.query.filter_by(nombre='Rendicion').one().id
         data={'ESTADO':'CON SUSTENTO','Nombre del proyecto':'Claro','MONTO PAGO':'50',
-              'SUSTENTO_PRECIO COMPRAS':'SUSTENTO-DETALLE-123',
+              'SUSTENTO_PRECIO COMPRAS':'12.50',
               'SUSTENTO_FOTO COMPRAS':'/static/img/brand-symbol.svg',
+              'SUSTENTO_PRECIO PEAJE':'7.80','SUSTENTO_RUC PEAJE':'20517252558',
+              'SUSTENTO_TIPO DOCUMENTO PEAJE':'Factura',
+              'SUSTENTO_FOTO PEAJE':'/static/img/brand-symbol.svg?peaje=1, /static/img/brand-symbol.svg?peaje=2',
+              'SUSTENTO_CARGAR EVIDENCIAS':'/static/img/brand-symbol.svg?trabajo=1, /static/img/brand-symbol.svg?trabajo=2, /static/img/brand-symbol.svg?trabajo=3',
               'Cruce de personal':'Verificado','DEPARTAMENTO':'Lima',
               'Documento del beneficiario':'00123456','Documento del beneficiario (Form)':'00123456',
               'CODIGO DEPOSITO':'COB-TEST','ESTADO (Form)':'EXTERNO',
@@ -43,7 +47,7 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor):
                 assert 'SUSTENTO_' not in page.locator('#col-list').inner_text()
                 page.evaluate("Object.defineProperty(navigator.clipboard,'writeText',{value:async t=>{window.copiedTest=t},configurable:true});copiarRendicionTSV()")
                 assert 'SUSTENTO_' not in page.evaluate('window.copiedTest.split(\'\\n\')[0]')
-                assert 'SUSTENTO-DETALLE-123' not in page.evaluate('window.copiedTest')
+                assert '12.50' not in page.evaluate('window.copiedTest')
                 headers=page.evaluate("(()=>{let headers;const old=XLSX.writeFile;XLSX.writeFile=wb=>{headers=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})[0]};try{descargarExcel()}finally{XLSX.writeFile=old}return headers})()")
                 assert headers and not any(str(h).startswith('SUSTENTO_') for h in headers)
                 assert not any(f in headers for f in excluded)
@@ -52,9 +56,29 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor):
                 tsv_headers=page.evaluate('window.copiedTest').splitlines()[0].split('\t')
                 assert not any(f in tsv_headers for f in excluded)
                 assert 'F1. Documento del beneficiario (Form)' in tsv_headers
+                page.evaluate('toggleVisibilityMenu()')
                 page.evaluate('(key)=>rendAbrirDetalleEvidencia(key)',key)
-                pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('SUSTENTO-DETALLE-123')
+                pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('12.50')
                 pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('F2. PRECIO COMPRAS')
+                assert page.locator('.ev-trabajo .ev-f').count()==3
+                assert page.locator('.ev-comprobantes .ev-f').count()==3
+                assert page.evaluate("EV_FOTOS.length") == 6
+                for width in [1500,390]:
+                    page.set_viewport_size({'width':width,'height':950})
+                    top=page.locator('.ev-comprobantes').bounding_box()
+                    work=page.locator('.ev-trabajo').bounding_box()
+                    assert work['y'] >= top['y'] + top['height'] - 1
+                    assert page.locator('.ev-modal').evaluate('(el)=>el.scrollWidth<=el.clientWidth+1')
+                    page.screenshot(path=str(tmp_path / ('evidencia-' + str(width) + '.png')))
+                page.set_viewport_size({'width':1500,'height':950})
+                page.locator('.ev-chip[data-cat="TRABAJO"]').click()
+                assert page.locator('.ev-comprobantes').is_hidden()
+                assert page.locator('.ev-trabajo').is_visible()
+                page.locator('.ev-trabajo .ev-f').first.click()
+                assert page.locator('.ev-lb').is_visible()
+                page.keyboard.press('Escape')
+                page.locator('.ev-chip[data-cat="__all"]').click()
+                assert page.locator('.ev-comprobantes').is_visible()
                 assert page.locator('#evidencia-contenedor img').count()>0
                 assert page.evaluate('(key)=>rawData.find(r=>r._key===key)["SUSTENTO_FOTO COMPRAS"]',key)=='/static/img/brand-symbol.svg'
             finally:browser.close()

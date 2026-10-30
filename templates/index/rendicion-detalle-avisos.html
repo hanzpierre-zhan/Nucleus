@@ -2019,7 +2019,7 @@ function rendAbrirDetalleEvidencia(key) {
 
     const CATS = ['PAGO', 'PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
 
-                  'HOSPEDAJE', 'OTROS', 'COMPROBANTE', 'GENERAL'];
+                  'HOSPEDAJE', 'COCHERA', 'OTROS', 'COMPROBANTE', 'GENERAL', 'TRABAJO'];
 
     const data = {};
 
@@ -2033,11 +2033,12 @@ function rendAbrirDetalleEvidencia(key) {
 
         if (K === 'FOTO PAGO' || K === 'FOTOS SUSTENTO') return 'PAGO';
 
+        if (K === 'SUSTENTO_CARGAR EVIDENCIAS') return 'TRABAJO';
         const base = K.indexOf('SUSTENTO_') === 0 ? K.slice(9) : K;
 
         for (const c of ['PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS',
 
-                         'HOSPEDAJE', 'OTROS', 'COMPROBANTE']) {
+                         'HOSPEDAJE', 'COCHERA', 'OTROS', 'COMPROBANTE']) {
 
             if (base.indexOf(c) >= 0) return c;
 
@@ -2152,6 +2153,16 @@ function rendAbrirDetalleEvidencia(key) {
 
     const cont = overlay.querySelector('#evidencia-contenedor');
 
+    const comprobantes = document.createElement('section');
+    comprobantes.className = 'ev-comprobantes';
+    comprobantes.innerHTML = '<h4 class="ev-section-title"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Comprobantes por tipo de gasto</h4><div class="ev-comprobantes-grid"></div>';
+    const trabajo = document.createElement('section');
+    trabajo.className = 'ev-trabajo';
+    trabajo.setAttribute('aria-label', 'Evidencias del trabajo');
+    if (catsCon.some(c => c !== 'TRABAJO')) cont.appendChild(comprobantes);
+    if (catsCon.includes('TRABAJO')) cont.appendChild(trabajo);
+    const nombres = {TRABAJO: 'Evidencias del trabajo', GENERAL: 'Datos generales', PAGO: 'Comprobante de pago', VIATICOS: 'Viáticos'};
+    const iconos = {TRABAJO: 'fa-camera', PEAJE: 'fa-road', VIATICOS: 'fa-utensils', COMPRAS: 'fa-cart-shopping', HOSPEDAJE: 'fa-bed'};
     let gi = 0;
 
     if (!catsCon.length) {
@@ -2172,9 +2183,12 @@ function rendAbrirDetalleEvidencia(key) {
 
         card.dataset.cat = cat;
 
-        let html = '<div class="ev-card-h"><i class="fa-solid fa-hashtag"></i> ' + cat +
-
-            '<span class="ev-badge">' + (d.fotos.length + d.textos.length) + '</span></div>';
+        const precio = d.textos.find(t => t.k.startsWith('F2. PRECIO '));
+        const monto = precio ? rendMontoNumero(precio.v) : null;
+        const badge = precio ? 'Total: ' + rendSoles(monto) : (d.fotos.length + d.textos.length);
+        let html = '<div class="ev-card-h"><i class="fa-solid ' + (iconos[cat] || 'fa-file-invoice-dollar') + '" aria-hidden="true"></i> ' + (nombres[cat] || cat) +
+            '<span class="ev-badge">' + badge + '</span></div>';
+        if (cat === 'TRABAJO') html += '<p class="ev-section-sub">F2. Cargar evidencias · ' + d.fotos.length + ' archivos</p>';
 
         if (d.textos.length) {
 
@@ -2231,7 +2245,7 @@ function rendAbrirDetalleEvidencia(key) {
 
         card.innerHTML = html;
 
-        cont.appendChild(card);
+        (cat === 'TRABAJO' ? trabajo : comprobantes.querySelector('.ev-comprobantes-grid')).appendChild(card);
 
     });
 
@@ -2257,7 +2271,7 @@ function rendAbrirDetalleEvidencia(key) {
 
         let html = chip('__all', 'Todas', nTextos + nFotos, true);
 
-        catsCon.forEach(c => { html += chip(c, c, data[c].textos.length + data[c].fotos.length, false); });
+        catsCon.forEach(c => { html += chip(c, nombres[c] || c, data[c].textos.length + data[c].fotos.length, false); });
 
         stats.innerHTML = html;
 
@@ -2274,6 +2288,8 @@ function rendAbrirDetalleEvidencia(key) {
                     c.style.display = (sel === '__all' || c.dataset.cat === sel) ? '' : 'none';
 
                 });
+                comprobantes.hidden = !catsCon.some(c => c !== 'TRABAJO' && (sel === '__all' || c === sel));
+                trabajo.hidden = !(catsCon.includes('TRABAJO') && (sel === '__all' || sel === 'TRABAJO'));
 
             };
 
