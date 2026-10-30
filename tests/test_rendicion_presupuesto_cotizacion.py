@@ -12,7 +12,7 @@ def escenarios(app,auth_client,monkeypatch):
     with app.app_context():
         pid=Proyecto.query.filter_by(nombre='Rendicion').one().id
         cp=Proyecto.query.filter_by(nombre='Cotizaciones').one().id
-        records=[NucleusData(proyecto_id=cp,key_value='PRES-COT',data_json=json.dumps({'CLIENTE':'ENTEL','N° COTIZACION':'PRES-2026-001','SUB TOTAL + FEE':'1,000.00'}))]
+        records=[NucleusData(proyecto_id=cp,key_value='PRES-COT',data_json=json.dumps({'CLIENTE':'ENTEL','N° COTIZACION':'PRES-2026-001','SUB TOTAL + FEE':'2,100.00','ITEMS_JSON':json.dumps([{'valor_unitario':'600','cantidad':'3','fee':'5'},{'valor_unitario':'400','cantidad':'2','fee':'5'}])}))]
         for key,state,amount,code,project in [
             ('PRES-ACTUAL','PENDIENTE','100.00','PRES-2026-001','Entel'),
             ('PRES-OTRA','VALIDADO','400','pres-2026-001','Entel'),

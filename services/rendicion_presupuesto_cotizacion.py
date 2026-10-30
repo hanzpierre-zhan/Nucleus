@@ -29,6 +29,16 @@ def importe(value):
 def numero(value):return str(value or '').strip().upper()
 
 
+def suma_valores_unitarios(items):
+    """Base de comparación: cada valor unitario una vez, sin cantidad ni FEE."""
+    try:
+        if isinstance(items,str):items=json.loads(items)
+        if not isinstance(items,list) or not items:return None
+        return str(sum((importe(item['valor_unitario']) for item in items),Decimal('0.00')))
+    except (ValueError,TypeError,KeyError):
+        return None
+
+
 def proyecto(row):
     return familia(row.get('Nombre del proyecto') or row.get('CLIENTE') or row.get('PROYECTO'))
 
@@ -41,15 +51,15 @@ def catalogo(row,consulta):
     codigo=_valor(raw,'N° COTIZACION')
     query=NucleusData.query.filter_by(proyecto_id=proy.id)
     if q:query=query.filter(func.upper(codigo).contains(q,autoescape=True))
-    # Solo los campos necesarios, nunca las fotos, partidas ni historial completo.
+    # Solo los campos necesarios: ítems para sumar unitarios, sin fotos ni historial.
     query=query.with_entities(NucleusData.id,NucleusData.key_value,codigo,
-                              _valor(raw,'SUB TOTAL + FEE'),_valor(raw,'CLIENTE'),
+                              _valor(raw,'ITEMS_JSON'),_valor(raw,'CLIENTE'),
                               _valor(raw,'Nombre del proyecto'),_valor(raw,'PROYECTO'))
-    for rid,key,code,monto,cliente,nombre,proyecto_nombre in query.order_by(NucleusData.id.desc()).all():
+    for rid,key,code,items,cliente,nombre,proyecto_nombre in query.order_by(NucleusData.id.desc()).all():
         data={'CLIENTE':cliente,'Nombre del proyecto':nombre,'PROYECTO':proyecto_nombre}
         code=str(code or '').strip()
         if not code or proyecto(data)!=proyecto(row):continue
-        result.append({'id':rid,'numero':code,'monto':monto,'key':key})
+        result.append({'id':rid,'numero':code,'monto':suma_valores_unitarios(items),'key':key})
     return result
 
 
@@ -62,7 +72,7 @@ def encontrar(row,code,opciones=None):
 
 def resumen(row,key,cotizacion,solicitado=None):
     try:limite=importe(cotizacion['monto'])
-    except ValueError:raise ValueError('La cotización no tiene un SUB TOTAL + FEE válido; revisa su importe.')
+    except ValueError:raise ValueError('La cotización no tiene valores unitarios válidos en todos sus ítems; revisa el detalle.')
     actual=importe(row.get('Monto total del depósito') if solicitado is None else solicitado)
     proy=Proyecto.query.filter_by(nombre='Rendicion').first()
     acumulado=Decimal('0');cantidad=0;invalidos=0
