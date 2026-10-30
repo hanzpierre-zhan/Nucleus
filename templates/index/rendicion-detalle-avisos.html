@@ -148,11 +148,11 @@ async function editarCodigoWO() {
 
     if (!newKey || newKey.trim() === '' || newKey.trim() === woKey) return;
 
-    
+
 
     if (!confirm("¿Estás seguro de cambiar el código de \"" + woKey + "\" a \"" + newKey.trim() + "\"?\n\nEsto actualizará el historial, cotizaciones y todos los registros asociados. El código interno se conservará como referencia de la solicitud.")) return;
 
-    
+
 
     try {
 
@@ -898,7 +898,7 @@ function rendAbrirDeposito(key) {
 
     Object.keys(_rendFotosPend).forEach(k => delete _rendFotosPend[k]);
 
-    
+
 
     // Resumen de lectura: las mismas columnas que se ven en la tabla
 
@@ -1183,7 +1183,7 @@ function rendConfirmarModal() {
 
         if (!j) return;
 
-        
+
 
         if (accion === 'depositar' && j.newData && j.newData['CODIGO DEPOSITO']) {
 
@@ -1201,7 +1201,7 @@ function rendConfirmarModal() {
 
         }
 
-        
+
 
         rendCerrarModal();
 
@@ -1856,7 +1856,14 @@ function evImgFail(img) {
 
     }
 
-    img.src = EV_PLACEHOLDER;
+    const tile = img.closest('.ev-f');
+    if (tile) {
+        tile.dataset.adjunto = '1';
+        const fallback = document.createElement('span');
+        fallback.className = 'ev-attachment';
+        fallback.innerHTML = '<i class="fa-solid fa-paperclip" aria-hidden="true"></i><strong>Adjunto</strong><small>Sin vista previa · abrir archivo</small>';
+        img.replaceWith(fallback);
+    } else img.src = EV_PLACEHOLDER;
 
     img.dataset.fallo = '1';
 
@@ -2072,9 +2079,9 @@ function rendAbrirDetalleEvidencia(key) {
 
 
 
-    if (String(row['FOTO PAGO'] || '').trim()) addFotos('PAGO', 'Comprobante de pago', row['FOTO PAGO']);
+    // El comprobante de depósito se consulta desde su campo propio, no en este detalle.
 
-    if (row['FOTOS SUSTENTO']) addFotos('PAGO', 'Foto de sustento', row['FOTOS SUSTENTO']);
+    if (row['FOTOS SUSTENTO']) addFotos('TRABAJO', 'Foto de sustento', row['FOTOS SUSTENTO']);
 
 
 
@@ -2123,13 +2130,13 @@ function rendAbrirDetalleEvidencia(key) {
 
                 <h3 class="mar-title"><i class="fa-solid fa-file-invoice-dollar"></i> Detalle de Evidencia
 
-                    <span class="ev-hint">${catsCon.length} categorías · ${nFotos} fotos · ${nTextos} campos</span></h3>
+                    <span class="ev-hint">${catsCon.length} categorías · ${nFotos} archivos · ${nTextos} campos</span></h3>
 
                 <button type="button" class="mar-close">&times;</button>
 
             </div>
 
-            <div class="ev-stats" id="ev-stats"></div>
+
 
             <div class="mar-body ev-body">
 
@@ -2155,7 +2162,7 @@ function rendAbrirDetalleEvidencia(key) {
 
     const comprobantes = document.createElement('section');
     comprobantes.className = 'ev-comprobantes';
-    comprobantes.innerHTML = '<h4 class="ev-section-title"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Comprobantes por tipo de gasto</h4><div class="ev-comprobantes-grid"></div>';
+    comprobantes.innerHTML = '<div class="ev-comprobantes-grid"></div>';
     const trabajo = document.createElement('section');
     trabajo.className = 'ev-trabajo';
     trabajo.setAttribute('aria-label', 'Evidencias del trabajo');
@@ -2184,8 +2191,9 @@ function rendAbrirDetalleEvidencia(key) {
         card.dataset.cat = cat;
 
         const precio = d.textos.find(t => t.k.startsWith('F2. PRECIO '));
-        const monto = precio ? rendMontoNumero(precio.v) : null;
-        const badge = precio ? 'Total: ' + rendSoles(monto) : (d.fotos.length + d.textos.length);
+        const simple = precio && /^(?:S\/\s*)?\d[\d,.]*$/.test(precio.v.trim());
+        const monto = simple ? rendMontoNumero(precio.v) : null;
+        const badge = simple ? 'Total: ' + rendSoles(monto) : (d.fotos.length + d.textos.length);
         let html = '<div class="ev-card-h"><i class="fa-solid ' + (iconos[cat] || 'fa-file-invoice-dollar') + '" aria-hidden="true"></i> ' + (nombres[cat] || cat) +
             '<span class="ev-badge">' + badge + '</span></div>';
         if (cat === 'TRABAJO') html += '<p class="ev-section-sub">F2. Cargar evidencias · ' + d.fotos.length + ' archivos</p>';
@@ -2212,29 +2220,22 @@ function rendAbrirDetalleEvidencia(key) {
 
             d.fotos.forEach(f => {
 
+                const extension = f.url.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+                const fileTypes = {pdf:'PDF',doc:'Word',docx:'Word',xls:'Excel',xlsx:'Excel',csv:'CSV',zip:'ZIP',rar:'RAR',msg:'Correo',eml:'Correo',txt:'Texto',ppt:'PowerPoint',pptx:'PowerPoint',mp4:'Vídeo',mov:'Vídeo'};
+                const tipo = fileTypes[extension];
+                const original = escapeHtml(evVerUrl(f.url));
+                if (tipo) {
+                    html += '<div class="ev-f-wrap"><a class="ev-f ev-file-link" href="' + original + '" target="_blank" rel="noopener noreferrer">' +
+                        '<span class="ev-attachment"><i class="fa-solid fa-paperclip" aria-hidden="true"></i><strong>Adjunto · ' + tipo + '</strong><small>Abrir archivo</small></span>' +
+                        '<span class="ev-f-cap">' + escapeHtml(f.k) + '</span></a></div>';
+                    return;
+                }
                 const cadena = evThumbChain(f.url);
-
                 EV_FOTOS.push({ url: f.url, k: f.k, cat: cat });
-
-                html += '<div class="ev-f-wrap">' +
-
-                    '<button type="button" class="ev-f" data-i="' + gi + '" title="Ver: ' +
-
-                    escapeHtml(f.k) + '">' +
-
-                    (/\.pdf(?:[?#]|$)/i.test(f.url)
-                        ? '<span style="display:flex;align-items:center;justify-content:center;height:118px;gap:8px"><i class="fa-solid fa-file-pdf"></i> PDF</span>'
-                        : '<img data-urls="' + escapeHtml(cadena.join('|||')) + '" data-i="0" src="' +
-                          escapeHtml(cadena[0]) + '" alt="" onerror="evImgFail(this)">') +
-
+                html += '<div class="ev-f-wrap"><button type="button" class="ev-f" data-original="' + original + '" data-i="' + gi + '" title="Ver: ' + escapeHtml(f.k) + '">' +
+                    '<img data-urls="' + escapeHtml(cadena.join('|||')) + '" data-i="0" src="' + escapeHtml(cadena[0]) + '" alt="" onerror="evImgFail(this)">' +
                     '<span class="ev-f-cap">' + escapeHtml(f.k) + '</span></button>' +
-
-                    '<a class="ev-f-go" href="' + escapeHtml(evVerUrl(f.url)) +
-
-                    '" target="_blank" rel="noopener" title="Abrir archivo original">&#8599;</a>' +
-
-                    '</div>';
-
+                    '<a class="ev-f-go" href="' + original + '" target="_blank" rel="noopener noreferrer" title="Abrir archivo original">&#8599;</a></div>';
                 gi++;
 
             });
@@ -2249,53 +2250,16 @@ function rendAbrirDetalleEvidencia(key) {
 
     });
 
-    cont.querySelectorAll('.ev-f').forEach(btn => {
+    cont.querySelectorAll('button.ev-f').forEach(btn => {
 
-        btn.onclick = () => evLbMuestra(parseInt(btn.dataset.i, 10) || 0);
+        btn.onclick = () => {
+            if (btn.dataset.adjunto === '1') window.open(btn.dataset.original, '_blank', 'noopener,noreferrer');
+            else evLbMuestra(parseInt(btn.dataset.i, 10) || 0);
+        };
 
     });
 
 
-
-    // Chips de categoria: filtran las tarjetas sin recargar el modal.
-
-    const stats = overlay.querySelector('#ev-stats');
-
-    if (stats && catsCon.length) {
-
-        const chip = (cat, txt, n, on) =>
-
-            '<button type="button" class="ev-chip' + (on ? ' on' : '') + '" data-cat="' + cat + '">' +
-
-            txt + ' <b>' + n + '</b></button>';
-
-        let html = chip('__all', 'Todas', nTextos + nFotos, true);
-
-        catsCon.forEach(c => { html += chip(c, nombres[c] || c, data[c].textos.length + data[c].fotos.length, false); });
-
-        stats.innerHTML = html;
-
-        stats.querySelectorAll('.ev-chip').forEach(b => {
-
-            b.onclick = () => {
-
-                const sel = b.dataset.cat;
-
-                stats.querySelectorAll('.ev-chip').forEach(x => x.classList.toggle('on', x === b));
-
-                cont.querySelectorAll('.ev-card').forEach(c => {
-
-                    c.style.display = (sel === '__all' || c.dataset.cat === sel) ? '' : 'none';
-
-                });
-                comprobantes.hidden = !catsCon.some(c => c !== 'TRABAJO' && (sel === '__all' || c === sel));
-                trabajo.hidden = !(catsCon.includes('TRABAJO') && (sel === '__all' || sel === 'TRABAJO'));
-
-            };
-
-        });
-
-    }
 
 }
 

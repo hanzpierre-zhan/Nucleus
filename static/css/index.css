@@ -5878,3 +5878,16 @@ body.theme-vercel .mar-modal.ev-modal { width:min(1680px,calc(100vw - 48px)); ma
 .ev-modal .ev-trabajo .ev-f img { height:150px; }
 .ev-modal .ev-f-cap { white-space:normal; font-size:10px; line-height:1.3; }
 @media(max-width:650px) { body.theme-vercel .mar-modal.ev-modal { width:calc(100vw - 16px); } }
+
+/* Datos en filas; galería de cada categoría en una única línea desplazable. */
+.ev-modal .ev-comprobantes .ev-textos { display:flex; flex-direction:column; gap:6px; }
+.ev-modal .ev-comprobantes .ev-t { flex-direction:row; align-items:flex-start; justify-content:space-between; }
+.ev-modal .ev-comprobantes .ev-t > span:first-child { flex:0 0 44%; }
+.ev-modal .ev-comprobantes .ev-t > span:last-child { flex:1; min-width:0; }
+.ev-modal .ev-comprobantes .ev-fotos { display:flex; flex-wrap:nowrap; overflow-x:auto; gap:10px; padding-bottom:8px; }
+.ev-modal .ev-comprobantes .ev-f-wrap { flex:0 0 150px; min-width:0; }
+.ev-modal .ev-attachment { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; height:200px; padding:14px 10px 40px; color:var(--ios-secondary); }
+.ev-modal .ev-attachment i { font-size:30px; }
+.ev-modal .ev-attachment strong { font-size:12px; }
+.ev-modal .ev-attachment small { font-size:10px; }
+.ev-modal .ev-file-link { text-decoration:none; cursor:pointer; }

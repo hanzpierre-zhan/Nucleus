@@ -14,6 +14,8 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
         data={'ESTADO':'CON SUSTENTO','Nombre del proyecto':'Claro','MONTO PAGO':'50',
               'SUSTENTO_PRECIO COMPRAS':'12.50',
               'SUSTENTO_FOTO COMPRAS':'/static/img/brand-symbol.svg',
+              'FOTO PAGO':'/static/img/brand-symbol.svg?pago=1',
+              'SUSTENTO_ADJUNTAR COMPROBANTE':'/static/documento.pdf, /static/reporte.docx',
               'SUSTENTO_PRECIO PEAJE':'7.80','SUSTENTO_RUC PEAJE':'20517252558',
               'SUSTENTO_TIPO DOCUMENTO PEAJE':'Factura',
               'SUSTENTO_FOTO PEAJE':'/static/img/brand-symbol.svg?peaje=1, /static/img/brand-symbol.svg?peaje=2',
@@ -61,23 +63,28 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor,tmp_path):
                 pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('12.50')
                 pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('F2. PRECIO COMPRAS')
                 assert page.locator('.ev-trabajo .ev-f').count()==3
-                assert page.locator('.ev-comprobantes .ev-f').count()==3
+                assert page.locator('.ev-comprobantes .ev-f').count()==5
+                assert page.locator('#ev-stats').count()==0
+                assert page.locator('.ev-card[data-cat="PAGO"]').count()==0
+                assert page.locator('.ev-section-title').count()==0
+                pw.expect(page.locator('.ev-file-link').first).to_contain_text('Adjunto · PDF')
+                pw.expect(page.locator('.ev-file-link').last).to_contain_text('Adjunto · Word')
                 assert page.evaluate("EV_FOTOS.length") == 6
                 for width in [1500,390]:
                     page.set_viewport_size({'width':width,'height':950})
+                    photos=page.locator('.ev-card[data-cat="PEAJE"] .ev-f-wrap')
+                    assert abs(photos.nth(0).bounding_box()['y']-photos.nth(1).bounding_box()['y'])<4
+                    assert page.locator('.ev-card[data-cat="PEAJE"] .ev-t').first.evaluate('(el)=>getComputedStyle(el).flexDirection')=='row'
                     top=page.locator('.ev-comprobantes').bounding_box()
                     work=page.locator('.ev-trabajo').bounding_box()
                     assert work['y'] >= top['y'] + top['height'] - 1
                     assert page.locator('.ev-modal').evaluate('(el)=>el.scrollWidth<=el.clientWidth+1')
                     page.screenshot(path=str(tmp_path / ('evidencia-' + str(width) + '.png')))
                 page.set_viewport_size({'width':1500,'height':950})
-                page.locator('.ev-chip[data-cat="TRABAJO"]').click()
-                assert page.locator('.ev-comprobantes').is_hidden()
                 assert page.locator('.ev-trabajo').is_visible()
                 page.locator('.ev-trabajo .ev-f').first.click()
                 assert page.locator('.ev-lb').is_visible()
                 page.keyboard.press('Escape')
-                page.locator('.ev-chip[data-cat="__all"]').click()
                 assert page.locator('.ev-comprobantes').is_visible()
                 assert page.locator('#evidencia-contenedor img').count()>0
                 assert page.evaluate('(key)=>rawData.find(r=>r._key===key)["SUSTENTO_FOTO COMPRAS"]',key)=='/static/img/brand-symbol.svg'
