@@ -135,6 +135,14 @@ let _rendCambiandoVista = false;
     // Rendicion: pestañas por estado del flujo (Validación/Depósitos/Evidencia/Rechazados)
 
     const IS_RENDICION = _projNorm === 'rendicion';
+    const REND_CAMPOS_SOLO_DATOS = new Set([
+        'Cruce de personal', 'DEPARTAMENTO', 'Documento del beneficiario',
+        'ESTADO (Form)', 'CODIGO DEPOSITO (Form)', 'MONTO PAGO (Form)'
+    ]);
+    function rendCampoEnTablaExportable(field) {
+        return !String(field).startsWith('SUSTENTO_') && !REND_CAMPOS_SOLO_DATOS.has(field);
+    }
+
 
     const REND_ESTADO_COLORS = {
 
@@ -1959,8 +1967,8 @@ let _rendCambiandoVista = false;
     rawCols.forEach(col => {
 
         const fieldName = col;
-        // El segundo formulario se consulta únicamente desde Evidencia.
-        if (IS_RENDICION && String(fieldName).startsWith('SUSTENTO_')) return;
+        // Campos retirados de la vista; rawData conserva su uso interno y Evidencia.
+        if (IS_RENDICION && !rendCampoEnTablaExportable(fieldName)) return;
 
         const _isCot = currentProjectNombre.trim().toLowerCase() === 'cotizaciones';
 
@@ -5928,7 +5936,7 @@ let _rendCambiandoVista = false;
             presentes.forEach(c => { if (!descartadosRend[c] && enOrden.indexOf(c) < 0) enOrden.push(c); });
 
             // Conserva el formulario completo en rawData para el detalle de Evidencia.
-            exportCols = enOrden.filter(c => !String(c).startsWith('SUSTENTO_'));
+            exportCols = enOrden.filter(rendCampoEnTablaExportable);
 
             dataToExport = rawData;
 
@@ -6373,7 +6381,7 @@ let _rendCambiandoVista = false;
             presentes.forEach(c => { if (!descartadosRend[c] && enOrden.indexOf(c) < 0) enOrden.push(c); });
 
             // Conserva el formulario completo en rawData para el detalle de Evidencia.
-            exportCols = enOrden.filter(c => !String(c).startsWith('SUSTENTO_'));
+            exportCols = enOrden.filter(rendCampoEnTablaExportable);
 
             dataToExport = rawData;
 

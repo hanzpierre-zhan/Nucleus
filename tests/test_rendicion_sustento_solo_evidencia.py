@@ -13,7 +13,11 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor):
         pid=Proyecto.query.filter_by(nombre='Rendicion').one().id
         data={'ESTADO':'CON SUSTENTO','Nombre del proyecto':'Claro','MONTO PAGO':'50',
               'SUSTENTO_PRECIO COMPRAS':'SUSTENTO-DETALLE-123',
-              'SUSTENTO_FOTO COMPRAS':'/static/img/brand-symbol.svg'}
+              'SUSTENTO_FOTO COMPRAS':'/static/img/brand-symbol.svg',
+              'Cruce de personal':'Verificado','DEPARTAMENTO':'Lima',
+              'Documento del beneficiario':'00123456','Documento del beneficiario (Form)':'00123456',
+              'CODIGO DEPOSITO':'COB-TEST','ESTADO (Form)':'EXTERNO',
+              'CODIGO DEPOSITO (Form)':'EXTERNO','MONTO PAGO (Form)':'999'}
         db.session.add(NucleusData(proyecto_id=pid,key_value=key,data_json=json.dumps(data)))
         for name,value in [('app_schema',list(data)),('column_layout__validacion',[{'field':'SUSTENTO_PRECIO COMPRAS','visible':True},{'field':'ESTADO','visible':True}])]:
             cfg=AppConfig.query.filter_by(proyecto_id=pid,clave=name).first();previous[name]=cfg.valor if cfg else None
@@ -30,6 +34,10 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor):
                 page=context.new_page();page.goto(servidor+'/',wait_until='networkidle')
                 page.wait_for_function("typeof _rendFiltroFn==='function'")
                 assert page.evaluate("table.getColumns().every(c=>!String(c.getField()).startsWith('SUSTENTO_'))")
+                excluded=['Cruce de personal','DEPARTAMENTO','Documento del beneficiario',
+                          'ESTADO (Form)','CODIGO DEPOSITO (Form)','MONTO PAGO (Form)']
+                assert page.evaluate('(fields)=>fields.every(f=>!table.getColumn(f))',excluded)
+                assert page.evaluate('Boolean(table.getColumn("Documento del beneficiario (Form)"))')
                 page.evaluate('toggleVisibilityMenu()')
                 assert 'SUSTENTO_' not in page.locator('#col-list').inner_text()
                 page.evaluate("Object.defineProperty(navigator.clipboard,'writeText',{value:async t=>{window.copiedTest=t},configurable:true});copiarRendicionTSV()")
@@ -37,6 +45,12 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor):
                 assert 'SUSTENTO-DETALLE-123' not in page.evaluate('window.copiedTest')
                 headers=page.evaluate("(()=>{let headers;const old=XLSX.writeFile;XLSX.writeFile=wb=>{headers=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})[0]};try{descargarExcel()}finally{XLSX.writeFile=old}return headers})()")
                 assert headers and not any(str(h).startswith('SUSTENTO_') for h in headers)
+                assert not any(f in headers for f in excluded)
+                assert 'Documento del beneficiario (Form)' in headers
+                assert all(f in headers for f in ['ESTADO','Código depósito','MONTO PAGO'])
+                tsv_headers=page.evaluate('window.copiedTest').splitlines()[0].split('\t')
+                assert not any(f in tsv_headers for f in excluded)
+                assert 'Documento del beneficiario (Form)' in tsv_headers
                 page.evaluate('(key)=>rendAbrirDetalleEvidencia(key)',key)
                 pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('SUSTENTO-DETALLE-123')
                 assert page.locator('#evidencia-contenedor img').count()>0
