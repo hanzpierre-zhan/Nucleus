@@ -2091,6 +2091,7 @@ function rendAbrirDetalleEvidencia(key) {
 
         const cat = catDe(k);
 
+        clean = rendNombreColumna(k);
         if (!addFotos(cat, clean || 'FOTO/DOC', v)) data[cat].textos.push({ k: clean || k, v: v });
 
     });

@@ -135,6 +135,12 @@ let _rendCambiandoVista = false;
     // Rendicion: pestañas por estado del flujo (Validación/Depósitos/Evidencia/Rechazados)
 
     const IS_RENDICION = _projNorm === 'rendicion';
+    const REND_FORM1_FIELDS = new Set(["Marca temporal", "Nombre del proyecto", "Nombre de site", "Número CM / PM / PLM", "Tipo de Ticket", "Tipo de gasto", "Tipo de presupuesto", "Motivo de la solicitud", "Monto total del depósito", "Técnico beneficiario", "Documento del beneficiario", "Técnico beneficiario (Form)", "Documento del beneficiario (Form)", "Supervisor encargado", "Tipo de billetera digital", "Numero de Yape/Plin", "Número de cuenta o CCI", "Número de celular o CCI", "Titular de la cuenta", "Observaciones (Form)", "Responsable de la validación", "ESTADO (Form)", "CODIGO DEPOSITO (Form)", "MONTO PAGO (Form)", "Criticidad - Prioridad", "Tipo de depósito a realizar"]);
+    function rendNombreColumna(field) {
+        const name = String(field || '');
+        if (name.startsWith('SUSTENTO_')) return 'F2. ' + name.slice(9);
+        return REND_FORM1_FIELDS.has(name) ? 'F1. ' + name : name;
+    }
     const REND_CAMPOS_SOLO_DATOS = new Set([
         'Cruce de personal', 'DEPARTAMENTO', 'Documento del beneficiario',
         'ESTADO (Form)', 'CODIGO DEPOSITO (Form)', 'MONTO PAGO (Form)'
@@ -4495,6 +4501,9 @@ let _rendCambiandoVista = false;
         if (manual && definition.editor === 'list' && typeof window.nucleusManualListEditor === 'function') definition.editor = window.nucleusManualListEditor;
     }
     window.NucleusIdentity.columns(tableColumns);
+    if (IS_RENDICION) tableColumns.forEach(def => {
+        if (REND_FORM1_FIELDS.has(def.field)) def.title = 'F1. ' + (def.title || def.field);
+    });
     // La configuración compartida es la única fuente de visibilidad.
     if (hasServerLayout) tableColumns.forEach(c => {
         if (c.field) c.visible = layoutVisibleMap.has(c.field) && layoutVisibleMap.get(c.field);
@@ -5972,7 +5981,7 @@ let _rendCambiandoVista = false;
 
         const rowsTsv = [];
 
-        rowsTsv.push(exportCols.map(esc).join('\t'));
+        rowsTsv.push(exportCols.map(c => esc(esRendicion ? rendNombreColumna(c) : c)).join('\t'));
 
         (Array.isArray(dataToExport) ? dataToExport : []).forEach(r => {
 
@@ -6543,7 +6552,7 @@ let _rendCambiandoVista = false;
 
             if (esRendicion && renombresRend && renombresRend[c]) return renombresRend[c];
 
-            return String(c).trim();
+            return esRendicion ? rendNombreColumna(c) : String(c).trim();
 
         });
 

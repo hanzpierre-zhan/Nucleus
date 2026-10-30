@@ -38,6 +38,7 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor):
                           'ESTADO (Form)','CODIGO DEPOSITO (Form)','MONTO PAGO (Form)']
                 assert page.evaluate('(fields)=>fields.every(f=>!table.getColumn(f))',excluded)
                 assert page.evaluate('Boolean(table.getColumn("Documento del beneficiario (Form)"))')
+                assert page.locator('.tabulator-col[tabulator-field="Documento del beneficiario (Form)"]').inner_text().startswith('F1.')
                 page.evaluate('toggleVisibilityMenu()')
                 assert 'SUSTENTO_' not in page.locator('#col-list').inner_text()
                 page.evaluate("Object.defineProperty(navigator.clipboard,'writeText',{value:async t=>{window.copiedTest=t},configurable:true});copiarRendicionTSV()")
@@ -46,13 +47,14 @@ def test_sustento_solo_en_evidencia(app,auth_client,servidor):
                 headers=page.evaluate("(()=>{let headers;const old=XLSX.writeFile;XLSX.writeFile=wb=>{headers=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1})[0]};try{descargarExcel()}finally{XLSX.writeFile=old}return headers})()")
                 assert headers and not any(str(h).startswith('SUSTENTO_') for h in headers)
                 assert not any(f in headers for f in excluded)
-                assert 'Documento del beneficiario (Form)' in headers
+                assert 'F1. Documento del beneficiario (Form)' in headers
                 assert all(f in headers for f in ['ESTADO','Código depósito','MONTO PAGO'])
                 tsv_headers=page.evaluate('window.copiedTest').splitlines()[0].split('\t')
                 assert not any(f in tsv_headers for f in excluded)
-                assert 'Documento del beneficiario (Form)' in tsv_headers
+                assert 'F1. Documento del beneficiario (Form)' in tsv_headers
                 page.evaluate('(key)=>rendAbrirDetalleEvidencia(key)',key)
                 pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('SUSTENTO-DETALLE-123')
+                pw.expect(page.locator('#evidencia-contenedor')).to_contain_text('F2. PRECIO COMPRAS')
                 assert page.locator('#evidencia-contenedor img').count()>0
                 assert page.evaluate('(key)=>rawData.find(r=>r._key===key)["SUSTENTO_FOTO COMPRAS"]',key)=='/static/img/brand-symbol.svg'
             finally:browser.close()
