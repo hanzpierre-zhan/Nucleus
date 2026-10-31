@@ -587,7 +587,7 @@
     {% endif %}
 </div>
 
-{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=3"></script><script src="/static/js/rendicion-presupuesto.js?v=2"></script>{% include '_rendicion_formularios.html' %}{% endif %}
+{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=3"></script><script src="/static/js/rendicion-presupuesto.js?v=3"></script>{% include '_rendicion_formularios.html' %}{% endif %}
 
 <div id="data-stats" class="data-stats"></div>
 
@@ -2268,13 +2268,13 @@
           </div>
           <p id="rend-cotizacion-status" role="status" aria-live="polite">Ingresa una cotización para consultar el monto acumulado.</p>
           <div id="rend-cotizacion-control" class="rend-presupuesto-control" hidden>
-            <div><span>Cotizado · suma de valores unitarios</span><strong data-rend-control="cotizado"></strong></div>
+            <div><span id="rend-cotizado-etiqueta">Cotizado · suma de valores unitarios</span><strong data-rend-control="cotizado"></strong></div>
             <div><span>Otras solicitudes activas</span><strong data-rend-control="otras_solicitudes"></strong></div>
             <div><span>Esta solicitud</span><strong data-rend-control="solicitud_actual"></strong></div>
             <div><span>Total solicitado acumulado</span><strong data-rend-control="acumulado"></strong></div>
             <div><span>Saldo / exceso</span><strong data-rend-control="saldo"></strong></div>
           </div>
-          <small class="rend-presupuesto-note">Suma los importes solicitados de las rendiciones activas de esta cotización. Excluye anulados y rechazos definitivos. El resultado es informativo.</small>
+          <small class="rend-presupuesto-note">El cotizado suma el valor unitario de cada ítem, sin cantidad ni FEE. Abajo se suman los importes solicitados de las rendiciones activas de esta cotización; excluye anulados y rechazos definitivos. El resultado es informativo.</small>
           <label>Tiempo de respuesta *</label>
 
           <div class="rend-opciones" id="rend-val-ops">
@@ -2284,6 +2284,8 @@
             <label class="rend-op"><input type="radio" name="rend-val-op" value="Mayor a 4 horas"><span><i class="fa-solid fa-clock"></i> Mayor a 4 horas</span></label>
 
             <label class="rend-op"><input type="radio" name="rend-val-op" value="No aplica"><span><i class="fa-solid fa-ban"></i> No aplica</span></label>
+
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="Atención Continua"><span><i class="fa-solid fa-headset"></i> Atención Continua</span></label>
 
           </div>
 

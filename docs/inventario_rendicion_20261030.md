@@ -84,7 +84,7 @@ Los campos de negocio se guardan dentro de data_json (columna física TEXT). Por
 | RECHAZADO POR | Texto / usuario | Texto JSON | Usuario que realizó la acción de rechazo. | 265 |
 | SUBESTADO | Texto / estado complementario | Texto JSON | Observado o Archivado, conservando el estado principal cuando corresponde. | 308 |
 | SUSTENTADO POR | Texto / usuario | Texto JSON | Usuario que realizó la acción de sustento. | 361 |
-| TIEMPO DE RESPUESTA | Texto / lista | Texto JSON | Menor a 4 horas, Mayor a 4 horas o No aplica; se elige al validar. | 1475 |
+| TIEMPO DE RESPUESTA | Texto / lista | Texto JSON | Menor a 4 horas, Mayor a 4 horas, No aplica o Atención Continua; se elige al validar. | 1475 |
 | VALIDADO POR | Texto / usuario | Texto JSON | Usuario que realizó la acción de validación. | 1530 |
 | VECES RECHAZADO | Contador | Texto JSON | Cantidad de rechazos registrados; actualmente serializada como texto. | 235 |
 

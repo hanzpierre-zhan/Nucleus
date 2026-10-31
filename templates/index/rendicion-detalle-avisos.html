@@ -785,8 +785,41 @@ function rendDevolver(key) {
 
 
 // Validar: muestra confirmación con el detalle completo de la solicitud
+// + selección de tiempo de respuesta (4 opciones) y observación.
 
-// + selección de tiempo de respuesta (3 opciones) y observación.
+// Regla única del correo de validación; espejo de
+// blueprints/rendicion.py::_requiere_correo_validacion.
+const REND_GASTOS_SIN_CORREO = new Set(['viatico', 'viaticos', 'peaje', 'peajes',
+    'pasaje', 'pasajes', 'hospedaje', 'hospedajes']);
+const REND_TIEMPOS_SIN_CORREO = new Set(['mayora4horas', 'atencioncontinua', 'noaplica']);
+
+function rendNormalizarCorreo(valor) {
+    return String(valor || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function rendRequiereCorreoValidacion(tiempo) {
+    const modal = _rendModal || {};
+    const gastos = Array.isArray(modal.gastos) ? modal.gastos : [];
+    if (gastos.length > 0 && gastos.every(gasto => REND_GASTOS_SIN_CORREO.has(gasto))) return false;
+    if (modal.presupuesto === 'refacturable') return !REND_TIEMPOS_SIN_CORREO.has(rendNormalizarCorreo(tiempo));
+    if (modal.presupuesto !== 'gastocobra') return false;
+    return !gastos.length || gastos.some(gasto => !REND_GASTOS_SIN_CORREO.has(gasto));
+}
+
+// Se recalcula al abrir el modal y cada vez que se elige un tiempo de respuesta.
+function rendActualizarCorreoValidacion() {
+    if (!_rendModal || _rendModal.accion !== 'validar') return;
+    const elegido = document.querySelector('#rend-val-ops input[type="radio"]:checked');
+    const requerido = rendRequiereCorreoValidacion(elegido ? elegido.value : '');
+    _rendModal.refacturable = requerido;
+    document.getElementById('rend-val-correo-wrap').hidden = !requerido;
+    document.getElementById('rend-val-correo-status').textContent = requerido
+        ? (_rendModal.correo ? 'Correo adjunto. Puedes reemplazarlo.' : 'Obligatorio para validar esta solicitud.')
+        : 'Esta combinación no requiere correo de aprobación.';
+}
+
+document.getElementById('rend-val-ops')?.addEventListener('change', rendActualizarCorreoValidacion);
 
 function rendValidar(key) {
 
@@ -799,14 +832,10 @@ function rendValidar(key) {
     const presupuesto = normalizarPresupuesto(row[campoPresupuesto]);
     const campoGasto = Object.keys(row).find(campo => ['tipodegasto', 'tipogasto'].includes(normalizarPresupuesto(campo)));
     const gastos = String(row[campoGasto] || '').split(/[,;/|+\n]+/).map(normalizarPresupuesto);
-    const exentosCorreo = new Set(['viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes']);
-    const soloExentos = gastos.length > 0 && gastos.every(gasto => exentosCorreo.has(gasto));
-    const refacturable = !soloExentos && (presupuesto === 'refacturable' || (presupuesto === 'gastocobra' && gastos.some(gasto => !exentosCorreo.has(gasto))));
-    _rendModal.refacturable = refacturable;
+    _rendModal.presupuesto = presupuesto;
+    _rendModal.gastos = gastos;
     _rendModal.correo = row['ADJUNTO CORREO VALIDACION'] || '';
-    document.getElementById('rend-val-correo-wrap').hidden = !refacturable;
     document.getElementById('rend-val-correo').value = '';
-    document.getElementById('rend-val-correo-status').textContent = _rendModal.correo ? 'Correo adjunto. Puedes reemplazarlo.' : 'Obligatorio para validar esta solicitud.';
     const correoLink = document.getElementById('rend-val-correo-link');
     correoLink.hidden = !_rendModal.correo;
     correoLink.href = _rendModal.correo || '#';
@@ -830,6 +859,8 @@ function rendValidar(key) {
         if (primero) primero.checked = false;
 
     }
+
+    rendActualizarCorreoValidacion();
 
     document.getElementById('rend-val-obs').value = String(row['OBSERVACIONES'] || '');
 
@@ -1119,6 +1150,12 @@ function rendConfirmarModal() {
         if (!op) { alert('Selecciona una opción de tiempo de respuesta.'); return; }
 
         if (_rendModal.subiendoCorreo) { alert('Espera a que termine de cargar el correo.'); return; }
+
+        if (rendRequiereCorreoValidacion(op.value) && !_rendModal.correo) {
+            document.getElementById('rend-val-correo-wrap').hidden = false;
+            alert('Adjunta el correo de aprobación (.msg) para validar esta solicitud.');
+            return;
+        }
         // El servidor comprueba el adjunto durable aunque la tabla tenga un enlace desactualizado.
 
         extra.tiempo = op.value;

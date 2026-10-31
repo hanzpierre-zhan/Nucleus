@@ -37,6 +37,8 @@
             if(!result.encontrada){status.textContent=result.mensaje||'Selecciona una cotización existente de este proyecto.';return;}
             const control=result.control;panel.hidden=false;
             panel.querySelectorAll('[data-rend-control]').forEach(el=>el.textContent=money(control[el.dataset.rendControl]));
+            const etiqueta=byId('rend-cotizado-etiqueta'),items=Number(control.items)||0;
+            if(etiqueta)etiqueta.textContent='Cotizado · suma de valores unitarios'+(items?' ('+items+(items===1?' ítem':' ítems')+')':'');
             if(control.importes_sin_interpretar){status.dataset.estado='revisar';status.textContent='Acumulado incompleto: hay '+control.importes_sin_interpretar+' solicitudes con un monto inválido. Revisa esos registros antes de usar el saldo.';}
             else{status.dataset.estado=control.excede?'excede':'dentro';status.textContent=control.excede?'Excede el monto cotizado en '+money(-Number(control.saldo))+'.':'Dentro del monto cotizado. Saldo disponible: '+money(control.saldo)+'.';}
         }catch(error){if(error.name!=='AbortError')status.textContent=error.message;}

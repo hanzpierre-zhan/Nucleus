@@ -39,12 +39,47 @@ def test_acumulado_no_duplica_actual_y_excluye_anulados(auth_client,escenarios):
     assert result.status_code==200
     control=result.json['control']
     assert control['cotizado']=='1000.00'
+    assert control['items']==2
     assert control['otras_solicitudes']=='650.00'
     assert control['solicitud_actual']=='100.00'
     assert control['acumulado']=='750.00' and control['saldo']=='250.00'
     assert control['cantidad_otras']==2 and control['excede'] is False
     excedido=consulta(auth_client,monto='400').json['control']
     assert excedido['excede'] is True and excedido['saldo']=='-50.00'
+
+
+def test_cotizado_es_la_suma_de_valores_unitarios_y_no_el_total_con_fee(app,auth_client,escenarios):
+    """Caso del reporte: VU 660 + FEE 5% (total 693) => Cotizado 660, no 693."""
+    with app.app_context():
+        cot=NucleusData.query.filter_by(key_value='PRES-COT').one()
+        datos=json.loads(cot.data_json)
+        datos['SUB TOTAL + FEE']='693.00'
+        datos['ITEMS_JSON']=json.dumps([{'tipo':'REEMBOLSABLE','texto':'Acarreo ida y vuelta','und':'UI',
+                                         'cantidad':'1','valor_unitario':'660','valor_total':'693.00'}])
+        cot.data_json=json.dumps(datos);db.session.commit()
+    control=consulta(auth_client).json['control']
+    assert control['cotizado']=='660.00'
+    assert control['items']==1
+    assert control['acumulado']=='750.00'  # 650 de otras + 100 de esta
+
+
+@pytest.mark.parametrize('tiempo',['Menor a 4 horas','Mayor a 4 horas','No aplica','Atención Continua'])
+def test_tiempo_de_respuesta_acepta_las_cuatro_opciones(app,auth_client,escenarios,tiempo):
+    response=auth_client.post('/api/rendicion/accion',json={'key':'PRES-ACTUAL','accion':'validar','tiempo':tiempo})
+    assert response.status_code==200,response.json
+    assert response.json['newData']['TIEMPO DE RESPUESTA']==tiempo
+    with app.app_context():
+        guardado=json.loads(NucleusData.query.filter_by(proyecto_id=escenarios,key_value='PRES-ACTUAL').one().data_json)
+        assert guardado['TIEMPO DE RESPUESTA']==tiempo
+
+
+@pytest.mark.parametrize('tiempo',['Atención continua','Continuo',''])
+def test_tiempo_de_respuesta_invalido_no_valida(app,auth_client,escenarios,tiempo):
+    response=auth_client.post('/api/rendicion/accion',json={'key':'PRES-ACTUAL','accion':'validar','tiempo':tiempo})
+    assert response.status_code==400,response.json
+    with app.app_context():
+        guardado=json.loads(NucleusData.query.filter_by(proyecto_id=escenarios,key_value='PRES-ACTUAL').one().data_json)
+        assert guardado['ESTADO']=='PENDIENTE'
 
 
 def test_busqueda_y_cotizacion_inexistente(auth_client,escenarios):
@@ -141,6 +176,9 @@ def test_formulario_busca_compara_y_guarda(app,auth_client,servidor,escenarios,t
                 assert selector.locator('option').all_text_contents()==['Seleccionar…','GASTO COBRA','REFACTURABLE']
                 expect(page.locator('#rend-cotizacion-status')).to_contain_text('Dentro del monto cotizado')
                 expect(page.locator('[data-rend-control="acumulado"]')).to_contain_text('750.00')
+                expect(page.locator('#rend-cotizado-etiqueta')).to_contain_text('2 ítems')
+                assert page.locator('#rend-val-ops input').evaluate_all('els => els.map(e => e.value)')==[
+                    'Menor a 4 horas','Mayor a 4 horas','No aplica','Atención Continua']
                 page.locator('#rend-val-presupuesto').fill('800.00')
                 selector.select_option('REFACTURABLE')
                 page.locator('[data-rend-campo="Monto total del depósito"]').fill('400')

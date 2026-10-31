@@ -368,6 +368,29 @@ cada proyecto muestra las vistas que sus columnas permiten y sus propias tarjeta
   marcado `_COT_EVIDENCIA_MIGRADA` (esa marca solo protege fotos y bitácoras antiguas) y
   `generar` vuelve a intentarlo desde `datos` antes de dejar la celda vacía.
 
+### 7.10 Validación de Rendición: tiempo de respuesta y control de cotización
+
+- El modal **Validar solicitud** (`templates/index.html`) exige una de cuatro opciones de
+  *Tiempo de respuesta*: **Menor a 4 horas**, **Mayor a 4 horas**, **No aplica** o
+  **Atención Continua**. `blueprints/rendicion.py` valida el valor exacto; el formulario de
+  Espacios (`templates/espacios.html`) ofrece las mismas opciones.
+- **Cotizado** es la suma del `valor_unitario` de cada ítem de la cotización, **sin cantidad
+  ni FEE** (`services/rendicion_presupuesto_cotizacion.py`). No usa el total con FEE: un
+  ítem de S/ 660 con FEE 5% (total S/ 693) muestra S/ 660. La etiqueta indica cuántos ítems
+  componen la suma y el saldo se compara contra ese valor.
+- **Correo de aprobación (.msg)**: la regla vive en
+  `blueprints/rendicion.py::_requiere_correo_validacion` y el modal la replica
+  (`rendRequiereCorreoValidacion` en `templates/index/rendicion-detalle-avisos.html`);
+  el bloque aparece/desaparece al cambiar el tiempo de respuesta.
+  - Gastos formados solo por viático, peaje, pasaje u hospedaje: **nunca** piden correo.
+  - **REFACTURABLE:** solo lo pide con *Menor a 4 horas*. *Mayor a 4 horas*,
+    *Atención Continua* y *No aplica* no lo piden.
+  - **GASTO COBRA:** lo pide si el gasto está vacío o incluye algún concepto fuera de esos
+    cuatro (p. ej. *Material*, *Acarreo* o *Peaje, Material*); no lo pide si todos son
+    viático/peaje/pasaje/hospedaje. El tiempo de respuesta no cambia esta regla.
+  - Al subir el adjunto todavía no hay tiempo elegido, así que la subida se valida con la
+    regla de presupuesto/gasto (sin tiempo) y el modal decide si el campo es obligatorio.
+
 ---
 
 ## 8. PERMISOS POR ROL

@@ -21,7 +21,7 @@
 <dialog id="detalle"><div class="heading"><h2 id="detalle-titulo">Detalle</h2><button id="cerrar-detalle" aria-label="Cerrar detalle">Cerrar</button></div><p id="detalle-proyecto" class="eyebrow"></p><dl id="detalle-campos"></dl>
     <form id="editar-form" hidden><h3>Actualizar un campo</h3><label>Campo<select id="campo-editar"></select></label><label>Valor<textarea id="valor-editar" rows="3"></textarea></label><button type="submit">Guardar cambio</button></form>
     <form id="accion-form" hidden><h3>Flujo de rendición</h3><label>Acción<select id="accion"></select></label>
-        <label>Tiempo de respuesta<select id="tiempo"><option value="">Seleccionar</option><option>Menor a 4 horas</option><option>Mayor a 4 horas</option><option>No aplica</option></select></label>
+        <label>Tiempo de respuesta<select id="tiempo"><option value="">Seleccionar</option><option>Menor a 4 horas</option><option>Mayor a 4 horas</option><option>No aplica</option><option>Atención Continua</option></select></label>
         <label>Fecha de pago<input type="date" id="fecha-pago"></label><label>Monto pagado<input type="number" min="0.01" step="0.01" id="monto-pago"></label><label>Referencia del comprobante ya registrado<input id="foto-pago"></label>
         <label>Comentario u observación<textarea id="comentario" rows="3"></textarea></label><button type="submit">Aplicar acción</button>
     </form><p id="detalle-estado" role="status"></p>

@@ -521,11 +521,11 @@ def api_rendicion_accion():
             row.update(preparar(row,key,data))
         except ValueError as error:
             return jsonify(error=str(error)),400
-        # El modal exige elegir una de las 3 opciones de tiempo de respuesta.
+        # El modal exige elegir una de las 4 opciones de tiempo de respuesta.
         tiempo = str(data.get('tiempo') or '').strip()
-        if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica'):
+        if tiempo not in ('Menor a 4 horas', 'Mayor a 4 horas', 'No aplica', 'Atención Continua'):
             return jsonify({'error': 'Selecciona una opción de tiempo de respuesta.'}), 400
-        if _requiere_correo_validacion(row):
+        if _requiere_correo_validacion(row, tiempo):
             # La asociación durable prevalece si una edición antigua perdió el enlace del JSON.
             adjunto = RendicionCorreo.query.filter_by(origen_id=fila.id).order_by(RendicionCorreo.id.desc()).first()
             if adjunto:
@@ -871,7 +871,15 @@ def api_rendicion_avisos_leer():
 
 
 
-def _requiere_correo_validacion(row):
+def _requiere_correo_validacion(row, tiempo=None):
+    """Correo .msg obligatorio según presupuesto, tipo de gasto y tiempo de respuesta.
+
+    - Solo viático/peaje/pasaje/hospedaje: nunca pide correo.
+    - REFACTURABLE: solo con «Menor a 4 horas»; «Mayor a 4 horas», «Atención
+      Continua» y «No aplica» no lo piden.
+    - GASTO COBRA: lo pide si el gasto está vacío o incluye algún concepto
+      distinto de esos cuatro.
+    """
     def normalizar(valor):
         texto = unicodedata.normalize('NFKD', str(valor or ''))
         return re.sub(r'[^a-z0-9]', '', ''.join(c for c in texto.lower() if not unicodedata.combining(c)))
@@ -879,11 +887,13 @@ def _requiere_correo_validacion(row):
     presupuesto = normalizar(campos.get('tipodepresupuesto', campos.get('tipopresupuesto')))
     gasto = str(campos.get('tipodegasto', campos.get('tipogasto')) or '')
     tipos = [normalizar(tipo) for tipo in re.split(r'[,;/|+\n]+', gasto)]
-    exentos = {'viatico', 'viaticos', 'peaje', 'peajes', 'hospedaje', 'hospedajes'}
+    exentos = {'viatico', 'viaticos', 'peaje', 'peajes', 'pasaje', 'pasajes',
+               'hospedaje', 'hospedajes'}
     if tipos and all(tipo in exentos for tipo in tipos):
         return False
     if presupuesto == 'refacturable':
-        return True
+        elegido = normalizar(row.get('TIEMPO DE RESPUESTA') if tiempo is None else tiempo)
+        return elegido not in ('mayora4horas', 'atencioncontinua', 'noaplica')
     if presupuesto != 'gastocobra':
         return False
     return not tipos or any(tipo not in exentos for tipo in tipos)
@@ -919,7 +929,9 @@ def subir_correo_validacion():
     if not fila:
         return jsonify({'error': 'Solicitud no encontrada.'}), 404
     row = json.loads(fila.data_json or '{}')
-    if _etapa_de(row) != 'VALIDACION' or not _requiere_correo_validacion(row):
+    # El tiempo de respuesta aún no está guardado al subir el correo: se evalúa
+    # la regla sin él (REFACTURABLE puede pedirlo; el modal decide si lo exige).
+    if _etapa_de(row) != 'VALIDACION' or not _requiere_correo_validacion(row, ''):
         return jsonify({'error': 'Este correo corresponde a una solicitud pendiente que requiere correo de validación.'}), 409
     archivo = request.files.get('correo')
     if not archivo or not archivo.filename or os.path.splitext(archivo.filename)[1].lower() != '.msg':

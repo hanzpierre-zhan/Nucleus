@@ -39,6 +39,15 @@ def suma_valores_unitarios(items):
         return None
 
 
+def cantidad_items(items):
+    """Cuántos ítems respaldan la suma (solo para mostrar el detalle)."""
+    try:
+        if isinstance(items,str):items=json.loads(items)
+        return len(items) if isinstance(items,list) else 0
+    except (ValueError,TypeError):
+        return 0
+
+
 def proyecto(row):
     return familia(row.get('Nombre del proyecto') or row.get('CLIENTE') or row.get('PROYECTO'))
 
@@ -59,7 +68,8 @@ def catalogo(row,consulta):
         data={'CLIENTE':cliente,'Nombre del proyecto':nombre,'PROYECTO':proyecto_nombre}
         code=str(code or '').strip()
         if not code or proyecto(data)!=proyecto(row):continue
-        result.append({'id':rid,'numero':code,'monto':suma_valores_unitarios(items),'key':key})
+        result.append({'id':rid,'numero':code,'monto':suma_valores_unitarios(items),'key':key,
+                       'items':cantidad_items(items)})
     return result
 
 
@@ -97,7 +107,8 @@ def resumen(row,key,cotizacion,solicitado=None):
     return {'cotizacion':cotizacion['numero'],'cotizacion_id':cotizacion['id'],
             'cotizado':str(limite),'otras_solicitudes':str(acumulado),'solicitud_actual':str(actual),
             'acumulado':str(total),'saldo':str(limite-total),'excede':total>limite,
-            'cantidad_otras':cantidad,'importes_sin_interpretar':invalidos}
+            'items':cotizacion.get('items',0),'cantidad_otras':cantidad,
+            'importes_sin_interpretar':invalidos}
 
 
 def preparar(row,key,datos):
