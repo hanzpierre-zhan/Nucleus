@@ -7,6 +7,38 @@ from db import db
 from models import NucleusData
 
 
+def test_muestra_fotos_de_item_retirado_y_guardar_sin_editar_no_borra(app,auth_client,servidor,caso):
+    from services.cotizacion_ficha import items_cotizacion
+    with app.app_context():
+        row=db.session.get(NucleusData,caso['ids'][2]);d=json.loads(row.data_json)
+        d['NUMERO WO']=''
+        d['ITEMS_JSON']=json.dumps([{'tipo':'REEMBOLSABLE','texto':'Ítem vigente','und':'UND'}])
+        item=items_cotizacion(d)[0]['key']
+        d['_SUSTENTO_FICHAS']={'':{'item_photos':{item:[{'url':'/vigente.jpg','phase':'before'}],
+            'retirado':[{'url':'/retirada.jpg','phase':'after'}]}}}
+        d['_BITACORA_INICIO']='Descripción conservada'
+        d['INICIO EJECUCION']='2026-10-20 08:30:00'
+        row.data_json=json.dumps(d);db.session.commit()
+    auth_client.get('/switch_project/%s'%caso['cot']);cookie=auth_client.get_cookie('session')
+    with playwright_api.sync_playwright() as p:
+        browser=p.chromium.launch()
+        try:
+            context=browser.new_context(viewport={'width':1600,'height':1100})
+            context.add_cookies([{'name':'session','value':cookie.value,'domain':'127.0.0.1','path':'/'}])
+            page=context.new_page();page.goto(servidor+'/',wait_until='networkidle')
+            page.evaluate("cotAbrirModalSustento('COT-SUST-TEST')")
+            playwright_api.expect(page.locator('.cot-item-previous')).to_be_visible()
+            playwright_api.expect(page.locator('button.cot-ficha-picture-remove')).to_be_hidden()
+            assert page.locator('.cot-item-previous a').get_attribute('href')=='/retirada.jpg'
+            with page.expect_request('**/api/cotizacion/sustento/wo') as req:
+                page.evaluate('cotGuardarSustentoSeleccionado(false)')
+            assert req.value.post_data_json['evidencia']=={}
+            page.evaluate("cerrarWoModal();cotAbrirModalSustento('COT-SUST-TEST')")
+            playwright_api.expect(page.locator('#evidencia-bitacora-inicio')).to_have_value('Descripción conservada')
+            playwright_api.expect(page.locator('#wo-inicio-ejecucion')).to_have_value('2026-10-20T08:30')
+        finally:browser.close()
+
+
 def test_enviar_atendido_conserva_fotos_y_sale_de_sustentar(app,auth_client,servidor,caso):
     from test_sustento_por_wo import cargar
     auth_client.get('/switch_project/%s'%caso['cot'])

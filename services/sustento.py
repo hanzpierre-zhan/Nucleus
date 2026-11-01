@@ -10,6 +10,32 @@ FASES=('INICIO','PROCESO','CIERRE')
 CAMPOS=tuple('_EVIDENCIA_'+t for t in FASES)+tuple('_BITACORA_'+t for t in FASES)+('INICIO EJECUCION','FIN EJECUCION')
 MARCAS=('_SUSTENTO_APROBADO','_SUSTENTO_APROBADO_COT')
 
+
+def conflicto_guardado(actual, cambios, base=None):
+    """Evita borrar campos con un formulario vacío o sobrescribir otra edición."""
+    def valor(campo, raw):
+        if campo.startswith('_EVIDENCIA_'):
+            try: raw = json.loads(raw) if isinstance(raw, str) and raw else (raw or [])
+            except (ValueError, TypeError): return raw
+            if isinstance(raw, list):
+                raw = list(raw)
+                while raw and not raw[-1]: raw.pop()
+            return raw
+        return str(raw or '').strip()
+    if base is not None and (not isinstance(base, dict) or set(base) - set(CAMPOS)):
+        return 'La referencia del sustento no es válida. Vuelve a abrirlo.'
+    for campo, nuevo in cambios.items():
+        anterior = valor(campo, actual.get(campo))
+        nuevo = valor(campo, nuevo)
+        if anterior == nuevo:
+            continue
+        if base is not None:
+            if campo not in base or valor(campo, base[campo]) != anterior:
+                return 'El sustento cambió desde que lo abriste. No se guardó nada; conserva tu texto y vuelve a abrirlo.'
+        elif anterior and (not nuevo or (campo.startswith('_EVIDENCIA_') and isinstance(anterior, list) and isinstance(nuevo, list) and any(u not in nuevo for u in anterior))):
+            return 'Se evitó borrar información existente desde una pantalla desactualizada. Vuelve a abrir el sustento.'
+    return None
+
 class SustentoAdicional:
     """Evidencia por código, guardada dentro de su cotización sin inventar una WO FLM."""
     def __init__(self,cot,wo):

@@ -2407,20 +2407,29 @@ async function cotSeleccionarSustentoWo(index,guardar=true) {
         document.getElementById('cot-sustento-wo-tabs')?.remove();
         if(cotSustentoUsaFicha(ctx,elegido))cotMontarFichaSustento(ctx,elegido,data,woEditable);
         else cotMontarSustentoAnterior(ctx,elegido);
+        elegido.vistaEvidencia = cotLeerEvidenciaSustento();
+        elegido.baseEvidencia = Object.fromEntries(Object.keys(elegido.vistaEvidencia).map(k=>[k,elegido.wo_data[k]||'']));
     }catch(error){nucleusAlert(error.message);}
+}
+function cotLeerEvidenciaSustento() {
+    const evidencia={};
+    ['inicio','proceso','cierre'].forEach(fase=>{evidencia['_EVIDENCIA_'+fase.toUpperCase()]=JSON.stringify(evidenciaState?.[fase]?.fotos||[]);evidencia['_BITACORA_'+fase.toUpperCase()]=document.getElementById('evidencia-bitacora-'+fase).value;});
+    evidencia['INICIO EJECUCION']=fromDatetimeLocal(document.getElementById('wo-inicio-ejecucion').value);
+    evidencia['FIN EJECUCION']=fromDatetimeLocal(document.getElementById('wo-fin-ejecucion').value);
+    return evidencia;
 }
 async function cotGuardarSustentoSeleccionado(finalizar) {
     const ctx=_cotSustentoContext;if(!ctx||ctx.index===null)return;
     if(ctx.uploads)throw new Error('Espera a que termine la carga de fotos.');
     const entry=ctx.lista[ctx.index];
     if((ctx.aprobado||entry.bloqueado)&&!finalizar)return;
-    const evidencia={};
-    ['inicio','proceso','cierre'].forEach(fase=>{evidencia['_EVIDENCIA_'+fase.toUpperCase()]=JSON.stringify(evidenciaState?.[fase]?.fotos||[]);evidencia['_BITACORA_'+fase.toUpperCase()]=document.getElementById('evidencia-bitacora-'+fase).value;});
-    evidencia['INICIO EJECUCION']=fromDatetimeLocal(document.getElementById('wo-inicio-ejecucion').value);
-    evidencia['FIN EJECUCION']=fromDatetimeLocal(document.getElementById('wo-fin-ejecucion').value);
-    const r=await fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia,...(cotSustentoUsaFicha(ctx,entry)?{manual:cotLeerFichaSustento()}: {})})});
+    const vista=cotLeerEvidenciaSustento();
+    const evidencia=Object.fromEntries(Object.entries(vista).filter(([k,v])=>v!==entry.vistaEvidencia?.[k]));
+    const r=await fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia,base_evidencia:entry.baseEvidencia,...(cotSustentoUsaFicha(ctx,entry)?{manual:cotLeerFichaSustento()}: {})})});
     const j=await nucleusLeerRespuestaJSON(r);if(!r.ok||!j.success)throw new Error(j.error||'No se pudo guardar.');
     entry.wo_data={...j.wo_data,_key:woKey};
+    entry.vistaEvidencia=vista;
+    Object.keys(evidencia).forEach(k=>entry.baseEvidencia[k]=j.wo_data[k]||'');
     entry.wo=j.wo??entry.wo;ctx.cotData=j.newData;
     const tab=document.querySelectorAll('#cot-sustento-wo-tabs button')[ctx.index];if(tab)tab.textContent=entry.wo||'Sustento sin WO';
     cotTrasAccion(j,ctx.key);return j;

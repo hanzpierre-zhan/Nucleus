@@ -1501,6 +1501,7 @@ def _guardar_sustento(datos, finalizar=False):
     if not cot:return jsonify({'error':'Cotización no encontrada.'}),404
     d=json.loads(cot.data_json or '{}')
     if bloqueado(d):return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
+    respaldo_cot = cot.data_json
     if _cot_pestania(d) not in ('sustentar','atendido'):
         return jsonify({'error':'La cotización debe estar en Sustentar o Atendido.'}),409
     claves=_split_wos(d.get('NUMERO WO'))
@@ -1517,6 +1518,8 @@ def _guardar_sustento(datos, finalizar=False):
     resultado=_resolver_sustento_cot(cot,wo,d)
     if not resultado:return jsonify({'error':'Primero registra este WO en el FLM correspondiente.'}),409
     proyecto,fila=resultado
+    if isinstance(fila, NucleusData) and fila.id != cot.id:
+        fila = NucleusData.query.filter_by(id=fila.id).populate_existing().with_for_update().one()
     from services.cotizacion_ficha import usa_ficha
     if manual is not None and not usa_ficha(d,proyecto.nombre):return jsonify(error='FLM - PEXT conserva el formulario de sustento anterior.'),400
     actual=json.loads(fila.data_json or '{}')
@@ -1525,6 +1528,17 @@ def _guardar_sustento(datos, finalizar=False):
     cambios=datos.get('evidencia') or {}
     if not isinstance(cambios,dict) or set(cambios)-set(CAMPOS):
         return jsonify({'error':'Solo se pueden guardar fotos, bitácoras y fechas del sustento.'}),400
+    # Incorporar los aliases antes de comprobar concurrencia o vaciados.
+    cambios = dict(cambios)
+    bit = datos.get('bitacoras') or {}
+    if not isinstance(bit, dict):return jsonify(error='Bitácoras inválidas.'),400
+    for tipo in ('inicio','proceso','cierre'):
+        if tipo in bit:cambios['_BITACORA_'+tipo.upper()] = str(bit[tipo] or '')
+    for entrada,campo in [('fecha_inicio','INICIO EJECUCION'),('fecha_fin','FIN EJECUCION')]:
+        if entrada in datos:cambios[campo] = str(datos[entrada] or '')
+    from services.sustento import conflicto_guardado
+    conflicto = conflicto_guardado(nuevo, cambios, datos.get('base_evidencia'))
+    if conflicto:return jsonify(error=conflicto,codigo='SUSTENTO_DESACTUALIZADO'),409
     for campo,valor in cambios.items():
         if campo.startswith('_EVIDENCIA_'):
             try: arr=json.loads(valor) if isinstance(valor,str) and valor else (valor or [])
@@ -1547,6 +1561,8 @@ def _guardar_sustento(datos, finalizar=False):
     error=_error_fechas_ejecucion(nuevo)
     if error:return jsonify({'error':error}),400
     nuevo['_COT_EVIDENCIA_MIGRADA']='1'
+    if isinstance(fila, NucleusData) and fila.id != cot.id and nuevo != actual:
+        db.session.add(NucleusHistory(proyecto_id=proyecto.id,key_value=fila.key_value,data_json=fila.data_json))
     fila.data_json=safe_json_dumps(nuevo)
     if wo and proyecto.id==p.id:
         d=json.loads(cot.data_json or '{}')
@@ -1566,6 +1582,8 @@ def _guardar_sustento(datos, finalizar=False):
         d['_SUSTENTO_VALIDADO']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         d['ATENDIDO POR']=audit_user() or ''
     cot.data_json=safe_json_dumps(d)
+    if cot.data_json != respaldo_cot:
+        db.session.add(NucleusHistory(proyecto_id=p.id,key_value=cot.key_value,data_json=respaldo_cot))
     db.session.commit()
     if finalizar:_avisar_cambio_estado(p.id,key,anterior,d,audit_user() or '')
     return jsonify({'success':True,'newData':d,'wo_data':nuevo,'wo':wo_definida,'estado':d.get('ESTADO COTIZACION'),'pestania':_cot_pestania(d),'guardados':1,'errores':[]})
@@ -1638,6 +1656,7 @@ def sustento_ubicacion_subir(item=False):
         except Exception:
             os.remove(ruta);return jsonify(error='No se pudo guardar la foto. Reintenta.'),503
     url=f'/api/cotizacion/sustento/{"foto" if item else "ubicacion"}/{cot.id}/{nombre}'
+    db.session.add(NucleusHistory(proyecto_id=p.id,key_value=cot.key_value,data_json=cot.data_json))
     ficha=d.setdefault('_SUSTENTO_FICHAS',{}).setdefault(wo.casefold(),{})
     if item:
         fotos=ficha.setdefault('item_photos',{}).setdefault(item_key,[])

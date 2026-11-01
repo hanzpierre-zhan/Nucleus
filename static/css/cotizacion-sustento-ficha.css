@@ -57,6 +57,7 @@
 .cot-item-remove:hover,.cot-ficha-picture-remove:hover{background:#FF3B30;}
 .cot-item-remove:focus-visible,.cot-ficha-picture-remove:focus-visible{outline:2px solid var(--ios-teal);outline-offset:2px;}
 .cot-ficha-picture-remove{top:12px;right:12px;width:32px;height:32px;font-size:14px;}
+.cot-ficha-picture-remove[hidden]{display:none;}
 #cot-btn-generar-expediente:disabled{opacity:.55;cursor:not-allowed;}
 @media(max-width:600px){.cot-item-heading{flex-direction:column;gap:3px;}.cot-item-photos{grid-template-columns:repeat(2,minmax(0,1fr));}.cot-item-photo img{height:115px;}.cot-item-upload{min-height:115px;}.cot-ficha-wo-selector{flex-direction:column;align-items:start;}}
 

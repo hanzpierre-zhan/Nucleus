@@ -5,7 +5,7 @@
  window.cotMontarFotosItems=function(parent,ctx,entry,editable){
   const root=el('section','cot-items-evidence');root.id='cot-sustento-items';
   root.append(el('h3',null,'Evidencia de los ítems de la cotización'));
-  if(!ctx.items?.length){root.append(el('p','cot-ficha-status','Esta cotización todavía no tiene ítems registrados. Agrégalos en el editor de cotización.'));parent.append(root);return;}
+  if(!ctx.items?.length){root.append(el('p','cot-ficha-status','Esta cotización todavía no tiene ítems registrados. Agrégalos en el editor de cotización.'));}
   const photos=entry.wo_data._SUSTENTO_MANUAL?.item_photos||{};
   for(const item of ctx.items){
    const card=el('details','cot-item-card');card.dataset.itemKey=item.key;
@@ -66,6 +66,14 @@
     }
    }
    render();
+  }
+  const vigentes=new Set((ctx.items||[]).map(item=>item.key));
+  const anteriores=Object.entries(photos).filter(([key,images])=>!vigentes.has(key)&&images?.length);
+  if(anteriores.length){
+   const section=el('section','cot-ficha-card cot-item-previous');section.append(el('h4',null,'Evidencias de ítems modificados o retirados'),el('p','cot-ficha-status','Se conservan con su referencia original para revisión.'));
+   const grid=el('div','cot-item-photos');
+   anteriores.forEach(([key,images])=>images.forEach(photo=>{const figure=el('figure','cot-item-photo'),link=el('a'),img=el('img');link.href=photo.url;link.target='_blank';link.rel='noopener';img.src=photo.url;img.alt='Evidencia conservada · '+({before:'Antes',during:'Durante',after:'Después'}[photo.phase]||'Sin etapa');img.loading='lazy';link.append(img);figure.append(link,el('figcaption',null,img.alt));grid.append(figure);}));
+   section.append(grid);root.append(section);
   }
   parent.append(root);
  };
