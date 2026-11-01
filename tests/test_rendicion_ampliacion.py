@@ -12,7 +12,7 @@ def test_supervisor_por_dni_sin_adivinar_ni_modificar_original():
     assert result['Supervisor encargado (Form)'] == 'texto libre'
     assert original['Supervisor encargado'] == 'texto libre'
     indice.supervisores['00123456'] = ['']
-    assert presentar_beneficiario_dataper(original, indice)['Supervisor encargado'] == 'SUPERVISOR NO REGISTRADO EN DATAPER'
+    assert presentar_beneficiario_dataper(original, indice)['Supervisor encargado'] == 'NO REGISTRADO EN DATAPER'
     indice.supervisores['00123456'] = ['Uno', 'Dos']
     assert presentar_beneficiario_dataper(original, indice)['Supervisor encargado'] == 'SUPERVISOR AMBIGUO EN DATAPER'
     assert presentar_beneficiario_dataper(original, {})['Supervisor encargado'] == 'NO REGISTRADO EN DATAPER'

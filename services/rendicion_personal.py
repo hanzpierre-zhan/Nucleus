@@ -140,7 +140,7 @@ def presentar_beneficiario_dataper(datos, indice, solo_meta=False):
     elif not candidatos:
         supervisor = 'NO REGISTRADO EN DATAPER'
     elif not nombres_sup or any(not s for s in supervisores):
-        supervisor = 'SUPERVISOR NO REGISTRADO EN DATAPER'
+        supervisor = 'NO REGISTRADO EN DATAPER'
     else:
         supervisor = next(iter(nombres_sup.values()))
     result.setdefault('Supervisor encargado (Form)', datos.get('Supervisor encargado', ''))
