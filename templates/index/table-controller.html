@@ -355,7 +355,8 @@ let _rendCambiandoVista = false;
         sustentar: { estados: ['Aprobado', 'Sustentar'] },
         atendido:  { estados: ['Atendido', 'Validado'] },  // 'Validado' = estado viejo ya aprobado
         cancelado: { estados: ['Cancelado', 'Anulado', 'Anulada'] },
-        proveedor: { paralelo: true }
+        proveedor: { paralelo: true },
+        transito: { paralelo: true }
     };
 
     let _cotVista = 'registro';
@@ -3957,7 +3958,7 @@ let _rendCambiandoVista = false;
                 if (_cotVista === 'proveedor') {
                     mk('cot-btn-sus', '<i class="fa-solid fa-file-invoice"></i>', 'Completar factura y OC del proveedor', () => cotAbrirProveedor(key));
                     if(String(row['_SUSTENTO_APROBADO']||'')!=='1'){
-                        mk('cot-btn-cancel', COT_ICONO_TRANSITO, 'Enviar a Rendición · Tránsito (Caja chica)', () => cotCambiarTipoGasto(key, 'Caja chica'));
+                        mk('cot-btn-cancel', COT_ICONO_TRANSITO, 'Enviar a 6. Tránsito (Caja chica)', () => cotCambiarTipoGasto(key, 'Caja chica'));
                     }
                 } else if (pest === 'registro') {
                     // Boton principal: Generar cotizacion
@@ -4003,7 +4004,7 @@ let _rendCambiandoVista = false;
                         const _enProvAt = cotEnProveedor(row);
                         mk(_enProvAt ? 'cot-btn-cancel' : 'cot-btn-sus',
                            _enProvAt ? COT_ICONO_TRANSITO : '<i class="fa-solid fa-truck-field"></i>',
-                           _enProvAt ? 'Enviar a Rendición · Tránsito (Caja chica)' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
+                           _enProvAt ? 'Enviar a 6. Tránsito (Caja chica)' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
                            () => cotCambiarTipoGasto(key, _enProvAt ? 'Caja chica' : 'Proveedor'));
                     }
                 } else if (pest === 'cancelado') {

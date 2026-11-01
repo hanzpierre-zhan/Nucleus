@@ -1162,7 +1162,8 @@ def _importar_solicitudes():
     # Claves que escribe el sistema/flujo del módulo: si el form trajera un
     # encabezado idéntico, se desplaza con sufijo ' (Form)' para no pisarlas.
     claves_sistema = {
-        '_TIPO_GASTO_HOMOLOGACION',
+        '_TIPO_GASTO_HOMOLOGACION', '_TIPO_GASTO_AMPLIACION', '_DATAPER_SUPERVISOR',
+        'Supervisor encargado (Form)',
         '_PERSONAL_CORRECCION_MANUAL', '_CORRECCION_REV', '_CORREGIDO_POR', '_FECHA_CORRECCION',
         'DEPARTAMENTO', 'VERIFICACIÓN PERSONAL', '_PERSONAL_ORIGINAL', '_PERSONAL_CRUCE',
         'Técnico beneficiario (Form)', 'Documento del beneficiario (Form)', 'Cruce de personal',

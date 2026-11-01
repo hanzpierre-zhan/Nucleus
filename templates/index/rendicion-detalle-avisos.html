@@ -678,6 +678,9 @@ function rendAccion(key, accion, extra) {
 // Tras la acción la fila cambia de hoja: se actualiza en memoria y se re-filtra.
 
 function rendTrasAccion(j, key) {
+    if (j.newData && Object.prototype.hasOwnProperty.call(j.newData,'_DATAPER_SUPERVISOR')) {
+        j.newData = {...j.newData, 'Supervisor encargado': j.newData._DATAPER_SUPERVISOR};
+    }
     if (j.newData && Object.prototype.hasOwnProperty.call(j.newData,'_DATAPER_BENEFICIARIO')) {
         j.newData = {...j.newData, 'Técnico beneficiario': j.newData._DATAPER_BENEFICIARIO};
     }
@@ -2326,7 +2329,7 @@ function cotAplicarFiltro() {
 
     const activa = _cotVista;
 
-    table.setFilter((rowData) => activa === 'proveedor' ? cotEnProveedor(rowData) : cotPestaniaDe(rowData) === activa);
+    table.setFilter((rowData) => activa === 'transito' ? !!rowData._COTIZACION_TRANSITO : activa === 'proveedor' ? cotEnProveedor(rowData) : cotPestaniaDe(rowData) === activa);
 
 }
 
@@ -2334,9 +2337,9 @@ function cotActualizarContadores() {
 
     if (!IS_COTIZACIONES || typeof rawData === 'undefined') return;
 
-    const c = { registro: 0, cliente: 0, sustentar: 0, atendido: 0, cancelado: 0, proveedor: 0 };
+    const c = { registro: 0, cliente: 0, sustentar: 0, atendido: 0, cancelado: 0, proveedor: 0, transito: 0 };
 
-    rawData.forEach(r => { const p = cotPestaniaDe(r); if (c[p] !== undefined) c[p]++; if (cotEnProveedor(r)) c.proveedor++; });
+    rawData.forEach(r => { const p = cotPestaniaDe(r); if (c[p] !== undefined) c[p]++; if (cotEnProveedor(r)) c.proveedor++; if (r._COTIZACION_TRANSITO) c.transito++; });
 
     Object.keys(c).forEach(k => {
 
@@ -2432,7 +2435,7 @@ async function cotRevisarSustento(key,aprobar) {
 // La pestaña Proveedor es una vista derivada de TIPO GASTO APROBACION,
 // así que cambiar ese campo mete (o saca) el caso de dicha pestaña.
 async function cotCambiarTipoGasto(key, tipo) {
-    if(!await nucleusConfirm(tipo === 'Caja chica' ? '¿Enviar esta cotización a Rendición → Tránsito y cambiarla a Caja chica?' : '¿Mover esta cotización a "' + tipo + '"?'))return;
+    if(!await nucleusConfirm(tipo === 'Caja chica' ? '¿Enviar esta cotización a 6. Tránsito y cambiarla a Caja chica?' : '¿Mover esta cotización a "' + tipo + '"?'))return;
     await cotAccionKey(key,'cambiar_tipo_gasto',{tipo_gasto_aprobacion:tipo});
 }
 

@@ -32,9 +32,16 @@ def campo(datos, aliases):
     return next((k for k in datos if normalizar(k) in permitidos), None)
 
 
+class IndicePersonal(dict):
+    """Mantiene compatible el cruce de nombres y separa los supervisores."""
+    def __init__(self):
+        super().__init__()
+        self.supervisores = {}
+
+
 def indice_personal():
     proyecto = Proyecto.query.filter_by(nombre='Dataper').first()
-    indice = {}
+    indice = IndicePersonal()
     if not proyecto:
         return indice
     for registro in NucleusData.query.filter_by(proyecto_id=proyecto.id).yield_per(500):
@@ -53,6 +60,8 @@ def indice_personal():
         nombre = str(datos.get(name_key) or '').strip()
         departamento = str(datos.get(dep_key) or '').strip()
         indice.setdefault(doc, []).append((nombre, departamento))
+        sup_key = campo(datos, ['SUPERVISOR'])
+        indice.supervisores.setdefault(doc, []).append(str(datos.get(sup_key) or '').strip())
     return indice
 
 
@@ -124,5 +133,19 @@ def presentar_beneficiario_dataper(datos, indice, solo_meta=False):
     result.setdefault('Documento del beneficiario (Form)',original.get('documento') or datos.get(doc_key,''))
     result['_DATAPER_BENEFICIARIO']=nombre
     result['_DATAPER_RESULTADO']={'documento':doc,'estado':estado,'fuente':'Dataper'}
+    supervisores = getattr(indice, 'supervisores', {}).get(doc, [])
+    nombres_sup = {normalizar(s): s for s in supervisores if s}
+    if len(nombres_sup) > 1 or len(nombres) > 1:
+        supervisor = 'SUPERVISOR AMBIGUO EN DATAPER'
+    elif not candidatos:
+        supervisor = 'NO REGISTRADO EN DATAPER'
+    elif not nombres_sup or any(not s for s in supervisores):
+        supervisor = 'SUPERVISOR NO REGISTRADO EN DATAPER'
+    else:
+        supervisor = next(iter(nombres_sup.values()))
+    result.setdefault('Supervisor encargado (Form)', datos.get('Supervisor encargado', ''))
+    result['_DATAPER_SUPERVISOR'] = supervisor
+    if not solo_meta:
+        result['Supervisor encargado'] = supervisor
     if not solo_meta:result['Técnico beneficiario']=nombre
     return result

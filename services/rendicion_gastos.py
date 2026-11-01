@@ -2,9 +2,51 @@
 import re
 import unicodedata
 
-OPCIONES = ('PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS', 'HOSPEDAJE', 'COCHERA', 'OTROS')
+OPCIONES = ('PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS', 'HOSPEDAJE', 'COCHERA', 'MATERIAL', 'ACARREO', 'OTROS')
 CAMPO = 'Tipo de gasto'
 META = '_TIPO_GASTO_HOMOLOGACION'
+META_AMPLIACION = '_TIPO_GASTO_AMPLIACION'
+
+
+def ampliar_otros(datos):
+    """Reclasifica OTROS solo con evidencia explícita del concepto solicitado.
+
+    No interpreta nombres, sitios, importes ni el presupuesto como categorías.
+    Conserva el resto de selecciones y el historial de homologación anterior.
+    """
+    salida = dict(datos)
+    if (datos.get(META_AMPLIACION) or {}).get('homologado') == datos.get(CAMPO):
+        return salida
+    partes = [p.strip() for p in str(datos.get(CAMPO) or '').split(',')]
+    if 'OTROS' not in partes or not valido(datos.get(CAMPO)):
+        return salida
+    motivo = texto(datos.get('Motivo de la solicitud'))
+    previo = datos.get(META) or {}
+    detalle = texto(previo.get('original', ''))
+    # El motivo prevalece; el detalle original sirve cuando el motivo es genérico.
+    contexto = motivo + ' ' + detalle
+    nuevas = set()
+    if re.search(r'\b(ACARREO\w*|ACARREAR|ACARREPO|CARREO)\b|\bCARGA Y DESCARGA\b', contexto):
+        nuevas.add('ACARREO')
+    # Envío/alquiler de material es un servicio, no adquisición de material.
+    material = bool(re.search(r'\b(MATERIALES?|CONSUMIBLES?|REPUESTOS?|EPPS?|FUSIBLES?|CABLES?|TARJETA CONTROLADORA|LIMPIA CARBURADOR)\b', contexto))
+    servicio = bool(re.search(r'\b(ENVIO|RECOJO|TRANSPORTE|TRASLADO|ENCOMIENDA|ALQUILER|REPARACION)\b', motivo))
+    compra = bool(re.search(r'\b(COMPRAS?|ADQUISICION|SUMINISTRO)\b', motivo))
+    if material and (compra or (not servicio and re.search(r'\b(MATERIALES?|CONSUMIBLES?)\b', motivo))):
+        nuevas.add('MATERIAL')
+    if not nuevas:
+        return salida
+    otras = bool(re.search(r'\b(CUSTODIOS?|FERIADO|BONO|REPARACION|LIMPIEZA|MONTAJE|DESMONTAJE|ENCENDIDO|MONITOREO|APAGADO)\b', motivo))
+    categorias = set(partes) - {'OTROS'} | nuevas
+    # Categorías adicionales explícitas en solicitudes mixtas.
+    categorias |= _inferir(motivo) - {'OTROS', 'COMPRAS'}
+    if otras:
+        categorias.add('OTROS')
+    salida[CAMPO] = ', '.join(c for c in OPCIONES if c in categorias)
+    salida[META_AMPLIACION] = {'anterior': datos[CAMPO], 'homologado': salida[CAMPO],
+        'criterio': 'Concepto explícito del motivo y detalle original; sin inferir por identidad',
+        'lote': 'gastos-material-acarreo-20261101'}
+    return salida
 
 
 def texto(valor):

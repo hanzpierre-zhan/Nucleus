@@ -307,6 +307,7 @@ def index():
         columns_set.add('Técnico beneficiario (Form)')
         columns_set.add('Documento del beneficiario (Form)')
         columns_set.add('Cruce de personal')
+        columns_set.update(('Supervisor encargado', 'Supervisor encargado (Form)'))
 
     # Load and Filter data
     from services.columnas_fuente import presentar as presentar_columnas_fuente
@@ -321,9 +322,15 @@ def index():
     filas = db.session.query(
         NucleusData.key_value, NucleusData.data_json
     ).filter_by(proyecto_id=pid).all()
+    transito_cotizaciones = {}
+    if proy_actual_nombre == 'Cotizaciones':
+        from services.cotizacion_transito import indice_transito
+        transito_cotizaciones = indice_transito()
     raw_data = []
     for key_value, data_json in filas:
         d = json.loads(data_json)
+        if proy_actual_nombre == 'Cotizaciones':
+            d['_COTIZACION_TRANSITO'] = transito_cotizaciones.get(key_value)
         if personal_rendicion is not None:
             completar_personal(d, personal_rendicion)
             d = presentar_beneficiario_dataper(d, personal_rendicion)
@@ -600,6 +607,7 @@ def analytics_rendicion():
         return redirect(url_for('pages.analytics'))
     from services.alcance_proyectos import vista_global
     from services.dashboard_rendicion import indicadores
+    from services.rendicion_personal import indice_personal, presentar_beneficiario_dataper
     def registros():
         for fila in NucleusData.query.filter_by(proyecto_id=proy.id).order_by(NucleusData.id).yield_per(500):
             try:
@@ -608,8 +616,11 @@ def analytics_rendicion():
                 continue
             if isinstance(datos, dict):
                 datos['_key'] = fila.key_value
+                datos = presentar_beneficiario_dataper(datos, personal_dashboard, solo_meta=True)
+                datos['Supervisor encargado'] = datos['_DATAPER_SUPERVISOR']
                 yield datos
     with vista_global():
+        personal_dashboard = indice_personal()
         dashboard = indicadores(registros())
     return render_template('dashboard_rendicion.html', dashboard=dashboard,
                            proyectos_list=proyectos, proyecto_nombre='Rendicion',

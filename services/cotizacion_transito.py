@@ -4,6 +4,20 @@ from db import db
 from models import Proyecto, NucleusData
 
 
+def indice_transito():
+    """Bandeja derivada del vínculo existente; no mueve ni duplica expedientes."""
+    destino = Proyecto.query.filter_by(nombre='Rendicion').first()
+    resultado = {}
+    if destino:
+        for fila in NucleusData.query.filter_by(proyecto_id=destino.id).yield_per(500):
+            datos = json.loads(fila.data_json or '{}')
+            origen = datos.get('_COTIZACION_ORIGEN') or {}
+            if str(datos.get('ESTADO', '')).strip().upper() == 'TRANSITO' and origen.get('id'):
+                resultado[origen['key']] = {'key': fila.key_value, 'fecha': datos.get('FECHA ENVIO TRANSITO', ''),
+                                           'usuario': datos.get('ENVIADO A TRANSITO POR', '')}
+    return resultado
+
+
 def enviar(fuente, datos, usuario, fecha):
     db.session.query(NucleusData.id).filter_by(id=fuente.id).with_for_update().one()
     destino = Proyecto.query.filter_by(nombre='Rendicion').first()

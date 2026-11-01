@@ -1130,6 +1130,8 @@ def api_cotizacion_accion():
     fila.data_json = safe_json_dumps(row)
     db.session.commit()
     _avisar_cambio_estado(proy.id, key, estado_anterior, row, usuario)
+    from services.cotizacion_transito import indice_transito
+    row['_COTIZACION_TRANSITO'] = indice_transito().get(key)
     return jsonify({'success': True,
                     'estado': row.get('ESTADO COTIZACION'),
                     'pestania': _cot_pestania(row),

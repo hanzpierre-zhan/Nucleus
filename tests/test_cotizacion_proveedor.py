@@ -367,6 +367,10 @@ def test_envio_a_transito_vinculado_sin_duplicar(app,auth_client,cotizacion,rol)
             r=auth_client.post('/api/cotizacion/accion',json=payload)
             assert r.status_code==200,r.text
         enlace=r.json['newData']['_RENDICION_TRANSITO']
+        assert r.json['newData']['_COTIZACION_TRANSITO']['key'] == enlace['key']
+        auth_client.get('/switch_project/%s' % pid)
+        html_cot = auth_client.get('/').text
+        assert 'cot-cnt-transito' in html_cot and '6. Tránsito' in html_cot
         with app.app_context():
             q=NucleusData.query.filter_by(proyecto_id=rend,key_value=enlace['key'])
             assert q.count()==1
@@ -377,13 +381,15 @@ def test_envio_a_transito_vinculado_sin_duplicar(app,auth_client,cotizacion,rol)
             assert datos['_COTIZACION_ORIGEN']['id']==origen_id
             # Un reintento no altera el trabajo realizado posteriormente en Rendición.
             datos.update(ESTADO='VALIDADO',OBSERVACIONES='Conservar');traslado.data_json=json.dumps(datos);db.session.commit()
-        assert auth_client.post('/api/cotizacion/accion',json=payload).status_code==200
+        terminado = auth_client.post('/api/cotizacion/accion',json=payload)
+        assert terminado.status_code==200
+        assert terminado.json['newData']['_COTIZACION_TRANSITO'] is None
         with app.app_context():
             datos=json.loads(NucleusData.query.filter_by(proyecto_id=rend,key_value=enlace['key']).one().data_json)
             assert datos['ESTADO']=='VALIDADO' and datos['OBSERVACIONES']=='Conservar'
         auth_client.get('/switch_project/%s'%rend)
         html=auth_client.get('/').text
-        assert 'rend-cnt-transito' in html
+        assert 'rend-cnt-transito' not in html
     finally:
         if uid:
             with app.app_context():
