@@ -17,7 +17,7 @@
         if(required&&!input.value.trim()){input.focus();input.reportValidity();return false;}
         return true;
     };
-    window.rendLeerPresupuesto=()=>({presupuesto:byId('rend-val-presupuesto').value.trim(),cotizacion:byId('rend-val-cotizacion').value.trim()});
+    window.rendLeerPresupuesto=()=>({cotizacion:byId('rend-val-cotizacion').value.trim()});
     window.rendConsultarPresupuesto=async function(){
         clearTimeout(timer);if(abort)abort.abort();
         if(typeof _rendModal==='undefined'||_rendModal?.accion!=='validar')return;
@@ -46,7 +46,6 @@
     window.rendIniciarPresupuesto=row=>{
         tipoInicial=row['Tipo de presupuesto']||row['TIPO DE PRESUPUESTO']||'';
         rendActualizarObligacionCotizacion();
-        byId('rend-val-presupuesto').value=row.PRESUPUESTO??'';
         byId('rend-val-cotizacion').value=row['N° COTIZACION']??'';
         rendConsultarPresupuesto();
     };

@@ -116,6 +116,27 @@ def test_liquidaciones_con_join_respeta_el_origen_sin_confundir_aliases(app, uni
         assert len(filas) == 1 and filas[0][0].key_value == 'SCOPE-Cotizaciones-ENTEL'
 
 
+def test_liquidaciones_resumen_y_sustento_respetan_revocacion(app, client, universo):
+    asignar(app, universo, ['FLM - ENTEL'])
+    uid, ids, _ = universo
+    with app.app_context():
+        origenes = {f: NucleusData.query.filter_by(
+            proyecto_id=ids['Cotizaciones'], key_value='SCOPE-Cotizaciones-' + f).one().id
+            for f in ('ENTEL', 'CLARO')}
+    with client.session_transaction() as s:
+        s.update(user_id=uid, rol='supervisor', current_proyecto_id=ids['Cotizaciones'],
+                 current_proyecto_nombre='Cotizaciones')
+    response = client.get('/liquidaciones/api/registros?resumen=1')
+    assert response.status_code == 200
+    visibles = {r['id'] for r in response.json['registros']}
+    assert origenes['ENTEL'] in visibles and origenes['CLARO'] not in visibles
+    assert client.get(f"/liquidaciones/api/registros/{origenes['ENTEL']}/sustento").status_code == 200
+    assert client.get(f"/liquidaciones/api/registros/{origenes['CLARO']}/sustento").status_code == 404
+    asignar(app, universo, ['FLM - CLARO'])
+    assert client.get(f"/liquidaciones/api/registros/{origenes['ENTEL']}/sustento").status_code == 404
+    assert client.get(f"/liquidaciones/api/registros/{origenes['CLARO']}/sustento").status_code == 200
+
+
 def test_consultas_bulk_no_borran_filas_ajenas(app, universo):
     asignar(app, universo, ['FLM - ENTEL'])
     with app.test_request_context('/'):

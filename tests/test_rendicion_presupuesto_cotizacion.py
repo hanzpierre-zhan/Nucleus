@@ -154,6 +154,10 @@ def test_formulario_busca_compara_y_guarda(app,auth_client,servidor,escenarios,t
     from playwright.sync_api import sync_playwright,expect
     previous={}
     with app.app_context():
+        solicitud=NucleusData.query.filter_by(proyecto_id=escenarios,key_value='PRES-ACTUAL').one()
+        datos=json.loads(solicitud.data_json)
+        datos['PRESUPUESTO']='800.00'
+        solicitud.data_json=json.dumps(datos)
         for key,value in [('app_schema',['ESTADO','Tipo de presupuesto','Monto total del depósito']),('column_layout__validacion',[{'field':'ESTADO','visible':True},{'field':'Tipo de presupuesto','visible':True},{'field':'Monto total del depósito','visible':True}])]:
             cfg=AppConfig.query.filter_by(proyecto_id=escenarios,clave=key).first();previous[key]=cfg.valor if cfg else None
             if not cfg:cfg=AppConfig(proyecto_id=escenarios,clave=key);db.session.add(cfg)
@@ -178,16 +182,31 @@ def test_formulario_busca_compara_y_guarda(app,auth_client,servidor,escenarios,t
                 expect(page.locator('[data-rend-control="acumulado"]')).to_contain_text('750.00')
                 expect(page.locator('#rend-cotizado-etiqueta')).to_contain_text('2 ítems')
                 assert page.locator('#rend-val-ops input').evaluate_all('els => els.map(e => e.value)')==[
-                    'Menor a 4 horas','Mayor a 4 horas','No aplica','Atención Continua']
-                page.locator('#rend-val-presupuesto').fill('800.00')
+                    'Menor a 4 horas','Mayor a 4 horas','Atención Continua','No aplica']
+                expect(page.locator('#rend-val-presupuesto')).to_have_count(0)
                 selector.select_option('REFACTURABLE')
                 page.locator('[data-rend-campo="Monto total del depósito"]').fill('400')
                 expect(page.locator('#rend-cotizacion-status')).to_contain_text('Excede el monto cotizado')
                 page.locator('#rend-correccion-save').click()
                 expect(page.locator('#rend-correccion-status')).to_contain_text('Correcciones guardadas')
-                expect(page.locator('#rend-val-presupuesto')).to_have_value('800.00')
+                expect(page.locator('#rend-val-presupuesto')).to_have_count(0)
                 expect(page.locator('#rend-cotizacion-status')).to_contain_text('Excede el monto cotizado')
-                page.locator('#rend-val-form').screenshot(path=str(tmp_path/'validacion-presupuesto.png'))
+                for width in (1440,600,390):
+                    page.set_viewport_size({'width':width,'height':1050})
+                    botones=page.locator('#rend-val-ops .rend-op span').evaluate_all(
+                        'els => els.map(el => {const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}})')
+                    assert len(botones)==4
+                    assert max(b['width'] for b in botones)-min(b['width'] for b in botones)<1
+                    assert all(b['height']>0 for b in botones)
+                    assert max(b['height'] for b in botones)-min(b['height'] for b in botones)<1
+                    if width>420:
+                        assert abs(botones[0]['y']-botones[1]['y'])<1
+                        assert abs(botones[2]['y']-botones[3]['y'])<1
+                        assert botones[2]['y']>botones[0]['y']
+                    else:
+                        assert all(botones[i+1]['y']>botones[i]['y'] for i in range(3))
+                    page.locator('#rend-val-form').screenshot(path=str(tmp_path/f'validacion-sin-presupuesto-{width}.png'))
+                page.set_viewport_size({'width':1440,'height':1050})
                 page.locator('#rend-val-ops label').filter(has_text='No aplica').click()
                 page.locator('#rend-modal-ok').click()
                 page.wait_for_function("rawData.find(r=>r._key==='PRES-ACTUAL').ESTADO==='VALIDADO'")

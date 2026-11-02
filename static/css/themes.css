@@ -405,9 +405,9 @@ body.light #data-grid .rend-btn-ok{color:#15803D}body.light #data-grid .rend-btn
 @media(max-width:640px){body .mar-overlay .mar-header,body .mar-overlay .mar-body,body .mar-overlay .mar-footer{padding:16px!important}#rend-modal .rend-form-card{padding:16px}#rend-modal .rend-opciones{grid-template-columns:1fr}}
 
 /* Rendición: opciones de validación como un único control, sin doble marco. */
-#rend-modal #rend-val-ops{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-#rend-modal #rend-val-ops .rend-op{display:block;min-height:0;padding:0;margin:0;border:0;background:transparent;position:relative}
-#rend-modal #rend-val-ops .rend-op span{display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;width:100%;min-height:44px;padding:10px 8px;border:1px solid var(--ios-hairline);border-radius:8px;background:var(--ios-input-bg,var(--ios-fill));font-size:12px;font-weight:600;box-shadow:none}
+#rend-modal #rend-val-ops{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#rend-modal #rend-val-ops .rend-op{display:block;min-width:0;min-height:0;padding:0;margin:0;border:0;background:transparent;position:relative}
+#rend-modal #rend-val-ops .rend-op span{display:flex;align-items:center;justify-content:center;gap:8px;box-sizing:border-box;width:100%;height:100%;min-height:44px;padding:10px 8px;border:1px solid var(--ios-hairline);border-radius:8px;background:var(--ios-input-bg,var(--ios-fill));font-size:12px;font-weight:600;box-shadow:none}
 #rend-modal #rend-val-ops .rend-op input:checked+span{color:var(--ios-purple,#8064ff);border-color:var(--ios-purple,#8064ff);background:rgba(128,100,255,.12);box-shadow:inset 0 0 0 1px var(--ios-purple,#8064ff)}
 #rend-modal #rend-val-ops .rend-op:hover span{border-color:var(--ios-purple,#8064ff)}
 #rend-modal .mar-footer{display:flex;justify-content:flex-end;align-items:center;gap:10px}
@@ -421,7 +421,7 @@ body.light #data-grid .rend-btn-ok{color:#15803D}body.light #data-grid .rend-btn
 #rend-modal .rend-correo-upload strong{color:var(--ios-label);font-size:12px}
 #rend-modal .rend-correo-upload small,#rend-val-correo-status,#rend-val-correo-link{font-size:11px}
 #rend-modal .rend-correo-upload:focus-within,#rend-modal .rend-correo-upload:hover{border-color:var(--ios-purple,#8064ff)}
-@media(max-width:560px){#rend-modal #rend-val-ops{grid-template-columns:1fr}}
+@media(max-width:420px){#rend-modal #rend-val-ops{grid-template-columns:1fr}}
 
 /* Evidencias: diálogos proporcionados y documentos sin recortes. */
 body.theme-vercel .mar-modal.ev-modal{width:min(1080px,calc(100vw - 48px));max-width:1080px!important;max-height:88dvh;border-radius:14px}

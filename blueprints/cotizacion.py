@@ -1402,10 +1402,10 @@ def _resolver_wo_sustento(wo, cliente=None):
     return coincidencias[0] if len(coincidencias) == 1 else None
 
 
-def _leer_evidencia_wo(fila):
+def _leer_evidencia_wo(fila, datos=None):
     """Devuelve (fotos, bitacoras) con claves inicio/proceso/cierre desde la fila del WO."""
     try:
-        d = json.loads(fila.data_json)
+        d = json.loads(fila.data_json) if datos is None else datos
     except Exception:
         d = {}
     fotos, bit = {}, {}

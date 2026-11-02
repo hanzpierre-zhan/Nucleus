@@ -31,7 +31,6 @@
             const response=await fetch('/api/rendicion/solicitud',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,cambios:editados,revision:base._CORRECCION_REV||0})});
             const data=await response.json();if(!response.ok)throw new Error(data.error||'No se pudieron guardar las correcciones.');
             rendTrasAccion(data,key);rendValidar(key);
-            document.getElementById('rend-val-presupuesto').value=presupuesto.presupuesto;
             document.getElementById('rend-val-cotizacion').value=presupuesto.cotizacion;
             rendConsultarPresupuesto();
             document.getElementById('rend-val-obs').value=obs;

@@ -57,6 +57,9 @@ def choices(columns, project_name):
     if project_name in ('Generadores', 'Combustible'):
         # Esta lista proviene de Personal en pages.py, no de opciones manuales.
         result.pop(normalized('TECNICO ASIGNADO'), None)
+    if project_name == 'Rendicion':
+        from services.rendicion_gastos import OPCIONES
+        result.setdefault(normalized('Tipo de gasto'), {'nombre':'Tipo de gasto','tipo':'lista','opciones':list(OPCIONES),'configurada':False})
     if project_name == 'Cotizaciones':
         result.setdefault(normalized('CLIENTE'), {'nombre':'CLIENTE','tipo':'lista','opciones':['ENTEL','CLARO','INTEGRATEL','PEXT'],'configurada':False})
         result.setdefault(normalized('NOMBRE SITE'), {'nombre':'NOMBRE SITE','tipo':'lista','opciones':[],'configurada':False})

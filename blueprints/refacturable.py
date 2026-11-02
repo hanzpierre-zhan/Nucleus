@@ -42,7 +42,7 @@ def _ingresada(datos):
 
 
 
-def _datos_fuente(cot_datos, fuente):
+def _datos_fuente(cot_datos, fuente, cache=None):
     """Datos de una fuente de WO (una fila real o un sustento adicional).
 
     El sustento adicional ya vive dentro de `cot_datos` (la cotización parseada),
@@ -51,13 +51,17 @@ def _datos_fuente(cot_datos, fuente):
     from services.sustento import SustentoAdicional
     if isinstance(fuente, SustentoAdicional):
         return (cot_datos.get('_SUSTENTOS_ADICIONALES') or {}).get(fuente.wo, {})
+    if cache is not None:
+        if fuente.id not in cache:
+            cache[fuente.id] = json.loads(fuente.data_json or '{}')
+        return cache[fuente.id]
     return json.loads(fuente.data_json or '{}')
 
 
-def _documentos(datos, obras):
+def _documentos(datos, obras, cache=None):
     from blueprints.cotizacion import _split_wos, _leer_evidencia_wo
     wos=_split_wos(datos.get('NUMERO WO'))
-    if wos and any(_datos_fuente(datos, obras[w.lower()][1]).get('_COT_EVIDENCIA_MIGRADA') for w in wos if w.lower() in obras):
+    if wos and any(_datos_fuente(datos, obras[w.lower()][1], cache).get('_COT_EVIDENCIA_MIGRADA') for w in wos if w.lower() in obras):
         datos={c:v for c,v in datos.items() if not c.startswith(('_EVIDENCIA_','_BITACORA_'))}
     fotos = {fase: [] for fase in ('inicio', 'proceso', 'cierre')}
     comentarios = {fase: str(datos.get('_BITACORA_' + fase.upper()) or '') for fase in fotos}
@@ -78,12 +82,12 @@ def _documentos(datos, obras):
             if nombre in proyecto.nombre.upper():
                 proyectos.add(nombre)
         try:
-            origen = _datos_fuente(datos, fila)
+            origen = _datos_fuente(datos, fila, cache)
         except (ValueError, TypeError):
             origen = {}
         estado = str(origen.get('ESTADO DE EJECUCION') or origen.get('ESTADO EJECUCION') or 'Pendiente').strip()
         estados.append(estado if estado in ESTATUS else 'Pendiente')
-        f, b = _leer_evidencia_wo(fila)
+        f, b = _leer_evidencia_wo(fila, datos=origen)
         for fase in fotos:
             fotos[fase] = list(dict.fromkeys(fotos[fase] + f[fase]))
             if b[fase] and b[fase] not in comentarios[fase]:
@@ -113,10 +117,7 @@ def _nombre_documento(valor, guardado=''):
     return url.rsplit('/', 1)[-1] if url else ''
 
 
-def _registros():
-    proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
-    if not proyecto:
-        return []
+def _registros(origen_ids=None, resumen=False):
     from blueprints.cotizacion import _PROYECTOS_WO_SUSTENTO, _split_wos
     from services.recursos_flm import familia as _familia
     from services.sustento import SustentoAdicional
@@ -126,15 +127,31 @@ def _registros():
     from sqlalchemy import func as _func
 
     # 1) Cotizaciones ingresadas y sus WO declarados (una sola lectura).
-    filas = NucleusData.query.filter_by(proyecto_id=proyecto.id).order_by(NucleusData.id).all()
+    consulta = (db.session.query(NucleusData, RefacturableDetalle, LiquidacionNumero, Proyecto)
+                .join(Proyecto, Proyecto.id == NucleusData.proyecto_id)
+                .outerjoin(RefacturableDetalle, RefacturableDetalle.origen_id == NucleusData.id)
+                .outerjoin(LiquidacionNumero, LiquidacionNumero.origen_id == NucleusData.id)
+                .filter(Proyecto.nombre == 'Cotizaciones'))
+    if origen_ids is not None:
+        consulta = consulta.filter(NucleusData.id.in_(origen_ids))
+    filas = consulta.order_by(NucleusData.id).all()
+    if not filas:
+        return []
+    proyecto = filas[0][3]
     casos = []
     wos_buscados = set()
-    for registro in filas:
+    detalles, numeros, cache = {}, {}, {}
+    for registro, detalle, numero, _proyecto in filas:
         try:
             datos = json.loads(registro.data_json)
         except (ValueError, TypeError):
             continue
         if _ingresada(datos):
+            cache[registro.id] = datos
+            if detalle is not None:
+                detalles[registro.id] = json.loads(detalle.data_json or '{}')
+            if numero is not None:
+                numeros[registro.id] = f'C-{numero.id:08d}'
             casos.append((registro, datos))
             for wo in _split_wos(datos.get('NUMERO WO')):
                 if wo.strip():
@@ -143,26 +160,21 @@ def _registros():
     # 2) Filas de WO necesarias en UNA consulta. Antes se consultaba la base por
     #    cada WO de cada registro (N+1), lo que volvía la carga muy lenta.
     obras = {}
-    proyectos_obra = {p.id: p for p in Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()}
-    if proyectos_obra and wos_buscados:
-        consulta = NucleusData.query.filter(
-            NucleusData.proyecto_id.in_(list(proyectos_obra)),
-            _func.lower(NucleusData.key_value).in_(list(wos_buscados)))
-        for fila in consulta.all():
-            obras.setdefault(str(fila.key_value).strip().lower(), []).append((proyectos_obra[fila.proyecto_id], fila))
+    if wos_buscados:
+        consulta = (db.session.query(NucleusData, Proyecto)
+            .join(Proyecto, Proyecto.id == NucleusData.proyecto_id)
+            .filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO),
+            _func.lower(NucleusData.key_value).in_(list(wos_buscados))))
+        for fila, proyecto_obra in consulta.all():
+            obras.setdefault(str(fila.key_value).strip().lower(), []).append((proyecto_obra, fila))
         for lista in obras.values():
             lista.sort(key=lambda par: par[0].id)
 
-    detalles = {d.origen_id: json.loads(d.data_json or '{}') for d in RefacturableDetalle.query.all()}
-    numeros = {n.origen_id: f'C-{n.id:08d}' for n in LiquidacionNumero.query.all()}
     nuevos = False
     for registro, _datos in casos:
         if registro.id not in numeros:
             numeros[registro.id] = numero_liquidacion(registro.id)
             nuevos = True
-    if nuevos:
-        db.session.commit()
-
     registros = []
     for registro, datos in reversed(casos):
         seguimiento = detalles.get(registro.id, {})
@@ -185,13 +197,13 @@ def _registros():
                     elegido = par
                     break
             obras_registro[clave] = elegido or (proyecto, SustentoAdicional(registro, original))
-        trabajos = [_datos_fuente(datos, obras_registro[w.lower()][1]) for w in wos]
+        trabajos = [_datos_fuente(datos, obras_registro[w.lower()][1], cache) for w in wos]
         inicios = [str(w.get('INICIO EJECUCION'))[:10] for w in trabajos if w.get('INICIO EJECUCION')]
         finales = [str(w.get('FIN EJECUCION'))[:10] for w in trabajos if w.get('FIN EJECUCION')]
         monto_hw = _monto(datos.get('SUB TOTAL + FEE'))
         monto_cobra = _monto(seguimiento.get('monto_cobra'))
         margen = monto_cobra - monto_hw if monto_cobra is not None and monto_hw is not None else None
-        fotos, comentarios, nombre_proyecto, ejecucion = _documentos(datos, obras_registro)
+        fotos, comentarios, nombre_proyecto, ejecucion = _documentos(datos, obras_registro, cache)
         respaldo = {
             'sustento': any(fotos.values()) and (bool(datos.get('_SUSTENTO_VALIDADO')) or str(datos.get('ESTADO COTIZACION') or '').lower() == 'atendido'),
             'factura': bool(_url_documento(datos.get('ADJUNTO FACTURA PROVEEDOR'))),
@@ -230,6 +242,14 @@ def _registros():
             'monto_cobra': _importe(monto_cobra),
             'margen': _importe(margen),
         })
+        if resumen:
+            registros[-1]['tiene_sustento'] = any(fotos.values())
+            registros[-1].pop('fotos')
+            registros[-1].pop('comentarios')
+    # Confirmar al final evita expirar los objetos y volver a consultar cada fila
+    # mientras se construye la respuesta cuando faltaban números históricos.
+    if nuevos:
+        db.session.commit()
     return registros
 
 
@@ -245,7 +265,19 @@ def index():
 @login_required
 def registros():
     _autorizar()
-    return jsonify({'registros': _registros()})
+    return jsonify({'registros': _registros(resumen=request.args.get('resumen') == '1')})
+
+
+@bp.route('/api/registros/<int:origen_id>/sustento')
+@login_required
+def sustento(origen_id):
+    _autorizar()
+    filas = _registros(origen_ids=[origen_id])
+    if not filas:
+        abort(404)
+    fila = filas[0]
+    return jsonify({'registro': {campo: fila[campo] for campo in (
+        'id', 'cotizacion', 'fecha_inicio', 'fecha_fin', 'fotos', 'comentarios')}})
 
 
 def _fotos_sustento(datos):
@@ -454,7 +486,8 @@ def guardar(origen_id):
     detalle.actualizado_por = '' if session.get('silent_mode') else str(session.get('username') or session.get('user_id') or '')
     detalle.actualizado_en = datetime.utcnow()
     db.session.commit()
-    return jsonify({'registro': next(r for r in _registros() if r['id'] == origen_id)})
+    return jsonify({'registro': _registros(origen_ids=[origen_id],
+                                           resumen=request.args.get('resumen') == '1')[0]})
 
 @bp.route('/api/registros/<int:origen_id>/pdf')
 @login_required
@@ -605,7 +638,7 @@ def descargar_expediente(origen_id):
     datos = json.loads(origen.data_json or '{}')
     if not _ingresada(datos):
         abort(409)
-    row = next((r for r in _registros() if r['id'] == origen_id), None)
+    row = next(iter(_registros(origen_ids=[origen_id])), None)
     if not row:
         abort(404)
     numero = secure_filename(row['correlativo']) or f'caso_{origen_id}'
@@ -651,7 +684,7 @@ def descargar_expedientes():
     proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
     if not proyecto:
         abort(404)
-    filas = {r['id']: r for r in _registros()}
+    filas = {r['id']: r for r in _registros(origen_ids=seleccionados)}
     archivo = tempfile.TemporaryFile()
     estado = [0]
     escritos = 0

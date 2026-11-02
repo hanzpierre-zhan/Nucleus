@@ -41,6 +41,6 @@ def test_contexto_ambiguos_y_registros_de_cotizacion():
 def test_revisa_contexto_y_no_confunde_reparacion_con_compra():
     assert clasificar({CAMPO:'ALMACENAJE DE GEP -FEN','Motivo de la solicitud':'Alquiler de almacenaje de GEP'})[CAMPO]=='ALQUILER'
     r=clasificar({CAMPO:'CUSTODIO','Motivo de la solicitud':'Alquiler de GEP'})
-    assert r[CAMPO]=='OTROS' and r[META]['requiere_revision']
+    assert r[CAMPO]=='CUSTODIO' and META not in r
     assert clasificar({CAMPO:'OTROS - SUMINSTRO DE TARJETA','Motivo de la solicitud':'Pago por reparación de GEP'})[CAMPO]=='OTROS'
     assert clasificar({CAMPO:'Consumibles para mantenimiento','Motivo de la solicitud':'Se requiere comprar en zona'})[CAMPO]=='COMPRAS'

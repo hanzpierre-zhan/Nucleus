@@ -113,11 +113,13 @@ def resumen(row,key,cotizacion,solicitado=None):
 
 def preparar(row,key,datos):
     if 'presupuesto' not in datos and 'cotizacion' not in datos:return {}
-    presupuesto=str(datos.get('presupuesto') or '').strip()
     code=str(datos.get('cotizacion') or '').strip()
     if len(code)>100:raise ValueError('El número de cotización es demasiado largo.')
-    cambios={'PRESUPUESTO':str(importe(presupuesto)) if presupuesto else '', 'N° COTIZACION':code,
+    cambios={'N° COTIZACION':code,
              '_COTIZACION_VINCULO':{},'_CONTROL_COTIZACION':{}}
+    if 'presupuesto' in datos:
+        presupuesto=str(datos.get('presupuesto') or '').strip()
+        cambios['PRESUPUESTO']=str(importe(presupuesto)) if presupuesto else ''
     if code:
         cot=encontrar(row,code)
         control=resumen(row,key,cot)

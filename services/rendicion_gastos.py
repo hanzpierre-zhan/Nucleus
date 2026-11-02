@@ -2,10 +2,52 @@
 import re
 import unicodedata
 
-OPCIONES = ('PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS', 'HOSPEDAJE', 'COCHERA', 'MATERIAL', 'ACARREO', 'OTROS')
+OPCIONES = ('PEAJE', 'COMPRAS', 'ALQUILER', 'PASAJE', 'VIATICOS', 'HOSPEDAJE', 'COCHERA', 'MATERIAL', 'ACARREO', 'CUSTODIO', 'COMBUSTIBLE', 'OTROS')
 CAMPO = 'Tipo de gasto'
 META = '_TIPO_GASTO_HOMOLOGACION'
 META_AMPLIACION = '_TIPO_GASTO_AMPLIACION'
+META_CUSTODIO_COMBUSTIBLE = '_TIPO_GASTO_CUSTODIO_COMBUSTIBLE'
+
+
+def ampliar_custodio_combustible(datos):
+    """Revisa conceptos explícitos sin confundir el trabajo con el gasto del viaje."""
+    salida = dict(datos)
+    original = str(datos.get(CAMPO) or '')
+    anterior = (datos.get(META) or {}).get('original', original)
+    motivo = texto(datos.get('Motivo de la solicitud'))
+    observacion = texto(datos.get('Observaciones (Form)'))
+    tipo = texto(original)
+    fuente = texto(anterior)
+    custodio = bool(re.search(r'\b(CUSTODIOS?|CUSTODIAR|CUSTIDO)\b', fuente))
+    custodio |= bool(re.search(r'^(?:PERSONAL .*?PARA |SERVICIO DE |PAGO (?:DE |A |POR )?|SE PAGO )?CUSTODIOS?\b|\b\d+\s*CUSTODIOS?\b|\bPARA (?:EL )?CUSTODIO\b|\bOPERADOR CUSTODIO\b', motivo))
+    combustible = bool(re.search(r'\bCOMBUSTIBLE\b', fuente) and not re.search(r'ACARRE|ENVIO|TRASLAD|TRANSPORT|FILTRO|GALONERA|BIDON|FAENA', fuente))
+    # La adquisición debe estar explícita; filtros, recipientes, acarreo y peajes no son combustible.
+    patron = r'\b(?:COMPRA(?:R)? (?:DE )?|PAGO (?:DE |POR )?|DEPOSITO PARA |SE SOLICITA )(?:COMBUSTIBLE|GASOLINA|DIESEL|PETROLEO)\b'
+    combustible |= bool(re.search(patron, motivo))
+    combustible |= bool(re.search(r'\b(?:PAGO|PAGAR|PAGOS)\b[^.\n]{0,90}\bCOMBUSTIBLE\b', motivo) and not re.search(r'FILTRO|ACARRE|TRASLAD|TRANSPORT|CUSTODI|GALONERA|BIDON', motivo))
+    combustible |= bool(re.search(patron, observacion) and not re.search(r'\b(?:PEAJE|VIATICO|ACARREO|FILTRO|GALONERA|BIDON)S?\b', motivo))
+    if custodio:combustible = combustible and bool(re.search(patron,motivo))
+    nuevas = ({'CUSTODIO'} if custodio else set()) | ({'COMBUSTIBLE'} if combustible else set())
+    if not nuevas:return salida
+    # No se reemplazan selecciones por una mera mención contextual.
+    partes = {p.strip() for p in original.split(',') if p.strip() in OPCIONES}
+    if not valido(original):partes |= _inferir(anterior) - {'OTROS'}
+    if partes == {'OTROS'} or not partes:
+        partes = _inferir(motivo) - {'OTROS','COMPRAS'}
+    if combustible and not re.search(r'\b(?:FILTRO|ACEITE|BUJIA|CABLE|REPUESTO|GALONERA|BIDON)S?\b', motivo):
+        partes.discard('COMPRAS')
+        if not re.search(r'\b(?:VIATICOS?|DESAYUNOS?|ALMUERZOS?|CENAS?|ALIMENTACION|REFRIGERIOS?)\b', motivo+' '+observacion):
+            partes.discard('VIATICOS')
+    if not re.search(r'\b(?:REPARACION|BONO|FERIADO|INSCRIPCION|CURSO|MANIOBRAS?|FLETE|ENVIO|TRANSPORTE)\b', motivo):
+        partes.discard('OTROS')
+    if re.search(r'\bACARREO\b|\bCARGA Y DESCARGA\b', motivo):partes.add('ACARREO')
+    resultado = ', '.join(c for c in OPCIONES if c in partes | nuevas)
+    if resultado == original:return salida
+    salida[CAMPO] = resultado
+    salida[META_CUSTODIO_COMBUSTIBLE] = {'anterior':original,'homologado':resultado,
+        'criterio':'Concepto explícito en tipo original, motivo y observaciones del formulario; no por identidad ni por mención contextual del combustible',
+        'lote':'gastos-custodio-combustible-20261102'}
+    return salida
 
 
 def ampliar_otros(datos):

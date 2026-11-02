@@ -5,6 +5,9 @@
     const message = document.getElementById('ref-message');
     const settings = document.getElementById('ref-settings');
     const settingsButton = document.getElementById('ref-settings-toggle');
+    // La consulta avanza mientras se construye la tabla y se restaura su diseño.
+    const initialRequest = fetch('/liquidaciones/api/registros?resumen=1', {cache: 'no-store'});
+    initialRequest.catch(() => {}); // load() muestra el error cuando la tabla está lista.
     const money = new Intl.NumberFormat('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     let editing = null;
     let total = 0;
@@ -38,9 +41,36 @@
         pill.classList.add('ref-status-' + (colors[text] || 'neutral')); return pill;
     }
     function column(title, field, extra = {}) {
-        return {title, field, width: 170, minWidth: 48, headerFilter: 'input', titleFormatter: headerFormatter, formatter: 'plaintext', ...extra};
+        const definition = {title, field, width: 170, minWidth: 48, headerFilter: 'input', titleFormatter: headerFormatter, formatter: 'plaintext', ...extra};
+        if (field === 'gestor') window.NucleusIdentity.columns([definition]);
+        return definition;
     }
-    function showSustento(row) {
+    const sustentoDialog = document.getElementById('liq-sustento');
+    let sustentoRequest = null;
+    async function showSustento(row) {
+        sustentoRequest?.abort();
+        const controller = new AbortController();
+        sustentoRequest = controller;
+        const body = document.getElementById('liq-sustento-body');
+        document.getElementById('liq-sustento-title').textContent = 'Sustento de obra · ' + row.cotizacion;
+        body.textContent = 'Cargando sustento…';
+        if (!sustentoDialog.open) sustentoDialog.showModal();
+        try {
+            const response = await fetch(`/liquidaciones/api/registros/${row.id}/sustento`, {
+                signal: controller.signal, cache: 'no-store'
+            });
+            const data = await nucleusLeerRespuestaJSON(response);
+            if (!response.ok) throw new Error(data.error || 'No se pudo cargar el sustento.');
+            if (sustentoRequest === controller && sustentoDialog.open) renderSustento(data.registro);
+        } catch (error) {
+            if (sustentoRequest === controller && !controller.signal.aborted) body.textContent = error.message;
+        }
+    }
+    sustentoDialog.addEventListener('close', () => {
+        sustentoRequest?.abort();
+        sustentoRequest = null;
+    });
+    function renderSustento(row) {
         const body = document.getElementById('liq-sustento-body'); body.replaceChildren();
         document.getElementById('liq-sustento-title').textContent = 'Sustento de obra · ' + row.cotizacion;
         const dates = document.createElement('p'); dates.textContent = `Inicio: ${row.fecha_inicio || 'Pendiente'} · Fin: ${row.fecha_fin || 'Pendiente'}`; body.appendChild(dates);
@@ -56,7 +86,6 @@
             }
             section.appendChild(gallery); body.appendChild(section);
         }
-        document.getElementById('liq-sustento').showModal();
     }
     function safeUrl(url) { return typeof url === 'string' && (/^\/(?!\/)/.test(url) || /^https?:\/\//i.test(url)); }
     function fileNameFormatter(cell) {
@@ -69,7 +98,7 @@
     }
     function documentButton(cell, kind) {
         const row = cell.getRow().getData(); const state = row.documentos?.[kind] || 'Pendiente';
-        if (state !== 'Completo' && !(kind === 'sustento' && state !== 'No aplica' && Object.values(row.fotos || {}).some(fotos => fotos.length))) { const label = document.createElement('span'); label.textContent = state; label.className = 'ref-status ref-status-neutral'; return label; }
+        if (state !== 'Completo' && !(kind === 'sustento' && state !== 'No aplica' && (row.tiene_sustento || Object.values(row.fotos || {}).some(fotos => fotos.length)))) { const label = document.createElement('span'); label.textContent = state; label.className = 'ref-status ref-status-neutral'; return label; }
         const button = document.createElement(kind === 'sustento' ? 'button' : 'a'); button.className = 'action-pill pill-blue'; button.textContent = kind === 'sustento' ? 'Ver sustento' : 'Descargar';
         if (kind === 'sustento') {button.type = 'button'; button.addEventListener('click', () => showSustento(row));}
         else { const url = kind === 'cotizacion' ? `/liquidaciones/api/registros/${row.id}/pdf` : (kind === 'factura' ? row.factura_proveedor : row.correo_cliente); if (safeUrl(url)) {button.href = url; button.target = '_blank'; button.rel = 'noopener';} }
@@ -267,14 +296,13 @@
         }
         cont.appendChild(tarjeta('Total', totalCasos, totalMonto, 'is-total'));
     }
-    async function load() {
-        message.textContent = 'Cargando cotizaciones aprobadas…';
+    async function load(pending) {
+        message.textContent = 'Cargando liquidaciones…';
         try {
-            const response = await fetch('/liquidaciones/api/registros');
+            const response = await (pending || fetch('/liquidaciones/api/registros?resumen=1', {cache: 'no-store'}));
             const data = await nucleusLeerRespuestaJSON(response);
             if (!response.ok) throw new Error(data.error || 'No se pudieron cargar las cotizaciones.');
             total = data.registros.length;
-            renderCards(data.registros);
             await table.replaceData(data.registros);
             actualizarSeleccion([]);
             updateCount(); message.textContent = '';
@@ -295,7 +323,7 @@
         button.disabled = true; errorLabel.textContent = '';
         try {
             const changes = Object.fromEntries(new FormData(form));
-            const response = await fetch(`/liquidaciones/api/registros/${editing.id}`, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(changes)});
+            const response = await fetch(`/liquidaciones/api/registros/${editing.id}?resumen=1`, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(changes)});
             const data = await nucleusLeerRespuestaJSON(response);
             if (!response.ok) throw new Error(data.error || 'No se pudieron guardar los cambios.');
             await table.updateData([data.registro]);
@@ -326,11 +354,7 @@
         const seleccion = table.getColumn('_seleccion');
         if (seleccion) { await seleccion.show(); table.moveColumn('_seleccion', 0); }
         actualizarSeleccion([]);
-        await table.getColumn('cotizacion').updateDefinition({formatter: quoteFormatter});
-        await table.getColumn('correlativo').updateDefinition({formatter: expedienteFormatter});
-        const gestor = table.getColumn('gestor');
-        if (gestor) { const def = {field:'GESTOR'}; window.NucleusIdentity.columns([def]); await gestor.updateDefinition({formatter:def.formatter}); }
-        await load();
+        await load(initialRequest);
     });
 
     // ── Pestaña Rendición: casos GASTO COBRA con depósito registrado ─────────

@@ -589,7 +589,7 @@
     {% endif %}
 </div>
 
-{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=3"></script><script src="/static/js/rendicion-presupuesto.js?v=3"></script>{% include '_rendicion_formularios.html' %}{% endif %}
+{% if proy_nombre_flow == 'rendicion' %}<script src="/static/js/rendicion-correcciones.js?v=4"></script><script src="/static/js/rendicion-presupuesto.js?v=4"></script>{% include '_rendicion_formularios.html' %}{% endif %}
 
 <div id="data-stats" class="data-stats"></div>
 
@@ -598,7 +598,7 @@
 
 
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css', v=4) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css', v=5) }}">
 
 
 
@@ -2264,8 +2264,7 @@
         <div id="rend-val-form" class="rend-form-card" style="display:none;">
           <h4><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Validación de la solicitud</h4>
 
-          <div class="rend-presupuesto-inputs">
-            <div><label for="rend-val-presupuesto">Presupuesto (S/)</label><input id="rend-val-presupuesto" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+          <div class="rend-cotizacion-input">
             <div><label for="rend-val-cotizacion">N° COTIZACION</label><input id="rend-val-cotizacion" type="text" list="rend-val-cotizaciones" maxlength="100" autocomplete="off" placeholder="Buscar cotización del proyecto"><datalist id="rend-val-cotizaciones"></datalist></div>
           </div>
           <p id="rend-cotizacion-status" role="status" aria-live="polite">Ingresa una cotización para consultar el monto acumulado.</p>
@@ -2277,17 +2276,17 @@
             <div><span>Saldo / exceso</span><strong data-rend-control="saldo"></strong></div>
           </div>
           <small class="rend-presupuesto-note">El cotizado suma el valor unitario de cada ítem, sin cantidad ni FEE. Abajo se suman los importes solicitados de las rendiciones activas de esta cotización; excluye anulados y rechazos definitivos. El resultado es informativo.</small>
-          <label>Tiempo de respuesta *</label>
+          <label id="rend-tiempo-label">Tiempo de respuesta *</label>
 
-          <div class="rend-opciones" id="rend-val-ops">
+          <div class="rend-opciones" id="rend-val-ops" role="radiogroup" aria-labelledby="rend-tiempo-label" aria-required="true">
 
             <label class="rend-op"><input type="radio" name="rend-val-op" value="Menor a 4 horas"><span><i class="fa-regular fa-clock"></i> Menor a 4 horas</span></label>
 
             <label class="rend-op"><input type="radio" name="rend-val-op" value="Mayor a 4 horas"><span><i class="fa-solid fa-clock"></i> Mayor a 4 horas</span></label>
 
-            <label class="rend-op"><input type="radio" name="rend-val-op" value="No aplica"><span><i class="fa-solid fa-ban"></i> No aplica</span></label>
-
             <label class="rend-op"><input type="radio" name="rend-val-op" value="Atención Continua"><span><i class="fa-solid fa-headset"></i> Atención Continua</span></label>
+
+            <label class="rend-op"><input type="radio" name="rend-val-op" value="No aplica"><span><i class="fa-solid fa-ban"></i> No aplica</span></label>
 
           </div>
 
