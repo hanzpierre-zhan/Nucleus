@@ -1641,6 +1641,10 @@ def sustento_ubicacion_subir(item=False):
             if photo_index<0 or photo_index>=len(anteriores):return jsonify(error='Foto no encontrada.'),400
     archivo=request.files.get('foto')
     if not archivo:return jsonify(error='Selecciona una imagen.'),400
+    from services.apoyo import disco_efimero_sin_b2
+    if disco_efimero_sin_b2():
+        current_app.logger.error('Fotos de sustento rechazadas: falta configurar B2_BUCKET/B2_KEY_ID/B2_APP_KEY.')
+        return jsonify(error='El almacenamiento de fotos no está configurado; la foto se perdería. Avisa al administrador.'),503
     contenido=archivo.read(20*1024*1024+1)
     if len(contenido)>20*1024*1024:return jsonify(error='La imagen supera los 20 MB.'),400
     from uuid import uuid4

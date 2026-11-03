@@ -113,7 +113,7 @@ def test_analytics_usa_flm_seleccionado_sin_mezclar_operadores(app, auth_client)
     assert '<nav class="flm-resource-bar"' not in response.text
     data = json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>', response.text, re.S).group(1))
     assert 'ENTEL-DASH-QA' in {row['wo'] for row in data['detalle']}
-    assert 'OPERACIÓN · FLM - ENTEL' in response.text
+    assert 'Operación · FLM - ENTEL' in response.text
     with auth_client.session_transaction() as session:
         assert session['current_proyecto_id'] == entel
 
@@ -129,7 +129,7 @@ def test_dashboard_desde_catalogo_usa_su_flm_de_origen(app, auth_client):
         session['flm_resource_context'] = {'catalogo_id':material, 'flm_id':entel, 'recurso':'material'}
     response = auth_client.get('/analytics')
     assert response.status_code == 200
-    assert 'OPERACIÓN · FLM - ENTEL' in response.text
+    assert 'Operación · FLM - ENTEL' in response.text
 
 
 def test_dashboard_entel_no_consulta_el_flm_anterior(app, auth_client):

@@ -218,7 +218,7 @@ def test_sites_importa_proyectos_sin_sobrescribir_otros(app, auth_client):
             assert json.loads(original.data_json)['Nombre'] == 'Original'
             for proyecto in ('CLARO', 'INTEGRATEL', 'PEXT'):
                 fila = NucleusData.query.filter_by(proyecto_id=pid, key_value='QA-SITE-' + proyecto).one()
-                assert json.loads(fila.data_json)['PROYECTO'] == proyecto
+                assert json.loads(fila.data_json)['Proyecto'] == 'FLM - ' + proyecto
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.like('QA-SITE-%')).delete(synchronize_session=False)

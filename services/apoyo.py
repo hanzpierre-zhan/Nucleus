@@ -94,6 +94,11 @@ def evidencia_usa_b2():
     return bool(current_app.config.get('B2_BUCKET') and current_app.config.get('B2_KEY_ID') and current_app.config.get('B2_APP_KEY'))
 
 
+def disco_efimero_sin_b2():
+    """En Render el disco se borra en cada despliegue: sin B2 las fotos se perderían."""
+    return bool(os.environ.get('RENDER')) and not evidencia_usa_b2()
+
+
 def b2_cliente():
     import boto3
     endpoint = current_app.config['B2_ENDPOINT_URL'] or f"https://s3.{current_app.config['B2_REGION']}.backblazeb2.com"
