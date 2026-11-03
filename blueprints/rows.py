@@ -45,6 +45,21 @@ from services.recursos_flm import contexto_recursos, validar_fila_catalogo, fami
 bp = Blueprint('rows', __name__)
 
 
+def _error_estado_cotizacion(row_dict, updates):
+    """El estado avanza con /api/cotizacion/accion, que exige correo, sustento, etc.
+
+    Por la edición de filas solo un administrador puede corregirlo; si no,
+    cualquiera saltaría el flujo poniendo "Atendido" o "Aprobado" a mano.
+    """
+    if session.get('current_proyecto_nombre') != 'Cotizaciones' or 'ESTADO COTIZACION' not in updates:
+        return None
+    actual = str(row_dict.get('ESTADO COTIZACION') or '').strip()
+    nuevo = str(updates.get('ESTADO COTIZACION') or '').strip()
+    if nuevo == actual or session.get('rol') in ('zeno', 'suport'):
+        return None
+    return 'El estado de la cotización se cambia con los botones del flujo.'
+
+
 def _error_fechas_ejecucion(datos):
     fechas = []
     for campo in ('INICIO EJECUCION', 'FIN EJECUCION'):
@@ -102,6 +117,8 @@ def api_rows_update():
             return jsonify({'error': error}), 403
         if cambio_bloqueado(row_dict,{field:value}):
             return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
+        error_estado = _error_estado_cotizacion(row_dict, {field: value})
+        if error_estado: return jsonify({'error': error_estado}), 403
         if field in ('INICIO EJECUCION', 'FIN EJECUCION'):
             error_fechas = _error_fechas_ejecucion({**row_dict, field: value})
             if error_fechas: return jsonify({'error': error_fechas}), 400
@@ -753,6 +770,8 @@ def api_rows_bulk_update():
             return jsonify({'error': error}), 403
         if cambio_bloqueado(row_dict,updates):
             return jsonify({'error':'El sustento aprobado no puede modificarse.'}),403
+        error_estado = _error_estado_cotizacion(row_dict, updates)
+        if error_estado: return jsonify({'error': error_estado}), 403
         if any(campo in updates for campo in ('INICIO EJECUCION', 'FIN EJECUCION')):
             error_fechas = _error_fechas_ejecucion({**row_dict, **updates})
             if error_fechas: return jsonify({'error': error_fechas}), 400

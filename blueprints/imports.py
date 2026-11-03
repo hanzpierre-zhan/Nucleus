@@ -157,6 +157,12 @@ def api_import_manual_template():
     for col in manual_cols:
         if col != pk_name:
             por_columna[col] = [''] * len(rows)
+    # SITE no se puede importar sin PROYECTO: se incluye con el valor de cada site.
+    if proy_nombre.strip() == 'SITE' and 'PROYECTO' not in por_columna:
+        def _proyecto_site(fila):
+            d = json.loads(fila.data_json or '{}')
+            return familia(d.get('Proyecto') or d.get('PROYECTO')) or ''
+        por_columna['PROYECTO'] = [_proyecto_site(r) for r in rows]
     columnas = list(por_columna.keys())
     total_filas = len(rows)
     del rows
@@ -298,6 +304,10 @@ def api_import_process():
         # Modo columnas manuales: por defecto solo llave + columnas manuales del archivo
         if import_type == 'manual_cols' and not columns_to_keep:
             columns_to_keep = [file_key] + [c for c in manual_columns_list if c in df.columns and c != file_key]
+            # SITE exige PROYECTO (ya validado arriba) aunque no sea columna manual:
+            # sin él, el alcance por proyecto rechaza la fila al guardarla.
+            if proy_act_nombre == 'SITE' and 'PROYECTO' in df.columns and 'PROYECTO' not in columns_to_keep:
+                columns_to_keep.append('PROYECTO')
 
         if columns_to_keep:
             valid_cols = [c for c in columns_to_keep if c in df.columns]
@@ -753,4 +763,8 @@ def api_import_process():
         })
     except Exception as e:
         db.session.rollback()
+        # Un permiso denegado (abort 403) no es un fallo del servidor.
+        from werkzeug.exceptions import HTTPException
+        if isinstance(e, HTTPException):
+            return jsonify({'error': e.description}), e.code
         return jsonify({'error': str(e)}), 500

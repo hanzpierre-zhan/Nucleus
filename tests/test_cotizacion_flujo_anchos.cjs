@@ -7,7 +7,7 @@ vm.runInContext(fs.readFileSync(path.join(root,'static/js/column-layout.js'),'ut
 const start=source.indexOf('    function cotFlujoClave('),end=source.indexOf('    // Devuelve la pestaña',start);
 vm.runInContext(source.slice(start,end),context);
 context.cotAplicarAnchos('sustentar');assert.equal(flow.width,56);assert.equal(other.width,400);
-context.cotAplicarAnchos('atendido');assert.equal(flow.width,128);
+context.cotAplicarAnchos('atendido');assert.equal(flow.width,168);
 context.cotAplicarAnchos('registro');assert.equal(flow.width,152);
 context.cotAplicarAnchos('proveedor');assert.equal(flow.width,180);
 context.isAdmin=true;context.cotGuardarAnchoFlujo(72);

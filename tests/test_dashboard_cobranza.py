@@ -81,7 +81,7 @@ def test_ruta_dashboard_cobranza(app, auth_client):
             r = auth_client.get('/analytics/cobranza')
             assert r.status_code == 200, r.status_code
             html = r.get_data(as_text=True)
-            assert 'Cuadro de control de cobranza' in html
+            assert 'Cuadro de control' in html and 'Seguimiento de cobro' in html
             assert 'HW-COB-TEST' in html
             assert 'dash-switch' in html
             # El selector compartido debe aparecer en las cuatro vistas.

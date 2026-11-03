@@ -152,9 +152,9 @@ def test_gestor_accion_solo_en_su_proyecto(app,piloto,monkeypatch):
     c = piloto['cliente']; clave = 'PILOTO-17/10/2026 08:00:00'; rid = piloto['registros'][clave]
     url = '/api/espacios/rendicion/registros/%s/accion' % rid
     headers = {'X-Espacios-CSRF':'prueba-csrf'}
-    monkeypatch.setattr('services.rendicion_validadores.puede_validar',lambda *a:False)
     r = c.post(url,headers=headers,json={'key':clave,'accion':'validar','tiempo':'No aplica'})
-    assert r.status_code == 403  # El perfil no salta los validadores del flujo.
+    # Su perfil incluye «validar» y el registro es de su proyecto: el ámbito lo permite.
+    assert r.status_code == 200, r.json
     assert c.post(url,headers=headers,json={'key':clave,'accion':'depositar'}).status_code == 404
 
 
@@ -164,7 +164,6 @@ def test_flujo_desde_espacio_hasta_cierre_con_importacion(app,auth_client,piloto
     import blueprints.admin as admin
     monkeypatch.setattr(rend,'_avisar_flujo',lambda *a:None)
     monkeypatch.setattr(rend,'_persistir_fotos_form',lambda *a:None)
-    monkeypatch.setattr('services.rendicion_validadores.puede_validar',lambda *a:True)
     with app.app_context():
         perfil = db.session.get(PerfilEspacio,piloto['perfil_id'])
         perfil.permisos_json=json.dumps({'rendicion':['consultar','validar','depositar','sustentar','archivar']})
@@ -184,10 +183,12 @@ def test_flujo_desde_espacio_hasta_cierre_con_importacion(app,auth_client,piloto
     monkeypatch.setattr(admin.urllib.request,'urlopen',lambda *a,**kw:io.BytesIO(csv))
     r=auth_client.post('/api/rendicion/sync_sustentos')
     assert r.status_code==200 and r.json['actualizados']==1,r.json
-    for accion,estado in [('sustentar','SUSTENTADO'),('archivar','ARCHIVADO')]:
+    # Archivar es un subestado de SUSTENTADO.
+    for accion,estado,subestado in [('sustentar','SUSTENTADO',None),('archivar','SUSTENTADO','ARCHIVADO')]:
         r=c.post(url,headers=headers,json={'key':clave,'accion':accion,'comentario':'Verificado'})
         assert r.status_code==200,r.json
         assert r.json['newData']['ESTADO']==estado
+        if subestado:assert r.json['newData']['SUBESTADO']==subestado
     with app.app_context():
         final=json.loads(db.session.get(NucleusData,rid).data_json)
         assert final['SUSTENTO_COMENTARIO']=='Comprobante'
@@ -277,8 +278,11 @@ def test_mapa_filtra_puntos_por_proyecto_y_valida_coordenadas(app,piloto):
         db.session.commit();ids=[f.id for f in filas]
     try:
         j=piloto['cliente'].get('/api/espacios/mapa_sites/mapa').json
-        assert len(j['puntos'])==1 and j['puntos'][0]['proyecto']=='Claro'
-        assert j['sin_coordenadas']==1
+        # La base de prueba ya trae el maestro real de sites: se revisan solo los puntos de esta prueba.
+        propios=[punto for punto in j['puntos'] if str(punto.get('nombre','')).startswith('MAPA-PRUEBA-')]
+        assert len(propios)==1 and propios[0]['proyecto']=='Claro'
+        assert all(punto['proyecto']=='Claro' for punto in j['puntos'])
+        assert j['sin_coordenadas']>=1
         assert piloto['cliente'].get('/api/espacios/mapa_sites/mapa?proyecto='+str(piloto['ids']['FLM - ENTEL'])).status_code==403
     finally:
         with app.app_context():

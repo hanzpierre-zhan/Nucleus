@@ -5,13 +5,17 @@ from pathlib import Path
 from db import db
 from models import Proyecto, NucleusData, RendicionCorreo
 
+# Las solicitudes REFACTURABLES exigen una cotización existente del mismo proyecto.
+COT = {'CLIENTE': 'CLARO', 'N° COTIZACION': 'HW-REND-CORREO-TEST', 'PRESUPUESTO': '100', 'Monto total del depósito': '50'}
+
 @pytest.mark.parametrize('presupuesto,gasto,requiere', [
     ('Refacturable', 'Viáticos', False),
     ('Gasto Cobra', 'VIÁTICOS', False),
     ('Refacturable', 'Viático', False),
     ('Refacturable', 'Hospedaje', False),
     ('Refacturable', 'Peaje, VIÁTICOS, hospedaje', False),
-    ('Refacturable', 'Peaje, Material', True),
+    # REFACTURABLE solo pide el .msg con «Menor a 4 horas» (aquí: «No aplica»).
+    ('Refacturable', 'Peaje, Material', False),
     ('Refacturable', 'Peaje', False),
     ('Gasto Cobra', 'Acarreo de ge ducati', True),
     ('Gasto Cobra', 'Peaje', False),
@@ -24,10 +28,10 @@ from models import Proyecto, NucleusData, RendicionCorreo
 def test_correo_segun_presupuesto_y_gasto(app, auth_client, solicitud, presupuesto, gasto, requiere):
     with app.app_context():
         fila = db.session.get(NucleusData, solicitud)
-        fila.data_json = json.dumps({'ESTADO': 'PENDIENTE', 'Tipo de presupuesto': presupuesto, 'Tipo de gasto': gasto})
+        fila.data_json = json.dumps({**COT, 'ESTADO': 'PENDIENTE', 'Tipo de presupuesto': presupuesto, 'Tipo de gasto': gasto})
         db.session.commit()
     resultado = auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
-    assert resultado.status_code == (400 if requiere else 200)
+    assert resultado.status_code == (400 if requiere else 200), resultado.json
     if requiere:
         carga = auth_client.post('/api/rendicion/subir_correo', data={'key': 'REND-CORREO-TEST', 'correo': (io.BytesIO(b'correo prueba'), 'aprobacion.msg')})
         assert carga.status_code == 200
@@ -39,14 +43,17 @@ def solicitud(app, auth_client, monkeypatch):
     monkeypatch.setattr(modulo, '_avisar_flujo', lambda *args: None)
     with app.app_context():
         p = Proyecto.query.filter_by(nombre='Rendicion').one()
-        fila = NucleusData(proyecto_id=p.id, key_value='REND-CORREO-TEST', data_json=json.dumps({'ESTADO': 'PENDIENTE', 'TIPO DE PRESUPUESTO': 'REFACTURABLE'}))
-        db.session.add(fila); db.session.commit()
-        pid, origen_id = p.id, fila.id
+        fila = NucleusData(proyecto_id=p.id, key_value='REND-CORREO-TEST', data_json=json.dumps({**COT, 'ESTADO': 'PENDIENTE', 'TIPO DE PRESUPUESTO': 'REFACTURABLE'}))
+        cp = Proyecto.query.filter_by(nombre='Cotizaciones').one()
+        cot = NucleusData(proyecto_id=cp.id, key_value='COT-REND-CORREO-TEST', data_json=json.dumps(
+            {**COT, 'ITEMS_JSON': json.dumps([{'texto': 'Trabajo', 'valor_unitario': '100'}])}))
+        db.session.add_all([fila, cot]); db.session.commit()
+        pid, origen_id, cot_id = p.id, fila.id, cot.id
     auth_client.get('/switch_project/%s' % pid)
     yield origen_id
     with app.app_context():
         RendicionCorreo.query.filter_by(origen_id=origen_id).delete()
-        NucleusData.query.filter_by(id=origen_id).delete(); db.session.commit()
+        NucleusData.query.filter(NucleusData.id.in_([origen_id, cot_id])).delete(synchronize_session=False); db.session.commit()
 
 
 def test_refacturable_requiere_correo_real_y_vinculado(app, auth_client, solicitud):
@@ -58,7 +65,7 @@ def test_refacturable_requiere_correo_real_y_vinculado(app, auth_client, solicit
     assert carga.status_code == 200
     assert auth_client.get(carga.json['url']).data == b'correo outlook prueba'
     respuesta = auth_client.post('/api/rendicion/accion', json=payload)
-    assert respuesta.status_code == 200
+    assert respuesta.status_code == 200, respuesta.json
     assert respuesta.json['newData']['ESTADO'] == 'VALIDADO'
     assert respuesta.json['newData']['ADJUNTO CORREO VALIDACION'] == carga.json['url']
 
@@ -80,11 +87,11 @@ def test_no_refacturable_no_exige_correo(app, auth_client, solicitud):
 def test_refacturable_detecta_encabezados_importados(app, auth_client, solicitud, campo):
     with app.app_context():
         fila = db.session.get(NucleusData, solicitud)
-        fila.data_json = json.dumps({'ESTADO': '', campo: ' Refacturable '})
+        fila.data_json = json.dumps({**COT, 'ESTADO': '', campo: ' Refacturable '})
         db.session.commit()
-    resultado = auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
+    resultado = auth_client.post('/api/rendicion/accion', json={'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'Menor a 4 horas'})
     assert resultado.status_code == 400
-    assert '.msg' in resultado.json['error']
+    assert '.msg' in resultado.json['error'], resultado.json
 
 
 def test_validacion_sin_simular_notificaciones(app, auth_client, solicitud, monkeypatch):
@@ -168,7 +175,7 @@ def test_correo_persistente_tras_perder_disco_y_almacen_externo(app, auth_client
 def test_correo_en_rechazada_devuelta_a_validacion(auth_client, app, solicitud):
     with app.app_context():
         fila = db.session.get(NucleusData, solicitud)
-        fila.data_json = json.dumps({'ESTADO': 'RECHAZADO', '_RECHAZO_ETAPA': 'VALIDACION',
+        fila.data_json = json.dumps({**COT, 'ESTADO': 'RECHAZADO', '_RECHAZO_ETAPA': 'VALIDACION',
                                     'TIPO DE PRESUPUESTO': 'REFACTURABLE'})
         db.session.commit()
     carga = auth_client.post('/api/rendicion/subir_correo', data={
@@ -189,6 +196,6 @@ def test_validar_recupera_enlace_perdido_sin_pedir_otro_correo(auth_client, app,
         fila.data_json = json.dumps(row)
         db.session.commit()
     respuesta = auth_client.post('/api/rendicion/accion', json={
-        'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'No aplica'})
+        'key': 'REND-CORREO-TEST', 'accion': 'validar', 'tiempo': 'Menor a 4 horas'})
     assert respuesta.status_code == 200, respuesta.json
     assert respuesta.json['newData']['ADJUNTO CORREO VALIDACION'] == carga.json['url']
