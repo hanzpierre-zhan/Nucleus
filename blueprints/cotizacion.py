@@ -937,7 +937,8 @@ def api_cotizacion_accion():
     if accion == 'aprobar':
         accion = 'conformar_aprobacion'
     if not key or accion not in ('generar', 'enviar', 'conformar_aprobacion', 'cambiar_tipo_gasto',
-                                 'pasar_atendido', 'revertir', 'rechazar', 'cancelar', 'aprobar_sustento', 'rechazar_sustento'):
+                                 'pasar_atendido', 'revertir', 'rechazar', 'cancelar', 'aprobar_sustento', 'rechazar_sustento',
+                                 'reabrir_sustento'):
         return jsonify({'error': 'Datos incompletos o acción no válida.'}), 400
 
     fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
@@ -948,6 +949,8 @@ def api_cotizacion_accion():
     except Exception:
         row = {}
 
+    if accion == 'reabrir_sustento':
+        return _reabrir_sustento(proy, fila, row)
     if bloqueado(row):
         return jsonify({'error':'El sustento ya fue aprobado y no puede devolverse ni modificarse.'}),403
     pestania = _cot_pestania(row)
@@ -1417,6 +1420,46 @@ def _leer_evidencia_wo(fila, datos=None):
         fotos[t.lower()] = [u for u in arr if u] if isinstance(arr, list) else []
         bit[t.lower()] = str(d.get('_BITACORA_' + t) or '')
     return fotos, bit
+
+
+def _reabrir_sustento(proy, fila, row):
+    """Admin: devuelve una cotización de Atendido a Sustentar y desbloquea su sustento.
+
+    Es la única salida de un sustento ya aprobado; queda respaldo e historial.
+    """
+    if str(session.get('rol') or '').strip().lower() not in ('zeno', 'suport', 'admin'):
+        return jsonify({'error': 'Solo un administrador puede devolver un sustento a Sustentar.'}), 403
+    if _cot_pestania(row) != 'atendido':
+        return jsonify({'error': 'Solo se puede devolver a Sustentar desde la pestaña Atendido.'}), 409
+    ahora = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    usuario = audit_user() or 'Desconocido'
+    anterior = _cot_estado_guardado(row)
+    db.session.add(NucleusHistory(proyecto_id=proy.id, key_value=fila.key_value, data_json=fila.data_json))
+    # Quitar la marca de aprobación de cada WO que este sustento bloqueó.
+    for adicional in (row.get('_SUSTENTOS_ADICIONALES') or {}).values():
+        if isinstance(adicional, dict) and str(adicional.get('_SUSTENTO_APROBADO_COT') or '') == str(fila.id):
+            adicional.pop('_SUSTENTO_APROBADO_COT', None)
+    for wo in (_split_wos(row.get('NUMERO WO')) or ['']):
+        destino = _resolver_sustento_cot(fila, wo, row)
+        # Los sustentos adicionales viven dentro de `row` y ya se limpiaron arriba.
+        if not destino or not isinstance(destino[1], NucleusData) or destino[1].id == fila.id:
+            continue
+        registro = destino[1]
+        detalle = json.loads(registro.data_json or '{}')
+        if str(detalle.get('_SUSTENTO_APROBADO_COT') or '') == str(fila.id):
+            db.session.add(NucleusHistory(proyecto_id=destino[0].id, key_value=registro.key_value, data_json=registro.data_json))
+            detalle.pop('_SUSTENTO_APROBADO_COT', None)
+            registro.data_json = safe_json_dumps(detalle)
+    row.pop('_SUSTENTO_APROBADO', None)
+    row.pop('_SUSTENTO_VALIDADO', None)
+    row['ESTADO COTIZACION'] = ESTADO_SUSTENTO
+    row['SUSTENTO REABIERTO POR'] = usuario
+    row['FECHA REAPERTURA SUSTENTO'] = ahora
+    fila.data_json = safe_json_dumps(row)
+    db.session.commit()
+    _avisar_cambio_estado(proy.id, fila.key_value, anterior, row, usuario)
+    return jsonify({'success': True, 'estado': row.get('ESTADO COTIZACION'),
+                    'pestania': _cot_pestania(row), 'newData': row})
 
 
 def _resolver_sustento_cot(cot,wo,datos):

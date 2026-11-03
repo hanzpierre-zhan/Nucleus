@@ -390,7 +390,7 @@ let _rendCambiandoVista = false;
         // Conserva los ajustes históricos de Registro y Proveedor.
         const anterior = vista === 'registro' ? columnLayout : vista === 'proveedor' ? columnLayoutVistas.proveedor || [] : [];
         const heredado = helper.width(anterior.find(c => c.field === '_accion_cot')?.width);
-        return heredado ?? ({registro:128, cliente:128, sustentar:56, atendido:128, cancelado:104, proveedor:92}[vista] || 128);
+        return heredado ?? ({registro:128, cliente:128, sustentar:56, atendido:168, cancelado:104, proveedor:92}[vista] || 128);
     }
     function cotGuardarAnchoFlujo(ancho) {
         if (!isAdmin || !COT_VISTAS[_cotVista]) return Promise.resolve(false);
@@ -4001,6 +4001,13 @@ let _rendCambiandoVista = false;
                     }else{
                         mk('cot-btn-ok','<i class="fa-solid fa-check"></i>','Aprobar y bloquear el sustento',()=>cotRevisarSustento(key,true));
                         mk('cot-btn-cancel','<i class="fa-solid fa-xmark"></i>','Rechazar y devolver a Sustentar',()=>cotRevisarSustento(key,false));
+                    }
+                    // Solo administradores: única forma de reabrir un sustento ya aprobado.
+                    if(isAdmin){
+                        mk('rend-btn-rev rend-btn-mini','<i class="fa-solid fa-rotate-left"></i>','Devolver a Sustentar (administrador): desbloquea el sustento para editarlo',async()=>{
+                            if(!await nucleusConfirm('¿Devolver esta cotización a Sustentar? Si su sustento estaba aprobado, se desbloqueará para editarlo.'))return;
+                            await cotAccionKey(key,'reabrir_sustento');
+                        });
                     }
                 } else if (pest === 'cancelado') {
 
