@@ -2409,6 +2409,8 @@ async function cotSeleccionarSustentoWo(index,guardar=true) {
         else cotMontarSustentoAnterior(ctx,elegido);
         elegido.vistaEvidencia = cotLeerEvidenciaSustento();
         elegido.baseEvidencia = Object.fromEntries(Object.keys(elegido.vistaEvidencia).map(k=>[k,elegido.wo_data[k]||'']));
+        // Ficha tal como se abrió: el servidor solo aplica lo que el usuario cambió.
+        elegido.baseManual = cotSustentoUsaFicha(ctx,elegido) ? cotLeerFichaSustento() : null;
     }catch(error){nucleusAlert(error.message);}
 }
 function cotLeerEvidenciaSustento() {
@@ -2423,12 +2425,26 @@ async function cotGuardarSustentoSeleccionado(finalizar) {
     if(ctx.uploads)throw new Error('Espera a que termine la carga de fotos.');
     const entry=ctx.lista[ctx.index];
     if((ctx.aprobado||entry.bloqueado)&&!finalizar)return;
+    const incompleta=woFechaEjecucionIncompleta();if(incompleta)throw new Error(incompleta);
     const vista=cotLeerEvidenciaSustento();
     const evidencia=Object.fromEntries(Object.entries(vista).filter(([k,v])=>v!==entry.vistaEvidencia?.[k]));
-    const r=await fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia,base_evidencia:entry.baseEvidencia,...(cotSustentoUsaFicha(ctx,entry)?{manual:cotLeerFichaSustento()}: {})})});
-    const j=await nucleusLeerRespuestaJSON(r);if(!r.ok||!j.success)throw new Error(j.error||'No se pudo guardar.');
+    const manual=cotSustentoUsaFicha(ctx,entry)?cotLeerFichaSustento():null;
+    const enviar=()=>fetch(finalizar?'/api/cotizacion/sustento/guardar':'/api/cotizacion/sustento/wo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:ctx.key,wo:entry.wo,evidencia,base_evidencia:entry.baseEvidencia,...(manual?{manual,base_manual:entry.baseManual}:{})})});
+    let r=await enviar(),j=await nucleusLeerRespuestaJSON(r);
+    if(r.status===409&&j.codigo==='SUSTENTO_DESACTUALIZADO'){
+        // Otra persona o pestaña guardó estos mismos campos. No se descarta lo escrito:
+        // el usuario decide si su versión reemplaza a la guardada, y el modal sigue abierto.
+        if(!await nucleusConfirm('Otra persona o pestaña modificó este sustento mientras lo editabas. ¿Guardar tu versión de los campos que cambiaste? Las fotos no se pierden.'))throw new Error('No se guardó. Tu texto sigue en pantalla.');
+        const fr=await fetch('/api/cotizacion/sustento?key='+encodeURIComponent(ctx.key)),fresco=await nucleusLeerRespuestaJSON(fr);
+        const actual=(fresco.wos||[]).find(w=>String(w.wo||'').toLowerCase()===String(entry.wo||'').toLowerCase());
+        if(!fr.ok||!actual)throw new Error('No se pudo releer el sustento. Tu texto sigue en pantalla; intenta guardar de nuevo.');
+        Object.keys(evidencia).forEach(k=>entry.baseEvidencia[k]=actual.wo_data?.[k]||'');
+        r=await enviar();j=await nucleusLeerRespuestaJSON(r);
+    }
+    if(!r.ok||!j.success)throw new Error(j.error||'No se pudo guardar.');
     entry.wo_data={...j.wo_data,_key:woKey};
     entry.vistaEvidencia=vista;
+    if(manual)entry.baseManual=manual;
     Object.keys(evidencia).forEach(k=>entry.baseEvidencia[k]=j.wo_data[k]||'');
     entry.wo=j.wo??entry.wo;ctx.cotData=j.newData;
     const tab=document.querySelectorAll('#cot-sustento-wo-tabs button')[ctx.index];if(tab)tab.textContent=entry.wo||'Sustento sin WO';

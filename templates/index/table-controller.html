@@ -390,7 +390,7 @@ let _rendCambiandoVista = false;
         // Conserva los ajustes históricos de Registro y Proveedor.
         const anterior = vista === 'registro' ? columnLayout : vista === 'proveedor' ? columnLayoutVistas.proveedor || [] : [];
         const heredado = helper.width(anterior.find(c => c.field === '_accion_cot')?.width);
-        return heredado ?? ({registro:128, cliente:128, sustentar:56, atendido:168, cancelado:104, proveedor:92}[vista] || 128);
+        return heredado ?? ({registro:128, cliente:128, sustentar:56, atendido:128, cancelado:104, proveedor:92}[vista] || 128);
     }
     function cotGuardarAnchoFlujo(ancho) {
         if (!isAdmin || !COT_VISTAS[_cotVista]) return Promise.resolve(false);
@@ -4001,11 +4001,6 @@ let _rendCambiandoVista = false;
                     }else{
                         mk('cot-btn-ok','<i class="fa-solid fa-check"></i>','Aprobar y bloquear el sustento',()=>cotRevisarSustento(key,true));
                         mk('cot-btn-cancel','<i class="fa-solid fa-xmark"></i>','Rechazar y devolver a Sustentar',()=>cotRevisarSustento(key,false));
-                        const _enProvAt = cotEnProveedor(row);
-                        mk(_enProvAt ? 'cot-btn-cancel' : 'cot-btn-sus',
-                           _enProvAt ? COT_ICONO_TRANSITO : '<i class="fa-solid fa-truck-field"></i>',
-                           _enProvAt ? 'Enviar a 6. Tránsito (Caja chica)' : 'Mover a proveedor: muestra el caso en la pestaña Proveedor',
-                           () => cotCambiarTipoGasto(key, _enProvAt ? 'Caja chica' : 'Proveedor'));
                     }
                 } else if (pest === 'cancelado') {
 
@@ -11522,16 +11517,28 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         s = String(s).trim();
 
-        let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+        // Acepta fechas sin hora (importadas o de obra) y días/meses/horas de un dígito:
+        // datetime-local mostraría vacío cualquier valor que no sea AAAA-MM-DDTHH:MM.
+        const dos = n => String(n).padStart(2, '0');
 
-        if (m) return m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5];
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/);
 
-        m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})/);
+        if (m) return m[1] + '-' + dos(m[2]) + '-' + dos(m[3]) + 'T' + dos(m[4] || 0) + ':' + (m[5] || '00');
 
-        if (m) return m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':' + m[5];
+        m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2}))?/);
+
+        if (m) return m[3] + '-' + dos(m[2]) + '-' + dos(m[1]) + 'T' + dos(m[4] || 0) + ':' + (m[5] || '00');
 
         return s;
 
+    }
+
+    // Un datetime-local con fecha pero sin hora entrega value === '' (badInput):
+    // sin este aviso la fecha escrita se pierde al guardar.
+    function woFechaEjecucionIncompleta() {
+        const campos = [['wo-inicio-ejecucion', 'inicio'], ['wo-fin-ejecucion', 'fin']];
+        const incompleto = campos.find(([id]) => document.getElementById(id)?.validity?.badInput);
+        return incompleto ? 'Completa la fecha y la hora (con a. m./p. m.) de ' + incompleto[1] + ' de ejecución.' : '';
     }
 
 
@@ -14771,10 +14778,23 @@ btnItem.onclick = () => cotRegAgregarFila();
             ejecucion.style.cssText = 'grid-template-columns:repeat(2,minmax(0,1fr));margin:14px 0;';
             ejecucion.innerHTML = '<div class="wo-field"><label for="wo-inicio-ejecucion">Inicio de ejecución</label><input type="datetime-local" id="wo-inicio-ejecucion"></div><div class="wo-field"><label for="wo-fin-ejecucion">Fin de ejecución</label><input type="datetime-local" id="wo-fin-ejecucion"></div>';
             document.getElementById('evidencia-inicio-proceso-cierre').insertAdjacentElement('beforebegin', ejecucion);
+            // Aviso inmediato: sin a. m./p. m. el navegador descarta la fecha escrita.
+            ejecucion.querySelectorAll('input[type="datetime-local"]').forEach(input => {
+                const aviso = document.createElement('small');
+                aviso.className = 'wo-fecha-aviso';
+                aviso.style.cssText = 'color:#d93025;font-size:11px;margin-top:4px;';
+                aviso.textContent = 'Fecha incompleta: completa la hora y a. m./p. m.';
+                aviso.hidden = true;
+                input.after(aviso);
+                const revisar = () => { aviso.hidden = !input.validity.badInput; };
+                input.addEventListener('blur', revisar);
+                input.addEventListener('input', revisar);
+            });
         }
         ejecucion.style.display = ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'].includes(currentProjectNombre.trim()) ? 'grid' : 'none';
         document.getElementById('wo-inicio-ejecucion').value = toDatetimeLocal(data['INICIO EJECUCION']);
         document.getElementById('wo-fin-ejecucion').value = toDatetimeLocal(data['FIN EJECUCION']);
+        ejecucion.querySelectorAll('.wo-fecha-aviso').forEach(aviso => { aviso.hidden = true; });
 
 
 
@@ -17209,6 +17229,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         if (['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'].includes(currentProjectNombre.trim())) {
             const inicio = document.getElementById('wo-inicio-ejecucion').value;
             const fin = document.getElementById('wo-fin-ejecucion').value;
+            const incompleta = woFechaEjecucionIncompleta();
+            if (incompleta) { nucleusAlert(incompleta); return; }
             if (inicio && fin && fin < inicio) { nucleusAlert('El fin de ejecución no puede ser anterior al inicio.'); return; }
             payload.data['INICIO EJECUCION'] = fromDatetimeLocal(inicio);
             payload.data['FIN EJECUCION'] = fromDatetimeLocal(fin);

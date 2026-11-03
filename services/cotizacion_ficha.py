@@ -49,6 +49,41 @@ def validar(datos, wo, claves, cambios):
     out['wo'] = definida
     return out
 
+def solo_cambios(datos, wo, manual, base):
+    """Campos de la ficha que este guardado puede escribir.
+
+    El formulario envía la ficha completa tal como se veía al abrirla. Sin este
+    filtro, una pestaña (o persona) abierta antes pisaba con valores viejos lo
+    que otra ya había guardado. Se aplica un campo solo si el usuario lo cambió
+    o si en el servidor sigue vacío (primer guardado de lo que se mostró).
+    """
+    if not isinstance(manual, dict) or not isinstance(base, dict):
+        return manual
+    actual = ficha(datos, wo)
+    vacio = lambda v: not str(v or '').strip()
+    out = {}
+    for k, v in manual.items():
+        if k == 'item_details':
+            if not isinstance(v, dict):
+                out[k] = v
+                continue
+            previos = base.get(k) if isinstance(base.get(k), dict) else {}
+            guardados = actual.get(k) if isinstance(actual.get(k), dict) else {}
+            items = {}
+            for item_key, campos in v.items():
+                if not isinstance(campos, dict):
+                    items[item_key] = campos
+                    continue
+                antes = previos.get(item_key) if isinstance(previos.get(item_key), dict) else {}
+                servidor = guardados.get(item_key) if isinstance(guardados.get(item_key), dict) else {}
+                elegidos = {f: x for f, x in campos.items() if x != antes.get(f) or vacio(servidor.get(f))}
+                if elegidos:
+                    items[item_key] = elegidos
+            out[k] = items
+        elif v != base.get(k) or vacio(actual.get(k)):
+            out[k] = v
+    return out
+
 def guardar(datos, wo, claves, manual):
     nuevo = manual['wo']
     previo = fuente(datos, wo)

@@ -1510,10 +1510,10 @@ def _guardar_sustento(datos, finalizar=False):
     if claves and not wo:return jsonify({'error':'Selecciona el WO cuyo sustento deseas guardar.'}),400
     if wo and wo.casefold() not in [c.casefold() for c in claves]:
         return jsonify({'error':'El WO no pertenece a esta cotización.'}),400
-    from services.cotizacion_ficha import validar as validar_ficha, guardar as guardar_ficha
+    from services.cotizacion_ficha import validar as validar_ficha, guardar as guardar_ficha, solo_cambios
     manual = None
     if 'manual' in datos:
-        try: manual = validar_ficha(d, wo, claves, datos['manual'])
+        try: manual = validar_ficha(d, wo, claves, solo_cambios(d, wo, datos['manual'], datos.get('base_manual')))
         except ValueError as error: return jsonify({'error':str(error)}),400
     resultado=_resolver_sustento_cot(cot,wo,d)
     if not resultado:return jsonify({'error':'Primero registra este WO en el FLM correspondiente.'}),409
