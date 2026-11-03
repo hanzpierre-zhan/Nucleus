@@ -4325,12 +4325,17 @@ let _rendCambiandoVista = false;
         var rowData = column.getTable().getData();
 
         var vals = [];
+        // Celdas vacías: opción "(Vacíos)" para poder filtrarlas (el filtro "in" compara exacto).
+        var VACIO = "__NUCLEUS_VACIO__";
+        var VACIOS = ["", null, undefined];
+        var hayVacios = false;
 
         rowData.forEach(r => {
 
             let v = r[column.getField()];
 
             if (v !== undefined && v !== null && v !== "") vals.push(v);
+            else hayVacios = true;
 
         });
 
@@ -4338,6 +4343,7 @@ let _rendCambiandoVista = false;
         var originalValues = new Map(unique.map(value => [String(value), value]));
 
         unique.sort();
+        if (hayVacios) unique.unshift(VACIO);
 
 
 
@@ -4351,7 +4357,7 @@ let _rendCambiandoVista = false;
 
         function runApply() {
 
-            var allChecked = listContainer ? Array.from(listContainer.querySelectorAll("input[type='checkbox']:checked")).map(i => originalValues.get(i.value)) : [];
+            var allChecked = listContainer ? Array.from(listContainer.querySelectorAll("input[type='checkbox']:checked")).flatMap(i => i.value === VACIO ? VACIOS : [originalValues.get(i.value)]) : [];
 
             var totalCheckboxes = listContainer ? listContainer.querySelectorAll("input[type='checkbox']").length : 0;
 
@@ -4371,7 +4377,9 @@ let _rendCambiandoVista = false;
 
 
 
-            if (totalCheckboxes > 0 && allChecked.length < totalCheckboxes) {
+            var marcados = listContainer ? listContainer.querySelectorAll("input[type='checkbox']:checked").length : 0;
+
+            if (totalCheckboxes > 0 && marcados < totalCheckboxes) {
 
                 column.getTable().addFilter(column.getField(), "in", allChecked);
 
@@ -4429,7 +4437,7 @@ let _rendCambiandoVista = false;
 
             chk.style.cursor = "pointer";
 
-            chk.checked = !myFilter || activeVals.includes(String(val));
+            chk.checked = !myFilter || (val === VACIO ? activeVals.includes("") : activeVals.includes(String(val)));
 
 
 
@@ -4445,7 +4453,8 @@ let _rendCambiandoVista = false;
 
             const valorVisible = String(val);
             const esCorreo = /^\/api\/rendicion\/correo\//.test(valorVisible);
-            lbl.appendChild(document.createTextNode(esCorreo ? 'Correo adjunto · ' + (unique.indexOf(val) + 1) : (window.NucleusIdentity.isUserField(column.getField()) ? window.NucleusIdentity.display(val) : val)));
+            if (val === VACIO) { lbl.style.fontStyle = "italic"; lbl.style.color = "var(--ios-secondary-label, #888)"; }
+            lbl.appendChild(document.createTextNode(val === VACIO ? '(Vacíos)' : esCorreo ? 'Correo adjunto · ' + (unique.indexOf(val) + 1) : (window.NucleusIdentity.isUserField(column.getField()) ? window.NucleusIdentity.display(val) : val)));
             if (esCorreo) lbl.title = valorVisible;
 
             lbl.onclick = (ex) => { ex.preventDefault(); chk.checked = !chk.checked; };
