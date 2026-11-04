@@ -21,7 +21,7 @@ bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
 
 
 def habilitado():
-    return bool(current_app.config.get('FORM_PRUEBAS_ENABLED'))
+    return bool(current_app.config.get('FORM_PRUEBAS_ENABLED')) or (piloto.raiz() / 'habilitado').is_file()
 
 
 def csrf():
@@ -61,6 +61,8 @@ def privado(response):
     response.headers['Cache-Control'] = 'no-store, private'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Referrer-Policy'] = 'same-origin'
+    if request.endpoint == 'form_pruebas.administrar':
+        return response
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; script-src 'self'; style-src 'self'; "
         "img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; "
@@ -243,7 +245,7 @@ def rendir():
             for path in written:
                 path.unlink(missing_ok=True)
         return jsonify(success=True, id=result), 201 if created else 200
-    except (ValueError, Exception) as error:
+    except Exception as error:
         for path in written:
             path.unlink(missing_ok=True)
         if isinstance(error, ValueError):
@@ -263,11 +265,23 @@ def foto(name):
     return send_file(piloto.raiz() / 'fotos' / name, mimetype='image/jpeg')
 
 
-@bp.get('/administrar')
+@bp.route('/administrar', methods=['GET', 'POST'])
 @login_required
 def administrar():
     if str(session.get('rol') or '').lower() not in ('zeno', 'suport', 'admin'):
         abort(403)
+    if request.method == 'POST':
+        comprobar_csrf()
+        folder = piloto.raiz()
+        folder.mkdir(parents=True, exist_ok=True)
+        if request.form.get('accion') == 'habilitar':
+            (folder / 'habilitado').touch()
+        elif request.form.get('accion') == 'deshabilitar':
+            (folder / 'habilitado').unlink(missing_ok=True)
+        else:
+            abort(400)
+        return redirect(url_for('form_pruebas.administrar'))
+    csrf()
     with piloto.almacen() as con:
         rows = con.execute('SELECT id,tipo,creado,documento,datos FROM envios ORDER BY creado DESC LIMIT 100').fetchall()
     entries = [{**dict(r), 'datos': json.loads(r['datos'])} for r in rows]

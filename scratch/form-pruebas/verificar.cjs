@@ -1,0 +1,25 @@
+const { chromium }=require('C:/Users/Hanz/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const fs=require('fs');
+(async()=>{
+const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto('http://127.0.0.1:5087/form-pruebas/');
+await page.screenshot({path:'scratch/form-pruebas/login.png',fullPage:true});
+await page.fill('#documento','00001111');await page.fill('#clave','00001111');
+await page.click('#login [type=submit]');await page.waitForSelector('#portal:not([hidden])');
+await page.screenshot({path:'scratch/form-pruebas/inicio.png',fullPage:true});
+if(await page.locator('body').evaluate(el=>el.scrollWidth>window.innerWidth))throw Error('Desbordamiento horizontal');
+await page.click('[data-go=solicitud]');await page.selectOption('#tipo_gasto',{index:1});await page.fill('#monto-sol','30.50');await page.fill('#motivo','Movilidad para atención de WO de prueba');await page.selectOption('#medio_pago','Yape');await page.fill('#cuenta','999999999');
+await page.screenshot({path:'scratch/form-pruebas/solicitar.png',fullPage:true});
+await page.click('#solicitar [type=submit]');await page.waitForSelector('#exito:not([hidden])');
+await page.click('#exito [data-go=home]');await page.click('[data-go=rendicion]');await page.click('.deposit:not([disabled])');
+await page.fill('#monto-rendir','100.50');await page.fill('#detalle','Movilidad y materiales, comprobante de prueba.');
+await page.setInputFiles('#galeria',{name:'comprobante.png',mimeType:'image/png',buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2WQAAAAASUVORK5CYII=','base64')});
+await page.waitForSelector('.photo img');await page.screenshot({path:'scratch/form-pruebas/rendir.png',fullPage:true});
+await page.click('#rendir [type=submit]');await page.waitForSelector('#exito:not([hidden])');await page.screenshot({path:'scratch/form-pruebas/exito.png',fullPage:true});
+await page.click('#exito [data-go=home]');const amount=await page.locator('#total').textContent();if(!amount.includes('150.00'))throw Error('Saldo incorrecto: '+amount);
+if(errors.length)throw Error(errors.join('; '));
+console.log('OK móvil 390px: login, solicitud, fotos, rendición, saldo 150.00 y sin errores JavaScript.');
+await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

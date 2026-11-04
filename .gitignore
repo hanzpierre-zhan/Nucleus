@@ -36,6 +36,7 @@ ENV/
 
 # Databases (Descomentar si NO quieres subir la base de datos)
 nucleus.db
+instance/formularios_prueba/
 *.db
 
 # Backups locales y salidas (nunca subir)

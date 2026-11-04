@@ -104,6 +104,7 @@
                 {% endif %}
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <div class="sidebar-section-label">Configuración</div>
+                <a href="/form-pruebas/administrar" class="sidebar-link {% if request.path.startswith('/form-pruebas') %}active{% endif %}"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Form · Pruebas</span></a>
                 <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' or (request.path == '/espacios' and request.args.get('administrar') == '1') %}active{% endif %}" data-nav="/usuarios">
                     <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
                 </a>

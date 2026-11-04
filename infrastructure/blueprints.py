@@ -19,6 +19,7 @@ def _register_blueprints(app):
     from blueprints.recursos import bp as recursos_bp
     from blueprints.espacios import bp as espacios_bp
     from blueprints.asistencia import bp as asistencia_bp
+    from blueprints.formularios_prueba import bp as form_pruebas_bp
 
     for _bp in (
         auth_bp,
@@ -36,11 +37,17 @@ def _register_blueprints(app):
         recursos_bp,
         espacios_bp,
         asistencia_bp,
+        form_pruebas_bp,
     ):
         app.register_blueprint(_bp)
     app.register_blueprint(
         refacturable_bp, url_prefix="/liquidaciones", name="liquidaciones"
     )
+
+    @app.context_processor
+    def formularios_piloto_contexto():
+        from blueprints.formularios_prueba import habilitado
+        return {'form_pruebas_habilitado': habilitado()}
 
     @app.context_processor
     def identidades():

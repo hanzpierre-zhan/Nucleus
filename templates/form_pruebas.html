@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#112e45"><title>Form · Nucleus</title><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css') }}"></head>
+<body>
+<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand">nucleus<span>FORM</span></a><span class="badge">Pruebas</span>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
+<main class="shell">
+<div class="notice">Espacio de prueba. Tus envíos no modifican la Rendición actual.</div>
+{% if not autenticado %}
+<section class="login card"><div class="eyebrow">TU ESPACIO DE TRABAJO</div><h1>Solicita.<br>Rinde.<br>Así de fácil.</h1><p>Ingresa con tu documento registrado en Personal.</p>
+<form id="login" novalidate><label for="documento">Documento</label><input id="documento" name="documento" inputmode="numeric" autocomplete="username" maxlength="15" required placeholder="Tu número de documento"><label for="clave">Clave</label><div class="password"><input id="clave" name="clave" type="password" autocomplete="current-password" required placeholder="En pruebas, tu documento"><button type="button" id="ver-clave" class="quiet">Mostrar</button></div><p class="hint">Durante las pruebas, el usuario y la clave son tu documento. Debes estar ACTIVO en Personal.</p><div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Ingresar <span aria-hidden="true">→</span></button></form></section>
+{% else %}
+<div id="cargando" role="status">Cargando tu información…</div>
+<section id="portal" hidden>
+<section id="home" class="view"><div class="greeting"><div class="eyebrow" id="proyecto"></div><h1>Hola, <span id="nombre"></span><span class="dot">.</span></h1><p>Todo lo que necesitas, en un solo lugar.</p></div>
+<div class="balance"><span class="balance-label">TOTAL POR RENDIR · PRUEBAS</span><div id="total" class="big-money">S/ 0.00</div><p id="cantidad"></p></div>
+<div class="actions"><button type="button" class="action request-action" data-go="solicitud"><span class="action-icon" aria-hidden="true">＋</span><span><strong>Solicitar</strong><small>Pide dinero para tu trabajo</small></span><span aria-hidden="true">↗</span></button><button type="button" class="action" data-go="rendicion"><span class="action-icon" aria-hidden="true">✓</span><span><strong>Rendir</strong><small>Envía tus comprobantes y fotos</small></span><span aria-hidden="true">↗</span></button></div>
+<div id="recientes" hidden><h2>Tus últimos envíos de prueba</h2><div id="lista-recientes"></div></div></section>
+<section id="solicitud" class="view" hidden><button class="back" data-go="home" type="button">← Volver</button><div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1><p>Completa los datos. Aquí no necesitas adjuntar fotos.</p><form id="solicitar" class="card" novalidate>
+<div class="identity"><strong id="sol-nombre"></strong><span id="sol-proyecto"></span></div>
+<label for="tipo_gasto">Tipo de gasto</label><select id="tipo_gasto" name="tipo_gasto" required><option value="">Selecciona una opción</option></select>
+<label for="monto-sol">Monto que solicitas</label><div class="money-input"><span>S/</span><input id="monto-sol" name="monto" inputmode="decimal" required placeholder="0.00"></div>
+<label for="motivo">¿Para qué lo necesitas?</label><textarea id="motivo" name="motivo" required maxlength="1000" rows="3" placeholder="Describe el trabajo y el motivo del gasto"></textarea>
+<div class="two"><div><label for="wo">WO <small>(opcional)</small></label><input id="wo" name="wo" maxlength="200" placeholder="CM / PM / PLM"></div><div><label for="site">Site <small>(opcional)</small></label><input id="site" name="site" maxlength="200" placeholder="Nombre del sitio"></div></div>
+<label for="medio_pago">¿Cómo recibirías el depósito?</label><select id="medio_pago" name="medio_pago" required><option value="">Selecciona una opción</option><option>Yape</option><option>Plin</option><option>Transferencia bancaria</option></select><label for="cuenta">Celular, cuenta o CCI</label><input id="cuenta" name="cuenta" inputmode="numeric" required maxlength="20" placeholder="Solo números">
+<div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar solicitud de prueba <span aria-hidden="true">→</span></button></form></section>
+<section id="rendicion" class="view" hidden><button class="back" data-go="home" type="button">← Volver</button><div class="eyebrow">02 / RENDICIÓN</div><h1>Tus depósitos.</h1><p>Selecciona el depósito que vas a sustentar.</p><div class="balance compact"><span class="balance-label">TE QUEDA POR RENDIR · PRUEBAS</span><div class="big-money" id="total-rendir"></div></div><div id="depositos"></div>
+<form id="rendir" class="card" hidden novalidate><h2 id="deposito-titulo"></h2><input name="referencia" id="referencia" type="hidden"><label for="monto-rendir">Monto de esta rendición</label><div class="money-input"><span>S/</span><input id="monto-rendir" name="monto" inputmode="decimal" required></div><p id="saldo-deposito" class="hint"></p><label for="detalle">Cuéntanos qué gastaste</label><textarea id="detalle" name="detalle" rows="3" maxlength="2000" required placeholder="Ejemplo: movilidad y materiales para la atención"></textarea>
+<label>Fotos de tus comprobantes</label><div class="photo-actions"><label class="photo-button" for="camara">▣ Tomar foto<input id="camara" type="file" accept="image/*" capture="environment"></label><label class="photo-button" for="galeria">＋ Elegir fotos<input id="galeria" type="file" accept="image/*" multiple></label></div><p class="hint">De 1 a 8 fotos. Puedes revisar y quitar cada foto antes de enviar.</p><div id="fotos" class="photos"></div><div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar rendición de prueba <span aria-hidden="true">→</span></button></form></section>
+<section id="exito" class="view" hidden><div class="card success"><div class="success-icon" aria-hidden="true">✓</div><div class="eyebrow">ENVÍO DE PRUEBA GUARDADO</div><h1>¡Listo!</h1><p id="mensaje-exito"></p><span class="receipt" id="codigo-exito"></span><p class="hint">Este envío no cambia saldos ni estados de la Rendición real.</p><button class="primary wide" data-go="home" type="button">Volver al inicio</button></div></section>
+</section>
+{% endif %}
+</main>
+<footer>NUCLEUS · Formularios para técnicos</footer>
+<input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
+<script src="{{ url_for('static',filename='js/form-pruebas.js') }}" defer></script></body></html>

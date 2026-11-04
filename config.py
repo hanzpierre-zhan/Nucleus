@@ -37,6 +37,8 @@ def _normalizar_db_url(url):
 class Config:
     """Configuración base — válida para todos los entornos."""
     TESTING = False
+    FORM_PRUEBAS_ENABLED = os.environ.get('FORM_PRUEBAS_ENABLED') == '1'
+    FORM_PRUEBAS_DIR = os.environ.get('FORM_PRUEBAS_DIR', '')
     DEBUG = False
     # Piloto independiente; requiere asignaciones expresas antes de habilitarlo.
     ESPACIOS_HABILITADOS = os.environ.get('ESPACIOS_HABILITADOS') == '1'
