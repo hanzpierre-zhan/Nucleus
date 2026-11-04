@@ -1151,7 +1151,7 @@ def api_cotizacion_proveedor():
         return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
     data = request.get_json(silent=True) or {}
     key = str(data.get('key') or '').strip()
-    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).with_for_update().first()
     if not fila:
         return jsonify({'error': 'La cotización no existe.'}), 404
     row = json.loads(fila.data_json or '{}')
@@ -1160,6 +1160,17 @@ def api_cotizacion_proveedor():
     numero = str(data.get('numero_factura') or '').strip()
     oc = str(data.get('numero_oc') or '').strip()
     adjunto = str(data.get('factura_proveedor') or '').strip()
+    facturas = _documentos_proveedor(row, 'FACTURA')
+    ocs = _documentos_proveedor(row, 'OC')
+    for campo, valores, tipo in [('facturas_proveedor',facturas,'factura'),('ocs_proveedor',ocs,'oc')]:
+        recibidos=data.get(campo,[])
+        if not isinstance(recibidos,list) or len(recibidos)>200 or any(not isinstance(u,str) for u in recibidos):
+            return jsonify(error='Lista de adjuntos inválida.'),400
+        prefijo_doc='/api/cotizacion/correo/%d/%s/%s_proveedor_'%(proy.id,secure_filename(key),tipo)
+        if any(not u.startswith(prefijo_doc) or any(c in u for c in ('<','>','"',"'",'\\')) for u in recibidos):
+            return jsonify(error='Un adjunto no corresponde a esta cotización.'),400
+        valores.extend(u for u in recibidos if u not in valores)
+    if not adjunto and facturas:adjunto=facturas[0]
     if not numero or not oc or not adjunto:
         return jsonify({'error': 'Adjunta la factura e ingresa el número de factura y el número de OC.'}), 400
     prefijo = '/api/cotizacion/correo/%d/%s/factura_proveedor_' % (proy.id, secure_filename(key))
@@ -1176,9 +1187,22 @@ def api_cotizacion_proveedor():
         row['SUBTOTAL FACTURA PROVEEDOR'] = _importe(importe)
     row.update({'NUMERO FACTURA PROVEEDOR': numero, 'NUMERO OC PROVEEDOR': oc,
                 'ADJUNTO FACTURA PROVEEDOR': adjunto, '_PROVEEDOR_PARALELO': True})
+    if adjunto not in facturas:facturas.append(adjunto)
+    row['_PROVEEDOR_FACTURAS']=facturas
+    row['_PROVEEDOR_OCS']=ocs
+    if ocs:row['ADJUNTO OC PROVEEDOR']=ocs[0]
+    db.session.add(NucleusHistory(proyecto_id=proy.id,key_value=key,data_json=fila.data_json))
     fila.data_json = safe_json_dumps(row)
     db.session.commit()
     return jsonify({'success': True, 'newData': row})
+
+
+def _documentos_proveedor(datos, tipo):
+    campo='_PROVEEDOR_FACTURAS' if tipo=='FACTURA' else '_PROVEEDOR_OCS'
+    items=datos.get(campo,[])
+    items=items if isinstance(items,list) else []
+    legado=datos.get('ADJUNTO '+tipo+' PROVEEDOR')
+    return list(dict.fromkeys(([legado] if isinstance(legado,str) and legado else [])+[u for u in items if isinstance(u,str) and u]))
 
 
 def _limpiar_nombre_adjunto(valor):
@@ -1198,11 +1222,15 @@ def _nombre_adjunto_original(datos, url):
 @bp.route('/api/cotizacion/subir_correo', methods=['POST'])
 @bp.route('/api/cotizacion/subir_cotizacion_proveedor', methods=['POST'])
 @bp.route('/api/cotizacion/subir_factura_proveedor', methods=['POST'])
+@bp.route('/api/cotizacion/subir_oc_proveedor', methods=['POST'])
 @login_required
 def api_cotizacion_subir_correo():
     """Sube la evidencia del correo del cliente (.msg/.pdf/captura) y devuelve su URL."""
     if not _cot_puede_gestionar():
         return jsonify({'error': 'No tienes permisos para subir adjuntos.'}), 403
+    from services.apoyo import disco_efimero_sin_b2
+    if disco_efimero_sin_b2():
+        return jsonify(error='Configura el almacenamiento persistente antes de subir documentos.'),503
     proy = _cot_proyecto()
     if not proy:
         return jsonify({'error': 'Módulo Cotizaciones no existe.'}), 404
@@ -1215,7 +1243,8 @@ def api_cotizacion_subir_correo():
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
     ext = os.path.splitext(file.filename)[1].lower()
     es_factura = request.path.endswith('/subir_factura_proveedor')
-    es_proveedor = es_factura or request.path.endswith('/subir_cotizacion_proveedor')
+    es_oc = request.path.endswith('/subir_oc_proveedor')
+    es_proveedor = es_factura or es_oc or request.path.endswith('/subir_cotizacion_proveedor')
     if es_proveedor and ext not in ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'):
         return jsonify({'error': 'Adjunta un PDF, documento Word, Excel o imagen.'}), 400
     if ext in EXT_CORREO_BLOQUEADAS:
@@ -1226,7 +1255,7 @@ def api_cotizacion_subir_correo():
         return jsonify({'error': 'La cotización no existe.'}), 404
     key = secure_filename(key)
     import uuid
-    nombre = '%s_%s%s' % ('factura_proveedor' if es_factura else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
+    nombre = '%s_%s%s' % ('factura_proveedor' if es_factura else 'oc_proveedor' if es_oc else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
     os.close(fd)
     try:
@@ -1249,11 +1278,19 @@ def api_cotizacion_subir_correo():
         original = _limpiar_nombre_adjunto(file.filename)
         # Guardar el nombre al recibir el archivo, aunque después se cierre el
         # modal. La aprobación enlaza el adjunto sin depender del dato del navegador.
+        fila=NucleusData.query.filter_by(id=fila.id).populate_existing().with_for_update().one()
         datos = json.loads(fila.data_json or '{}')
         datos.setdefault('_ADJUNTOS_NOMBRES', {})[nombre] = original
+        if es_factura or es_oc:
+            tipo='FACTURA' if es_factura else 'OC'
+            documentos=_documentos_proveedor(datos,tipo)
+            documentos.append(url)
+            datos['_PROVEEDOR_FACTURAS' if es_factura else '_PROVEEDOR_OCS']=documentos
+            datos.setdefault('ADJUNTO '+tipo+' PROVEEDOR',url)
+            db.session.add(NucleusHistory(proyecto_id=proy.id,key_value=fila.key_value,data_json=fila.data_json))
         fila.data_json = safe_json_dumps(datos)
         db.session.commit()
-        return jsonify({'success': True, 'url': url, 'nombre': original})
+        return jsonify({'success': True, 'url': url, 'nombre': original, 'newData': datos})
     finally:
         if os.path.exists(ruta_tmp):
             try:
@@ -1274,16 +1311,19 @@ def api_cotizacion_adjunto_eliminar():
     data = request.get_json(silent=True) or {}
     key = str(data.get('key') or '').strip()
     campo = str(data.get('campo') or '').strip().upper()
-    campos = ('ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR')
+    campos = ('ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR', 'ADJUNTO OC PROVEEDOR')
     if not key or campo not in campos:
         return jsonify({'error': 'Datos incompletos o adjunto no válido.'}), 400
-    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).with_for_update().first()
     if not fila:
         return jsonify({'error': 'La cotización no existe.'}), 404
     row = json.loads(fila.data_json or '{}')
     if bloqueado(row):
         return jsonify({'error': 'El sustento ya fue aprobado y sus adjuntos no pueden modificarse.'}), 403
-    url = str(row.get(campo) or '').strip()
+    tipo='FACTURA' if campo=='ADJUNTO FACTURA PROVEEDOR' else 'OC' if campo=='ADJUNTO OC PROVEEDOR' else None
+    documentos=_documentos_proveedor(row,tipo) if tipo else []
+    url = str(data.get('url') or row.get(campo) or '').strip()
+    if tipo and url and url not in documentos:return jsonify(error='El adjunto no pertenece a este registro.'),400
     if not url:
         return jsonify({'success': True, 'newData': row})
     prefijo = '/api/cotizacion/correo/%d/%s/' % (proy.id, secure_filename(key))
@@ -1301,6 +1341,10 @@ def api_cotizacion_adjunto_eliminar():
     except Exception:
         current_app.logger.exception('adjunto_eliminar: no se pudo borrar el archivo')
     row.pop(campo, None)
+    if tipo:
+        documentos=[u for u in documentos if u!=url]
+        row['_PROVEEDOR_FACTURAS' if tipo=='FACTURA' else '_PROVEEDOR_OCS']=documentos
+        if documentos:row[campo]=documentos[0]
     if campo == 'ADJUNTO CORREO CLIENTE':
         row.pop('NOMBRE CORREO CLIENTE', None)
     nombres = row.get('_ADJUNTOS_NOMBRES')

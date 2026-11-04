@@ -557,6 +557,32 @@ def analytics():
                            proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
 
 
+@bp.route('/analytics/claro')
+@login_required
+def analytics_claro():
+    user_id,user_rol,pid=get_session_info()
+    proyectos=get_menu_proyectos(user_id,user_rol)
+    proy=next((p for p in proyectos if p.nombre.strip().upper()=='FLM - CLARO'),None)
+    if user_rol in ('contrata','gestor') or proy is None:
+        return redirect(url_for('pages.index'))
+    restricciones={}
+    if user_rol!='zeno':
+        acceso=AccesoProyecto.query.filter_by(usuario_id=user_id,proyecto_id=proy.id).first()
+        if not acceso:return redirect(url_for('pages.index'))
+        try:restricciones=json.loads(acceso.restricciones or '{}')
+        except (ValueError,TypeError):return redirect(url_for('pages.index'))
+    def registros():
+        for fila in NucleusData.query.with_entities(NucleusData.key_value,NucleusData.data_json).filter_by(proyecto_id=proy.id).yield_per(500):
+            try:d=json.loads(fila.data_json)
+            except (ValueError,TypeError):continue
+            if isinstance(d,dict):
+                d['_key']=fila.key_value
+                if apply_data_restrictions([d],restricciones):yield d
+    from services.dashboard_claro import indicadores
+    return render_template('dashboard_claro.html',dashboard=indicadores(registros()),
+                           proyectos_list=proyectos,proyecto_nombre=proy.nombre,proyecto_id=proy.id)
+
+
 @bp.route('/analytics/cotizaciones')
 @login_required
 def analytics_cotizaciones():

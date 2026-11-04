@@ -2380,10 +2380,10 @@
               <input type="text" id="cot-nombre-proveedor" placeholder="Nombre o razón social" autocomplete="organization">
             </div>
             <div class="cot-form-field">
-              <label for="cot-proveedor-archivo">Cotización del proveedor</label>
+              <label for="cot-proveedor-archivo">Proforma del proveedor</label>
               <button type="button" class="cot-upload" onclick="document.getElementById('cot-proveedor-archivo').click()">
                 <i class="fa-regular fa-file-lines" aria-hidden="true"></i>
-                <span><strong>Adjuntar cotización</strong><small>PDF, Word, Excel o imagen</small></span>
+                <span><strong>Adjuntar proforma</strong><small>PDF, Word, Excel o imagen</small></span>
                 <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i>
               </button>
               <input type="file" id="cot-proveedor-archivo" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onchange="cotSubirCotizacionProveedor(this)">
@@ -2434,15 +2434,15 @@
           <h4 id="cot-invoice-heading"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i> Facturación del proveedor</h4>
           <div class="cot-provider-fields">
             <div class="cot-form-field">
-              <label for="cot-factura-numero">Número de factura <span class="cot-required">*</span></label>
-              <input type="text" id="cot-factura-numero" placeholder="Ej.: F001-000123">
+              <label for="cot-factura-numero">Número(s) de factura <span class="cot-required">*</span></label>
+              <input type="text" id="cot-factura-numero" placeholder="Ej.: F001-000123, F002-000456">
             </div>
             <div class="cot-form-field">
-              <label for="cot-oc-numero">Número de OC <span class="cot-required">*</span></label>
-              <input type="text" id="cot-oc-numero" placeholder="Ej.: OC-000456">
+              <label for="cot-oc-numero">Número(s) de OC <span class="cot-required">*</span></label>
+              <input type="text" id="cot-oc-numero" placeholder="Ej.: OC-000456, OC-000789">
             </div>
             <div class="cot-form-field">
-              <label for="cot-factura-subtotal">Subtotal de la factura (S/) <span class="cot-required">*</span></label>
+              <label for="cot-factura-subtotal">Subtotal total de las facturas (S/) <span class="cot-required">*</span></label>
               <input type="number" id="cot-factura-subtotal" min="0" step="0.01" placeholder="0.00">
             </div>
             <div class="cot-form-field cot-provider-attachment">
@@ -2452,8 +2452,12 @@
                 <span><strong id="cot-factura-caption">Adjuntar factura del proveedor</strong><small>PDF, Word, Excel o imagen</small></span>
                 <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i>
               </button>
-              <input type="file" id="cot-factura-archivo" hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onchange="cotSubirFactura(this)">
+              <input type="file" id="cot-factura-archivo" multiple hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onchange="cotSubirFactura(this)">
               <div id="cot-factura-estado" class="cot-file-status" role="status"></div>
+              <label for="cot-oc-archivos">Órdenes de compra del proveedor</label>
+              <button type="button" class="cot-upload" onclick="document.getElementById('cot-oc-archivos').click()"><i class="fa-solid fa-file-contract" aria-hidden="true"></i> Agregar órdenes de compra</button>
+              <input type="file" id="cot-oc-archivos" multiple hidden accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" onchange="cotSubirDocumentosProveedor(this,'oc')">
+              <div id="cot-oc-estado" class="cot-file-status" role="status"></div>
             </div>
           </div>
         </section>

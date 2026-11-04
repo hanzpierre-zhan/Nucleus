@@ -2080,7 +2080,7 @@ let _rendCambiandoVista = false;
         }
 
         if (IS_COTIZACIONES && ['ADJUNTO CORREO CLIENTE', 'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR'].includes(fieldName)) {
-            const titulos = {'ADJUNTO CORREO CLIENTE':'Correo de aprobación', 'ADJUNTO COTIZACION PROVEEDOR':'Cotización del proveedor', 'ADJUNTO FACTURA PROVEEDOR':'Factura del proveedor'};
+            const titulos = {'ADJUNTO CORREO CLIENTE':'Correo de aprobación', 'ADJUNTO COTIZACION PROVEEDOR':'Proforma del proveedor', 'ADJUNTO FACTURA PROVEEDOR':'Factura del proveedor'};
             colDef.title = titulos[fieldName];
             colDef.width = 160;
             colDef.editor = false;
@@ -2091,6 +2091,10 @@ let _rendCambiandoVista = false;
                 if (!url.startsWith('/api/cotizacion/correo/') || /[<>"'\\\s]/.test(url)) return '—';
                 const row = cell.getRow().getData();
                 const nombre = fieldName === 'ADJUNTO CORREO CLIENTE' ? row['NOMBRE CORREO CLIENTE'] : '';
+                if(fieldName==='ADJUNTO FACTURA PROVEEDOR'){
+                    const urls=[...new Set([url,...(row._PROVEEDOR_FACTURAS||[])])].filter(u=>typeof u==='string'&&u.startsWith('/api/cotizacion/correo/')&&!/[<>"'\\\s]/.test(u));
+                    return urls.map((u,i)=>`<a class="action-pill pill-blue" href="${escapeHtml(u)}" download title="Factura ${i+1}"><i class="fa-solid fa-download"></i> ${i+1}</a>`).join(' ');
+                }
                 return `<a class="action-pill pill-blue" href="${escapeHtml(url)}" download title="${escapeHtml(nombre || titulos[fieldName])}"><i class="fa-solid fa-download"></i> Descargar</a>`;
             };
             restColumns.push(colDef);
@@ -18454,7 +18458,17 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-    function cerrarWoModal() {
+    async function cerrarWoModal() {
+        const ctx=_cotSustentoContext;
+        if(ctx?.cerrando)return;
+        if(ctx?.uploads){nucleusAlert('Espera a que termine la carga de fotos.');return;}
+        if(ctx&&cotSustentoTieneCambios()){
+            ctx.cerrando=true;
+            try{await cotGuardarSustentoSeleccionado(false);}
+            catch(error){nucleusAlert('No se cerró la ficha: '+error.message);return;}
+            finally{ctx.cerrando=false;}
+            if(_cotSustentoContext!==ctx||cotSustentoTieneCambios())return;
+        }
         window.cotLimpiarFichaSustento?.();
         _cotSustentoContext = null;
         document.getElementById('cot-sustento-wo-tabs')?.remove();

@@ -1,7 +1,8 @@
-{% set _dash_actual = 'cobranza' if request.path.startswith('/analytics/cobranza') else ('cotizaciones' if request.path.startswith('/analytics/cotizaciones') else ('rendicion' if request.path.startswith('/analytics/rendicion') else 'operativo')) %}
+{% set _dash_actual = 'claro' if request.path.startswith('/analytics/claro') else ('cobranza' if request.path.startswith('/analytics/cobranza') else ('cotizaciones' if request.path.startswith('/analytics/cotizaciones') else ('rendicion' if request.path.startswith('/analytics/rendicion') else 'operativo'))) %}
 {# Mantener aquí el orden común al incorporar nuevos dashboards. #}
 {% set _dashboards = [
     ('operativo', '/analytics', 'fa-gauge-high', 'Flm - Entel'),
+    ('claro', '/analytics/claro', 'fa-chart-column', 'Flm - Claro'),
     ('cotizaciones', '/analytics/cotizaciones', 'fa-file-invoice-dollar', 'Cotizaciones'),
     ('rendicion', '/analytics/rendicion', 'fa-money-bill-transfer', 'Caja Chica'),
     ('cobranza', '/analytics/cobranza', 'fa-sack-dollar', 'Cobranza')

@@ -98,6 +98,7 @@
     }
     function documentButton(cell, kind) {
         const row = cell.getRow().getData(); const state = row.documentos?.[kind] || 'Pendiente';
+        if(kind==='factura'&&row.facturas_proveedor?.length>1){const box=document.createElement('span');row.facturas_proveedor.filter(safeUrl).forEach((url,i)=>{const a=document.createElement('a');a.className='action-pill pill-blue';a.href=url;a.target='_blank';a.rel='noopener';a.textContent='Factura '+(i+1);box.append(a);});return box;}
         if (state !== 'Completo' && !(kind === 'sustento' && state !== 'No aplica' && (row.tiene_sustento || Object.values(row.fotos || {}).some(fotos => fotos.length)))) { const label = document.createElement('span'); label.textContent = state; label.className = 'ref-status ref-status-neutral'; return label; }
         const button = document.createElement(kind === 'sustento' ? 'button' : 'a'); button.className = 'action-pill pill-blue'; button.textContent = kind === 'sustento' ? 'Ver sustento' : 'Descargar';
         if (kind === 'sustento') {button.type = 'button'; button.addEventListener('click', () => showSustento(row));}

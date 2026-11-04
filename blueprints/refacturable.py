@@ -118,6 +118,7 @@ def _nombre_documento(valor, guardado=''):
 
 
 def _registros(origen_ids=None, resumen=False):
+    from blueprints.cotizacion import _documentos_proveedor
     from blueprints.cotizacion import _PROYECTOS_WO_SUSTENTO, _split_wos
     from services.recursos_flm import familia as _familia
     from services.sustento import SustentoAdicional
@@ -226,6 +227,8 @@ def _registros(origen_ids=None, resumen=False):
             'estatus': ejecucion,
             'nombre_proyecto': nombre_proyecto,
             'factura_proveedor': _url_documento(datos.get('ADJUNTO FACTURA PROVEEDOR')),
+            'facturas_proveedor': [u for u in _documentos_proveedor(datos,'FACTURA') if _url_documento(u)],
+            'ocs_proveedor': [u for u in _documentos_proveedor(datos,'OC') if _url_documento(u)],
             'correo_cliente': _url_documento(datos.get('ADJUNTO CORREO CLIENTE')),
             'nombre_correo': _nombre_documento(datos.get('ADJUNTO CORREO CLIENTE'),
                                                datos.get('NOMBRE CORREO CLIENTE')),
@@ -592,11 +595,14 @@ def _expediente_escribir(zf, row, datos, origen, prefijo, estado, limite):
     documentos = 0
     if _expediente_sustento(zf, row, prefijo, estado, limite):
         documentos += 1
-    if row.get('factura_proveedor'):
+    facturas=list(dict.fromkeys(([row['factura_proveedor']] if row.get('factura_proveedor') else [])+row.get('facturas_proveedor',[])))
+    adjuntos=[('02_Factura_del_proveedor'+('' if i==0 else '_'+str(i+1)),url) for i,url in enumerate(facturas)]
+    adjuntos.extend(('05_OC_del_proveedor_'+str(i+1),url) for i,url in enumerate(row.get('ocs_proveedor',[])))
+    for etiqueta,url in adjuntos:
         try:
-            fuente = _expediente_fuente(row['factura_proveedor'], 'cotizacion/correo', Proyecto.query.filter_by(nombre='Cotizaciones').first())
-            extension = _expediente_extension(row['factura_proveedor'], '.pdf')
-            _expediente_copiar(zf, fuente, f'{prefijo}02_Factura_del_proveedor{extension}', estado, limite)
+            fuente = _expediente_fuente(url, 'cotizacion/correo', Proyecto.query.filter_by(nombre='Cotizaciones').first())
+            extension = _expediente_extension(url, '.pdf')
+            _expediente_copiar(zf, fuente, f'{prefijo}{etiqueta}{extension}', estado, limite)
             documentos += 1
         except OverflowError:
             raise

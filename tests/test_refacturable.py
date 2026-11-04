@@ -180,12 +180,16 @@ def test_expediente_documentos_locales(app, auth_client, cot_aprobada, monkeypat
     monkeypatch.setattr(apoyo, 'evidencia_usa_b2', lambda: False)
     monkeypatch.setattr(cotizacion, '_cot_folder', lambda pid, key: str(tmp_path))
     (tmp_path / 'factura.pdf').write_bytes(b'factura-prueba')
+    (tmp_path / 'factura2.pdf').write_bytes(b'factura-segunda')
+    (tmp_path / 'oc.pdf').write_bytes(b'orden-compra')
     (tmp_path / 'correo.msg').write_bytes(b'correo-prueba')
     with app.app_context():
         origen = db.session.get(NucleusData, cot_aprobada)
         datos = json.loads(origen.data_json)
         for campo, nombre in [('ADJUNTO FACTURA PROVEEDOR', 'factura.pdf'), ('ADJUNTO CORREO CLIENTE', 'correo.msg')]:
             datos[campo] = f'/api/cotizacion/correo/{origen.proyecto_id}/TEST/{nombre}'
+        datos['_PROVEEDOR_FACTURAS']=[datos['ADJUNTO FACTURA PROVEEDOR'],f'/api/cotizacion/correo/{origen.proyecto_id}/TEST/factura2.pdf']
+        datos['_PROVEEDOR_OCS']=[f'/api/cotizacion/correo/{origen.proyecto_id}/TEST/oc.pdf']
         origen.data_json = json.dumps(datos)
         db.session.commit()
     response = auth_client.get(f'/refacturable/api/registros/{cot_aprobada}/expediente')
@@ -193,6 +197,8 @@ def test_expediente_documentos_locales(app, auth_client, cot_aprobada, monkeypat
     with zipfile.ZipFile(io.BytesIO(response.data)) as archivo:
         names = archivo.namelist()
         assert archivo.read('02_Factura_del_proveedor.pdf') == b'factura-prueba'
+        assert archivo.read('02_Factura_del_proveedor_2.pdf') == b'factura-segunda'
+        assert archivo.read('05_OC_del_proveedor_1.pdf') == b'orden-compra'
         assert archivo.read('03_Correo_del_cliente - correo.msg') == b'correo-prueba'
     response.close()
 

@@ -215,7 +215,7 @@
         const pct = f => prov.length ? Math.round(prov.filter(f).length / prov.length * 100) : 0;
         bars('dc-prov', [
             ['Factura proveedor', pct(r => r.factura_ok), prov.filter(r => r.factura_ok).length + ' de ' + prov.length + ' con factura cargada'],
-            ['Cotización proveedor', pct(r => r.cotprov_ok), prov.filter(r => r.cotprov_ok).length + ' de ' + prov.length + ' con cotización del proveedor'],
+            ['Proforma proveedor', pct(r => r.cotprov_ok), prov.filter(r => r.cotprov_ok).length + ' de ' + prov.length + ' con proforma del proveedor'],
             ['Correo del cliente', pct(r => r.correo_ok), prov.filter(r => r.correo_ok).length + ' de ' + prov.length + ' con correo adjunto'],
         ], { fmt: x => x + '%' });
         get('dc-prov-caption').textContent = atn + ' atendidas de ' + prov.length + ' · ' + moneyShort(total(prov, 'facturado')) + ' facturados de ' + moneyShort(total(prov, 'monto')) + ' cotizados';

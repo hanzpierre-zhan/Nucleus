@@ -4,7 +4,7 @@ import json
 import pytest
 
 from db import db
-from models import Proyecto, NucleusData, RefacturableDetalle
+from models import Proyecto, NucleusData, RefacturableDetalle, Notificacion, NucleusHistory
 from blueprints.cotizacion import _cot_en_proveedor
 
 
@@ -60,6 +60,8 @@ def cotizacion(app, monkeypatch, tmp_path):
             NucleusData.query.filter_by(proyecto_id=rendicion.id, key_value='COT-'+str(fila.id)).delete()
             RefacturableDetalle.query.filter_by(origen_id=fila.id).delete()
         NucleusData.query.filter_by(proyecto_id=pid, key_value='TEST-PROVEEDOR').delete()
+        Notificacion.query.filter_by(proyecto_id=pid).filter(Notificacion.texto.contains('TEST-PROVEEDOR')).delete(synchronize_session=False)
+        NucleusHistory.query.filter_by(proyecto_id=pid,key_value='TEST-PROVEEDOR').delete(synchronize_session=False)
         db.session.commit()
 
 

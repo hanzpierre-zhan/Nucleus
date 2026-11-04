@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard FLM - Claro{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
+<link rel="stylesheet" href="/static/css/dashboard-claro.css?v=1">
+<section class="di-page dc-page">
+{% from '_dashboard_header.html' import dashboard_header with context %}
+{% call dashboard_header('Flm - Claro','Control operativo','Tickets importados · lectura en tiempo real',5) %}
+<div class="di-filters">
+<label>Desde<input id="cl-desde" type="date" value="{{ dashboard.desde }}"></label>
+<label>Hasta<input id="cl-hasta" type="date" value="{{ dashboard.hasta }}"></label>
+<label>Zona / oficina<select id="cl-zona"><option value="">Todas las oficinas</option></select></label>
+<label>FME<select id="cl-fme"><option value="">Todos los técnicos</option></select></label>
+<label>Tipo WO<select id="cl-tipo"><option value="">Todos</option></select></label>
+<button class="action-pill pill-neutral" id="cl-limpiar">Limpiar</button>
+</div>
+{% endcall %}
+<div class="cl-tools"><div role="group" aria-label="Escala del gráfico"><button data-scale="dia" aria-pressed="true">Diario</button><button data-scale="semana" aria-pressed="false">Semanal</button><button data-scale="mes" aria-pressed="false">Mensual</button></div><label><input type="checkbox" id="cl-excluir-cancelados" checked> Excluir Canceled</label><label><input type="checkbox" id="cl-solo-despachados"> Solo despachados</label><button id="cl-exportar" class="action-pill pill-neutral">Exportar selección CSV</button></div>
+<p id="cl-nota" class="cl-note" role="status"></p>
+<div class="cl-summary">
+<div class="cl-kpis" aria-live="polite">{% for key,label,color in [('creados','Creados','blue'),('despachados','Despachados','violet'),('completados','Completados','teal'),('cancelados','Cancelados','orange'),('abiertos','Abiertos al cierre','red'),('promedio','Promedio de cierre','cyan')] %}<article data-color="{{ color }}"><span>{{ label }}</span><strong id="cl-{{ key }}">—</strong><small id="cl-{{ key }}-nota"></small></article>{% endfor %}</div>
+<article class="cl-card cl-gauge"><h2>Cumplimiento de SLA</h2><div class="cl-meter"><canvas id="cl-sla" role="img" aria-label="Cumplimiento de SLA"></canvas><strong id="cl-sla-value">—</strong></div><p id="cl-sla-nota"></p></article>
+<article class="cl-card"><h2>Velocidad de cierre</h2><p>Creación → Complete Time · cierres del periodo</p><div class="cl-donut"><canvas id="cl-velocidad" role="img" aria-label="Distribución del tiempo de cierre"></canvas></div></article>
+</div>
+<div class="cl-graphs"><article class="cl-card"><h2>Creados, completados y backlog</h2><p>Eventos por su fecha · backlog al final de cada periodo</p><div class="cl-canvas"><canvas id="cl-evolucion" role="img" aria-label="Evolución de tickets Claro"></canvas></div></article><article class="cl-card"><h2>Cierre de tareas por duración</h2><p>Hasta 24 h · de 24 a 48 h · más de 48 h</p><div class="cl-canvas"><canvas id="cl-cierres" role="img" aria-label="Cierres por duración y fecha"></canvas></div></article></div>
+<details class="cl-card"><summary>Consultar tickets de la selección <span id="cl-count"></span></summary><div class="cl-table"><table><thead><tr><th>Ticket Id</th><th>Estado</th><th>Creación</th><th>Cierre</th><th>Oficina</th><th>FME</th><th>SLA</th></tr></thead><tbody id="cl-tickets"></tbody></table></div><button id="cl-anterior">Anterior</button> <span id="cl-pagina"></span> <button id="cl-siguiente">Siguiente</button></details>
+</section>
+<script id="cl-data" type="application/json">{{ dashboard|tojson }}</script>
+<script src="/static/js/chart.umd.min.js"></script>
+<script src="/static/js/dashboard-claro-model.js?v=1"></script>
+<script src="/static/js/dashboard-claro.js?v=1"></script>
+{% endblock %}
