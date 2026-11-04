@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#112e45"><title>Form · Nucleus</title><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css') }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css') }}"></head>
 <body>
-<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand">nucleus<span>FORM</span></a><span class="badge">Pruebas</span>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
+<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Pruebas</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
 <main class="shell">
 <div class="notice">Espacio de prueba. Tus envíos no modifican la Rendición actual.</div>
 {% if not autenticado %}
