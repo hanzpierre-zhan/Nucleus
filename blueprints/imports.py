@@ -253,6 +253,13 @@ def api_import_process():
         # las columnas aquí para que TODO lo que se importa quede guardado limpio.
         df = df.rename(columns=_sane_data_key)
         df.columns = [str(c).strip() for c in df.columns]
+        proy_act = db.session.get(Proyecto, pid)
+        proy_act_nombre = proy_act.nombre.strip().upper() if proy_act and proy_act.nombre else ''
+        from services.importacion_identidad import validar_clave, CLAVES
+        try:
+            file_key = validar_clave(df, proy_act_nombre, file_key)
+        except ValueError as error:
+            return jsonify(error=str(error)),400
         if not file_key:
             pk_cfg = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
             candidate = (pk_cfg.valor if pk_cfg else None) or ''
@@ -404,6 +411,12 @@ def api_import_process():
 
         config_pk = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
         system_pk = config_pk.valor if config_pk else None
+        if proy_act_nombre in CLAVES:
+            system_pk = CLAVES[proy_act_nombre]
+            if config_pk:
+                config_pk.valor = system_pk
+            else:
+                db.session.add(AppConfig(proyecto_id=pid, clave='primary_key', valor=system_pk))
         
         if import_type == 'base' and not system_pk:
             system_pk = file_key
@@ -665,6 +678,8 @@ def api_import_process():
                 added += 1
             else:
                 record = existing_records[key_val]
+                if record.data_json != safe_json_dumps(current_data):
+                    db.session.add(NucleusHistory(proyecto_id=pid, key_value=key_val, data_json=record.data_json))
                 record.data_json = safe_json_dumps(current_data)
                 updated += 1
 

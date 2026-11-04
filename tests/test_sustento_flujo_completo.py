@@ -61,6 +61,8 @@ def test_flujo_completo(app, auth_client, caso, monkeypatch, tmp_path, wos, wo):
                content_type='multipart/form-data'); assert r.status_code == 200, r.json
     for fase in ('before', 'during', 'after'): _subir_item(c, wo, items[0]['key'], fase)
     _subir_item(c, wo, items[1]['key'], 'before')
+    abierto = _abrir(c)
+    assert abierto['total_fotos'] == 5  # Cuatro del ítem y una de ubicación.
     pasos = []
     # 1) Guardar (disquete) con textos y fechas
     ev = {'_BITACORA_INICIO': 'Antecedentes', 'INICIO EJECUCION': '2026-11-02 07:15:00', 'FIN EJECUCION': '2026-11-02 18:00:00'}

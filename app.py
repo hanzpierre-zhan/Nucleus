@@ -166,6 +166,8 @@ def create_app(config_object=None):
         from migrations.entel_columnas import instalar as restaurar_columnas_entel
         startup_stage('Comprobando columnas de Entel')
         restaurar_columnas_entel()
+        from migrations.claro_identificador import instalar as corregir_clave_claro
+        corregir_clave_claro()
         from services.liquidacion_numero import numerar_historicos
 
         startup_stage('Comprobando numeración histórica')

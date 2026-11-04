@@ -27,6 +27,9 @@ def test_muestra_fotos_de_item_retirado_y_guardar_sin_editar_no_borra(app,auth_c
             context.add_cookies([{'name':'session','value':cookie.value,'domain':'127.0.0.1','path':'/'}])
             page=context.new_page();page.goto(servidor+'/',wait_until='networkidle')
             page.evaluate("cotAbrirModalSustento('COT-SUST-TEST')")
+            playwright_api.expect(page.locator('.cot-item-card')).to_have_attribute('open','')
+            playwright_api.expect(page.locator('.cot-item-card summary')).to_contain_text('1 foto guardada')
+            playwright_api.expect(page.locator('.cot-item-card img').first).to_be_visible()
             playwright_api.expect(page.locator('.cot-item-previous')).to_be_visible()
             playwright_api.expect(page.locator('button.cot-ficha-picture-remove')).to_be_hidden()
             assert page.locator('.cot-item-previous a').get_attribute('href')=='/retirada.jpg'
@@ -180,8 +183,8 @@ def test_ficha_ampliada_guarda_y_restaura_modal(app,auth_client,servidor,caso,mo
             for phase in ('during','after'):
                 assert page.locator('.cot-item-card').first.locator(f'[data-phase={phase}] .cot-item-photo').count()==1
             first=page.locator('.cot-item-card').first
-            assert not first.evaluate('(e)=>e.open')
-            first.locator('summary').click()
+            assert first.evaluate('(e)=>e.open')
+            playwright_api.expect(first.locator('.cot-item-photo-count')).to_have_text('5 fotos guardadas')
             assert first.locator('[data-item-field=unique_code]').input_value()=='8828126700'
             assert first.locator('[data-item-field=description_en]').input_value()=='Purchase of cable'
             assert first.locator('[data-item-field=activity]').input_value()=='Cable delivery and installation'

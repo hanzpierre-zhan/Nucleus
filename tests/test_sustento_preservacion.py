@@ -4,6 +4,21 @@ from models import NucleusData, NucleusHistory
 from test_sustento_por_wo import caso
 
 
+def test_error_de_lectura_no_presenta_ficha_vacia(app, auth_client, caso, monkeypatch):
+    import blueprints.cotizacion as cot
+    auth_client.get('/switch_project/%s' % caso['cot'])
+    with app.app_context():
+        original = db.session.get(NucleusData, caso['ids'][2]).data_json
+    def fallo(*args):
+        raise ValueError('Lectura fallida')
+    monkeypatch.setattr(cot, 'efectivos', fallo)
+    r = auth_client.get('/api/cotizacion/sustento?key=COT-SUST-TEST')
+    assert r.status_code == 503
+    assert 'wos' not in r.json
+    with app.app_context():
+        assert db.session.get(NucleusData, caso['ids'][2]).data_json == original
+
+
 def test_formulario_vacio_no_borra_y_edicion_desactualizada_no_pisa(app, auth_client, caso):
     auth_client.get('/switch_project/%s' % caso['cot'])
     with app.app_context():

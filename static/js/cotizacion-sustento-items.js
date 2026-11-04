@@ -9,7 +9,9 @@
   const photos=entry.wo_data._SUSTENTO_MANUAL?.item_photos||{};
   for(const item of ctx.items){
    const card=el('details','cot-item-card');card.dataset.itemKey=item.key;
-   const head=el('summary','cot-item-heading');head.append(el('span','cot-item-number','Ítem '+item.numero),el('h4',null,item.texto));card.append(head);
+   card.open=!!((photos[item.key]||[]).length||Object.keys(entry.wo_data._SUSTENTO_MANUAL?.item_details?.[item.key]||{}).length);
+   const head=el('summary','cot-item-heading');head.append(el('span','cot-item-number','Ítem '+item.numero),el('h4',null,item.texto));
+   const count=el('span','cot-item-photo-count');head.append(count);card.append(head);
    const manual=entry.wo_data._SUSTENTO_MANUAL?.item_details?.[item.key]||{};
    const fields=el('div','cot-item-fields');
    const selectedCode=manual.unique_code||item.unique_code||'8828126757',catalogue=ctx.lpu||[],selected=catalogue.find(row=>row.code===selectedCode);
@@ -56,6 +58,7 @@
    }
    function render(){
     grid.replaceChildren();const images=photos[item.key]||[];
+    count.textContent=images.length+' foto'+(images.length===1?'':'s')+' guardada'+(images.length===1?'':'s');
     for(const [phase,title] of [['before','Antes | Before'],['during','Durante | During'],['after','Después | After']]){
      const section=el('section','cot-item-phase');section.dataset.phase=phase;section.append(el('h5',null,title));
      const list=el('div','cot-item-photos');section.append(list);grid.append(section);

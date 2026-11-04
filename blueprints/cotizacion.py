@@ -1516,10 +1516,15 @@ def api_cotizacion_sustento():
             wf_data['_key'] = wf.key_value
             fotos = {t.lower(): json.loads(wf_data.get('_EVIDENCIA_'+t) or '[]') for t in ('INICIO','PROCESO','CIERRE')}
             bit = {t.lower(): str(wf_data.get('_BITACORA_'+t) or '') for t in ('INICIO','PROCESO','CIERRE')}
-            total += sum(sum(bool(u) for u in arr) for arr in fotos.values()) - n
+            manual = wf_data['_SUSTENTO_MANUAL']
+            fotos_items = sum(bool(f.get('url')) for grupo in manual.get('item_photos',{}).values()
+                              for f in grupo if isinstance(f,dict))
+            fotos_ubicacion = int(bool(manual.get('location_picture')))
+            total += sum(sum(bool(u) for u in arr) for arr in fotos.values()) + fotos_items + fotos_ubicacion - n
             bloqueado = bloqueado or str(d.get('_SUSTENTO_APROBADO') or '') == '1'
         except Exception:
-            wf_data = {'_key': wo}
+            current_app.logger.exception('No se pudo leer el sustento de %s, WO %s', key, wo)
+            return jsonify(error='No se pudo cargar el sustento completo. No se modificó ningún dato; vuelve a intentarlo.'),503
         info.append({
             'wo': wo, 'encontrado': True,
             'proyecto_id': p.id, 'proyecto_nombre': p.nombre,
