@@ -9,8 +9,11 @@ import base64
 import hashlib
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 import psycopg2
@@ -71,6 +74,9 @@ def ejecutar(con, entradas, backup_dir):
         cur.execute("SET LOCAL statement_timeout='180s'")
         for nombre, key, path, esperado_pid in entradas:
             headers, source = leer(path, key)
+            from services.importacion_estados import cancelado
+            ignorados_cancelados = sum(cancelado(row, nombre) for row in source)
+            source = [row for row in source if not cancelado(row, nombre)]
             cur.execute('SELECT id FROM proyectos WHERE nombre=%s', (nombre,))
             found = cur.fetchone()
             if not found or found[0] != esperado_pid:
@@ -133,7 +139,7 @@ def ejecutar(con, entradas, backup_dir):
             summaries.append(dict(modulo=nombre,columnas_excel=len(headers),columnas_agregadas=len(set(headers)-set(schema)),
                                   filas_excel=len(source),anteriores=len(old_rows),agregados=len(added),
                                   actualizados=len(changed),sin_cambio=len(source)-len(added)-len(changed),
-                                  total=len(actual),clave=key))
+                                  total=len(actual),clave=key,ignorados_cancelados=ignorados_cancelados))
     return summaries
 
 

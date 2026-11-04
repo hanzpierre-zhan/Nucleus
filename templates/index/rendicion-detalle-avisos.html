@@ -592,7 +592,7 @@ function rendActualizarContadores() {
 
     const c = { transito: 0, validacion: 0, depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0, rechazados: 0 };
 
-    const m = { depositos: 0, evidencia: 0, sustentos: 0, cerrado: 0, archivado: 0 };
+    const m = { depositos: 0, evidencia: 0, sustentos: 0, observado: 0, cerrado: 0, archivado: 0 };
 
     rawData.forEach(r => {
 
@@ -614,7 +614,7 @@ function rendActualizarContadores() {
         else if (e === 'SUSTENTADO') { c.cerrado++; m.cerrado += monto; }
 
         else if (e === 'ANULADO') c.rechazados++;
-        else if (e === 'OBSERVADO') c.observado++;
+        else if (e === 'OBSERVADO') { c.observado++; m.observado += monto; }
         else if (e === 'ARCHIVADO') { c.archivado++; m.archivado += monto; }
 
     });

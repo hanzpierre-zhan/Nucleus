@@ -14,6 +14,8 @@ FILAS = [
     ('REND-PROY-ENTEL-2', 'Entel', 'DEPOSITADO', '200'),
     ('REND-PROY-CLARO-1', 'Claro', 'VALIDADO', '50'),
     ('REND-PROY-INTEGRATEL-1', 'Integratel', 'VALIDADO', '25'),
+    ('REND-PROY-OBS-ENTEL', 'Entel', 'OBSERVADO', '75.25'),
+    ('REND-PROY-OBS-CLARO', 'Claro', 'OBSERVADO', '40'),
 ]
 
 # Calcula el valor esperado con los datos que la propia página cargó, para que
@@ -78,6 +80,11 @@ def test_tarjetas_por_proyecto_en_rendicion(app, auth_client, servidor, rendicio
             todos = _esperado(page, '', 'VALIDADO')
             playwright_api.expect(monto_depositos).to_have_text(todos[0])
             playwright_api.expect(casos_depositos).to_have_text(todos[1])
+            observado = _esperado(page, '', 'OBSERVADO')
+            playwright_api.expect(page.locator('[data-rend-monto="observado"]')).to_have_text(observado[0])
+            playwright_api.expect(page.locator('[data-rend-cnt="observado"]')).to_have_text(observado[1])
+            page.locator('[data-rend-resumen="observado"]').click()
+            assert page.evaluate('_rendVista') == 'observado'
 
             selector.select_option('FLM - ENTEL')
             entel = _esperado(page, 'FLM - ENTEL', 'VALIDADO')
@@ -87,6 +94,9 @@ def test_tarjetas_por_proyecto_en_rendicion(app, auth_client, servidor, rendicio
             evidencia = _esperado(page, 'FLM - ENTEL', 'DEPOSITADO')
             playwright_api.expect(page.locator('[data-rend-monto="evidencia"]')).to_have_text(evidencia[0])
             playwright_api.expect(page.locator('[data-rend-cnt="evidencia"]')).to_have_text(evidencia[1])
+            observado_entel = _esperado(page, 'FLM - ENTEL', 'OBSERVADO')
+            playwright_api.expect(page.locator('[data-rend-monto="observado"]')).to_have_text(observado_entel[0])
+            playwright_api.expect(page.locator('[data-rend-cnt="observado"]')).to_have_text(observado_entel[1])
             page.screenshot(path=str(tmp_path / 'rendicion-tarjetas-entel.png'),
                             clip={'x': 0, 'y': 0, 'width': 1600, 'height': 340})
 

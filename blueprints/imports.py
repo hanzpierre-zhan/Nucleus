@@ -275,6 +275,16 @@ def api_import_process():
         if file_key not in df.columns:
             return jsonify({'error': f'Key {file_key} not found in headers.'}), 400
 
+        # Omitir antes de reducir columnas o agrupar. Sus claves siguen presentes
+        # a efectos de consolidación: ignorar no debe borrar un WO existente.
+        from services.importacion_estados import cancelado, ESTADOS
+        claves_canceladas, ignorados_cancelados = set(), 0
+        if proy_act_nombre in ESTADOS and len(df):
+            mascara_cancelados = df.fillna('').apply(lambda fila: cancelado(fila.to_dict(), proy_act_nombre), axis=1)
+            claves_canceladas = set(df.loc[mascara_cancelados, file_key].fillna('').astype(str).str.strip()) - {''}
+            ignorados_cancelados = int(mascara_cancelados.sum())
+            df = df.loc[~mascara_cancelados].copy()
+
         # Validación interna: PEXT debe traer la columna CATEGORY con el valor
         # correcto para evitar importar por error datos de otro proceso/mundo.
         # FLM: sin restricción de CATEGORY (acepta cualquier valor).
@@ -425,7 +435,7 @@ def api_import_process():
             
         # Delta: consultar solo las filas cuyas claves vienen en el archivo,
         # en chunks de 400 (limite de parametros de SQLite) para no traer toda la tabla.
-        imported_keys = set()
+        imported_keys = set(claves_canceladas)
         for _v in df[file_key].tolist():
             _s = str(_v).strip()
             if _s:
@@ -464,7 +474,7 @@ def api_import_process():
         cons_cfg = json.loads(cons_cfg_row.valor) if cons_cfg_row else {}
         consolidate_on_fail = cons_cfg.get('consolidate_on_filter_fail', False)
         
-        updated, added, ignored, consolidated = 0, 0, 0, 0
+        updated, added, ignored, consolidated = 0, 0, ignorados_cancelados, 0
         rejected_saldo = []
         dynamic_cols = set()
         counter_guardados = 0
@@ -709,7 +719,7 @@ def api_import_process():
         
         # Absence-based Consolidation (Optimized to avoid SQLite parameter limits)
         absent_consolidated = 0
-        if import_type == 'base' and proy_act_nombre != 'SITE' and cons_cfg.get('auto_consolidate_missing'):
+        if import_type == 'base' and len(df) > 0 and proy_act_nombre != 'SITE' and cons_cfg.get('auto_consolidate_missing'):
             # Consulta solo la columna key_value (no el data_json pesado)
             # para comparar las claves existentes contra las del archivo.
             all_existing_keys = [r[0] for r in db.session.query(NucleusData.key_value)
@@ -772,6 +782,7 @@ def api_import_process():
             'added': added,
             'updated': updated,
             'ignored': ignored,
+            'ignored_canceled': ignorados_cancelados,
             'consolidated': consolidated,
             'rejected_saldo': rejected_saldo,
             'pk': system_pk
