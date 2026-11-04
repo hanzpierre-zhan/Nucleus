@@ -101,6 +101,18 @@ def login():
         user = usuarios_activos().filter(func.lower(Usuario.username) == username.lower()).first()
         if not user:
             user = usuarios_activos().filter(func.lower(Usuario.nombre) == username.lower()).first()
+        if not user:
+            # El documento de Personal da acceso solo al piloto de formularios.
+            # No crea Usuario, permisos de proyecto ni sesiones administrativas.
+            from blueprints.formularios_prueba import habilitado, iniciar_tecnico
+            from services.formularios_prueba import buscar_personal, documento
+            import hmac
+            doc = documento(username)
+            if habilitado() and re.fullmatch(r'[A-Z0-9]{6,15}', doc) and hmac.compare_digest(doc, password):
+                tecnico = buscar_personal(doc)
+                if tecnico:
+                    iniciar_tecnico(tecnico)
+                    return redirect(url_for('form_pruebas.inicio'))
         if not user or not check_password_hash(user.password_hash, password):
             session.pop('legal_pending', None)
             return render_template('login.html', error='Credenciales inválidas', username=username)

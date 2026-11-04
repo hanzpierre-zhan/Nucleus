@@ -36,6 +36,13 @@ def comprobar_csrf():
         abort(403, 'La sesión del formulario venció. Actualiza la página.')
 
 
+def iniciar_tecnico(person):
+    """Identidad exclusiva del portal; nunca crea una cuenta administrativa."""
+    session.clear()
+    session.update(form_documento=person['documento'], form_personal_id=person['id'], form_login_at=time.time())
+    csrf()
+
+
 @bp.before_app_request
 def aislar_sesion_tecnica():
     if session.get('form_documento') and not request.path.startswith(('/form-pruebas', '/static/')):
@@ -108,9 +115,7 @@ def ingresar():
     person = piloto.buscar_personal(doc) if re.fullmatch(r'[A-Z0-9]{6,15}', doc) else None
     if not person or not hmac.compare_digest(doc, password):
         return jsonify(error='Documento o clave incorrectos, o personal no habilitado. Consulta con tu supervisor.'), 401
-    session.clear()
-    session.update(form_documento=doc, form_personal_id=person['id'], form_login_at=time.time())
-    csrf()
+    iniciar_tecnico(person)
     return jsonify(success=True)
 
 

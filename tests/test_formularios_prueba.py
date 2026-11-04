@@ -22,6 +22,8 @@ def portal(tmp_path):
     db.init_app(app)
     from blueprints.formularios_prueba import bp
     app.register_blueprint(bp)
+    from blueprints.auth import bp as auth_bp
+    app.register_blueprint(auth_bp)
     app.add_url_rule('/otro-modulo', view_func=lambda: 'No permitido al técnico')
     with app.app_context():
         db.create_all()
@@ -141,3 +143,18 @@ def test_validacion_sesion_csrf_y_saldo(portal):
 def test_deshabilitado_por_defecto_no_abre_acceso(portal):
     portal.config['FORM_PRUEBAS_ENABLED']=False
     assert portal.test_client().get('/form-pruebas/').status_code==404
+
+
+def test_login_habitual_documento_como_usuario_y_clave(portal):
+    before=fuente(portal)
+    client=portal.test_client()
+    response=client.post('/login',data={'username':'00001111','password':'00001111'})
+    assert response.status_code==302
+    assert response.headers['Location'].endswith('/form-pruebas/')
+    assert client.get('/form-pruebas/datos').json['personal']['documento']=='00001111'
+    with client.session_transaction() as s:
+        assert not s.get('user_id') and s['form_documento']=='00001111'
+    assert fuente(portal)==before
+    other=portal.test_client()
+    assert other.post('/login',data={'username':'00003333','password':'00003333'}).status_code==200
+    assert other.get('/form-pruebas/datos').status_code==401
