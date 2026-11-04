@@ -163,6 +163,9 @@ def create_app(config_object=None):
         instalar_pext()
         startup_stage('Normalizando configuración')
         clean_existing_config()
+        from migrations.entel_columnas import instalar as restaurar_columnas_entel
+        startup_stage('Comprobando columnas de Entel')
+        restaurar_columnas_entel()
         from services.liquidacion_numero import numerar_historicos
 
         startup_stage('Comprobando numeración histórica')
