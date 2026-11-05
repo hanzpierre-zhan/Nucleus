@@ -1,9 +1,9 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
-<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
 <link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=5">
-<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
-<script src="/static/js/dashboard-visual.js?v=1"></script>
-<section class="di-page di-finance finance-{{ modo }}" data-finance="{{ modo }}">
+<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
+<script src="/static/js/dashboard-visual.js?v=3"></script>
+<section class="di-page dv-unified di-finance dv-finance finance-{{ modo }}" data-finance="{{ modo }}">
   {% from '_dashboard_header.html' import dashboard_header with context %}
   {% call dashboard_header('Caja Chica' if modo == 'rendicion' else 'Cotizaciones', 'Flujo de pagos' if modo == 'rendicion' else 'Gestión comercial', 'Importes de MONTO PAGO' if modo == 'rendicion' else 'Importes de SUB TOTAL + FEE', 5 if modo == 'rendicion' else 7) %}
   <div class="df-toolbar" aria-label="Filtros del dashboard">
@@ -43,4 +43,4 @@
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-finanzas-model.js?v=5"></script>
-<script src="/static/js/dashboard-finanzas.js?v=9"></script>
+<script src="/static/js/dashboard-finanzas.js?v=10"></script>

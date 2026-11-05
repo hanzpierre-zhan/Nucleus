@@ -1,10 +1,10 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
-<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
 <link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=3">
-<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
 <link rel="stylesheet" href="/static/css/dashboard-rendicion-ejecutivo.css?v=8">
-<script src="/static/js/dashboard-visual.js?v=1"></script>
-<section class="di-page di-finance finance-rendicion rend-executive" data-finance="rendicion">
+<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
+<script src="/static/js/dashboard-visual.js?v=3"></script>
+<section class="di-page dv-unified di-finance dv-finance finance-rendicion rend-executive" data-finance="rendicion">
   {% from '_dashboard_header.html' import dashboard_header with context %}
   {% call dashboard_header('Caja Chica', 'Depósitos pendientes de sustento', 'Estado 3.DEPOSITADO · importes de MONTO PAGO', 4) %}
   <div class="df-toolbar" aria-label="Filtros del dashboard">
@@ -34,4 +34,4 @@
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-finanzas-model.js?v=4"></script>
 <script src="/static/js/dashboard-rendicion-model.js?v=3"></script>
-<script src="/static/js/dashboard-rendicion-ejecutivo.js?v=7"></script>
+<script src="/static/js/dashboard-rendicion-ejecutivo.js?v=8"></script>

@@ -4,4 +4,7 @@ const rows=[{id:'1',creacion:'2026-09-30T10:00:00',cierre:'2026-10-02T10:00:00',
 let s=snapshot(rows,{desde:'2026-10-01',hasta:'2026-10-02',escala:'dia'});
 assert.equal(s.creados,2);assert.equal(s.completados,2);assert.equal(s.abiertos,1);assert.equal(s.sla,50);assert.deepEqual(s.velocidad,[0,2,0]);assert.equal(s.series[0].backlog,3);assert.equal(s.series[1].backlog,1);
 s=snapshot([],{desde:'2026-10-01',hasta:'2026-10-02',escala:'dia'});assert.equal(s.sla,null);assert.equal(s.promedio,null);
+s=snapshot(rows,{desde:'2026-09-30',hasta:'2026-10-02',escala:'trimestre'});
+assert.deepEqual(s.series.map(g=>[g.key,g.creados,g.completados,g.backlog]),
+ [['2026 T3',1,0,1],['2026 T4',2,2,1]]);
 console.log('Modelo Claro: cálculos verificados');

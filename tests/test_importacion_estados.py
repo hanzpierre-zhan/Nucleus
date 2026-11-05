@@ -12,7 +12,7 @@ from services.importacion_estados import cancelado
     ('FLM - ENTEL','Número de WO','Estado de la tarea (WO State)'),
     ('FLM - PEXT','Numero de WO','Estado de la tarea'),
 ])
-def test_canceled_se_omite_sin_borrar_existente(app,auth_client,proyecto,clave,estado):
+def test_canceled_actualiza_existente_y_omite_nuevo(app,auth_client,proyecto,clave,estado):
     with app.app_context():
         pid=Proyecto.query.filter_by(nombre=proyecto).one().id
         cfg=AppConfig.query.filter_by(proyecto_id=pid,clave='consolidation_config').first()
@@ -21,15 +21,17 @@ def test_canceled_se_omite_sin_borrar_existente(app,auth_client,proyecto,clave,e
             cfg=AppConfig(proyecto_id=pid,clave='consolidation_config');db.session.add(cfg)
         cfg.valor=json.dumps({'auto_consolidate_missing':True})
         row=NucleusData(proyecto_id=pid,key_value='QA-CANCEL-EXISTE',data_json=json.dumps({estado:'Running','GESTOR':'Conservar','_EVIDENCIA_INICIO':'["/foto.jpg"]'}))
-        db.session.add(row);db.session.commit();original=row.data_json;rid=row.id
+        db.session.add(row);db.session.commit();rid=row.id
     auth_client.get('/switch_project/%s'%pid)
     try:
         csv=f'{clave},{estado}\nQA-CANCEL-EXISTE, Canceled \nQA-CANCEL-NUEVO,cAnCeLeD\nQA-CANCEL-ACTIVO,Running\n'
         r=auth_client.post('/api/import/process',data={'type':'base','file':(io.BytesIO(csv.encode()),'datos.csv')})
         assert r.status_code==200,r.json
-        assert r.json['added']==1 and r.json['ignored_canceled']==2
+        assert r.json['added']==1 and r.json['ignored_canceled']==1 and r.json['updated_canceled']==1
         with app.app_context():
-            assert db.session.get(NucleusData,rid).data_json==original
+            guardado = json.loads(db.session.get(NucleusData,rid).data_json)
+            assert guardado[estado]=='Canceled'
+            assert guardado['GESTOR']=='Conservar' and guardado['_EVIDENCIA_INICIO']=='["/foto.jpg"]'
             assert not NucleusData.query.filter_by(proyecto_id=pid,key_value='QA-CANCEL-NUEVO').first()
         # Un archivo completamente cancelado tampoco consolida los activos.
         csv=f'{clave},{estado}\nQA-CANCEL-EXISTE,Canceled\n'
@@ -38,6 +40,11 @@ def test_canceled_se_omite_sin_borrar_existente(app,auth_client,proyecto,clave,e
         assert r.json['added']==r.json['updated']==r.json['consolidated']==0
         with app.app_context():
             assert NucleusData.query.filter_by(proyecto_id=pid,key_value='QA-CANCEL-ACTIVO').first()
+        csv=f'{clave},{estado}\nQA-CANCEL-EXISTE,Running\nQA-CANCEL-ACTIVO,Running\n'
+        r=auth_client.post('/api/import/process',data={'type':'base','file':(io.BytesIO(csv.encode()),'datos.csv')})
+        assert r.status_code==200,r.json
+        with app.app_context():
+            assert json.loads(db.session.get(NucleusData,rid).data_json)[estado]=='Running'
     finally:
         with app.app_context():
             NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.key_value.like('QA-CANCEL-%')).delete(synchronize_session=False)

@@ -10630,7 +10630,8 @@ btnItem.onclick = () => cotRegAgregarFila();
                 box.className = 'result-box success';
 
                 let resumen = `<i class="fa-solid fa-circle-check"></i> <b>Importación exitosa.</b> Añadidos: ${data.added} · Actualizados: ${data.updated} · Ignorados: ${data.ignored}`;
-                if (data.ignored_canceled) resumen += ` (${data.ignored_canceled} con estado Canceled)`;
+                if (data.ignored_canceled) resumen += ` · ${data.ignored_canceled} Canceled omitidos`;
+                if (data.updated_canceled) resumen += ` · ${data.updated_canceled} órdenes existentes marcadas Canceled`;
 
                 if (data.consolidated) resumen += ` · Consolidados: ${data.consolidated}`;
 

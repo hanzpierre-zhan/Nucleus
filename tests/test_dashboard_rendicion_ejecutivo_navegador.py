@@ -37,8 +37,13 @@ def test_panel_ejecutivo_reconcilia_y_se_adapta(app,auth_client,servidor,tmp_pat
                 assert page.locator('#re-comparison-total').inner_text()
                 assert 'CON SUSTENTO' in page.locator('#re-comparison-note').inner_text()
                 assert page.locator('#re-clients-legend').inner_text().count('S/')==4
-                assert page.evaluate('()=>Chart.getChart("re-applicants").config.plugins.some(p=>p.id==="executiveAmounts")')
-                assert page.evaluate('()=>Chart.getChart("re-trend").config.plugins.some(p=>p.id==="trendAmounts")')
+                assert page.evaluate("""() => ['re-applicants', 're-trend'].every(id => {
+                    const chart = Chart.getChart(id), labels = [];
+                    const original = chart.ctx.strokeText;
+                    chart.ctx.strokeText = text => labels.push(text);
+                    try { chart.draw(); } finally { chart.ctx.strokeText = original; }
+                    return labels.some(text => text.startsWith('S/'));
+                })""")
                 paid_total=sum(100+n*37.5 for n in range(88,92))
                 assert page.evaluate('()=>Chart.getChart("re-comparison").data.datasets.reduce((s,d)=>s+d.data.reduce((a,b)=>a+b,0),0)')==paid_total
                 assert page.locator('#df-kpis article').count()==6

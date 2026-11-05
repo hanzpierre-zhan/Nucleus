@@ -2,6 +2,20 @@ from datetime import date
 from services.dashboard_integratel import indicadores
 
 
+def test_integratel_lee_columnas_de_exportacion_y_sla():
+    result = indicadores([
+        {'_key': 'CM-1', 'Task Status': 'completed', 'Createtime': '2026-10-01 08:00:00',
+         'Complete Time': '2026-10-02 09:00:00', 'Sla Status': 'sla_violation'},
+        {'_key': 'CM-2', 'Task Status': 'canceled', 'Createtime': '2026-10-01',
+         'Cancel Time': '2026-10-02 09:00:00'},
+    ], date(2026, 10, 13), integratel=True)
+    closed, cancelled = result['detalle']
+    assert result['produccion'] == 1
+    assert closed['fecha'] == '2026-10-01' and closed['cierre'] == '2026-10-02T09:00:00'
+    assert closed['creacion'] == '2026-10-01T08:00:00' and closed['sla'] is False
+    assert cancelled['cancelado'] and cancelled['cierre'] is None and cancelled['sla'] is None
+
+
 def test_produccion_por_creacion_y_backlog_solo_meses_anteriores():
     rows = [
         {'_key':'CM-1','OPERATE PHASE':' close ', 'FECHA DE CREACIÓN':'2026-09-30 20:00', 'DEPARTAMENTO':'LIMA','NOMBRE DE SITE':'A'},
@@ -88,7 +102,7 @@ def test_dashboard_respeta_departamentos_permitidos(app,auth_client,cambiar_rol)
     cambiar_rol(auth_client, 'supervisor')
     with auth_client.session_transaction() as session:
         session['current_proyecto_id']=pid;session['current_proyecto_nombre']='FLM - ENTEL'
-    response=auth_client.get('/analytics')
+    response=auth_client.get('/analytics/entel')
     assert response.status_code==200
     data=json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>',response.text,re.S).group(1))
     keys={r['wo'] for r in data['detalle']}
@@ -106,7 +120,7 @@ def test_analytics_usa_flm_seleccionado_sin_mezclar_operadores(app, auth_client)
         db.session.add(NucleusData(proyecto_id=entel, key_value='ENTEL-DASH-QA', data_json=json.dumps({'OPERATE PHASE':'close','FECHA DE CREACION':'2026-09-01'})))
         db.session.commit()
     auth_client.get(f'/switch_project/{entel}')
-    response = auth_client.get('/analytics')
+    response = auth_client.get('/analytics/entel')
     assert response.status_code == 200
     assert '<h1>Flm - Entel</h1>' in response.text
     assert 'Producción: Operate Phase' not in response.text
@@ -127,7 +141,7 @@ def test_dashboard_desde_catalogo_usa_su_flm_de_origen(app, auth_client):
         session['current_proyecto_id'] = material
         session['current_proyecto_nombre'] = 'Material'
         session['flm_resource_context'] = {'catalogo_id':material, 'flm_id':entel, 'recurso':'material'}
-    response = auth_client.get('/analytics')
+    response = auth_client.get('/analytics/entel')
     assert response.status_code == 200
     assert 'Operación · FLM - ENTEL' in response.text
 
@@ -144,7 +158,7 @@ def test_dashboard_entel_no_consulta_el_flm_anterior(app, auth_client):
         db.session.add(NucleusData(proyecto_id=integratel, key_value='OTRO-OPERADOR', data_json='{}'))
         db.session.commit()
     auth_client.get(f'/switch_project/{integratel}')
-    response = auth_client.get('/analytics')
+    response = auth_client.get('/analytics/entel')
     assert response.status_code == 200
     data = json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>', response.text, re.S).group(1))
     keys = {r['wo'] for r in data['detalle']}

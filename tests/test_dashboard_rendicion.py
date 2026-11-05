@@ -90,7 +90,7 @@ def test_ruta_dashboard_rendicion(app, auth_client):
             assert 'DASH-REND-TEST' in html
             # El selector de dashboard y la hoja compartida deben estar en las tres vistas.
             assert 'dash-switch' in html
-            for ruta in ('/analytics', '/analytics/cotizaciones', '/analytics/rendicion'):
+            for ruta in ('/analytics/gerencial', '/analytics/cotizaciones', '/analytics/rendicion'):
                 pagina = auth_client.get(ruta).get_data(as_text=True)
                 assert 'dash-switch' in pagina, ruta
                 assert 'analytics-comun.css' in pagina, ruta
@@ -104,7 +104,7 @@ def test_ruta_dashboard_rendicion(app, auth_client):
                 html = auth_client.get('/configuraciones').get_data(as_text=True)
                 assert 'flm-resource-bar' not in html
                 assert 'sidebar-link-text">Personal</span>' in html
-                for ruta in ('/analytics', '/analytics/cotizaciones', '/analytics/rendicion'):
+                for ruta in ('/analytics/gerencial', '/analytics/cotizaciones', '/analytics/rendicion'):
                     assert 'flm-resource-bar' not in auth_client.get(ruta).get_data(as_text=True), ruta
         finally:
             NucleusData.query.filter_by(proyecto_id=pid, key_value='DASH-REND-TEST').delete()

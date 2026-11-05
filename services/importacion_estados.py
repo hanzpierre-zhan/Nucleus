@@ -8,10 +8,14 @@ ESTADOS = {
 }
 
 
-def cancelado(datos, proyecto):
+def estado_fuente(datos, proyecto):
     campos = {str(k).strip().casefold(): v for k, v in datos.items()}
     for nombre in ESTADOS.get(str(proyecto).strip().upper(), ()):
         valor = str(campos.get(nombre.casefold()) or '').strip()
         if valor:
-            return valor.casefold() == 'canceled'
-    return False
+            return valor
+    return ''
+
+
+def cancelado(datos, proyecto):
+    return estado_fuente(datos, proyecto).casefold() == 'canceled'

@@ -61,7 +61,7 @@
         if (select) select.value = state[key];
         render();
     }
-    function mount(id, config, hasData) {
+    function mount(id, config, hasData, format = compact) {
         const canvas = get(id);
         if (!canvas || !window.Chart) return;
         charts.get(id)?.destroy();
@@ -73,7 +73,7 @@
             const empty = node('span', 'Sin datos para esta selección'); empty.className = 'df-empty'; parent.append(empty);
             return;
         }
-        charts.set(id, new Chart(canvas, window.NucleusDashVisual?.prepare(config) || config));
+        charts.set(id, new Chart(canvas, window.NucleusDashVisual?.prepare(config, format) || config));
     }
     function common() {
         const t = theme();
@@ -107,31 +107,11 @@
         if (filterKey) options.onClick = (event, elements) => {
             if (elements.length) setFilter(filterKey, (items[elements[0].index].key || items[elements[0].index].label));
         };
-        const labels = {id: 'financeValues', afterDatasetsDraw(chart) {
-            const ctx = chart.ctx; ctx.save(); ctx.font = '600 10px system-ui';
-            chart.getDatasetMeta(0).data.forEach((bar, index) => {
-                const value = valueOf(items[index]);
-                if (!value) return;
-                const label = format(value), textWidth = ctx.measureText(label).width;
-                if (horizontal) {
-                    const inside = Math.abs(bar.x - bar.base) > textWidth + 12;
-                    ctx.textAlign = inside ? 'right' : 'left'; ctx.textBaseline = 'middle';
-                    const hex = color(items[index].label, index, kind).replace('#', '');
-                    const light = hex.length === 6 && (parseInt(hex.slice(0,2),16) * .299 + parseInt(hex.slice(2,4),16) * .587 + parseInt(hex.slice(4,6),16) * .114) > 155;
-                    ctx.fillStyle = inside ? (light ? '#10233f' : '#fff') : t.text;
-                    ctx.fillText(label, inside ? bar.x - 6 : bar.x + 5, bar.y);
-                } else {
-                    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillStyle = t.text;
-                    ctx.fillText(label, bar.x, Math.max(chart.chartArea.top + 11, bar.y - 4));
-                }
-            });
-            ctx.restore();
-        }};
-        mount(id, {type: 'bar', plugins: [labels], data: {labels: items.map(item => filterKey === 'state' ? stateLabel(item.label) : !horizontal && item.label.includes(' · ') ? item.label.split(' · ').map(name) : name(item.label)), datasets: [{
+        mount(id, {type: 'bar', data: {labels: items.map(item => filterKey === 'state' ? stateLabel(item.label) : !horizontal && item.label.includes(' · ') ? item.label.split(' · ').map(name) : name(item.label)), datasets: [{
             data: items.map(valueOf),
             backgroundColor: items.map((item, index) => alpha(color(item.label, index, kind), selected && (item.key || item.label) !== selected ? .28 : 1)),
             borderRadius: 4, maxBarThickness: horizontal ? 26 : 54, barPercentage: .72,
-        }]}, options}, items.some(item => valueOf(item) !== 0));
+        }]}, options}, items.some(item => valueOf(item) !== 0), format);
     }
     function donut(entries) {
         const total = entries.reduce((value, item) => value + Math.max(0, item.amount), 0);
@@ -196,15 +176,9 @@
         options.plugins.tooltip.callbacks.title = ctx => dayLabel(entries[ctx[0].dataIndex].label);
         options.plugins.tooltip.callbacks.label = ctx => money(ctx.parsed.y);
         options.onClick = (event, elements) => { if (elements.length) setFilter('day', entries[elements[0].index].label); };
-        const labels = {id: 'cotTrendValues', afterDatasetsDraw(chart) {
-            const ctx = chart.ctx; ctx.save(); ctx.fillStyle = t.text; ctx.font = '600 10px system-ui'; ctx.textAlign = 'center';
-            chart.getDatasetMeta(0).data.forEach((point, i) => {
-                if (entries[i].amount) ctx.fillText(compact(entries[i].amount), point.x, point.y - (i % 2 ? 18 : 7));
-            }); ctx.restore();
-        }};
         const holder = get('df-trend-chart').parentElement;
         holder.style.minWidth = entries.length > 10 ? entries.length * 62 + 'px' : '';
-        mount('df-trend-chart', {type: 'line', plugins: [labels], data: {labels: entries.map(e => shortDay(e.label)), datasets: [{
+        mount('df-trend-chart', {type: 'line', data: {labels: entries.map(e => shortDay(e.label)), datasets: [{
             label: 'Pendiente de aprobación', data: entries.map(e => e.amount), borderColor: t.colors[2], pointRadius: 3,
         }]}, options}, entries.length > 0);
     }

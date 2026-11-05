@@ -50,6 +50,22 @@ def fecha(value):
         return None
 
 
+def instante(value):
+    text = str(value or '').strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace('Z', '+00:00')).replace(tzinfo=None).isoformat()
+    except ValueError:
+        pass
+    for fmt in ('%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%d/%m/%Y'):
+        try:
+            return datetime.strptime(text, fmt).isoformat()
+        except ValueError:
+            pass
+    return None
+
+
 def _claves(*nombres):
     """Normaliza los nombres de campo de una búsqueda una sola vez."""
     return tuple(normalizar(n) for n in nombres)
@@ -63,15 +79,22 @@ _K_CREACION = _claves('Fecha de creación (WO Creation date)', 'FECHA DE CREACIO
 _K_WO = _claves('NÚMERO DE WO', 'NUMERO WO', 'WO NUMBER', '_key')
 _K_TIPO_WO = _claves('TIPO WO')
 _K_DEPARTAMENTO = _claves('DEPARTAMENTO')
-_K_SITE = _claves('NOMBRE DE SITE', 'NOMBRE SITE', 'SITE NAME', 'SITE')
-_K_TAREA = _claves('Tipo tarea', 'TIPO DE TAREA', 'TIPO TAREA')
+_K_SITE = _claves('NOMBRE DE SITE', 'NOMBRE SITE', 'SITE NAME', 'SITE', 'Site Id Name', 'Site Id')
+_K_TAREA = _claves('Tipo tarea', 'TIPO DE TAREA', 'TIPO TAREA', 'Task Category', 'Task Type')
 _K_PERSONAL = _claves('Nombre de personal FLM asignado', 'PERSONAL FLM ASIGNADO',
-                      'FLM ASIGNADO', 'TECNICO ASIGNADO')
-_K_PRIORIDAD = _claves('Prioridad del Site', 'PRIORIDAD SITE')
+                      'FLM ASIGNADO', 'TECNICO ASIGNADO', 'Assign To Fme Full Name', 'Assign To Fme')
+_K_PRIORIDAD = _claves('Prioridad del Site', 'PRIORIDAD SITE', 'Site Priority')
 _K_FAULT = _claves('Fault Level', 'NIVEL DE FALLA')
+_K_CIERRE = _claves('Fecha y hora de WO a estado close')
+_K_CANCELACION = _claves('Fecha y hora de cancelación de WO', 'Cancel Time')
+_K_ESTADO = _claves('Task Status', 'Estado de la tarea (WO State)', 'WO State', 'Estado de la tarea')
+_K_CIERRE_INTEGRATEL = _claves('Complete Time')
+_K_SLA = _claves('SLA Status')
+_ESTADOS_FASE = {'completed': 'close', 'closed': 'close', 'dispatched': 'dispatch',
+                 'accepted': 'accept', 'departed': 'depart', 'arrived': 'arrive'}
 
 
-def indicadores(rows, hoy=None):
+def indicadores(rows, hoy=None, *, integratel=False):
     hoy = hoy or datetime.now(ZoneInfo('America/Lima')).date()
     actual = hoy.strftime('%Y-%m')
     meses, departamentos, sites, fases = Counter(), Counter(), Counter(), Counter()
@@ -100,11 +123,16 @@ def indicadores(rows, hoy=None):
                     return actual
             return ''
         phase = str(valor(*_K_FASE)).strip().lower()
-        creation = fecha(valor(*_K_CREACION))
+        estado = str(valor(*_K_ESTADO)).strip().lower()
+        if integratel and not phase:
+            phase = _ESTADOS_FASE.get(estado, estado)
+        raw_creation = valor(*_K_CREACION) or (valor('createtime') if integratel else '')
+        creation = fecha(raw_creation)
         month = creation.strftime('%Y-%m') if creation else None
         wo = str(valor(*_K_WO)).strip()
         match = _PATRON_TIPO_WO.match(str(valor(*_K_TIPO_WO) or wo).upper())
-        tipo = match.group(1) if match else 'Otros'
+        task_type = str(valor('tasktype')).strip().upper() if integratel else ''
+        tipo = match.group(1) if match else task_type if task_type in ('CM', 'PM', 'PLM') else 'Otros'
         dept = str(valor(*_K_DEPARTAMENTO)).strip() or 'Sin departamento'
         site = str(valor(*_K_SITE)).strip() or 'Sin site'
         if phase == 'close':
@@ -121,14 +149,29 @@ def indicadores(rows, hoy=None):
             else: grupo = 'Fecha futura'; futuros += 1
         if month is None: sin_fecha += 1
         tipos[grupo][tipo] += 1
+        cancelled = estado in ('canceled', 'cancelled', 'cancelado', 'anulado') or phase in ('cancel', 'canceled', 'cancelled')
+        sla = str(valor(*_K_SLA)).strip().lower()
+        cierre = cancelacion = creacion_con_hora = None
+        if phase == 'close' and not cancelled:
+            raw_cierre = valor(*_K_CIERRE) or (valor(*_K_CIERRE_INTEGRATEL) if integratel else '')
+            cierre = instante(raw_cierre)
+            if cierre and ':' in str(raw_cierre) and ':' in str(raw_creation):
+                creacion_con_hora = instante(raw_creation)
+        if cancelled:
+            cancelacion = instante(valor(*_K_CANCELACION))
         detalle.append({'wo':wo,'tipo':tipo,'mes':month or '',
                         'fecha':creation.isoformat() if creation else '',
+                        'creacion':creacion_con_hora,
+                        'cierre':cierre,
+                        'cancelado':cancelled,
+                        'cancelacion':cancelacion,
+                        'sla':True if sla == 'normal' else False if sla in ('sla_violation', 'milestone_broken') else None,
                         'tarea':str(valor(*_K_TAREA)).strip() or 'Sin tipo de tarea',
                         'personal':str(valor(*_K_PERSONAL)).strip() or 'Sin personal asignado',
                         'prioridad':str(valor(*_K_PRIORIDAD)).strip() or 'Sin prioridad',
                         'fault':str(valor(*_K_FAULT)).strip() or 'Sin Fault Level',
                         'departamento':dept,'site':site,'fase':phase or 'Sin fase','grupo':grupo})
-    return {'mes_actual':actual,'total':total,'produccion':produccion,'backlog':backlog,'en_atencion':abiertos_actual,
+    return {'mes_actual':actual,'hoy':hoy.isoformat(),'total':total,'produccion':produccion,'backlog':backlog,'en_atencion':abiertos_actual,
             'sin_fecha':sin_fecha,'futuros':futuros,'meses':dict(sorted(meses.items())),
             'departamentos':departamentos.most_common(),'sites':sites.most_common(),
             'tipos':{k:dict(v) for k,v in tipos.items()},'fases':fases.most_common(),'detalle':detalle}

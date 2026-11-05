@@ -54,6 +54,65 @@ def test_tipo_repetido_no_colapsa_y_reimportar_respalda(app,auth_client,claro):
         assert json.loads(h.data_json)['Title']=='Primero'
 
 
+def test_reimportacion_masiva_no_recarga_fila_por_fila(app, auth_client, claro):
+    from sqlalchemy import event
+
+    cantidad = 1200
+    csv = 'Task Type,Ticket Id,Title\n' + ''.join(
+        f'CM,QA-masivo-{indice},Original\n' for indice in range(cantidad)
+    )
+    primera = importar(auth_client, csv)
+    assert primera.status_code == 200, primera.json
+    assert primera.json['added'] == cantidad
+
+    lecturas = []
+
+    def contar_lecturas(conn, cursor, statement, parameters, context, executemany):
+        if statement.lstrip().upper().startswith('SELECT') and 'FROM nucleus_data' in statement:
+            lecturas.append(statement)
+
+    with app.app_context():
+        engine = db.engine
+    event.listen(engine, 'before_cursor_execute', contar_lecturas)
+    try:
+        segunda = importar(auth_client, csv.replace('Original', 'Actualizado'))
+    finally:
+        event.remove(engine, 'before_cursor_execute', contar_lecturas)
+
+    assert segunda.status_code == 200, segunda.json
+    assert segunda.json['updated'] == cantidad
+    assert len(lecturas) <= 5
+    with app.app_context():
+        filas = NucleusData.query.filter_by(proyecto_id=claro).filter(
+            NucleusData.key_value.like('QA-masivo-%')
+        ).all()
+        assert len(filas) == cantidad
+        assert all(json.loads(fila.data_json)['Title'] == 'Actualizado' for fila in filas)
+
+
+def test_error_despues_de_500_filas_revierte_la_importacion(app, auth_client, claro, monkeypatch):
+    from blueprints import imports
+
+    serializar = imports.safe_json_dumps
+
+    def fallar_en_ultima_fila(data):
+        if isinstance(data, dict) and data.get('Ticket Id') == 'QA-error-501':
+            raise ValueError('Fallo simulado')
+        return serializar(data)
+
+    monkeypatch.setattr(imports, 'safe_json_dumps', fallar_en_ultima_fila)
+    csv = 'Task Type,Ticket Id,Title\n' + ''.join(
+        f'CM,QA-error-{indice},Registro\n' for indice in range(1, 502)
+    )
+    respuesta = importar(auth_client, csv)
+    assert respuesta.status_code == 500
+    assert respuesta.json['error'] == 'Fallo simulado'
+    with app.app_context():
+        assert not NucleusData.query.filter_by(proyecto_id=claro).filter(
+            NucleusData.key_value.like('QA-error-%')
+        ).count()
+
+
 @pytest.mark.parametrize('csv,extra',[
     ('Task Type,Title\nCM,Sin clave\n',{}),
     ('Task Type,Ticket Id\nCM,QA-1\nPM,QA-1\n',{}),

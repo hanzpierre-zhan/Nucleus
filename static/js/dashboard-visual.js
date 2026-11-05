@@ -3,6 +3,7 @@
  const ns='http://www.w3.org/2000/svg';
  const el=(tag,attrs)=>{const n=document.createElementNS(ns,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v));return n;};
  const fade=(color,opacity)=>'color-mix(in srgb,'+color+' '+Math.round(opacity*100)+'%,transparent)';
+ const operationalColors={blue:'#4b9eff',teal:'#16b9b4',amber:'#fbb249',red:'#fb7054',muted:'#9cb0ca'};
  function months(box){
   box.querySelector('.dv-month-area')?.remove();
   const bars=[...box.querySelectorAll('.di-month')];
@@ -21,13 +22,55 @@
   svg.prepend(el('path',{d:d+' L '+x(counts.length-1)+','+bottom+' L '+x(0)+','+bottom+' Z',class:'dv-daily-area'}));
   svg.prepend(el('path',{d,class:'dv-daily-line'}));
  }
- function prepare(config){
+ const number=new Intl.NumberFormat('es-PE',{maximumFractionDigits:1});
+ function valueLabels(format){
+  return {id:'dashboardValues',afterDatasetsDraw(chart){
+   const {ctx,chartArea:area}=chart;
+   const theme=getComputedStyle(chart.canvas), occupied=[];
+   ctx.save();
+   ctx.font='600 10px system-ui';
+   ctx.textAlign='center';
+   ctx.textBaseline='middle';
+   ctx.lineWidth=3;
+   ctx.lineJoin='round';
+   ctx.strokeStyle=theme.getPropertyValue('--ios-card-bg').trim();
+   ctx.fillStyle=theme.getPropertyValue('--ios-label').trim();
+   for(const meta of chart.getSortedVisibleDatasetMetas().slice().reverse()){
+    if(!['bar','line'].includes(meta.type))continue;
+    const dataset=chart.data.datasets[meta.index];
+    const horizontal=meta.vScale.axis==='x';
+    const stacked=meta.type==='bar'&&meta.vScale.options.stacked;
+    meta.data.forEach((element,index)=>{
+     const value=dataset.data[index];
+     if(typeof value!=='number'||!value||element.skip)return;
+     const label=format(value, dataset), width=ctx.measureText(label).width;
+     let {x,y}=element;
+     if(horizontal){
+      x+=x+width+8<=area.right?width/2+5:-width/2-5;
+     }else if(stacked&&Math.abs(y-element.base)>=15&&element.width>=width+4){
+      y=(y+element.base)/2;
+     }else{
+      y-=8;
+     }
+     x=Math.max(area.left+width/2,Math.min(area.right-width/2,x));
+     y=Math.max(area.top+6,Math.min(area.bottom-6,y));
+     const bounds={left:x-width/2-3,right:x+width/2+3,top:y-6,bottom:y+6};
+     if(occupied.some(b=>bounds.left<b.right&&bounds.right>b.left&&bounds.top<b.bottom&&bounds.bottom>b.top))return;
+     occupied.push(bounds);
+     ctx.strokeText(label,x,y);
+     ctx.fillText(label,x,y);
+    });
+   }
+   ctx.restore();
+  }};
+ }
+ function prepare(config,format=value=>number.format(value)){
   const type=config.type;
   if(type==='doughnut'){
    config.data.datasets.forEach(d=>{d.borderRadius=7;d.spacing=3;d.hoverOffset=7;});
   }else if(type==='bar'){
    const horizontal=config.options.indexAxis==='y';
-   config.data.datasets.forEach(d=>{
+   config.data.datasets.filter(d=>d.type!=='line').forEach(d=>{
     const base=d.backgroundColor;
     if(typeof base==='function')return;
     d.borderRadius=horizontal?8:9;d.borderSkipped=false;
@@ -40,16 +83,24 @@
      gradient.addColorStop(0,c);gradient.addColorStop(1,fade(c,.65));return gradient;
     };
    });
-  }else if(type==='line'){
-   config.data.datasets.forEach(d=>{
+  }
+  if(type==='line'||config.data.datasets.some(d=>d.type==='line')){
+   config.data.datasets.filter(d=>(d.type||type)==='line').forEach(d=>{
     const base=d.borderColor;d.borderWidth=2.5;d.tension=.35;d.pointHoverRadius=6;
     d.pointBackgroundColor=base;d.pointBorderWidth=2;d.pointBorderColor=getComputedStyle(document.querySelector('.di-page')).getPropertyValue('--ios-card-bg').trim();
+    if(type!=='line')return;
     d.fill=true;d.backgroundColor=context=>{
      const area=context.chart.chartArea;if(!area)return 'transparent';
      const gradient=context.chart.ctx.createLinearGradient(0,area.top,0,area.bottom);
      gradient.addColorStop(0,fade(base,.2));gradient.addColorStop(1,fade(base,.01));return gradient;
     };
    });
+  }
+  if(type==='line'||type==='bar'){
+   config.plugins=[...(config.plugins||[]),valueLabels(format)];
+   config.options.layout||={};
+   const padding=config.options.layout.padding||{};
+   if(typeof padding==='object')config.options.layout.padding={...padding,top:Math.max(10,padding.top||0)};
   }
   const tooltip=config.options.plugins?.tooltip;
   if(tooltip){tooltip.cornerRadius=10;tooltip.padding=13;tooltip.displayColors=true;tooltip.boxPadding=5;}
@@ -72,5 +123,5 @@
   const center={id:'distributionTotal',afterDraw(chart){const {ctx,chartArea:a}=chart;if(!a)return;ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=text;ctx.font='700 20px system-ui';ctx.fillText(new Intl.NumberFormat('es-PE').format(total),(a.left+a.right)/2,(a.top+a.bottom)/2-6);ctx.font='10px system-ui';ctx.fillText('registros',(a.left+a.right)/2,(a.top+a.bottom)/2+14);ctx.restore();}};
   distributions.set(box.id,new Chart(canvas,{type:'doughnut',plugins:[center],data:{labels:values.map(v=>v[0]),datasets:[{data:values.map(v=>v[1]),backgroundColor:colors,borderColor:surface,borderWidth:3,borderRadius:5,spacing:2,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,animation:false,cutout:'74%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+': '+c.parsed+' ('+(c.parsed/total*100).toFixed(1)+'%)'}}}}}));
  }
- window.NucleusDashVisual={months,daily,prepare,distribution};
+ window.NucleusDashVisual={months,daily,prepare,distribution,operationalColors};
 }());

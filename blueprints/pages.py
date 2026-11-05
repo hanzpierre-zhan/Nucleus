@@ -522,13 +522,20 @@ def dashboard():
     # Módulo Dashboard sustituido por Analytics (igual que en Anton).
     return redirect(url_for('pages.analytics'))
 
-@bp.route('/analytics')
+@bp.route('/analytics/integratel', endpoint='analytics_integratel')
+@bp.route('/analytics/pext', endpoint='analytics_pext')
+@bp.route('/analytics/entel', endpoint='analytics_entel')
 @login_required
-def analytics():
-    """Dashboard de FLM - ENTEL, independiente del módulo de procedencia."""
+def analytics_operativo():
+    """Dashboard operativo del proyecto indicado por la ruta."""
     user_id, user_rol, pid = get_session_info()
     proyectos = get_menu_proyectos(user_id, user_rol)
-    proy = next((p for p in proyectos if p.nombre.strip().upper() == 'FLM - ENTEL'), None)
+    nombres = {
+        'pages.analytics_integratel': ('FLM - INTEGRATEL',),
+        'pages.analytics_pext': ('FLM - PEXT', 'PEXT'),
+    }.get(request.endpoint, ('FLM - ENTEL',))
+    por_nombre = {p.nombre.strip().upper(): p for p in proyectos}
+    proy = next((por_nombre[nombre] for nombre in nombres if nombre in por_nombre), None)
     if user_rol in ('contrata', 'gestor') or proy is None:
         return redirect(url_for('pages.index'))
     restricciones = {}
@@ -551,10 +558,30 @@ def analytics():
                 datos['_key'] = fila.key_value
                 if apply_data_restrictions([datos], restricciones):
                     yield datos
-    dashboard = indicadores(registros())
+    dashboard = indicadores(registros(), integratel=request.endpoint == 'pages.analytics_integratel')
+    titulo = {'pages.analytics_integratel': 'FLM - Integratel', 'pages.analytics_pext': 'FLM - PEXT'}
     return render_template('dashboard_integratel.html', dashboard=dashboard,
+                           dashboard_titulo=titulo.get(request.endpoint, 'Flm - Entel'),
                            proyectos_list=proyectos, proyecto_nombre=proy.nombre,
                            proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
+
+
+@bp.route('/analytics')
+@login_required
+def analytics():
+    return redirect(url_for('pages.analytics_gerencial'))
+
+
+@bp.route('/analytics/gerencial')
+@login_required
+def analytics_gerencial():
+    user_id, user_rol, _ = get_session_info()
+    if user_rol in ('contrata', 'gestor'):
+        return redirect(url_for('pages.index'))
+    from services.dashboard_gerencial import resumen
+    proyectos = get_menu_proyectos(user_id, user_rol)
+    dashboard = resumen(proyectos, user_id, user_rol)
+    return render_template('dashboard_gerencial.html', proyectos_list=proyectos, dashboard=dashboard)
 
 
 @bp.route('/analytics/claro')

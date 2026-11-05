@@ -18,7 +18,8 @@ from models import Proyecto
 # ruta -> (consultas medidas, tope permitido)
 PRESUPUESTO = {
     '/': (9, 20),
-    '/analytics': (3, 10),
+    '/analytics/entel': (3, 10),
+    '/analytics/gerencial': (None, 20),
     '/api/sites': (2, 8),
     '/api/sites/nombres': (6, 12),
     '/api/catalogos/autocompletar': (2, 8),

@@ -85,11 +85,11 @@ def test_ruta_dashboard_cobranza(app, auth_client):
             assert 'HW-COB-TEST' in html
             assert 'dash-switch' in html
             # El selector compartido debe aparecer en las cuatro vistas.
-            for ruta in ('/analytics', '/analytics/cotizaciones',
+            for ruta in ('/analytics/gerencial', '/analytics/cotizaciones',
                          '/analytics/rendicion', '/analytics/cobranza'):
                 pagina = auth_client.get(ruta).get_data(as_text=True)
                 assert 'dash-switch' in pagina, ruta
-                assert 'Cobranza' in pagina, ruta
+                assert 'href="/analytics/cobranza"' not in pagina, ruta
         finally:
             NucleusData.query.filter_by(proyecto_id=pid, key_value='DASH-COB-TEST').delete()
             db.session.commit()

@@ -12,7 +12,8 @@ def test_entel_dibuja_datos_desde_otro_modulo(app, auth_client, servidor, tmp_pa
         entel = Proyecto.query.filter_by(nombre='FLM - ENTEL').one().id
         otro = Proyecto.query.filter_by(nombre='FLM - INTEGRATEL').one().id
         fila = NucleusData(proyecto_id=entel, key_value='ENTEL-BROWSER', data_json=json.dumps({
-            'Operate Phase':'close', 'FECHA DE CREACION':'2026-10-01',
+            'Operate Phase':'close', 'FECHA DE CREACION':'2026-10-01 08:00:00',
+            'Fecha y hora de WO a estado close':'2026-10-02 09:00:00',
             'Departamento':'LIMA', 'Nombre de Site':'SITE ENTEL QA', 'Tipo tarea':'ENERGIA'
         }))
         db.session.add(fila); db.session.commit(); fid=fila.id
@@ -37,12 +38,18 @@ def test_entel_dibuja_datos_desde_otro_modulo(app, auth_client, servidor, tmp_pa
                 context.add_cookies([{'name':'session','value':cookie.value,'domain':'127.0.0.1','path':'/'}])
                 page=context.new_page(); errors=[]
                 page.on('pageerror', lambda e: errors.append(str(e)))
-                page.goto(servidor+'/analytics',wait_until='networkidle')
+                page.goto(servidor+'/analytics/entel',wait_until='networkidle')
                 playwright_api.expect(page.locator('#di-sites')).to_contain_text('SITE 1')
                 assert int(page.locator('#di-production').inner_text()) >= 1
                 assert page.locator('#di-daily svg').count() == 1
                 assert page.locator('#di-months .di-month').count() >= 1
                 assert page.locator('#di-priority canvas,#di-fault canvas').count() == 2
+                assert page.locator('#di-evolution-scale').input_value() == 'semana'
+                assert page.locator('#di-closures-scale').input_value() == 'mes'
+                assert page.locator('#di-closures').evaluate("(canvas) => Chart.getChart(canvas).data.labels[0]") == '2026-10'
+                page.locator('#di-closures-scale').select_option('dia')
+                assert page.locator('#di-closures').evaluate("(canvas) => Chart.getChart(canvas).data.labels[0]") == '2026-10-02'
+                assert 'Sin datos de SLA' in page.locator('#di-sla-note').inner_text()
                 for dark in (False,True):
                     page.evaluate('(dark)=>document.body.classList.toggle("dark-mode",dark)',dark)
                     for width in (1352,390):

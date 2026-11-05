@@ -1,17 +1,5 @@
 """Lectura de tickets Claro: conserva los datos fuente y explicita los faltantes."""
-from datetime import datetime
-from services.dashboard_integratel import normalizar
-
-
-def instante(value):
-    value=str(value or '').strip()
-    if not value:return None
-    try:return datetime.fromisoformat(value.replace('Z','+00:00')).replace(tzinfo=None).isoformat()
-    except ValueError:pass
-    for fmt in ('%d/%m/%Y %H:%M:%S','%d/%m/%Y %H:%M','%d/%m/%Y'):
-        try:return datetime.strptime(value,fmt).isoformat()
-        except ValueError:pass
-    return None
+from services.dashboard_integratel import instante, normalizar
 
 
 def indicadores(registros):

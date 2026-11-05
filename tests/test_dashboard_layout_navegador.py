@@ -87,7 +87,7 @@ def test_modulos_comparten_acabado_y_grilla(app, auth_client, servidor, modo, tm
             context.add_cookies([{'name': 'session', 'value': cookie.value, 'domain': '127.0.0.1', 'path': '/'}])
             page = context.new_page(); errors = []
             page.on('pageerror', lambda e: errors.append(str(e)))
-            page.goto(servidor + ('/analytics' if modo == 'produccion' else '/analytics/cobranza'), wait_until='networkidle')
+            page.goto(servidor + ('/analytics/entel' if modo == 'produccion' else '/analytics/cobranza'), wait_until='networkidle')
             assert page.locator('link[href*="dashboard-layout.css"]').count() == 0
             assert page.locator('script[src*="dashboard-graficos.js"]').count() == 0
             assert len(page.locator('.di-charts').evaluate('(e) => getComputedStyle(e).gridTemplateColumns').split()) == 4

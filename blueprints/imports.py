@@ -275,10 +275,11 @@ def api_import_process():
         if file_key not in df.columns:
             return jsonify({'error': f'Key {file_key} not found in headers.'}), 400
 
-        # Omitir antes de reducir columnas o agrupar. Sus claves siguen presentes
-        # a efectos de consolidación: ignorar no debe borrar un WO existente.
-        from services.importacion_estados import cancelado, ESTADOS
+        # Separar antes de reducir columnas o agrupar. Se conserva la clave
+        # para actualizar el estado de las órdenes que ya existen.
+        from services.importacion_estados import cancelado, estado_fuente, ESTADOS
         claves_canceladas, ignorados_cancelados = set(), 0
+        campos_estado = {campo.casefold() for campo in ESTADOS.get(proy_act_nombre, ())}
         if proy_act_nombre in ESTADOS and len(df):
             mascara_cancelados = df.fillna('').apply(lambda fila: cancelado(fila.to_dict(), proy_act_nombre), axis=1)
             claves_canceladas = set(df.loc[mascara_cancelados, file_key].fillna('').astype(str).str.strip()) - {''}
@@ -431,15 +432,16 @@ def api_import_process():
         if import_type == 'base' and not system_pk:
             system_pk = file_key
             db.session.add(AppConfig(proyecto_id=pid, clave='primary_key', valor=system_pk))
-            db.session.commit()
             
         # Delta: consultar solo las filas cuyas claves vienen en el archivo,
         # en chunks de 400 (limite de parametros de SQLite) para no traer toda la tabla.
         imported_keys = set(claves_canceladas)
-        for _v in df[file_key].tolist():
-            _s = str(_v).strip()
-            if _s:
-                imported_keys.add(_s)
+        file_keys = df[file_key].astype(str).str.strip()
+        imported_keys.update(key for key in file_keys if key)
+        site_projects = {}
+        if proy_act_nombre == 'SITE':
+            for key, project in zip(file_keys, df['PROYECTO']):
+                site_projects.setdefault(key, set()).add(project)
 
         existing_records = {}
         if imported_keys:
@@ -455,7 +457,7 @@ def api_import_process():
                     for clave, datos_json in anteriores:
                         anterior = json.loads(datos_json or '{}')
                         proyecto_anterior = familia(anterior.get('Proyecto') or anterior.get('PROYECTO') or 'ENTEL')
-                        nuevos = set(df.loc[df[file_key].astype(str).str.strip() == clave, 'PROYECTO'])
+                        nuevos = site_projects.get(clave, set())
                         if nuevos != {proyecto_anterior}:
                             return jsonify({'error': 'El código de site %s ya pertenece a otro proyecto. Usa un código único para evitar sobrescribirlo.' % clave}), 400
                 chunk_records = NucleusData.query.filter(
@@ -477,7 +479,8 @@ def api_import_process():
         updated, added, ignored, consolidated = 0, 0, ignorados_cancelados, 0
         rejected_saldo = []
         dynamic_cols = set()
-        counter_guardados = 0
+        config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
+        schema_cols = set(json.loads(config_schema.valor)) if config_schema else set()
 
         WO_STATE_COL = 'Estado de la tarea (WO State)'
         STATE_TS_COL = 'FECHA CAMBIO ESTADO'
@@ -552,6 +555,12 @@ def api_import_process():
                     db.session.rollback()
                     return jsonify({'error':'El archivo intenta modificar un sustento aprobado.'}),403
                 old_state = str(current_data.get(WO_STATE_COL, '')).strip()
+                if campos_estado and cancelado(current_data, proy_act_nombre):
+                    estado_nuevo = estado_fuente(row_dict, proy_act_nombre)
+                    if estado_nuevo:
+                        for campo in current_data:
+                            if campo.strip().casefold() in campos_estado:
+                                current_data[campo] = estado_nuevo
                 if import_type == 'manual_cols':
                     current_data.update(row_dict)
                 else:
@@ -582,11 +591,8 @@ def api_import_process():
                 if new_state_l in TERMINAL_STATES and not current_data.get(CANCEL_REJECT_TS_COL):
                     current_data[CANCEL_REJECT_TS_COL] = now_str
             else:
-                if import_type == 'cruce':
-                    schema_config = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
-                    schema_val = json.loads(schema_config.valor) if schema_config else []
-                    if schema_val:
-                        continue
+                if import_type == 'cruce' and schema_cols:
+                    continue
                 current_data = row_dict.copy()
                 init_state = str(current_data.get(WO_STATE_COL, '')).strip().lower()
                 if init_state:
@@ -688,16 +694,11 @@ def api_import_process():
                 added += 1
             else:
                 record = existing_records[key_val]
-                if record.data_json != safe_json_dumps(current_data):
+                new_data_json = safe_json_dumps(current_data)
+                if record.data_json != new_data_json:
                     db.session.add(NucleusHistory(proyecto_id=pid, key_value=key_val, data_json=record.data_json))
-                record.data_json = safe_json_dumps(current_data)
+                    record.data_json = new_data_json
                 updated += 1
-
-            # Commit por lotes: cada 500 registros guarda y libera la transaccion,
-            # evitando que una importacion grande exceda el timeout del servidor.
-            counter_guardados += 1
-            if counter_guardados % 500 == 0:
-                db.session.commit()
 
             # Mantener el caché de combustible al día con lo recién guardado.
             if proy_act_nombre == 'COMBUSTIBLE':
@@ -718,6 +719,37 @@ def api_import_process():
                     pass
         
         # Absence-based Consolidation (Optimized to avoid SQLite parameter limits)
+        actualizados_cancelados = 0
+        claves_activas = set(file_keys)
+        for key_val in claves_canceladas - claves_activas:
+            record = existing_records.get(key_val)
+            if record is None:
+                continue
+            datos = json.loads(record.data_json)
+            aliases = ESTADOS[proy_act_nombre]
+            campos = [campo for campo in datos if campo.strip().casefold() in campos_estado] or [aliases[0]]
+            if all(str(datos.get(campo) or '').strip().casefold() == 'canceled' for campo in campos):
+                continue
+            db.session.add(NucleusHistory(proyecto_id=pid, key_value=key_val, data_json=record.data_json))
+            for campo in campos:
+                anterior = str(datos.get(campo) or '')
+                if anterior.strip().casefold() == 'canceled':
+                    continue
+                datos[campo] = 'Canceled'
+                db.session.add(HistorialCambios(
+                    proyecto_id=pid, usuario_id=None, username='IMPORT', key_value=key_val,
+                    campo_modificado=campo, valor_anterior=anterior, valor_nuevo='Canceled',
+                    fecha=datetime.utcnow(),
+                ))
+            datos[STATE_TS_COL] = now_str
+            datos.setdefault(CANCEL_REJECT_TS_COL, now_str)
+            dynamic_cols.add(STATE_TS_COL)
+            record.data_json = safe_json_dumps(datos)
+            actualizados_cancelados += 1
+        updated += actualizados_cancelados
+        ignored -= actualizados_cancelados
+        ignorados_cancelados -= actualizados_cancelados
+
         absent_consolidated = 0
         if import_type == 'base' and len(df) > 0 and proy_act_nombre != 'SITE' and cons_cfg.get('auto_consolidate_missing'):
             # Consulta solo la columna key_value (no el data_json pesado)
@@ -743,10 +775,6 @@ def api_import_process():
                     absent_consolidated += 1
                     consolidated += 1
 
-        db.session.commit()
-        
-        config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
-        schema_cols = set(json.loads(config_schema.valor)) if config_schema else set()
         # Nunca meter en app_schema las columnas manuales (ya se listan aparte) ni
         # variantes de mayúsculas de una columna que ya existe (CATEGORY vs Category):
         # eso dejaba residuos acumulativos que ni el menú "Columnas" limpiaba.
@@ -776,13 +804,16 @@ def api_import_process():
                 config_schema.valor = safe_json_dumps(list(new_schema))
             else:
                 db.session.add(AppConfig(proyecto_id=pid, clave='app_schema', valor=safe_json_dumps(list(new_schema))))
-            db.session.commit()
+        # Una sola transacción mantiene los registros precargados vigentes
+        # y permite revertir también el historial y las columnas si algo falla.
+        db.session.commit()
         return jsonify({
             'success': True,
             'added': added,
             'updated': updated,
             'ignored': ignored,
             'ignored_canceled': ignorados_cancelados,
+            'updated_canceled': actualizados_cancelados,
             'consolidated': consolidated,
             'rejected_saldo': rejected_saldo,
             'pk': system_pk

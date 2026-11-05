@@ -2,13 +2,13 @@
 {% block title %}Dashboard {{ proyecto_nombre }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
-<link rel="stylesheet" href="/static/css/analytics-comun.css?v=6">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
 <link rel="stylesheet" href="/static/css/dashboard-operativo-width.css?v=1">
-<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=1">
-<script src="/static/js/dashboard-visual.js?v=1"></script>
-<section class="di-page">
+<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
+<script src="/static/js/dashboard-visual.js?v=3"></script>
+<section class="di-page dv-unified">
   {% from '_dashboard_header.html' import dashboard_header with context %}
-  {% call dashboard_header('Flm - Entel', 'Producción y seguimiento', 'Operación · ' ~ proyecto_nombre, 3) %}
+  {% call dashboard_header(dashboard_titulo, 'Producción y seguimiento', 'Operación · ' ~ proyecto_nombre, 3) %}
   <div class="di-filters">
     <label>Mes de creación<select id="di-month"><option value="">Todos los meses</option></select></label>
     <label>Departamento<select id="di-department"><option value="">Todos los departamentos</option></select></label>
@@ -18,8 +18,8 @@
   {% endcall %}
   {% if data_total > data_limite %}<p role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros. Los indicadores corresponden a ese conjunto.</p>{% endif %}
   {% if dashboard.sin_fecha %}<p role="status" class="di-data-notice">{{ dashboard.total }} WO registrados en {{ proyecto_nombre }}. {{ dashboard.sin_fecha }} sin fecha de creación: se cuentan en el total y se muestran en seguimiento, pero no pueden asignarse a un mes.</p>{% endif %}
-  <section class="di-story" aria-live="polite"><div><h2 id="di-story-title"></h2><p id="di-story-detail"></p></div><div class="di-progress" aria-label="Distribución de órdenes"><div id="di-progress-fill"></div></div></section>
-  <div class="di-kpis" aria-live="polite">
+  <div class="dv-summary">
+  <div class="di-kpis dv-kpis" aria-live="polite">
     <article><span>Producción · close</span><strong id="di-production">0</strong><small>Órdenes cerradas</small></article>
     <article><span>Backlog</span><strong id="di-backlog">0</strong><small>Abiertas de meses anteriores</small></article>
     <article><span>En atención</span><strong id="di-current">0</strong><small>Abiertas de {{ dashboard.mes_actual }}</small></article>
@@ -27,6 +27,38 @@
     <article class="di-type-tile"><span>CM · cerrados</span><strong id="di-type-cm">0</strong><small>Correctivo</small></article>
     <article class="di-type-tile"><span>PM · cerrados</span><strong id="di-type-pm">0</strong><small>Preventivo</small></article>
     <article class="di-type-tile"><span>PLM · cerrados</span><strong id="di-type-plm">0</strong><small>Planificado</small></article>
+  </div>
+    <article class="di-card dv-sla dv-sla-card">
+      <h2>Cumplimiento de SLA</h2>
+      <p>Órdenes cerradas con estado SLA registrado</p>
+      <svg viewBox="0 0 200 114" aria-hidden="true">
+        <path class="dv-gauge-track" d="M 22 85 A 78 78 0 0 1 178 85" />
+        <path class="dv-gauge-fill" id="di-sla-arc" d="M 22 85 A 78 78 0 0 1 178 85" pathLength="100" stroke-dasharray="0 100" visibility="hidden" />
+        <text x="22" y="106">0%</text><text x="178" y="106">100%</text>
+      </svg>
+      <strong id="di-sla-value">—</strong>
+      <p id="di-sla-note" role="status"></p>
+    </article>
+  </div>
+  {% macro escala(id, default) %}
+  <select id="di-{{ id }}-scale" aria-label="Agrupar {{ 'evolución' if id == 'evolution' else 'cierres' }} por periodo">
+    {% for value, label in [('dia','Por día'), ('semana','Por semana'), ('mes','Por mes')] %}
+    <option value="{{ value }}"{% if value == default %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  {% endmacro %}
+  <div class="di-overview dv-main-charts">
+    <article class="di-card dv-feature">
+      <div class="dv-chart-header"><h2>Evolución de órdenes</h2>{{ escala('evolution', 'semana') }}</div>
+      <p>Creadas y cerradas por fecha del evento · abiertas hoy por su fecha de creación</p>
+      <div class="dv-canvas"><canvas id="di-evolution" role="img" aria-label="Órdenes creadas, cerradas y abiertas"></canvas><p id="di-evolution-empty" hidden>Sin órdenes con fecha para esta selección.</p></div>
+    </article>
+    <article class="di-card dv-feature">
+      <div class="dv-chart-header"><h2>Cierres por duración</h2>{{ escala('closures', 'mes') }}</div>
+      <p id="di-closures-note"></p>
+      <div class="dv-canvas"><canvas id="di-closures" role="img" aria-label="Cierres por duración"></canvas><p id="di-closures-empty" hidden>Sin cierres con duración válida.</p></div>
+    </article>
+
   </div>
   <div class="di-charts">
     <article class="di-card di-wide di-month-card"><h2>Producción por mes</h2><p>WO cerrados, agrupados por su mes de creación</p><div id="di-months" class="di-month-bars"></div></article>
@@ -46,5 +78,7 @@
   </article></details>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-integratel.js?v=8"></script>
+<script src="/static/js/dashboard-claro-model.js?v=2"></script>
+<script src="/static/js/dashboard-operativo.js?v=2"></script>
+<script src="/static/js/dashboard-integratel.js?v=10"></script>
 {% endblock %}

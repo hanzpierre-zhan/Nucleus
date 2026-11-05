@@ -3,7 +3,6 @@
     const data=JSON.parse(document.getElementById('di-data').textContent);
     const get=id=>document.getElementById('di-'+id);
     const rows=data.detalle; let page=0, visible=[];
-    const number=value=>new Intl.NumberFormat('es-PE',{maximumFractionDigits:1}).format(value);
     const palette={CM:'#548cff',PM:'#25b8c7',PLM:'#668fc9',leave:'#e77969',complete:'#45bb83',arrive:'#e6b34c',dispatch:'#668fc9',depart:'#df955a',accept:'#548cff'};
     function daily(closed){
         const month=get('month').value||data.mes_actual;
@@ -66,6 +65,7 @@
     function render(){
         visible=rows.filter(r=>(!get('month').value||r.mes===get('month').value)&&(!get('department').value||r.departamento===get('department').value)&&(!get('type').value||r.tipo===get('type').value));
         const closed=visible.filter(r=>r.grupo==='Producción'),open=visible.filter(r=>r.grupo!=='Producción');
+        window.NucleusOperationalCharts.render(visible, data.hoy);
         get('production').textContent=closed.length;get('backlog').textContent=open.filter(r=>r.grupo==='Backlog').length;get('current').textContent=open.filter(r=>r.grupo==='En atención').length;get('total').textContent=visible.length;
         const missingDate=visible.filter(r=>!r.mes).length, futureDate=open.filter(r=>r.grupo==='Fecha futura').length;
         get('quality').textContent=missingDate||futureDate?`${missingDate} sin fecha · ${futureDate} futuros`:'WO registrados';
@@ -89,27 +89,11 @@
         months.forEach(([month,value])=>{const bar=document.createElement('div');bar.className='di-month'+(month===(get('month').value||data.mes_actual)?' di-month-selected':'');bar.title=`${month}: ${value} WO cerrados por fecha de creación`;const number=document.createElement('b');number.textContent=value;const fill=document.createElement('i');fill.style.height=value/max*Math.max(54,get('months').clientHeight-32)+'px';const label=document.createElement('span');label.textContent=month;bar.append(number,fill,label);get('months').append(bar);});
         if(!months.length){get('months').textContent='No hay producción con fecha para estos filtros.';}
         window.NucleusDashVisual?.months(get('months'));
-        const percentage=visible.length?closed.length/visible.length*100:0;
-        get('story-title').textContent=visible.length?`El ${number(percentage)}% de los WO está cerrado`:'Sin órdenes para esta selección';
-        const backlog=open.filter(r=>r.grupo==='Backlog');
-        const focus=count(backlog,'departamento')[0];
-        const messages=[];
-        if(backlog.length) messages.push(`${number(backlog.length)} WO de meses anteriores pendientes${focus?`; ${focus[0]} concentra ${number(focus[1])}`:''}.`);
-        else if(visible.length) messages.push('No hay backlog identificado en esta selección.');
-        if(months.length>1&&!get('month').value){
-            const [latest,value]=months[months.length-1], [previous,previousValue]=months[months.length-2];
-            const change=previousValue?(value-previousValue)/previousValue*100:0;
-            messages.push(`${latest}: ${number(value)} cerrados, ${number(Math.abs(change))}% ${change<0?'menos':'más'} que ${previous} (por creación del WO).`);
-        }
-        const withoutDate=visible.filter(r=>!r.mes).length;
-        if(withoutDate) messages.push(`${withoutDate} WO sin fecha: no se asignan a un mes.`);
-        get('story-detail').textContent=messages.join(' ');
-        get('progress-fill').style.width=percentage+'%';
-        get('progress-fill').parentElement.title=`${closed.length} cerrados de ${visible.length} WO`;
         get('detail-count').textContent=`(${open.length})`;
         page=0;table();
     }
     ['month','department','type'].forEach(id=>get(id).addEventListener('change',render));get('group').addEventListener('change',()=>{page=0;table();});
+    ['evolution','closures'].forEach(id=>get(id+'-scale').addEventListener('change',()=>window.NucleusOperationalCharts.render(visible, data.hoy)));
     get('clear').addEventListener('click',()=>{['month','department','type','group'].forEach(id=>get(id).value='');render();});
     get('prev').addEventListener('click',()=>{page--;table();});get('next').addEventListener('click',()=>{page++;table();});
     new MutationObserver(render).observe(document.body,{attributes:true,attributeFilter:['class']});
