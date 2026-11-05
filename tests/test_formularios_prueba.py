@@ -102,8 +102,8 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
     solicitud = {
         'nonce': 'b' * 32, 'proyecto': 'CLARO', 'presupuesto': 'Refacturable',
         'tipo_gasto': ['MATERIALES', 'PEAJE', 'COMPRAS', 'ALQUILER'],
-        'detalle_compras': ['Consumibles', 'Herramientas'],
-        'detalle_alquiler': ['Vehículos'],
+        'detalle_compras': ['Consumibles', 'Equipos y accesorios'],
+        'detalle_alquiler': ['Equipos', 'Generadores'],
         'monto': '30.50', 'motivo': 'Compra de repuestos',
         'tipo_billetera': 'Plin', 'numero_billetera': '999999999', 'titular': 'Ana Prueba',
         'cuenta_cci': '00123456789012345678', 'banco': 'Interbank',
@@ -117,8 +117,9 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         {'categoria': 'MATERIALES', 'detalle': '', 'monto': '10'},
         {'categoria': 'PEAJE', 'detalle': '', 'monto': '5,50'},
         {'categoria': 'COMPRAS', 'detalle': 'Consumibles', 'monto': '5'},
-        {'categoria': 'COMPRAS', 'detalle': 'Herramientas', 'monto': '10'},
-        {'categoria': 'ALQUILER', 'detalle': 'Vehículos', 'monto': '50'},
+        {'categoria': 'COMPRAS', 'detalle': 'Equipos y accesorios', 'monto': '10'},
+        {'categoria': 'ALQUILER', 'detalle': 'Equipos', 'monto': '20'},
+        {'categoria': 'ALQUILER', 'detalle': 'Generadores', 'monto': '30'},
     ]
     incompleta = dict(solicitud, partidas=solicitud['partidas'][:-1])
     assert client.post('/form-pruebas/solicitar', headers=headers(client), json=incompleta).status_code == 400
@@ -128,8 +129,9 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         datos = json.loads(con.execute('SELECT datos FROM envios').fetchone()['datos'])
     assert datos['dni'] == '00001111'
     assert datos['tipo_gasto'] == 'MATERIALES, PEAJE, COMPRAS, ALQUILER'
-    assert datos['monto'] == '80.50' and len(datos['partidas']) == 5
-    assert datos['detalle_gasto'] == {'COMPRAS': ['Consumibles', 'Herramientas'], 'ALQUILER': ['Vehículos']}
+    assert datos['monto'] == '80.50' and len(datos['partidas']) == 6
+    assert datos['detalle_gasto'] == {'COMPRAS': ['Consumibles', 'Equipos y accesorios'],
+                                    'ALQUILER': ['Equipos', 'Generadores']}
     assert datos['proyecto'] == 'CLARO' and datos['presupuesto'] == 'Refacturable'
     assert datos['numero_billetera'] == '999999999' and datos['cuenta_cci'] == solicitud['cuenta_cci']
     assert datos['responsable_validacion'] == 'MÓNICA' and datos['comentarios'] == 'Urgente'
@@ -234,6 +236,50 @@ def test_escrituras_aisladas_fotos_y_reintento(portal):
         'monto':'1','detalle':'No permitido','fotos':(imagen(),'foto.png')},headers=headers(other))
     assert forged.status_code==403
     assert fuente(portal)==before
+
+
+def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
+    from services.formularios_prueba import almacen, guardar
+
+    client = portal.test_client()
+    assert entrar(client).status_code == 200
+    with portal.app_context():
+        guardar('00001111', 'solicitud', {
+            'estado': 'Pagado', 'monto': '30.00', 'motivo': 'Viaje y materiales',
+            'partidas': [
+                {'categoria': 'PASAJE', 'detalle': '', 'monto': '10.00'},
+                {'categoria': 'MATERIALES', 'detalle': '', 'monto': '20.00'},
+            ],
+        }, 'a' * 32, 'f' * 32)
+    deposit = next(d for d in client.get('/form-pruebas/datos').json['depositos'] if d.get('partidas'))
+    assert [p['etiqueta'] for p in deposit['partidas']] == ['Pasajes', 'Compra de materiales']
+    grupos = [
+        [{'tipo': 'Boleta', 'numero': 'B001-10'}, {'tipo': 'Boleta', 'numero': 'B002-11'}],
+        [{'tipo': 'Factura', 'numero': 'F001-20'}],
+    ]
+    data = {'nonce': 'b' * 32, 'referencia': deposit['referencia'], 'monto': '30.00'}
+    invalid = client.post('/form-pruebas/rendir', headers=headers(client), data={
+        **data, 'comprobantes': json.dumps(grupos),
+        'comprobante-0-0': (imagen(), 'boleta.png'),
+        'comprobante-0-1': (imagen(), 'otra.png'),
+        'comprobante-1-0': (imagen(), 'factura.png'),
+    })
+    assert invalid.status_code == 400 and 'RUC' in invalid.json['error']
+    grupos[1][0]['ruc'] = '20123456789'
+    result = client.post('/form-pruebas/rendir', headers=headers(client), data={
+        **data, 'comprobantes': json.dumps(grupos),
+        'comprobante-0-0': (imagen(), 'boleta.png'),
+        'comprobante-0-1': (imagen(), 'otra.png'),
+        'comprobante-1-0': (imagen(), 'factura.png'),
+        'evidencia': [(imagen(), 'trabajo.png'), (imagen(), 'material.png')],
+    })
+    assert result.status_code == 201, result.json
+    with portal.app_context(), almacen() as con:
+        saved = json.loads(con.execute("SELECT datos FROM envios WHERE tipo='rendicion'").fetchone()['datos'])
+    comprobantes = [c for p in saved['partidas'] for c in p['comprobantes']]
+    assert [c['numero'] for c in comprobantes] == ['B001-10', 'B002-11', 'F001-20']
+    assert [c['foto'] for c in comprobantes] + saved['evidencia'] == saved['fotos']
+    assert len(set(saved['fotos'])) == 5
 
 
 def test_validacion_sesion_csrf_y_saldo(portal):

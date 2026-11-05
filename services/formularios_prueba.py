@@ -186,7 +186,8 @@ def depositos(doc, filas=None):
         ref = _referencia(doc, codigo)
         grouped[ref] = {'referencia': ref, 'codigo': codigo, 'monto': Decimal(datos['monto']),
                         'motivo': datos['motivo'], 'estado': 'Pagado', 'fecha': datos.get('fecha_estado', '')[:10],
-                        'fecha_solicitud': fecha_solicitud(row['creado'])}
+                        'fecha_solicitud': fecha_solicitud(row['creado']),
+                        'partidas': datos.get('partidas') or []}
     for item in grouped.values():
         reserved = sum((Decimal(json.loads(r['datos'])['monto']) for r in sent
                         if json.loads(r['datos']).get('referencia') == item['referencia']), Decimal('0'))

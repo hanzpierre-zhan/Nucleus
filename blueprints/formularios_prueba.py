@@ -24,14 +24,19 @@ from services.recursos_flm import familia
 bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
 PROYECTOS = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
 GASTOS_ADICIONALES = (
-    'MOVILIDAD LOCAL', 'FLETE Y ENVÍOS', 'GRÚA Y REMOLQUE', 'MANTENIMIENTO VEHICULAR',
+    'FLETE Y ENVÍOS', 'GRÚA Y REMOLQUE', 'MANTENIMIENTO VEHICULAR',
     'REPARACIÓN DE EQUIPOS', 'SERVICIOS DE TERCEROS', 'ACCESOS Y PERMISOS', 'COMUNICACIONES',
 )
 GASTOS = tuple('MATERIALES' if opcion == 'MATERIAL' else opcion
-               for opcion in OPCIONES if opcion != 'OTROS') + GASTOS_ADICIONALES
+               for opcion in OPCIONES if opcion not in ('OTROS', 'HOSPEDAJE')) + GASTOS_ADICIONALES
+ETIQUETAS_GASTO = {
+    'PASAJE': 'Pasajes',
+    'MATERIALES': 'Compra de materiales',
+    'VIATICOS': 'Viáticos',
+}
 DETALLES_GASTO = {
-    'COMPRAS': ('Consumibles', 'Herramientas', 'Equipos y accesorios'),
-    'ALQUILER': ('Vehículos', 'Herramientas', 'Equipos y generadores'),
+    'COMPRAS': ('Consumibles', 'Equipos y accesorios'),
+    'ALQUILER': ('Vehículos', 'Herramientas', 'Equipos', 'Generadores'),
 }
 PRESUPUESTOS = ('Gasto Cobra', 'Refacturable')
 BANCOS = (
@@ -119,7 +124,7 @@ def tecnico(fn):
 def inicio():
     csrf()
     return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
-                           gastos=GASTOS, detalles_gasto=DETALLES_GASTO,
+                           gastos=GASTOS, detalles_gasto=DETALLES_GASTO, etiquetas_gasto=ETIQUETAS_GASTO,
                            responsables_validacion=RESPONSABLES_VALIDACION, bancos=BANCOS)
 
 
@@ -157,6 +162,14 @@ def datos():
     documento = g.tecnico['documento']
     filas = piloto.filas_rendicion(documento)
     items = piloto.depositos(documento, filas)
+    for item in items:
+        for partida in item.get('partidas', []):
+            categoria, detalle = partida['categoria'], partida['detalle']
+            if detalle:
+                prefijo = {'COMPRAS': 'Compra', 'ALQUILER': 'Alquiler'}.get(categoria, categoria.capitalize())
+                partida['etiqueta'] = f'{prefijo} de {detalle.lower()}'
+            else:
+                partida['etiqueta'] = ETIQUETAS_GASTO.get(categoria, categoria.capitalize())
     with piloto.almacen() as con:
         rows = con.execute('SELECT id,tipo,creado,datos FROM envios WHERE documento=? ORDER BY creado DESC LIMIT 8',
                            (g.tecnico['documento'],)).fetchall()
@@ -386,11 +399,11 @@ def solicitar():
         else:
             amount = importe_solicitud(data.get('monto'))
         motivo = texto(data, 'motivo', 'el motivo', 1000, required=not partidas)
-        comentarios = texto(data, 'comentarios', 'los comentarios', 1000, False)
+        comentarios = texto(data, 'comentarios', 'la justificación de la solicitud', 1000, False)
         if not motivo:
             motivo = ', '.join(
                 f"{partida['categoria'].capitalize()}: {partida['detalle']}"
-                if partida['detalle'] else partida['categoria'].capitalize()
+                if partida['detalle'] else ETIQUETAS_GASTO.get(partida['categoria'], partida['categoria'].capitalize())
                 for partida in partidas
             )
         payload = {'monto': str(amount), 'tipo_gasto': kind, 'detalle_gasto': detalles,
@@ -442,6 +455,35 @@ def preparar_fotos(files):
     return converted
 
 
+def comprobantes_rendicion(deposit):
+    conceptos = deposit.get('partidas') or [{'concepto': deposit['motivo'] or 'Gasto del depósito'}]
+    grupos = json.loads(request.form.get('comprobantes', 'null'))
+    if not isinstance(grupos, list) or len(grupos) != len(conceptos):
+        raise ValueError('Agrega comprobantes para cada concepto solicitado.')
+    partidas = []
+    fotos = []
+    for indice, (concepto, grupo) in enumerate(zip(conceptos, grupos)):
+        if not isinstance(grupo, list) or not 1 <= len(grupo) <= 8:
+            raise ValueError('Agrega entre 1 y 8 comprobantes por concepto.')
+        comprobantes = []
+        for posicion, datos in enumerate(grupo):
+            if not isinstance(datos, dict) or datos.get('tipo') not in ('Boleta', 'Factura'):
+                raise ValueError('Selecciona Boleta o Factura para cada comprobante.')
+            numero = texto(datos, 'numero', 'el número del comprobante', 40)
+            ruc = texto(datos, 'ruc', 'el RUC del emisor', 11, required=datos['tipo'] == 'Factura')
+            if ruc and not re.fullmatch(r'[0-9]{11}', ruc):
+                raise ValueError('El RUC debe tener 11 dígitos.')
+            foto = request.files.get(f'comprobante-{indice}-{posicion}')
+            if foto is None or not foto.filename:
+                raise ValueError('Adjunta una foto para cada comprobante.')
+            fotos.append(foto)
+            comprobantes.append({'tipo': datos['tipo'], 'numero': numero, 'ruc': ruc})
+        partidas.append({**concepto, 'comprobantes': comprobantes})
+    if len(fotos) > 24:
+        raise ValueError('Puedes adjuntar hasta 24 comprobantes por rendición.')
+    return partidas, fotos
+
+
 @bp.post('/rendir')
 @tecnico
 def rendir():
@@ -458,13 +500,23 @@ def rendir():
         amount = piloto.importe(request.form.get('monto'))
         if amount > Decimal(deposit['pendiente']):
             raise ValueError('El monto supera el saldo pendiente de este depósito.')
-        description = texto(request.form, 'detalle', 'el detalle del gasto', 2000)
-        images = preparar_fotos([f for f in request.files.getlist('fotos') if f.filename])
+        partidas = []
+        evidencia = []
+        if 'comprobantes' in request.form or deposit.get('partidas'):
+            partidas, archivos = comprobantes_rendicion(deposit)
+            images = [preparar_fotos([archivo])[0] for archivo in archivos]
+            fotos_evidencia = [f for f in request.files.getlist('evidencia') if f.filename]
+            if fotos_evidencia:
+                evidencia = preparar_fotos(fotos_evidencia)
+            description = deposit['motivo']
+        else:
+            description = texto(request.form, 'detalle', 'el detalle del gasto', 2000)
+            images = preparar_fotos([f for f in request.files.getlist('fotos') if f.filename])
         uid = uuid.uuid4().hex
         folder = piloto.raiz() / 'fotos'
         folder.mkdir(parents=True, exist_ok=True)
         names = []
-        for image in images:
+        for image in images + evidencia:
             name = uuid.uuid4().hex + '.jpg'
             path = folder / name
             path.write_bytes(image)
@@ -472,6 +524,12 @@ def rendir():
             names.append(name)
         payload = {'referencia': ref, 'codigo': deposit['codigo'], 'monto': str(amount),
                    'detalle': description, 'fotos': names, 'personal': g.tecnico}
+        if partidas:
+            nombres = iter(names)
+            for partida in partidas:
+                for comprobante in partida['comprobantes']:
+                    comprobante['foto'] = next(nombres)
+            payload.update(partidas=partidas, evidencia=list(nombres))
         result, created = piloto.guardar(g.tecnico['documento'], 'rendicion', payload, key,
                                         uid, saldo=Decimal(deposit['monto']))
         if not created:

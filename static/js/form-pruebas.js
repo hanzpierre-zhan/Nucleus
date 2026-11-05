@@ -57,6 +57,7 @@
       form.querySelector('.error').hidden = true;
       $('referencia').value = deposito.referencia;
       $('monto-rendir').value = deposito.pendiente;
+      mostrarConceptos(deposito);
     }
     const resumen = $('resumen-deposito');
     const encabezado = el('div', undefined, 'solicitud-cabecera');
@@ -283,6 +284,40 @@
       await success(result,'Tu solicitud quedó guardada en el espacio de pruebas.');
     });
   });
+  function mostrarConceptos(deposito) {
+    const conceptos = deposito.partidas?.length ? deposito.partidas : [{
+      etiqueta: deposito.motivo || 'Gasto del depósito',
+      monto: deposito.monto
+    }];
+    const contenedor = $('conceptos-rendir');
+    contenedor.replaceChildren();
+    for (const concepto of conceptos) {
+      const bloque = el('section', undefined, 'concepto-rendir');
+      const filas = el('div');
+      const agregar = el('button', '＋ Agregar otro comprobante', 'quiet');
+      agregar.type = 'button';
+      function agregarComprobante(enfocar) {
+        const fila = $('plantilla-comprobante').content.firstElementChild.cloneNode(true);
+        const tipo = fila.querySelector('[data-campo=tipo]');
+        const ruc = fila.querySelector('[data-campo=ruc]');
+        const quitar = fila.querySelector('[data-quitar]');
+        quitar.hidden = !filas.children.length;
+        tipo.addEventListener('change', () => { ruc.required = tipo.value === 'Factura'; });
+        quitar.addEventListener('click', () => {
+          fila.remove();
+          agregar.disabled = false;
+          agregar.focus();
+        });
+        filas.append(fila);
+        agregar.disabled = filas.children.length >= 8;
+        if (enfocar) tipo.focus();
+      }
+      agregar.addEventListener('click', () => agregarComprobante(true));
+      bloque.append(el('h3', concepto.etiqueta), el('p', 'Monto solicitado ' + money(concepto.monto)), filas, agregar);
+      contenedor.append(bloque);
+      agregarComprobante(false);
+    }
+  }
   function clearPhotos(){files=[];renderPhotos();}
   function renderPhotos(){previewUrls.forEach(URL.revokeObjectURL);previewUrls=[];$('fotos').replaceChildren();files.forEach((file,index)=>{const card=el('div',undefined,'photo'),img=el('img'),remove=el('button','×');const url=URL.createObjectURL(file);previewUrls.push(url);img.src=url;img.alt=`Comprobante ${index+1}`;remove.type='button';remove.setAttribute('aria-label',`Quitar foto ${index+1}`);remove.addEventListener('click',()=>{files.splice(index,1);renderPhotos();});card.append(img,remove);$('fotos').append(card);});}
   async function compress(file){
@@ -295,6 +330,36 @@
     if(files.length+chosen.length>8){showError(form,'Puedes adjuntar como máximo 8 fotos.');return;}
     try{const ready=[];for(const file of chosen)ready.push(await compress(file));files.push(...ready);renderPhotos();}catch(error){showError(form,error.message);}
   });
-  $('rendir')?.addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;if(!files.length){showError(form,'Agrega al menos una foto del comprobante.');return;}keys.rendicion ||= freshKey();sending(form,async()=>{const data=new FormData(form);data.set('nonce',keys.rendicion);files.forEach(f=>data.append('fotos',f));const result=await api('/rendir',{method:'POST',body:data});keys.rendicion=null;form.reset();clearPhotos();await success(result,'Tu rendición y tus fotos quedaron guardadas por separado para la prueba.');});});
+  $('rendir')?.addEventListener('submit', event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.reportValidity()) return;
+    if (form.querySelectorAll('.comprobante-rendir').length > 24) {
+      showError(form, 'Puedes adjuntar hasta 24 comprobantes por rendición.');
+      return;
+    }
+    keys.rendicion ||= freshKey();
+    sending(form, async () => {
+      const data = new FormData(form);
+      data.set('nonce', keys.rendicion);
+      const adjuntos = [];
+      const grupos = Array.from($('conceptos-rendir').children, (bloque, indice) =>
+        Array.from(bloque.querySelectorAll('.comprobante-rendir'), (fila, posicion) => {
+          const campo = nombre => fila.querySelector(`[data-campo=${nombre}]`);
+          adjuntos.push([`comprobante-${indice}-${posicion}`, campo('foto').files[0]]);
+          return {tipo: campo('tipo').value, numero: campo('numero').value, ruc: campo('ruc').value};
+        })
+      );
+      data.set('comprobantes', JSON.stringify(grupos));
+      files.forEach(foto => data.append('evidencia', foto));
+      for (const [nombre, foto] of adjuntos) data.append(nombre, await compress(foto));
+      const result = await api('/rendir', {method: 'POST', body: data});
+      keys.rendicion = null;
+      form.reset();
+      $('referencia').value = '';
+      clearPhotos();
+      await success(result, 'Tus comprobantes y fotos de evidencia quedaron guardados en el espacio de pruebas.');
+    });
+  });
   if($('portal'))load().catch(error=>{const box=$('cargando');box.setAttribute('role','alert');box.textContent=error.message;const retry=el('button','Volver a intentar','back');retry.type='button';retry.onclick=()=>location.reload();box.append(retry);});
 })();

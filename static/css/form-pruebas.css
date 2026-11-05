@@ -68,3 +68,15 @@
   color: var(--balance-text);
   font-size: 20px;
 }
+
+.concepto-rendir {
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.concepto-rendir h3 { margin: 0 0 4px; font-size: 16px; overflow-wrap: anywhere; }
+.concepto-rendir p { margin: 0 0 12px; font-size: 13px; }
+.comprobante-rendir { min-width: 0; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 10px; }
+.comprobante-rendir input[type=file] { padding: 8px; }
+.aviso-rendir { border: 1px solid currentColor; }

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=6) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=7) }}"></head>
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Pruebas</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
 <main class="shell">
@@ -30,7 +30,7 @@
 <div class="expense-grid">
 {% for categoria in gastos %}
 {% for opcion in detalles_gasto.get(categoria, ['']) %}
-{% set etiqueta = (('Compra de ' if categoria == 'COMPRAS' else 'Alquiler de ') ~ opcion|lower) if opcion else ('Viáticos' if categoria == 'VIATICOS' else categoria|capitalize) %}
+{% set etiqueta = (('Compra de ' if categoria == 'COMPRAS' else 'Alquiler de ') ~ opcion|lower) if opcion else etiquetas_gasto.get(categoria, categoria|capitalize) %}
 <div class="expense-card">
 <label><input type="checkbox" {% if opcion %}name="detalle_{{ categoria|lower }}"{% endif %} value="{{ opcion }}" data-categoria="{{ categoria }}" data-etiqueta="{{ etiqueta }}"><span>{{ etiqueta }}</span></label>
 <div class="expense-amount"></div>
@@ -50,7 +50,7 @@
 <option value="">Selecciona un responsable</option>
 {% for nombre in responsables_validacion %}<option>{{ nombre }}</option>{% endfor %}
 </select>
-<label for="comentarios">Comentarios</label><textarea id="comentarios" name="comentarios" maxlength="1000" rows="2"></textarea>
+<label for="comentarios">Justificar la solicitud</label><textarea id="comentarios" name="comentarios" maxlength="1000" rows="2"></textarea>
 </fieldset>
 <fieldset class="request-group"><legend>Datos del depósito</legend>
 <label for="cuenta-cci">CCI (20 dígitos)</label><input id="cuenta-cci" name="cuenta_cci" inputmode="numeric" maxlength="20" pattern="[0-9]{20}" required>
@@ -78,10 +78,22 @@
 <form id="rendir" class="card" novalidate>
 <input name="referencia" id="referencia" type="hidden">
 <label for="monto-rendir">Monto de esta rendición</label><div class="money-input"><span>S/</span><input id="monto-rendir" name="monto" inputmode="decimal" required></div>
-<label for="detalle">Detalle del gasto</label><textarea id="detalle" name="detalle" rows="3" maxlength="2000" required placeholder="Ejemplo: movilidad y materiales para la atención"></textarea>
-<h2>Comprobantes</h2><p class="hint">Adjunta de 1 a 8 fotos de boletas o facturas.</p>
+<h2>Comprobantes por concepto</h2><p class="hint">Agrega la boleta o factura de cada gasto solicitado.</p>
+<div id="conceptos-rendir"></div>
+<template id="plantilla-comprobante">
+<fieldset class="comprobante-rendir"><legend>Comprobante</legend>
+<label>Tipo de comprobante<select data-campo="tipo" required><option value="">Selecciona</option><option>Boleta</option><option>Factura</option></select></label>
+<label>Número de boleta o factura<input data-campo="numero" maxlength="40" required></label>
+<label>RUC del emisor<input data-campo="ruc" inputmode="numeric" pattern="[0-9]{11}" maxlength="11"></label>
+<label>Foto del comprobante<input data-campo="foto" type="file" accept="image/*" required></label>
+<button class="quiet" type="button" data-quitar>Quitar comprobante</button>
+</fieldset>
+</template>
+<h2>Fotos de evidencia</h2><p class="hint">Agrega hasta 8 fotos de los materiales, servicios o trabajos realizados.</p>
 <div class="photo-actions"><label class="photo-button" for="camara">▣ Tomar foto<input id="camara" type="file" accept="image/*" capture="environment"></label><label class="photo-button" for="galeria">＋ Elegir fotos<input id="galeria" type="file" accept="image/*" multiple></label></div>
-<div id="fotos" class="photos"></div><div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar rendición de prueba <span aria-hidden="true">→</span></button>
+<div id="fotos" class="photos"></div>
+<p class="error aviso-rendir"><strong>Importante</strong><br>Presentar información falsa o comprobantes adulterados puede dar lugar a medidas correctivas o sanciones disciplinarias, según la gravedad del caso.</p>
+<div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar rendición de prueba <span aria-hidden="true">→</span></button>
 </form></section>
 <section id="exito" class="view" hidden><div class="card success"><div class="success-icon" aria-hidden="true">✓</div><div class="eyebrow">ENVÍO DE PRUEBA GUARDADO</div><h1>¡Listo!</h1><p id="mensaje-exito"></p>
 <div class="deposit-summary"><span id="codigo-etiqueta">Código de depósito de prueba</span><strong id="codigo-exito"></strong><div id="total-exito-grupo"><span>Monto total solicitado</span><strong id="total-exito"></strong></div></div>
@@ -92,4 +104,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=14) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=15) }}" defer></script></body></html>
