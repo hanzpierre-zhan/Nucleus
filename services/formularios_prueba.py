@@ -10,6 +10,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+from http.client import HTTPException, HTTPSConnection
 from pathlib import Path
 
 from flask import current_app
@@ -34,7 +35,47 @@ def raiz():
                 Path(current_app.instance_path) / 'formularios_prueba')
 
 
+def consultar_ruc_externo(host, recurso, campo_nombre, *, token=''):
+    headers = {'Accept': 'application/json'}
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    conexion = HTTPSConnection(host, timeout=2.5)
+    try:
+        conexion.request('GET', recurso, headers=headers)
+        respuesta = conexion.getresponse()
+        if respuesta.status == 404 and token:
+            return {'resultado': 'no_encontrado'}
+        if respuesta.status != 200:
+            return None
+        datos = json.loads(respuesta.read(65536))
+        if not isinstance(datos, dict):
+            return None
+        nombre, estado = datos.get(campo_nombre), datos.get('estado')
+        if isinstance(nombre, str) and nombre.strip() and isinstance(estado, str) and estado.strip():
+            return {'resultado': 'encontrado', 'razon_social': nombre.strip(),
+                    'activo': estado.strip().upper() == 'ACTIVO'}
+    except (OSError, HTTPException, ValueError):
+        return None
+    finally:
+        conexion.close()
+
+
 def consultar_ruc(numero):
+    if numero.startswith('20'):
+        resultado = consultar_ruc_externo('openruc.com', f'/api/ruc/{numero}', 'razon_social')
+        if resultado:
+            return resultado
+    token = current_app.config.get('DECOLECTA_API_TOKEN', '').strip()
+    resultado = None
+    if token:
+        resultado = consultar_ruc_externo('api.decolecta.com', f'/v1/sunat/ruc/full?numero={numero}',
+                                         'razonSocial', token=token)
+        if resultado and resultado['resultado'] == 'encontrado':
+            return resultado
+    return resultado or consultar_ruc_padron(numero)
+
+
+def consultar_ruc_padron(numero):
     ruta = raiz() / 'padron-ruc.sqlite3'
     if not ruta.is_file():
         return {'resultado': 'no_disponible'}

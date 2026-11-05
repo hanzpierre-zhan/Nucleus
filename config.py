@@ -39,6 +39,7 @@ class Config:
     TESTING = False
     FORM_PRUEBAS_ENABLED = os.environ.get('FORM_PRUEBAS_ENABLED', '1') == '1'
     FORM_PRUEBAS_DIR = os.environ.get('FORM_PRUEBAS_DIR', '')
+    DECOLECTA_API_TOKEN = os.environ.get('DECOLECTA_API_TOKEN', '')
     DEBUG = False
     # Piloto independiente; requiere asignaciones expresas antes de habilitarlo.
     ESPACIOS_HABILITADOS = os.environ.get('ESPACIOS_HABILITADOS') == '1'

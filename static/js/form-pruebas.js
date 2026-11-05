@@ -348,7 +348,7 @@
       if (resultado.hidden) return;
       const actual = new AbortController();
       consulta = actual;
-      resultado.textContent = 'Consultando padrón SUNAT…';
+      resultado.textContent = 'Consultando RUC…';
       try {
         const datos = await api('/ruc/' + ruc.value, {signal: actual.signal});
         if (actual.signal.aborted) return;
@@ -356,11 +356,11 @@
           resultado.textContent = datos.razon_social + (datos.activo ? ' · Activo' : ' · No activo');
         } else {
           resultado.textContent = datos.resultado === 'no_encontrado'
-            ? 'El RUC no figura en el padrón cargado. Revisa los dígitos.'
-            : 'Padrón SUNAT no disponible.';
+            ? 'RUC no encontrado. Revisa los dígitos.'
+            : 'Consulta de RUC no disponible en este momento.';
         }
       } catch {
-        if (!actual.signal.aborted) resultado.textContent = 'No se pudo consultar el padrón. Revisa la conexión.';
+        if (!actual.signal.aborted) resultado.textContent = 'No se pudo consultar el RUC. Revisa la conexión.';
       }
     });
   }
