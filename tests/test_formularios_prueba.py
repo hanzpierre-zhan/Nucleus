@@ -261,6 +261,11 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
     client = portal.test_client()
     assert entrar(client).status_code == 200
     with portal.app_context():
+        fila = NucleusData.query.filter_by(key_value='p1').one()
+        datos = json.loads(fila.data_json)
+        datos['Tipo de gasto'] = 'PASAJE, MATERIAL'
+        fila.data_json = json.dumps(datos)
+        db.session.commit()
         guardar('00001111', 'solicitud', {
             'estado': 'Pagado', 'monto': '30.00', 'motivo': 'Viaje y materiales',
             'partidas': [
@@ -268,7 +273,11 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
                 {'categoria': 'MATERIALES', 'detalle': '', 'monto': '20.00'},
             ],
         }, 'a' * 32, 'f' * 32)
-    deposit = next(d for d in client.get('/form-pruebas/datos').json['depositos'] if d.get('partidas'))
+    depositos = client.get('/form-pruebas/datos').json['depositos']
+    historico = next(d for d in depositos if d['codigo'] == 'DEP-p1')
+    assert [p['etiqueta'] for p in historico['partidas']] == ['Pasajes', 'Compra de materiales']
+    assert all('monto' not in p for p in historico['partidas'])
+    deposit = next(d for d in depositos if d['codigo'].startswith('PRUEBA-'))
     assert [p['etiqueta'] for p in deposit['partidas']] == ['Pasajes', 'Compra de materiales']
     grupos = [
         [{'tipo': 'Boleta', 'numero': 'B001-10'}, {'tipo': 'Boleta', 'numero': 'B002-11'}],

@@ -150,6 +150,22 @@ def fecha_solicitud(valor_fecha):
     return fecha.astimezone(timezone.utc).isoformat()
 
 
+def partidas_guardadas(datos):
+    if datos.get('partidas'):
+        return datos['partidas']
+    gastos = valor(datos, 'tipo_gasto', 'Tipo de gasto')
+    if isinstance(gastos, str):
+        gastos = re.split(r'[,;\n]+', gastos)
+    if not isinstance(gastos, list):
+        return []
+    detalles = datos.get('detalle_gasto') or {}
+    return [
+        {'categoria': categoria, 'detalle': detalle}
+        for categoria in dict.fromkeys(gasto.strip().upper() for gasto in gastos if isinstance(gasto, str) and gasto.strip())
+        for detalle in detalles.get(categoria, [''])
+    ]
+
+
 def depositos(doc, filas=None):
     grouped = {}
     for row in filas if filas is not None else filas_rendicion(doc):
@@ -169,12 +185,16 @@ def depositos(doc, filas=None):
         item = grouped.setdefault(ref, {'referencia': ref, 'codigo': code,
                                        'monto': Decimal('0'), 'pendiente': Decimal('0'),
                                        'motivo': str(valor(data, 'Motivo de la solicitud'))[:180],
+                                       'partidas': [],
                                        'estado': 'Observado' if etapa_de(data) == 'OBSERVADO' else estado_de(data).capitalize(),
                                        'fecha_solicitud': solicitada,
                                        'fecha': str(valor(data, 'FECHA PAGO'))[:10]})
         if solicitada and (not item['fecha_solicitud'] or solicitada < item['fecha_solicitud']):
             item['fecha_solicitud'] = solicitada
         item['monto'] += amount
+        for partida in partidas_guardadas(data):
+            if partida not in item['partidas']:
+                item['partidas'].append(partida)
     with almacen() as con:
         sent = con.execute("SELECT datos FROM envios WHERE documento=? AND tipo='rendicion'", (doc,)).fetchall()
         solicitudes = con.execute("SELECT id, creado, datos FROM envios WHERE documento=? AND tipo='solicitud'", (doc,)).fetchall()
@@ -187,7 +207,7 @@ def depositos(doc, filas=None):
         grouped[ref] = {'referencia': ref, 'codigo': codigo, 'monto': Decimal(datos['monto']),
                         'motivo': datos['motivo'], 'estado': 'Pagado', 'fecha': datos.get('fecha_estado', '')[:10],
                         'fecha_solicitud': fecha_solicitud(row['creado']),
-                        'partidas': datos.get('partidas') or []}
+                        'partidas': partidas_guardadas(datos)}
     for item in grouped.values():
         reserved = sum((Decimal(json.loads(r['datos'])['monto']) for r in sent
                         if json.loads(r['datos']).get('referencia') == item['referencia']), Decimal('0'))

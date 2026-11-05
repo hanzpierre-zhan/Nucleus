@@ -32,6 +32,7 @@ GASTOS = tuple('MATERIALES' if opcion == 'MATERIAL' else opcion
                for opcion in OPCIONES if opcion not in ('OTROS', 'HOSPEDAJE')) + GASTOS_ADICIONALES
 ETIQUETAS_GASTO = {
     'PASAJE': 'Pasajes',
+    'MATERIAL': 'Compra de materiales',
     'MATERIALES': 'Compra de materiales',
     'VIATICOS': 'Viáticos',
 }

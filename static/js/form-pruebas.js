@@ -327,7 +327,9 @@
         if (enfocar) tipo.focus();
       }
       agregar.addEventListener('click', () => agregarComprobante(true));
-      bloque.append(el('h3', concepto.etiqueta), el('p', 'Monto solicitado ' + money(concepto.monto)), filas, agregar);
+      bloque.append(el('h3', concepto.etiqueta));
+      if (concepto.monto != null) bloque.append(el('p', 'Monto solicitado ' + money(concepto.monto)));
+      bloque.append(filas, agregar);
       contenedor.append(bloque);
       agregarComprobante(false);
     }
