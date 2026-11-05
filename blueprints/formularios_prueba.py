@@ -486,7 +486,6 @@ def comprobantes_rendicion(deposit):
         for posicion, datos in enumerate(grupo):
             if not isinstance(datos, dict) or datos.get('tipo') not in ('Boleta', 'Factura'):
                 raise ValueError('Selecciona Boleta o Factura para cada comprobante.')
-            numero = texto(datos, 'numero', 'el número del comprobante', 40)
             ruc = texto(datos, 'ruc', 'el RUC del emisor', 11, required=datos['tipo'] == 'Factura')
             if ruc and not re.fullmatch(r'[0-9]{11}', ruc):
                 raise ValueError('El RUC debe tener 11 dígitos.')
@@ -494,7 +493,7 @@ def comprobantes_rendicion(deposit):
             if foto is None or not foto.filename:
                 raise ValueError('Adjunta una foto para cada comprobante.')
             fotos.append(foto)
-            comprobantes.append({'tipo': datos['tipo'], 'numero': numero, 'ruc': ruc})
+            comprobantes.append({'tipo': datos['tipo'], 'ruc': ruc})
         partidas.append({**concepto, 'comprobantes': comprobantes})
     if len(fotos) > 24:
         raise ValueError('Puedes adjuntar hasta 24 comprobantes por rendición.')

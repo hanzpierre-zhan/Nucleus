@@ -291,8 +291,8 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
     deposit = next(d for d in depositos if d['codigo'].startswith('PRUEBA-'))
     assert [p['etiqueta'] for p in deposit['partidas']] == ['Pasajes', 'Compra de materiales']
     grupos = [
-        [{'tipo': 'Boleta', 'numero': 'B001-10'}, {'tipo': 'Boleta', 'numero': 'B002-11'}],
-        [{'tipo': 'Factura', 'numero': 'F001-20'}],
+        [{'tipo': 'Boleta'}, {'tipo': 'Boleta'}],
+        [{'tipo': 'Factura'}],
     ]
     data = {'nonce': 'b' * 32, 'referencia': deposit['referencia'], 'monto': '30.00'}
     invalid = client.post('/form-pruebas/rendir', headers=headers(client), data={
@@ -314,7 +314,8 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
     with portal.app_context(), almacen() as con:
         saved = json.loads(con.execute("SELECT datos FROM envios WHERE tipo='rendicion'").fetchone()['datos'])
     comprobantes = [c for p in saved['partidas'] for c in p['comprobantes']]
-    assert [c['numero'] for c in comprobantes] == ['B001-10', 'B002-11', 'F001-20']
+    assert [c['tipo'] for c in comprobantes] == ['Boleta', 'Boleta', 'Factura']
+    assert comprobantes[-1]['ruc'] == '20123456789'
     assert [c['foto'] for c in comprobantes] + saved['evidencia'] == saved['fotos']
     assert len(set(saved['fotos'])) == 5
 

@@ -396,7 +396,7 @@
         Array.from(bloque.querySelectorAll('.comprobante-rendir'), (fila, posicion) => {
           const campo = nombre => fila.querySelector(`[data-campo=${nombre}]`);
           adjuntos.push([`comprobante-${indice}-${posicion}`, campo('foto').files[0]]);
-          return {tipo: campo('tipo').value, numero: campo('numero').value, ruc: campo('ruc').value};
+          return {tipo: campo('tipo').value, ruc: campo('ruc').value};
         })
       );
       data.set('comprobantes', JSON.stringify(grupos));

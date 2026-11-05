@@ -84,9 +84,8 @@
 <fieldset class="comprobante-rendir"><legend>Comprobante</legend>
 <div class="datos-comprobante">
 <label>Tipo<select data-campo="tipo" required><option value="">Selecciona</option><option>Boleta</option><option>Factura</option></select></label>
-<label>Número<input data-campo="numero" maxlength="40" placeholder="Ej. B001-123" required></label>
-</div>
 <label>RUC del emisor<input data-campo="ruc" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" placeholder="11 dígitos"></label>
+</div>
 <label class="adjunto-comprobante"><span data-nombre-foto>＋ Adjuntar foto del comprobante</span><input data-campo="foto" type="file" accept="image/*" required></label>
 <button class="quiet" type="button" data-quitar>Quitar comprobante</button>
 </fieldset>
@@ -106,4 +105,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=19) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=20) }}" defer></script></body></html>
