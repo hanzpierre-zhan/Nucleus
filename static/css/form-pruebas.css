@@ -101,6 +101,8 @@
 .comprobante-rendir { padding: 0 0 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
 .comprobante-rendir legend { color: var(--muted); font-size: 12px; padding: 0; }
 .datos-comprobante { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 10px; }
+#rendir .datos-comprobante > label { margin: 0; min-width: 0; }
+#rendir .datos-comprobante :is(select, input) { height: 46px; min-height: 46px; padding: 8px 10px; }
 #rendir .adjunto-comprobante {
   position: relative;
   display: grid;
