@@ -16,10 +16,11 @@ from flask import (Blueprint, abort, current_app, g, jsonify, redirect,
 from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.utils import secure_filename
 
+from models import AccesoProyecto, Proyecto, Usuario
 from services import login_required
 from services import formularios_prueba as piloto
 from services.rendicion_gastos import OPCIONES
-from services.recursos_flm import familia
+from services.recursos_flm import FLM_NOMBRES, familia
 
 bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
 PROYECTOS = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
@@ -43,12 +44,6 @@ BANCOS = (
     'Scotiabank', 'Interbank', 'BCP', 'BBVA', 'Banco de la Nación',
     'BanBif', 'Banco Pichincha', 'Mibanco', 'Banco Falabella', 'Banco Ripley',
 )
-RESPONSABLES_VALIDACION = (
-    'MÓNICA', 'IRENE', 'LUZ', 'ROSMERI', 'HÉCTOR', 'DENNIS', 'LUCIANO',
-    'ANDY', 'GLADYS', 'EDWIN', 'YOLIMAR', 'JANNET', 'EVELYN',
-)
-
-
 def habilitado():
     return bool(current_app.config.get('FORM_PRUEBAS_ENABLED')) or (piloto.raiz() / 'habilitado').is_file()
 
@@ -125,7 +120,7 @@ def inicio():
     csrf()
     return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
                            gastos=GASTOS, detalles_gasto=DETALLES_GASTO, etiquetas_gasto=ETIQUETAS_GASTO,
-                           responsables_validacion=RESPONSABLES_VALIDACION, bancos=BANCOS)
+                           bancos=BANCOS)
 
 
 @bp.post('/ingresar')
@@ -154,6 +149,19 @@ def ingresar():
 def salir():
     session.clear()
     return jsonify(success=True)
+
+
+def responsables_por_proyecto():
+    usuarios = (Usuario.query.with_entities(Usuario.id, Usuario.nombre, Proyecto.nombre.label('proyecto'))
+                .join(AccesoProyecto, AccesoProyecto.usuario_id == Usuario.id)
+                .join(Proyecto, Proyecto.id == AccesoProyecto.proyecto_id)
+                .filter(Proyecto.nombre.in_(FLM_NOMBRES))
+                .order_by(Usuario.nombre, Usuario.id))
+    responsables = {proyecto: {} for proyecto in PROYECTOS}
+    for uid, nombre, proyecto in usuarios:
+        if nombre and nombre.strip():
+            responsables[familia(proyecto)][str(uid)] = nombre.strip()
+    return responsables
 
 
 @bp.get('/datos')
@@ -207,6 +215,7 @@ def datos():
     return jsonify(personal=g.tecnico, depositos=items,
                    total=str(sum((Decimal(d['pendiente']) for d in items), Decimal('0'))),
                    gastos=GASTOS, proyectos=PROYECTOS, proyecto_default=familia(g.tecnico['proyecto']),
+                   responsables_validacion=responsables_por_proyecto(),
                    csrf=csrf(), recientes=recent, historial=historial)
 
 
@@ -418,9 +427,13 @@ def solicitar():
             presupuesto = texto(data, 'presupuesto', 'el tipo de presupuesto', 30)
             if proyecto not in PROYECTOS or presupuesto not in PRESUPUESTOS:
                 raise ValueError('Selecciona un proyecto y un tipo de presupuesto válidos.')
-            responsable = texto(data, 'responsable_validacion', 'el responsable de la validación', 150, False)
-            if responsable and responsable not in RESPONSABLES_VALIDACION:
-                raise ValueError('Selecciona un responsable de la validación de la lista.')
+            responsable_id = texto(data, 'responsable_validacion', 'el responsable de la validación', 10, False)
+            responsable = ''
+            if responsable_id:
+                responsable = responsables_por_proyecto()[proyecto].get(responsable_id)
+                if not responsable:
+                    raise ValueError('Selecciona un responsable asignado al proyecto de la solicitud.')
+                payload['responsable_validacion_id'] = int(responsable_id)
             payload.update(
                 proyecto=proyecto, presupuesto=presupuesto, dni=g.tecnico['documento'],
                 responsable_validacion=responsable,

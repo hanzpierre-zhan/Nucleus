@@ -48,7 +48,6 @@
 <label for="responsable_validacion">Responsable de la validación</label>
 <select id="responsable_validacion" name="responsable_validacion">
 <option value="">Selecciona un responsable</option>
-{% for nombre in responsables_validacion %}<option>{{ nombre }}</option>{% endfor %}
 </select>
 <label for="comentarios">Justificar la solicitud</label><textarea id="comentarios" name="comentarios" maxlength="1000" rows="2"></textarea>
 </fieldset>
@@ -104,4 +103,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=15) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=16) }}" defer></script></body></html>

@@ -8,7 +8,7 @@ from flask import Flask
 from PIL import Image
 
 from db import db
-from models import NucleusData, Proyecto, Usuario
+from models import AccesoProyecto, NucleusData, Proyecto, Usuario
 
 
 @pytest.fixture
@@ -89,11 +89,24 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
             db.session.flush()
             db.session.add(NucleusData(proyecto_id=proyecto.id, key_value='CM-' + nombre.split()[-1],
                                        data_json=json.dumps({'Site Name': 'Torre ' + nombre.split()[-1]})))
+        claro = Usuario(nombre='Mónica Prueba', username='monica', password_hash='no-login')
+        entel = Usuario(nombre='Luis Prueba', username='luis', password_hash='no-login')
+        db.session.add_all([claro, entel])
+        db.session.flush()
+        ids = {'CLARO': claro.id, 'ENTEL': entel.id}
+        for familia, uid in ids.items():
+            pid = Proyecto.query.filter_by(nombre=f'FLM - {familia}').one().id
+            db.session.add(AccesoProyecto(usuario_id=uid, proyecto_id=pid))
         db.session.commit()
 
     client = portal.test_client()
     assert entrar(client).status_code == 200
-    assert client.get('/form-pruebas/datos').json['proyecto_default'] == 'ENTEL'
+    datos_portal = client.get('/form-pruebas/datos').json
+    assert datos_portal['proyecto_default'] == 'ENTEL'
+    assert datos_portal['responsables_validacion'] == {
+        'CLARO': {str(ids['CLARO']): 'Mónica Prueba'},
+        'ENTEL': {str(ids['ENTEL']): 'Luis Prueba'}, 'INTEGRATEL': {}, 'PEXT': {},
+    }
     for proyecto in ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'):
         assert client.get(f'/form-pruebas/sugerencias?proyecto={proyecto}&campo=wo&q=CM').json == {
             'opciones': [f'CM-{proyecto}']}
@@ -107,7 +120,7 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         'monto': '30.50', 'motivo': 'Compra de repuestos',
         'tipo_billetera': 'Plin', 'numero_billetera': '999999999', 'titular': 'Ana Prueba',
         'cuenta_cci': '00123456789012345678', 'banco': 'Interbank',
-        'dni': '00002222', 'responsable_validacion': 'MÓNICA', 'comentarios': 'Urgente',
+        'dni': '00002222', 'responsable_validacion': str(ids['CLARO']), 'comentarios': 'Urgente',
     }
     for monto_invalido in ('adasfasf', 'S/ 30.50', '1e2', '30.555'):
         response = client.post('/form-pruebas/solicitar', headers=headers(client),
@@ -123,6 +136,9 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
     ]
     incompleta = dict(solicitud, partidas=solicitud['partidas'][:-1])
     assert client.post('/form-pruebas/solicitar', headers=headers(client), json=incompleta).status_code == 400
+    responsable_invalido = dict(solicitud, responsable_validacion=str(ids['ENTEL']))
+    rechazo = client.post('/form-pruebas/solicitar', headers=headers(client), json=responsable_invalido)
+    assert rechazo.status_code == 400 and 'asignado al proyecto' in rechazo.json['error']
     response = client.post('/form-pruebas/solicitar', headers=headers(client), json=solicitud)
     assert response.status_code == 201, response.json
     with portal.app_context(), almacen() as con:
@@ -134,7 +150,8 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
                                     'ALQUILER': ['Equipos', 'Generadores']}
     assert datos['proyecto'] == 'CLARO' and datos['presupuesto'] == 'Refacturable'
     assert datos['numero_billetera'] == '999999999' and datos['cuenta_cci'] == solicitud['cuenta_cci']
-    assert datos['responsable_validacion'] == 'MÓNICA' and datos['comentarios'] == 'Urgente'
+    assert datos['responsable_validacion'] == 'Mónica Prueba' and datos['comentarios'] == 'Urgente'
+    assert datos['responsable_validacion_id'] == ids['CLARO']
     sin_pago = dict(solicitud, nonce='c' * 32, tipo_billetera='No aplica', numero_billetera='')
     sin_pago.pop('motivo')
     assert client.post('/form-pruebas/solicitar', headers=headers(client), json=sin_pago).status_code == 201

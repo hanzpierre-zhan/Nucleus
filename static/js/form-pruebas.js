@@ -104,6 +104,7 @@
       state.proyectos.forEach(p => $('sol-proyecto').add(new Option(p === 'PEXT' ? p : p[0] + p.slice(1).toLowerCase(), p)));
     }
     $('sol-proyecto').value=state.proyecto_default;
+    actualizarResponsables();
     actualizarPago();
     $('total').textContent=$('total-rendir').textContent=money(state.total);
     const pending=state.depositos.filter(d=>Number(d.pendiente)>0);$('cantidad').textContent=pending.length?`${pending.length} depósito${pending.length===1?'':'s'} pendiente${pending.length===1?'':'s'} de sustentar`:'Estás al día con tus rendiciones de prueba';
@@ -159,6 +160,18 @@
     $('numero-billetera').required = aplica;
   }
   $('tipo-billetera')?.addEventListener('change', actualizarPago);
+  function actualizarResponsables() {
+    const select = $('responsable_validacion');
+    const proyecto = $('sol-proyecto').value;
+    const responsables = Object.entries(state?.responsables_validacion?.[proyecto] || {});
+    responsables.sort(([, a], [, b]) => a.localeCompare(b, 'es'));
+    select.replaceChildren(new Option(
+      responsables.length ? 'Selecciona' : proyecto ? 'Sin responsables asignados' : 'Selecciona un proyecto', ''
+    ));
+    for (const [id, nombre] of responsables) select.add(new Option(nombre, id));
+    select.disabled = !responsables.length;
+  }
+  $('sol-proyecto')?.addEventListener('change', actualizarResponsables);
   for (const campo of ['site', 'wo']) {
     let espera, consulta;
     const lista = $('sugerencias-' + campo);
@@ -256,6 +269,7 @@
   $('solicitar')?.addEventListener('reset', () => {
     partidas = [];
     queueMicrotask(actualizarPartidas);
+    queueMicrotask(actualizarResponsables);
   });
   if ($('solicitar')) actualizarPartidas();
   $('solicitar')?.addEventListener('submit',event=>{
