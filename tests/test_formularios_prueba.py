@@ -8,7 +8,7 @@ from flask import Flask
 from PIL import Image
 
 from db import db
-from models import NucleusData, Proyecto
+from models import NucleusData, Proyecto, Usuario
 
 
 @pytest.fixture
@@ -147,6 +147,51 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         guardado = json.loads(con.execute('SELECT datos FROM envios WHERE id=?', (respuesta.json['id'],)).fetchone()['datos'])
     assert guardado['cuenta_cci'] == transferencia['cuenta_cci'] and guardado['banco'] == 'Interbank'
     assert guardado['numero_billetera'] == ''
+
+
+def test_historial_pago_rechazo_y_foto_privada(portal, monkeypatch):
+    from blueprints import rendicion
+
+    with portal.app_context():
+        admin = Usuario(username='admin-piloto', password_hash='no-login', rol='zeno')
+        db.session.add(admin)
+        fila = NucleusData.query.filter_by(key_value='p1').one()
+        registro = json.loads(fila.data_json)
+        registro['FOTO PAGO'] = f'/api/rendicion/foto/{fila.proyecto_id}/p1/rendicion_pago.jpg'
+        fila.data_json = json.dumps(registro)
+        db.session.commit()
+        admin_id, registro_id = admin.id, fila.id
+    monkeypatch.setattr(rendicion, '_servir_foto_rendicion', lambda pid, key, nombre: (nombre, 200))
+
+    tecnico = portal.test_client()
+    assert entrar(tecnico).status_code == 200
+    pagada = solicitud(tecnico).json
+    rechazada = solicitud(tecnico, nonce='e' * 32).json
+    assert pagada['codigo'].startswith('PRUEBA-') and pagada['monto'] == '30.50'
+    admin = portal.test_client()
+    with admin.session_transaction() as sesion:
+        sesion.update(user_id=admin_id, form_csrf='prueba-csrf')
+    assert admin.post('/form-pruebas/administrar', data={
+        'csrf': 'prueba-csrf', 'accion': 'pagar', 'id': pagada['id'],
+        'comprobante': (imagen(), 'pago.png'),
+    }).status_code == 302
+    assert admin.post('/form-pruebas/administrar', data={
+        'csrf': 'prueba-csrf', 'accion': 'rechazar', 'id': rechazada['id'], 'motivo': 'Revisar importe',
+    }).status_code == 302
+
+    datos = tecnico.get('/form-pruebas/datos').json
+    historial = {r['codigo']: r for r in datos['historial']}
+    assert historial[pagada['codigo']]['estado'] == 'Pagado'
+    assert historial[rechazada['codigo']]['rechazo'] == 'Revisar importe'
+    assert any(d['codigo'] == pagada['codigo'] for d in datos['depositos'])
+    foto_piloto = historial[pagada['codigo']]['foto']
+    foto_real = f'/form-pruebas/deposito/registro/{registro_id}/foto'
+    assert tecnico.get(foto_piloto).mimetype == 'image/jpeg'
+    assert tecnico.get(foto_real).get_data(as_text=True) == 'rendicion_pago.jpg'
+    otro = portal.test_client()
+    assert entrar(otro, doc='00002222').status_code == 200
+    assert otro.get(foto_piloto).status_code == 404
+    assert otro.get(foto_real).status_code == 404
 
 
 def test_identidad_solo_formularios_y_datos_propios(portal):

@@ -30,3 +30,40 @@
 .expense-bag { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 14px 0; padding: 12px; background: var(--accent); color: var(--ink); border-radius: 10px; }
 .expense-bag output { font-weight: 700; font-variant-numeric: tabular-nums; }
 .expense-wallet { display: inline-flex; align-items: center; gap: 8px; }
+.deposit-summary { display: grid; gap: 8px; margin: 16px 0; padding: 16px; border-radius: 12px; background: var(--accent); }
+.deposit-summary span, .deposit-summary strong { display: block; }
+#codigo-exito { font-size: 1.25rem; overflow-wrap: anywhere; }
+#total-exito { font-size: 1.8rem; font-variant-numeric: tabular-nums; }
+.solicitud-registro { padding: 12px; margin: 8px 0; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow-wrap: anywhere; }
+.solicitud-cabecera { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.solicitud-registro p { margin: 5px 0; }
+.solicitud-fecha { display: block; font-size: .85rem; color: var(--muted); }
+.solicitud-antiguedad { display: inline-block; margin: 6px 8px 2px 0; padding: 3px 8px; border-radius: 7px; font-size: .78rem; font-weight: 700; background: var(--fill); color: var(--ink); }
+.solicitud-antiguedad[data-nivel="amarillo"] { background: #ffe8a3; color: #563700; }
+.solicitud-antiguedad[data-nivel="rojo"] { background: var(--error-bg); color: var(--error-text); }
+.solicitud-registro a { color: var(--blue); }
+.back[data-go="home"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 5px 15px 5px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+.back[data-go="home"]:hover { border-color: var(--blue); }
+.back[data-go="home"]:active { transform: translateY(1px); }
+.back-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--balance);
+  color: var(--balance-text);
+  font-size: 20px;
+}

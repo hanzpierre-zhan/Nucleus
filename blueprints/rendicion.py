@@ -761,6 +761,10 @@ def api_rendicion_foto(pid, key, nombre):
     proy = _proy()
     if not proy or int(pid) != int(proy.id):
         return jsonify({'error': 'No encontrado'}), 404
+    return _servir_foto_rendicion(pid, key, nombre)
+
+
+def _servir_foto_rendicion(pid, key, nombre):
     nombre = os.path.basename(secure_filename(nombre))
     claves = _claves_foto(key)
     if evidencia_usa_b2():

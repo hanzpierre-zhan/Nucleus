@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=2) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=5) }}"></head>
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Pruebas</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
 <main class="shell">
@@ -10,11 +10,12 @@
 {% else %}
 <div id="cargando" role="status">Cargando tu información…</div>
 <section id="portal" hidden>
-<section id="home" class="view"><div class="greeting"><div class="eyebrow" id="proyecto"></div><h1>Hola, <span id="nombre"></span><span class="dot">.</span></h1><p>Todo lo que necesitas, en un solo lugar.</p></div>
+<section id="home" class="view"><div class="greeting"><div class="eyebrow" id="proyecto"></div><h1>Hola, <span id="nombre"></span><span class="dot">.</span></h1></div>
 <div class="balance"><span class="balance-label">TOTAL POR RENDIR · PRUEBAS</span><div id="total" class="big-money">S/ 0.00</div><p id="cantidad"></p></div>
 <div class="actions"><button type="button" class="action request-action" data-go="solicitud"><span class="action-icon" aria-hidden="true">＋</span><span><strong>Solicitar</strong><small>Pide dinero para tu trabajo</small></span><span aria-hidden="true">↗</span></button><button type="button" class="action" data-go="rendicion"><span class="action-icon" aria-hidden="true">✓</span><span><strong>Rendir</strong><small>Envía tus comprobantes y fotos</small></span><span aria-hidden="true">↗</span></button></div>
+<div id="avisos-pago" role="status" hidden></div>
 <div id="recientes" hidden><h2>Tus últimos envíos de prueba</h2><div id="lista-recientes"></div></div></section>
-<section id="solicitud" class="view" hidden><button class="back" data-go="home" type="button">← Volver</button><div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1><p>Completa los datos. Aquí no necesitas adjuntar fotos.</p><form id="solicitar" class="card" novalidate>
+<section id="solicitud" class="view" hidden><button class="back" data-go="home" type="button"><span class="back-icon" aria-hidden="true">←</span>Volver</button><div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1><p>Completa los datos. Aquí no necesitas adjuntar fotos.</p><form id="solicitar" class="card" novalidate>
 <fieldset class="request-group"><legend>Datos del técnico</legend>
 <label for="sol-proyecto">Proyecto</label><select id="sol-proyecto" name="proyecto" required><option value="">Selecciona un proyecto</option></select>
 <label for="sol-dni">DNI</label><input id="sol-dni" readonly>
@@ -66,13 +67,19 @@
 </fieldset>
 <div class="expense-bag"><span>Total de lo solicitado</span><output id="gastos-total">S/ 0.00</output></div>
 <div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar solicitud de prueba <span aria-hidden="true">→</span></button></form></section>
-<section id="rendicion" class="view" hidden><button class="back" data-go="home" type="button">← Volver</button><div class="eyebrow">02 / RENDICIÓN</div><h1>Tus depósitos.</h1><p>Selecciona el depósito que vas a sustentar.</p><div class="balance compact"><span class="balance-label">TE QUEDA POR RENDIR · PRUEBAS</span><div class="big-money" id="total-rendir"></div></div><div id="depositos"></div>
+<section id="rendicion" class="view" hidden><button class="back" data-go="home" type="button"><span class="back-icon" aria-hidden="true">←</span>Volver</button><div class="eyebrow">02 / RENDICIÓN</div><h1>Tus depósitos.</h1><p>Selecciona el depósito que vas a sustentar.</p><div class="balance compact"><span class="balance-label">TE QUEDA POR RENDIR · PRUEBAS</span><div class="big-money" id="total-rendir"></div></div>
+<button type="button" id="actualizar-rendicion" class="quiet">Actualizar estado</button>
+<div id="depositos"></div>
 <form id="rendir" class="card" hidden novalidate><h2 id="deposito-titulo"></h2><input name="referencia" id="referencia" type="hidden"><label for="monto-rendir">Monto de esta rendición</label><div class="money-input"><span>S/</span><input id="monto-rendir" name="monto" inputmode="decimal" required></div><p id="saldo-deposito" class="hint"></p><label for="detalle">Cuéntanos qué gastaste</label><textarea id="detalle" name="detalle" rows="3" maxlength="2000" required placeholder="Ejemplo: movilidad y materiales para la atención"></textarea>
-<label>Fotos de tus comprobantes</label><div class="photo-actions"><label class="photo-button" for="camara">▣ Tomar foto<input id="camara" type="file" accept="image/*" capture="environment"></label><label class="photo-button" for="galeria">＋ Elegir fotos<input id="galeria" type="file" accept="image/*" multiple></label></div><p class="hint">De 1 a 8 fotos. Puedes revisar y quitar cada foto antes de enviar.</p><div id="fotos" class="photos"></div><div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar rendición de prueba <span aria-hidden="true">→</span></button></form></section>
-<section id="exito" class="view" hidden><div class="card success"><div class="success-icon" aria-hidden="true">✓</div><div class="eyebrow">ENVÍO DE PRUEBA GUARDADO</div><h1>¡Listo!</h1><p id="mensaje-exito"></p><span class="receipt" id="codigo-exito"></span><p class="hint">Este envío no cambia saldos ni estados de la Rendición real.</p><button class="primary wide" data-go="home" type="button">Volver al inicio</button></div></section>
+<label>Fotos de tus comprobantes</label><div class="photo-actions"><label class="photo-button" for="camara">▣ Tomar foto<input id="camara" type="file" accept="image/*" capture="environment"></label><label class="photo-button" for="galeria">＋ Elegir fotos<input id="galeria" type="file" accept="image/*" multiple></label></div><p class="hint">De 1 a 8 fotos. Puedes revisar y quitar cada foto antes de enviar.</p><div id="fotos" class="photos"></div><div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar rendición de prueba <span aria-hidden="true">→</span></button></form>
+<h2>Mis solicitudes</h2><div id="historial-solicitudes"></div></section>
+<section id="exito" class="view" hidden><div class="card success"><div class="success-icon" aria-hidden="true">✓</div><div class="eyebrow">ENVÍO DE PRUEBA GUARDADO</div><h1>¡Listo!</h1><p id="mensaje-exito"></p>
+<div class="deposit-summary"><span id="codigo-etiqueta">Código de depósito de prueba</span><strong id="codigo-exito"></strong><div id="total-exito-grupo"><span>Monto total solicitado</span><strong id="total-exito"></strong></div></div>
+<p id="aviso-rendicion" class="notice">Tienes 24 horas desde que recibes el depósito para rendir. Solo se aceptan boletas y facturas. No se aceptan recibos por honorarios.</p>
+<button id="ver-solicitud" class="quiet" data-go="rendicion" type="button">Ver mis solicitudes</button><button class="primary wide" data-go="home" type="button">Volver al inicio</button></div></section>
 </section>
 {% endif %}
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=11) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=13) }}" defer></script></body></html>

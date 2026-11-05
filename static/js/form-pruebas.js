@@ -20,6 +20,61 @@
   $('ver-clave')?.addEventListener('click',()=>{const input=$('clave');input.type=input.type==='password'?'text':'password';$('ver-clave').textContent=input.type==='password'?'Mostrar':'Ocultar';});
   $('login')?.addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;sending(form,async()=>{await api('/ingresar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});location.reload();});});
   $('salir')?.addEventListener('click',async()=>{try{await api('/salir',{method:'POST'});location.reload();}catch(error){alert(error.message);}});
+  const fechaLima = new Intl.DateTimeFormat('es-PE', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima'
+  });
+  function actualizarAntiguedad(indicador) {
+    const horas = Math.max(0, Math.floor((Date.now() - Date.parse(indicador.dataset.solicitada)) / 3600000));
+    indicador.dataset.nivel = horas >= 24 ? 'rojo' : horas >= 12 ? 'amarillo' : 'normal';
+    indicador.textContent = horas ? `${horas} h desde la solicitud` : 'Menos de 1 h desde la solicitud';
+  }
+  function agregarFechaSolicitud(ficha, fecha) {
+    if (!fecha || !Number.isFinite(Date.parse(fecha))) {
+      ficha.append(el('small', 'Fecha de solicitud no disponible', 'solicitud-fecha'));
+      return;
+    }
+    const momento = el('time', 'Solicitado el ' + fechaLima.format(new Date(fecha)), 'solicitud-fecha');
+    momento.dateTime = fecha;
+    const indicador = el('span', undefined, 'solicitud-antiguedad');
+    indicador.dataset.solicitada = fecha;
+    actualizarAntiguedad(indicador);
+    ficha.append(momento, indicador);
+  }
+  if ($('portal')) setInterval(() => {
+    document.querySelectorAll('[data-solicitada]').forEach(actualizarAntiguedad);
+  }, 60000);
+  function mostrarHistorial(registros) {
+    const historial = $('historial-solicitudes');
+    const avisos = $('avisos-pago');
+    historial.replaceChildren();
+    avisos.replaceChildren();
+    avisos.hidden = true;
+    for (const registro of registros) {
+      const ficha = el('article', undefined, 'solicitud-registro');
+      const monto = registro.monto !== '' && Number.isFinite(Number(registro.monto)) ? money(registro.monto) : '';
+      const encabezado = el('div', undefined, 'solicitud-cabecera');
+      encabezado.append(el('strong', registro.codigo));
+      if (monto) encabezado.append(el('strong', monto, 'amount'));
+      ficha.append(encabezado, el('p', registro.estado, 'hint'));
+      if (registro.prueba) ficha.append(el('p', 'Solicitud de prueba', 'hint'));
+      ficha.append(el('p', 'Motivo: ' + (registro.motivo || 'Sin motivo registrado')));
+      agregarFechaSolicitud(ficha, registro.fecha_solicitud);
+      if (registro.rechazo) ficha.append(el('p', 'Motivo del rechazo: ' + registro.rechazo));
+      if (registro.foto) {
+        const enlace = el('a', 'Ver foto del depósito');
+        enlace.href = registro.foto;
+        enlace.target = '_blank';
+        enlace.rel = 'noopener';
+        ficha.append(enlace);
+      }
+      historial.append(ficha);
+      if (['Pagado', 'Rechazado'].includes(registro.estado) && avisos.childElementCount < 5) {
+        avisos.hidden = false;
+        avisos.append(el('p', registro.estado + ' · ' + registro.codigo, 'notice'));
+      }
+    }
+    if (!registros.length) historial.append(el('p', 'Todavía no tienes solicitudes.', 'hint'));
+  }
   async function load(){
     state=await api('/datos');$('csrf').value=state.csrf;
     $('nombre').textContent=state.personal.nombre.split(/\s+/)[0];$('proyecto').textContent=state.personal.proyecto||'TU ESPACIO';
@@ -37,8 +92,13 @@
     if(!state.depositos.length){const empty=el('div',undefined,'empty');empty.append(el('strong','No tienes depósitos pendientes'),el('span','Aquí aparecerán los códigos depositados a tu documento que todavía requieren evidencia.'));list.append(empty);}
     state.depositos.forEach(d=>{
       const button=el('button',undefined,'deposit');button.type='button';button.disabled=Number(d.pendiente)<=0;
-      const text=el('span');text.append(el('strong',d.codigo),el('small',button.disabled?'Enviado en pruebas':d.motivo||'Pendiente de sustento'));
-      button.append(text,el('span',money(d.pendiente),'amount'));button.addEventListener('click',()=>{
+      const text=el('span');
+      text.append(el('strong',d.codigo),el('small','Motivo: ' + (d.motivo || 'Sin motivo registrado')));
+      agregarFechaSolicitud(text, d.fecha_solicitud);
+      const importes = el('span');
+      importes.append(el('strong',money(d.monto),'amount'),
+        el('small',button.disabled ? 'Enviado en pruebas' : 'Pendiente: ' + money(d.pendiente)));
+      button.append(text,importes);button.addEventListener('click',()=>{
         list.querySelectorAll('.deposit').forEach(b=>b.classList.toggle('selected',b===button));
         $('rendir').reset();clearPhotos();keys.rendicion=freshKey();$('rendir').querySelector('.error').hidden=true;
         $('referencia').value=d.referencia;$('deposito-titulo').textContent=d.codigo;$('monto-rendir').value=d.pendiente;
@@ -48,9 +108,35 @@
     });
     $('lista-recientes').replaceChildren();$('recientes').hidden=!state.recientes.length;
     state.recientes.forEach(r=>{const item=el('div',undefined,'recent'),desc=el('span');desc.append(el('span',r.tipo==='solicitud'?'Solicitud enviada':'Rendición enviada'),el('small',new Date(r.creado).toLocaleString('es-PE',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})));item.append(desc,el('strong',money(r.monto)));$('lista-recientes').append(item);});
+    mostrarHistorial(state.historial);
     $('cargando').hidden=true;$('portal').hidden=false;
   }
-  async function success(data,message){await load();$('mensaje-exito').textContent=message;$('codigo-exito').textContent='PRUEBA · '+data.id.slice(0,8).toUpperCase();go('exito');}
+  async function actualizarRendicion() {
+    const boton = $('actualizar-rendicion');
+    if (boton.disabled) return;
+    boton.disabled = true;
+    boton.textContent = 'Actualizando…';
+    try {
+      await load();
+      boton.textContent = 'Actualizar estado';
+    } catch {
+      boton.textContent = 'Reintentar actualización';
+    } finally {
+      boton.disabled = false;
+    }
+  }
+  $('actualizar-rendicion')?.addEventListener('click', actualizarRendicion);
+  document.querySelectorAll('[data-go=rendicion]').forEach(boton => boton.addEventListener('click', actualizarRendicion));
+  async function success(data, message) {
+    const solicitud = Boolean(data.codigo);
+    $('mensaje-exito').textContent = message;
+    $('codigo-etiqueta').textContent = solicitud ? 'Código de depósito de prueba' : 'Código de envío de prueba';
+    $('codigo-exito').textContent = data.codigo || data.id.slice(0, 8).toUpperCase();
+    $('total-exito-grupo').hidden = $('aviso-rendicion').hidden = $('ver-solicitud').hidden = !solicitud;
+    $('total-exito').textContent = solicitud ? money(data.monto) : '';
+    go('exito');
+    await actualizarRendicion();
+  }
   function actualizarPago() {
     const aplica = $('tipo-billetera').value !== 'No aplica';
     $('pago-billetera').hidden = !aplica;

@@ -7,11 +7,14 @@ import secrets
 import time
 import uuid
 from decimal import Decimal
+from datetime import datetime, timezone
 from functools import wraps
+from urllib.parse import unquote, urlsplit
 
 from flask import (Blueprint, abort, current_app, g, jsonify, redirect,
                    render_template, request, send_file, session, url_for)
 from PIL import Image, ImageOps, UnidentifiedImageError
+from werkzeug.utils import secure_filename
 
 from services import login_required
 from services import formularios_prueba as piloto
@@ -151,16 +154,90 @@ def salir():
 @bp.get('/datos')
 @tecnico
 def datos():
-    items = piloto.depositos(g.tecnico['documento'])
+    documento = g.tecnico['documento']
+    filas = piloto.filas_rendicion(documento)
+    items = piloto.depositos(documento, filas)
     with piloto.almacen() as con:
         rows = con.execute('SELECT id,tipo,creado,datos FROM envios WHERE documento=? ORDER BY creado DESC LIMIT 8',
                            (g.tecnico['documento'],)).fetchall()
     recent = [{'id': r['id'], 'tipo': r['tipo'], 'creado': r['creado'],
                'monto': json.loads(r['datos'])['monto']} for r in rows]
+    with piloto.almacen() as con:
+        solicitudes = con.execute(
+            "SELECT id, creado, datos FROM envios WHERE documento=? AND tipo='solicitud' ORDER BY creado DESC",
+            (documento,)).fetchall()
+    historial = []
+    for solicitud in solicitudes:
+        registro = json.loads(solicitud['datos'])
+        historial.append({
+            'codigo': piloto.codigo_solicitud(solicitud['id']),
+            'estado': registro.get('estado', 'Pendiente'),
+            'monto': registro['monto'], 'fecha_solicitud': piloto.fecha_solicitud(solicitud['creado']),
+            'motivo': registro.get('motivo', ''), 'rechazo': registro.get('motivo_rechazo', ''),
+            'foto': url_for('form_pruebas.foto_deposito_prueba', uid=solicitud['id'])
+            if registro.get('foto_pago') else '', 'prueba': True,
+        })
+    for fila in filas:
+        registro = json.loads(fila.data_json or '{}')
+        estado = str(piloto.valor(registro, 'ESTADO')).strip().upper()
+        pagado = estado in ('DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO', 'SUSTENTADO', 'ARCHIVADO')
+        historial.append({
+            'codigo': piloto.valor(registro, 'CODIGO DEPOSITO') or 'Sin código de depósito',
+            'estado': 'Pagado' if pagado else 'Rechazado' if estado == 'RECHAZADO' else estado or 'Pendiente',
+            'monto': str(piloto.valor(registro, 'Monto total del depósito', 'Monto total', 'Monto', 'MONTO PAGO')),
+            'fecha_solicitud': piloto.fecha_solicitud(piloto.valor(registro, 'Marca temporal')),
+            'motivo': str(piloto.valor(registro, 'Motivo de la solicitud')),
+            'rechazo': str(piloto.valor(registro, 'MOTIVO RECHAZO')),
+            'foto': url_for('form_pruebas.foto_deposito_real', registro=fila.id)
+            if foto_pago_referencia(fila, registro) else '', 'prueba': False,
+        })
     return jsonify(personal=g.tecnico, depositos=items,
                    total=str(sum((Decimal(d['pendiente']) for d in items), Decimal('0'))),
                    gastos=GASTOS, proyectos=PROYECTOS, proyecto_default=familia(g.tecnico['proyecto']),
-                   csrf=csrf(), recientes=recent)
+                   csrf=csrf(), recientes=recent, historial=historial)
+
+
+def foto_pago_referencia(fila, datos):
+    try:
+        url = urlsplit(str(piloto.valor(datos, 'FOTO PAGO')))
+    except ValueError:
+        return None
+    prefijo = f'/api/rendicion/foto/{fila.proyecto_id}/'
+    ruta = unquote(url.path)
+    if url.scheme or url.netloc or not ruta.startswith(prefijo):
+        return None
+    clave, _, nombre = ruta[len(prefijo):].rpartition('/')
+    if (clave not in (fila.key_value, secure_filename(fila.key_value))
+            or not re.fullmatch(r'[A-Za-z0-9_.-]+\.(?:jpg|jpeg|png|webp)', nombre, re.IGNORECASE)):
+        return None
+    return nombre
+
+
+@bp.get('/deposito/registro/<int:registro>/foto')
+@tecnico
+def foto_deposito_real(registro):
+    filas = piloto.filas_rendicion(g.tecnico['documento'], registro)
+    if not filas:
+        abort(404)
+    fila = filas[0]
+    nombre = foto_pago_referencia(fila, json.loads(fila.data_json or '{}'))
+    if not nombre:
+        abort(404)
+    from blueprints.rendicion import _servir_foto_rendicion
+    return _servir_foto_rendicion(fila.proyecto_id, fila.key_value, nombre)
+
+
+@bp.get('/deposito/prueba/<uid>/foto')
+@tecnico
+def foto_deposito_prueba(uid):
+    if not re.fullmatch(r'[a-f0-9]{32}', uid):
+        abort(404)
+    with piloto.almacen() as con:
+        fila = con.execute("SELECT datos FROM envios WHERE id=? AND documento=? AND tipo='solicitud'",
+                           (uid, g.tecnico['documento'])).fetchone()
+    if not fila or not json.loads(fila['datos']).get('foto_pago'):
+        abort(404)
+    return send_file(piloto.raiz() / 'pagos' / (uid + '.jpg'), mimetype='image/jpeg')
 
 
 @bp.get('/sugerencias')
@@ -220,7 +297,9 @@ def repetido(doc, key, tipo):
     if previous:
         if previous['tipo'] != tipo:
             abort(409, 'El envío ya se utilizó. Actualiza la página.')
-        return jsonify(success=True, id=previous['id'], repetido=True)
+        return jsonify(success=True, id=previous['id'], repetido=True,
+                       codigo=piloto.codigo_solicitud(previous['id']) if tipo == 'solicitud' else None,
+                       monto=json.loads(previous['datos'])['monto'])
 
 
 def importe_solicitud(valor):
@@ -333,8 +412,10 @@ def solicitar():
                 proyecto=proyecto, presupuesto=presupuesto, dni=g.tecnico['documento'],
                 responsable_validacion=responsable,
                 comentarios=comentarios)
-        uid, _ = piloto.guardar(g.tecnico['documento'], 'solicitud', payload, key, uuid.uuid4().hex)
-        return jsonify(success=True, id=uid), 201
+        uid, creado = piloto.guardar(g.tecnico['documento'], 'solicitud', payload, key, uuid.uuid4().hex)
+        if not creado:
+            return repetido(g.tecnico['documento'], key, 'solicitud')
+        return jsonify(success=True, id=uid, codigo=piloto.codigo_solicitud(uid), monto=payload['monto']), 201
     except ValueError as error:
         return jsonify(error=str(error)), 400
 
@@ -426,10 +507,39 @@ def administrar():
         comprobar_csrf()
         folder = piloto.raiz()
         folder.mkdir(parents=True, exist_ok=True)
-        if request.form.get('accion') == 'habilitar':
+        accion = request.form.get('accion')
+        if accion == 'habilitar':
             (folder / 'habilitado').touch()
-        elif request.form.get('accion') == 'deshabilitar':
+        elif accion == 'deshabilitar':
             (folder / 'habilitado').unlink(missing_ok=True)
+        elif accion in ('pagar', 'rechazar'):
+            uid = request.form.get('id', '')
+            if not re.fullmatch(r'[a-f0-9]{32}', uid):
+                abort(404)
+            try:
+                if accion == 'pagar':
+                    archivo = request.files.get('comprobante')
+                    imagen = preparar_fotos([archivo] if archivo and archivo.filename else [])[0]
+                    cambios = {'estado': 'Pagado', 'foto_pago': True}
+                else:
+                    cambios = {'estado': 'Rechazado',
+                               'motivo_rechazo': texto(request.form, 'motivo', 'el motivo del rechazo', 500)}
+            except ValueError as error:
+                abort(400, str(error))
+            with piloto.almacen() as con:
+                con.execute('BEGIN IMMEDIATE')
+                fila = con.execute("SELECT datos FROM envios WHERE id=? AND tipo='solicitud'", (uid,)).fetchone()
+                if not fila:
+                    abort(404)
+                datos = json.loads(fila['datos'])
+                if datos.get('estado', 'Pendiente') != 'Pendiente':
+                    abort(409, 'La solicitud de prueba ya se resolvió.')
+                if accion == 'pagar':
+                    carpeta = folder / 'pagos'
+                    carpeta.mkdir(exist_ok=True)
+                    (carpeta / (uid + '.jpg')).write_bytes(imagen)
+                datos.update(cambios, fecha_estado=datetime.now(timezone.utc).isoformat())
+                con.execute('UPDATE envios SET datos=? WHERE id=?', (json.dumps(datos, ensure_ascii=False), uid))
         else:
             abort(400)
         return redirect(url_for('form_pruebas.administrar'))

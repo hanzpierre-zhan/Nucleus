@@ -8,7 +8,7 @@ import json
 import re
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
@@ -106,7 +106,7 @@ def _referencia(doc, code):
                     (doc + ':' + code).encode(), hashlib.sha256).hexdigest()
 
 
-def depositos(doc):
+def filas_rendicion(doc, registro=None):
     table = NucleusData.__table__
     # Comparación por documento en SQL: nunca enviar depósitos ajenos al cliente.
     if db.engine.dialect.name == 'sqlite':
@@ -117,11 +117,42 @@ def depositos(doc):
                           func.nullif(extract('Documento del beneficiario (Form)'), ''),
                           func.nullif(extract('DOCUMENTO'), ''), extract('DNI'), '')
     owner = func.upper(func.replace(func.replace(func.replace(func.trim(owner), ' ', ''), '.', ''), '-', ''))
-    rows = db.session.execute(select(table.c.id, table.c.data_json).join(
+    consulta = select(table.c.id, table.c.proyecto_id, table.c.key_value, table.c.data_json).join(
         Proyecto.__table__, table.c.proyecto_id == Proyecto.id).where(
-            Proyecto.nombre == 'Rendicion', owner == doc)).all()
+            Proyecto.nombre == 'Rendicion', owner == doc)
+    if registro is not None:
+        consulta = consulta.where(table.c.id == registro)
+    return db.session.execute(consulta.order_by(table.c.id.desc())).all()
+
+
+def codigo_solicitud(uid):
+    return 'PRUEBA-' + uid.upper()
+
+
+def fecha_solicitud(valor_fecha):
+    """Normaliza horas del formulario de Perú y registros ISO del piloto."""
+    texto = str(valor_fecha or '').strip()
+    if not texto:
+        return ''
+    try:
+        fecha = datetime.fromisoformat(texto)
+    except ValueError:
+        for formato in ('%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M', '%d/%m/%Y'):
+            try:
+                fecha = datetime.strptime(texto, formato)
+                break
+            except ValueError:
+                continue
+        else:
+            return ''
+    if fecha.tzinfo is None:
+        fecha = fecha.replace(tzinfo=timezone(timedelta(hours=-5)))
+    return fecha.astimezone(timezone.utc).isoformat()
+
+
+def depositos(doc, filas=None):
     grouped = {}
-    for row in rows:
+    for row in filas if filas is not None else filas_rendicion(doc):
         data = json.loads(row.data_json or '{}')
         if etapa_de(data) not in ('EVIDENCIA', 'OBSERVADO'):
             continue
@@ -134,13 +165,27 @@ def depositos(doc):
         except ValueError:
             continue
         ref = _referencia(doc, code)
+        solicitada = fecha_solicitud(valor(data, 'Marca temporal'))
         item = grouped.setdefault(ref, {'referencia': ref, 'codigo': code,
                                        'monto': Decimal('0'), 'pendiente': Decimal('0'),
                                        'motivo': str(valor(data, 'Motivo de la solicitud'))[:180],
+                                       'fecha_solicitud': solicitada,
                                        'fecha': str(valor(data, 'FECHA PAGO'))[:10]})
+        if solicitada and (not item['fecha_solicitud'] or solicitada < item['fecha_solicitud']):
+            item['fecha_solicitud'] = solicitada
         item['monto'] += amount
     with almacen() as con:
         sent = con.execute("SELECT datos FROM envios WHERE documento=? AND tipo='rendicion'", (doc,)).fetchall()
+        solicitudes = con.execute("SELECT id, creado, datos FROM envios WHERE documento=? AND tipo='solicitud'", (doc,)).fetchall()
+    for row in solicitudes:
+        datos = json.loads(row['datos'])
+        if datos.get('estado') != 'Pagado':
+            continue
+        codigo = codigo_solicitud(row['id'])
+        ref = _referencia(doc, codigo)
+        grouped[ref] = {'referencia': ref, 'codigo': codigo, 'monto': Decimal(datos['monto']),
+                        'motivo': datos['motivo'], 'fecha': datos.get('fecha_estado', '')[:10],
+                        'fecha_solicitud': fecha_solicitud(row['creado'])}
     for item in grouped.values():
         reserved = sum((Decimal(json.loads(r['datos'])['monto']) for r in sent
                         if json.loads(r['datos']).get('referencia') == item['referencia']), Decimal('0'))
