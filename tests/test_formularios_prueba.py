@@ -244,19 +244,22 @@ def test_escrituras_aisladas_fotos_y_reintento(portal):
     response=solicitud(client); assert response.status_code==201,response.json
     again=solicitud(client); assert again.status_code==200 and again.json['id']==response.json['id']
     deposit=client.get('/form-pruebas/datos').json['depositos'][0]
-    data={'nonce':'b'*32,'referencia':deposit['referencia'],'monto':'100.50','detalle':'Movilidad y materiales',
-          'fotos':(imagen(),'recibo.png')}
+    data={'nonce':'b'*32,'referencia':deposit['referencia'],'comprobantes':'[[]]',
+          'monto_devolucion':'250.50','motivo_devolucion':'No se realizó el trabajo',
+          'foto_devolucion':(imagen(),'devolucion.png')}
     sent=client.post('/form-pruebas/rendir',data=data,headers=headers(client))
     assert sent.status_code==201,sent.json
     info=client.get('/form-pruebas/datos').json
-    assert info['total']=='150.00' and len(info['recientes'])==2
+    assert info['total']=='0' and len(info['recientes'])==2
     retry=client.post('/form-pruebas/rendir',data={'nonce':'b'*32},headers=headers(client))
     assert retry.status_code==200 and retry.json['id']==sent.json['id']
     from services.formularios_prueba import almacen
     with portal.app_context(), almacen() as con:
         rows=con.execute('SELECT documento,datos FROM envios').fetchall()
         assert len(rows)==2 and all(r['documento']=='00001111' for r in rows)
-        photo=json.loads(rows[1]['datos'])['fotos'][0]
+        guardado=json.loads(rows[1]['datos'])
+        assert guardado['gastado']=='0.00' and guardado['devolucion']['monto']=='250.50'
+        photo=guardado['devolucion']['foto']
     assert client.get('/form-pruebas/foto/'+photo).status_code==200
     other=portal.test_client(); entrar(other,'00002222')
     assert other.get('/form-pruebas/foto/'+photo).status_code==404
@@ -291,8 +294,8 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
     deposit = next(d for d in depositos if d['codigo'].startswith('PRUEBA-'))
     assert [p['etiqueta'] for p in deposit['partidas']] == ['Pasajes', 'Compra de materiales']
     grupos = [
-        [{'tipo': 'Boleta'}, {'tipo': 'Boleta'}],
-        [{'tipo': 'Factura'}],
+        [{'tipo': 'Boleta', 'monto': '5.50'}, {'tipo': 'Boleta', 'monto': '4.50'}],
+        [{'tipo': 'Factura', 'monto': '15.00'}],
     ]
     data = {'nonce': 'b' * 32, 'referencia': deposit['referencia'], 'monto': '30.00'}
     invalid = client.post('/form-pruebas/rendir', headers=headers(client), data={
@@ -303,11 +306,22 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
     })
     assert invalid.status_code == 400 and 'RUC' in invalid.json['error']
     grupos[1][0]['ruc'] = '20123456789'
+    for devolucion, mensaje in [({}, 'Registra una devolución'), ({'monto_devolucion': '4.99'}, 'exactamente'),
+                                ({'monto_devolucion': '5.00', 'motivo_devolucion': 'Sobrante'}, 'Adjunta la foto')]:
+        rechazo = client.post('/form-pruebas/rendir', headers=headers(client), data={
+            **data, **devolucion, 'comprobantes': json.dumps(grupos),
+            'comprobante-0-0': (imagen(), 'boleta.png'),
+            'comprobante-0-1': (imagen(), 'otra.png'),
+            'comprobante-1-0': (imagen(), 'factura.png'),
+        })
+        assert rechazo.status_code == 400 and mensaje in rechazo.json['error']
     result = client.post('/form-pruebas/rendir', headers=headers(client), data={
         **data, 'comprobantes': json.dumps(grupos),
         'comprobante-0-0': (imagen(), 'boleta.png'),
         'comprobante-0-1': (imagen(), 'otra.png'),
         'comprobante-1-0': (imagen(), 'factura.png'),
+        'monto_devolucion': '5.00', 'motivo_devolucion': 'Sobrante',
+        'foto_devolucion': (imagen(), 'devolucion.png'),
         'evidencia': [(imagen(), 'trabajo.png'), (imagen(), 'material.png')],
     })
     assert result.status_code == 201, result.json
@@ -316,8 +330,9 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
     comprobantes = [c for p in saved['partidas'] for c in p['comprobantes']]
     assert [c['tipo'] for c in comprobantes] == ['Boleta', 'Boleta', 'Factura']
     assert comprobantes[-1]['ruc'] == '20123456789'
-    assert [c['foto'] for c in comprobantes] + saved['evidencia'] == saved['fotos']
-    assert len(set(saved['fotos'])) == 5
+    assert saved['gastado'] == '25.00' and saved['devolucion']['monto'] == '5.00'
+    assert [c['foto'] for c in comprobantes] + saved['evidencia'] + [saved['devolucion']['foto']] == saved['fotos']
+    assert len(set(saved['fotos'])) == 6
 
 
 def test_validacion_sesion_csrf_y_saldo(portal):
@@ -328,11 +343,17 @@ def test_validacion_sesion_csrf_y_saldo(portal):
     assert client.post('/form-pruebas/solicitar',json={}).status_code==403
     deposit=client.get('/form-pruebas/datos').json['depositos'][0]
     result=client.post('/form-pruebas/rendir',data={'nonce':'d'*32,'referencia':deposit['referencia'],
-        'monto':'999','detalle':'Mayor al saldo','fotos':(imagen(),'foto.png')},headers=headers(client))
+        'comprobantes':'[[{"tipo":"Boleta","monto":"999"}]]',
+        'comprobante-0-0':(imagen(),'foto.png')},headers=headers(client))
     assert result.status_code==400
     invalid=client.post('/form-pruebas/rendir',data={'nonce':'e'*32,'referencia':deposit['referencia'],
-        'monto':'1','detalle':'Foto inválida','fotos':(io.BytesIO(b'no es una imagen'),'foto.jpg')},headers=headers(client))
+        'comprobantes':'[[{"tipo":"Boleta","monto":"250.50"}]]',
+        'comprobante-0-0':(io.BytesIO(b'no es una imagen'),'foto.jpg')},headers=headers(client))
     assert invalid.status_code==400
+    exacto=client.post('/form-pruebas/rendir',data={'nonce':'e'*32,'referencia':deposit['referencia'],
+        'comprobantes':'[[{"tipo":"Boleta","monto":"250.50"}]]',
+        'comprobante-0-0':(imagen(),'foto.png')},headers=headers(client))
+    assert exacto.status_code==201,exacto.json
     with portal.app_context():
         row=NucleusData.query.filter_by(key_value='00001111').one()
         data=json.loads(row.data_json);data['ESTADO']='CESADO';row.data_json=json.dumps(data);db.session.commit()

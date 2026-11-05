@@ -77,8 +77,8 @@
 <div id="resumen-deposito" class="solicitud-registro"></div>
 <form id="rendir" class="card" novalidate>
 <input name="referencia" id="referencia" type="hidden">
-<label for="monto-rendir">Monto de esta rendición</label><div class="money-input"><span>S/</span><input id="monto-rendir" name="monto" inputmode="decimal" required></div>
-<h2>Comprobantes por concepto</h2><p class="hint">Agrega la boleta o factura de cada gasto solicitado.</p>
+<label for="monto-rendir">¿Cuánto gastaste?</label><div class="money-input"><span>S/</span><input id="monto-rendir" value="0.00" readonly></div>
+<h2>Comprobantes por concepto</h2><p class="hint">Registra el importe de cada boleta o factura. Si no gastaste en un concepto, déjalo en S/ 0.00.</p>
 <div id="conceptos-rendir"></div>
 <template id="plantilla-comprobante">
 <fieldset class="comprobante-rendir"><legend>Comprobante</legend>
@@ -86,10 +86,19 @@
 <label>Tipo<select data-campo="tipo" required><option value="">Selecciona</option><option>Boleta</option><option>Factura</option></select></label>
 <label>RUC del emisor<input data-campo="ruc" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" placeholder="11 dígitos"></label>
 </div>
+<label>Importe del comprobante (S/)<input data-campo="monto" inputmode="decimal" pattern="[0-9]{1,6}([.,][0-9]{1,2})?" placeholder="0.00" required></label>
 <label class="adjunto-comprobante"><span data-nombre-foto>＋ Adjuntar foto del comprobante</span><input data-campo="foto" type="file" accept="image/*" required></label>
 <button class="quiet" type="button" data-quitar>Quitar comprobante</button>
 </fieldset>
 </template>
+<fieldset id="devolucion-rendir" class="concepto-rendir" hidden disabled>
+<legend>Devolución del saldo</legend>
+<p id="saldo-devolver"></p>
+<label>Monto devuelto (S/)<input id="monto-devolucion" name="monto_devolucion" inputmode="decimal" pattern="[0-9]{1,6}([.,][0-9]{1,2})?" placeholder="0.00" required></label>
+<label>Motivo de la devolución<textarea name="motivo_devolucion" rows="2" maxlength="1000" required></textarea></label>
+<label class="adjunto-comprobante"><span id="nombre-foto-devolucion">＋ Adjuntar foto de la devolución</span><input id="foto-devolucion" type="file" accept="image/*" required></label>
+</fieldset>
+<p id="cuadre-rendicion" class="hint" aria-live="polite"></p>
 <h2>Fotos de evidencia</h2><p class="hint">Agrega hasta 8 fotos de los materiales, servicios o trabajos realizados.</p>
 <div class="photo-actions"><label class="photo-button" for="camara">▣ Tomar foto<input id="camara" type="file" accept="image/*" capture="environment"></label><label class="photo-button" for="galeria">＋ Elegir fotos<input id="galeria" type="file" accept="image/*" multiple></label></div>
 <div id="fotos" class="photos"></div>
@@ -105,4 +114,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=20) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=21) }}" defer></script></body></html>

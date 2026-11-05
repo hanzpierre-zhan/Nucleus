@@ -57,9 +57,10 @@
       keys.rendicion = freshKey();
       form.querySelector('.error').hidden = true;
       $('referencia').value = deposito.referencia;
-      $('monto-rendir').value = deposito.pendiente;
       mostrarConceptos(deposito);
     }
+    $('rendir').dataset.saldo = deposito.pendiente;
+    actualizarCuadre();
     const resumen = $('resumen-deposito');
     const encabezado = el('div', undefined, 'solicitud-cabecera');
     encabezado.append(el('strong', deposito.codigo), el('strong', money(deposito.monto), 'amount'));
@@ -332,12 +333,13 @@
     }];
     const contenedor = $('conceptos-rendir');
     contenedor.replaceChildren();
+    $('nombre-foto-devolucion').textContent = '＋ Adjuntar foto de la devolución';
     for (const concepto of conceptos) {
       const bloque = el('section', undefined, 'concepto-rendir');
       const filas = el('div');
-      const agregar = el('button', '＋ Agregar otro comprobante', 'quiet');
+      const agregar = el('button', '＋ Agregar comprobante', 'quiet');
       agregar.type = 'button';
-      function agregarComprobante(enfocar) {
+      agregar.addEventListener('click', () => {
         const fila = $('plantilla-comprobante').content.firstElementChild.cloneNode(true);
         const tipo = fila.querySelector('[data-campo=tipo]');
         const ruc = fila.querySelector('[data-campo=ruc]');
@@ -346,27 +348,56 @@
         foto.addEventListener('change', () => {
           fila.querySelector('[data-nombre-foto]').textContent = foto.files[0]?.name || '＋ Adjuntar foto del comprobante';
         });
-        quitar.hidden = !filas.children.length;
         tipo.addEventListener('change', () => { ruc.required = tipo.value === 'Factura'; });
         quitar.addEventListener('click', () => {
           fila.remove();
           agregar.disabled = false;
+          actualizarCuadre();
           agregar.focus();
         });
         filas.append(fila);
         agregar.disabled = filas.children.length >= 8;
-        if (enfocar) tipo.focus();
-      }
-      agregar.addEventListener('click', () => agregarComprobante(true));
+        tipo.focus();
+      });
       bloque.append(el('h3', concepto.etiqueta));
       if (concepto.monto != null && concepto.monto !== '' && Number.isFinite(Number(concepto.monto))) {
         bloque.append(el('p', 'Monto solicitado ' + money(concepto.monto)));
       }
-      bloque.append(filas, agregar);
+      bloque.append(el('p', undefined, 'gastado-concepto'), filas, agregar);
       contenedor.append(bloque);
-      agregarComprobante(false);
     }
   }
+  function aCentimos(valor) {
+    const partes = /^([0-9]{1,6})(?:[.,]([0-9]{1,2}))?$/.exec(valor);
+    if (!partes) return 0;
+    return Number(partes[1]) * 100 + Number((partes[2] || '').padEnd(2, '0'));
+  }
+  function actualizarCuadre() {
+    const saldo = aCentimos($('rendir').dataset.saldo);
+    let gastado = 0;
+    for (const bloque of $('conceptos-rendir').children) {
+      const subtotal = Array.from(bloque.querySelectorAll('[data-campo=monto]'))
+        .reduce((total, campo) => total + aCentimos(campo.value), 0);
+      bloque.querySelector('.gastado-concepto').textContent = 'Gastado ' + money(subtotal / 100);
+      gastado += subtotal;
+    }
+    $('monto-rendir').value = (gastado / 100).toFixed(2);
+    const diferencia = saldo - gastado;
+    const devolucion = $('devolucion-rendir');
+    devolucion.hidden = devolucion.disabled = diferencia <= 0;
+    $('saldo-devolver').textContent = 'Debes devolver ' + money(diferencia / 100);
+    const devuelto = diferencia > 0 ? aCentimos($('monto-devolucion').value) : 0;
+    const restante = diferencia - devuelto;
+    $('cuadre-rendicion').textContent = restante > 0 ? 'Falta cuadrar ' + money(restante / 100) :
+      restante < 0 ? 'El total supera el saldo por ' + money(-restante / 100) :
+        'Saldo completo ' + money(saldo / 100);
+    return restante === 0;
+  }
+  $('conceptos-rendir')?.addEventListener('input', actualizarCuadre);
+  $('monto-devolucion')?.addEventListener('input', actualizarCuadre);
+  $('foto-devolucion')?.addEventListener('change', event => {
+    $('nombre-foto-devolucion').textContent = event.target.files[0]?.name || '＋ Adjuntar foto de la devolución';
+  });
   function clearPhotos(){files=[];renderPhotos();}
   function renderPhotos(){previewUrls.forEach(URL.revokeObjectURL);previewUrls=[];$('fotos').replaceChildren();files.forEach((file,index)=>{const card=el('div',undefined,'photo'),img=el('img'),remove=el('button','×');const url=URL.createObjectURL(file);previewUrls.push(url);img.src=url;img.alt=`Comprobante ${index+1}`;remove.type='button';remove.setAttribute('aria-label',`Quitar foto ${index+1}`);remove.addEventListener('click',()=>{files.splice(index,1);renderPhotos();});card.append(img,remove);$('fotos').append(card);});}
   async function compress(file){
@@ -382,7 +413,12 @@
   $('rendir')?.addEventListener('submit', event => {
     event.preventDefault();
     const form = event.currentTarget;
+    const cuadra = actualizarCuadre();
     if (!form.reportValidity()) return;
+    if (!cuadra) {
+      showError(form, $('cuadre-rendicion').textContent);
+      return;
+    }
     if (form.querySelectorAll('.comprobante-rendir').length > 24) {
       showError(form, 'Puedes adjuntar hasta 24 comprobantes por rendición.');
       return;
@@ -396,10 +432,13 @@
         Array.from(bloque.querySelectorAll('.comprobante-rendir'), (fila, posicion) => {
           const campo = nombre => fila.querySelector(`[data-campo=${nombre}]`);
           adjuntos.push([`comprobante-${indice}-${posicion}`, campo('foto').files[0]]);
-          return {tipo: campo('tipo').value, ruc: campo('ruc').value};
+          return {tipo: campo('tipo').value, ruc: campo('ruc').value, monto: campo('monto').value};
         })
       );
       data.set('comprobantes', JSON.stringify(grupos));
+      if (!$('devolucion-rendir').disabled) {
+        data.set('foto_devolucion', await compress($('foto-devolucion').files[0]));
+      }
       files.forEach(foto => data.append('evidencia', foto));
       for (const [nombre, foto] of adjuntos) data.append(nombre, await compress(foto));
       const result = await api('/rendir', {method: 'POST', body: data});
@@ -407,7 +446,7 @@
       form.reset();
       $('referencia').value = '';
       clearPhotos();
-      await success(result, 'Tus comprobantes y fotos de evidencia quedaron guardados en el espacio de pruebas.');
+      await success(result, 'Tu rendición quedó guardada en el espacio de pruebas.');
     });
   });
   if($('portal'))load().catch(error=>{const box=$('cargando');box.setAttribute('role','alert');box.textContent=error.message;const retry=el('button','Volver a intentar','back');retry.type='button';retry.onclick=()=>location.reload();box.append(retry);});

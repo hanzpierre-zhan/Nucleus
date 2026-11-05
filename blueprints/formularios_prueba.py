@@ -476,12 +476,12 @@ def comprobantes_rendicion(deposit):
     conceptos = deposit.get('partidas') or [{'concepto': deposit['motivo'] or 'Gasto del depósito'}]
     grupos = json.loads(request.form.get('comprobantes', 'null'))
     if not isinstance(grupos, list) or len(grupos) != len(conceptos):
-        raise ValueError('Agrega comprobantes para cada concepto solicitado.')
+        raise ValueError('La rendición debe incluir todos los conceptos de la solicitud.')
     partidas = []
     fotos = []
     for indice, (concepto, grupo) in enumerate(zip(conceptos, grupos)):
-        if not isinstance(grupo, list) or not 1 <= len(grupo) <= 8:
-            raise ValueError('Agrega entre 1 y 8 comprobantes por concepto.')
+        if not isinstance(grupo, list) or len(grupo) > 8:
+            raise ValueError('Puedes agregar hasta 8 comprobantes por concepto.')
         comprobantes = []
         for posicion, datos in enumerate(grupo):
             if not isinstance(datos, dict) or datos.get('tipo') not in ('Boleta', 'Factura'):
@@ -493,8 +493,10 @@ def comprobantes_rendicion(deposit):
             if foto is None or not foto.filename:
                 raise ValueError('Adjunta una foto para cada comprobante.')
             fotos.append(foto)
-            comprobantes.append({'tipo': datos['tipo'], 'ruc': ruc})
-        partidas.append({**concepto, 'comprobantes': comprobantes})
+            comprobantes.append({'tipo': datos['tipo'], 'ruc': ruc,
+                                 'monto': str(importe_solicitud(datos.get('monto')))})
+        gastado = sum((Decimal(c['monto']) for c in comprobantes), Decimal('0.00'))
+        partidas.append({**concepto, 'gastado': str(gastado), 'comprobantes': comprobantes})
     if len(fotos) > 24:
         raise ValueError('Puedes adjuntar hasta 24 comprobantes por rendición.')
     return partidas, fotos
@@ -513,39 +515,55 @@ def rendir():
         deposit = next((d for d in piloto.depositos(g.tecnico['documento']) if d['referencia'] == ref), None)
         if deposit is None:
             abort(403, 'Este depósito no está disponible para tu documento.')
-        amount = piloto.importe(request.form.get('monto'))
-        if amount > Decimal(deposit['pendiente']):
-            raise ValueError('El monto supera el saldo pendiente de este depósito.')
-        partidas = []
-        evidencia = []
-        if 'comprobantes' in request.form or deposit.get('partidas'):
-            partidas, archivos = comprobantes_rendicion(deposit)
-            images = [preparar_fotos([archivo])[0] for archivo in archivos]
-            fotos_evidencia = [f for f in request.files.getlist('evidencia') if f.filename]
-            if fotos_evidencia:
-                evidencia = preparar_fotos(fotos_evidencia)
-            description = deposit['motivo']
-        else:
-            description = texto(request.form, 'detalle', 'el detalle del gasto', 2000)
-            images = preparar_fotos([f for f in request.files.getlist('fotos') if f.filename])
+        saldo = Decimal(deposit['pendiente'])
+        if saldo <= 0:
+            raise ValueError('Este depósito ya no tiene saldo por rendir.')
+        partidas, archivos = comprobantes_rendicion(deposit)
+        gastado = sum((Decimal(p['gastado']) for p in partidas), Decimal('0.00'))
+        if gastado > saldo:
+            raise ValueError('El total de los comprobantes supera el saldo por rendir.')
+        diferencia = saldo - gastado
+        devolucion = None
+        foto_devolucion = request.files.get('foto_devolucion')
+        if diferencia:
+            if not request.form.get('monto_devolucion'):
+                raise ValueError(f'Registra una devolución de S/ {diferencia:.2f} para completar el saldo.')
+            devuelto = importe_solicitud(request.form['monto_devolucion'])
+            if devuelto != diferencia:
+                raise ValueError(f'La devolución debe ser exactamente S/ {diferencia:.2f}.')
+            motivo = texto(request.form, 'motivo_devolucion', 'el motivo de la devolución', 1000)
+            if not foto_devolucion or not foto_devolucion.filename:
+                raise ValueError('Adjunta la foto del comprobante de devolución.')
+            devolucion = {'monto': str(devuelto), 'motivo': motivo}
+        elif request.form.get('monto_devolucion') or foto_devolucion:
+            raise ValueError('Los comprobantes cubren el saldo completo. Envía sin devolución.')
+
+        images = [preparar_fotos([archivo])[0] for archivo in archivos]
+        fotos_evidencia = [f for f in request.files.getlist('evidencia') if f.filename]
+        if fotos_evidencia:
+            images.extend(preparar_fotos(fotos_evidencia))
+        if devolucion:
+            images.extend(preparar_fotos([foto_devolucion]))
         uid = uuid.uuid4().hex
         folder = piloto.raiz() / 'fotos'
         folder.mkdir(parents=True, exist_ok=True)
         names = []
-        for image in images + evidencia:
+        for image in images:
             name = uuid.uuid4().hex + '.jpg'
             path = folder / name
             path.write_bytes(image)
             written.append(path)
             names.append(name)
-        payload = {'referencia': ref, 'codigo': deposit['codigo'], 'monto': str(amount),
-                   'detalle': description, 'fotos': names, 'personal': g.tecnico}
-        if partidas:
-            nombres = iter(names)
-            for partida in partidas:
-                for comprobante in partida['comprobantes']:
-                    comprobante['foto'] = next(nombres)
-            payload.update(partidas=partidas, evidencia=list(nombres))
+        nombres = iter(names)
+        for partida in partidas:
+            for comprobante in partida['comprobantes']:
+                comprobante['foto'] = next(nombres)
+        evidencia = list(nombres)
+        if devolucion:
+            devolucion['foto'] = evidencia.pop()
+        payload = {'referencia': ref, 'codigo': deposit['codigo'], 'monto': str(saldo),
+                   'gastado': str(gastado), 'devolucion': devolucion, 'detalle': deposit['motivo'],
+                   'fotos': names, 'personal': g.tecnico, 'partidas': partidas, 'evidencia': evidencia}
         result, created = piloto.guardar(g.tecnico['documento'], 'rendicion', payload, key,
                                         uid, saldo=Decimal(deposit['monto']))
         if not created:
