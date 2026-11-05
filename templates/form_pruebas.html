@@ -43,7 +43,8 @@
 <fieldset class="request-group"><legend>Datos del depósito</legend>
 <label for="monto-sol">Monto en soles</label>
 <div class="money-input"><span aria-hidden="true">S/</span><input id="monto-sol" type="text" name="monto" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" maxlength="9" required placeholder="0.00"></div>
-<label for="medio_pago">Medio de pago</label><select id="medio_pago" name="medio_pago" required><option value="">Selecciona una opción</option><option>Yape</option><option>Plin</option><option>Transferencia bancaria</option><option>No aplica</option></select>
+<label for="medio_pago">Medio de pago</label><select id="medio_pago" name="medio_pago" aria-describedby="pago-ayuda" required><option value="">Selecciona una opción</option><option>Yape</option><option>Plin</option><option>Transferencia bancaria</option><option>No aplica</option></select>
+<p id="pago-ayuda" class="hint">Elige Yape o Plin para ingresar el celular y el titular. Elige Transferencia bancaria para ingresar la cuenta o CCI y el titular.</p>
 <div id="pago-billetera" hidden><label for="numero-billetera">Número de Yape / Plin</label><input id="numero-billetera" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" disabled></div>
 <div id="pago-cuenta" hidden><label for="cuenta-cci">Número de cuenta o CCI</label><input id="cuenta-cci" inputmode="numeric" maxlength="20" pattern="[0-9]{9,20}" disabled></div>
 <div id="pago-titular" hidden><label for="titular">Titular de la cuenta</label><input id="titular" name="titular" maxlength="150" disabled></div>
