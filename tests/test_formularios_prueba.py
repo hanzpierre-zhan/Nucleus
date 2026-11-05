@@ -83,7 +83,7 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
     from services.formularios_prueba import almacen
 
     with portal.app_context():
-        for nombre in ('FLM - ENTEL', 'FLM - CLARO'):
+        for nombre in ('FLM - ENTEL', 'FLM - CLARO', 'FLM - INTEGRATEL', 'FLM - PEXT'):
             proyecto = Proyecto(nombre=nombre)
             db.session.add(proyecto)
             db.session.flush()
@@ -94,10 +94,11 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
     client = portal.test_client()
     assert entrar(client).status_code == 200
     assert client.get('/form-pruebas/datos').json['proyecto_default'] == 'ENTEL'
-    assert client.get('/form-pruebas/sugerencias?proyecto=CLARO&campo=wo&q=CM').json == {
-        'opciones': ['CM-CLARO']}
-    assert client.get('/form-pruebas/sugerencias?proyecto=CLARO&campo=site&q=Torre').json == {
-        'opciones': ['Torre CLARO']}
+    for proyecto in ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'):
+        assert client.get(f'/form-pruebas/sugerencias?proyecto={proyecto}&campo=wo&q=CM').json == {
+            'opciones': [f'CM-{proyecto}']}
+        assert client.get(f'/form-pruebas/sugerencias?proyecto={proyecto}&campo=site&q=Torre').json == {
+            'opciones': [f'Torre {proyecto}']}
     solicitud = {
         'nonce': 'b' * 32, 'proyecto': 'CLARO', 'presupuesto': 'Refacturable',
         'tipo_gasto': ['MATERIALES', 'PEAJE'], 'monto': '30.50', 'motivo': 'Compra de repuestos',

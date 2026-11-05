@@ -73,7 +73,10 @@
       consulta?.abort();
       lista.replaceChildren();
     };
-    $('sol-proyecto')?.addEventListener('change', limpiar);
+    $('sol-proyecto')?.addEventListener('change', () => {
+      $(campo).value = '';
+      limpiar();
+    });
     $('solicitar')?.addEventListener('reset', limpiar);
     function buscar() {
       limpiar();
