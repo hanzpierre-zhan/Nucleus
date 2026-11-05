@@ -346,6 +346,21 @@ def editar(modulo, rid):
         abort(403)
     fila = _registro(modulo, rid, 'editar')
     datos = _payload()
+    if modulo == 'personal' and 'data' in datos:
+        actuales = servicio._datos(fila)
+        cambios = datos['data']
+        protegidos = servicio.PROTEGIDOS | {'documento', 'dni', 'numerodocumento'}
+        if (not isinstance(cambios, dict) or not cambios or datos.get('key') != fila.key_value
+                or any(campo.startswith('_') or servicio.normalizar(campo) in protegidos
+                       or (campo not in actuales and campo != 'SUPERVISOR')
+                       or not isinstance(valor, str) or isinstance(actuales.get(campo), (dict, list))
+                       for campo, valor in cambios.items())):
+            abort(400, 'Revisa los campos del formulario de Personal.')
+        if datos.get('revision') != hashlib.sha256(fila.data_json.encode()).hexdigest():
+            abort(409, 'El registro cambió. Vuelve a abrirlo antes de guardar.')
+        from blueprints.rows import api_rows_bulk_update
+        with _contexto_anterior(fila):
+            return api_rows_bulk_update({'key': fila.key_value, 'data': cambios})
     campo = datos.get('field')
     if (not isinstance(campo, str) or campo.startswith('_')
             or servicio.normalizar(campo) in servicio.PROTEGIDOS | {

@@ -79,6 +79,48 @@ def fuente(app):
         return [(r.id,r.data_json) for r in NucleusData.query.order_by(NucleusData.id)]
 
 
+def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
+    from services.formularios_prueba import almacen
+
+    with portal.app_context():
+        for nombre in ('FLM - ENTEL', 'FLM - CLARO'):
+            proyecto = Proyecto(nombre=nombre)
+            db.session.add(proyecto)
+            db.session.flush()
+            db.session.add(NucleusData(proyecto_id=proyecto.id, key_value='CM-' + nombre.split()[-1],
+                                       data_json=json.dumps({'Site Name': 'Torre ' + nombre.split()[-1]})))
+        db.session.commit()
+
+    client = portal.test_client()
+    assert entrar(client).status_code == 200
+    assert client.get('/form-pruebas/datos').json['proyecto_default'] == 'ENTEL'
+    assert client.get('/form-pruebas/sugerencias?proyecto=CLARO&campo=wo&q=CM').json == {
+        'opciones': ['CM-CLARO']}
+    assert client.get('/form-pruebas/sugerencias?proyecto=CLARO&campo=site&q=Torre').json == {
+        'opciones': ['Torre CLARO']}
+    solicitud = {
+        'nonce': 'b' * 32, 'proyecto': 'CLARO', 'presupuesto': 'Refacturable',
+        'tipo_gasto': ['MATERIALES', 'PEAJE'], 'monto': '30.50', 'motivo': 'Compra de repuestos',
+        'medio_pago': 'Plin', 'cuenta': '999999999', 'titular': 'Ana Prueba',
+        'dni': '00002222', 'responsable_validacion': 'MÓNICA', 'comentarios': 'Urgente',
+    }
+    for monto_invalido in ('adasfasf', 'S/ 30.50', '1e2', '30.555'):
+        response = client.post('/form-pruebas/solicitar', headers=headers(client),
+                               json=dict(solicitud, monto=monto_invalido))
+        assert response.status_code == 400
+    response = client.post('/form-pruebas/solicitar', headers=headers(client), json=solicitud)
+    assert response.status_code == 201, response.json
+    with portal.app_context(), almacen() as con:
+        datos = json.loads(con.execute('SELECT datos FROM envios').fetchone()['datos'])
+    assert datos['dni'] == '00001111'
+    assert datos['tipo_gasto'] == 'MATERIALES, PEAJE'
+    assert datos['proyecto'] == 'CLARO' and datos['presupuesto'] == 'Refacturable'
+    assert datos['numero_billetera'] == '999999999' and datos['cuenta_cci'] == ''
+    assert datos['responsable_validacion'] == 'MÓNICA' and datos['comentarios'] == 'Urgente'
+    sin_pago = dict(solicitud, nonce='c' * 32, medio_pago='No aplica', cuenta='', titular='')
+    assert client.post('/form-pruebas/solicitar', headers=headers(client), json=sin_pago).status_code == 201
+
+
 def test_identidad_solo_formularios_y_datos_propios(portal):
     client=portal.test_client()
     assert entrar(client).status_code==200

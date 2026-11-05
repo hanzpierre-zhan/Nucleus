@@ -15,12 +15,39 @@
 <div class="actions"><button type="button" class="action request-action" data-go="solicitud"><span class="action-icon" aria-hidden="true">＋</span><span><strong>Solicitar</strong><small>Pide dinero para tu trabajo</small></span><span aria-hidden="true">↗</span></button><button type="button" class="action" data-go="rendicion"><span class="action-icon" aria-hidden="true">✓</span><span><strong>Rendir</strong><small>Envía tus comprobantes y fotos</small></span><span aria-hidden="true">↗</span></button></div>
 <div id="recientes" hidden><h2>Tus últimos envíos de prueba</h2><div id="lista-recientes"></div></div></section>
 <section id="solicitud" class="view" hidden><button class="back" data-go="home" type="button">← Volver</button><div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1><p>Completa los datos. Aquí no necesitas adjuntar fotos.</p><form id="solicitar" class="card" novalidate>
-<div class="identity"><strong id="sol-nombre"></strong><span id="sol-proyecto"></span></div>
-<label for="tipo_gasto">Tipo de gasto</label><select id="tipo_gasto" name="tipo_gasto" required><option value="">Selecciona una opción</option></select>
-<label for="monto-sol">Monto que solicitas</label><div class="money-input"><span>S/</span><input id="monto-sol" name="monto" inputmode="decimal" required placeholder="0.00"></div>
-<label for="motivo">¿Para qué lo necesitas?</label><textarea id="motivo" name="motivo" required maxlength="1000" rows="3" placeholder="Describe el trabajo y el motivo del gasto"></textarea>
-<div class="two"><div><label for="wo">WO <small>(opcional)</small></label><input id="wo" name="wo" maxlength="200" placeholder="CM / PM / PLM"></div><div><label for="site">Site <small>(opcional)</small></label><input id="site" name="site" maxlength="200" placeholder="Nombre del sitio"></div></div>
-<label for="medio_pago">¿Cómo recibirías el depósito?</label><select id="medio_pago" name="medio_pago" required><option value="">Selecciona una opción</option><option>Yape</option><option>Plin</option><option>Transferencia bancaria</option></select><label for="cuenta">Celular, cuenta o CCI</label><input id="cuenta" name="cuenta" inputmode="numeric" required maxlength="20" placeholder="Solo números">
+<fieldset class="request-group"><legend>Datos del técnico</legend>
+<label for="sol-proyecto">Proyecto</label><select id="sol-proyecto" name="proyecto" required><option value="">Selecciona un proyecto</option></select>
+<label for="sol-dni">DNI</label><input id="sol-dni" readonly>
+<label for="sol-nombre">Nombre del técnico</label><input id="sol-nombre" readonly>
+<label for="sol-supervisor">Supervisor</label><input id="sol-supervisor" readonly>
+</fieldset>
+<fieldset class="request-group"><legend>Datos de la solicitud</legend>
+<label for="presupuesto">Tipo de presupuesto</label><select id="presupuesto" name="presupuesto" required><option value="">Selecciona una opción</option><option>Gasto Cobra</option><option>Refacturable</option></select>
+<fieldset class="expense-options">
+<legend>Tipo de gasto</legend>
+<p class="hint">Marca uno o más conceptos.</p>
+<div class="expense-grid">
+{% for gasto in gastos %}<label><input type="checkbox" name="tipo_gasto" value="{{ gasto }}"><span>{{ gasto }}</span></label>{% endfor %}
+</div>
+</fieldset>
+<label for="site">Nombre de site</label><input id="site" name="site" aria-controls="sugerencias-site" maxlength="200" autocomplete="off"><div id="sugerencias-site" class="suggestions" aria-live="polite"></div>
+<label for="wo">Número CM / PM / PLM</label><input id="wo" name="wo" aria-controls="sugerencias-wo" maxlength="200" autocomplete="off"><div id="sugerencias-wo" class="suggestions" aria-live="polite"></div>
+<label for="motivo">Motivo de la solicitud</label><textarea id="motivo" name="motivo" required maxlength="1000" rows="3"></textarea>
+<label for="responsable_validacion">Responsable de la validación</label>
+<select id="responsable_validacion" name="responsable_validacion">
+<option value="">Selecciona un responsable</option>
+{% for nombre in responsables_validacion %}<option>{{ nombre }}</option>{% endfor %}
+</select>
+<label for="comentarios">Comentarios</label><textarea id="comentarios" name="comentarios" maxlength="1000" rows="2"></textarea>
+</fieldset>
+<fieldset class="request-group"><legend>Datos del depósito</legend>
+<label for="monto-sol">Monto en soles</label>
+<div class="money-input"><span aria-hidden="true">S/</span><input id="monto-sol" type="text" name="monto" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" maxlength="9" required placeholder="0.00"></div>
+<label for="medio_pago">Medio de pago</label><select id="medio_pago" name="medio_pago" required><option value="">Selecciona una opción</option><option>Yape</option><option>Plin</option><option>Transferencia bancaria</option><option>No aplica</option></select>
+<div id="pago-billetera" hidden><label for="numero-billetera">Número de Yape / Plin</label><input id="numero-billetera" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" disabled></div>
+<div id="pago-cuenta" hidden><label for="cuenta-cci">Número de cuenta o CCI</label><input id="cuenta-cci" inputmode="numeric" maxlength="20" pattern="[0-9]{9,20}" disabled></div>
+<div id="pago-titular" hidden><label for="titular">Titular de la cuenta</label><input id="titular" name="titular" maxlength="150" disabled></div>
+</fieldset>
 <div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar solicitud de prueba <span aria-hidden="true">→</span></button></form></section>
 <section id="rendicion" class="view" hidden><button class="back" data-go="home" type="button">← Volver</button><div class="eyebrow">02 / RENDICIÓN</div><h1>Tus depósitos.</h1><p>Selecciona el depósito que vas a sustentar.</p><div class="balance compact"><span class="balance-label">TE QUEDA POR RENDIR · PRUEBAS</span><div class="big-money" id="total-rendir"></div></div><div id="depositos"></div>
 <form id="rendir" class="card" hidden novalidate><h2 id="deposito-titulo"></h2><input name="referencia" id="referencia" type="hidden"><label for="monto-rendir">Monto de esta rendición</label><div class="money-input"><span>S/</span><input id="monto-rendir" name="monto" inputmode="decimal" required></div><p id="saldo-deposito" class="hint"></p><label for="detalle">Cuéntanos qué gastaste</label><textarea id="detalle" name="detalle" rows="3" maxlength="2000" required placeholder="Ejemplo: movilidad y materiales para la atención"></textarea>
@@ -31,4 +58,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js') }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=3) }}" defer></script></body></html>

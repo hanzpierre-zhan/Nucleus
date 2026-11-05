@@ -125,7 +125,23 @@
             Object.entries(f.datos).forEach(([k,v]) => $('detalle-campos').append(nodo('dt', k), nodo('dd', texto(v))));
             const editables = Object.keys(f.datos).filter(k => !protegidos.has(norm(k)) && !k.startsWith('_'));
             opciones($('campo-editar'), editables.map(k => ({id:k,nombre:k})));
-            $('editar-form').hidden = !permisos(f.proyecto_id).includes('editar') || !editables.length || modulo === 'liquidaciones';
+            const puedeEditar = permisos(f.proyecto_id).includes('editar');
+            $('editar-form').hidden = !puedeEditar || !editables.length || ['liquidaciones', 'personal'].includes(modulo);
+            $('personal-form').hidden = modulo !== 'personal' || !puedeEditar;
+            $('personal-campos').replaceChildren();
+            if (!$('personal-form').hidden) {
+                const campos = new Set([...editables, 'SUPERVISOR']);
+                for (const campo of campos) {
+                    if (['documento', 'dni', 'numerodocumento'].includes(norm(campo)) ||
+                        (f.datos[campo] != null && typeof f.datos[campo] === 'object')) continue;
+                    const label = nodo('label', campo);
+                    const input = document.createElement('input');
+                    input.name = campo;
+                    input.value = texto(f.datos[campo]);
+                    label.append(input);
+                    $('personal-campos').append(label);
+                }
+            }
             $('campo-editar').onchange = () => { $('valor-editar').value = texto(f.datos[$('campo-editar').value]); };
             $('campo-editar').onchange();
             const acciones = permisos(f.proyecto_id).filter(a => !['consultar','exportar','editar'].includes(a));
@@ -136,6 +152,27 @@
         } catch (e) { $('estado').textContent = e.message; }
     }
     $('cerrar-detalle').onclick = () => $('detalle').close();
+    $('personal-form').onsubmit = async e => {
+        e.preventDefault();
+        const fila = abierto;
+        const boton = e.currentTarget.querySelector('button');
+        const cambios = Object.fromEntries([...new FormData(e.currentTarget)]
+            .filter(([campo, valor]) => valor !== texto(fila.datos[campo])));
+        if (!Object.keys(cambios).length) return;
+        boton.disabled = true;
+        try {
+            await api(`/api/espacios/personal/registros/${fila.id}`, 'PATCH', {key:fila.clave, data:cambios, revision:fila.revision});
+            if (abierto === fila && $('detalle').open) {
+                await abrir(fila.id);
+                $('detalle-estado').textContent = 'Cambios guardados.';
+            }
+            cargar();
+        } catch (error) {
+            $('detalle-estado').textContent = error.message;
+        } finally {
+            boton.disabled = false;
+        }
+    };
     $('editar-form').onsubmit = async e => {
         e.preventDefault();
         try {

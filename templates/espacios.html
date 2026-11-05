@@ -18,7 +18,9 @@
 
         <p id="estado" role="status" aria-live="polite"></p>
 </div>
-<dialog id="detalle"><div class="heading"><h2 id="detalle-titulo">Detalle</h2><button id="cerrar-detalle" aria-label="Cerrar detalle">Cerrar</button></div><p id="detalle-proyecto" class="eyebrow"></p><dl id="detalle-campos"></dl>
+<dialog id="detalle"><div class="heading"><h2 id="detalle-titulo">Detalle</h2><button id="cerrar-detalle" aria-label="Cerrar detalle">Cerrar</button></div><p id="detalle-proyecto" class="eyebrow"></p>
+    <form id="personal-form" hidden><h3>Editar personal</h3><div id="personal-campos"></div><button type="submit">Guardar cambios</button></form>
+    <dl id="detalle-campos"></dl>
     <form id="editar-form" hidden><h3>Actualizar un campo</h3><label>Campo<select id="campo-editar"></select></label><label>Valor<textarea id="valor-editar" rows="3"></textarea></label><button type="submit">Guardar cambio</button></form>
     <form id="accion-form" hidden><h3>Flujo de rendición</h3><label>Acción<select id="accion"></select></label>
         <label>Tiempo de respuesta<select id="tiempo"><option value="">Seleccionar</option><option>Menor a 4 horas</option><option>Mayor a 4 horas</option><option>No aplica</option><option>Atención Continua</option></select></label>
@@ -28,4 +30,4 @@
 </dialog>
 
 {% endblock %}
-{% block scripts %}<script src="/static/js/leaflet.js"></script><script src="/static/js/espacios.js?v=2"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/leaflet.js"></script><script src="/static/js/espacios.js?v=3"></script>{% endblock %}

@@ -130,6 +130,27 @@ def test_permisos_revocados_se_aplican_sin_reiniciar_sesion(app,piloto):
     assert c.get('/api/espacios/personal/registros').status_code == 403
 
 
+def test_gestor_guarda_formulario_personal_en_su_proyecto(app, piloto):
+    with app.app_context():
+        perfil = db.session.get(PerfilEspacio, piloto['perfil_id'])
+        perfil.permisos_json = json.dumps({'personal': ['consultar']})
+        db.session.commit()
+    cliente = piloto['cliente']
+    base = '/api/espacios/personal/registros/'
+    url = base + str(piloto['registros']['PILOTO-Claro'])
+    detalle = cliente.get(url).json
+    datos = {'key': detalle['clave'], 'revision': detalle['revision'],
+             'data': {'TECNICO': 'Nombre corregido', 'SUPERVISOR': 'Supervisor nuevo'}}
+    headers = {'X-Espacios-CSRF': 'prueba-csrf'}
+    assert cliente.patch(base + str(piloto['registros']['PILOTO-Entel']),
+                         json=datos, headers=headers).status_code == 404
+    respuesta = cliente.patch(url, json=datos, headers=headers)
+    assert respuesta.status_code == 200, respuesta.json
+    guardado = cliente.get(url).json['datos']
+    assert guardado['TECNICO'] == 'Nombre corregido'
+    assert guardado['SUPERVISOR'] == 'Supervisor nuevo'
+
+
 def test_piloto_desactivado_no_expone_rutas(app,auth_client,monkeypatch):
     monkeypatch.setitem(app.config,'ESPACIOS_HABILITADOS',False)
     assert auth_client.get('/espacios').status_code == 404

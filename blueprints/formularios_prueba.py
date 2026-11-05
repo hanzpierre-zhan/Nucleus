@@ -16,8 +16,16 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from services import login_required
 from services import formularios_prueba as piloto
 from services.rendicion_gastos import OPCIONES
+from services.recursos_flm import familia
 
 bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
+PROYECTOS = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
+GASTOS = tuple('MATERIALES' if opcion == 'MATERIAL' else opcion for opcion in OPCIONES)
+PRESUPUESTOS = ('Gasto Cobra', 'Refacturable')
+RESPONSABLES_VALIDACION = (
+    'MÓNICA', 'IRENE', 'LUZ', 'ROSMERI', 'HÉCTOR', 'DENNIS', 'LUCIANO',
+    'ANDY', 'GLADYS', 'EDWIN', 'YOLIMAR', 'JANNET', 'EVELYN',
+)
 
 
 def habilitado():
@@ -94,7 +102,8 @@ def tecnico(fn):
 @bp.get('/')
 def inicio():
     csrf()
-    return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')))
+    return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
+                           gastos=GASTOS, responsables_validacion=RESPONSABLES_VALIDACION)
 
 
 @bp.post('/ingresar')
@@ -136,7 +145,46 @@ def datos():
                'monto': json.loads(r['datos'])['monto']} for r in rows]
     return jsonify(personal=g.tecnico, depositos=items,
                    total=str(sum((Decimal(d['pendiente']) for d in items), Decimal('0'))),
-                   gastos=list(OPCIONES), csrf=csrf(), recientes=recent)
+                   gastos=GASTOS, proyectos=PROYECTOS, proyecto_default=familia(g.tecnico['proyecto']),
+                   csrf=csrf(), recientes=recent)
+
+
+@bp.get('/sugerencias')
+@tecnico
+def sugerencias():
+    proyecto = request.args.get('proyecto', '')
+    campo = request.args.get('campo', '')
+    consulta = request.args.get('q', '').strip()[:100]
+    if proyecto not in PROYECTOS or campo not in ('site', 'wo'):
+        return jsonify(error='Selecciona un proyecto válido.'), 400
+    if len(consulta) < 2:
+        return jsonify(opciones=[])
+    from models import NucleusData, Proyecto
+    from sqlalchemy import JSON, cast, func
+    filas_proyecto = NucleusData.query.join(Proyecto, Proyecto.id == NucleusData.proyecto_id).filter(
+        Proyecto.nombre == 'FLM - ' + proyecto)
+    if campo == 'site':
+        from services.cotizacion_ficha import sitios
+        nombres = [item['site_name'] for item in sitios(consulta, proyecto=proyecto) if item['site_name']]
+        if len(set(nombres)) < 15:
+            datos = NucleusData.data_json
+            claves = ('Site Name', 'Site Id Name', 'Nombre de Site', 'NOMBRE DE SITE', 'NOMBRE SITE')
+            if piloto.db.engine.dialect.name == 'sqlite':
+                campos = [func.json_extract(datos, '$."' + clave + '"') for clave in claves]
+            else:
+                campos = [cast(datos, JSON)[clave].as_string() for clave in claves]
+            nombre = func.coalesce(*(func.nullif(campo, '') for campo in campos))
+            coincidencias = (filas_proyecto.with_entities(nombre)
+                             .filter(func.upper(nombre).contains(consulta.upper(), autoescape=True))
+                             .distinct().order_by(nombre).limit(15).all())
+            nombres.extend(fila[0] for fila in coincidencias)
+        return jsonify(opciones=list(dict.fromkeys(nombres))[:15])
+    filas = (filas_proyecto.with_entities(NucleusData.key_value)
+             .filter(func.upper(NucleusData.key_value).contains(consulta.upper(), autoescape=True),
+                     NucleusData.key_value.like('CM-%') | NucleusData.key_value.like('PM-%')
+                     | NucleusData.key_value.like('PLM-%'))
+             .order_by(NucleusData.key_value).limit(15).all())
+    return jsonify(opciones=[fila.key_value for fila in filas])
 
 
 def texto(data, key, title, maximum, required=True):
@@ -170,22 +218,49 @@ def solicitar():
         previous = repetido(g.tecnico['documento'], key, 'solicitud')
         if previous:
             return previous
-        kind = texto(data, 'tipo_gasto', 'el tipo de gasto', 100)
-        if kind not in OPCIONES:
-            raise ValueError('Selecciona un tipo de gasto de la lista.')
+        gastos = data.get('tipo_gasto')
+        if isinstance(gastos, str):
+            gastos = [gastos.strip()]
+        if not isinstance(gastos, list) or not gastos or len(gastos) > len(GASTOS) or any(
+            not isinstance(gasto, str) or gasto not in (*GASTOS, 'MATERIAL') for gasto in gastos
+        ):
+            raise ValueError('Selecciona al menos un tipo de gasto de la lista.')
+        kind = ', '.join(dict.fromkeys(gastos))
         payment = texto(data, 'medio_pago', 'el medio de pago', 30)
-        if payment not in ('Yape', 'Plin', 'Transferencia bancaria'):
+        if payment not in ('Yape', 'Plin', 'Transferencia bancaria', 'No aplica'):
             raise ValueError('Selecciona un medio de pago válido.')
-        account = texto(data, 'cuenta', 'el número de cuenta o celular', 20)
-        if not account.isdigit() or not 9 <= len(account) <= 20:
+        account = '' if payment == 'No aplica' else texto(data, 'cuenta', 'el número de cuenta o celular', 20)
+        if payment != 'No aplica' and (not account.isascii() or not account.isdigit() or not 9 <= len(account) <= 20):
             raise ValueError('El celular, cuenta o CCI debe tener entre 9 y 20 dígitos.')
-        amount = piloto.importe(data.get('monto'))
+        monto = str(data.get('monto', '')).strip()
+        if not re.fullmatch(r'[0-9]+(?:[.,][0-9]{1,2})?', monto):
+            raise ValueError('Ingresa el monto en soles usando números y hasta dos decimales.')
+        amount = piloto.importe(monto)
         payload = {'monto': str(amount), 'tipo_gasto': kind,
                    'motivo': texto(data, 'motivo', 'el motivo', 1000),
                    'wo': texto(data, 'wo', 'la WO', 200, False),
                    'site': texto(data, 'site', 'el site', 200, False),
                    'medio_pago': payment, 'cuenta': account,
                    'personal': g.tecnico}
+        if 'proyecto' in data:
+            proyecto = texto(data, 'proyecto', 'el proyecto', 20)
+            presupuesto = texto(data, 'presupuesto', 'el tipo de presupuesto', 30)
+            if proyecto not in PROYECTOS or presupuesto not in PRESUPUESTOS:
+                raise ValueError('Selecciona un proyecto y un tipo de presupuesto válidos.')
+            billetera = payment in ('Yape', 'Plin')
+            if billetera and len(account) != 9:
+                raise ValueError('El número de Yape o Plin debe tener 9 dígitos.')
+            responsable = texto(data, 'responsable_validacion', 'el responsable de la validación', 150, False)
+            if responsable and responsable not in RESPONSABLES_VALIDACION:
+                raise ValueError('Selecciona un responsable de la validación de la lista.')
+            payload.update(
+                proyecto=proyecto, presupuesto=presupuesto, dni=g.tecnico['documento'],
+                tipo_billetera=payment if billetera else '',
+                numero_billetera=account if billetera else '',
+                cuenta_cci='' if billetera else account,
+                titular='' if payment == 'No aplica' else texto(data, 'titular', 'el titular de la cuenta', 150),
+                responsable_validacion=responsable,
+                comentarios=texto(data, 'comentarios', 'los comentarios', 1000, False))
         uid, _ = piloto.guardar(g.tecnico['documento'], 'solicitud', payload, key, uuid.uuid4().hex)
         return jsonify(success=True, id=uid), 201
     except ValueError as error:

@@ -132,7 +132,11 @@ def permisos():
                 PerfilEspacio, AccesoEspacio.perfil_id == PerfilEspacio.id).filter(
                 AccesoEspacio.usuario_id == session.get('user_id')).all():
             try:
-                resultado[acceso.proyecto_id] = validar_permisos(json.loads(perfil.permisos_json))
+                modulos = validar_permisos(json.loads(perfil.permisos_json))
+                personal = modulos.get('personal', [])
+                if session.get('rol') == 'gestor' and 'consultar' in personal and 'editar' not in personal:
+                    personal.append('editar')
+                resultado[acceso.proyecto_id] = modulos
             except (ValueError, TypeError):
                 resultado[acceso.proyecto_id] = {}
     request.environ['espacios.permisos'] = resultado

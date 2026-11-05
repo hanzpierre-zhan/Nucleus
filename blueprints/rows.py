@@ -740,12 +740,12 @@ def api_rows_delete():
 
 @bp.route('/api/rows/bulk_update', methods=['POST'])
 @login_required
-def api_rows_bulk_update():
+def api_rows_bulk_update(datos=None):
     pid = session.get('current_proyecto_id')
     if session.get('rol') == 'demo':
         return jsonify({'error': 'Rol DEMO no tiene permisos para actualizar datos.'}), 403
     try:
-        data = request.json
+        data = request.json if datos is None else datos
         key_val = data.get('key')
         updates = data.get('data')
         contexto = contexto_recursos()

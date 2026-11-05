@@ -4,3 +4,21 @@
 :root[data-theme="dark"]{color-scheme:dark;--ink:#f8fafc;--muted:#94a3b8;--paper:#181818;--line:#383b43;--accent:#202e44;--blue:#8eb9f5;--card:#222;--fill:#2c2c2c;--field:#252525;--input-border:#475569;--balance:#173e76;--balance-text:#fff;--balance-muted:#d7e3f5;--error-bg:#3b2525;--error-text:#ffb4ab;--focus:#8eb9f5}
 .top{gap:9px}.brand{font-size:22px;letter-spacing:-.6px;gap:9px}.brand img{width:28px;height:28px}.brand span{letter-spacing:1.2px;padding-left:9px}.theme-toggle{display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px}.theme-toggle svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.top .quiet{padding:10px 5px}.primary{background:#173e76;color:#fff}.action.request-action{background:#173e76;color:#fff;border-color:#173e76}.request-action small{color:#d7e3f5}.request-action .action-icon{background:#ffffff18}.success-icon{background:var(--accent);color:var(--ink)}.deposit.selected{border-color:var(--focus)}.photo-button{color:var(--ink);border-color:var(--input-border)}
 @media(max-width:420px){.brand span{display:none}.top{gap:8px}.brand{gap:7px}.badge{font-size:10px;padding:4px 8px}}
+.request-group {
+  min-width: 0;
+  margin: 0 0 20px;
+  padding: 12px 14px 16px;
+  border: 1px solid currentColor;
+  border-color: color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 12px;
+}
+.request-group legend { padding: 0 6px; font-weight: 700; }
+.request-group input[readonly] { opacity: .8; }
+.suggestions:not(:empty) { border: 1px solid var(--line); border-radius: 8px; max-height: 200px; overflow: auto; padding: 4px; font-size: .875rem; }
+.suggestions button { display: block; width: 100%; min-height: 44px; text-align: left; background: var(--field); color: var(--ink); border: 0; border-radius: 6px; padding: 8px; }
+.expense-options { border: 0; padding: 0; margin: 14px 0; min-width: 0; }
+.expense-options legend { padding: 0; }
+.expense-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.expense-grid label { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.expense-grid input[type="checkbox"]:not([type=hidden]):not([type=file]) { flex: 0 0 auto; width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--blue); }
+.expense-grid label span { min-width: 0; overflow-wrap: anywhere; }
