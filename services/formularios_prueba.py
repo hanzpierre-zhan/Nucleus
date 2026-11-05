@@ -35,17 +35,17 @@ def raiz():
                 Path(current_app.instance_path) / 'formularios_prueba')
 
 
-def consultar_openruc(numero):
-    conexion = HTTPSConnection('openruc.com', timeout=2.5)
+def consultar_ruc_externo(host, recurso, campo_nombre, campo_estado):
+    conexion = HTTPSConnection(host, timeout=2.5)
     try:
-        conexion.request('GET', f'/api/ruc/{numero}', headers={'Accept': 'application/json'})
+        conexion.request('GET', recurso, headers={'Accept': 'application/json'})
         respuesta = conexion.getresponse()
         if respuesta.status != 200:
             return None
         datos = json.loads(respuesta.read(65536))
         if not isinstance(datos, dict):
             return None
-        nombre, estado = datos.get('razon_social'), datos.get('estado')
+        nombre, estado = datos.get(campo_nombre), datos.get(campo_estado)
         if isinstance(nombre, str) and nombre.strip() and isinstance(estado, str) and estado.strip():
             return {'resultado': 'encontrado', 'razon_social': nombre.strip(),
                     'activo': estado.strip().upper() == 'ACTIVO'}
@@ -57,7 +57,12 @@ def consultar_openruc(numero):
 
 def consultar_ruc(numero):
     if numero.startswith('20'):
-        resultado = consultar_openruc(numero)
+        resultado = consultar_ruc_externo('openruc.com', f'/api/ruc/{numero}', 'razon_social', 'estado')
+        if resultado:
+            return resultado
+    elif numero.startswith('10'):
+        resultado = consultar_ruc_externo('ruc.kembec.com', f'/api/search/{numero}',
+                                         'nombre-o-razon-social', 'estado-del-contribuyente')
         if resultado:
             return resultado
     return consultar_ruc_padron(numero)

@@ -358,7 +358,7 @@ def test_consulta_ruc_usa_padron_importado(portal, tmp_path, monkeypatch):
     from scripts.importar_padron_ruc import importar
     from services import formularios_prueba
 
-    monkeypatch.setattr(formularios_prueba, 'consultar_openruc', lambda numero: None)
+    monkeypatch.setattr(formularios_prueba, 'consultar_ruc_externo', lambda *args: None)
 
     client = portal.test_client()
     ruta = '/form-pruebas/ruc/20123456789'
@@ -385,6 +385,8 @@ def test_consulta_ruc_prioriza_openruc_para_empresas(portal, monkeypatch):
     llamadas = []
     respuestas = {
         'openruc.com': (200, {'razon_social': 'Empresa Prueba', 'estado': 'ACTIVO'}),
+        'ruc.kembec.com': (200, {'nombre-o-razon-social': 'Proveedor Prueba',
+                                'estado-del-contribuyente': 'BAJA DEFINITIVA'}),
     }
 
     class Conexion:
@@ -410,8 +412,10 @@ def test_consulta_ruc_prioriza_openruc_para_empresas(portal, monkeypatch):
         'resultado': 'encontrado', 'razon_social': 'Empresa Prueba', 'activo': True,
     }
     assert llamadas == [('openruc.com', '/api/ruc/20123456789', None)]
-    assert client.get('/form-pruebas/ruc/10123456789').json == {'resultado': 'no_disponible'}
-    assert len(llamadas) == 1
+    assert client.get('/form-pruebas/ruc/10123456789').json == {
+        'resultado': 'encontrado', 'razon_social': 'Proveedor Prueba', 'activo': False,
+    }
+    assert llamadas[1:] == [('ruc.kembec.com', '/api/search/10123456789', None)]
     respuestas['openruc.com'] = (503, {})
     assert client.get('/form-pruebas/ruc/20123456789').json == {'resultado': 'no_disponible'}
 
