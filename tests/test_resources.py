@@ -7,9 +7,10 @@ def test_resources_page_loads_assets(auth_client):
     assert response.status_code == 200
     assert b'css/resources.css' in response.data
     assert b'js/resources.js' in response.data
-    assert b'Exportar reporte' in response.data
-    assert b'render-cpu' in response.data
-    assert b'CPU utilizada' in response.data
+    assert b'render-runtime' in response.data
+    assert b'technical-resources' not in response.data
+    assert b'US$ 1.86' in response.data
+    assert b'data-gauge-fill' in response.data
     assert b'flm-resource-menu' not in response.data
     assert b'APPLICATION / INVENTARIO' not in response.data
     assert b'Monitor externo' not in response.data
@@ -19,7 +20,52 @@ def test_resources_page_loads_assets(auth_client):
 def test_resources_requires_admin_role(auth_client,cambiar_rol):
     cambiar_rol(auth_client, 'gestor')
     assert auth_client.get('/api/salud').status_code == 403
+    assert auth_client.get('/api/salud?scope=render-runtime').status_code == 403
     assert auth_client.get('/salud').status_code == 302
+
+
+def test_resources_runtime_only_reads_render_instance(auth_client, monkeypatch):
+    from services import resources
+
+    instance = {'memory': {'pct_used': 55}, 'cpu': {'pct_used': 81}}
+    monkeypatch.setattr(resources, 'render_runtime', Mock(return_value=instance))
+    monkeypatch.setattr(resources, 'snapshot', Mock(side_effect=AssertionError('Consulta completa inesperada')))
+    response = auth_client.get('/api/salud?scope=render-runtime')
+    assert response.status_code == 200
+    assert response.json == instance
+    assert response.headers['Cache-Control'] == 'no-store'
+
+
+def test_render_runtime_reads_remote_metrics_from_local(app, monkeypatch):
+    import io
+    import json
+    from services import resources
+
+    monkeypatch.delenv('RENDER', raising=False)
+    monkeypatch.setitem(app.config, 'RENDER_API_KEY', 'test')
+    monkeypatch.setitem(app.config, 'RENDER_SERVICE_ID', 'srv-test')
+    metrics = {'memory': (256, 'MiB'), 'memory-limit': (512, 'MiB'),
+               'cpu': (250, 'millicores'), 'cpu-limit': (1, 'CPU')}
+    calls = []
+
+    def fetch(request, timeout):
+        path, query = request.full_url.split('?')
+        assert 'resource=srv-test' in query
+        calls.append(path)
+        value, unit = metrics[path.rsplit('/', 1)[1]]
+        return io.BytesIO(json.dumps([{'unit': unit, 'values': [
+            {'timestamp': '2026-11-05T10:02:00Z', 'value': value},
+            {'timestamp': '2026-11-05T10:01:00Z', 'value': 0},
+        ]}]).encode())
+
+    monkeypatch.setattr(resources.urllib.request, 'urlopen', fetch)
+    with app.app_context():
+        result = resources.render_runtime()
+        assert resources.render_runtime() == result
+    assert result['memory']['size_bytes'] == 256 * 1024**2
+    assert result['memory']['pct_used'] == 50
+    assert result['cpu']['pct_used'] == 25
+    assert len(calls) == 4
 
 
 def test_resources_sqlite_is_not_reported_as_neon(auth_client, app, monkeypatch):

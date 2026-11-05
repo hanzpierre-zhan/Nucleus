@@ -736,7 +736,7 @@ def salud_panel():
 def api_salud():
     if session.get('rol') not in ('zeno', 'suport'):
         return jsonify({'error': 'No autorizado'}), 403
-    from services.resources import snapshot
-    response = jsonify(snapshot())
+    from services.resources import render_runtime, snapshot
+    response = jsonify(render_runtime() if request.args.get('scope') == 'render-runtime' else snapshot())
     response.headers['Cache-Control'] = 'no-store'
     return response

@@ -1,22 +1,101 @@
 {% extends "base.html" %}
 {% block title %}Resources · Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/resources.css') }}?v=3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/resources.css') }}?v=8">
 <div class="resources">
-<header class="resources-header"><div><p class="eyebrow">NUCLEUS / INFRASTRUCTURE</p><h1>Resources</h1><p class="muted">Estado y capacidad de Render, Neon y Backblaze B2. Identifica dónde revisar y conserva la evidencia.</p></div><div class="actions"><button id="refresh" type="button">↻ Actualizar</button><button id="export" type="button" disabled>↓ Exportar reporte</button></div></header>
-<div class="overview" aria-live="polite"><div><strong id="summary">Consultando infraestructura…</strong><p id="updated" class="muted">La primera consulta puede tardar unos segundos.</p></div><span class="muted">Lectura · caché 60 s</span></div>
-<div class="resource-grid">
-{% for key,name,category in [('render','Render','01 / HOST & RUNTIME'),('neon','Neon','02 / POSTGRESQL DATABASE'),('b2','Backblaze B2','03 / OBJECT STORAGE')] %}
-<section class="resource-card" id="card-{{ key }}"><div class="card-head"><div><p class="eyebrow">{{ category }}</p><h2>{{ name }}</h2></div><span class="badge" id="{{ key }}-badge">Consultando</span></div><p class="metric" id="{{ key }}-value">—</p><p class="muted">{{ 'RAM utilizada' if key == 'render' else 'Almacenamiento utilizado' }}</p><div class="track"><div id="{{ key }}-bar"></div></div><p class="muted" id="{{ key }}-capacity">Capacidad pendiente</p>{% if key == 'render' %}<div class="runtime-metrics"><div class="runtime-cpu"><span class="runtime-label">CPU utilizada</span><strong id="render-cpu">—</strong><div class="track"><div id="render-cpu-bar"></div></div></div><div><span class="runtime-label">Disco temporal</span><strong id="render-disk">—</strong></div></div>{% endif %}{% if key != 'render' %}<dl class="quick-details" id="{{ key }}-quick"></dl>{% endif %}<details class="service-details"><summary>Detalles y fuente</summary><div class="service-details-body"><dl id="{{ key }}-details"></dl>{% if key == 'render' %}<p id="render-cpu-note" class="muted">Esperando medición…</p><p id="render-disk-note" class="muted">Esperando medición…</p>{% endif %}<p class="note" id="{{ key }}-note">Conectando con la fuente…</p></div></details><a id="{{ key }}-link" href="{{ 'https://dashboard.render.com' if key == 'render' else 'https://console.neon.tech' if key == 'neon' else 'https://secure.backblaze.com/b2_buckets.htm' }}" target="_blank" rel="noopener noreferrer">Abrir consola ↗</a></section>
-{% endfor %}
+<header class="resources-header"><div><h1>Resources</h1><p class="muted">Consumo y facturación · Capturas de referencia de noviembre de 2026</p></div></header>
+{% macro gauge(label, percent=none, value=none, limit=none, runtime=none) %}
+<div class="usage-quota" {% if runtime %}data-runtime="{{ runtime }}"{% endif %}
+     data-level="{{ 'critical' if percent is not none and percent > 80 else 'warning' if percent is not none and percent > 50 else 'normal' }}">
+  <p class="gauge-label">{{ label }}</p>
+  <div class="usage-gauge">
+    <svg viewBox="0 0 112 60" aria-hidden="true" focusable="false">
+      <path class="gauge-track" d="M 8 55 A 48 48 0 0 1 104 55"/>
+      <path class="gauge-fill" data-gauge-fill d="M 8 55 A 48 48 0 0 1 104 55"
+            pathLength="100" stroke-dasharray="{{ percent or 0 }} 100"/>
+    </svg>
+    <strong data-percent>{{ '—' if percent is none else percent ~ '%' }}</strong>
+  </div>
+  <p class="gauge-detail" data-detail>{% if value is none %}Consultando…{% else %}{{ value }} <small>/ {{ limit }}</small>{% endif %}</p>
 </div>
-<section class="panel diagnostic-panel"><div class="section-head"><div><p class="eyebrow">DIAGNÓSTICO</p><h2>Dónde revisar primero</h2></div><span class="muted">Aviso ≥ 70% · crítico ≥ 90%</span></div><div id="findings" aria-live="polite" tabindex="0" aria-label="Prioridades de revisión"><p class="muted">Esperando mediciones para priorizar la revisión.</p></div></section>
-<div class="breakdown">
-{% for key,title,subtitle,last in [('tables','Tablas con más peso','Neon · tablas + índices; filas estimadas.','Filas ≈'),('folders','Carpetas con más peso','B2 · primer segmento; incluye versiones anteriores.','Versiones')] %}
-<section class="panel"><p class="eyebrow">DISTRIBUCIÓN / {{ 'NEON' if key == 'tables' else 'B2' }}</p><h2>{{ title }}</h2><p class="muted">{{ subtitle }}</p><div class="table-wrap" tabindex="0" aria-label="Desglose desplazable"><table><thead><tr><th>{{ 'Tabla' if key == 'tables' else 'Carpeta' }}</th><th>Tamaño</th><th>{{ last }}</th></tr></thead><tbody id="{{ key }}"><tr><td colspan="3">Esperando consulta…</td></tr></tbody></table></div></section>
-{% endfor %}
+{% endmacro %}
+<section class="usage-total panel" aria-label="Gasto acumulado">
+  <div>
+    <p class="eyebrow">GASTO ACUMULADO · NOVIEMBRE</p>
+    <strong class="usage-total-value">US$ 1.86</strong>
+    <p class="muted">Total de los cargos mensuales disponibles en las capturas.</p>
+  </div>
+  <dl>
+    <div><dt>Render</dt><dd>US$ 1.04</dd></div>
+    <div><dt>Neon</dt><dd>US$ 0.82</dd></div>
+    <div><dt>B2 · solo dato del día</dt><dd>US$ 0.00</dd></div>
+  </dl>
+</section>
+<div class="usage-grid">
+  <section class="panel usage-panel">
+    <div class="card-head"><h2>Render</h2><a href="https://dashboard.render.com/" target="_blank" rel="noopener noreferrer">Abrir Render ↗</a></div>
+    <div class="usage-totals">
+      <div><span>Acumulado de noviembre</span><strong>US$ 1.04</strong></div>
+      <div><span>Proyección de noviembre</span><strong>US$ 21.97</strong></div>
+    </div>
+    <div class="usage-gauges usage-gauges-three">
+      {{ gauge('Ancho de banda incluido', 39.8, '1.99 GB', '5 GB') }}
+      {{ gauge('Horas de instancias gratuitas', 11.6, '87.35 h', '750 h') }}
+      {{ gauge('Minutos de compilación', 5, '25 min', '500 min') }}
+    </div>
+    <section class="usage-runtime" id="render-runtime" data-url="{{ url_for('admin.api_salud', scope='render-runtime') }}">
+      <p class="eyebrow">INSTANCIA · EN VIVO</p>
+      <div class="usage-gauges">
+        {% for key, label in [('memory', 'Memoria RAM'), ('cpu', 'CPU')] %}
+        {{ gauge(label, runtime=key) }}
+        {% endfor %}
+      </div>
+      <p class="muted" data-runtime-note></p>
+    </section>
+    <details class="usage-details">
+      <summary>Desglose de tráfico y cargos</summary>
+      <dl>
+        <div><dt>Respuestas HTTP</dt><dd>1.99 GB</dd></div>
+        <div><dt>Respuestas WebSocket</dt><dd>0 MB</dd></div>
+        <div><dt>Tráfico iniciado por servicios</dt><dd>0 MB</dd></div>
+        <div><dt>Tráfico por Private Link</dt><dd>0 MB</dd></div>
+        <div><dt>Cargos de servicios</dt><dd>US$ 1.04</dd></div>
+        <div><dt>Cargos de compilación</dt><dd>US$ 0.00</dd></div>
+      </dl>
+    </details>
+  </section>
+  <section class="panel usage-panel">
+    <div class="card-head"><h2>Neon</h2><a href="https://console.neon.tech/" target="_blank" rel="noopener noreferrer">Abrir Neon ↗</a></div>
+    <div class="usage-totals"><div><span>Cargos acumulados</span><strong>US$ 0.82</strong></div></div>
+    <dl class="usage-readings">
+      <div><dt>Cómputo</dt><dd>7.78 CU-h</dd></div>
+      <div><dt>Almacenamiento</dt><dd>0.47 GB</dd></div>
+      <div><dt>Historial</dt><dd>0 GB</dd></div>
+      <div><dt>Transferencia de red</dt><dd>14.86 GB</dd></div>
+    </dl>
+    <details class="usage-details">
+      <summary>Desglose de cargos</summary>
+      <dl>
+        <div><dt>Cómputo</dt><dd>US$ 0.81</dd></div>
+        <div><dt>Almacenamiento de ramas raíz · 0.02 GB-mes</dt><dd>US$ 0.01</dd></div>
+      </dl>
+    </details>
+  </section>
+  <section class="panel usage-panel">
+    <div class="card-head"><h2>Backblaze B2</h2><a href="https://secure.backblaze.com/b2_buckets.htm" target="_blank" rel="noopener noreferrer">Abrir B2 ↗</a></div>
+    <p class="muted">Bucket Nuc13us</p>
+    <div class="usage-totals">
+      <div><span>Archivos actuales</span><strong>11,799</strong></div>
+      <div><span>Tamaño actual</span><strong>2.1 GB</strong></div>
+    </div>
+    <p class="muted">Topes diarios de la cuenta</p>
+    <div class="usage-gauges">
+      {{ gauge('Almacenamiento', 20, '2 GB', '10 GB') }}
+      {{ gauge('Descargas', 11.9, '119 MB', '1 GB') }}
+    </div>
+    <p class="muted">Cargos del día de la captura · US$ 0.00 en almacenamiento y US$ 0.00 en descargas.</p>
+  </section>
 </div>
-<details class="panel help"><summary>Alcance y configuración de capacidad</summary><p>Se consulta el servicio Render configurado, la base PostgreSQL conectada y el bucket B2 configurado. No representa toda la cuenta ni confirma disponibilidad externa.</p><p>Define los presupuestos de tu plan en Environment: <code>RESOURCES_RENDER_MEMORY_MB</code>, <code>RESOURCES_NEON_STORAGE_MB</code> y <code>RESOURCES_B2_STORAGE_MB</code>. Sin ellos se muestra “Sin presupuesto”; no se inventan porcentajes. Son umbrales de seguimiento, no límites oficiales de facturación.</p><p>RAM y CPU se leen del contenedor. CPU muestra el promedio entre lecturas (la primera usa una muestra breve). El disco temporal corresponde al sistema de archivos visible; no es almacenamiento B2 ni una cuota contratada. Tráfico, facturación y otras ramas se revisan en las consolas. B2 incluye versiones anteriores y limita el inventario a 10 páginas; señala cuando es parcial.</p><p>El reporte JSON incluye fecha, fuentes, mediciones y prioridades. Caché compartida por worker durante 60 segundos. Cada reporte es una captura; no se almacena historial permanente.</p></details>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/resources.js') }}?v=3"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/resources.js') }}?v=7"></script>{% endblock %}
