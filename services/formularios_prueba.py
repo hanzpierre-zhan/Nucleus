@@ -170,7 +170,7 @@ def depositos(doc, filas=None):
     grouped = {}
     for row in filas if filas is not None else filas_rendicion(doc):
         data = json.loads(row.data_json or '{}')
-        if etapa_de(data) not in ('EVIDENCIA', 'OBSERVADO'):
+        if estado_de(data) in ('RECHAZADO', 'ANULADO') or etapa_de(data) not in ('EVIDENCIA', 'OBSERVADO'):
             continue
         code = str(valor(data, 'CODIGO DEPOSITO')).strip()
         if not code:

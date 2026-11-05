@@ -202,10 +202,13 @@ def datos():
     for fila in filas:
         registro = json.loads(fila.data_json or '{}')
         estado = str(piloto.valor(registro, 'ESTADO')).strip().upper()
+        etapa = piloto.etapa_de(registro)
         pagado = estado in ('DEPOSITADO', 'CON SUSTENTO', 'OBSERVADO', 'SUSTENTADO', 'ARCHIVADO')
         historial.append({
             'codigo': piloto.valor(registro, 'CODIGO DEPOSITO') or 'Sin código de depósito',
             'estado': 'Pagado' if pagado else 'Rechazado' if estado == 'RECHAZADO' else estado or 'Pendiente',
+            'estado_rendicion': etapa.capitalize()
+            if etapa in ('OBSERVADO', 'ARCHIVADO') else estado.capitalize() or 'Pendiente',
             'monto': str(piloto.valor(registro, 'Monto total del depósito', 'Monto total', 'Monto', 'MONTO PAGO')),
             'fecha_solicitud': piloto.fecha_solicitud(piloto.valor(registro, 'Marca temporal')),
             'motivo': str(piloto.valor(registro, 'Motivo de la solicitud')),

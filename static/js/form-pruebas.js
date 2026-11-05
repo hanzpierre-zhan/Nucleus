@@ -2,6 +2,7 @@
   'use strict';
   const base = '/form-pruebas', $ = id => document.getElementById(id);
   let state = null, files = [], previewUrls = [];
+  let filtroRendicion = 'Por rendir';
   const keys = {};
   const token = () => $('csrf').value;
   const freshKey = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,'0')).join('');
@@ -71,10 +72,7 @@
   }
   function mostrarHistorial(registros) {
     const historial = $('historial-solicitudes');
-    const avisos = $('avisos-pago');
     historial.replaceChildren();
-    avisos.replaceChildren();
-    avisos.hidden = true;
     for (const registro of registros) {
       const ficha = el('article', undefined, 'solicitud-registro');
       const monto = registro.monto !== '' && Number.isFinite(Number(registro.monto)) ? money(registro.monto) : '';
@@ -87,12 +85,63 @@
       agregarFechaSolicitud(ficha, registro.fecha_solicitud);
       if (registro.rechazo) ficha.append(el('p', 'Motivo del rechazo: ' + registro.rechazo));
       historial.append(ficha);
-      if (['Pagado', 'Rechazado'].includes(registro.estado) && avisos.childElementCount < 5) {
-        avisos.hidden = false;
-        avisos.append(el('p', registro.estado + ' · ' + registro.codigo, 'notice'));
-      }
     }
-    if (!registros.length) historial.append(el('p', 'Todavía no tienes solicitudes.', 'hint'));
+  }
+  function mostrarRendicion() {
+    const pendiente = 'Por rendir';
+    const grupos = new Map([[pendiente, []], ['Observado', []], ['Rendido', []],
+      ['Rechazado', []], ['Anulado', []]]);
+    const clave = registro => JSON.stringify([String(registro.codigo).trim(), registro.prueba]);
+    const depositos = new Set();
+    for (const deposito of state.depositos) {
+      const estado = Number(deposito.pendiente) <= 0 ? 'Rendido' :
+        deposito.estado === 'Observado' ? 'Observado' : pendiente;
+      grupos.get(estado).push(deposito);
+      depositos.add(clave({...deposito, prueba: deposito.codigo.startsWith('PRUEBA-')}));
+    }
+    for (const registro of state.historial) {
+      const estado = registro.estado_rendicion || registro.estado;
+      if (['Pagado', 'Depositado', 'Observado'].includes(estado) && depositos.has(clave(registro))) continue;
+      if (!grupos.has(estado)) grupos.set(estado, []);
+      grupos.get(estado).push({...registro, estado});
+    }
+    if (!grupos.has(filtroRendicion)) filtroRendicion = pendiente;
+    const filtros = $('filtros-rendicion');
+    filtros.replaceChildren();
+    for (const [estado, registros] of grupos) {
+      const boton = el('button', estado, 'filtro-rendicion');
+      boton.type = 'button';
+      boton.append(el('span', String(registros.length)));
+      boton.setAttribute('aria-pressed', String(estado === filtroRendicion));
+      boton.addEventListener('click', () => {
+        filtroRendicion = estado;
+        mostrarRendicion();
+        filtros.querySelector('[aria-pressed=true]').focus();
+      });
+      filtros.append(boton);
+    }
+    const lista = $('depositos');
+    lista.replaceChildren();
+    const registros = grupos.get(filtroRendicion);
+    mostrarHistorial(registros.filter(registro => !registro.referencia));
+    if (!registros.length) lista.append(el('p', 'No tienes registros en este estado.', 'empty'));
+    for (const deposito of registros.filter(registro => registro.referencia)) {
+      const puedeRendir = Number(deposito.pendiente) > 0;
+      const ficha = el(puedeRendir ? 'button' : 'article', undefined, 'deposit');
+      const descripcion = el('span');
+      descripcion.append(el('strong', deposito.codigo), etiquetaEstado(puedeRendir ? deposito.estado : 'Rendido'),
+        el('small', 'Motivo: ' + (deposito.motivo || 'Sin motivo registrado')));
+      agregarFechaSolicitud(descripcion, deposito.fecha_solicitud);
+      const importes = el('span');
+      importes.append(el('strong', money(deposito.monto), 'amount'),
+        el('small', puedeRendir ? 'Pendiente: ' + money(deposito.pendiente) : 'Enviado en pruebas'));
+      ficha.append(descripcion, importes);
+      if (puedeRendir) {
+        ficha.type = 'button';
+        ficha.addEventListener('click', () => abrirRendicion(deposito));
+      }
+      lista.append(ficha);
+    }
   }
   async function load(){
     state=await api('/datos');$('csrf').value=state.csrf;
@@ -108,23 +157,13 @@
     actualizarPago();
     $('total').textContent=$('total-rendir').textContent=money(state.total);
     const pending=state.depositos.filter(d=>Number(d.pendiente)>0);$('cantidad').textContent=pending.length?`${pending.length} depósito${pending.length===1?'':'s'} pendiente${pending.length===1?'':'s'} de sustentar`:'Estás al día con tus rendiciones de prueba';
-    const list=$('depositos');list.replaceChildren();
-    if(!state.depositos.length){const empty=el('div',undefined,'empty');empty.append(el('strong','No tienes depósitos pendientes'),el('span','Aquí aparecerán los códigos depositados a tu documento que todavía requieren evidencia.'));list.append(empty);}
-    state.depositos.forEach(d=>{
-      const button=el('button',undefined,'deposit');button.type='button';button.disabled=Number(d.pendiente)<=0;
-      const text=el('span');
-      text.append(el('strong',d.codigo), etiquetaEstado(d.estado), el('small','Motivo: ' + (d.motivo || 'Sin motivo registrado')));
-      agregarFechaSolicitud(text, d.fecha_solicitud);
-      const importes = el('span');
-      importes.append(el('strong',money(d.monto),'amount'),
-        el('small',button.disabled ? 'Enviado en pruebas' : 'Pendiente: ' + money(d.pendiente)));
-      button.append(text,importes);
-      button.addEventListener('click', () => abrirRendicion(d));
-      list.append(button);
-    });
+    mostrarRendicion();
     $('lista-recientes').replaceChildren();$('recientes').hidden=!state.recientes.length;
     state.recientes.forEach(r=>{const item=el('div',undefined,'recent'),desc=el('span');desc.append(el('span',r.tipo==='solicitud'?'Solicitud enviada':'Rendición enviada'),el('small',new Date(r.creado).toLocaleString('es-PE',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})));item.append(desc,el('strong',money(r.monto)));$('lista-recientes').append(item);});
-    mostrarHistorial(state.historial);
+    const avisos = $('avisos-pago');
+    const novedades = state.historial.filter(r => ['Pagado', 'Rechazado'].includes(r.estado)).slice(0, 5);
+    avisos.replaceChildren(...novedades.map(r => el('p', r.estado + ' · ' + r.codigo, 'notice')));
+    avisos.hidden = !novedades.length;
     $('cargando').hidden=true;$('portal').hidden=false;
   }
   async function actualizarRendicion() {
@@ -315,6 +354,10 @@
         const tipo = fila.querySelector('[data-campo=tipo]');
         const ruc = fila.querySelector('[data-campo=ruc]');
         const quitar = fila.querySelector('[data-quitar]');
+        const foto = fila.querySelector('[data-campo=foto]');
+        foto.addEventListener('change', () => {
+          fila.querySelector('[data-nombre-foto]').textContent = foto.files[0]?.name || '＋ Adjuntar foto del comprobante';
+        });
         quitar.hidden = !filas.children.length;
         tipo.addEventListener('change', () => { ruc.required = tipo.value === 'Factura'; });
         quitar.addEventListener('click', () => {
@@ -328,7 +371,9 @@
       }
       agregar.addEventListener('click', () => agregarComprobante(true));
       bloque.append(el('h3', concepto.etiqueta));
-      if (concepto.monto != null) bloque.append(el('p', 'Monto solicitado ' + money(concepto.monto)));
+      if (concepto.monto != null && concepto.monto !== '' && Number.isFinite(Number(concepto.monto))) {
+        bloque.append(el('p', 'Monto solicitado ' + money(concepto.monto)));
+      }
       bloque.append(filas, agregar);
       contenedor.append(bloque);
       agregarComprobante(false);

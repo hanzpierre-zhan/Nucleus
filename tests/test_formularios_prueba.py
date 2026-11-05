@@ -214,6 +214,15 @@ def test_historial_pago_rechazo_y_foto_privada(portal, monkeypatch):
 
 
 def test_identidad_solo_formularios_y_datos_propios(portal):
+    with portal.app_context():
+        original = NucleusData.query.filter_by(key_value='p1').one()
+        datos = json.loads(original.data_json)
+        for estado in ('RECHAZADO', 'ANULADO'):
+            registro = dict(datos, ESTADO=estado, _RECHAZO_ETAPA='EVIDENCIA')
+            registro['CODIGO DEPOSITO'] = 'DEP-' + estado
+            db.session.add(NucleusData(proyecto_id=original.proyecto_id, key_value=estado,
+                                       data_json=json.dumps(registro)))
+        db.session.commit()
     client=portal.test_client()
     assert entrar(client).status_code==200
     page=client.get('/form-pruebas/')
@@ -222,6 +231,8 @@ def test_identidad_solo_formularios_y_datos_propios(portal):
     info=client.get('/form-pruebas/datos').json
     assert info['total']=='250.50'
     assert [d['codigo'] for d in info['depositos']]==['DEP-p1']
+    estados = {r['codigo']: r['estado_rendicion'] for r in info['historial'] if 'estado_rendicion' in r}
+    assert estados['DEP-RECHAZADO'] == 'Rechazado' and estados['DEP-ANULADO'] == 'Anulado'
     assert client.get('/otro-modulo').status_code==302
     assert client.post('/api/import/process').status_code==403
     with client.session_transaction() as s:
