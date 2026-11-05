@@ -21,6 +21,10 @@ from services.recursos_flm import familia
 bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
 PROYECTOS = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
 GASTOS = tuple('MATERIALES' if opcion == 'MATERIAL' else opcion for opcion in OPCIONES)
+DETALLES_GASTO = {
+    'COMPRAS': ('Consumibles', 'Herramientas', 'Equipos y accesorios', 'Otras compras'),
+    'ALQUILER': ('Vehículos', 'Herramientas', 'Equipos y generadores', 'Otros alquileres'),
+}
 PRESUPUESTOS = ('Gasto Cobra', 'Refacturable')
 RESPONSABLES_VALIDACION = (
     'MÓNICA', 'IRENE', 'LUZ', 'ROSMERI', 'HÉCTOR', 'DENNIS', 'LUCIANO',
@@ -103,7 +107,8 @@ def tecnico(fn):
 def inicio():
     csrf()
     return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
-                           gastos=GASTOS, responsables_validacion=RESPONSABLES_VALIDACION)
+                           gastos=GASTOS, detalles_gasto=DETALLES_GASTO,
+                           responsables_validacion=RESPONSABLES_VALIDACION)
 
 
 @bp.post('/ingresar')
@@ -209,6 +214,13 @@ def repetido(doc, key, tipo):
         return jsonify(success=True, id=previous['id'], repetido=True)
 
 
+def importe_solicitud(valor):
+    monto = str(valor).strip()
+    if not re.fullmatch(r'[0-9]{1,6}(?:[.,][0-9]{1,2})?', monto):
+        raise ValueError('Ingresa el monto en soles usando números y hasta dos decimales.')
+    return piloto.importe(monto)
+
+
 @bp.post('/solicitar')
 @tecnico
 def solicitar():
@@ -226,18 +238,51 @@ def solicitar():
         ):
             raise ValueError('Selecciona al menos un tipo de gasto de la lista.')
         kind = ', '.join(dict.fromkeys(gastos))
+        detalles = {}
+        for categoria, opciones in DETALLES_GASTO.items():
+            elegidos = data.get('detalle_' + categoria.lower(), [])
+            if (not isinstance(elegidos, list) or len(elegidos) > len(opciones)
+                    or any(opcion not in opciones for opcion in elegidos)
+                    or (elegidos and categoria not in gastos)):
+                raise ValueError('Revisa el desglose de ' + categoria.lower() + '.')
+            if elegidos:
+                detalles[categoria] = list(dict.fromkeys(elegidos))
         payment = texto(data, 'medio_pago', 'el medio de pago', 30)
         if payment not in ('Yape', 'Plin', 'Transferencia bancaria', 'No aplica'):
             raise ValueError('Selecciona un medio de pago válido.')
         account = '' if payment == 'No aplica' else texto(data, 'cuenta', 'el número de cuenta o celular', 20)
         if payment != 'No aplica' and (not account.isascii() or not account.isdigit() or not 9 <= len(account) <= 20):
             raise ValueError('El celular, cuenta o CCI debe tener entre 9 y 20 dígitos.')
-        monto = str(data.get('monto', '')).strip()
-        if not re.fullmatch(r'[0-9]+(?:[.,][0-9]{1,2})?', monto):
-            raise ValueError('Ingresa el monto en soles usando números y hasta dos decimales.')
-        amount = piloto.importe(monto)
-        payload = {'monto': str(amount), 'tipo_gasto': kind,
-                   'motivo': texto(data, 'motivo', 'el motivo', 1000),
+        partidas = []
+        if 'partidas' in data:
+            esperadas = [(gasto, detalle) for gasto in dict.fromkeys(gastos)
+                         for detalle in detalles.get(gasto, [''])]
+            recibidas = data['partidas']
+            if not isinstance(recibidas, list) or len(recibidas) != len(esperadas):
+                raise ValueError('Ingresa el monto de cada gasto seleccionado.')
+            amount = Decimal('0.00')
+            for (categoria, detalle), partida in zip(esperadas, recibidas):
+                if not isinstance(partida, dict) or (partida.get('categoria'), partida.get('detalle')) != (categoria, detalle):
+                    raise ValueError('Los importes deben corresponder a los gastos seleccionados.')
+                importe = importe_solicitud(partida.get('monto'))
+                amount += importe
+                partidas.append({'categoria': categoria, 'detalle': detalle, 'monto': str(importe)})
+            piloto.importe(amount)
+        else:
+            amount = importe_solicitud(data.get('monto'))
+        motivo = texto(data, 'motivo', 'el motivo', 1000, required=not partidas)
+        comentarios = texto(data, 'comentarios', 'los comentarios', 1000, False)
+        if not motivo:
+            if any(partida['detalle'] in ('Otras compras', 'Otros alquileres') for partida in partidas) and not comentarios:
+                raise ValueError('Describe las otras compras o alquileres en Comentarios.')
+            motivo = ', '.join(
+                f"{partida['categoria'].capitalize()}: {partida['detalle']}"
+                if partida['detalle'] else partida['categoria'].capitalize()
+                for partida in partidas
+            )
+        payload = {'monto': str(amount), 'tipo_gasto': kind, 'detalle_gasto': detalles,
+                   'partidas': partidas,
+                   'motivo': motivo,
                    'wo': texto(data, 'wo', 'la WO', 200, False),
                    'site': texto(data, 'site', 'el site', 200, False),
                    'medio_pago': payment, 'cuenta': account,
@@ -260,7 +305,7 @@ def solicitar():
                 cuenta_cci='' if billetera else account,
                 titular='' if payment == 'No aplica' else texto(data, 'titular', 'el titular de la cuenta', 150),
                 responsable_validacion=responsable,
-                comentarios=texto(data, 'comentarios', 'los comentarios', 1000, False))
+                comentarios=comentarios)
         uid, _ = piloto.guardar(g.tecnico['documento'], 'solicitud', payload, key, uuid.uuid4().hex)
         return jsonify(success=True, id=uid), 201
     except ValueError as error:

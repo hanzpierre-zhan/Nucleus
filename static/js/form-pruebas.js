@@ -110,30 +110,81 @@
     }
     $(campo)?.addEventListener('input', buscar);
   }
-  const montoSolicitud = $('monto-sol');
-  let ultimoMonto = '';
-  montoSolicitud?.addEventListener('input', () => {
-    if (/^[0-9]*(?:[.,][0-9]{0,2})?$/.test(montoSolicitud.value)) {
-      ultimoMonto = montoSolicitud.value;
-    } else {
-      montoSolicitud.value = ultimoMonto;
+  let partidas = [];
+  function actualizarTotal() {
+    const centimos = partidas.reduce((total, {input}) => {
+      const [soles, decimal = ''] = input.value.split(/[.,]/);
+      return total + Number(soles) * 100 + Number(decimal.padEnd(2, '0'));
+    }, 0);
+    $('gastos-cantidad').textContent = partidas.length === 1 ? '1 gasto' : `${partidas.length} gastos`;
+    $('gastos-subtotal').textContent = $('gastos-total').textContent = money(centimos / 100);
+  }
+  function actualizarPartidas() {
+    const importes = new Map(partidas.map(p => [JSON.stringify([p.categoria, p.detalle]), p.input.value]));
+    const seleccion = $('solicitar').querySelectorAll('[data-categoria]:checked');
+    partidas = Array.from(seleccion, casilla => ({
+      categoria: casilla.dataset.categoria,
+      detalle: casilla.value,
+      etiqueta: casilla.dataset.etiqueta
+    }));
+    const requiereDetalle = partidas.some(p => ['Otras compras', 'Otros alquileres'].includes(p.detalle));
+    $('comentarios').required = requiereDetalle;
+    $('comentarios').placeholder = requiereDetalle ? 'Describe la compra o el alquiler solicitado' : '';
+    const lista = $('gastos-importes');
+    lista.replaceChildren();
+    for (const [indice, partida] of partidas.entries()) {
+      const {categoria, detalle} = partida;
+      const input = el('input');
+      input.id = 'importe-gasto-' + indice;
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      input.pattern = '[0-9]+([.,][0-9]{1,2})?';
+      input.maxLength = 9;
+      input.required = true;
+      input.placeholder = '0.00';
+      let ultimoMonto = importes.get(JSON.stringify([categoria, detalle])) || '';
+      input.value = ultimoMonto;
+      input.addEventListener('input', () => {
+        if (/^[0-9]*(?:[.,][0-9]{0,2})?$/.test(input.value)) ultimoMonto = input.value;
+        else input.value = ultimoMonto;
+        actualizarTotal();
+      });
+      const label = el('label', partida.etiqueta + ' (S/)');
+      label.htmlFor = input.id;
+      const monto = el('div', undefined, 'money-input');
+      monto.append(el('span', 'S/'), input);
+      lista.append(label, monto);
+      partida.input = input;
     }
+    actualizarTotal();
+  }
+  $('solicitar')?.addEventListener('change', event => {
+    if (event.target.matches('.expense-options input[type="checkbox"]')) actualizarPartidas();
   });
-  $('solicitar')?.addEventListener('reset', () => { ultimoMonto = ''; });
+  $('solicitar')?.addEventListener('reset', () => {
+    partidas = [];
+    queueMicrotask(actualizarPartidas);
+  });
+  if ($('solicitar')) actualizarPartidas();
   $('solicitar')?.addEventListener('submit',event=>{
     event.preventDefault();
     const form=event.currentTarget;
     if(!form.reportValidity())return;
     const campos = new FormData(form);
-    const gastos = campos.getAll('tipo_gasto');
+    const gastos = [...new Set(partidas.map(partida => partida.categoria))];
     if (!gastos.length) {
-      showError(form, 'Selecciona al menos un tipo de gasto.');
+      showError(form, 'Selecciona al menos una compra o alquiler.');
       return;
     }
     keys.solicitud ||= freshKey();
     sending(form,async()=>{
       const data=Object.fromEntries(campos);
       data.tipo_gasto = gastos;
+      data.partidas = partidas.map(({categoria, detalle, input}) => ({categoria, detalle, monto: input.value}));
+      for (const categoria of gastos) {
+        const campo = 'detalle_' + categoria.toLowerCase();
+        data[campo] = campos.getAll(campo);
+      }
       data.cuenta = data.medio_pago === 'No aplica' ? '' :
         data.medio_pago === 'Transferencia bancaria' ? $('cuenta-cci').value : $('numero-billetera').value;
       data.nonce=keys.solicitud;

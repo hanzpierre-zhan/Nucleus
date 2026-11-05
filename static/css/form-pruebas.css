@@ -19,6 +19,9 @@
 .expense-options { border: 0; padding: 0; margin: 14px 0; min-width: 0; }
 .expense-options legend { padding: 0; }
 .expense-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.expense-grid + .expense-grid { margin-top: 8px; }
 .expense-grid label { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .expense-grid input[type="checkbox"]:not([type=hidden]):not([type=file]) { flex: 0 0 auto; width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--blue); }
 .expense-grid label span { min-width: 0; overflow-wrap: anywhere; }
+.expense-bag { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 14px 0; padding: 12px; background: var(--accent); color: var(--ink); border-radius: 10px; }
+.expense-bag output { font-weight: 700; font-variant-numeric: tabular-nums; }

@@ -101,7 +101,10 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
             'opciones': [f'Torre {proyecto}']}
     solicitud = {
         'nonce': 'b' * 32, 'proyecto': 'CLARO', 'presupuesto': 'Refacturable',
-        'tipo_gasto': ['MATERIALES', 'PEAJE'], 'monto': '30.50', 'motivo': 'Compra de repuestos',
+        'tipo_gasto': ['MATERIALES', 'PEAJE', 'COMPRAS', 'ALQUILER'],
+        'detalle_compras': ['Consumibles', 'Herramientas'],
+        'detalle_alquiler': ['Vehículos'],
+        'monto': '30.50', 'motivo': 'Compra de repuestos',
         'medio_pago': 'Plin', 'cuenta': '999999999', 'titular': 'Ana Prueba',
         'dni': '00002222', 'responsable_validacion': 'MÓNICA', 'comentarios': 'Urgente',
     }
@@ -109,16 +112,28 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         response = client.post('/form-pruebas/solicitar', headers=headers(client),
                                json=dict(solicitud, monto=monto_invalido))
         assert response.status_code == 400
+    solicitud['partidas'] = [
+        {'categoria': 'MATERIALES', 'detalle': '', 'monto': '10'},
+        {'categoria': 'PEAJE', 'detalle': '', 'monto': '5,50'},
+        {'categoria': 'COMPRAS', 'detalle': 'Consumibles', 'monto': '5'},
+        {'categoria': 'COMPRAS', 'detalle': 'Herramientas', 'monto': '10'},
+        {'categoria': 'ALQUILER', 'detalle': 'Vehículos', 'monto': '50'},
+    ]
+    incompleta = dict(solicitud, partidas=solicitud['partidas'][:-1])
+    assert client.post('/form-pruebas/solicitar', headers=headers(client), json=incompleta).status_code == 400
     response = client.post('/form-pruebas/solicitar', headers=headers(client), json=solicitud)
     assert response.status_code == 201, response.json
     with portal.app_context(), almacen() as con:
         datos = json.loads(con.execute('SELECT datos FROM envios').fetchone()['datos'])
     assert datos['dni'] == '00001111'
-    assert datos['tipo_gasto'] == 'MATERIALES, PEAJE'
+    assert datos['tipo_gasto'] == 'MATERIALES, PEAJE, COMPRAS, ALQUILER'
+    assert datos['monto'] == '80.50' and len(datos['partidas']) == 5
+    assert datos['detalle_gasto'] == {'COMPRAS': ['Consumibles', 'Herramientas'], 'ALQUILER': ['Vehículos']}
     assert datos['proyecto'] == 'CLARO' and datos['presupuesto'] == 'Refacturable'
     assert datos['numero_billetera'] == '999999999' and datos['cuenta_cci'] == ''
     assert datos['responsable_validacion'] == 'MÓNICA' and datos['comentarios'] == 'Urgente'
     sin_pago = dict(solicitud, nonce='c' * 32, medio_pago='No aplica', cuenta='', titular='')
+    sin_pago.pop('motivo')
     assert client.post('/form-pruebas/solicitar', headers=headers(client), json=sin_pago).status_code == 201
 
 
