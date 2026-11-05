@@ -17,7 +17,7 @@ from sqlalchemy import JSON, cast, func, select
 
 from db import db
 from models import NucleusData, Proyecto
-from services.rendicion_estados import etapa_de
+from services.rendicion_estados import estado_de, etapa_de
 
 
 def documento(value):
@@ -169,6 +169,7 @@ def depositos(doc, filas=None):
         item = grouped.setdefault(ref, {'referencia': ref, 'codigo': code,
                                        'monto': Decimal('0'), 'pendiente': Decimal('0'),
                                        'motivo': str(valor(data, 'Motivo de la solicitud'))[:180],
+                                       'estado': 'Observado' if etapa_de(data) == 'OBSERVADO' else estado_de(data).capitalize(),
                                        'fecha_solicitud': solicitada,
                                        'fecha': str(valor(data, 'FECHA PAGO'))[:10]})
         if solicitada and (not item['fecha_solicitud'] or solicitada < item['fecha_solicitud']):
@@ -184,7 +185,7 @@ def depositos(doc, filas=None):
         codigo = codigo_solicitud(row['id'])
         ref = _referencia(doc, codigo)
         grouped[ref] = {'referencia': ref, 'codigo': codigo, 'monto': Decimal(datos['monto']),
-                        'motivo': datos['motivo'], 'fecha': datos.get('fecha_estado', '')[:10],
+                        'motivo': datos['motivo'], 'estado': 'Pagado', 'fecha': datos.get('fecha_estado', '')[:10],
                         'fecha_solicitud': fecha_solicitud(row['creado'])}
     for item in grouped.values():
         reserved = sum((Decimal(json.loads(r['datos'])['monto']) for r in sent

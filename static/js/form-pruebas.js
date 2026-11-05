@@ -43,6 +43,31 @@
   if ($('portal')) setInterval(() => {
     document.querySelectorAll('[data-solicitada]').forEach(actualizarAntiguedad);
   }, 60000);
+  function etiquetaEstado(estado) {
+    const etiqueta = el('span', 'Estado: ' + estado, 'estado-deposito');
+    etiqueta.dataset.estado = estado.toLowerCase();
+    return etiqueta;
+  }
+  function abrirRendicion(deposito) {
+    const form = $('rendir');
+    if ($('referencia').value !== deposito.referencia) {
+      form.reset();
+      clearPhotos();
+      keys.rendicion = freshKey();
+      form.querySelector('.error').hidden = true;
+      $('referencia').value = deposito.referencia;
+      $('monto-rendir').value = deposito.pendiente;
+    }
+    const resumen = $('resumen-deposito');
+    const encabezado = el('div', undefined, 'solicitud-cabecera');
+    encabezado.append(el('strong', deposito.codigo), el('strong', money(deposito.monto), 'amount'));
+    resumen.replaceChildren(encabezado, etiquetaEstado(deposito.estado),
+      el('p', 'Motivo: ' + (deposito.motivo || 'Sin motivo registrado')),
+      el('p', 'Saldo por rendir: ' + money(deposito.pendiente)));
+    agregarFechaSolicitud(resumen, deposito.fecha_solicitud);
+    go('detalle-rendicion');
+    $('titulo-rendir').focus({preventScroll: true});
+  }
   function mostrarHistorial(registros) {
     const historial = $('historial-solicitudes');
     const avisos = $('avisos-pago');
@@ -55,18 +80,11 @@
       const encabezado = el('div', undefined, 'solicitud-cabecera');
       encabezado.append(el('strong', registro.codigo));
       if (monto) encabezado.append(el('strong', monto, 'amount'));
-      ficha.append(encabezado, el('p', registro.estado, 'hint'));
+      ficha.append(encabezado, etiquetaEstado(registro.estado));
       if (registro.prueba) ficha.append(el('p', 'Solicitud de prueba', 'hint'));
       ficha.append(el('p', 'Motivo: ' + (registro.motivo || 'Sin motivo registrado')));
       agregarFechaSolicitud(ficha, registro.fecha_solicitud);
       if (registro.rechazo) ficha.append(el('p', 'Motivo del rechazo: ' + registro.rechazo));
-      if (registro.foto) {
-        const enlace = el('a', 'Ver foto del depósito');
-        enlace.href = registro.foto;
-        enlace.target = '_blank';
-        enlace.rel = 'noopener';
-        ficha.append(enlace);
-      }
       historial.append(ficha);
       if (['Pagado', 'Rechazado'].includes(registro.estado) && avisos.childElementCount < 5) {
         avisos.hidden = false;
@@ -93,18 +111,14 @@
     state.depositos.forEach(d=>{
       const button=el('button',undefined,'deposit');button.type='button';button.disabled=Number(d.pendiente)<=0;
       const text=el('span');
-      text.append(el('strong',d.codigo),el('small','Motivo: ' + (d.motivo || 'Sin motivo registrado')));
+      text.append(el('strong',d.codigo), etiquetaEstado(d.estado), el('small','Motivo: ' + (d.motivo || 'Sin motivo registrado')));
       agregarFechaSolicitud(text, d.fecha_solicitud);
       const importes = el('span');
       importes.append(el('strong',money(d.monto),'amount'),
         el('small',button.disabled ? 'Enviado en pruebas' : 'Pendiente: ' + money(d.pendiente)));
-      button.append(text,importes);button.addEventListener('click',()=>{
-        list.querySelectorAll('.deposit').forEach(b=>b.classList.toggle('selected',b===button));
-        $('rendir').reset();clearPhotos();keys.rendicion=freshKey();$('rendir').querySelector('.error').hidden=true;
-        $('referencia').value=d.referencia;$('deposito-titulo').textContent=d.codigo;$('monto-rendir').value=d.pendiente;
-        $('saldo-deposito').textContent=`Disponible en pruebas: ${money(d.pendiente)}. Puedes rendir una parte.`;
-        $('rendir').hidden=false;$('rendir').scrollIntoView({behavior:'smooth',block:'start'});
-      });list.append(button);
+      button.append(text,importes);
+      button.addEventListener('click', () => abrirRendicion(d));
+      list.append(button);
     });
     $('lista-recientes').replaceChildren();$('recientes').hidden=!state.recientes.length;
     state.recientes.forEach(r=>{const item=el('div',undefined,'recent'),desc=el('span');desc.append(el('span',r.tipo==='solicitud'?'Solicitud enviada':'Rendición enviada'),el('small',new Date(r.creado).toLocaleString('es-PE',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})));item.append(desc,el('strong',money(r.monto)));$('lista-recientes').append(item);});
@@ -281,6 +295,6 @@
     if(files.length+chosen.length>8){showError(form,'Puedes adjuntar como máximo 8 fotos.');return;}
     try{const ready=[];for(const file of chosen)ready.push(await compress(file));files.push(...ready);renderPhotos();}catch(error){showError(form,error.message);}
   });
-  $('rendir')?.addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;if(!files.length){showError(form,'Agrega al menos una foto del comprobante.');return;}keys.rendicion ||= freshKey();sending(form,async()=>{const data=new FormData(form);data.set('nonce',keys.rendicion);files.forEach(f=>data.append('fotos',f));const result=await api('/rendir',{method:'POST',body:data});keys.rendicion=null;form.reset();clearPhotos();form.hidden=true;await success(result,'Tu rendición y tus fotos quedaron guardadas por separado para la prueba.');});});
+  $('rendir')?.addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;if(!files.length){showError(form,'Agrega al menos una foto del comprobante.');return;}keys.rendicion ||= freshKey();sending(form,async()=>{const data=new FormData(form);data.set('nonce',keys.rendicion);files.forEach(f=>data.append('fotos',f));const result=await api('/rendir',{method:'POST',body:data});keys.rendicion=null;form.reset();clearPhotos();await success(result,'Tu rendición y tus fotos quedaron guardadas por separado para la prueba.');});});
   if($('portal'))load().catch(error=>{const box=$('cargando');box.setAttribute('role','alert');box.textContent=error.message;const retry=el('button','Volver a intentar','back');retry.type='button';retry.onclick=()=>location.reload();box.append(retry);});
 })();
