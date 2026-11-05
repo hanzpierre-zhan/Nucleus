@@ -105,7 +105,8 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         'detalle_compras': ['Consumibles', 'Herramientas'],
         'detalle_alquiler': ['Vehículos'],
         'monto': '30.50', 'motivo': 'Compra de repuestos',
-        'medio_pago': 'Plin', 'cuenta': '999999999', 'titular': 'Ana Prueba',
+        'tipo_billetera': 'Plin', 'numero_billetera': '999999999', 'titular': 'Ana Prueba',
+        'cuenta_cci': '00123456789012345678', 'banco': 'Interbank',
         'dni': '00002222', 'responsable_validacion': 'MÓNICA', 'comentarios': 'Urgente',
     }
     for monto_invalido in ('adasfasf', 'S/ 30.50', '1e2', '30.555'):
@@ -130,11 +131,22 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
     assert datos['monto'] == '80.50' and len(datos['partidas']) == 5
     assert datos['detalle_gasto'] == {'COMPRAS': ['Consumibles', 'Herramientas'], 'ALQUILER': ['Vehículos']}
     assert datos['proyecto'] == 'CLARO' and datos['presupuesto'] == 'Refacturable'
-    assert datos['numero_billetera'] == '999999999' and datos['cuenta_cci'] == ''
+    assert datos['numero_billetera'] == '999999999' and datos['cuenta_cci'] == solicitud['cuenta_cci']
     assert datos['responsable_validacion'] == 'MÓNICA' and datos['comentarios'] == 'Urgente'
-    sin_pago = dict(solicitud, nonce='c' * 32, medio_pago='No aplica', cuenta='', titular='')
+    sin_pago = dict(solicitud, nonce='c' * 32, tipo_billetera='No aplica', numero_billetera='')
     sin_pago.pop('motivo')
     assert client.post('/form-pruebas/solicitar', headers=headers(client), json=sin_pago).status_code == 201
+    transferencia = dict(sin_pago, nonce='d' * 32)
+    for invalida in (dict(transferencia, cuenta_cci='123456789'), dict(transferencia, banco=''),
+                     dict(transferencia, banco='Banco no listado'),
+                     dict(transferencia, tipo_billetera='Yape', numero_billetera='123')):
+        assert client.post('/form-pruebas/solicitar', headers=headers(client), json=invalida).status_code == 400
+    respuesta = client.post('/form-pruebas/solicitar', headers=headers(client), json=transferencia)
+    assert respuesta.status_code == 201
+    with portal.app_context(), almacen() as con:
+        guardado = json.loads(con.execute('SELECT datos FROM envios WHERE id=?', (respuesta.json['id'],)).fetchone()['datos'])
+    assert guardado['cuenta_cci'] == transferencia['cuenta_cci'] and guardado['banco'] == 'Interbank'
+    assert guardado['numero_billetera'] == ''
 
 
 def test_identidad_solo_formularios_y_datos_propios(portal):

@@ -52,19 +52,12 @@
   }
   async function success(data,message){await load();$('mensaje-exito').textContent=message;$('codigo-exito').textContent='PRUEBA · '+data.id.slice(0,8).toUpperCase();go('exito');}
   function actualizarPago() {
-    const medio = $('medio_pago').value;
-    const billetera = medio === 'Yape' || medio === 'Plin';
-    for (const [contenedor, campo, activo] of [
-      ['pago-billetera', 'numero-billetera', billetera],
-      ['pago-cuenta', 'cuenta-cci', medio === 'Transferencia bancaria'],
-      ['pago-titular', 'titular', billetera || medio === 'Transferencia bancaria']
-    ]) {
-      $(contenedor).hidden = !activo;
-      $(campo).disabled = !activo;
-      $(campo).required = activo;
-    }
+    const aplica = $('tipo-billetera').value !== 'No aplica';
+    $('pago-billetera').hidden = !aplica;
+    $('numero-billetera').disabled = !aplica;
+    $('numero-billetera').required = aplica;
   }
-  $('medio_pago')?.addEventListener('change', actualizarPago);
+  $('tipo-billetera')?.addEventListener('change', actualizarPago);
   for (const campo of ['site', 'wo']) {
     let espera, consulta;
     const lista = $('sugerencias-' + campo);
@@ -125,13 +118,10 @@
     partidas = Array.from(seleccion, casilla => ({
       categoria: casilla.dataset.categoria,
       detalle: casilla.value,
-      etiqueta: casilla.dataset.etiqueta
+      etiqueta: casilla.dataset.etiqueta,
+      contenedor: casilla.closest('.expense-card').querySelector('.expense-amount')
     }));
-    const requiereDetalle = partidas.some(p => ['Otras compras', 'Otros alquileres'].includes(p.detalle));
-    $('comentarios').required = requiereDetalle;
-    $('comentarios').placeholder = requiereDetalle ? 'Describe la compra o el alquiler solicitado' : '';
-    const lista = $('gastos-importes');
-    lista.replaceChildren();
+    document.querySelectorAll('#solicitar .expense-amount').forEach(contenedor => contenedor.replaceChildren());
     for (const [indice, partida] of partidas.entries()) {
       const {categoria, detalle} = partida;
       const input = el('input');
@@ -149,11 +139,12 @@
         else input.value = ultimoMonto;
         actualizarTotal();
       });
-      const label = el('label', partida.etiqueta + ' (S/)');
+      const label = el('label', 'Monto', 'expense-amount-label');
       label.htmlFor = input.id;
+      input.setAttribute('aria-label', 'Monto en soles de ' + partida.etiqueta);
       const monto = el('div', undefined, 'money-input');
       monto.append(el('span', 'S/'), input);
-      lista.append(label, monto);
+      partida.contenedor.append(label, monto);
       partida.input = input;
     }
     actualizarTotal();
@@ -173,7 +164,7 @@
     const campos = new FormData(form);
     const gastos = [...new Set(partidas.map(partida => partida.categoria))];
     if (!gastos.length) {
-      showError(form, 'Selecciona al menos una compra o alquiler.');
+      showError(form, 'Selecciona al menos un gasto.');
       return;
     }
     keys.solicitud ||= freshKey();
@@ -185,8 +176,6 @@
         const campo = 'detalle_' + categoria.toLowerCase();
         data[campo] = campos.getAll(campo);
       }
-      data.cuenta = data.medio_pago === 'No aplica' ? '' :
-        data.medio_pago === 'Transferencia bancaria' ? $('cuenta-cci').value : $('numero-billetera').value;
       data.nonce=keys.solicitud;
       const result=await api('/solicitar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
       keys.solicitud=null;

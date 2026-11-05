@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css') }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=2) }}"></head>
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Pruebas</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
 <main class="shell">
@@ -26,19 +26,21 @@
 <fieldset class="expense-options">
 <legend>¿Qué necesitas solicitar?</legend>
 <p class="hint">Marca uno o más conceptos.</p>
-{% for categoria, opciones in detalles_gasto.items() %}
 <div class="expense-grid">
-{% for opcion in opciones %}
-{% set etiqueta = opcion if opcion in ('Otras compras', 'Otros alquileres') else ('Compra de ' if categoria == 'COMPRAS' else 'Alquiler de ') ~ opcion|lower %}
-<label><input type="checkbox" name="detalle_{{ categoria|lower }}" value="{{ opcion }}" data-categoria="{{ categoria }}" data-etiqueta="{{ etiqueta }}"><span>{{ etiqueta }}</span></label>
-{% endfor %}
+{% for categoria in gastos %}
+{% for opcion in detalles_gasto.get(categoria, ['']) %}
+{% set etiqueta = (('Compra de ' if categoria == 'COMPRAS' else 'Alquiler de ') ~ opcion|lower) if opcion else ('Viáticos' if categoria == 'VIATICOS' else categoria|capitalize) %}
+<div class="expense-card">
+<label><input type="checkbox" {% if opcion %}name="detalle_{{ categoria|lower }}"{% endif %} value="{{ opcion }}" data-categoria="{{ categoria }}" data-etiqueta="{{ etiqueta }}"><span>{{ etiqueta }}</span></label>
+<div class="expense-amount"></div>
 </div>
 {% endfor %}
+{% endfor %}
+</div>
 <div class="expense-bag" role="status">
-<span>🛍️ <strong id="gastos-cantidad">0 gastos</strong></span>
+<span class="expense-wallet"><svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v2M3 7v11a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-3M3 7h15"/><path d="M16 9h5v6h-5a3 3 0 0 1 0-6Z"/><path d="M16 12h.01"/></svg> <strong id="gastos-cantidad">0 gastos</strong></span>
 <strong id="gastos-subtotal">S/ 0.00</strong>
 </div>
-<div id="gastos-importes"></div>
 </fieldset>
 <label for="site">Nombre de site</label><input id="site" name="site" aria-controls="sugerencias-site" maxlength="200" autocomplete="off"><div id="sugerencias-site" class="suggestions" aria-live="polite"></div>
 <label for="wo">Número CM / PM / PLM</label><input id="wo" name="wo" aria-controls="sugerencias-wo" maxlength="200" autocomplete="off"><div id="sugerencias-wo" class="suggestions" aria-live="polite"></div>
@@ -50,11 +52,17 @@
 <label for="comentarios">Comentarios</label><textarea id="comentarios" name="comentarios" maxlength="1000" rows="2"></textarea>
 </fieldset>
 <fieldset class="request-group"><legend>Datos del depósito</legend>
-<label for="medio_pago">Medio de pago</label><select id="medio_pago" name="medio_pago" aria-describedby="pago-ayuda" required><option value="">Selecciona una opción</option><option>Yape</option><option>Plin</option><option>Transferencia bancaria</option><option>No aplica</option></select>
-<p id="pago-ayuda" class="hint">Elige Yape o Plin para ingresar el celular y el titular. Elige Transferencia bancaria para ingresar la cuenta o CCI y el titular.</p>
-<div id="pago-billetera" hidden><label for="numero-billetera">Número de Yape / Plin</label><input id="numero-billetera" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" disabled></div>
-<div id="pago-cuenta" hidden><label for="cuenta-cci">Número de cuenta o CCI</label><input id="cuenta-cci" inputmode="numeric" maxlength="20" pattern="[0-9]{9,20}" disabled></div>
-<div id="pago-titular" hidden><label for="titular">Titular de la cuenta</label><input id="titular" name="titular" maxlength="150" disabled></div>
+<label for="cuenta-cci">CCI (20 dígitos)</label><input id="cuenta-cci" name="cuenta_cci" inputmode="numeric" maxlength="20" pattern="[0-9]{20}" required>
+<label for="banco">Banco</label>
+<select id="banco" name="banco" required>
+<option value="">Selecciona un banco</option>
+{% for banco in bancos %}<option>{{ banco }}</option>{% endfor %}
+</select>
+<label for="titular">Titular de la cuenta</label><input id="titular" name="titular" maxlength="150" required>
+</fieldset>
+<fieldset class="request-group"><legend>Billetera digital</legend>
+<label for="tipo-billetera">Tipo de billetera</label><select id="tipo-billetera" name="tipo_billetera"><option>No aplica</option><option>Yape</option><option>Plin</option></select>
+<div id="pago-billetera" hidden><label for="numero-billetera">Número de Yape / Plin</label><input id="numero-billetera" name="numero_billetera" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" disabled></div>
 </fieldset>
 <div class="expense-bag"><span>Total de lo solicitado</span><output id="gastos-total">S/ 0.00</output></div>
 <div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar solicitud de prueba <span aria-hidden="true">→</span></button></form></section>
@@ -67,4 +75,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=7) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=11) }}" defer></script></body></html>

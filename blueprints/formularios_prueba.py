@@ -20,12 +20,21 @@ from services.recursos_flm import familia
 
 bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
 PROYECTOS = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
-GASTOS = tuple('MATERIALES' if opcion == 'MATERIAL' else opcion for opcion in OPCIONES)
+GASTOS_ADICIONALES = (
+    'MOVILIDAD LOCAL', 'FLETE Y ENVÍOS', 'GRÚA Y REMOLQUE', 'MANTENIMIENTO VEHICULAR',
+    'REPARACIÓN DE EQUIPOS', 'SERVICIOS DE TERCEROS', 'ACCESOS Y PERMISOS', 'COMUNICACIONES',
+)
+GASTOS = tuple('MATERIALES' if opcion == 'MATERIAL' else opcion
+               for opcion in OPCIONES if opcion != 'OTROS') + GASTOS_ADICIONALES
 DETALLES_GASTO = {
-    'COMPRAS': ('Consumibles', 'Herramientas', 'Equipos y accesorios', 'Otras compras'),
-    'ALQUILER': ('Vehículos', 'Herramientas', 'Equipos y generadores', 'Otros alquileres'),
+    'COMPRAS': ('Consumibles', 'Herramientas', 'Equipos y accesorios'),
+    'ALQUILER': ('Vehículos', 'Herramientas', 'Equipos y generadores'),
 }
 PRESUPUESTOS = ('Gasto Cobra', 'Refacturable')
+BANCOS = (
+    'Scotiabank', 'Interbank', 'BCP', 'BBVA', 'Banco de la Nación',
+    'BanBif', 'Banco Pichincha', 'Mibanco', 'Banco Falabella', 'Banco Ripley',
+)
 RESPONSABLES_VALIDACION = (
     'MÓNICA', 'IRENE', 'LUZ', 'ROSMERI', 'HÉCTOR', 'DENNIS', 'LUCIANO',
     'ANDY', 'GLADYS', 'EDWIN', 'YOLIMAR', 'JANNET', 'EVELYN',
@@ -108,7 +117,7 @@ def inicio():
     csrf()
     return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
                            gastos=GASTOS, detalles_gasto=DETALLES_GASTO,
-                           responsables_validacion=RESPONSABLES_VALIDACION)
+                           responsables_validacion=RESPONSABLES_VALIDACION, bancos=BANCOS)
 
 
 @bp.post('/ingresar')
@@ -247,12 +256,39 @@ def solicitar():
                 raise ValueError('Revisa el desglose de ' + categoria.lower() + '.')
             if elegidos:
                 detalles[categoria] = list(dict.fromkeys(elegidos))
-        payment = texto(data, 'medio_pago', 'el medio de pago', 30)
-        if payment not in ('Yape', 'Plin', 'Transferencia bancaria', 'No aplica'):
-            raise ValueError('Selecciona un medio de pago válido.')
-        account = '' if payment == 'No aplica' else texto(data, 'cuenta', 'el número de cuenta o celular', 20)
-        if payment != 'No aplica' and (not account.isascii() or not account.isdigit() or not 9 <= len(account) <= 20):
-            raise ValueError('El celular, cuenta o CCI debe tener entre 9 y 20 dígitos.')
+        datos_bancarios = {}
+        if 'proyecto' in data or 'partidas' in data:
+            payment = 'Transferencia bancaria'
+            account = texto(data, 'cuenta_cci', 'el CCI', 20)
+            if not re.fullmatch(r'[0-9]{20}', account):
+                raise ValueError('Ingresa un CCI de 20 dígitos.')
+            billetera = data.get('tipo_billetera', 'No aplica')
+            if billetera not in ('No aplica', 'Yape', 'Plin'):
+                raise ValueError('Selecciona un tipo de billetera válido.')
+            numero = ''
+            if billetera != 'No aplica':
+                numero = texto(data, 'numero_billetera', 'el número de Yape o Plin', 9)
+                if not re.fullmatch(r'[0-9]{9}', numero):
+                    raise ValueError('El número de Yape o Plin debe tener 9 dígitos.')
+            banco = data.get('banco')
+            if banco not in BANCOS:
+                raise ValueError('Selecciona un banco de la lista.')
+            datos_bancarios = {
+                'cuenta_cci': account, 'banco': banco,
+                'titular': texto(data, 'titular', 'el titular de la cuenta', 150),
+                'tipo_billetera': billetera, 'numero_billetera': numero,
+            }
+        else:
+            payment = texto(data, 'medio_pago', 'el medio de pago', 30)
+            if payment not in ('Yape', 'Plin', 'Transferencia bancaria', 'No aplica'):
+                raise ValueError('Selecciona un medio de pago válido.')
+            account = '' if payment == 'No aplica' else texto(data, 'cuenta', 'el número de cuenta o celular', 20)
+            if payment == 'Transferencia bancaria':
+                if not re.fullmatch(r'[0-9]{20}', account):
+                    raise ValueError('Ingresa un CCI de 20 dígitos.')
+                datos_bancarios['banco'] = texto(data, 'banco', 'el nombre del banco', 100)
+            if payment != 'No aplica' and not re.fullmatch(r'[0-9]{9,20}', account):
+                raise ValueError('El celular, cuenta o CCI debe tener entre 9 y 20 dígitos.')
         partidas = []
         if 'partidas' in data:
             esperadas = [(gasto, detalle) for gasto in dict.fromkeys(gastos)
@@ -273,8 +309,6 @@ def solicitar():
         motivo = texto(data, 'motivo', 'el motivo', 1000, required=not partidas)
         comentarios = texto(data, 'comentarios', 'los comentarios', 1000, False)
         if not motivo:
-            if any(partida['detalle'] in ('Otras compras', 'Otros alquileres') for partida in partidas) and not comentarios:
-                raise ValueError('Describe las otras compras o alquileres en Comentarios.')
             motivo = ', '.join(
                 f"{partida['categoria'].capitalize()}: {partida['detalle']}"
                 if partida['detalle'] else partida['categoria'].capitalize()
@@ -286,24 +320,17 @@ def solicitar():
                    'wo': texto(data, 'wo', 'la WO', 200, False),
                    'site': texto(data, 'site', 'el site', 200, False),
                    'medio_pago': payment, 'cuenta': account,
-                   'personal': g.tecnico}
+                   'personal': g.tecnico, **datos_bancarios}
         if 'proyecto' in data:
             proyecto = texto(data, 'proyecto', 'el proyecto', 20)
             presupuesto = texto(data, 'presupuesto', 'el tipo de presupuesto', 30)
             if proyecto not in PROYECTOS or presupuesto not in PRESUPUESTOS:
                 raise ValueError('Selecciona un proyecto y un tipo de presupuesto válidos.')
-            billetera = payment in ('Yape', 'Plin')
-            if billetera and len(account) != 9:
-                raise ValueError('El número de Yape o Plin debe tener 9 dígitos.')
             responsable = texto(data, 'responsable_validacion', 'el responsable de la validación', 150, False)
             if responsable and responsable not in RESPONSABLES_VALIDACION:
                 raise ValueError('Selecciona un responsable de la validación de la lista.')
             payload.update(
                 proyecto=proyecto, presupuesto=presupuesto, dni=g.tecnico['documento'],
-                tipo_billetera=payment if billetera else '',
-                numero_billetera=account if billetera else '',
-                cuenta_cci='' if billetera else account,
-                titular='' if payment == 'No aplica' else texto(data, 'titular', 'el titular de la cuenta', 150),
                 responsable_validacion=responsable,
                 comentarios=comentarios)
         uid, _ = piloto.guardar(g.tecnico['documento'], 'solicitud', payload, key, uuid.uuid4().hex)
