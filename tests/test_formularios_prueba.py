@@ -358,7 +358,7 @@ def test_consulta_ruc_usa_padron_importado(portal, tmp_path, monkeypatch):
     from scripts.importar_padron_ruc import importar
     from services import formularios_prueba
 
-    monkeypatch.setattr(formularios_prueba, 'consultar_ruc_externo', lambda *args, **kwargs: None)
+    monkeypatch.setattr(formularios_prueba, 'consultar_openruc', lambda numero: None)
 
     client = portal.test_client()
     ruta = '/form-pruebas/ruc/20123456789'
@@ -370,22 +370,21 @@ def test_consulta_ruc_usa_padron_importado(portal, tmp_path, monkeypatch):
         archivo.writestr('padron.txt', (
             'RUC|NOMBRE O RAZÓN SOCIAL|ESTADO DEL CONTRIBUYENTE|CONDICIÓN DE DOMICILIO|UBIGEO|\n'
             '20123456789|EMISIÓN DE PRUEBA SAC|ACTIVO|HABIDO|150101|\n'
-            '20987654321|OTRO EMISOR|BAJA DEFINITIVA|HABIDO|150101|\n'
+            '10987654321|OTRO EMISOR|BAJA DEFINITIVA|HABIDO|150101|\n'
         ).encode('latin-1'))
     assert importar(origen, Path(portal.config['FORM_PRUEBAS_DIR']) / 'padron-ruc.sqlite3') == 2
     assert client.get(ruta).json == {'resultado': 'encontrado', 'razon_social': 'EMISIÓN DE PRUEBA SAC',
                                     'activo': True}
-    assert client.get('/form-pruebas/ruc/20987654321').json['activo'] is False
+    assert client.get('/form-pruebas/ruc/10987654321').json['activo'] is False
     assert client.get('/form-pruebas/ruc/20000000000').json == {'resultado': 'no_encontrado'}
 
 
-def test_consulta_ruc_prioriza_openruc_y_respaldo_decolecta(portal, monkeypatch):
+def test_consulta_ruc_prioriza_openruc_para_empresas(portal, monkeypatch):
     from services import formularios_prueba
 
     llamadas = []
     respuestas = {
         'openruc.com': (200, {'razon_social': 'Empresa Prueba', 'estado': 'ACTIVO'}),
-        'api.decolecta.com': (200, {'razonSocial': 'Proveedor Prueba', 'estado': 'BAJA DEFINITIVA'}),
     }
 
     class Conexion:
@@ -405,19 +404,16 @@ def test_consulta_ruc_prioriza_openruc_y_respaldo_decolecta(portal, monkeypatch)
             pass
 
     monkeypatch.setattr(formularios_prueba, 'HTTPSConnection', Conexion)
-    portal.config['DECOLECTA_API_TOKEN'] = 'token-prueba'
     client = portal.test_client()
     assert entrar(client).status_code == 200
     assert client.get('/form-pruebas/ruc/20123456789').json == {
         'resultado': 'encontrado', 'razon_social': 'Empresa Prueba', 'activo': True,
     }
     assert llamadas == [('openruc.com', '/api/ruc/20123456789', None)]
-    assert client.get('/form-pruebas/ruc/10123456789').json['activo'] is False
-    assert llamadas[-1] == ('api.decolecta.com', '/v1/sunat/ruc/full?numero=10123456789', 'Bearer token-prueba')
-    assert len(llamadas) == 2
+    assert client.get('/form-pruebas/ruc/10123456789').json == {'resultado': 'no_disponible'}
+    assert len(llamadas) == 1
     respuestas['openruc.com'] = (503, {})
-    assert client.get('/form-pruebas/ruc/20123456789').json['razon_social'] == 'Proveedor Prueba'
-    assert [host for host, _, _ in llamadas[-2:]] == ['openruc.com', 'api.decolecta.com']
+    assert client.get('/form-pruebas/ruc/20123456789').json == {'resultado': 'no_disponible'}
 
 
 def test_validacion_sesion_csrf_y_saldo(portal):
