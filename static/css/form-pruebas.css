@@ -118,3 +118,7 @@
 }
 #rendir .adjunto-comprobante input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .adjunto-comprobante:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.expense-classification, .expense-criterion { display: block; }
+.expense-classification { color: var(--ink); font-size: 11px; }
+.expense-criterion { color: var(--muted); font-size: 11px; font-weight: 400; }

@@ -2,6 +2,7 @@ import io
 import json
 import re
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 from flask import Flask
@@ -113,10 +114,10 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         assert client.get(f'/form-pruebas/sugerencias?proyecto={proyecto}&campo=site&q=Torre').json == {
             'opciones': [f'Torre {proyecto}']}
     solicitud = {
-        'nonce': 'b' * 32, 'proyecto': 'CLARO', 'presupuesto': 'Refacturable',
+        'nonce': 'b' * 32, 'proyecto': 'CLARO',
         'tipo_gasto': ['MATERIALES', 'PEAJE', 'COMPRAS', 'ALQUILER'],
-        'detalle_compras': ['Consumibles', 'Equipos y accesorios'],
-        'detalle_alquiler': ['Equipos', 'Generadores'],
+        'detalle_compras': ['Consumibles', 'Accesorios'],
+        'detalle_alquiler': ['Equipos especiales de medición', 'Generadores eléctricos - Refacturable'],
         'monto': '30.50', 'motivo': 'Compra de repuestos',
         'tipo_billetera': 'Plin', 'numero_billetera': '999999999', 'titular': 'Ana Prueba',
         'cuenta_cci': '00123456789012345678', 'banco': 'Interbank',
@@ -130,9 +131,9 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
         {'categoria': 'MATERIALES', 'detalle': '', 'monto': '10'},
         {'categoria': 'PEAJE', 'detalle': '', 'monto': '5,50'},
         {'categoria': 'COMPRAS', 'detalle': 'Consumibles', 'monto': '5'},
-        {'categoria': 'COMPRAS', 'detalle': 'Equipos y accesorios', 'monto': '10'},
-        {'categoria': 'ALQUILER', 'detalle': 'Equipos', 'monto': '20'},
-        {'categoria': 'ALQUILER', 'detalle': 'Generadores', 'monto': '30'},
+        {'categoria': 'COMPRAS', 'detalle': 'Accesorios', 'monto': '10'},
+        {'categoria': 'ALQUILER', 'detalle': 'Equipos especiales de medición', 'monto': '20'},
+        {'categoria': 'ALQUILER', 'detalle': 'Generadores eléctricos - Refacturable', 'monto': '30'},
     ]
     incompleta = dict(solicitud, partidas=solicitud['partidas'][:-1])
     assert client.post('/form-pruebas/solicitar', headers=headers(client), json=incompleta).status_code == 400
@@ -146,9 +147,13 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
     assert datos['dni'] == '00001111'
     assert datos['tipo_gasto'] == 'MATERIALES, PEAJE, COMPRAS, ALQUILER'
     assert datos['monto'] == '80.50' and len(datos['partidas']) == 6
-    assert datos['detalle_gasto'] == {'COMPRAS': ['Consumibles', 'Equipos y accesorios'],
-                                    'ALQUILER': ['Equipos', 'Generadores']}
-    assert datos['proyecto'] == 'CLARO' and datos['presupuesto'] == 'Refacturable'
+    assert datos['detalle_gasto'] == {'COMPRAS': ['Consumibles', 'Accesorios'],
+                                    'ALQUILER': ['Equipos especiales de medición', 'Generadores eléctricos - Refacturable']}
+    assert datos['proyecto'] == 'CLARO' and datos['presupuesto'] == 'Mixto'
+    assert [p['presupuesto'] for p in datos['partidas']] == ['Gasto Cobra'] * 5 + ['Refacturable']
+    pext = client.post('/form-pruebas/solicitar', headers=headers(client),
+                       json=dict(solicitud, nonce='f' * 32, proyecto='PEXT', responsable_validacion=''))
+    assert pext.status_code == 400 and 'no está disponible para PEXT' in pext.json['error']
     assert datos['numero_billetera'] == '999999999' and datos['cuenta_cci'] == solicitud['cuenta_cci']
     assert datos['responsable_validacion'] == 'Mónica Prueba' and datos['comentarios'] == 'Urgente'
     assert datos['responsable_validacion_id'] == ids['CLARO']
@@ -325,14 +330,50 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
         'evidencia': [(imagen(), 'trabajo.png'), (imagen(), 'material.png')],
     })
     assert result.status_code == 201, result.json
+    assert result.json['fotos_comprobante_repetidas'] == 2
     with portal.app_context(), almacen() as con:
         saved = json.loads(con.execute("SELECT datos FROM envios WHERE tipo='rendicion'").fetchone()['datos'])
     comprobantes = [c for p in saved['partidas'] for c in p['comprobantes']]
     assert [c['tipo'] for c in comprobantes] == ['Boleta', 'Boleta', 'Factura']
+    assert [c['foto_repetida'] for c in comprobantes] == [False, True, True]
     assert comprobantes[-1]['ruc'] == '20123456789'
     assert saved['gastado'] == '25.00' and saved['devolucion']['monto'] == '5.00'
     assert [c['foto'] for c in comprobantes] + saved['evidencia'] + [saved['devolucion']['foto']] == saved['fotos']
     assert len(set(saved['fotos'])) == 6
+    with portal.app_context():
+        usuario = Usuario(username='revisor', nombre='Revisor', password_hash='no-login', rol='admin')
+        db.session.add(usuario)
+        db.session.flush()
+        uid = usuario.id
+        db.session.commit()
+    foto_revision = f"/form-pruebas/administrar/rendicion/{result.json['id']}/foto/{comprobantes[1]['foto']}"
+    assert client.get(foto_revision).status_code == 302
+    revisor = portal.test_client()
+    with revisor.session_transaction() as sesion:
+        sesion['user_id'] = uid
+    assert revisor.get(foto_revision).mimetype == 'image/jpeg'
+
+
+def test_consulta_ruc_usa_padron_importado(portal, tmp_path):
+    from scripts.importar_padron_ruc import importar
+
+    client = portal.test_client()
+    ruta = '/form-pruebas/ruc/20123456789'
+    assert client.get(ruta).status_code == 401
+    assert entrar(client).status_code == 200
+    assert client.get(ruta).json == {'resultado': 'no_disponible'}
+    origen = tmp_path / 'padron.zip'
+    with ZipFile(origen, 'w') as archivo:
+        archivo.writestr('padron.txt', (
+            'RUC|NOMBRE O RAZÓN SOCIAL|ESTADO DEL CONTRIBUYENTE|CONDICIÓN DE DOMICILIO|UBIGEO|\n'
+            '20123456789|EMISIÓN DE PRUEBA SAC|ACTIVO|HABIDO|150101|\n'
+            '20987654321|OTRO EMISOR|BAJA DEFINITIVA|HABIDO|150101|\n'
+        ).encode('latin-1'))
+    assert importar(origen, Path(portal.config['FORM_PRUEBAS_DIR']) / 'padron-ruc.sqlite3') == 2
+    assert client.get(ruta).json == {'resultado': 'encontrado', 'razon_social': 'EMISIÓN DE PRUEBA SAC',
+                                    'activo': True}
+    assert client.get('/form-pruebas/ruc/20987654321').json['activo'] is False
+    assert client.get('/form-pruebas/ruc/20000000000').json == {'resultado': 'no_encontrado'}
 
 
 def test_validacion_sesion_csrf_y_saldo(portal):

@@ -23,6 +23,15 @@
 </form>
 </details>
 {% endif %}
+{% elif e.datos.get('fotos_comprobante_repetidas') %}
+<p><strong>Alerta de foto repetida.</strong> Verifica la legitimidad del comprobante antes de validarlo.</p>
+<ul>
+{% for partida in e.datos.get('partidas', []) %}
+  {% for comprobante in partida.comprobantes if comprobante.foto_repetida %}
+  <li><a href="{{ url_for('form_pruebas.foto_revision', uid=e.id, name=comprobante.foto) }}" target="_blank" rel="noopener">Ver foto de {{ comprobante.tipo|lower }}</a></li>
+  {% endfor %}
+{% endfor %}
+</ul>
 {% endif %}</td></tr>{% else %}<tr><td colspan="6">Todavía no hay envíos. Las pruebas aparecerán aquí.</td></tr>{% endfor %}</tbody></table></div>
 </section>
 {% endblock %}

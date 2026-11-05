@@ -1,4 +1,5 @@
 """Dos formularios móviles en paralelo al flujo real de Google Forms."""
+import hashlib
 import hmac
 import io
 import json
@@ -19,17 +20,58 @@ from werkzeug.utils import secure_filename
 from models import AccesoProyecto, Proyecto, Usuario
 from services import login_required
 from services import formularios_prueba as piloto
-from services.rendicion_gastos import OPCIONES
 from services.recursos_flm import FLM_NOMBRES, familia
 
 bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
+ROLES_ADMIN_PILOTO = ('zeno', 'suport', 'admin')
 PROYECTOS = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
-GASTOS_ADICIONALES = (
-    'FLETE Y ENVÍOS', 'GRÚA Y REMOLQUE', 'MANTENIMIENTO VEHICULAR',
-    'REPARACIÓN DE EQUIPOS', 'SERVICIOS DE TERCEROS', 'ACCESOS Y PERMISOS', 'COMUNICACIONES',
+COBRA = 'Gasto Cobra'
+REFACTURABLE = 'Refacturable'
+# Categoría, detalle, etiqueta, clasificación general o por proyecto, criterio.
+CATALOGO_GASTOS = (
+    ('PEAJE', '', 'Peajes', COBRA, 'Pago en casetas de peaje durante el viaje de ida o vuelta al site.'),
+    ('COMPRAS', 'Consumibles', 'Compra de consumibles', COBRA, 'Solo consumibles. Las piezas y repuestos tienen su propia opción.'),
+    ('MATERIALES', '', 'Compra de materiales y/o repuestos',
+     {'ENTEL': REFACTURABLE, 'INTEGRATEL': COBRA, 'CLARO': COBRA},
+     'Piezas para instalar o reemplazar, como cables, conectores o repuestos de un equipo.'),
+    ('COMPRAS', 'Equipos especiales de medición', 'Compra de equipos especiales de medición', COBRA,
+     'Telurómetros, laptops, celulares y equipos de medición eléctrica o electrónica.'),
+    ('COMPRAS', 'Accesorios', 'Compra de accesorios', COBRA, 'Accesorios eléctricos, electrónicos y de cómputo.'),
+    ('ALQUILER', 'Vehículos - Costo Cobra', 'Alquiler de vehículos - Costo Cobra', COBRA,
+     'Camioneta, auto o camión alquilado para el trabajo cuando Cobra asume el costo.'),
+    ('ALQUILER', 'Vehículos - Refacturable', 'Alquiler de vehículos - Refacturable', REFACTURABLE,
+     'Camioneta, auto o camión alquilado para el trabajo cuando corresponde cobrarlo al cliente.'),
+    ('ALQUILER', 'Herramientas', 'Alquiler de herramientas', COBRA, 'Taladros, alicates, desarmadores, etc.'),
+    ('ALQUILER', 'Equipos especiales de medición', 'Alquiler de equipos especiales de medición', COBRA,
+     'Telurómetros, megóhmetros, laptops, etc.'),
+    ('ALQUILER', 'Generadores eléctricos - Refacturable', 'Alquiler de generadores eléctricos - Refacturable',
+     REFACTURABLE, 'Consulta con el gestor si corresponde a costo Cobra.'),
+    ('ALQUILER', 'Generadores eléctricos - Costo Cobra', 'Alquiler de generadores eléctricos - Costo Cobra',
+     COBRA, 'Consulta con el gestor si corresponde a costo Cobra.'),
+    ('PASAJE', 'Local - Costo Cobra', 'Movilidad local - Costo Cobra', COBRA, 'Traslado en moto o bus.'),
+    ('PASAJE', 'Local o interprovincial - Refacturable', 'Movilidad local o interprovincial - Refacturable',
+     REFACTURABLE, 'Traslado en moto o bus.'),
+    ('VIATICOS', '', 'Viáticos', COBRA, 'Hospedaje y alimentación.'),
+    ('COCHERA', '', 'Cochera o estacionamiento', COBRA, 'Pago por estacionar o resguardar el vehículo de trabajo.'),
+    ('ACARREO', '', 'Servicio de acarreo', REFACTURABLE,
+     'Traslado de equipos o materiales en el tramo final, por ejemplo, llevar baterías desde el vehículo hasta el site.'),
+    ('CUSTODIO', '', 'Servicio de custodio', REFACTURABLE,
+     'Vigilancia o acompañamiento para proteger al personal, los equipos o los materiales.'),
+    ('COMBUSTIBLE', '', 'Combustible', COBRA, 'Gasolina o diésel para el vehículo, generador o equipo usado en el trabajo.'),
+    ('FLETE Y ENVÍOS', '', 'Flete y envíos logísticos', COBRA,
+     'Transporte de carga o paquetería entre ubicaciones, como enviar repuestos del almacén al site.'),
+    ('MANTENIMIENTO VEHICULAR', '', 'Mantenimiento vehicular', COBRA,
+     'Servicio de taller para el vehículo de trabajo, como cambio de aceite o reparación de neumáticos.'),
+    ('REPARACIÓN DE EQUIPOS', '', 'Reparación de equipos especiales (GE)',
+     {'ENTEL': COBRA, 'INTEGRATEL': REFACTURABLE, 'CLARO': REFACTURABLE, 'PEXT': REFACTURABLE},
+     'Generadores, laptops y equipos de medición, entre otros.'),
+    ('SERVICIOS DE TERCEROS', '', 'Servicios de terceros', REFACTURABLE, 'Mano de obra de un tercero.'),
+    ('ACCESOS Y PERMISOS', '', 'Accesos y permisos a sites', REFACTURABLE, 'Cupos o permisos requeridos para ingresar al site.'),
+    ('COMUNICACIONES', '', 'Comunicaciones', COBRA, 'Recargas de saldo para coordinar y reportar el trabajo en campo.'),
 )
-GASTOS = tuple('MATERIALES' if opcion == 'MATERIAL' else opcion
-               for opcion in OPCIONES if opcion not in ('OTROS', 'HOSPEDAJE')) + GASTOS_ADICIONALES
+REGLAS_GASTO = {(categoria, detalle): (etiqueta, regla)
+                for categoria, detalle, etiqueta, regla, _ in CATALOGO_GASTOS}
+GASTOS = tuple(dict.fromkeys(categoria for categoria, *_ in CATALOGO_GASTOS))
 ETIQUETAS_GASTO = {
     'PASAJE': 'Pasajes',
     'MATERIAL': 'Compra de materiales',
@@ -37,10 +79,9 @@ ETIQUETAS_GASTO = {
     'VIATICOS': 'Viáticos',
 }
 DETALLES_GASTO = {
-    'COMPRAS': ('Consumibles', 'Equipos y accesorios'),
-    'ALQUILER': ('Vehículos', 'Herramientas', 'Equipos', 'Generadores'),
+    categoria: tuple(detalle for grupo, detalle in REGLAS_GASTO if grupo == categoria and detalle)
+    for categoria, detalle in REGLAS_GASTO if detalle
 }
-PRESUPUESTOS = ('Gasto Cobra', 'Refacturable')
 BANCOS = (
     'Scotiabank', 'Interbank', 'BCP', 'BBVA', 'Banco de la Nación',
     'BanBif', 'Banco Pichincha', 'Mibanco', 'Banco Falabella', 'Banco Ripley',
@@ -120,8 +161,18 @@ def tecnico(fn):
 def inicio():
     csrf()
     return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
-                           gastos=GASTOS, detalles_gasto=DETALLES_GASTO, etiquetas_gasto=ETIQUETAS_GASTO,
+                           catalogo_gastos=CATALOGO_GASTOS,
                            bancos=BANCOS)
+
+
+@bp.get('/ruc/<numero>')
+@tecnico
+def ruc_emisor(numero):
+    if not re.fullmatch(r'[0-9]{11}', numero):
+        return jsonify(error='Ingresa un RUC de 11 dígitos.'), 400
+    resultado = jsonify(piloto.consultar_ruc(numero))
+    resultado.headers['Cache-Control'] = 'no-store'
+    return resultado
 
 
 @bp.post('/ingresar')
@@ -174,6 +225,8 @@ def datos():
     for item in items:
         for partida in item.get('partidas', []):
             categoria, detalle = partida['categoria'], partida['detalle']
+            if partida.get('etiqueta'):
+                continue
             if detalle:
                 prefijo = {'COMPRAS': 'Compra', 'ALQUILER': 'Alquiler'}.get(categoria, categoria.capitalize())
                 partida['etiqueta'] = f'{prefijo} de {detalle.lower()}'
@@ -323,9 +376,10 @@ def repetido(doc, key, tipo):
     if previous:
         if previous['tipo'] != tipo:
             abort(409, 'El envío ya se utilizó. Actualiza la página.')
+        datos = json.loads(previous['datos'])
         return jsonify(success=True, id=previous['id'], repetido=True,
                        codigo=piloto.codigo_solicitud(previous['id']) if tipo == 'solicitud' else None,
-                       monto=json.loads(previous['datos'])['monto'])
+                       monto=datos['monto'], fotos_comprobante_repetidas=datos.get('fotos_comprobante_repetidas', 0))
 
 
 def importe_solicitud(valor):
@@ -351,7 +405,11 @@ def solicitar():
             not isinstance(gasto, str) or gasto not in (*GASTOS, 'MATERIAL') for gasto in gastos
         ):
             raise ValueError('Selecciona al menos un tipo de gasto de la lista.')
+        gastos = ['MATERIALES' if gasto == 'MATERIAL' else gasto for gasto in gastos]
         kind = ', '.join(dict.fromkeys(gastos))
+        proyecto = data.get('proyecto', familia(g.tecnico['proyecto']))
+        if proyecto not in PROYECTOS:
+            raise ValueError('Selecciona un proyecto válido.')
         detalles = {}
         for categoria, opciones in DETALLES_GASTO.items():
             elegidos = data.get('detalle_' + categoria.lower(), [])
@@ -395,42 +453,51 @@ def solicitar():
             if payment != 'No aplica' and not re.fullmatch(r'[0-9]{9,20}', account):
                 raise ValueError('El celular, cuenta o CCI debe tener entre 9 y 20 dígitos.')
         partidas = []
+        clasificaciones = set()
+        esperadas = [(gasto, detalle) for gasto in dict.fromkeys(gastos)
+                     for detalle in detalles.get(gasto, [''])]
+        reglas = {}
+        for concepto in esperadas:
+            if concepto not in REGLAS_GASTO:
+                raise ValueError('Selecciona una opción específica para cada tipo de gasto.')
+            etiqueta, regla = REGLAS_GASTO[concepto]
+            presupuesto = regla.get(proyecto) if isinstance(regla, dict) else regla
+            if not presupuesto:
+                raise ValueError(f'{etiqueta} no está disponible para {proyecto}.')
+            reglas[concepto] = (etiqueta, presupuesto)
+            clasificaciones.add(presupuesto)
         if 'partidas' in data:
-            esperadas = [(gasto, detalle) for gasto in dict.fromkeys(gastos)
-                         for detalle in detalles.get(gasto, [''])]
             recibidas = data['partidas']
             if not isinstance(recibidas, list) or len(recibidas) != len(esperadas):
                 raise ValueError('Ingresa el monto de cada gasto seleccionado.')
             amount = Decimal('0.00')
-            for (categoria, detalle), partida in zip(esperadas, recibidas):
-                if not isinstance(partida, dict) or (partida.get('categoria'), partida.get('detalle')) != (categoria, detalle):
+            for partida in recibidas:
+                if not isinstance(partida, dict):
                     raise ValueError('Los importes deben corresponder a los gastos seleccionados.')
+                categoria, detalle = partida.get('categoria'), partida.get('detalle')
+                if not isinstance(categoria, str) or not isinstance(detalle, str) or (categoria, detalle) not in reglas:
+                    raise ValueError('Los importes deben corresponder a los gastos seleccionados.')
+                etiqueta, presupuesto = reglas.pop((categoria, detalle))
                 importe = importe_solicitud(partida.get('monto'))
                 amount += importe
-                partidas.append({'categoria': categoria, 'detalle': detalle, 'monto': str(importe)})
+                partidas.append({'categoria': categoria, 'detalle': detalle, 'monto': str(importe),
+                                 'etiqueta': etiqueta, 'presupuesto': presupuesto})
             piloto.importe(amount)
         else:
             amount = importe_solicitud(data.get('monto'))
         motivo = texto(data, 'motivo', 'el motivo', 1000, required=not partidas)
         comentarios = texto(data, 'comentarios', 'la justificación de la solicitud', 1000, False)
         if not motivo:
-            motivo = ', '.join(
-                f"{partida['categoria'].capitalize()}: {partida['detalle']}"
-                if partida['detalle'] else ETIQUETAS_GASTO.get(partida['categoria'], partida['categoria'].capitalize())
-                for partida in partidas
-            )
+            motivo = ', '.join(partida['etiqueta'] for partida in partidas)
         payload = {'monto': str(amount), 'tipo_gasto': kind, 'detalle_gasto': detalles,
-                   'partidas': partidas,
+                   'partidas': partidas, 'proyecto': proyecto,
+                   'presupuesto': next(iter(clasificaciones)) if len(clasificaciones) == 1 else 'Mixto',
                    'motivo': motivo,
                    'wo': texto(data, 'wo', 'la WO', 200, False),
                    'site': texto(data, 'site', 'el site', 200, False),
                    'medio_pago': payment, 'cuenta': account,
                    'personal': g.tecnico, **datos_bancarios}
         if 'proyecto' in data:
-            proyecto = texto(data, 'proyecto', 'el proyecto', 20)
-            presupuesto = texto(data, 'presupuesto', 'el tipo de presupuesto', 30)
-            if proyecto not in PROYECTOS or presupuesto not in PRESUPUESTOS:
-                raise ValueError('Selecciona un proyecto y un tipo de presupuesto válidos.')
             responsable_id = texto(data, 'responsable_validacion', 'el responsable de la validación', 10, False)
             responsable = ''
             if responsable_id:
@@ -439,7 +506,7 @@ def solicitar():
                     raise ValueError('Selecciona un responsable asignado al proyecto de la solicitud.')
                 payload['responsable_validacion_id'] = int(responsable_id)
             payload.update(
-                proyecto=proyecto, presupuesto=presupuesto, dni=g.tecnico['documento'],
+                dni=g.tecnico['documento'],
                 responsable_validacion=responsable,
                 comentarios=comentarios)
         uid, creado = piloto.guardar(g.tecnico['documento'], 'solicitud', payload, key, uuid.uuid4().hex)
@@ -539,6 +606,7 @@ def rendir():
             raise ValueError('Los comprobantes cubren el saldo completo. Envía sin devolución.')
 
         images = [preparar_fotos([archivo])[0] for archivo in archivos]
+        huellas = [hashlib.sha256(image).hexdigest() for image in images]
         fotos_evidencia = [f for f in request.files.getlist('evidencia') if f.filename]
         if fotos_evidencia:
             images.extend(preparar_fotos(fotos_evidencia))
@@ -565,11 +633,13 @@ def rendir():
                    'gastado': str(gastado), 'devolucion': devolucion, 'detalle': deposit['motivo'],
                    'fotos': names, 'personal': g.tecnico, 'partidas': partidas, 'evidencia': evidencia}
         result, created = piloto.guardar(g.tecnico['documento'], 'rendicion', payload, key,
-                                        uid, saldo=Decimal(deposit['monto']))
+                                        uid, saldo=Decimal(deposit['monto']), huellas=huellas)
         if not created:
             for path in written:
                 path.unlink(missing_ok=True)
-        return jsonify(success=True, id=result), 201 if created else 200
+            return repetido(g.tecnico['documento'], key, 'rendicion')
+        return jsonify(success=True, id=result,
+                       fotos_comprobante_repetidas=payload.get('fotos_comprobante_repetidas', 0)), 201
     except Exception as error:
         for path in written:
             path.unlink(missing_ok=True)
@@ -590,10 +660,25 @@ def foto(name):
     return send_file(piloto.raiz() / 'fotos' / name, mimetype='image/jpeg')
 
 
+@bp.get('/administrar/rendicion/<uid>/foto/<name>')
+@login_required
+def foto_revision(uid, name):
+    if str(session.get('rol') or '').lower() not in ROLES_ADMIN_PILOTO:
+        abort(403)
+    if not re.fullmatch(r'[a-f0-9]{32}\.jpg', name):
+        abort(404)
+    with piloto.almacen() as con:
+        fila = con.execute("SELECT datos FROM envios WHERE id=? AND tipo='rendicion'", (uid,)).fetchone()
+    ruta = piloto.raiz() / 'fotos' / name
+    if not fila or name not in json.loads(fila['datos']).get('fotos', []) or not ruta.is_file():
+        abort(404)
+    return send_file(ruta, mimetype='image/jpeg')
+
+
 @bp.route('/administrar', methods=['GET', 'POST'])
 @login_required
 def administrar():
-    if str(session.get('rol') or '').lower() not in ('zeno', 'suport', 'admin'):
+    if str(session.get('rol') or '').lower() not in ROLES_ADMIN_PILOTO:
         abort(403)
     if request.method == 'POST':
         comprobar_csrf()

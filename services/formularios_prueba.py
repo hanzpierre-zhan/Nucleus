@@ -34,6 +34,22 @@ def raiz():
                 Path(current_app.instance_path) / 'formularios_prueba')
 
 
+def consultar_ruc(numero):
+    ruta = raiz() / 'padron-ruc.sqlite3'
+    if not ruta.is_file():
+        return {'resultado': 'no_disponible'}
+    con = sqlite3.connect(ruta.resolve().as_uri() + '?mode=ro', uri=True)
+    con.row_factory = sqlite3.Row
+    try:
+        fila = con.execute('SELECT razon_social, estado FROM ruc WHERE numero=?', (numero,)).fetchone()
+    finally:
+        con.close()
+    if fila is None:
+        return {'resultado': 'no_encontrado'}
+    return {'resultado': 'encontrado', 'razon_social': fila['razon_social'],
+            'activo': fila['estado'].strip().upper() == 'ACTIVO'}
+
+
 @contextmanager
 def almacen():
     folder = raiz()
@@ -49,6 +65,7 @@ def almacen():
             CREATE INDEX IF NOT EXISTS envios_documento ON envios(documento, tipo);
             CREATE TABLE IF NOT EXISTS intentos (
                 clave TEXT PRIMARY KEY, cantidad INTEGER NOT NULL, inicio REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS huellas_comprobante (huella TEXT PRIMARY KEY);
         ''')
         yield con
         con.commit()
@@ -224,7 +241,7 @@ def existente(doc, nonce):
     return dict(row) if row else None
 
 
-def guardar(doc, tipo, data, nonce, uid, *, saldo=None):
+def guardar(doc, tipo, data, nonce, uid, *, saldo=None, huellas=()):
     """Serializa rendiciones parciales para no sobrepasar el saldo del piloto."""
     with almacen() as con:
         con.execute('BEGIN IMMEDIATE')
@@ -237,6 +254,14 @@ def guardar(doc, tipo, data, nonce, uid, *, saldo=None):
                         if (d := json.loads(r['datos'])).get('referencia') == data['referencia']), Decimal('0'))
             if used + Decimal(data['monto']) > saldo:
                 raise ValueError('El saldo cambió. Actualiza tus depósitos antes de enviar.')
+        if huellas:
+            repetidas = 0
+            comprobantes = (c for partida in data['partidas'] for c in partida['comprobantes'])
+            for comprobante, huella in zip(comprobantes, huellas, strict=True):
+                insercion = con.execute('INSERT OR IGNORE INTO huellas_comprobante VALUES (?)', (huella,))
+                comprobante['foto_repetida'] = insercion.rowcount == 0
+                repetidas += int(comprobante['foto_repetida'])
+            data['fotos_comprobante_repetidas'] = repetidas
         con.execute('INSERT INTO envios VALUES(?,?,?,?,?,?)', (
             uid, doc, tipo, datetime.now(timezone.utc).isoformat(),
             json.dumps(data, ensure_ascii=False), nonce))

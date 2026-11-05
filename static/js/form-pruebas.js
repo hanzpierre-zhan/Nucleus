@@ -139,6 +139,7 @@
     }
     $('sol-proyecto').value=state.proyecto_default;
     actualizarResponsables();
+    actualizarClasificacion();
     actualizarPago();
     $('total').textContent=$('total-rendir').textContent=money(state.total);
     const pending=state.depositos.filter(d=>Number(d.pendiente)>0);$('cantidad').textContent=pending.length?`${pending.length} depósito${pending.length===1?'':'s'} pendiente${pending.length===1?'':'s'} de sustentar`:'Estás al día con tus rendiciones de prueba';
@@ -246,6 +247,19 @@
     $(campo)?.addEventListener('input', buscar);
   }
   let partidas = [];
+  function actualizarClasificacion() {
+    const proyecto = $('sol-proyecto').value;
+    for (const casilla of $('solicitar').querySelectorAll('[data-regla]')) {
+      const regla = JSON.parse(casilla.dataset.regla);
+      const clasificacion = proyecto && (typeof regla === 'string' ? regla : regla[proyecto]);
+      const tarjeta = casilla.closest('.expense-card');
+      tarjeta.hidden = casilla.disabled = !clasificacion;
+      if (!clasificacion) casilla.checked = false;
+      tarjeta.querySelector('.expense-classification').textContent = clasificacion || '';
+    }
+    actualizarPartidas();
+  }
+  $('sol-proyecto')?.addEventListener('change', actualizarClasificacion);
   function actualizarTotal() {
     const centimos = partidas.reduce((total, {input}) => {
       const [soles, decimal = ''] = input.value.split(/[.,]/);
@@ -296,10 +310,10 @@
   });
   $('solicitar')?.addEventListener('reset', () => {
     partidas = [];
-    queueMicrotask(actualizarPartidas);
+    queueMicrotask(actualizarClasificacion);
     queueMicrotask(actualizarResponsables);
   });
-  if ($('solicitar')) actualizarPartidas();
+  if ($('solicitar')) actualizarClasificacion();
   $('solicitar')?.addEventListener('submit',event=>{
     event.preventDefault();
     const form=event.currentTarget;
@@ -326,6 +340,30 @@
       await success(result,'Tu solicitud quedó guardada en el espacio de pruebas.');
     });
   });
+  function activarConsultaRuc(ruc, resultado) {
+    let consulta;
+    ruc.addEventListener('input', async () => {
+      consulta?.abort();
+      resultado.hidden = !/^[0-9]{11}$/.test(ruc.value);
+      if (resultado.hidden) return;
+      const actual = new AbortController();
+      consulta = actual;
+      resultado.textContent = 'Consultando padrón SUNAT…';
+      try {
+        const datos = await api('/ruc/' + ruc.value, {signal: actual.signal});
+        if (actual.signal.aborted) return;
+        if (datos.resultado === 'encontrado') {
+          resultado.textContent = datos.razon_social + (datos.activo ? ' · Activo' : ' · No activo');
+        } else {
+          resultado.textContent = datos.resultado === 'no_encontrado'
+            ? 'El RUC no figura en el padrón cargado. Revisa los dígitos.'
+            : 'Padrón SUNAT no disponible.';
+        }
+      } catch {
+        if (!actual.signal.aborted) resultado.textContent = 'No se pudo consultar el padrón. Revisa la conexión.';
+      }
+    });
+  }
   function mostrarConceptos(deposito) {
     const conceptos = deposito.partidas?.length ? deposito.partidas : [{
       etiqueta: deposito.motivo || 'Gasto del depósito',
@@ -343,6 +381,7 @@
         const fila = $('plantilla-comprobante').content.firstElementChild.cloneNode(true);
         const tipo = fila.querySelector('[data-campo=tipo]');
         const ruc = fila.querySelector('[data-campo=ruc]');
+        activarConsultaRuc(ruc, fila.querySelector('[data-resultado-ruc]'));
         const quitar = fila.querySelector('[data-quitar]');
         const foto = fila.querySelector('[data-campo=foto]');
         foto.addEventListener('change', () => {
@@ -381,20 +420,16 @@
       bloque.querySelector('.gastado-concepto').textContent = 'Gastado ' + money(subtotal / 100);
       gastado += subtotal;
     }
-    $('monto-rendir').value = (gastado / 100).toFixed(2);
     const diferencia = saldo - gastado;
     const devolucion = $('devolucion-rendir');
     devolucion.hidden = devolucion.disabled = diferencia <= 0;
-    $('saldo-devolver').textContent = 'Debes devolver ' + money(diferencia / 100);
-    const devuelto = diferencia > 0 ? aCentimos($('monto-devolucion').value) : 0;
-    const restante = diferencia - devuelto;
-    $('cuadre-rendicion').textContent = restante > 0 ? 'Falta cuadrar ' + money(restante / 100) :
-      restante < 0 ? 'El total supera el saldo por ' + money(-restante / 100) :
-        'Saldo completo ' + money(saldo / 100);
-    return restante === 0;
+    $('monto-devolucion').value = (Math.max(diferencia, 0) / 100).toFixed(2);
+    $('cuadre-rendicion').textContent = diferencia < 0
+      ? 'El total supera el saldo por ' + money(-diferencia / 100)
+      : diferencia === 0 ? 'Saldo completo ' + money(saldo / 100) : '';
+    return diferencia >= 0;
   }
   $('conceptos-rendir')?.addEventListener('input', actualizarCuadre);
-  $('monto-devolucion')?.addEventListener('input', actualizarCuadre);
   $('foto-devolucion')?.addEventListener('change', event => {
     $('nombre-foto-devolucion').textContent = event.target.files[0]?.name || '＋ Adjuntar foto de la devolución';
   });
@@ -446,7 +481,9 @@
       form.reset();
       $('referencia').value = '';
       clearPhotos();
-      await success(result, 'Tu rendición quedó guardada en el espacio de pruebas.');
+      const aviso = result.fotos_comprobante_repetidas
+        ? ' Se detectó una foto repetida. El validador revisará el comprobante.' : '';
+      await success(result, 'Tu rendición quedó guardada en el espacio de pruebas.' + aviso);
     });
   });
   if($('portal'))load().catch(error=>{const box=$('cargando');box.setAttribute('role','alert');box.textContent=error.message;const retry=el('button','Volver a intentar','back');retry.type='button';retry.onclick=()=>location.reload();box.append(retry);});
