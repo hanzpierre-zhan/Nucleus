@@ -259,3 +259,36 @@ body.cc-redimensionando { cursor: col-resize; user-select: none; }
 @media (max-width: 900px) {
   .cc-items { display: block; overflow-x: auto; }
 }
+/* Panel de depósito: arriba del detalle, con el botón de confirmar en la cabecera. */
+.cc-deposito-panel { margin: 4px 0 16px; padding: 16px; border-radius: 14px; border: 1px solid color-mix(in srgb, #16a34a 40%, var(--ios-hairline)); background: color-mix(in srgb, #16a34a 7%, var(--ios-card-bg, transparent)); }
+.cc-deposito-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cc-deposito-titulo { display: flex; align-items: center; gap: 12px; }
+.cc-deposito-bolsa { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #16a34a; color: #fff; font-size: 22px; box-shadow: 0 6px 14px rgba(22, 163, 74, .35); }
+.cc-deposito-titulo small { display: block; font-size: 11px; font-weight: 600; letter-spacing: .4px; text-transform: uppercase; color: var(--ios-secondary); }
+.cc-deposito-monto { display: block; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ios-label); }
+.cc-deposito-enviar { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border: 0; border-radius: 11px; background: #16a34a; color: #fff; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 14px rgba(22, 163, 74, .3); }
+.cc-deposito-enviar:hover { background: #15803d; }
+.cc-deposito-enviar:disabled { opacity: .6; cursor: wait; }
+.cc-deposito-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+.cc-deposito-lateral { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cc-deposito-datos { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0; padding: 12px; border-radius: 11px; background: var(--ios-fill); font-size: 13px; }
+.cc-deposito-datos dt { color: var(--ios-secondary); font-size: 12px; align-self: center; }
+.cc-deposito-datos dd { display: flex; align-items: center; gap: 6px; margin: 0; min-width: 0; font-weight: 600; }
+.cc-deposito-datos dd span { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.cc-deposito-copiar { flex: none; width: 26px; height: 26px; padding: 0; border: 1px solid var(--ios-hairline); border-radius: 7px; background: transparent; color: var(--ios-secondary); cursor: pointer; }
+.cc-deposito-copiar:hover { color: var(--ios-blue); border-color: var(--ios-blue); }
+.cc-deposito-fecha { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-deposito-fecha input { min-height: 40px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font: inherit; }
+.cc-deposito-zona { position: relative; display: grid; place-items: center; min-height: 170px; padding: 12px; border: 2px dashed color-mix(in srgb, #16a34a 55%, var(--ios-hairline)); border-radius: 12px; background: var(--ios-fill); text-align: center; cursor: pointer; overflow: hidden; transition: border-color .15s, background .15s; }
+.cc-deposito-zona:hover, .cc-deposito-zona:focus-visible, .cc-deposito-zona.arrastrando { border-color: #16a34a; background: color-mix(in srgb, #16a34a 10%, var(--ios-fill)); outline: none; }
+.cc-deposito-zona img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.cc-deposito-ayuda { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ios-label); }
+.cc-deposito-ayuda i { font-size: 26px; color: #16a34a; }
+.cc-deposito-ayuda small { color: var(--ios-secondary); font-size: 12px; }
+.cc-deposito-zona.con-foto .cc-deposito-ayuda { align-self: end; padding: 6px 10px; border-radius: 9px; background: rgba(0, 0, 0, .65); color: #fff; }
+.cc-deposito-zona.con-foto .cc-deposito-ayuda i { display: none; }
+.cc-deposito-zona.con-foto .cc-deposito-ayuda small { color: #e5e7eb; }
+@media (max-width: 640px) { .cc-deposito-cuerpo { grid-template-columns: 1fr; } .cc-deposito-enviar { width: 100%; justify-content: center; } }
+/* El tema visual estiliza todos los botones: el de confirmar depósito conserva su verde. */
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar { background: #16a34a !important; color: #fff !important; border: 0 !important; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar:hover { background: #15803d !important; }

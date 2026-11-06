@@ -371,39 +371,104 @@
     return form;
   }
 
+  // Panel de depósito: va arriba del detalle, con el botón de confirmar en su cabecera.
   function formularioDeposito(sol) {
-    const form = el('form', 'cc-editar-solicitud');
-    const grupo = el('fieldset');
-    grupo.append(el('legend', null, 'Registrar depósito'));
-    const hoy = new Date();
-    const fecha = el('input');
-    Object.assign(fecha, {type: 'date', name: 'fecha', required: true,
-      value: new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000).toISOString().slice(0, 10)});
-    const monto = Object.assign(el('input'), {name: 'monto', value: sol.total, readOnly: true});
-    const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true});
-    for (const [titulo, control] of [['Fecha del pago', fecha], ['Monto pagado (S/)', monto],
-      ['Foto del comprobante', archivo]]) {
-      const etiqueta = el('label', control === archivo ? 'cc-campo-ancho cc-deposito-archivo' : null, titulo);
-      etiqueta.append(control);
-      grupo.append(etiqueta);
+    const form = el('form', 'cc-deposito-panel');
+    const formulario = sol.formulario || {};
+    const cabecera = el('div', 'cc-deposito-cabecera');
+    const titulo = el('div', 'cc-deposito-titulo');
+    const bolsa = el('span', 'cc-deposito-bolsa');
+    bolsa.append(icono('fa-sack-dollar'));
+    const textos = el('div');
+    textos.append(el('small', null, 'Monto a depositar'), el('strong', 'cc-deposito-monto', dinero(sol.total)));
+    titulo.append(bolsa, textos);
+    const enviar = el('button', 'cc-deposito-enviar');
+    enviar.type = 'submit';
+    enviar.append(icono('fa-sack-dollar'), el('span', null, 'Confirmar depósito'));
+    cabecera.append(titulo, enviar);
+
+    // Datos para depositar, con copiar al portapapeles.
+    const datos = el('dl', 'cc-deposito-datos');
+    const filas = [['Banco', sol.banco], ['CCI / cuenta', sol.cuenta], ['Titular', formulario.titular || sol.tecnico]];
+    if (formulario.tipo_billetera && formulario.tipo_billetera !== 'No aplica') filas.push([formulario.tipo_billetera, formulario.numero_billetera]);
+    for (const [nombre, valor] of filas) {
+      if (!valor) continue;
+      const dd = el('dd');
+      dd.append(el('span', null, valor));
+      const copiar = el('button', 'cc-deposito-copiar');
+      copiar.type = 'button';
+      copiar.title = 'Copiar ' + nombre.toLowerCase();
+      copiar.setAttribute('aria-label', copiar.title);
+      copiar.append(icono('fa-copy'));
+      copiar.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(valor); copiar.replaceChildren(icono('fa-check')); }
+        catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
+        setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
+      });
+      dd.append(copiar);
+      datos.append(el('dt', null, nombre), dd);
     }
-    const error = el('p', 'cc-alerta cc-campo-ancho');
+
+    const hoy = new Date();
+    const fecha = Object.assign(el('input'), {type: 'date', name: 'fecha', required: true,
+      value: new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000).toISOString().slice(0, 10)});
+    const monto = Object.assign(el('input'), {type: 'hidden', name: 'monto', value: sol.total});
+    const etiquetaFecha = el('label', 'cc-deposito-fecha', 'Fecha del pago');
+    etiquetaFecha.append(fecha);
+
+    // Foto: tocar, arrastrar o pegar (Ctrl+V), con vista previa.
+    const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true, hidden: true});
+    const zona = el('label', 'cc-deposito-zona');
+    zona.tabIndex = 0;
+    const vista = el('img');
+    vista.alt = 'Vista previa del comprobante';
+    vista.hidden = true;
+    const ayuda = el('span', 'cc-deposito-ayuda');
+    ayuda.append(icono('fa-camera'), el('strong', null, 'Foto del comprobante'),
+      el('small', null, 'Toca para elegir, arrástrala aquí o pégala con Ctrl+V'));
+    zona.append(archivo, vista, ayuda);
+    let previa = '';
+    function usar(lista) {
+      const imagen = [...(lista || [])].find(f => f.type.startsWith('image/'));
+      if (!imagen) return;
+      const transferencia = new DataTransfer();
+      transferencia.items.add(imagen);
+      archivo.files = transferencia.files;
+      if (previa) URL.revokeObjectURL(previa);
+      previa = URL.createObjectURL(imagen);
+      vista.src = previa;
+      vista.hidden = false;
+      zona.classList.add('con-foto');
+      ayuda.querySelector('small').textContent = imagen.name + ' · toca para cambiarla';
+    }
+    archivo.addEventListener('change', () => usar(archivo.files));
+    zona.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); archivo.click(); } });
+    zona.addEventListener('dragover', e => { e.preventDefault(); zona.classList.add('arrastrando'); });
+    zona.addEventListener('dragleave', () => zona.classList.remove('arrastrando'));
+    zona.addEventListener('drop', e => { e.preventDefault(); zona.classList.remove('arrastrando'); usar(e.dataTransfer.files); });
+    form.addEventListener('paste', e => usar(e.clipboardData?.files));
+    dialogo.addEventListener('paste', e => { if (form.isConnected && !form.contains(e.target)) usar(e.clipboardData?.files); });
+
+    const error = el('p', 'cc-alerta');
     error.setAttribute('role', 'alert');
     error.hidden = true;
-    const pie = el('div', 'cc-deposito-confirmar cc-campo-ancho');
-    const enviar = el('button', 'cc-dialogo-icono cc-dialogo-guardar');
-    enviar.type = 'submit';
-    enviar.title = 'Confirmar depósito';
-    enviar.setAttribute('aria-label', enviar.title);
-    enviar.append(icono('fa-check'));
-    pie.append(el('span', null, enviar.title), enviar);
-    grupo.append(error, pie);
-    form.append(grupo);
+    const cuerpo = el('div', 'cc-deposito-cuerpo');
+    const lateral = el('div', 'cc-deposito-lateral');
+    lateral.append(datos, etiquetaFecha);
+    cuerpo.append(lateral, zona);
+    form.append(cabecera, error, cuerpo, monto);
     form.addEventListener('submit', async e => {
       e.preventDefault();
       if (enviar.disabled) return;
-      enviar.disabled = true;
       error.hidden = true;
+      if (!archivo.files.length) {
+        error.textContent = 'Adjunta la foto del comprobante del depósito.';
+        error.hidden = false;
+        zona.focus();
+        return;
+      }
+      enviar.disabled = true;
+      enviar.lastChild.textContent = 'Depositando…';
       try {
         await accion(sol, 'depositar', new FormData(form));
       } catch (e) {
@@ -411,6 +476,7 @@
         error.hidden = false;
       } finally {
         enviar.disabled = false;
+        enviar.lastChild.textContent = 'Confirmar depósito';
       }
     });
     return form;
@@ -426,7 +492,7 @@
     editar.hidden = guardar.hidden = enDeposito;
     if (enDeposito) {
       contenido.replaceChildren(datosEnviados(sol, 'Datos de la solicitud'));
-      if (puedeGestionar) contenido.append(formularioDeposito(sol));
+      if (puedeGestionar) contenido.prepend(formularioDeposito(sol));
       if (!dialogo.open) dialogo.showModal();
       return;
     }
