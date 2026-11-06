@@ -189,7 +189,6 @@
                     <button type="submit" class="vl-btn" id="login-btn">{{ "Aceptar e ingresar" if consent_required else "Ingresar a Nucleus" }}</button>
                     {% if consent_required %}<p class="vl-consent-help" id="consent-help" aria-live="polite">Marca la casilla de conformidad para continuar.</p>{% endif %}
                 </form>
-                {% if form_pruebas_habilitado %}<p><a class="vl-link" href="/form-pruebas/">Portal de técnicos · Solicitar y Rendir (pruebas)</a></p>{% endif %}
                 {% if not consent_required %}<div class="vl-divider">¿Necesitas ayuda?</div>
                 <button type="button" class="vl-link" onclick="toggleCambiar()">Cambiar contraseña</button>
                 <div id="panel-cambiar" class="vl-panel">

@@ -1,0 +1,572 @@
+/* Caja Chica · gestión en Nucleus: validar, depositar y revisar cada ítem. */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const ESTADOS = {PENDIENTE: 'Pendiente', VALIDADO: 'Validado', DEPOSITADO: 'Depositado', POR_DEVOLVER: 'Por devolver',
+                   ARCHIVADO: 'Archivado', RECHAZADO: 'Rechazado · con el técnico', ANULADO: 'Anulado'};
+  // Una solicitud que volvió a una etapa anterior se marca con su motivo de retorno.
+  const RETORNO = {desde_deposito: ['Rechazado en depósito', 'cc-retorno'], reenviada: ['Corregida y reenviada', 'cc-reenviada']};
+  const ITEM = {POR_RENDIR: 'Por rendir', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado'};
+  const el = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto !== undefined) n.textContent = texto; return n; };
+  const dinero = v => 'S/ ' + Number(v || 0).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const avisar = m => (window.nucleusAlert || alert)(m);
+  const confirmar = async m => window.nucleusConfirm ? window.nucleusConfirm(m) : confirm(m);
+  const permisos = document.querySelector('[data-gestionar]').dataset;
+  const puedeGestionar = permisos.gestionar === 'si';
+  const puedeEliminar = permisos.eliminar === 'si';
+  const seleccionadas = new Set();
+  const eliminar = $('cc-eliminar');
+  let eliminando = false;
+  const dialogo = $('cc-solicitud-dialogo');
+  const configuracion = JSON.parse($('cc-revision-config').textContent);
+  let solicitudes = [], tab = 'validacion', solicitudAbierta = null;
+  try { tab = localStorage.getItem('cc-tab') || tab; } catch (_) {}
+  if (!document.querySelector('.cc-tab[data-tab="' + tab + '"]')) tab = 'validacion';  // p. ej. la antigua pestaña "cerradas"
+
+  async function accion(sol, nombre, cuerpo) {
+    const opciones = cuerpo instanceof FormData ? {method: 'POST', body: cuerpo}
+      : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo || {})};
+    if (nombre === 'editar') opciones.headers = {...opciones.headers, 'X-CSRF-Token': $('cc-excel').dataset.csrf};
+    const r = await fetch('/api/caja-chica/' + sol.id + '/' + nombre, opciones);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw Error(j.error || 'No se pudo completar la acción.');
+    const i = solicitudes.findIndex(s => s.id === sol.id);
+    if (i >= 0) solicitudes[i] = j.solicitud;
+    pintar();
+    if (dialogo.open && solicitudAbierta === sol.id && j.solicitud) verDetalle(j.solicitud);
+  }
+  const intentar = fn => async (...a) => { try { await fn(...a); } catch (e) { avisar(e.message); } };
+  function boton(texto, clase, fn) { const b = el('button', 'cc-btn ' + clase, texto); b.type = 'button'; b.addEventListener('click', async () => { b.disabled = true; try { await fn(); } finally { b.disabled = false; } }); return b; }
+  function conMotivo(sol, nombre, pregunta, extra = {}) {
+    return intentar(async () => { const motivo = prompt(pregunta); if (motivo === null) return; await accion(sol, nombre, {...extra, motivo}); });
+  }
+  function foto(sol, nombre, texto) { const a = el('a', 'cc-foto', texto); a.href = '/form-pruebas/caja-chica/foto/' + sol.id + '/' + nombre; a.target = '_blank'; a.rel = 'noopener'; return a; }
+
+  function botonRapido(sol, etiqueta, clase, simbolo, ejecutar) {
+    const b = boton('', 'cc-rapida ' + clase, ejecutar);
+    b.title = etiqueta;
+    b.setAttribute('aria-label', etiqueta + ' ' + sol.codigo);
+    b.append(icono(simbolo));
+    b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); });
+    return b;
+  }
+  function accionesRapidas(sol) {
+    const caja = el('span', 'cc-acciones-rapidas');
+    if (puedeGestionar && sol.estado === 'PENDIENTE') {
+      caja.append(botonRapido(sol, 'Validar', 'cc-ok', 'fa-check', intentar(async () => {
+        if (await confirmar('¿Validar ' + sol.codigo + ' por ' + dinero(sol.total) + '?')) await accion(sol, 'validar');
+      })));
+    }
+    if (puedeGestionar && ['PENDIENTE', 'VALIDADO'].includes(sol.estado)) {
+      const destino = sol.estado === 'VALIDADO' ? 'Validación' : 'el técnico';
+      caja.append(botonRapido(sol, 'Rechazar', 'cc-rechazar', 'fa-xmark',
+        conMotivo(sol, 'rechazar', 'Motivo del rechazo (vuelve a ' + destino + '):')));
+    }
+    if (puedeGestionar && ['PENDIENTE', 'VALIDADO', 'RECHAZADO'].includes(sol.estado)) {
+      caja.append(botonRapido(sol, 'Anular', 'cc-no', 'fa-ban', conMotivo(sol, 'anular', 'Motivo de la anulación:')));
+    }
+    return caja;
+  }
+
+  function acciones(sol) {
+    const caja = el('div', 'cc-acciones');
+    if (sol.estado === 'RECHAZADO') caja.append(el('span', 'cc-nota', 'Devuelta al técnico: cuando la corrija y reenvíe vuelve a esta etapa.'));
+    if (sol.estado === 'VALIDADO') {
+      const form = el('form', 'cc-deposito'); form.noValidate = true;
+      const fecha = el('input'); Object.assign(fecha, {type: 'date', name: 'fecha', required: true, value: new Date().toISOString().slice(0, 10)});
+      const monto = el('input'); Object.assign(monto, {name: 'monto', value: sol.total, readOnly: true});
+      const archivo = el('input'); Object.assign(archivo, {type: 'file', name: 'foto', accept: 'image/*', required: true});
+      const enviar = el('button', 'cc-btn cc-ok', 'Registrar depósito'); enviar.type = 'submit';
+      for (const [t, c] of [['Fecha', fecha], ['Monto (S/)', monto], ['Foto del depósito', archivo]]) { const l = el('label', null, t); l.append(c); form.append(l); }
+      form.append(enviar);
+      form.addEventListener('submit', intentar(async e => { e.preventDefault(); if (!archivo.files.length) throw Error('Adjunta la foto del depósito.'); enviar.disabled = true; try { await accion(sol, 'depositar', new FormData(form)); } finally { enviar.disabled = false; } }));
+      caja.append(form);
+    }
+    if (sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto) {
+      caja.append(el('span', 'cc-nota', 'Devolución de ' + dinero(sol.diferencia) + ':'), foto(sol, sol.devolucion_foto, 'ver foto'),
+                  boton('Aceptar devolución y archivar', 'cc-ok', intentar(() => accion(sol, 'devolucion', {aceptar: true}))),
+                  boton('Rechazar devolución', 'cc-no', conMotivo(sol, 'devolucion', 'Motivo del rechazo de la devolución:', {aceptar: false})));
+    }
+    return caja;
+  }
+  function detalle(sol) {
+    const d = el('div', 'cc-detalle');
+    if (sol.deposito_fecha) d.append(el('p', 'cc-nota', 'Depositado el ' + sol.deposito_fecha));
+    if (sol.motivo_rechazo) d.append(el('p', 'cc-alerta', 'Motivo: ' + sol.motivo_rechazo));
+    const tabla = el('table', 'cc-items'), cab = el('tr');
+    ['Ítem', 'Tipo de gasto', 'Monto', 'Comprobante', 'Gastado', 'Fotos', 'Estado', ''].forEach(t => cab.append(el('th', null, t)));
+    tabla.append(cab);
+    for (const item of sol.items) {
+      const tr = el('tr');
+      const fotos = el('td'); item.fotos.forEach((n, i) => fotos.append(foto(sol, n, 'Foto ' + (i + 1)), ' '));
+      const estado = el('td'); estado.append(el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
+      if (item.motivo_rechazo) estado.append(el('small', 'cc-alerta', item.motivo_rechazo));
+      const botones = el('td');
+      if (sol.estado === 'DEPOSITADO' && item.estado === 'EN_REVISION') {
+        botones.append(boton('Aprobar', 'cc-ok', intentar(() => accion(sol, 'revisar_item', {item: item.id, aprobar: true}))),
+                       boton('Rechazar', 'cc-no', conMotivo(sol, 'revisar_item', 'Ítem ' + item.numero + ': ¿qué debe corregir el técnico?', {item: item.id, aprobar: false})));
+      }
+      const concepto = el('td', null, [item.tipo_gasto, item.tipo_presupuesto, item.descripcion].filter(Boolean).join(' · '));
+      if (item.correo_validador) concepto.append(el('div', null, 'Correo de validación: ' + item.correo_validador));
+      tr.append(el('td', null, String(item.numero)), concepto,
+                el('td', 'cc-num', dinero(item.monto)), el('td', null, item.comprobante ? item.comprobante + ' · RUC ' + item.ruc : '—'),
+                el('td', 'cc-num', item.monto_gastado ? dinero(item.monto_gastado) : '—'), fotos, estado, botones);
+      tabla.append(tr);
+    }
+    if (['DEPOSITADO', 'POR_DEVOLVER', 'ARCHIVADO'].includes(sol.estado)) d.append(tabla);
+    if (sol.deposito_foto) { const p = el('p', 'cc-nota', 'Depósito: '); p.append(foto(sol, sol.deposito_foto, 'ver foto')); d.append(p); }
+    if (sol.devolucion_foto && sol.estado === 'ARCHIVADO') { const p = el('p', 'cc-nota', 'Devolución: '); p.append(foto(sol, sol.devolucion_foto, 'ver foto')); d.append(p); }
+    d.append(acciones(sol));
+    const hist = el('details', 'cc-historial'); hist.append(el('summary', null, 'Historial (' + sol.historial.length + ')'));
+    sol.historial.slice().reverse().forEach(h => hist.append(el('p', 'cc-nota', new Date(h.fecha + 'Z').toLocaleString('es-PE') + ' · ' + h.usuario + ' · ' + h.accion + (h.motivo ? ' · ' + h.motivo : ''))));
+    d.append(hist);
+    return d;
+  }
+
+  function editorSolicitud(sol) {
+    const form = el('form', 'cc-editar-solicitud');
+    function seccion(titulo) {
+      const grupo = el('fieldset');
+      grupo.append(el('legend', null, titulo));
+      form.append(grupo);
+      return grupo;
+    }
+    const tecnico = seccion('Datos del técnico');
+    const datosSolicitud = seccion('Datos de la solicitud');
+    function campo(titulo, control, contenedor) {
+      const etiqueta = el('label', null, titulo);
+      etiqueta.append(control);
+      contenedor.append(etiqueta);
+      return control;
+    }
+    function texto(valor, maxLength, required = false) {
+      return Object.assign(el('input'), {value: valor || '', maxLength, required});
+    }
+    function selector(valores, seleccionado) {
+      const control = el('select');
+      [...new Set([seleccionado, ...valores])].forEach(v => control.add(new Option(v, v)));
+      control.value = seleccionado;
+      return control;
+    }
+    campo('Técnico', Object.assign(texto(sol.tecnico, 150), {readOnly: true}), tecnico);
+    campo('Documento', Object.assign(texto(sol.documento, 20), {readOnly: true}), tecnico);
+    const proyecto = campo('Proyecto', selector(configuracion.proyectos, sol.proyecto), tecnico);
+    const motivo = campo('Motivo de la solicitud', Object.assign(el('textarea'), {value: sol.motivo, rows: 3, maxLength: 500, required: true}), datosSolicitud);
+    motivo.parentElement.classList.add('cc-campo-ancho');
+    const controles = sol.items.map(item => {
+      const grupo = el('fieldset', 'cc-campo-ancho cc-concepto-editar');
+      grupo.append(el('legend', null, 'Concepto ' + item.numero));
+      datosSolicitud.append(grupo);
+      const tipo = campo('Concepto', selector([], item.tipo_gasto), grupo);
+      function actualizar() {
+        const seleccionado = tipo.value;
+        const disponibles = configuracion.catalogo.filter(c => c.proyectos[proyecto.value]).map(c => c.nombre);
+        tipo.replaceChildren(new Option('Selecciona', ''), ...disponibles.map(v => new Option(v, v)));
+        if (proyecto.value === sol.proyecto && seleccionado === item.tipo_gasto && !disponibles.includes(seleccionado)) {
+          tipo.add(new Option(seleccionado, seleccionado));
+        }
+        tipo.value = [...tipo.options].some(o => o.value === seleccionado) ? seleccionado : '';
+      }
+      tipo.required = true;
+      actualizar();
+      proyecto.addEventListener('change', actualizar);
+      const descripcion = campo('Descripción', texto(item.descripcion, 300), grupo);
+      const monto = campo('Monto (S/)', Object.assign(texto(item.monto, 16, true), {inputMode: 'decimal'}), grupo);
+      monto.dataset.monto = '';
+      const correo = campo('Correo de quien valida', Object.assign(texto(item.correo_validador, 254), {type: 'email'}), grupo);
+      return () => ({tipo_gasto: tipo.value, descripcion: descripcion.value, monto: monto.value, correo_validador: correo.value});
+    });
+    const total = el('output', 'cc-num');
+    const actualizarTotal = () => {
+      const centimos = controles.reduce((suma, leer) => {
+        const valor = leer().monto.replace('S/', '').replace(/ /g, '');
+        const decimal = valor.includes('.') ? valor.replace(/,/g, '') : valor.replace(',', '.');
+        return suma + (/^\d+(?:\.\d{0,2})?$/.test(decimal) ? Math.round(Number(decimal) * 100) : 0);
+      }, 0);
+      total.textContent = dinero(centimos / 100);
+    };
+    datosSolicitud.append(totalSolicitud(total));
+    datosSolicitud.addEventListener('input', e => { if (e.target.hasAttribute('data-monto')) actualizarTotal(); });
+    actualizarTotal();
+    const deposito = seccion('Datos del depósito');
+    const banco = campo('Banco', selector(configuracion.bancos, sol.banco), deposito);
+    const cuenta = campo('Número de cuenta', texto(sol.cuenta, 40, true), deposito);
+    const validacion = seccion('Documentos de validación');
+    const cotizacion = campo('Número de cotización', texto(sol.revision?.cotizacion, 80), validacion);
+    const adjunto = campo('Adjuntar correo de validación', Object.assign(el('input'), {
+      type: 'file', accept: '.pdf,.eml,.msg,.jpg,.jpeg,.png,.webp',
+    }), validacion);
+    const guardar = el('button', 'cc-btn cc-ok', 'Guardar cambios');
+    guardar.type = 'submit';
+    const error = el('p', 'cc-alerta');
+    error.setAttribute('role', 'alert');
+    error.hidden = true;
+    const pie = el('div', 'cc-acciones cc-editor-pie');
+    pie.append(boton('Cancelar', 'cc-neutro', () => verDetalle(sol)), guardar);
+    form.append(error, pie);
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      error.hidden = true;
+      const datos = new FormData();
+      datos.set('datos', JSON.stringify({proyecto: proyecto.value, motivo: motivo.value, banco: banco.value,
+        cuenta: cuenta.value, items: controles.map(leer => leer()), cotizacion: cotizacion.value}));
+      if (adjunto.files.length) datos.set('correo', adjunto.files[0]);
+      guardar.disabled = true;
+      try {
+        await accion(sol, 'editar', datos);
+      } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+      } finally {
+        guardar.disabled = false;
+      }
+    });
+    return form;
+  }
+
+  function totalSolicitud(valor) {
+    const total = el('div', 'cc-total-solicitud cc-campo-ancho');
+    total.append(el('span', null, 'Total solicitado'), valor);
+    return total;
+  }
+
+  function datosEnviados(sol, datos, titulo) {
+    const panel = el('section', 'cc-datos-enviados');
+    panel.append(el('h3', null, titulo));
+    function grupo(titulo, campos) {
+      const seccion = el('section', 'cc-grupo-solicitud');
+      const lista = el('dl', 'cc-datos-solicitud');
+      for (const [etiqueta, valor] of campos) {
+        const campo = el('div');
+        campo.append(el('dt', null, etiqueta), el('dd', null, valor || '—'));
+        lista.append(campo);
+      }
+      seccion.append(el('h4', null, titulo), lista);
+      panel.append(seccion);
+      return seccion;
+    }
+    grupo('Datos del técnico', [['Técnico', sol.tecnico], ['Documento', sol.documento], ['Proyecto', datos.proyecto]]);
+    const solicitud = grupo('Datos de la solicitud', [['Motivo', datos.motivo]]);
+    for (const item of datos.items) {
+      const fila = el('div', 'cc-concepto-enviado');
+      fila.append(el('strong', null, item.numero + '. ' + item.tipo_gasto),
+        el('strong', 'cc-num', dinero(item.monto)));
+      const detalle = el('div', 'cc-campo-ancho');
+      for (const texto of [item.descripcion, item.tipo_presupuesto,
+        item.correo_validador && 'Correo de quien valida: ' + item.correo_validador].filter(Boolean)) {
+        detalle.append(el('p', 'cc-nota', texto));
+      }
+      if (detalle.childNodes.length) fila.append(detalle);
+      solicitud.append(fila);
+    }
+    solicitud.append(totalSolicitud(el('strong', 'cc-num', dinero(datos.total))));
+    grupo('Datos del depósito', [['Banco', datos.banco], ['Número de cuenta', datos.cuenta]]);
+    return panel;
+  }
+
+  function verDetalle(sol) {
+    solicitudAbierta = sol.id;
+    $('cc-solicitud-titulo').textContent = sol.codigo + ' · ' + sol.tecnico;
+    const contenido = $('cc-solicitud-contenido');
+    contenido.replaceChildren(el('p', 'cc-nota', [sol.documento, sol.proyecto, estadoDe(sol)[0], dinero(sol.total)].join(' · ')));
+    const ultimaCaptura = [...sol.historial].reverse().find(evento => ['solicitar', 'reenviar', 'editar solicitud'].includes(evento.accion));
+    const editada = ultimaCaptura?.accion === 'editar solicitud';
+    contenido.append(datosEnviados(sol, sol.envio_tecnico || sol,
+      !sol.envio_tecnico && editada ? 'Datos guardados de la solicitud' : 'Datos enviados por el técnico'));
+    if (sol.envio_tecnico) contenido.append(datosEnviados(sol, sol, 'Datos revisados por gestión'));
+    const revision = sol.revision || {};
+    if (revision.cotizacion) contenido.append(el('p', null, 'Cotización: ' + revision.cotizacion));
+    if (revision.archivo) {
+      const enlace = el('a', 'cc-foto', 'Descargar correo de validación');
+      enlace.href = '/api/caja-chica/' + sol.id + '/correo-validacion';
+      contenido.append(enlace);
+    }
+    if (sol.items.some(i => i.requiere_correo) && !revision.archivo) contenido.append(el('p', 'cc-alerta', 'Falta adjuntar el correo de validación.'));
+    if (sol.items.some(i => i.requiere_cotizacion) && !revision.cotizacion) contenido.append(el('p', 'cc-alerta', 'Falta el número de cotización.'));
+    if (puedeGestionar && sol.estado === 'PENDIENTE') {
+      const editar = boton('Editar solicitud', 'cc-neutro', () => {
+        const form = editorSolicitud(sol);
+        editar.replaceWith(form);
+        form.scrollIntoView({block: 'nearest'});
+        form.querySelector('select').focus();
+      });
+      contenido.append(editar);
+    }
+    contenido.append(detalle(sol));
+    if (!dialogo.open) dialogo.showModal();
+  }
+  // ── Tabla: columnas que se filtran y se mueven arrastrando ──
+  const estadoDe = s => RETORNO[s.retorno] || [ESTADOS[s.estado] || s.estado, 'cc-' + s.estado.toLowerCase()];
+  const creado = s => new Date(s.creado + 'Z');
+  const COLUMNAS = {
+    codigo:   {titulo: 'Código', ancho: 'minmax(130px, 1fr)', texto: s => s.codigo, celda: s => {
+      const enlace = el('a', 'cc-codigo-link', s.codigo);
+      enlace.href = '#solicitud-' + s.id;
+      enlace.addEventListener('click', e => { e.preventDefault(); verDetalle(s); });
+      return enlace;
+    }},
+    tecnico:  {titulo: 'Técnico · Documento', ancho: 'minmax(180px, 2.4fr)', texto: s => s.tecnico + ' · ' + s.documento},
+    proyecto: {titulo: 'Proyecto', ancho: 'minmax(100px, .8fr)', texto: s => s.proyecto, clase: 'cc-proyecto'},
+    estado:   {titulo: 'Estado', ancho: 'minmax(180px, 1.3fr)', texto: s => estadoDe(s)[0],
+               celda: s => { const [t, c] = estadoDe(s); return el('span', 'cc-chip ' + c, t); }},
+    fecha:    {titulo: 'Fecha / Avance', ancho: 'minmax(140px, 1.1fr)', clase: 'cc-avance',
+               texto: s => s.estado === 'DEPOSITADO' ? s.avance : creado(s).toLocaleDateString('es-PE')},
+    total:    {titulo: 'Total', ancho: 'minmax(110px, .8fr)', num: true, texto: s => dinero(s.total),
+               celda: s => el('strong', 'cc-num', dinero(s.total))},
+  };
+  // El orden y ancho de las columnas se recuerdan en este navegador.
+  let columnas = Object.keys(COLUMNAS), filtros = {}, busquedas = {}, anchos = {};
+  // Búsqueda sin distinguir mayúsculas ni tildes ("peru" encuentra "Perú").
+  const plano = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  try {
+    const p = JSON.parse(localStorage.getItem('cc-tabla') || '{}');
+    if (Array.isArray(p.columnas) && p.columnas.length === columnas.length && columnas.every(c => p.columnas.includes(c))) columnas = p.columnas;
+    if (p.anchos && typeof p.anchos === 'object') for (const [c, w] of Object.entries(p.anchos)) if (COLUMNAS[c] && w >= 60) anchos[c] = w;
+  } catch (_) {}
+  const guardar = () => { try { localStorage.setItem('cc-tabla', JSON.stringify({columnas, anchos})); } catch (_) {} };
+  // Ancho de cada columna: el que el usuario fijó arrastrando o, si no, el automático.
+  const plantilla = () => {
+    // Ancho mínimo de la tabla = suma de columnas + espacios; si no cabe, se desplaza a lo ancho.
+    const minimo = columnas.reduce((s, c) => s + (anchos[c] || parseInt(COLUMNAS[c].ancho.slice(7), 10)), 0)
+      + 12 * columnas.length + 140 + (puedeEliminar ? 52 : 0);
+    $('cc-tabla').style.setProperty('--cc-min', minimo + 'px');
+    const medidas = columnas.map(c => anchos[c] ? anchos[c] + 'px' : COLUMNAS[c].ancho);
+    return [...(puedeEliminar ? ['40px'] : []), ...medidas, '108px'].join(' ');
+  };
+  // Nucleus aplica zoom al área principal: factor para pasar px de pantalla a px CSS.
+  const escala = () => { const t = $('cc-tabla'); return t.getBoundingClientRect().width / t.offsetWidth || 1; };
+
+  // Ajustar ancho: arrastrar el borde derecho de la cabecera. Doble clic vuelve al automático.
+  function asa(id, th) {
+    const a = el('span', 'cc-th-asa'); a.title = 'Arrastra para ajustar el ancho · doble clic: automático';
+    a.addEventListener('pointerdown', e => {
+      e.preventDefault(); e.stopPropagation(); a.setPointerCapture(e.pointerId);
+      const inicio = e.clientX, base = th.getBoundingClientRect().width, z = escala();
+      document.body.classList.add('cc-redimensionando');
+      const mover = ev => { anchos[id] = Math.max(60, Math.round((base + ev.clientX - inicio) / z)); $('cc-tabla').style.setProperty('--cc-cols', plantilla()); };
+      const soltar = () => { a.removeEventListener('pointermove', mover); document.body.classList.remove('cc-redimensionando'); guardar(); };
+      a.addEventListener('pointermove', mover);
+      a.addEventListener('pointerup', soltar, {once: true});
+      a.addEventListener('pointercancel', soltar, {once: true});
+    });
+    a.addEventListener('dblclick', e => { e.stopPropagation(); delete anchos[id]; guardar(); pintarEncabezado(); });
+    return a;
+  }
+
+  function icono(nombre) { const i = el('i', 'fa-solid ' + nombre); i.setAttribute('aria-hidden', 'true'); return i; }
+  function pintarEncabezado() {
+    $('cc-tabla').style.setProperty('--cc-cols', plantilla());
+    const cab = $('cc-encabezado');
+    // El encabezado se redibuja al filtrar: se conserva el cuadro de búsqueda donde se está escribiendo.
+    const activo = document.activeElement, foco = activo && cab.contains(activo) && activo.dataset.buscar
+      ? {col: activo.dataset.buscar, ini: activo.selectionStart, fin: activo.selectionEnd} : null;
+    cab.replaceChildren();
+    if (puedeEliminar) cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab', 'Sel.'));
+    for (const id of columnas) {
+      const col = COLUMNAS[id], th = el('div', 'cc-th' + (col.num ? ' cc-th-num' : ''));
+      th.dataset.col = id;
+      const fila = el('div', 'cc-th-fila'); fila.draggable = true; fila.title = 'Arrastra para mover la columna';
+      const buscar = el('input', 'cc-th-buscar'); buscar.dataset.buscar = id;
+      Object.assign(buscar, {type: 'search', value: busquedas[id] || '', placeholder: 'Buscar…', ariaLabel: 'Buscar en ' + col.titulo});
+      buscar.addEventListener('input', () => { if (buscar.value.trim()) busquedas[id] = buscar.value; else delete busquedas[id]; pintar(); });
+      const filtrar = el('button', 'cc-th-btn' + (filtros[id] ? ' activo' : '')); filtrar.type = 'button';
+      filtrar.append(icono('fa-filter')); filtrar.title = filtrar.ariaLabel = 'Filtrar ' + col.titulo;
+      filtrar.addEventListener('click', e => { e.stopPropagation(); abrirFiltro(id, filtrar); });
+      fila.append(el('span', 'cc-th-nombre', col.titulo), filtrar);
+      th.append(fila, buscar, asa(id, th));
+      fila.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; th.classList.add('arrastrando'); });
+      th.addEventListener('dragend', () => cab.querySelectorAll('.cc-th').forEach(t => t.classList.remove('arrastrando', 'soltar-antes', 'soltar-despues')));
+      th.addEventListener('dragover', e => {
+        e.preventDefault();
+        const r = th.getBoundingClientRect(), antes = e.clientX < r.left + r.width / 2;
+        th.classList.toggle('soltar-antes', antes); th.classList.toggle('soltar-despues', !antes);
+      });
+      th.addEventListener('dragleave', () => th.classList.remove('soltar-antes', 'soltar-despues'));
+      th.addEventListener('drop', e => {
+        e.preventDefault();
+        const origen = e.dataTransfer.getData('text/plain');
+        if (!COLUMNAS[origen] || origen === id) return pintarEncabezado();
+        const antes = th.classList.contains('soltar-antes');
+        columnas = columnas.filter(c => c !== origen);
+        columnas.splice(columnas.indexOf(id) + (antes ? 0 : 1), 0, origen);
+        guardar(); pintar();
+      });
+      cab.append(th);
+    }
+    cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab', 'Acciones'));
+    if (foco) { const i = cab.querySelector('[data-buscar="' + foco.col + '"]'); if (i) { i.focus(); i.setSelectionRange(foco.ini, foco.fin); } }
+  }
+
+  // Filtro por columna: lista de valores de la etapa actual, como en Excel.
+  function abrirFiltro(id, boton) {
+    const caja = $('cc-filtro');
+    if (!caja.hidden && caja.dataset.col === id) { caja.hidden = true; return; }
+    const col = COLUMNAS[id], valores = [...new Set(base(id).map(col.texto))].sort((a, b) => a.localeCompare(b, 'es', {numeric: true}));
+    const marcados = new Set(filtros[id] || valores);
+    caja.dataset.col = id; caja.replaceChildren();
+    const buscar = el('input'); Object.assign(buscar, {type: 'search', placeholder: 'Buscar en ' + col.titulo.toLowerCase()});
+    const lista = el('div', 'cc-filtro-valores');
+    const todos = el('label', 'cc-todos'), todosCheck = el('input'); todosCheck.type = 'checkbox'; todos.append(todosCheck, 'Seleccionar todo');
+    const checks = valores.map(v => { const l = el('label'), c = el('input'); c.type = 'checkbox'; c.value = v; c.checked = marcados.has(v); l.append(c, v || '(vacío)'); return l; });
+    const sincronizar = () => { const v = checks.filter(l => !l.hidden); todosCheck.checked = v.length > 0 && v.every(l => l.firstChild.checked); };
+    todosCheck.addEventListener('change', () => { checks.filter(l => !l.hidden).forEach(l => { l.firstChild.checked = todosCheck.checked; }); });
+    checks.forEach(l => l.firstChild.addEventListener('change', sincronizar));
+    buscar.addEventListener('input', () => { const t = buscar.value.trim().toLowerCase(); checks.forEach(l => { l.hidden = t && !l.textContent.toLowerCase().includes(t); }); sincronizar(); });
+    lista.append(todos, ...checks);
+    if (!valores.length) lista.append(el('p', 'cc-nota', 'Sin valores en esta etapa.'));
+    const limpiar = el('button', 'cc-btn', 'Limpiar'), aplicar = el('button', 'cc-btn cc-ok', 'Aplicar');
+    limpiar.type = aplicar.type = 'button';
+    limpiar.addEventListener('click', () => { delete filtros[id]; caja.hidden = true; pintar(); });
+    aplicar.addEventListener('click', () => {
+      const elegidos = checks.filter(l => l.firstChild.checked).map(l => l.firstChild.value);
+      if (elegidos.length === valores.length) delete filtros[id]; else filtros[id] = elegidos;
+      caja.hidden = true; pintar();
+    });
+    const pie = el('div', 'cc-filtro-pie'); pie.append(limpiar, aplicar);
+    caja.append(buscar, lista, pie); sincronizar();
+    caja.hidden = false;
+    const z = escala(), r = boton.getBoundingClientRect(), alto = innerHeight / z, ancho = innerWidth / z;
+    caja.style.top = Math.min(r.bottom / z + 6, alto - caja.offsetHeight - 8) + 'px';
+    caja.style.left = Math.max(8, Math.min(r.left / z - 8, ancho - caja.offsetWidth - 8)) + 'px';
+    buscar.focus();
+  }
+  document.addEventListener('click', e => { const c = $('cc-filtro'); if (!c.hidden && !c.contains(e.target)) c.hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('cc-filtro').hidden = true; });
+
+  // Solicitudes de la etapa con el buscador general y los filtros de columna (menos `excepto`).
+  function base(excepto) {
+    const texto = $('cc-buscar').value.trim().toLowerCase();
+    return solicitudes.filter(s => s.etapas.includes(tab)
+      && (!texto || [s.codigo, s.tecnico, s.documento, s.proyecto].join(' ').toLowerCase().includes(texto))
+      && Object.entries(filtros).every(([id, vals]) => id === excepto || vals.includes(COLUMNAS[id].texto(s)))
+      && Object.entries(busquedas).every(([id, t]) => plano(COLUMNAS[id].texto(s)).includes(plano(t.trim()))));
+  }
+  const excel = $('cc-excel');
+  function estadoEliminar() {
+    if (eliminar) eliminar.disabled = eliminando || !seleccionadas.size;
+  }
+  eliminar?.addEventListener('click', intentar(async () => {
+    const ids = [...seleccionadas];
+    if (!ids.length || eliminando) return;
+    eliminando = true;
+    estadoEliminar();
+    try {
+      if (!await confirmar(ids.length === 1 ? '¿Eliminar la solicitud seleccionada?' : '¿Eliminar las ' + ids.length + ' solicitudes seleccionadas?')) return;
+      const r = await fetch(eliminar.dataset.url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': excel.dataset.csrf},
+        body: JSON.stringify(ids),
+      });
+      if (!r.ok) throw Error('No se pudieron eliminar las solicitudes. Actualiza la lista e inténtalo de nuevo.');
+      const borradas = new Set(ids);
+      solicitudes = solicitudes.filter(sol => !borradas.has(sol.id));
+      seleccionadas.clear();
+      pintar();
+    } finally {
+      eliminando = false;
+      estadoEliminar();
+    }
+  }));
+  let exportando = false;
+  excel.addEventListener('click', async () => {
+    const ids = base().map(s => s.id);
+    exportando = excel.disabled = true;
+    try {
+      const respuesta = await fetch(excel.dataset.url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-Token': excel.dataset.csrf},
+        body: JSON.stringify(ids),
+      });
+      if (!respuesta.ok || !respuesta.headers.get('Content-Type')?.includes('spreadsheetml')) {
+        throw Error('No se pudo exportar. Vuelve a cargar Caja Chica e inténtalo de nuevo.');
+      }
+      const url = URL.createObjectURL(await respuesta.blob());
+      const descarga = el('a');
+      descarga.href = url;
+      descarga.download = 'Caja-Chica.xlsx';
+      descarga.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      exportando = false;
+      excel.disabled = !base().length;
+    }
+  });
+  function pintar() {
+    document.querySelectorAll('.cc-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
+    document.querySelectorAll('[data-cuenta]').forEach(c => { c.textContent = solicitudes.filter(s => s.etapas.includes(c.dataset.cuenta)).length; });
+    // Plata acumulada de cada etapa: suma del total solicitado de sus solicitudes.
+    document.querySelectorAll('[data-plata]').forEach(p => {
+      const suma = solicitudes.filter(s => s.etapas.includes(p.dataset.plata)).reduce((t, s) => t + Number(s.total || 0), 0);
+      p.textContent = 'S/ ' + suma.toLocaleString('es-PE', {minimumFractionDigits: suma >= 1000 || !suma ? 0 : 2, maximumFractionDigits: suma >= 1000 ? 0 : 2});
+      p.title = 'Total acumulado: ' + dinero(suma);
+    });
+    pintarEncabezado();
+    const lista = $('cc-lista'); lista.replaceChildren();
+    const visibles = base();
+    const idsVisibles = new Set(visibles.map(sol => sol.id));
+    for (const id of seleccionadas) if (!idsVisibles.has(id)) seleccionadas.delete(id);
+    estadoEliminar();
+    excel.disabled = exportando || !visibles.length;
+    if (!visibles.length) {
+      const hayFiltros = Object.keys(filtros).length || Object.keys(busquedas).length || $('cc-buscar').value.trim();
+      lista.append(el('p', 'cc-vacio', hayFiltros && solicitudes.some(s => s.etapas.includes(tab)) ? 'Ninguna solicitud coincide con los filtros.' : 'No hay solicitudes en esta etapa.'));
+      return;
+    }
+    for (const sol of visibles) {
+      const s = el('div', 'cc-card cc-resumen cc-fila-solicitud');
+      if (puedeEliminar) {
+        const celda = el('span', 'cc-seleccion');
+        const check = Object.assign(el('input'), {type: 'checkbox', checked: seleccionadas.has(sol.id)});
+        check.setAttribute('aria-label', 'Seleccionar ' + sol.codigo);
+        check.addEventListener('change', () => {
+          if (check.checked) seleccionadas.add(sol.id);
+          else seleccionadas.delete(sol.id);
+          estadoEliminar();
+        });
+        celda.append(check);
+        s.append(celda);
+      }
+      for (const id of columnas) { const col = COLUMNAS[id]; s.append(col.celda ? col.celda(sol) : el('span', col.clase || null, col.texto(sol))); }
+      s.append(accionesRapidas(sol));
+      lista.append(s);
+    }
+  }
+  async function cargar() {
+    const r = await fetch('/api/caja-chica/solicitudes'); const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $('cc-lista').replaceChildren(el('p', 'cc-alerta', j.error || 'No se pudo cargar Caja Chica.')); return; }
+    solicitudes = j.solicitudes; pintar();
+  }
+  // Los filtros de columna se aplican a la etapa elegida: al cambiar de etapa se limpian.
+  document.querySelectorAll('.cc-tab').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; filtros = {}; busquedas = {}; seleccionadas.clear(); try { localStorage.setItem('cc-tab', tab); } catch (_) {} pintar(); }));
+  $('cc-buscar').addEventListener('input', pintar);
+
+  // Engranaje: menú de opciones. Para agregar una opción, un botón con data-accion en la
+  // plantilla y su caso aquí.
+  const ajustes = $('cc-ajustes-btn'), menu = $('cc-ajustes-menu');
+  const cerrarMenu = () => { menu.hidden = true; ajustes.setAttribute('aria-expanded', 'false'); };
+  ajustes.addEventListener('click', e => {
+    e.stopPropagation();
+    const abrir = menu.hidden; menu.hidden = !abrir; ajustes.setAttribute('aria-expanded', String(abrir));
+    if (abrir) menu.querySelector('button:not(:disabled)')?.focus();
+  });
+  menu.addEventListener('click', e => {
+    const opcion = e.target.closest('[data-accion]'); if (!opcion) return;
+    e.stopPropagation(); cerrarMenu();
+    if (opcion.dataset.accion === 'catalogo') {
+      location.assign(opcion.dataset.url);
+      return;
+    }
+    if (opcion.dataset.accion === 'limpiar') {
+      filtros = {}; busquedas = {}; $('cc-buscar').value = ''; $('cc-filtro').hidden = true;
+    } else if (opcion.dataset.accion === 'restablecer') {
+      columnas = Object.keys(COLUMNAS); anchos = {}; guardar();
+    }
+    pintar();
+  });
+  document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) cerrarMenu(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { cerrarMenu(); ajustes.focus(); } });
+  pintarEncabezado();
+  cargar();
+})();

@@ -124,6 +124,68 @@ class KpiConfig(db.Model):
     tipo = db.Column(db.String(20), default='DILACION')
 
 
+class ClaveTecnico(db.Model):
+    """Clave del portal de técnicos (personal ACTIVO de Dataper).
+
+    Sin fila, la clave es el documento y se exige cambiarla al ingresar.
+    """
+    __tablename__ = 'claves_tecnico'
+    documento = db.Column(db.String(20), primary_key=True)
+    clave_hash = db.Column(db.String(255), nullable=False)
+    cambiada_en = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CajaChicaSolicitud(db.Model):
+    """Caja Chica: módulo aislado de Rendición (solicitud del técnico por ítems)."""
+    __tablename__ = 'caja_chica_solicitudes'
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(20), unique=True)
+    documento = db.Column(db.String(20), nullable=False, index=True)
+    tecnico = db.Column(db.String(150), nullable=False)
+    proyecto = db.Column(db.String(20), nullable=False, index=True)
+    motivo = db.Column(db.Text, nullable=False)
+    banco = db.Column(db.String(60), nullable=False)
+    cuenta = db.Column(db.String(40), nullable=False)
+    # PENDIENTE → VALIDADO → DEPOSITADO → (POR_DEVOLVER) → ARCHIVADO | RECHAZADO | ANULADO
+    estado = db.Column(db.String(20), nullable=False, default='PENDIENTE', index=True)
+    total = db.Column(db.Numeric(12, 2), nullable=False)
+    creado = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    validado_por = db.Column(db.String(100))
+    validado_en = db.Column(db.DateTime)
+    motivo_rechazo = db.Column(db.Text)
+    deposito_fecha = db.Column(db.String(10))
+    deposito_monto = db.Column(db.Numeric(12, 2))
+    deposito_foto = db.Column(db.String(120))
+    depositado_por = db.Column(db.String(100))
+    devolucion_monto = db.Column(db.Numeric(12, 2))
+    devolucion_foto = db.Column(db.String(120))
+    archivado_en = db.Column(db.DateTime)
+    historial = db.Column(db.Text, nullable=False, default='[]')
+    items = db.relationship('CajaChicaItem', backref='solicitud', order_by='CajaChicaItem.numero',
+                            cascade='all, delete-orphan')
+
+
+class CajaChicaItem(db.Model):
+    """Cada ítem se rinde y se revisa por separado."""
+    __tablename__ = 'caja_chica_items'
+    id = db.Column(db.Integer, primary_key=True)
+    solicitud_id = db.Column(db.Integer, db.ForeignKey('caja_chica_solicitudes.id'), nullable=False, index=True)
+    numero = db.Column(db.Integer, nullable=False)
+    tipo_gasto = db.Column(db.String(80), nullable=False)
+    descripcion = db.Column(db.String(300), nullable=False, default='')
+    monto = db.Column(db.Numeric(12, 2), nullable=False)
+    # POR_RENDIR → EN_REVISION → APROBADO | RECHAZADO (vuelve a rendirse)
+    estado = db.Column(db.String(20), nullable=False, default='POR_RENDIR')
+    ruc = db.Column(db.String(11))
+    comprobante = db.Column(db.String(40))
+    monto_gastado = db.Column(db.Numeric(12, 2))
+    fotos = db.Column(db.Text, nullable=False, default='[]')
+    rendido_en = db.Column(db.DateTime)
+    motivo_rechazo = db.Column(db.Text)
+    revisado_por = db.Column(db.String(100))
+    revisado_en = db.Column(db.DateTime)
+
+
 class HistorialCambios(db.Model):
     __tablename__ = 'historial_cambios'
     id = db.Column(db.Integer, primary_key=True)

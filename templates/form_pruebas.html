@@ -1,20 +1,38 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"></head>
 <body>
-<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Pruebas</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
+<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
 <main class="shell">
-<div class="notice">Espacio de prueba. Tus envíos no modifican la Rendición actual.</div>
+{% macro form_clave(obligatorio) -%}
+<section id="cambiar-clave" class="{{ 'login card' if obligatorio else 'view' }}"{% if not obligatorio %} hidden{% endif %}>
+{% if not obligatorio %}<button class="back" data-go="home" type="button"><span class="back-icon" aria-hidden="true">←</span>Volver</button>{% endif %}
+<div class="eyebrow">SEGURIDAD</div><h1>{{ 'Crea tu nueva clave.' if obligatorio else 'Cambiar clave.' }}</h1>
+<p>{{ 'Por seguridad debes cambiar tu clave: la primera vez y cada 30 días.' if obligatorio else 'Tu clave vence cada 30 días.' }}</p>
+<form id="form-clave"{% if not obligatorio %} class="card"{% endif %} novalidate>
+<label for="clave-actual">Clave actual</label><input id="clave-actual" name="actual" type="password" autocomplete="current-password" required>
+<label for="clave-nueva">Nueva clave</label><input id="clave-nueva" name="nueva" type="password" autocomplete="new-password" minlength="6" required>
+<label for="clave-confirmar">Repite la nueva clave</label><input id="clave-confirmar" name="confirmar" type="password" autocomplete="new-password" minlength="6" required>
+<p class="hint">Mínimo 6 caracteres. No puede ser tu documento.</p>
+<div class="error" role="alert" tabindex="-1" hidden></div>
+<button class="primary wide" type="submit">Guardar clave</button>
+</form></section>
+{%- endmacro %}
 {% if not autenticado %}
-<section class="login card"><div class="eyebrow">TU ESPACIO DE TRABAJO</div><h1>Solicita.<br>Rinde.<br>Así de fácil.</h1><p>Ingresa con tu documento registrado en Personal.</p>
-<form id="login" novalidate><label for="documento">Documento</label><input id="documento" name="documento" inputmode="numeric" autocomplete="username" maxlength="15" required placeholder="Tu número de documento"><label for="clave">Clave</label><div class="password"><input id="clave" name="clave" type="password" autocomplete="current-password" required placeholder="En pruebas, tu documento"><button type="button" id="ver-clave" class="quiet">Mostrar</button></div><p class="hint">Durante las pruebas, el usuario y la clave son tu documento. Debes estar ACTIVO en Personal.</p><div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Ingresar <span aria-hidden="true">→</span></button></form></section>
+<section class="login card"><div class="eyebrow">TU ESPACIO DE TRABAJO</div><h1>Solicita.<br>Rinde.<br>Así de fácil.</h1><p>Ingresa con tu documento registrado en Dataper.</p>
+<form id="login" novalidate><label for="documento">Documento</label><input id="documento" name="documento" inputmode="numeric" autocomplete="username" maxlength="15" required placeholder="Tu número de documento"><label for="clave">Clave</label><div class="password"><input id="clave" name="clave" type="password" autocomplete="current-password" required placeholder="Tu clave"><button type="button" id="ver-clave" class="quiet">Mostrar</button></div><p class="hint">Tu primera clave es tu documento; al ingresar te pediremos cambiarla. Debes estar ACTIVO en Dataper.</p><div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Ingresar <span aria-hidden="true">→</span></button></form></section>
+{% elif debe_cambiar %}
+{{ form_clave(True) }}
 {% else %}
 <div id="cargando" role="status">Cargando tu información…</div>
 <section id="portal" hidden>
 <section id="home" class="view"><div class="greeting"><div class="eyebrow" id="proyecto"></div><h1>Hola, <span id="nombre"></span><span class="dot">.</span></h1></div>
-<div class="balance"><span class="balance-label">TOTAL POR RENDIR · PRUEBAS</span><div id="total" class="big-money">S/ 0.00</div><p id="cantidad"></p></div>
-<div class="actions"><button type="button" class="action request-action" data-go="solicitud"><span class="action-icon" aria-hidden="true">＋</span><span><strong>Solicitar</strong><small>Pide dinero para tu trabajo</small></span><span aria-hidden="true">↗</span></button><button type="button" class="action" data-go="rendicion"><span class="action-icon" aria-hidden="true">✓</span><span><strong>Rendir</strong><small>Envía tus comprobantes y fotos</small></span><span aria-hidden="true">↗</span></button></div>
+<!-- Solicitar y Rendir trabajan sobre Caja Chica: lo que envía el técnico llega a la gestión de Caja Chica. -->
+<div class="actions"><a class="action request-action" href="/form-pruebas/caja-chica#nueva"><span class="action-icon" aria-hidden="true">＋</span><span><strong>Solicitar</strong><small>Pide dinero para tu trabajo</small></span><span aria-hidden="true">↗</span></a><a class="action" href="/form-pruebas/caja-chica"><span class="action-icon" aria-hidden="true">✓</span><span><strong>Rendir</strong><small>Envía tus comprobantes y fotos</small></span><span aria-hidden="true">↗</span></a></div>
+<button type="button" class="quiet" data-go="cambiar-clave">Cambiar clave</button>
 <div id="avisos-pago" role="status" hidden></div>
-<div id="recientes" hidden><h2>Tus últimos envíos de prueba</h2><div id="lista-recientes"></div></div></section>
+<!-- Elementos del flujo anterior: se conservan ocultos porque form-pruebas.js aún los rellena. -->
+<div hidden><div class="balance"><div id="total" class="big-money">S/ 0.00</div><p id="cantidad"></p></div>
+<div id="recientes" hidden><div id="lista-recientes"></div></div></div></section>
 <section id="solicitud" class="view" hidden><button class="back" data-go="home" type="button"><span class="back-icon" aria-hidden="true">←</span>Volver</button><div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1><p>Completa los datos. Aquí no necesitas adjuntar fotos.</p><form id="solicitar" class="card" novalidate>
 <fieldset class="request-group"><legend>Datos del técnico</legend>
 <label for="sol-proyecto">Proyecto</label><select id="sol-proyecto" name="proyecto" required><option value="">Selecciona un proyecto</option></select>
@@ -109,6 +127,7 @@
 <p class="error aviso-rendir"><strong>Importante</strong><br>Eres responsable de los comprobantes que envías. Las fotos repetidas se marcan para revisión. Presentar información falsa o comprobantes adulterados puede dar lugar a medidas correctivas o sanciones disciplinarias, según la gravedad del caso.</p>
 <div class="error" role="alert" tabindex="-1" hidden></div><button class="primary wide" type="submit">Enviar rendición de prueba <span aria-hidden="true">→</span></button>
 </form></section>
+{{ form_clave(False) }}
 <section id="exito" class="view" hidden><div class="card success"><div class="success-icon" aria-hidden="true">✓</div><div class="eyebrow">ENVÍO DE PRUEBA GUARDADO</div><h1>¡Listo!</h1><p id="mensaje-exito"></p>
 <div class="deposit-summary"><span id="codigo-etiqueta">Código de depósito de prueba</span><strong id="codigo-exito"></strong><div id="total-exito-grupo"><span>Monto total solicitado</span><strong id="total-exito"></strong></div></div>
 <p id="aviso-rendicion" class="notice">Tienes 24 horas desde que recibes el depósito para rendir. Solo se aceptan boletas y facturas. No se aceptan recibos por honorarios.</p>
@@ -118,4 +137,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=27) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=28) }}" defer></script></body></html>

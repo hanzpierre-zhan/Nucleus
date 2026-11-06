@@ -176,6 +176,10 @@ def create_app(config_object=None):
 
         startup_stage('Comprobando correlativos de cotizaciones')
         instalar_correlativos()
+        from services.caja_chica import instalar as instalar_caja_chica
+
+        startup_stage('Configurando Caja Chica')
+        instalar_caja_chica()
 
     startup_stage('Aplicación lista')
     return app

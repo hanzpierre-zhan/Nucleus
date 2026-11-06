@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Conceptos de gasto · Caja Chica{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/caja-chica.css', v=25) }}">
+<section class="cc-gestion cc-catalogo">
+  <form id="cc-catalogo" data-csrf="{{ csrf }}">
+    <div class="cc-barra cc-catalogo-acciones">
+      <a class="cc-concepto-boton" href="{{ url_for('caja_chica.gestion') }}" title="Volver a Caja Chica" aria-label="Volver a Caja Chica">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+      </a>
+      <h1>Conceptos de gasto</h1>
+      <button class="cc-concepto-boton" type="button" id="cc-catalogo-agregar" title="Agregar concepto" aria-label="Agregar concepto">
+        <i class="fa-solid fa-plus" aria-hidden="true"></i>
+      </button>
+      <button class="cc-concepto-boton" type="submit" title="Guardar cambios" aria-label="Guardar cambios">
+        <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="cc-tabla">
+      <table aria-label="Conceptos de gasto">
+        <thead><tr>
+          <th scope="col">Opción</th>
+          <th scope="col">Comentario</th>
+          {% for p in proyectos %}<th scope="col">{{ p if p == 'PEXT' else p.title() }}</th>{% endfor %}
+          <th scope="col">Correo</th>
+          <th scope="col">Cotización</th>
+          <th scope="col">Eliminar</th>
+        </tr></thead>
+        <tbody id="cc-catalogo-filas"></tbody>
+      </table>
+    </div>
+    <span id="cc-catalogo-mensaje" role="status"></span>
+  </form>
+  <template id="cc-catalogo-fila">
+    <tr>
+      <td><input name="nombre" aria-label="Opción" maxlength="80" required></td>
+      <td>
+        <input type="hidden" name="descripcion">
+        <button type="button" class="cc-comentario" data-comentario aria-label="Editar comentario"></button>
+      </td>
+      {% for p in proyectos %}
+      <td><select data-proyecto="{{ p }}" aria-label="Clasificación para {{ p }}">
+        <option>Gasto Cobra</option><option>Refacturable</option>
+      </select></td>
+      {% endfor %}
+      <td><select name="correo" aria-label="Pedir correo de quien valida">
+        <option value="no" selected>No</option><option value="si">Sí</option>
+      </select></td>
+      <td><select name="cotizacion" aria-label="Pedir número de cotización">
+        <option value="no" selected>No</option><option value="si">Sí</option>
+      </select></td>
+      <td><button class="cc-concepto-boton" type="button" data-quitar title="Eliminar concepto" aria-label="Eliminar concepto">
+        <i class="fa-solid fa-trash" aria-hidden="true"></i>
+      </button></td>
+    </tr>
+  </template>
+  <dialog id="cc-comentario-dialogo" aria-labelledby="cc-comentario-titulo">
+    <form method="dialog">
+      <h2 id="cc-comentario-titulo">Editar comentario</h2>
+      <textarea aria-label="Comentario para el técnico" maxlength="300" rows="5" autofocus></textarea>
+      <div class="cc-acciones">
+        <button type="submit" value="cancelar">Cancelar</button>
+        <button type="submit" value="aplicar">Aplicar</button>
+      </div>
+    </form>
+  </dialog>
+  <script id="cc-catalogo-datos" type="application/json">{{ catalogo | tojson }}</script>
+</section>
+<script src="{{ url_for('static', filename='js/caja-chica-catalogo.js', v=5) }}" defer></script>
+{% endblock %}

@@ -20,6 +20,7 @@ from werkzeug.utils import secure_filename
 from models import AccesoProyecto, Proyecto, Usuario
 from services import login_required
 from services import formularios_prueba as piloto
+from services import claves_tecnico as claves
 from services.recursos_flm import FLM_NOMBRES, familia
 
 bp = Blueprint('form_pruebas', __name__, url_prefix='/form-pruebas')
@@ -152,6 +153,9 @@ def tecnico(fn):
             session.pop('form_documento', None)
             session.pop('form_personal_id', None)
             return jsonify(error='Tu sesión venció. Vuelve a ingresar.'), 401
+        # Clave inicial o vencida: solo se permite crear la nueva.
+        if session.get('form_debe_cambiar') and request.endpoint != 'form_pruebas.cambiar_clave':
+            return jsonify(error='Debes cambiar tu clave para continuar.', codigo='CAMBIAR_CLAVE'), 403
         g.tecnico = person
         return fn(*args, **kwargs)
     return wrapped
@@ -161,6 +165,7 @@ def tecnico(fn):
 def inicio():
     csrf()
     return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
+                           debe_cambiar=bool(session.get('form_debe_cambiar')),
                            catalogo_gastos=CATALOGO_GASTOS,
                            bancos=BANCOS)
 
@@ -191,9 +196,24 @@ def ingresar():
         start = previous['inicio'] if previous and now - previous['inicio'] < 60 else now
         con.execute('INSERT OR REPLACE INTO intentos VALUES(?,?,?)', (key, count, start))
     person = piloto.buscar_personal(doc) if re.fullmatch(r'[A-Z0-9]{6,15}', doc) else None
-    if not person or not hmac.compare_digest(doc, password):
+    if not person or not claves.verificar(doc, password):
         return jsonify(error='Documento o clave incorrectos, o personal no habilitado. Consulta con tu supervisor.'), 401
     iniciar_tecnico(person)
+    session['form_debe_cambiar'] = claves.debe_cambiar(doc)
+    return jsonify(success=True, debe_cambiar=session['form_debe_cambiar'])
+
+
+@bp.post('/clave')
+@tecnico
+def cambiar_clave():
+    data = request.get_json(silent=True) or {}
+    doc = g.tecnico['documento']
+    actual, nueva, confirmar = (str(data.get(k) or '') for k in ('actual', 'nueva', 'confirmar'))
+    error = claves.error_nueva(doc, actual, nueva, confirmar)
+    if error:
+        return jsonify(error=error), 400
+    claves.cambiar(doc, nueva)
+    session['form_debe_cambiar'] = False
     return jsonify(success=True)
 
 

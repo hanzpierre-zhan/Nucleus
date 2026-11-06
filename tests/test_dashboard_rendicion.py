@@ -103,7 +103,7 @@ def test_ruta_dashboard_rendicion(app, auth_client):
                 auth_client.get('/switch_project/%s' % flm.id)
                 html = auth_client.get('/configuraciones').get_data(as_text=True)
                 assert 'flm-resource-bar' not in html
-                assert 'sidebar-link-text">Personal</span>' in html
+                assert 'sidebar-link-text">Dataper</span>' in html
                 for ruta in ('/analytics/gerencial', '/analytics/cotizaciones', '/analytics/rendicion'):
                     assert 'flm-resource-bar' not in auth_client.get(ruta).get_data(as_text=True), ruta
         finally:

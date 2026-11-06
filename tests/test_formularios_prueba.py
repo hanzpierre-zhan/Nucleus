@@ -33,7 +33,8 @@ def portal(tmp_path):
         db.session.add_all([personal, rendicion]); db.session.flush()
         for doc, name, status in [('00001111', 'Ana Prueba', 'ACTIVO'),
                                   ('00002222', 'Luis Prueba', 'ACTIVO'),
-                                  ('00003333', 'Cesado Prueba', 'CESADO')]:
+                                  ('00003333', 'Cesado Prueba', 'CESADO'),
+                                  ('00004444', 'Nuevo Prueba', 'ACTIVO')]:
             db.session.add(NucleusData(proyecto_id=personal.id, key_value=doc,
                 data_json=json.dumps(dict(DOCUMENTO=doc, TECNICO=name, ESTADO=status,
                                           PROYECTO='FLM - ENTEL', DEPARTAMENTO='LIMA'))))
@@ -44,6 +45,12 @@ def portal(tmp_path):
                 data_json=json.dumps({'Documento del beneficiario':doc,
                                       'CODIGO DEPOSITO':'DEP-'+key,'MONTO PAGO':amount,
                                       'ESTADO':status,'Motivo de la solicitud':'Atención de prueba'})))
+        # Clave vigente (igual al documento) para los técnicos de los demás tests;
+        # 00004444 no tiene clave guardada: ingresa con su DNI y debe cambiarla.
+        from werkzeug.security import generate_password_hash
+        from models import ClaveTecnico
+        for doc in ('00001111', '00002222', '00003333'):
+            db.session.add(ClaveTecnico(documento=doc, clave_hash=generate_password_hash(doc)))
         db.session.commit()
     yield app
     with app.app_context():
@@ -529,3 +536,45 @@ def test_por_rendir_agrupa_y_ordena_depositos_del_proyecto(portal):
     assert 'DEP-p1' in respuesta.text and 'DEP-p2' in respuesta.text
     assert 'DEP-p3' not in respuesta.text and 'DEP-FUERA' not in respuesta.text
     assert fuente(portal) == antes
+
+
+def test_clave_inicial_obliga_a_cambiarla_y_vence_al_mes(portal):
+    from datetime import datetime, timedelta
+    from models import ClaveTecnico
+    client = portal.test_client()
+    r = entrar(client, '00004444')
+    assert r.status_code == 200 and r.json['debe_cambiar'] is True
+    assert b'id="form-clave"' in client.get('/form-pruebas/').data
+    assert client.get('/form-pruebas/datos').status_code == 403  # solo puede cambiar la clave
+    for cuerpo, error in (({'actual': 'x', 'nueva': 'abc12345', 'confirmar': 'abc12345'}, 'actual'),
+                          ({'actual': '00004444', 'nueva': 'abc', 'confirmar': 'abc'}, '6'),
+                          ({'actual': '00004444', 'nueva': 'abc12345', 'confirmar': 'otra123'}, 'confirmación'),
+                          ({'actual': '00004444', 'nueva': '00004444', 'confirmar': '00004444'}, 'documento')):
+        r = client.post('/form-pruebas/clave', json=cuerpo, headers=headers(client))
+        assert r.status_code == 400 and error in r.json['error'], r.json
+    r = client.post('/form-pruebas/clave', json={'actual': '00004444', 'nueva': 'Segura-2026', 'confirmar': 'Segura-2026'},
+                    headers=headers(client))
+    assert r.status_code == 200, r.json
+    assert client.get('/form-pruebas/datos').status_code == 200
+    # El DNI ya no sirve; la nueva clave sí y no pide cambio
+    otro = portal.test_client()
+    assert entrar(otro, '00004444').status_code == 401
+    r = entrar(otro, '00004444', 'Segura-2026')
+    assert r.status_code == 200 and r.json['debe_cambiar'] is False
+    # Pasados 30 días vuelve a exigir el cambio
+    with portal.app_context():
+        registro = db.session.get(ClaveTecnico, '00004444')
+        registro.cambiada_en = datetime.utcnow() - timedelta(days=31); db.session.commit()
+    r = entrar(portal.test_client(), '00004444', 'Segura-2026')
+    assert r.json['debe_cambiar'] is True
+
+
+def test_restablecer_vuelve_al_documento(portal):
+    from services import claves_tecnico
+    client = portal.test_client()
+    assert entrar(client, '00001111', 'no-es').status_code == 401
+    with portal.app_context():
+        claves_tecnico.cambiar('00001111', 'Otra-clave-1')
+        claves_tecnico.restablecer('00001111'); db.session.commit()
+    r = entrar(portal.test_client(), '00001111')
+    assert r.status_code == 200 and r.json['debe_cambiar'] is True

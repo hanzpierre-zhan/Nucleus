@@ -23,7 +23,8 @@ def test_supervisor_abre_gerencial_con_piloto_activo(app, auth_client, cambiar_r
     cambiar_rol(auth_client, 'supervisor')
     respuesta = auth_client.get('/analytics/gerencial')
     assert respuesta.status_code == 200
-    assert 'Validación · Pruebas' in respuesta.text
+    # Las solicitudes del portal llegan a Caja Chica: ya no hay bandeja "Validación · Pruebas".
+    assert 'Validación · Pruebas' not in respuesta.text
 
 
 def test_gerencial_cruza_carteras_y_respeta_restricciones(app, auth_client):

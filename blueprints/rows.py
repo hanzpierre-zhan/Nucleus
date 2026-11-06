@@ -79,6 +79,30 @@ def _error_fechas_ejecucion(datos):
 
 
 
+@bp.route('/api/dataper/clave/restablecer', methods=['POST'])
+@login_required
+def api_dataper_restablecer_clave():
+    """Personal administrativo con Dataper: la clave del portal vuelve al documento."""
+    rol = str(session.get('rol') or '').strip().lower()
+    if rol in ('demo', 'contrata'):
+        return jsonify({'error': 'Tu rol no permite restablecer claves.'}), 403
+    from services.utilidades import get_menu_proyectos
+    dataper = next((p for p in get_menu_proyectos(session.get('user_id'), rol) if p.nombre == 'Dataper'), None)
+    if dataper is None:
+        return jsonify({'error': 'No tienes acceso a Dataper.'}), 403
+    key = str((request.get_json(silent=True) or {}).get('key') or '').strip()
+    if not key or not NucleusData.query.filter_by(proyecto_id=dataper.id, key_value=key).first():
+        return jsonify({'error': 'Personal no encontrado en Dataper.'}), 404
+    from services import claves_tecnico
+    from services.formularios_prueba import documento
+    claves_tecnico.restablecer(documento(key))
+    db.session.add(HistorialCambios(proyecto_id=dataper.id, usuario_id=session.get('user_id'),
+                                    username=audit_user(), key_value=key, campo_modificado='CLAVE PORTAL',
+                                    valor_anterior='', valor_nuevo='Restablecida al documento'))
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 @bp.route('/api/rows/update', methods=['POST'])
 @login_required
 def api_rows_update():

@@ -146,3 +146,6 @@
 .expense-classification, .expense-criterion { display: block; }
 .expense-classification { color: var(--ink); font-size: 11px; }
 .expense-criterion { color: var(--muted); font-size: 11px; font-weight: 400; }
+
+/* Caja Chica: la tarjeta del inicio es un enlace. */
+a.action{text-decoration:none;color:inherit}

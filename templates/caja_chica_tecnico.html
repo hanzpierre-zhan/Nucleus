@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Caja Chica · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-tecnico.css',v=1) }}"></head>
+<body>
+<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Caja Chica</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
+<main class="shell">
+<div id="cargando" role="status">Cargando tu información…</div>
+
+<section id="cc-inicio" class="view" hidden>
+  <a class="back" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Inicio</a>
+  <div class="eyebrow">CAJA CHICA</div><h1>Tus solicitudes.</h1>
+  <p>Solicita por ítems y rinde cada ítem con su comprobante.</p>
+  <button type="button" class="primary wide" id="cc-nueva">＋ Nueva solicitud</button>
+  <div id="cc-lista"></div>
+</section>
+
+<section id="cc-solicitud" class="view" hidden>
+  <button class="back" type="button" data-cc-volver><span class="back-icon" aria-hidden="true">←</span>Volver</button>
+  <div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1>
+  <form id="cc-form" class="card" novalidate>
+    <p id="cc-rechazo" class="notice" hidden></p>
+    <fieldset><legend>Datos del técnico</legend>
+    <label for="cc-proyecto">Proyecto</label>
+    <select id="cc-proyecto" name="proyecto" required>{% for p in proyectos %}<option value="{{ p }}">{{ p if p == 'PEXT' else p.title() }}</option>{% endfor %}</select>
+    <label for="cc-dni">DNI</label><input id="cc-dni" readonly>
+    <label for="cc-tecnico">Nombre del técnico</label><input id="cc-tecnico" readonly>
+    <label for="cc-supervisor">Supervisor</label><input id="cc-supervisor" readonly>
+    </fieldset>
+    <fieldset><legend>Datos de la solicitud</legend>
+    <h2 class="cc-subtitulo">¿Qué necesitas solicitar?</h2>
+    <div id="cc-items"></div>
+    <button type="button" class="quiet" id="cc-agregar">＋ Agregar ítem</button>
+    <label for="cc-site">Nombre de site</label><input id="cc-site" name="site" maxlength="150">
+    <label for="cc-wo">Número CM / PM / PLM</label><input id="cc-wo" name="wo" maxlength="100">
+    <label for="cc-responsable">Responsable de la validación</label><select id="cc-responsable" name="responsable_validacion"></select>
+    <label for="cc-motivo">Justificar la solicitud</label>
+    <textarea id="cc-motivo" name="motivo" maxlength="500" rows="2" required></textarea>
+    </fieldset>
+    <fieldset><legend>Datos del depósito</legend>
+    <label for="cc-cuenta">CCI o número de cuenta</label>
+    <input id="cc-cuenta" name="cuenta" inputmode="numeric" maxlength="40" required>
+    <label for="cc-banco">Banco</label>
+    <select id="cc-banco" name="banco" required><option value="">Selecciona un banco</option>{% for b in bancos %}<option>{{ b }}</option>{% endfor %}</select>
+    <label for="cc-titular">Titular de la cuenta</label><input id="cc-titular" name="titular" maxlength="150">
+    </fieldset>
+    <fieldset><legend>Billetera digital</legend>
+    <label for="cc-billetera">Tipo de billetera</label>
+    <select id="cc-billetera" name="tipo_billetera"><option>No aplica</option><option>Yape</option><option>Plin</option></select>
+    <div id="cc-billetera-numero" hidden>
+      <label for="cc-numero-billetera">Número de Yape / Plin</label>
+      <input id="cc-numero-billetera" name="numero_billetera" inputmode="numeric" maxlength="9" disabled>
+    </div>
+    </fieldset>
+    <div class="cc-total"><span>Total solicitado</span><strong id="cc-total">S/ 0.00</strong></div>
+    <div class="error" role="alert" tabindex="-1" hidden></div>
+    <button class="primary wide" type="submit">Enviar solicitud</button>
+  </form>
+</section>
+
+<template id="cc-item-plantilla">
+  <div class="cc-item">
+    <div class="cc-item-cabecera"><strong></strong><button type="button" class="quiet cc-quitar">Quitar</button></div>
+    <label>Tipo de gasto</label>
+    <select data-campo="tipo_gasto" required><option value="">Selecciona</option></select>
+    <p class="notice" data-regla hidden></p>
+    <div data-correo hidden>
+      <label>Correo de quien valida el gasto</label>
+      <input data-campo="correo_validador" type="email" maxlength="254" autocomplete="off" disabled>
+    </div>
+    <label>Descripción (opcional)</label>
+    <input data-campo="descripcion" maxlength="300" placeholder="Ej.: Peaje Pasamayo ida y vuelta">
+    <label>Monto (S/)</label>
+    <input data-campo="monto" inputmode="decimal" maxlength="12" required placeholder="0.00">
+  </div>
+</template>
+
+<input id="csrf" type="hidden" value="{{ csrf }}">
+</main>
+<footer>NUCLEUS · Caja Chica</footer>
+<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=5) }}" defer></script></body></html>

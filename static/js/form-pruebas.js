@@ -11,7 +11,7 @@
   async function api(path, options={}) {
     const response=await fetch(base+path,{credentials:'same-origin',...options,headers:{'X-CSRF-Token':token(),...(options.headers||{})}});
     let data;try{data=await response.json();}catch{throw Error('No se pudo leer la respuesta. Revisa tu conexión y vuelve a intentar.');}
-    if(!response.ok){if(response.status===401 && !$('login'))location.reload();throw Error(data.error||'No se pudo completar el envío.');}
+    if(!response.ok){if((response.status===401 && !$('login'))||(response.status===403 && data.codigo==='CAMBIAR_CLAVE' && !$('form-clave')?.closest('.login')))location.reload();throw Error(data.error||'No se pudo completar el envío.');}
     return data;
   }
   function showError(form,message){const box=form.querySelector('.error');box.textContent=message;box.hidden=false;box.focus();}
@@ -20,6 +20,8 @@
   document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>go(button.dataset.go)));
   $('ver-clave')?.addEventListener('click',()=>{const input=$('clave');input.type=input.type==='password'?'text':'password';$('ver-clave').textContent=input.type==='password'?'Mostrar':'Ocultar';});
   $('login')?.addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;sending(form,async()=>{await api('/ingresar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});location.reload();});});
+  // Cambio de clave: obligatorio (clave inicial o vencida) o desde el inicio.
+  $('form-clave')?.addEventListener('submit',event=>{event.preventDefault();const form=event.currentTarget;if(!form.reportValidity())return;sending(form,async()=>{await api('/clave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});form.reset();if(form.closest('.login'))location.reload();else{alert('Tu clave se actualizó.');go('home');}});});
   $('salir')?.addEventListener('click',async()=>{try{await api('/salir',{method:'POST'});location.reload();}catch(error){alert(error.message);}});
   const fechaLima = new Intl.DateTimeFormat('es-PE', {
     dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima'

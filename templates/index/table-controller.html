@@ -3791,6 +3791,32 @@ let _rendCambiandoVista = false;
 
     tableColumns.push(...restColumns);
 
+    // Dataper: restablecer la clave del portal de técnicos a su documento.
+    if (_projNorm === 'dataper') {
+        tableColumns.push({
+            field: '_clave_portal', title: 'Clave portal', headerSort: false, width: 130, minWidth: 120,
+            formatter: function (cell) {
+                const key = cell.getRow().getData()._key;
+                const boton = document.createElement('button');
+                boton.type = 'button'; boton.className = 'action-pill pill-neutral';
+                boton.title = 'La clave vuelve a ser su documento; deberá cambiarla al ingresar.';
+                boton.innerHTML = '<i class="fa-solid fa-key" aria-hidden="true"></i> Restablecer';
+                boton.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!await nucleusConfirm('¿Restablecer la clave del portal de ' + key + '? Será su documento y deberá cambiarla al ingresar.')) return;
+                    boton.disabled = true;
+                    try {
+                        const r = await fetch('/api/dataper/clave/restablecer', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key})});
+                        const j = await nucleusLeerRespuestaJSON(r);
+                        if (!r.ok) throw new Error(j.error || 'No se pudo restablecer la clave.');
+                        nucleusAlert('Clave restablecida: ahora es el documento ' + key + '.');
+                    } catch (error) { nucleusAlert(error.message); } finally { boton.disabled = false; }
+                });
+                return boton;
+            },
+        });
+    }
+
 
 
     // ── Fotos y enlaces: en vez del texto/URL crudo, un botón que abre el

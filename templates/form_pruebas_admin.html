@@ -1,22 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <section style="max-width:1100px;margin:24px auto;padding:16px">
-<h1>Form · Pruebas</h1><p>Portal móvil independiente para Solicitar y Rendir. Personal y Rendición se consultan en lectura. Los envíos de prueba no llegan al flujo operativo ni a Google Forms.</p>
-{% if habilitado %}<p><a href="{{ url_for('form_pruebas.gestion', bandeja='validacion') }}">Abrir Validación móvil</a> · <a href="{{ url_for('form_pruebas.gestion', bandeja='depositos') }}">Abrir Depósitos móvil</a></p>{% endif %}
-{% if habilitado %}<p><a class="mar-btn-primary" href="{{ url_for('form_pruebas.inicio') }}" target="_blank" rel="noopener">Abrir portal de técnicos</a></p><p>Enlace para compartir: <code>{{ url_for('form_pruebas.inicio', _external=True) }}</code>. Usuario y clave inicial de prueba: documento de Personal ACTIVO. Usa una ventana privada para conservar tu sesión administrativa.</p>{% else %}<p>El piloto está deshabilitado. Habilitarlo permite ingresar con documento y clave inicial iguales al documento. No cambia los usuarios, los datos operativos ni Google Forms.</p><form method="post"><input type="hidden" name="csrf" value="{{ session.get('form_csrf','') }}"><input type="hidden" name="accion" value="habilitar"><button class="mar-btn-primary" type="submit">Habilitar portal de pruebas</button></form>{% endif %}
-<p>Los registros y fotos de prueba usan el almacenamiento local del servidor. Sin un disco persistente, pueden borrarse al redesplegar o reiniciar Render. Los datos operativos permanecen en su base actual.</p>
-<h2>Últimos envíos de prueba</h2><div style="overflow:auto"><table class="table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Técnico</th><th>Documento</th><th>Monto</th><th>Detalle</th></tr></thead><tbody>{% for e in envios %}<tr><td>{{ e.creado[:16] }}</td><td>{{ e.tipo }}</td><td>{{ e.datos.personal.nombre }}</td><td>{{ e.documento }}</td><td>S/ {{ e.datos.monto }}</td><td>{{ e.datos.get('motivo') or e.datos.get('detalle') }}{% if e.datos.get('codigo') %} · {{ e.datos.codigo }}{% endif %}
-{% if e.tipo == 'solicitud' %}
-<p><strong>{{ e.datos.get('estado', 'Pendiente') }}</strong></p>
-{% elif e.datos.get('fotos_comprobante_repetidas') %}
-<p><strong>Alerta de foto repetida.</strong> Verifica la legitimidad del comprobante antes de validarlo.</p>
-<ul>
-{% for partida in e.datos.get('partidas', []) %}
-  {% for comprobante in partida.comprobantes if comprobante.foto_repetida %}
-  <li><a href="{{ url_for('form_pruebas.foto_revision', uid=e.id, name=comprobante.foto) }}" target="_blank" rel="noopener">Ver foto de {{ comprobante.tipo|lower }}</a></li>
-  {% endfor %}
-{% endfor %}
-</ul>
-{% endif %}</td></tr>{% else %}<tr><td colspan="6">Todavía no hay envíos. Las pruebas aparecerán aquí.</td></tr>{% endfor %}</tbody></table></div>
+<h1>Portal de técnicos</h1><p>Portal móvil donde los técnicos solicitan y rinden. Todo lo que registran llega a <a href="/caja-chica/">Caja Chica</a>, donde se valida, deposita y revisa.</p>
+{% if habilitado %}<p><a class="mar-btn-primary" href="{{ url_for('form_pruebas.inicio') }}" target="_blank" rel="noopener">Abrir portal de técnicos</a></p><p>Enlace para compartir: <code>{{ url_for('form_pruebas.inicio', _external=True) }}</code>. Ingresan con su documento de Personal ACTIVO; la clave inicial es el mismo documento y se les pide cambiarla. Usa una ventana privada para conservar tu sesión administrativa.</p>{% else %}<p>El portal está deshabilitado. Al habilitarlo, los técnicos ingresan con su documento y una clave inicial igual al documento.</p><form method="post"><input type="hidden" name="csrf" value="{{ session.get('form_csrf','') }}"><input type="hidden" name="accion" value="habilitar"><button class="mar-btn-primary" type="submit">Habilitar portal de técnicos</button></form>{% endif %}
 </section>
 {% endblock %}
