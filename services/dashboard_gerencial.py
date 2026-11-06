@@ -79,6 +79,7 @@ def resumen(proyectos, usuario, rol, ahora=None):
     finanzas = defaultdict(Counter)
     depositos = {tipo: Counter() for tipo in ('Gasto Cobra', 'Refacturable', 'Sin clasificar')}
     depositos_por_fecha = defaultdict(Counter)
+    actividad = defaultdict(Counter)
     gastos_cobra, refacturables_caja, refacturables_proveedor = [], [], []
 
     def filas(p, *, compartido=False, liquidaciones=False):
@@ -136,6 +137,11 @@ def resumen(proyectos, usuario, rol, ahora=None):
                     'proyecto': grupo, 'monto': _money(row.get('SUBTOTAL FACTURA PROVEEDOR')),
                     'estado': row.get('ESTADO COTIZACION') or '',
                 })
+            fecha_cotizacion = dia(row.get('FECHA COTIZADO')) or dia(row.get('FECHA'))
+            if fecha_cotizacion and etapa != 'cancelado':
+                registro = actividad[fecha_cotizacion, grupo]
+                registro['cotizado'] += monto
+                registro['cotizaciones'] += 1
             estados[etapa] += 1
             montos[etapa] += monto
             if etapa == 'cliente':
@@ -191,6 +197,14 @@ def resumen(proyectos, usuario, rol, ahora=None):
                 if fecha_pago:
                     depositos_por_fecha[fecha_pago][tipo] += pagado
                 por_rendir = etapa in ('EVIDENCIA', 'OBSERVADO')
+                if fecha_pago:
+                    registro = actividad[fecha_pago, grupo]
+                    registro['depositado'] += pagado
+                    registro['depositos'] += 1
+                    if por_rendir:
+                        registro['por_rendir'] += pagado
+                    if etapa == 'SUSTENTO':
+                        registro['por_validar'] += pagado
                 if por_rendir:
                     resumen_deposito['por_rendir'] += pagado
                     resumen_deposito['casos_por_rendir'] += 1
@@ -284,6 +298,9 @@ def resumen(proyectos, usuario, rol, ahora=None):
     for montos in depositos.values():
         totales_depositos.update(montos)
     return {'hoy': hoy.isoformat(), 'mes': hoy.strftime('%Y-%m'), 'operaciones': operaciones,
+            'desde': (hoy - timedelta(days=27)).isoformat(),
+            'actividad': [dict(fecha=fecha, proyecto=proyecto, **montos)
+                          for (fecha, proyecto), montos in sorted(actividad.items())],
             'depositos': depositos, 'totales_depositos': totales_depositos,
             'depositos_por_fecha': dict(sorted(depositos_por_fecha.items())),
             'gastos_cobra': sorted(gastos_cobra, key=lambda row: (row['fecha'], row['codigo']), reverse=True),

@@ -3,198 +3,88 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
-<link rel="stylesheet" href="/static/css/dashboard-gerencial.css?v=5">
-{% macro numero(value) %}{{ '{:,.0f}'.format(value) }}{% endmacro %}
-{% macro soles(value) %}S/ {{ '{:,.2f}'.format(value) }}{% endmacro %}
-<section class="di-page dv-unified dg-page">
-  {% from '_dashboard_header.html' import dashboard_header with context %}
-  {% call dashboard_header('Gerencial', 'Cobranza y caja', 'Corte al ' ~ dashboard.hoy ~ ' · hora de Lima · datos de tus proyectos autorizados') %}{% endcall %}
-
-  {% if dashboard.ve_rend %}
-  {% set totales = dashboard.totales_depositos %}
-  <div class="dg-saldos" aria-label="Resumen de Caja Chica">
-    <article class="di-card dg-saldo" data-tone="blue"><h2>Total depositado</h2><strong>{{ soles(totales.depositado) }}</strong><p>{{ numero(totales.casos) }} dep&oacute;sitos registrados</p></article>
-    <article class="di-card dg-saldo" data-tone="amber"><h2>Falta rendir</h2><strong>{{ soles(totales.por_rendir) }}</strong><p>{{ numero(totales.casos_por_rendir) }} casos pendientes de sustento o correcci&oacute;n</p></article>
-    <article class="di-card dg-saldo" data-tone="teal"><h2>En validaci&oacute;n</h2><strong>{{ soles(totales.por_validar) }}</strong><p>Con sustento presentado</p></article>
-  </div>
-  {% endif %}
+<link rel="stylesheet" href="/static/css/dashboard-gerencial.css?v=7">
+<section class="di-page dg-page">
+  <div class="dashboard-switch-bar">{% include '_dash_switch.html' %}</div>
+  <header class="dg-heading">
+    <div>
+      <h1>Gerencial</h1>
+      <p>Montos por proyecto · Corte {{ dashboard.hoy }}</p>
+    </div>
+    {% if dashboard.ve_rend or dashboard.ve_cot %}
+    <div class="dg-filtros" role="group" aria-label="Filtros del tablero">
+      <label>Desde<input id="dg-desde" type="date" value="{{ dashboard.desde }}"></label>
+      <label>Hasta<input id="dg-hasta" type="date" value="{{ dashboard.hoy }}"></label>
+      <label>Proyecto<select id="dg-proyecto"><option value="">Todos</option></select></label>
+      <label>Agrupar por<select id="dg-periodo">
+        <option value="dia">Día</option>
+        <option value="semana" selected>Semana</option>
+        <option value="mes">Mes</option>
+      </select></label>
+    </div>
+    {% endif %}
+  </header>
 
   {% if dashboard.ve_rend or dashboard.ve_cot %}
-  <div class="dg-financial-grid{% if not dashboard.ve_rend %} dg-financial-single{% endif %}">
-  {% if dashboard.ve_rend %}
-  <section class="di-card dg-finances dg-budget-panel">
-    <h2>Dep&oacute;sitos por tipo de presupuesto</h2>
-    <div class="dg-presupuestos">
-      {% for tipo, montos in dashboard.depositos.items() if tipo != 'Sin clasificar' or montos.casos %}
-      <article>
-        <h3>{{ tipo }}</h3>
-        <dl>
-          <div><dt>Depositado</dt><dd>{{ soles(montos.depositado) }}</dd></div>
-          <div><dt>Falta rendir</dt><dd>{{ soles(montos.por_rendir) }}</dd></div>
-          <div><dt>En validaci&oacute;n</dt><dd>{{ soles(montos.por_validar) }}</dd></div>
-        </dl>
-        {% if tipo == 'Gasto Cobra' and dashboard.gastos_cobra %}
-        <section class="dg-via">
-          <h4>Depósitos de Gasto Cobra</h4>
-          <div class="di-table-scroll" tabindex="0" role="region" aria-label="Depósitos de Gasto Cobra">
-            <table class="dg-money-table">
-              <thead><tr><th>Depósito</th><th>Proyecto</th><th>Fecha</th><th>Etapa</th><th>Depositado</th></tr></thead>
-              <tbody>{% for fila in dashboard.gastos_cobra %}
-                <tr><th scope="row">{{ fila.codigo }}</th><td>{{ fila.proyecto }}</td><td>{{ fila.fecha or '—' }}</td><td>{{ fila.estado|capitalize }}</td><td>{{ soles(fila.monto) }}</td></tr>
-              {% endfor %}</tbody>
-            </table>
-          </div>
-        </section>
-        {% endif %}
-      </article>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  <section class="di-card dg-finances dg-payment-panel">
-    <h2>Refacturables por v&iacute;a de pago</h2>
-    <div class="dg-presupuestos">
-      {% if dashboard.ve_rend %}
-      <article class="dg-via">
-        <header><span>Caja Chica &middot; depositado</span><strong>{{ soles(dashboard.depositos.Refacturable.depositado) }}</strong><small>{{ dashboard.refacturables_caja|length }} dep&oacute;sitos</small></header>
-        {% if dashboard.refacturables_caja %}
-        <div class="di-table-scroll" tabindex="0" role="region" aria-label="Refacturables pagados por Caja Chica">
-          <table class="dg-money-table">
-            <thead><tr><th>Dep&oacute;sito</th><th>Cotizaci&oacute;n</th><th>Proyecto</th><th>Fecha</th><th>Etapa</th><th>Depositado</th></tr></thead>
-            <tbody>{% for fila in dashboard.refacturables_caja %}
-              <tr><th scope="row">{{ fila.codigo }}</th><td>{{ fila.cotizacion or 'Sin vínculo' }}</td><td>{{ fila.proyecto }}</td><td>{{ fila.fecha or '—' }}</td><td>{{ fila.estado|capitalize }}</td><td>{{ soles(fila.monto) }}</td></tr>
-            {% endfor %}</tbody>
-          </table>
-        </div>
-        {% endif %}
-      </article>
-      {% endif %}
-      {% if dashboard.ve_cot %}
-      <article class="dg-via">
-        <header><span>Proveedor &middot; subtotal facturado registrado</span><strong>{{ soles(dashboard.refacturables_proveedor|sum(attribute='monto')) }}</strong><small>{{ dashboard.refacturables_proveedor|length }} cotizaciones</small></header>
-        <p>V&iacute;a aprobada en Cotizaciones. El pago efectivo al proveedor requiere confirmaci&oacute;n de Tesorer&iacute;a.</p>
-        {% if dashboard.refacturables_proveedor %}
-        <div class="di-table-scroll" tabindex="0" role="region" aria-label="Refacturables asignados a Proveedor">
-          <table class="dg-money-table">
-            <thead><tr><th>Cotizaci&oacute;n</th><th>Proyecto</th><th>Estado</th><th>Subtotal facturado</th></tr></thead>
-            <tbody>{% for fila in dashboard.refacturables_proveedor %}
-              <tr><th scope="row">{{ fila.codigo }}</th><td>{{ fila.proyecto }}</td><td>{{ fila.estado }}</td><td>{{ soles(fila.monto) if fila.monto else 'Sin importe' }}</td></tr>
-            {% endfor %}</tbody>
-          </table>
-        </div>
-        {% endif %}
-      </article>
-      {% endif %}
-    </div>
-  </section>
-  </div>
-  {% else %}
-  <section class="di-card dg-finances"><h2>Dep&oacute;sitos y rendici&oacute;n</h2><p>Los importes se muestran seg&uacute;n tu acceso a Caja Chica y Cotizaciones.</p></section>
-  {% endif %}
-
-  <div class="dg-bottom{% if not dashboard.ve_rend %} dg-bottom-single{% endif %}">
-  {% if dashboard.ve_rend %}
-  <section class="di-card dg-trend">
-    <div class="dv-chart-header">
-      <h2>Evolución de depósitos</h2>
-      {% if dashboard.depositos_por_fecha %}
-      <select id="dg-periodo" aria-label="Agrupar evolución de depósitos por período">
-        <option value="dia">Por día</option>
-        <option value="semana">Por semana</option>
-        <option value="mes" selected>Por mes</option>
-      </select>
-      {% endif %}
-    </div>
-    {% if dashboard.depositos_por_fecha %}
-    <p>Importe por fecha de pago y presupuesto. Se muestran los períodos con depósitos registrados.</p>
-    <div class="dg-trend-chart"><canvas id="dg-evolucion" role="img" aria-label="Evolución de depósitos por tipo de presupuesto"></canvas></div>
-    {% else %}
-    <p>Sin depósitos con fecha de pago registrada.</p>
+  <p id="dg-error" class="dg-error" role="alert" hidden></p>
+  <div class="dg-kpis" aria-label="Resumen financiero del período">
+    {% if dashboard.ve_rend %}
+    <article data-tone="blue"><h2>Total depositado</h2><strong id="dg-depositado">—</strong><small id="dg-depositos">—</small></article>
+    <article data-tone="amber"><h2>Falta rendir</h2><strong id="dg-por_rendir">—</strong><small>De los depósitos del período</small></article>
+    <article data-tone="teal"><h2>En validación</h2><strong id="dg-por_validar">—</strong><small>De los depósitos del período</small></article>
     {% endif %}
-  </section>
-  {% endif %}
-
-  <section class="dg-support" aria-label="Operaci&oacute;n, alertas y m&oacute;dulos">
-  <div class="di-kpis dg-kpis" aria-label="Resumen ejecutivo">
-    <article><span>Órdenes abiertas</span><strong>{{ numero(dashboard.operaciones|sum(attribute='abiertas')) }}</strong><small>{{ dashboard.operaciones|length }} proyectos visibles</small></article>
-    <article><span>Abiertas hace 7 días o más</span><strong>{{ numero(dashboard.operaciones|sum(attribute='antiguas')) }}</strong><small>Desde la creación de la orden</small></article>
-    <article><span>Cierres del mes</span><strong>{{ numero(dashboard.operaciones|sum(attribute='cierres')) }}</strong><small>Por fecha de cierre registrada</small></article>
-    <article><span>Alertas prioritarias</span><strong>{{ dashboard.alertas|selectattr('nivel', 'equalto', 'prioritaria')|list|length }}</strong><small>Grupos de casos para revisar</small></article>
+    {% if dashboard.ve_cot %}
+    <article data-tone="violet"><h2>Importe de cotizaciones</h2><strong id="dg-cotizado">—</strong><small id="dg-cotizaciones">—</small></article>
+    {% endif %}
   </div>
 
-  <div class="dg-main">
-    <section class="di-card dg-alerts">
-      <h2>Alertas para tomar acción</h2>
-      <p>Ordenadas por prioridad y cantidad de casos.</p>
-      {% if dashboard.alertas %}
-      <ul>
-        {% for alerta in dashboard.alertas %}
-        <li>
-          <a href="{{ alerta.url }}">
-            <div><strong>{{ alerta.titulo }}</strong><small>{{ alerta.grupo }} · {{ alerta.nivel|capitalize }}</small></div>
-            <div class="dg-alert-count"><b class="dg-badge" data-level="{{ alerta.nivel }}">{{ numero(alerta.cantidad) }}</b>
-            {% if alerta.monetaria %}<small>{{ soles(alerta.monto) }}</small>{% endif %}</div>
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
-      {% else %}
-      <p>Sin alertas con los datos disponibles para tu acceso.</p>
-      {% endif %}
-    </section>
-
-    <section class="di-card dg-operation">
-      <h2>Operación por proyecto</h2>
-      <p>Altas y cierres de {{ dashboard.mes }} · abiertas al corte · SLA histórico de órdenes cerradas con estado registrado.</p>
-      {% if dashboard.operaciones %}
-      {% set max_abiertas = dashboard.operaciones|map(attribute='abiertas')|max %}
-      <div class="dg-projects">
-        {% for op in dashboard.operaciones %}
-        <article>
-          <a class="dg-project-name" href="{{ op.url }}">{{ op.nombre }} <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
-          <dl>
-            <div><dt>Creadas</dt><dd>{{ numero(op.creadas) }}</dd></div>
-            <div><dt>Cerradas</dt><dd>{{ numero(op.cierres) }}</dd></div>
-            <div><dt>SLA</dt><dd>{% if op.sla is not none %}{{ '%.1f'|format(op.sla) }}% <small>· {{ numero(op.sla_base) }} medidas</small>{% else %}Sin datos{% endif %}</dd></div>
-          </dl>
-          <div class="dg-bar-label"><span>Abiertas</span><strong>{{ numero(op.abiertas) }}</strong></div>
-          <div class="dg-track" aria-hidden="true"><span style="width:{{ 100 * op.abiertas / max_abiertas if max_abiertas else 0 }}%"></span></div>
-          <small>{{ numero(op.antiguas) }} abiertas desde hace 7 días o más{% if op.sin_cierre %} · {{ numero(op.sin_cierre) }} cierres sin fecha{% endif %}</small>
-        </article>
-        {% endfor %}
+  <div class="dg-panels">
+    <section class="dg-panel dg-chart-panel">
+      <header class="dg-panel-heading">
+        <div>
+          <h2 id="dg-chart-title">{{ 'Evolución de depósitos' if dashboard.ve_rend else 'Evolución de cotizaciones' }}</h2>
+          <p id="dg-fecha-base"></p>
+        </div>
+        {% if dashboard.ve_rend and dashboard.ve_cot %}
+        <select id="dg-metrica" aria-label="Importe del gráfico">
+          <option value="depositado">Depósitos</option>
+          <option value="cotizado">Cotizaciones</option>
+        </select>
+        {% endif %}
+      </header>
+      <div id="dg-grafico" class="dg-chart">
+        <canvas id="dg-evolucion" role="img" aria-labelledby="dg-chart-title"></canvas>
       </div>
-      {% else %}
-      <p>No hay proyectos FLM disponibles para tu acceso.</p>
-      {% endif %}
+      <p id="dg-vacio" class="dg-empty" hidden>Sin registros con fecha para esta selección.</p>
     </section>
 
-  <section class="di-card dg-modules" aria-labelledby="dg-modules-heading">
-    <h2 id="dg-modules-heading">Indicadores por módulo</h2>
-    <div class="dg-module-grid">
-      {% for nombre, url, datos in dashboard.modulos %}
-      <article class="di-card dg-module">
-        <h3><a href="{{ url }}">{{ nombre }} <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a></h3>
-        <dl>
-          {% for etiqueta, valor, dinero in datos %}
-          <div><dt>{{ etiqueta }}</dt><dd>{{ soles(valor) if dinero else numero(valor) }}</dd></div>
-          {% endfor %}
-        </dl>
-      </article>
-      {% else %}
-      <p>No hay módulos disponibles para tu acceso.</p>
-      {% endfor %}
-    </div>
-  </section>
+    <section class="dg-panel dg-project-panel" aria-labelledby="dg-project-title">
+      <header class="dg-panel-heading">
+        <div><h2 id="dg-project-title">Montos por proyecto</h2><p>Importe y cantidad en el rango elegido.</p></div>
+      </header>
+      <div class="dg-table-wrap" tabindex="0" role="region" aria-label="Montos por proyecto">
+        <table>
+          <thead><tr><th scope="col">Proyecto</th>
+            {% if dashboard.ve_rend %}<th scope="col">Depositado</th>{% endif %}
+            {% if dashboard.ve_cot %}<th scope="col">Cotizaciones</th>{% endif %}
+          </tr></thead>
+          <tbody id="dg-proyectos"></tbody>
+        </table>
+      </div>
+      <p id="dg-sin-proyectos" class="dg-empty" hidden>Sin movimientos en el rango elegido.</p>
+    </section>
   </div>
-  </section>
-  </div>
+  <footer class="dg-notes">
+    {% if dashboard.ve_rend %}<a href="{{ url_for('pages.analytics_rendicion') }}">Detalle de Caja Chica <span aria-hidden="true">↗</span></a>{% endif %}
+    {% if dashboard.ve_cot %}<a href="{{ url_for('pages.analytics_cotizaciones') }}">Detalle de Cotizaciones <span aria-hidden="true">↗</span></a>{% endif %}
+  </footer>
+  {% else %}
+  <p class="dg-panel">Los importes se muestran según tu acceso a Caja Chica y Cotizaciones.</p>
+  {% endif %}
 </section>
-{% if dashboard.ve_rend and dashboard.depositos_por_fecha %}
-<script id="dg-depositos" type="application/json">{{ dashboard.depositos_por_fecha|tojson }}</script>
+{% if dashboard.ve_rend or dashboard.ve_cot %}
+<script id="dg-datos" type="application/json">{{ {'actividad': dashboard.actividad, 'rend': dashboard.ve_rend, 'cot': dashboard.ve_cot}|tojson }}</script>
 <script src="/static/js/dashboard-claro-model.js?v=3"></script>
-<script src="/static/js/dashboard-visual.js?v=3"></script>
-<script src="/static/js/dashboard-gerencial.js?v=1"></script>
+<script src="/static/js/dashboard-gerencial.js?v=2"></script>
 {% endif %}
 {% endblock %}
