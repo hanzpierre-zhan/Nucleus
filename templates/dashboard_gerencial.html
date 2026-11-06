@@ -3,14 +3,10 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-gerencial.css?v=7">
+<link rel="stylesheet" href="/static/css/dashboard-gerencial.css?v=8">
 <section class="di-page dg-page">
-  <div class="dashboard-switch-bar">{% include '_dash_switch.html' %}</div>
-  <header class="dg-heading">
-    <div>
-      <h1>Gerencial</h1>
-      <p>Montos por proyecto · Corte {{ dashboard.hoy }}</p>
-    </div>
+  {% from '_dashboard_header.html' import dashboard_header with context %}
+  {% call dashboard_header('Gerencial', 'Montos por proyecto', 'Corte ' ~ dashboard.hoy) %}
     {% if dashboard.ve_rend or dashboard.ve_cot %}
     <div class="dg-filtros" role="group" aria-label="Filtros del tablero">
       <label>Desde<input id="dg-desde" type="date" value="{{ dashboard.desde }}"></label>
@@ -20,10 +16,11 @@
         <option value="dia">Día</option>
         <option value="semana" selected>Semana</option>
         <option value="mes">Mes</option>
+        <option value="anio">Año</option>
       </select></label>
     </div>
     {% endif %}
-  </header>
+  {% endcall %}
 
   {% if dashboard.ve_rend or dashboard.ve_cot %}
   <p id="dg-error" class="dg-error" role="alert" hidden></p>
@@ -84,7 +81,8 @@
 </section>
 {% if dashboard.ve_rend or dashboard.ve_cot %}
 <script id="dg-datos" type="application/json">{{ {'actividad': dashboard.actividad, 'rend': dashboard.ve_rend, 'cot': dashboard.ve_cot}|tojson }}</script>
-<script src="/static/js/dashboard-claro-model.js?v=3"></script>
-<script src="/static/js/dashboard-gerencial.js?v=2"></script>
+<script src="/static/js/dashboard-claro-model.js?v=4"></script>
+<script src="/static/js/dashboard-visual.js?v=3"></script>
+<script src="/static/js/dashboard-gerencial.js?v=4"></script>
 {% endif %}
 {% endblock %}

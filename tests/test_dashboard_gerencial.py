@@ -18,6 +18,14 @@ def test_analytics_abre_gerencial(auth_client):
     assert 'value="semana" selected' in response.text
 
 
+def test_supervisor_abre_gerencial_con_piloto_activo(app, auth_client, cambiar_rol, monkeypatch):
+    monkeypatch.setitem(app.config, 'FORM_PRUEBAS_ENABLED', True)
+    cambiar_rol(auth_client, 'supervisor')
+    respuesta = auth_client.get('/analytics/gerencial')
+    assert respuesta.status_code == 200
+    assert 'Validación · Pruebas' in respuesta.text
+
+
 def test_gerencial_cruza_carteras_y_respeta_restricciones(app, auth_client):
     with auth_client.session_transaction() as session:
         usuario = session['user_id']

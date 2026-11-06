@@ -13,15 +13,16 @@
 }
 .dg-page [hidden] { display: none !important; }
 .dg-page > .dashboard-switch-bar { margin: 0; }
-.dg-heading, .dg-panel-heading, .dg-notes {
+.dg-panel-heading, .dg-notes {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.dg-heading h1 { margin: 0; font-size: 29px; line-height: 1.12; }
-.dg-heading p, .dg-panel-heading p { margin: 5px 0 0; color: var(--ios-secondary); font-size: 12px; }
+.dg-panel-heading p { margin: 5px 0 0; color: var(--ios-secondary); font-size: 12px; }
+.di-page.dg-page > .dashboard-header { margin-bottom: 0; }
 .dg-filtros {
+  grid-area: filters;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, auto));
   gap: 8px;
