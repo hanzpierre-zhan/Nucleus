@@ -3,10 +3,16 @@
     const el = id => document.getElementById('dg-' + id);
     const {actividad, rend, cot} = JSON.parse(el('datos').textContent);
     const {bucket} = window.ClaroModel;
-    const {prepare, operationalColors} = window.NucleusDashVisual;
+    const {prepare} = window.NucleusDashVisual;
     const campos = ['depositado', 'depositos', 'por_rendir', 'por_validar', 'cotizado', 'cotizaciones'];
     const proyectos = [...new Set(actividad.map(fila => fila.proyecto))].sort();
-    const colores = ['#4b8cff', '#22b5aa', '#b18bfa', '#e9ac45', '#ed7d89', '#82a65a'];
+    const colores = new Map([
+        ['CLARO', '#da291c'],
+        ['INTEGRATEL', '#66cd00'],
+        ['ENTEL', '#38bdf8'],
+        ['PEXT', '#ff9b35'],
+    ]);
+    const colorProyecto = nombre => colores.get(nombre.trim().toUpperCase()) || '#94a3b8';
     const dinero = new Intl.NumberFormat('es-PE', {style: 'currency', currency: 'PEN'});
     const compacto = new Intl.NumberFormat('es-PE', {notation: 'compact', maximumFractionDigits: 1});
     const cantidades = new Intl.NumberFormat('es-PE');
@@ -30,6 +36,7 @@
             const titulo = document.createElement('th');
             titulo.scope = 'row';
             titulo.textContent = nombre;
+            titulo.style.borderInlineStart = '3px solid ' + colorProyecto(nombre);
             fila.append(titulo);
             for (const [visible, campo, conteo] of [[rend, 'depositado', 'depositos'], [cot, 'cotizado', 'cotizaciones']]) {
                 if (!visible) continue;
@@ -54,7 +61,7 @@
                 label: nombre,
                 data: periodos.map(periodo => serie.get(periodo)?.[metrica] || 0),
                 cantidades: periodos.map(periodo => serie.get(periodo)?.[conteo] || 0),
-                backgroundColor: colores[proyectos.indexOf(nombre) % colores.length],
+                backgroundColor: colorProyecto(nombre),
                 maxBarThickness: 64,
                 stack: 'proyectos',
                 order: 1,
@@ -68,8 +75,8 @@
             type: 'line',
             label: metrica === 'depositado' ? 'Total depositado' : 'Total cotizado',
             data: total,
-            borderColor: operationalColors.red,
-            backgroundColor: operationalColors.red,
+            borderColor: '#a78bfa',
+            backgroundColor: '#a78bfa',
             pointRadius: periodos.length <= 35 ? 3 : 0,
             stack: 'total',
         });
