@@ -692,11 +692,6 @@ def alcance_gestion(bandeja):
     return {familia(p.nombre) for p in get_menu_proyectos(session['user_id'], rol)} - {''}
 
 
-@bp.app_context_processor
-def contexto_portal_piloto():
-    return {'form_pruebas_habilitado': habilitado}
-
-
 def solicitud_en_alcance(datos, alcance):
     return alcance is None or familia(datos.get('proyecto') or datos.get('personal', {}).get('proyecto')) in alcance
 
