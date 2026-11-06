@@ -166,19 +166,30 @@
         mount('df-trend-chart', {type: barsMode ? 'bar' : 'line', data: {labels, datasets}, options},
             trend.periods.length > 0 && series.length > 0);
     }
-    function cotTrend(entries) {
+    function cotTrend(dailyEntries) {
+        const escala = get('df-trend-period').value;
+        const grupos = new Map();
+        for (const entry of dailyEntries) {
+            const key = window.ClaroModel.bucket(entry.label, escala);
+            grupos.set(key, (grupos.get(key) || 0) + entry.amount);
+        }
+        const entries = [...grupos].map(([label, amount]) => ({label, amount}));
         const options = common(), t = theme();
         options.layout = {padding: {top: 22, right: 32, left: 12}};
         options.scales = {
             x: {grid: {display: false}, border: {display: false}, ticks: {color: t.muted, font: {size: 10}, maxRotation: 0}},
             y: {beginAtZero: true, border: {display: false}, grid: {color: t.grid}, grace: '15%', ticks: {color: t.muted, font: {size: 10}, callback: compact, maxTicksLimit: 5}}
         };
-        options.plugins.tooltip.callbacks.title = ctx => dayLabel(entries[ctx[0].dataIndex].label);
+        const labelForPeriod = value => escala === 'dia' ? dayLabel(value) :
+            escala === 'semana' ? 'Semana del ' + dayLabel(value) : value;
+        options.plugins.tooltip.callbacks.title = ctx => labelForPeriod(entries[ctx[0].dataIndex].label);
         options.plugins.tooltip.callbacks.label = ctx => money(ctx.parsed.y);
-        options.onClick = (event, elements) => { if (elements.length) setFilter('day', entries[elements[0].index].label); };
+        if (escala === 'dia') {
+            options.onClick = (event, elements) => { if (elements.length) setFilter('day', entries[elements[0].index].label); };
+        }
         const holder = get('df-trend-chart').parentElement;
         holder.style.minWidth = entries.length > 10 ? entries.length * 62 + 'px' : '';
-        mount('df-trend-chart', {type: 'line', data: {labels: entries.map(e => shortDay(e.label)), datasets: [{
+        mount('df-trend-chart', {type: 'line', data: {labels: entries.map(e => e.label.length === 10 ? shortDay(e.label) : e.label), datasets: [{
             label: 'Pendiente de aprobación', data: entries.map(e => e.amount), borderColor: t.colors[2], pointRadius: 3,
         }]}, options}, entries.length > 0);
     }
@@ -257,6 +268,7 @@
         const months = values('month');
         if (data.mes_actual && months.includes(data.mes_actual)) { state.month = data.mes_actual; get('df-month').value = state.month; }
         get('df-clear').addEventListener('click', clearAll);
+        get('df-trend-period')?.addEventListener('change', render);
         new MutationObserver(render).observe(document.body, {attributes: true, attributeFilter: ['class']});
         new ResizeObserver(fitKpis).observe(get('df-kpis'));
         render();

@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const context=vm.createContext({window:{}});
-for(const file of ['dashboard-finanzas-model.js','dashboard-rendicion-model.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js',file),'utf8'),context);
+for(const file of ['dashboard-finanzas-model.js','dashboard-claro-model.js','dashboard-rendicion-model.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../static/js',file),'utf8'),context);
+context.window.ClaroModel=context.ClaroModel;
 const model=context.window.NucleusRendicionExecutive;
 const row=(extra)=>({estado:'DEPOSITADO',pago_registrado:true,pagado:100,solicitado:9999,beneficiario_id:'dni:00123456',beneficiario:'Juan Perez',documento_valido:true,proyecto:'ENTEL',presupuesto:'GASTO COBRA',dia_solicitud:'2026-10-01',responsable_validacion:'Rosmeri',...extra});
 const rows=[row({}),row({pagado:50,presupuesto:'REFACTURABLE'}),row({proyecto:'CLARO',beneficiario_id:'dni:87654321',pagado:20}),row({proyecto:'INTEGRATEL',beneficiario_id:'dni:12345678',pagado:30,dia_solicitud:''}),row({pago_registrado:false,pagado:0}),row({estado:'CON SUSTENTO',etapa:'SUSTENTO',pagado:80}),row({estado:'RECHAZADO',pagado:99}),row({estado:'SUSTENTADO',etapa:'ATENDIDO',pagado:60}),row({proyecto:'PEXT',pagado:10})];

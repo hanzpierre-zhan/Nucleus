@@ -29,25 +29,34 @@
         const datasets = Object.entries(series).map(([label, color]) => ({
             label,
             data: periodos.map(periodo => grupos.get(periodo)[label] || 0),
-            borderColor: color,
-            pointRadius: periodos.length <= 35 ? 3 : 0,
+            backgroundColor: color,
+            maxBarThickness: 48,
+            order: 1,
         })).filter(dataset => dataset.data.some(Boolean));
+        datasets.push({
+            type: 'line',
+            label: 'Total depositado',
+            data: periodos.map(periodo => Object.values(grupos.get(periodo)).reduce((total, monto) => total + monto, 0)),
+            borderColor: operationalColors.red,
+            pointRadius: periodos.length <= 35 ? 3 : 0,
+        });
         const theme = getComputedStyle(canvas);
         const texto = theme.getPropertyValue('--ios-secondary').trim();
+        const cuadricula = theme.getPropertyValue('--ios-hairline').trim();
         chart?.destroy();
         chart = new Chart(canvas, prepare({
-            type: 'line',
+            type: 'bar',
             data: {labels: periodos, datasets},
             options: {
                 responsive: true, maintainAspectRatio: false, animation: false,
                 interaction: {mode: 'index', intersect: false},
                 plugins: {
-                    legend: {labels: {color: texto}},
+                    legend: {labels: {color: texto, boxWidth: 10, font: {size: 10}}},
                     tooltip: {callbacks: {label: item => item.dataset.label + ' · S/ ' + dinero.format(item.parsed.y)}},
                 },
                 scales: {
                     x: {ticks: {color: texto, maxTicksLimit: 10, maxRotation: 0}, grid: {display: false}},
-                    y: {beginAtZero: true, ticks: {color: texto, callback: soles}},
+                    y: {beginAtZero: true, grace: '12%', ticks: {color: texto, callback: soles}, grid: {color: cuadricula}},
                 },
             },
         }, soles));

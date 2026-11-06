@@ -45,8 +45,8 @@ def test_entel_dibuja_datos_desde_otro_modulo(app, auth_client, servidor, tmp_pa
                 assert page.locator('#di-months .di-month').count() >= 1
                 assert page.locator('#di-priority canvas,#di-fault canvas').count() == 2
                 assert page.locator('#di-evolution-scale').input_value() == 'semana'
-                assert page.locator('#di-closures-scale').input_value() == 'mes'
-                assert page.locator('#di-closures').evaluate("(canvas) => Chart.getChart(canvas).data.labels[0]") == '2026-10'
+                assert page.locator('#di-closures-scale').input_value() == 'semana'
+                assert page.locator('#di-closures').evaluate("(canvas) => Chart.getChart(canvas).data.labels[0]") == '2026-09-28'
                 page.locator('#di-closures-scale').select_option('dia')
                 assert page.locator('#di-closures').evaluate("(canvas) => Chart.getChart(canvas).data.labels[0]") == '2026-10-02'
                 assert 'Sin datos de SLA' in page.locator('#di-sla-note').inner_text()

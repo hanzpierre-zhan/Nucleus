@@ -34,7 +34,7 @@
   mount(id,{type:'doughnut',data:{labels:items.map(e=>e.label),datasets:[{data:items.map(e=>e.amount),backgroundColor:items.map(e=>color(e.label)),borderColor:css('--ios-card-bg'),borderWidth:3,hoverOffset:5}]},options:opts},total>0);
  }
  function trend(snapshot){const opts=options();opts.scales=axis(false);opts.interaction={mode:'index',intersect:false};opts.plugins.tooltip.callbacks.title=contexts=>snapshot.periods[contexts[0].dataIndex];opts.plugins.tooltip.callbacks.label=c=>c.dataset.label+': '+money(c.parsed.y);opts.onHover=()=>{};const period=get('re-period').value;
-  const labels=snapshot.periods.map(p=>new Intl.DateTimeFormat('es-PE',period==='month'?{month:'short',year:'2-digit'}:{day:'numeric',month:'short'}).format(new Date(p+(period==='month'?'-15':'')+'T12:00:00')));
+  const labels=snapshot.periods.map(p=>period==='year'?p:new Intl.DateTimeFormat('es-PE',period==='month'?{month:'short',year:'2-digit'}:{day:'numeric',month:'short'}).format(new Date(p+(period==='month'?'-15':'')+'T12:00:00')));
   const inner=get('re-trend-inner');inner.style.minWidth=Math.max(0,snapshot.periods.length*48+60)+'px';
   opts.layout={padding:{top:15,right:24,left:24}};opts.scales.y.grace='25%';
   mount('re-trend',{type:'line',data:{labels,datasets:snapshot.trend.map(s=>({label:s.label,data:s.values,borderColor:color(s.label),backgroundColor:color(s.label),borderWidth:2.5,tension:.3,cubicInterpolationMode:'monotone',pointRadius:snapshot.periods.length>32?0:2,fill:true}))},options:opts},snapshot.periods.length>0&&snapshot.amount>0);

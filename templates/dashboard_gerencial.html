@@ -102,14 +102,15 @@
       {% if dashboard.depositos_por_fecha %}
       <select id="dg-periodo" aria-label="Agrupar evolución de depósitos por período">
         <option value="dia">Por día</option>
-        <option value="semana">Por semana</option>
-        <option value="mes" selected>Por mes</option>
+        <option value="semana" selected>Por semana</option>
+        <option value="mes">Por mes</option>
+        <option value="anio">Por año</option>
       </select>
       {% endif %}
     </div>
     {% if dashboard.depositos_por_fecha %}
-    <p>Importe por fecha de pago y presupuesto. Se muestran los períodos con depósitos registrados.</p>
-    <div class="dg-trend-chart"><canvas id="dg-evolucion" role="img" aria-label="Evolución de depósitos por tipo de presupuesto"></canvas></div>
+    <p>Barras por tipo de presupuesto y línea del total depositado por período.</p>
+    <div class="dg-trend-chart"><canvas id="dg-evolucion" role="img" aria-label="Depósitos por tipo de presupuesto y total por período"></canvas></div>
     {% else %}
     <p>Sin depósitos con fecha de pago registrada.</p>
     {% endif %}
@@ -193,8 +194,8 @@
 </section>
 {% if dashboard.ve_rend and dashboard.depositos_por_fecha %}
 <script id="dg-depositos" type="application/json">{{ dashboard.depositos_por_fecha|tojson }}</script>
-<script src="/static/js/dashboard-claro-model.js?v=3"></script>
+<script src="/static/js/dashboard-claro-model.js?v=4"></script>
 <script src="/static/js/dashboard-visual.js?v=3"></script>
-<script src="/static/js/dashboard-gerencial.js?v=1"></script>
+<script src="/static/js/dashboard-gerencial.js?v=2"></script>
 {% endif %}
 {% endblock %}

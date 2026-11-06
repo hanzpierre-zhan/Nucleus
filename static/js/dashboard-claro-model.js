@@ -4,6 +4,7 @@
  const duration=r=>r.creacion&&r.cierre?(Date.parse(r.cierre)-Date.parse(r.creacion))/3600000:null;
  function bucket(s,scale){
   const date=day(s);
+  if(scale==='anio')return date.slice(0,4);
   if(scale==='mes')return date.slice(0,7);
   if(scale==='trimestre')return date.slice(0,4)+' T'+Math.ceil(Number(date.slice(5,7))/3);
   if(scale==='semana'){

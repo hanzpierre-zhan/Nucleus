@@ -29,7 +29,7 @@ def test_cabeceras_comparten_orden_y_posicion(app,auth_client,servidor):
                     assert page.locator('.di-story').count()==0
                 if path == '/analytics/claro':
                     assert page.locator('#cl-exportar').count()==0
-                    assert page.locator('[data-cl-scale]').all_text_contents()==['Diario','Semanal','Mensual','Trimestre']
+                    assert page.locator('[data-cl-scale]').all_text_contents()==['Diario','Semanal','Mensual','Trimestre','Anual']
                     page.get_by_role('button', name='Trimestre').click()
                     assert page.locator('[data-cl-scale="trimestre"]').get_attribute('aria-pressed')=='true'
                     assert page.locator('#cl-excluir-cancelados').is_checked()

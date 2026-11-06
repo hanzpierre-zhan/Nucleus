@@ -13,7 +13,7 @@
 <fieldset class="cl-scale">
   <legend>Escala</legend>
   <div>
-    {% for value, label in [('dia','Diario'), ('semana','Semanal'), ('mes','Mensual'), ('trimestre','Trimestre')] %}
+    {% for value, label in [('dia','Diario'), ('semana','Semanal'), ('mes','Mensual'), ('trimestre','Trimestre'), ('anio','Anual')] %}
     <button type="button" data-cl-scale="{{ value }}" aria-pressed="{{ 'true' if value == 'semana' else 'false' }}">{{ label }}</button>
     {% endfor %}
   </div>
@@ -69,6 +69,6 @@
 <details class="cl-card di-card"><summary>Consultar tickets de la selección <span id="cl-count"></span></summary><div class="cl-table"><table><thead><tr><th>Ticket Id</th><th>Estado</th><th>Creación</th><th>Cierre</th><th>Oficina</th><th>FME</th><th>SLA</th></tr></thead><tbody id="cl-tickets"></tbody></table></div><button id="cl-anterior">Anterior</button> <span id="cl-pagina"></span> <button id="cl-siguiente">Siguiente</button></details>
 </section>
 <script id="cl-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-claro-model.js?v=3"></script>
+<script src="/static/js/dashboard-claro-model.js?v=4"></script>
 <script src="/static/js/dashboard-claro.js?v=6"></script>
 {% endblock %}

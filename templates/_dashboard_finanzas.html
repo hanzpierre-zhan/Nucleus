@@ -34,7 +34,10 @@
     <article class="di-card df-expense"><h2>Pendiente de aprobación del cliente</h2><p>Importe por tipo de gasto</p><div class="df-chart"><canvas id="df-budget-chart" role="img" aria-label="Pendiente de aprobación del cliente"></canvas></div></article>
     <article class="di-card df-people"><h2>Pendiente de aprobación por gestor</h2><p>10 principales · importe por aprobar</p><div class="df-chart"><canvas id="df-person-chart" role="img" aria-label="Pendiente de aprobación por gestor"></canvas></div></article>
     <article class="di-card df-attended"><h2>Cotizaciones atendidas y ejecutadas</h2><p>Importe por gasto y destino del pago</p><div class="df-chart"><canvas id="df-attended-chart" role="img" aria-label="Cotizaciones atendidas y ejecutadas"></canvas></div></article>
-    <article class="di-card df-trend"><h2>Evolución pendiente de aprobación</h2><p>Importe diario · fecha de solicitud</p><div class="dc-trend-scroll"><div class="df-chart"><canvas id="df-trend-chart" role="img" aria-label="Evolución pendiente de aprobación"></canvas></div></div></article>
+    <article class="di-card df-trend"><div class="dv-chart-header"><h2>Evolución pendiente de aprobación</h2>
+      <select id="df-trend-period" aria-label="Agrupar evolución por período">
+        <option value="dia">Día</option><option value="semana" selected>Semana</option><option value="mes">Mes</option><option value="anio">Año</option>
+      </select></div><p>Importe por fecha de solicitud</p><div class="dc-trend-scroll"><div class="df-chart"><canvas id="df-trend-chart" role="img" aria-label="Evolución pendiente de aprobación"></canvas></div></div></article>
     <article class="di-card df-cobra"><h2>Aprobadas por ejecutar · Gasto Cobra</h2><p>Importe por destino del pago</p><div class="df-chart"><canvas id="df-cobra-chart" role="img" aria-label="Aprobadas por ejecutar · Gasto Cobra"></canvas></div></article>
     <article class="di-card df-refacturable"><h2>Aprobadas por ejecutar · Refacturable</h2><p>Importe por destino del pago</p><div class="df-chart"><canvas id="df-refacturable-chart" role="img" aria-label="Aprobadas por ejecutar · Refacturable"></canvas></div></article>
   {% endif %}
@@ -43,4 +46,5 @@
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-finanzas-model.js?v=5"></script>
-<script src="/static/js/dashboard-finanzas.js?v=10"></script>
+<script src="/static/js/dashboard-claro-model.js?v=4"></script>
+<script src="/static/js/dashboard-finanzas.js?v=11"></script>
