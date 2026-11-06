@@ -69,7 +69,7 @@ def test_catalogo_aplica_por_proyecto_y_conserva_regla_de_solicitud(app, auth_cl
     try:
         assert auth_client.post(ruta, json=catalogo, headers=permisos).status_code == 200
         item = {'tipo_gasto': materiales['nombre'], 'monto': '50'}
-        datos = {'proyecto': 'PEXT', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '12345678', 'items': [item],
+        datos = {'proyecto': 'PEXT', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'items': [item],
                  'site': 'LA2859', 'wo': 'CM-001', 'titular': 'Técnico Caja',
                  'tipo_billetera': 'Yape', 'numero_billetera': '900000000'}
         assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400
@@ -119,7 +119,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     cli, h = tecnico
     assert cli.get('/form-pruebas/caja-chica').status_code == 200
     r = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
-        'proyecto': 'CLARO', 'motivo': 'Correctivo LA2859', 'banco': 'BCP', 'cuenta': '191-12345678-0-11',
+        'proyecto': 'CLARO', 'motivo': 'Correctivo LA2859', 'banco': 'BCP', 'cuenta': '00123456789012345678',
         'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}, {'tipo_gasto': 'Peajes', 'descripcion': 'vuelta', 'monto': '50.00'}]})
     assert r.status_code == 200, r.json
     sol = r.json['solicitud']; sid = sol['id']
@@ -178,7 +178,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert cli.get('/form-pruebas/caja-chica/foto/%d/otra.jpg' % sid).status_code == 404
 
 
-BASE = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '1234567',
+BASE = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
         'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}
 
 
@@ -250,8 +250,9 @@ def test_anulacion_va_a_anuladas(app, auth_client, tecnico):
 
 def test_validaciones_de_la_solicitud(tecnico):
     cli, h = tecnico
-    base = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '1234567', 'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}
-    for cambio in ({'proyecto': 'OTRO'}, {'motivo': ''}, {'banco': 'Inventado'}, {'cuenta': 'abc'}, {'items': []},
+    base = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}
+    for cambio in ({'proyecto': 'OTRO'}, {'motivo': ''}, {'banco': 'Inventado'}, {'cuenta': 'abc'},
+                   {'cuenta': '1' * 19}, {'cuenta': '1' * 21}, {'items': []},
                    {'items': [{'tipo_gasto': 'Inventado', 'monto': '5'}]}, {'items': [{'tipo_gasto': 'Peajes', 'monto': '0'}]}):
         assert cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={**base, **cambio}).status_code == 400, cambio
     assert cli.post('/form-pruebas/caja-chica/solicitar', json=base).status_code == 403  # sin CSRF

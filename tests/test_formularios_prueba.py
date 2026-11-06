@@ -97,6 +97,8 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
             db.session.flush()
             db.session.add(NucleusData(proyecto_id=proyecto.id, key_value='CM-' + nombre.split()[-1],
                                        data_json=json.dumps({'Site Name': 'Torre ' + nombre.split()[-1]})))
+            if nombre == 'FLM - CLARO':
+                db.session.add(NucleusData(proyecto_id=proyecto.id, key_value='123456789', data_json='{}'))
         claro = Usuario(nombre='Mónica Prueba', username='monica', password_hash='no-login')
         entel = Usuario(nombre='Luis Prueba', username='luis', password_hash='no-login')
         db.session.add_all([claro, entel])
@@ -120,6 +122,8 @@ def test_solicitud_ampliada_usa_identidad_y_catalogo_del_proyecto(portal):
             'opciones': [f'CM-{proyecto}']}
         assert client.get(f'/form-pruebas/sugerencias?proyecto={proyecto}&campo=site&q=Torre').json == {
             'opciones': [f'Torre {proyecto}']}
+        assert client.get(f'/form-pruebas/sugerencias?proyecto={proyecto}&campo=wo&q=1234').json == {
+            'opciones': ['123456789'] if proyecto == 'CLARO' else []}
     solicitud = {
         'nonce': 'b' * 32, 'proyecto': 'CLARO',
         'tipo_gasto': ['MATERIALES', 'PEAJE', 'COMPRAS', 'ALQUILER'],

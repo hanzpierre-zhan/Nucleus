@@ -2,6 +2,7 @@
 import io
 import json
 import mimetypes
+import re
 from collections import defaultdict
 from decimal import Decimal
 
@@ -96,6 +97,8 @@ def _datos_portal():
     datos = request.get_json(silent=True)
     if not isinstance(datos, dict):
         raise ValueError('Los datos de la solicitud no son válidos.')
+    if not re.fullmatch(r'[0-9]{20}', str(datos.get('cuenta') or '')):
+        raise ValueError('Ingresa el CCI de 20 dígitos.')
     proyecto = str(datos.get('proyecto') or '').strip()
     responsables = responsables_por_proyecto().get(proyecto, {}) if datos.get('responsable_validacion') else {}
     return datos, cc.datos_formulario(datos, g.tecnico.get('supervisor', ''), responsables)

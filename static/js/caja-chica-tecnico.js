@@ -11,8 +11,8 @@
   const numero = v => { const t = String(v || '').replace(/\s/g, '').replace(/,(?=\d{3}(\D|$))/g, '').replace(',', '.'); return /^\d+(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
   let datos = null, corrigiendo = null;  // corrigiendo = solicitud rechazada que se está reenviando
 
-  async function api(ruta, opciones = {}) {
-    const r = await fetch(base + ruta, {credentials: 'same-origin', ...opciones, headers: {'X-CSRF-Token': $('csrf').value, ...(opciones.headers || {})}});
+  async function api(ruta, opciones = {}, prefijo = base) {
+    const r = await fetch(prefijo + ruta, {credentials: 'same-origin', ...opciones, headers: {'X-CSRF-Token': $('csrf').value, ...(opciones.headers || {})}});
     let j; try { j = await r.json(); } catch { throw Error('No se pudo leer la respuesta. Revisa tu conexión.'); }
     if (r.status === 401 || (r.status === 403 && j.codigo === 'CAMBIAR_CLAVE')) { location.href = '/form-pruebas/'; throw Error(j.error); }
     if (!r.ok) throw Error(j.error || 'No se pudo completar el envío.');
@@ -99,8 +99,11 @@
   function itemsSeleccionados() {
     return [...$('cc-items').querySelectorAll('.expense-card')]
       .filter(card => card.querySelector('[type=checkbox]').checked)
-      .map(card => Object.fromEntries([...card.querySelectorAll('[data-campo]')]
-        .map(control => [control.dataset.campo, control.value.trim()])));
+      .map(card => ({
+        ...Object.fromEntries([...card.querySelectorAll('[data-campo]')]
+          .map(control => [control.dataset.campo, control.value.trim()])),
+        descripcion: card.dataset.descripcion
+      }));
   }
   function total() {
     const items = itemsSeleccionados();
@@ -125,6 +128,7 @@
       const checkbox = card.querySelector('[type=checkbox]');
       const detalle = card.querySelector('.expense-amount');
       const correo = card.querySelector('[data-correo]');
+      card.dataset.descripcion = valores?.descripcion || '';
       card.querySelector('[data-nombre]').textContent = concepto.nombre;
       card.querySelector('.expense-criterion').textContent = concepto.descripcion || '';
       card.querySelector('.expense-classification').textContent = concepto.proyectos[proyecto] || valores?.tipo_presupuesto || '';
@@ -189,11 +193,55 @@
     mostrarConceptos(itemsSeleccionados());
   });
   $('cc-billetera').addEventListener('change', actualizarBilletera);
+  $('cc-cuenta').addEventListener('input', ({target}) => {
+    target.value = target.value.replace(/[^0-9]/g, '').slice(0, 20);
+  });
+  for (const campo of ['site', 'wo']) {
+    const input = $('cc-' + campo);
+    const lista = $('cc-sugerencias-' + campo);
+    let espera, consulta;
+    function limpiar() {
+      clearTimeout(espera);
+      consulta?.abort();
+      lista.replaceChildren();
+    }
+    $('cc-form').addEventListener('reset', limpiar);
+    $('cc-proyecto').addEventListener('change', () => {
+      input.value = '';
+      limpiar();
+    });
+    input.addEventListener('input', () => {
+      limpiar();
+      const q = input.value.trim(), proyecto = $('cc-proyecto').value;
+      if (q.length < 2 || !proyecto) return;
+      espera = setTimeout(async () => {
+        const actual = new AbortController();
+        consulta = actual;
+        try {
+          const parametros = new URLSearchParams({campo, q, proyecto});
+          const {opciones} = await api('/sugerencias?' + parametros, {signal: actual.signal}, '/form-pruebas');
+          if (actual.signal.aborted) return;
+          const botones = opciones.map(valor => {
+            const boton = el('button', null, valor);
+            boton.type = 'button';
+            boton.addEventListener('click', () => { input.value = valor; limpiar(); });
+            return boton;
+          });
+          lista.replaceChildren(...botones);
+          if (!botones.length) lista.textContent = 'Sin coincidencias para este proyecto.';
+        } catch {
+          if (!actual.signal.aborted) lista.textContent = 'No se pudieron cargar las sugerencias.';
+        }
+      }, 250);
+    });
+  }
   $('cc-nueva').addEventListener('click', () => abrirFormulario());
+  $('cc-exito-volver').addEventListener('click', () => ver('cc-inicio'));
   document.querySelectorAll('[data-cc-volver]').forEach(b => b.addEventListener('click', () => ver('cc-inicio')));
   $('cc-form').addEventListener('submit', e => {
     e.preventDefault(); const form = e.currentTarget, error = form.querySelector('.error');
     enviando(form.querySelector('[type=submit]'), error, async () => {
+      if (!/^[0-9]{20}$/.test($('cc-cuenta').value)) throw Error('Ingresa el CCI de 20 dígitos.');
       const items = itemsSeleccionados();
       if (!items.length) throw Error('Selecciona al menos un concepto.');
       items.forEach(item => {
@@ -202,9 +250,14 @@
       const cuerpo = {...Object.fromEntries(new FormData(form)), items};
       const ruta = corrigiendo ? '/' + corrigiendo.id + '/reenviar' : '/solicitar';
       const r = await api(ruta, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});
-      alert('Solicitud ' + r.solicitud.codigo + (corrigiendo ? ' corregida y reenviada' : ' enviada') + ' por ' + dinero(r.solicitud.total) + '.');
+      $('cc-exito-titulo').textContent = corrigiendo ? '¡Solicitud reenviada!' : '¡Solicitud enviada!';
+      $('codigo-exito').textContent = r.solicitud.codigo;
+      $('total-exito').textContent = dinero(r.solicitud.total);
+      datos.solicitudes = [r.solicitud, ...datos.solicitudes.filter(sol => sol.id !== r.solicitud.id)].slice(0, 50);
+      pintar();
       corrigiendo = null;
-      await cargar();
+      ver('cc-exito');
+      $('cc-exito-titulo').focus();
     });
   });
 

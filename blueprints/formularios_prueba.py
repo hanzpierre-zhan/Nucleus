@@ -370,10 +370,8 @@ def sugerencias():
             nombres.extend(fila[0] for fila in coincidencias)
         return jsonify(opciones=list(dict.fromkeys(nombres))[:15])
     filas = (filas_proyecto.with_entities(NucleusData.key_value)
-             .filter(func.upper(NucleusData.key_value).contains(consulta.upper(), autoescape=True),
-                     NucleusData.key_value.like('CM-%') | NucleusData.key_value.like('PM-%')
-                     | NucleusData.key_value.like('PLM-%'))
-             .order_by(NucleusData.key_value).limit(15).all())
+             .filter(func.upper(NucleusData.key_value).contains(consulta.upper(), autoescape=True))
+             .distinct().order_by(NucleusData.key_value).limit(15).all())
     return jsonify(opciones=[fila.key_value for fila in filas])
 
 

@@ -30,15 +30,17 @@
     <p class="hint">Marca uno o más conceptos.</p>
     <div id="cc-items" class="expense-grid"></div>
     <div class="expense-bag" role="status"><strong id="cc-cantidad">0 gastos</strong><output id="cc-subtotal">S/ 0.00</output></div>
-    <label for="cc-site">Nombre de site</label><input id="cc-site" name="site" maxlength="150">
-    <label for="cc-wo">Número CM / PM / PLM</label><input id="cc-wo" name="wo" maxlength="100">
+    <label for="cc-site">Nombre de site</label><input id="cc-site" name="site" maxlength="150" autocomplete="off" aria-controls="cc-sugerencias-site">
+    <div id="cc-sugerencias-site" class="suggestions" aria-live="polite"></div>
+    <label for="cc-wo">Número CM / PM / PLM</label><input id="cc-wo" name="wo" maxlength="100" autocomplete="off" aria-controls="cc-sugerencias-wo">
+    <div id="cc-sugerencias-wo" class="suggestions" aria-live="polite"></div>
     <label for="cc-responsable">Responsable de la validación</label><select id="cc-responsable" name="responsable_validacion"></select>
     <label for="cc-motivo">Justificar la solicitud</label>
     <textarea id="cc-motivo" name="motivo" maxlength="500" rows="2" required></textarea>
     </fieldset>
     <fieldset><legend>Datos del depósito</legend>
-    <label for="cc-cuenta">CCI o número de cuenta</label>
-    <input id="cc-cuenta" name="cuenta" inputmode="numeric" maxlength="40" required>
+    <label for="cc-cuenta">CCI (20 dígitos)</label>
+    <input id="cc-cuenta" name="cuenta" inputmode="numeric" maxlength="20" pattern="[0-9]{20}" required>
     <label for="cc-banco">Banco</label>
     <select id="cc-banco" name="banco" required><option value="">Selecciona un banco</option>{% for b in bancos %}<option>{{ b }}</option>{% endfor %}</select>
     <label for="cc-titular">Titular de la cuenta</label><input id="cc-titular" name="titular" maxlength="150">
@@ -57,6 +59,19 @@
   </form>
 </section>
 
+<section id="cc-exito" class="view card success" hidden>
+  <div class="success-icon" aria-hidden="true">✓</div>
+  <h1 id="cc-exito-titulo" tabindex="-1">¡Solicitud enviada!</h1>
+  <div class="deposit-summary">
+    <span>Código de depósito</span><strong id="codigo-exito"></strong>
+    <span>Total solicitado</span><strong id="total-exito"></strong>
+  </div>
+  <div class="empty"><strong>Tienes 24 horas desde el depósito para rendir.</strong>
+    Solo se aceptan boletas o facturas. No se aceptan recibos por honorarios.
+  </div>
+  <button type="button" class="primary wide" id="cc-exito-volver">Volver a mis solicitudes</button>
+</section>
+
 <template id="cc-item-plantilla">
   <div class="expense-card">
     <label>
@@ -66,8 +81,6 @@
     <div class="expense-amount" hidden>
     <label class="expense-amount-label">Monto (S/)</label>
     <input data-campo="monto" inputmode="decimal" maxlength="12" placeholder="0.00">
-    <label>Descripción (opcional)</label>
-    <input data-campo="descripcion" maxlength="300" placeholder="Ej.: Peaje Pasamayo ida y vuelta">
     <div data-correo hidden>
       <label>Correo de quien valida el gasto</label>
       <input data-campo="correo_validador" type="email" maxlength="254" autocomplete="off" disabled>
@@ -79,4 +92,4 @@
 <input id="csrf" type="hidden" value="{{ csrf }}">
 </main>
 <footer>NUCLEUS · Caja Chica</footer>
-<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=6) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=7) }}" defer></script></body></html>
