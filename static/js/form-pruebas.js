@@ -29,7 +29,8 @@
   function actualizarAntiguedad(indicador) {
     const horas = Math.max(0, Math.floor((Date.now() - Date.parse(indicador.dataset.solicitada)) / 3600000));
     indicador.dataset.nivel = horas >= 24 ? 'rojo' : horas >= 12 ? 'amarillo' : 'normal';
-    indicador.textContent = horas ? `${horas} h desde la solicitud` : 'Menos de 1 h desde la solicitud';
+    const dias = Math.floor(horas / 24);
+    indicador.textContent = horas ? `${dias ? dias + ' d ' : ''}${horas % 24} h desde la solicitud` : 'Menos de 1 h desde la solicitud';
   }
   function agregarFechaSolicitud(ficha, fecha) {
     if (!fecha || !Number.isFinite(Date.parse(fecha))) {
@@ -491,5 +492,7 @@
       await success(result, 'Tu rendición quedó guardada en el espacio de pruebas.' + aviso);
     });
   });
-  if($('portal'))load().catch(error=>{const box=$('cargando');box.setAttribute('role','alert');box.textContent=error.message;const retry=el('button','Volver a intentar','back');retry.type='button';retry.onclick=()=>location.reload();box.append(retry);});
+  if($('portal'))load().then(() => {
+    if (location.hash === '#rendicion') go('rendicion');
+  }).catch(error=>{const box=$('cargando');box.setAttribute('role','alert');box.textContent=error.message;const retry=el('button','Volver a intentar','back');retry.type='button';retry.onclick=()=>location.reload();box.append(retry);});
 })();

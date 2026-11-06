@@ -33,7 +33,10 @@
     const i = solicitudes.findIndex(s => s.id === sol.id);
     if (i >= 0) solicitudes[i] = j.solicitud;
     pintar();
-    if (dialogo.open && solicitudAbierta === sol.id && j.solicitud) verDetalle(j.solicitud);
+    if (dialogo.open && solicitudAbierta === sol.id && j.solicitud) {
+      if (nombre === 'depositar') dialogo.close();
+      else verDetalle(j.solicitud);
+    }
   }
   const intentar = fn => async (...a) => { try { await fn(...a); } catch (e) { avisar(e.message); } };
   function boton(texto, clase, fn) { const b = el('button', 'cc-btn ' + clase, texto); b.type = 'button'; b.addEventListener('click', async () => { b.disabled = true; try { await fn(); } finally { b.disabled = false; } }); return b; }
@@ -52,6 +55,12 @@
   }
   function accionesRapidas(sol) {
     const caja = el('span', 'cc-acciones-rapidas');
+    if (tab === 'deposito') {
+      if (puedeGestionar && sol.estado === 'VALIDADO') {
+        caja.append(botonRapido(sol, 'Depositar', 'cc-ok', 'fa-money-bill-transfer', () => verDetalle(sol)));
+      }
+      return caja;
+    }
     if (puedeGestionar && sol.estado === 'PENDIENTE') {
       caja.append(botonRapido(sol, 'Validar', 'cc-ok', 'fa-check', intentar(async () => {
         if (await confirmar('¿Validar ' + sol.codigo + ' por ' + dinero(sol.total) + '?')) await accion(sol, 'validar');
@@ -71,17 +80,6 @@
   function acciones(sol) {
     const caja = el('div', 'cc-acciones');
     if (sol.estado === 'RECHAZADO') caja.append(el('span', 'cc-nota', 'Devuelta al técnico: cuando la corrija y reenvíe vuelve a esta etapa.'));
-    if (sol.estado === 'VALIDADO') {
-      const form = el('form', 'cc-deposito'); form.noValidate = true;
-      const fecha = el('input'); Object.assign(fecha, {type: 'date', name: 'fecha', required: true, value: new Date().toISOString().slice(0, 10)});
-      const monto = el('input'); Object.assign(monto, {name: 'monto', value: sol.total, readOnly: true});
-      const archivo = el('input'); Object.assign(archivo, {type: 'file', name: 'foto', accept: 'image/*', required: true});
-      const enviar = el('button', 'cc-btn cc-ok', 'Registrar depósito'); enviar.type = 'submit';
-      for (const [t, c] of [['Fecha', fecha], ['Monto (S/)', monto], ['Foto del depósito', archivo]]) { const l = el('label', null, t); l.append(c); form.append(l); }
-      form.append(enviar);
-      form.addEventListener('submit', intentar(async e => { e.preventDefault(); if (!archivo.files.length) throw Error('Adjunta la foto del depósito.'); enviar.disabled = true; try { await accion(sol, 'depositar', new FormData(form)); } finally { enviar.disabled = false; } }));
-      caja.append(form);
-    }
     if (sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto) {
       caja.append(el('span', 'cc-nota', 'Devolución de ' + dinero(sol.diferencia) + ':'), foto(sol, sol.devolucion_foto, 'ver foto'),
                   boton('Aceptar devolución y archivar', 'cc-ok', intentar(() => accion(sol, 'devolucion', {aceptar: true}))),
@@ -373,10 +371,65 @@
     return form;
   }
 
+  function formularioDeposito(sol) {
+    const form = el('form', 'cc-editar-solicitud');
+    const grupo = el('fieldset');
+    grupo.append(el('legend', null, 'Registrar depósito'));
+    const hoy = new Date();
+    const fecha = el('input');
+    Object.assign(fecha, {type: 'date', name: 'fecha', required: true,
+      value: new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000).toISOString().slice(0, 10)});
+    const monto = Object.assign(el('input'), {name: 'monto', value: sol.total, readOnly: true});
+    const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true});
+    for (const [titulo, control] of [['Fecha del pago', fecha], ['Monto pagado (S/)', monto],
+      ['Foto del comprobante', archivo]]) {
+      const etiqueta = el('label', control === archivo ? 'cc-campo-ancho cc-deposito-archivo' : null, titulo);
+      etiqueta.append(control);
+      grupo.append(etiqueta);
+    }
+    const error = el('p', 'cc-alerta cc-campo-ancho');
+    error.setAttribute('role', 'alert');
+    error.hidden = true;
+    const pie = el('div', 'cc-deposito-confirmar cc-campo-ancho');
+    const enviar = el('button', 'cc-dialogo-icono cc-dialogo-guardar');
+    enviar.type = 'submit';
+    enviar.title = 'Confirmar depósito';
+    enviar.setAttribute('aria-label', enviar.title);
+    enviar.append(icono('fa-check'));
+    pie.append(el('span', null, enviar.title), enviar);
+    grupo.append(error, pie);
+    form.append(grupo);
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      if (enviar.disabled) return;
+      enviar.disabled = true;
+      error.hidden = true;
+      try {
+        await accion(sol, 'depositar', new FormData(form));
+      } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+      } finally {
+        enviar.disabled = false;
+      }
+    });
+    return form;
+  }
+
   function verDetalle(sol) {
     solicitudAbierta = sol.id;
     $('cc-solicitud-titulo').textContent = [sol.codigo, sol.tecnico, sol.proyecto].join(' · ');
     const contenido = $('cc-solicitud-contenido');
+    const editar = $('cc-solicitud-editar');
+    const guardar = $('cc-solicitud-guardar');
+    const enDeposito = tab === 'deposito' && sol.estado === 'VALIDADO';
+    editar.hidden = guardar.hidden = enDeposito;
+    if (enDeposito) {
+      contenido.replaceChildren(datosEnviados(sol, 'Datos de la solicitud'));
+      if (puedeGestionar) contenido.append(formularioDeposito(sol));
+      if (!dialogo.open) dialogo.showModal();
+      return;
+    }
     contenido.replaceChildren(datosEnviados(sol.envio_tecnico || sol, sol.envio_tecnico && 'Datos enviados por el técnico'));
     if (sol.envio_tecnico) contenido.append(datosEnviados(sol, 'Datos revisados por gestión'));
     const revision = sol.revision || {};
@@ -388,8 +441,6 @@
     }
     if (sol.items.some(i => i.requiere_correo) && !revision.archivo) contenido.append(el('p', 'cc-alerta', 'Falta adjuntar el correo de validación.'));
     if (sol.items.some(i => i.requiere_cotizacion) && !revision.cotizacion) contenido.append(el('p', 'cc-alerta', 'Falta el número de cotización.'));
-    const editar = $('cc-solicitud-editar');
-    const guardar = $('cc-solicitud-guardar');
     editar.disabled = !puedeGestionar || sol.estado !== 'PENDIENTE';
     const documentos = editar.disabled ? null : formularioDocumentos(sol);
     guardar.setAttribute('form', 'cc-solicitud-documentos');
@@ -420,9 +471,9 @@
     }},
     tecnico:  {titulo: 'Técnico · Documento', ancho: 'minmax(180px, 2.4fr)', texto: s => s.tecnico + ' · ' + s.documento},
     proyecto: {titulo: 'Proyecto', ancho: 'minmax(100px, .8fr)', texto: s => s.proyecto, celda: s => {
-      const proyecto = el('span', 'cc-chip cc-proyecto', s.proyecto);
-      proyecto.dataset.proyecto = s.proyecto;
-      return proyecto;
+      const nombres = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
+      const nombre = nombres[s.proyecto];
+      return el('span', nombre ? 'project-badge project-badge--' + s.proyecto.toLowerCase() : null, nombre || s.proyecto);
     }},
     site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1fr)', texto: s => s.formulario?.site || '—'},
     wo: {titulo: 'N.º CM / PM / PLM', ancho: 'minmax(145px, 1fr)', texto: s => s.formulario?.wo || '—'},
@@ -454,7 +505,7 @@
       + 12 * columnas.length + 140 + (puedeEliminar ? 52 : 0);
     $('cc-tabla').style.setProperty('--cc-min', minimo + 'px');
     const medidas = columnas.map(c => anchos[c] ? anchos[c] + 'px' : COLUMNAS[c].ancho);
-    return [...(puedeEliminar ? ['40px'] : []), ...medidas, '108px'].join(' ');
+    return [...(puedeEliminar ? ['40px'] : []), '108px', ...medidas].join(' ');
   };
   // Nucleus aplica zoom al área principal: factor para pasar px de pantalla a px CSS.
   const escala = () => { const t = $('cc-tabla'); return t.getBoundingClientRect().width / t.offsetWidth || 1; };
@@ -484,7 +535,8 @@
     const activo = document.activeElement, foco = activo && cab.contains(activo) && activo.dataset.buscar
       ? {col: activo.dataset.buscar, ini: activo.selectionStart, fin: activo.selectionEnd} : null;
     cab.replaceChildren();
-    if (puedeEliminar) cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab', 'Sel.'));
+    if (puedeEliminar) cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab cc-seleccion', 'Sel.'));
+    cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab cc-col-acciones', 'Acciones'));
     for (const id of columnas) {
       const col = COLUMNAS[id], th = el('div', 'cc-th' + (col.num ? ' cc-th-num' : ''));
       th.dataset.col = id;
@@ -516,7 +568,6 @@
       });
       cab.append(th);
     }
-    cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab', 'Acciones'));
     if (foco) { const i = cab.querySelector('[data-buscar="' + foco.col + '"]'); if (i) { i.focus(); i.setSelectionRange(foco.ini, foco.fin); } }
   }
 
@@ -651,8 +702,10 @@
         celda.append(check);
         s.append(celda);
       }
+      const controles = accionesRapidas(sol);
+      controles.classList.add('cc-col-acciones');
+      s.append(controles);
       for (const id of columnas) { const col = COLUMNAS[id]; s.append(col.celda ? col.celda(sol) : el('span', col.clase || null, col.texto(sol))); }
-      s.append(accionesRapidas(sol));
       lista.append(s);
     }
   }

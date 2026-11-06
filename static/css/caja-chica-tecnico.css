@@ -6,6 +6,10 @@
 #cc-items .expense-card > label { min-height: 52px; }
 #cc-items .expense-amount input { font-size: 16px; }
 #cc-lista { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+#cc-lista .deposit { margin: 0; }
+.cc-rendir-importes { flex: none; text-align: right; }
+.deposit .cc-rendir-monto { font-size: clamp(16px, 4vw, 23px); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#cc-lista .deposit > span:first-child, #cc-detalle-contenido .deposit > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .cc-sol summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .cc-sol summary::-webkit-details-marker { display: none; }
 .cc-monto { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }

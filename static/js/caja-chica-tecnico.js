@@ -63,35 +63,120 @@
     }); });
     return form;
   }
-  function pintar() {
-    const lista = $('cc-lista'); lista.replaceChildren();
-    if (!datos.solicitudes.length) lista.append(el('p', 'cc-vacio', 'Aún no tienes solicitudes de Caja Chica.'));
-    for (const sol of datos.solicitudes) {
-      const card = el('details', 'card cc-sol'); card.open = ['DEPOSITADO', 'POR_DEVOLVER', 'RECHAZADO'].includes(sol.estado);
-      const resumen = el('summary', 'cc-sol-cabecera');
-      resumen.append(el('strong', null, sol.codigo), el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), ESTADOS[sol.estado] || sol.estado), el('span', 'cc-monto', dinero(sol.total)));
-      card.append(resumen, el('p', 'cc-motivo', sol.motivo));
-      if (sol.motivo_rechazo) card.append(el('p', 'notice', 'Motivo: ' + sol.motivo_rechazo));
-      if (sol.estado === 'DEPOSITADO') card.append(el('p', 'cc-avance', sol.avance + ' · ' + dinero(sol.pendiente) + ' pendientes'));
-      for (const item of sol.items) {
-        const fila = el('div', 'cc-item-fila');
-        const cab = el('div', 'cc-item-cabecera');
-        cab.append(el('strong', null, 'Ítem ' + item.numero + ' · ' + item.tipo_gasto), el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
-        fila.append(cab, el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + dinero(item.monto)));
-        if (item.motivo_rechazo) fila.append(el('p', 'notice', 'Rechazado: ' + item.motivo_rechazo));
-        if (item.fotos.length) { const f = el('div', 'cc-fotos'); item.fotos.forEach((n, i) => f.append(foto(sol.id, n, 'Foto ' + (i + 1)))); fila.append(f); }
-        if (sol.estado === 'DEPOSITADO' && ['POR_RENDIR', 'RECHAZADO'].includes(item.estado)) fila.append(formRendir(sol, item));
-        card.append(fila);
-      }
-      if (sol.estado === 'POR_DEVOLVER' && !sol.devolucion_foto) card.append(formDevolucion(sol));
-      if (sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto) card.append(el('p', 'cc-avance', 'Devolución enviada: en revisión.'));
-      if (sol.estado === 'RECHAZADO') {
-        const corregir = el('button', 'primary wide', 'Corregir y reenviar'); corregir.type = 'button';
-        corregir.addEventListener('click', () => abrirFormulario(sol));
-        card.append(corregir);
-      }
-      lista.append(card);
+  const fechaLima = new Intl.DateTimeFormat('es-PE', {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima'
+  });
+  let filtroRendicion = 'Por rendir';
+  function montoPendiente(sol) {
+    if (sol.estado === 'POR_DEVOLVER') return sol.devolucion_foto ? 0 : Math.round(Number(sol.diferencia) * 100);
+    if (sol.estado !== 'DEPOSITADO') return 0;
+    return sol.items.filter(item => ['POR_RENDIR', 'RECHAZADO'].includes(item.estado))
+      .reduce((suma, item) => suma + Math.round(Number(item.monto) * 100), 0);
+  }
+  function rechazado(sol) {
+    return sol.estado === 'RECHAZADO' || (sol.estado === 'DEPOSITADO' && sol.items.some(item => item.estado === 'RECHAZADO'))
+      || (sol.estado === 'POR_DEVOLVER' && sol.historial?.at(-1)?.accion === 'rechazar devolución');
+  }
+  function actualizarAntiguedad() {
+    document.querySelectorAll('[data-cc-solicitada]').forEach(indicador => {
+      const horas = Math.max(0, Math.floor((Date.now() - Date.parse(indicador.dataset.ccSolicitada)) / 3600000));
+      const dias = Math.floor(horas / 24), resto = horas % 24;
+      indicador.dataset.nivel = horas >= 24 ? 'rojo' : horas >= 12 ? 'amarillo' : 'normal';
+      indicador.textContent = (dias ? dias + ' d ' : '') + resto + ' h desde la solicitud';
+    });
+  }
+  setInterval(actualizarAntiguedad, 60000);
+  function fichaDeposito(sol) {
+    const descripcion = el('span');
+    descripcion.append(el('strong', null, sol.codigo),
+      el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), rechazado(sol) ? 'Rechazado' : ESTADOS[sol.estado]),
+      el('small', null, 'Motivo: ' + (sol.motivo || 'Sin motivo registrado')));
+    const ultimo = sol.historial?.at(-1);
+    const rechazo = sol.motivo_rechazo || sol.items.find(item => item.estado === 'RECHAZADO')?.motivo_rechazo
+      || (ultimo?.accion === 'rechazar devolución' ? ultimo.motivo : '');
+    if (rechazo) descripcion.append(el('small', null, 'Motivo del rechazo: ' + rechazo));
+    const fecha = sol.creado ? sol.creado + 'Z' : '';
+    if (Number.isFinite(Date.parse(fecha))) {
+      const momento = el('time', 'solicitud-fecha', 'Solicitado el ' + fechaLima.format(new Date(fecha)));
+      momento.dateTime = fecha;
+      const antiguedad = el('span', 'solicitud-antiguedad');
+      antiguedad.dataset.ccSolicitada = fecha;
+      descripcion.append(momento, antiguedad);
     }
+    const montos = el('span', 'cc-rendir-importes');
+    const pendiente = montoPendiente(sol);
+    montos.append(el('strong', 'cc-rendir-monto', dinero(pendiente ? pendiente / 100 : sol.total)),
+      el('small', null, sol.estado === 'POR_DEVOLVER' ? 'Por devolver' : pendiente ? 'Por rendir' : 'Solicitado'));
+    if (pendiente > 0 && pendiente !== Math.round(Number(sol.total) * 100)) {
+      montos.append(el('small', null, 'Total solicitado: ' + dinero(sol.total)));
+    }
+    return [descripcion, montos];
+  }
+  function abrirRendicion(sol) {
+    const detalle = $('cc-detalle-contenido');
+    const resumen = el('div', 'deposit');
+    resumen.append(...fichaDeposito(sol));
+    detalle.replaceChildren(resumen);
+    $('cc-titulo-rendir').textContent = sol.estado === 'RECHAZADO' ? 'Solicitud rechazada' : 'Rendir depósito';
+    for (const item of sol.items) {
+      const fila = el('section', 'card cc-item-fila');
+      const cab = el('div', 'cc-item-cabecera');
+      cab.append(el('strong', null, item.tipo_gasto), el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
+      fila.append(cab, el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + dinero(item.monto)));
+      if (item.motivo_rechazo) fila.append(el('p', 'notice', 'Rechazado: ' + item.motivo_rechazo));
+      if (item.fotos.length) {
+        const fotos = el('div', 'cc-fotos');
+        item.fotos.forEach((nombre, i) => fotos.append(foto(sol.id, nombre, 'Foto ' + (i + 1))));
+        fila.append(fotos);
+      }
+      if (sol.estado === 'DEPOSITADO' && ['POR_RENDIR', 'RECHAZADO'].includes(item.estado)) fila.append(formRendir(sol, item));
+      detalle.append(fila);
+    }
+    if (sol.estado === 'POR_DEVOLVER' && !sol.devolucion_foto) detalle.append(formDevolucion(sol));
+    if (sol.estado === 'RECHAZADO') {
+      const corregir = el('button', 'primary wide', 'Corregir y reenviar');
+      corregir.type = 'button';
+      corregir.addEventListener('click', () => abrirFormulario(sol));
+      detalle.append(corregir);
+    }
+    actualizarAntiguedad();
+    ver('cc-detalle-rendicion');
+    $('cc-titulo-rendir').focus({preventScroll: true});
+  }
+  function pintar() {
+    const grupos = {
+      'Por rendir': datos.solicitudes.filter(sol => montoPendiente(sol) > 0 && !rechazado(sol)),
+      'Rechazado': datos.solicitudes.filter(rechazado)
+    };
+    const total = datos.solicitudes.reduce((suma, sol) => suma + montoPendiente(sol), 0);
+    $('cc-pendiente').textContent = dinero(total / 100);
+    const filtros = $('cc-filtros');
+    filtros.replaceChildren();
+    for (const [estado, solicitudes] of Object.entries(grupos)) {
+      const boton = el('button', 'filtro-rendicion', estado);
+      boton.type = 'button';
+      boton.append(el('span', null, String(solicitudes.length)));
+      boton.setAttribute('aria-pressed', String(estado === filtroRendicion));
+      boton.addEventListener('click', () => {
+        filtroRendicion = estado;
+        pintar();
+        filtros.querySelector('[aria-pressed=true]').focus();
+      });
+      filtros.append(boton);
+    }
+    const lista = $('cc-lista');
+    lista.replaceChildren();
+    const solicitudes = grupos[filtroRendicion];
+    if (!solicitudes.length) lista.append(el('p', 'empty', filtroRendicion === 'Por rendir'
+      ? 'No tienes depósitos pendientes por rendir.' : 'No tienes registros rechazados.'));
+    for (const sol of solicitudes) {
+      const ficha = el('button', 'deposit');
+      ficha.type = 'button';
+      ficha.append(...fichaDeposito(sol));
+      ficha.addEventListener('click', () => abrirRendicion(sol));
+      lista.append(ficha);
+    }
+    actualizarAntiguedad();
   }
   async function cargar() { datos = await api('/datos'); pintar(); $('cargando').hidden = true; ver('cc-inicio'); }
 
@@ -166,6 +251,8 @@
     const form = $('cc-form'); form.reset();
     form.querySelector('.error').hidden = true;
     $('cc-rechazo').hidden = !sol;
+    $('cc-volver-solicitud').hidden = !sol;
+    $('cc-volver-portal').hidden = Boolean(sol);
     form.querySelector('[type=submit]').textContent = sol ? 'Reenviar solicitud' : 'Enviar solicitud';
     $('cc-dni').value = datos.personal.documento || '';
     $('cc-tecnico').value = datos.personal.nombre || '';
@@ -235,7 +322,6 @@
       }, 250);
     });
   }
-  $('cc-nueva').addEventListener('click', () => abrirFormulario());
   $('cc-exito-volver').addEventListener('click', () => ver('cc-inicio'));
   document.querySelectorAll('[data-cc-volver]').forEach(b => b.addEventListener('click', () => ver('cc-inicio')));
   $('cc-form').addEventListener('submit', e => {
@@ -253,7 +339,7 @@
       $('cc-exito-titulo').textContent = corrigiendo ? '¡Solicitud reenviada!' : '¡Solicitud enviada!';
       $('codigo-exito').textContent = r.solicitud.codigo;
       $('total-exito').textContent = dinero(r.solicitud.total);
-      datos.solicitudes = [r.solicitud, ...datos.solicitudes.filter(sol => sol.id !== r.solicitud.id)].slice(0, 50);
+      datos.solicitudes = [r.solicitud, ...datos.solicitudes.filter(sol => sol.id !== r.solicitud.id)];
       pintar();
       corrigiendo = null;
       ver('cc-exito');

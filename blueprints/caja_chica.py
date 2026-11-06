@@ -59,8 +59,9 @@ def portal():
 @tecnico
 def portal_datos():
     solicitudes = (CajaChicaSolicitud.query.filter_by(documento=g.tecnico['documento'])
-                   .filter(CajaChicaSolicitud.estado != 'ELIMINADO')
-                   .order_by(CajaChicaSolicitud.id.desc()).limit(50).all())
+                   .filter(CajaChicaSolicitud.estado.notin_((*cc.ESTADOS_FINALES, 'ELIMINADO')))
+                   .options(selectinload(CajaChicaSolicitud.items))
+                   .order_by(CajaChicaSolicitud.id.desc()).all())
     return jsonify(personal=g.tecnico, proyecto=familia(g.tecnico['proyecto']), catalogo=_catalogo(_config_catalogo()[1]),
                    responsables=responsables_por_proyecto(),
                    solicitudes=[cc.a_dict(s) for s in solicitudes])
