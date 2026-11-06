@@ -102,6 +102,9 @@
 
 
                 {% endif %}
+                {% if (session.get('rol') or '').lower() in ['gestor', 'supervisor'] and form_pruebas_habilitado() %}
+                <a href="{{ url_for('form_pruebas.gestion', bandeja='validacion') }}" class="sidebar-link"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Validación · Pruebas</span></a>
+                {% endif %}
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <div class="sidebar-section-label">Configuración</div>
                 <a href="/form-pruebas/administrar" class="sidebar-link {% if request.path.startswith('/form-pruebas') %}active{% endif %}"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Form · Pruebas</span></a>

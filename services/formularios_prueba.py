@@ -269,6 +269,61 @@ def depositos(doc, filas=None):
     return sorted(grouped.values(), key=lambda d: (d['fecha'], d['codigo']), reverse=True)
 
 
+def pendientes_por_tecnico(alcance):
+    from services.recursos_flm import familia
+
+    consulta = (
+        select(NucleusData.data_json).join(Proyecto, NucleusData.proyecto_id == Proyecto.id)
+        .where(Proyecto.nombre == 'Rendicion').order_by(NucleusData.id.desc())
+    )
+    tecnicos = {}
+    for raw in db.session.execute(consulta.execution_options(yield_per=500)).scalars():
+        try:
+            datos = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        if not isinstance(datos, dict) or estado_de(datos) in ('RECHAZADO', 'ANULADO'):
+            continue
+        etapa = etapa_de(datos)
+        if etapa not in ('EVIDENCIA', 'OBSERVADO'):
+            continue
+        proyecto = familia(valor(datos, 'Nombre del proyecto', 'PROYECTO', 'CLIENTE'))
+        if alcance is not None and proyecto not in alcance:
+            continue
+        doc = documento(valor(datos, 'Documento del beneficiario', 'Documento del beneficiario (Form)',
+                              'Documento del beneficiario (Formulario)', 'DOCUMENTO', 'DNI'))
+        codigo = str(valor(datos, 'CODIGO DEPOSITO')).strip()
+        if not doc or not codigo:
+            continue
+        try:
+            saldo = importe(valor(datos, 'MONTO PAGO'))
+        except ValueError:
+            continue
+        nombre = str(valor(datos, 'Técnico beneficiario (Dataper)', 'Técnico beneficiario',
+                           'Técnico beneficiario (Formulario)', 'Técnico beneficiario (Form)', 'TECNICO')).strip()
+        tecnico = tecnicos.setdefault(doc, {'nombre': '', 'saldo': Decimal(0), 'depositos': {}})
+        if nombre and not tecnico['nombre']:
+            tecnico['nombre'] = nombre
+        deposito = tecnico['depositos'].setdefault((proyecto, codigo), {
+            'codigo': codigo, 'proyecto': proyecto or 'Sin proyecto', 'saldo': Decimal(0),
+            'estado': 'Observado' if etapa == 'OBSERVADO' else 'Por rendir',
+        })
+        if etapa == 'OBSERVADO':
+            deposito['estado'] = 'Observado'
+        deposito['saldo'] += saldo
+        tecnico['saldo'] += saldo
+    indice = {}
+    if any(not tecnico['nombre'] for tecnico in tecnicos.values()):
+        from services.rendicion_personal import indice_personal
+        indice = indice_personal()
+    for doc, tecnico in tecnicos.items():
+        nombres = {nombre for nombre, _ in indice.get(doc, []) if nombre}
+        if not tecnico['nombre']:
+            tecnico['nombre'] = nombres.pop() if len(nombres) == 1 else 'Técnico sin nombre registrado'
+        tecnico['depositos'] = sorted(tecnico['depositos'].values(), key=lambda d: (-d['saldo'], d['codigo']))
+    return sorted(tecnicos.values(), key=lambda t: (-t['saldo'], t['nombre'].casefold()))
+
+
 def existente(doc, nonce):
     with almacen() as con:
         row = con.execute('SELECT id,tipo,datos FROM envios WHERE documento=? AND nonce=?', (doc, nonce)).fetchone()

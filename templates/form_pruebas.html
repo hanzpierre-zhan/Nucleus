@@ -72,6 +72,8 @@
 <section id="rendicion" class="view" hidden><button class="back" data-go="home" type="button"><span class="back-icon" aria-hidden="true">←</span>Volver</button><div class="eyebrow">02 / RENDICIÓN</div><h1>Tus depósitos.</h1><p>Selecciona el depósito que vas a sustentar.</p><div class="balance compact"><span class="balance-label">TE QUEDA POR RENDIR · PRUEBAS</span><div class="big-money" id="total-rendir"></div></div>
 <button type="button" id="actualizar-rendicion" class="quiet">Actualizar estado</button>
 <div id="filtros-rendicion" class="filtros-rendicion" role="group" aria-label="Filtrar por estado"></div>
+<label for="buscar-rendicion">Buscar depósito</label>
+<input id="buscar-rendicion" type="search" placeholder="Código de depósito o motivo">
 <div id="depositos"></div>
 <div id="historial-solicitudes"></div></section>
 <section id="detalle-rendicion" class="view" hidden>
@@ -116,4 +118,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=26) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=27) }}" defer></script></body></html>

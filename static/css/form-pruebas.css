@@ -2,6 +2,30 @@
 
 /* La misma paleta clara/oscura que el resto de Nucleus. */
 :root[data-theme="dark"]{color-scheme:dark;--ink:#f8fafc;--muted:#94a3b8;--paper:#181818;--line:#383b43;--accent:#202e44;--blue:#8eb9f5;--card:#222;--fill:#2c2c2c;--field:#252525;--input-border:#475569;--balance:#173e76;--balance-text:#fff;--balance-muted:#d7e3f5;--error-bg:#3b2525;--error-text:#ffb4ab;--focus:#8eb9f5}
+.gestion-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.gestion-deuda { cursor: pointer; }
+.gestion-deuda > span { display: inline-block; margin-inline-end: 10px; }
+.gestion-deuda small { display: block; }
+.gestion-tabs a { padding: 10px 16px; border: 1px solid var(--line); border-radius: 24px; text-decoration: none; font-weight: 650; }
+.gestion-tabs a[aria-current="page"] { background: var(--balance); color: var(--balance-text); }
+.gestion-lista { display: grid; gap: 14px; margin-top: 16px; }
+.gestion-ficha { min-width: 0; padding: 18px; }
+.gestion-ficha header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 8px; margin-bottom: 12px; }
+.gestion-ficha h2 { margin: 2px 0; }
+.gestion-ficha small { color: var(--muted); }
+.gestion-ficha p { margin: 0 0 10px; overflow-wrap: anywhere; }
+.gestion-monto { color: var(--blue); font-size: clamp(24px, 6vw, 34px); font-variant-numeric: tabular-nums; }
+.gestion-conceptos, .gestion-banco { list-style: none; margin: 12px 0; padding: 0; }
+.gestion-conceptos li, .gestion-banco > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.gestion-conceptos small { display: block; }
+.gestion-banco dd { margin: 0; overflow-wrap: anywhere; }
+.gestion-banco code { user-select: all; }
+.gestion-ficha .primary { width: 100%; margin-top: 10px; }
+.gestion-ficha input[type="file"] { display: block; width: 100%; margin-top: 8px; }
+.gestion-secundario { min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); color: var(--ink); padding: 6px 12px; }
+.gestion-rechazo { margin-top: 12px; color: var(--error-text); }
+.gestion-rechazo summary { cursor: pointer; min-height: 44px; padding-block: 10px; }
+.gestion-aviso { background: var(--accent); color: var(--ink); border-radius: 10px; padding: 12px; }
 .top{gap:9px}.brand{font-size:22px;letter-spacing:-.6px;gap:9px}.brand img{width:28px;height:28px}.brand span{letter-spacing:1.2px;padding-left:9px}.theme-toggle{display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:10px}.theme-toggle svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.top .quiet{padding:10px 5px}.primary{background:#173e76;color:#fff}.action.request-action{background:#173e76;color:#fff;border-color:#173e76}.request-action small{color:#d7e3f5}.request-action .action-icon{background:#ffffff18}.success-icon{background:var(--accent);color:var(--ink)}.deposit.selected{border-color:var(--focus)}.photo-button{color:var(--ink);border-color:var(--input-border)}
 @media(max-width:420px){.brand span{display:none}.top{gap:8px}.brand{gap:7px}.badge{font-size:10px;padding:4px 8px}}
 .request-group {
