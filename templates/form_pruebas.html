@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Form · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"></head>
 <body>
-<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
+<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar a tema oscuro" title="Cambiar a tema oscuro"></button>{% if autenticado and not debe_cambiar %}<button class="quiet" type="button" data-go="cambiar-clave">Clave</button>{% endif %}{% if autenticado %}<button class="quiet" id="salir" type="button">Salir</button>{% endif %}</header>
 <main class="shell">
 {% macro form_clave(obligatorio) -%}
 <section id="cambiar-clave" class="{{ 'login card' if obligatorio else 'view' }}"{% if not obligatorio %} hidden{% endif %}>
@@ -27,11 +27,11 @@
 <section id="portal" hidden>
 <section id="home" class="view"><div class="greeting"><div class="eyebrow" id="proyecto"></div><h1>Hola, <span id="nombre"></span><span class="dot">.</span></h1></div>
 <!-- Solicitar y Rendir trabajan sobre Caja Chica: lo que envía el técnico llega a la gestión de Caja Chica. -->
+<!-- Lo que el técnico debe rendir en Caja Chica, grande y arriba para que no pase desapercibido. -->
+<div class="balance cc-home-balance"><span class="balance-label">TOTAL POR RENDIR</span><div id="cc-home-total" class="big-money" aria-live="polite">S/ 0.00</div><p id="cc-home-detalle">Calculando…</p></div>
 <div class="actions"><a class="action request-action" href="/form-pruebas/caja-chica#nueva"><span class="action-icon" aria-hidden="true">＋</span><span><strong>Solicitar</strong><small>Pide dinero para tu trabajo</small></span><span aria-hidden="true">↗</span></a><a class="action" href="/form-pruebas/caja-chica"><span class="action-icon" aria-hidden="true">✓</span><span><strong>Rendir</strong><small>Envía tus comprobantes y fotos</small></span><span aria-hidden="true">↗</span></a></div>
-<button type="button" class="quiet" data-go="cambiar-clave">Cambiar clave</button>
-<div id="avisos-pago" role="status" hidden></div>
 <!-- Elementos del flujo anterior: se conservan ocultos porque form-pruebas.js aún los rellena. -->
-<div hidden><div class="balance"><div id="total" class="big-money">S/ 0.00</div><p id="cantidad"></p></div>
+<div hidden><div id="avisos-pago" role="status" hidden></div><div class="balance"><div id="total" class="big-money">S/ 0.00</div><p id="cantidad"></p></div>
 <div id="recientes" hidden><div id="lista-recientes"></div></div></div></section>
 <section id="solicitud" class="view" hidden><button class="back" data-go="home" type="button"><span class="back-icon" aria-hidden="true">←</span>Volver</button><div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1><p>Completa los datos. Aquí no necesitas adjuntar fotos.</p><form id="solicitar" class="card" novalidate>
 <fieldset class="request-group"><legend>Datos del técnico</legend>
@@ -137,4 +137,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-<script src="{{ url_for('static',filename='js/form-pruebas.js',v=29) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/form-pruebas.js',v=30) }}" defer></script></body></html>

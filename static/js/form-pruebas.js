@@ -134,6 +134,22 @@
     }
   }
   $('buscar-rendicion')?.addEventListener('input', mostrarRendicion);
+  // Total por rendir de Caja Chica: lo depositado sin rendir más las devoluciones pendientes.
+  async function totalCajaChica(){
+    if(!$('cc-home-total'))return;
+    try{
+      const r=await fetch('/form-pruebas/caja-chica/datos',{credentials:'same-origin'});const j=await r.json();if(!r.ok)throw Error(j.error);
+      let centimos=0,depositos=0;
+      for(const s of j.solicitudes){
+        let p=0;
+        if(s.estado==='POR_DEVOLVER'&&!s.devolucion_foto)p=Math.round(Number(s.diferencia)*100);
+        else if(s.estado==='DEPOSITADO')p=s.items.filter(i=>['POR_RENDIR','RECHAZADO'].includes(i.estado)).reduce((a,i)=>a+Math.round(Number(i.monto)*100),0);
+        if(p>0){centimos+=p;depositos++;}
+      }
+      $('cc-home-total').textContent=money(centimos/100);
+      $('cc-home-detalle').textContent=depositos?`${depositos} depósito${depositos===1?'':'s'} por rendir. Tienes 24 horas desde el depósito.`:'Estás al día: no tienes depósitos por rendir.';
+    }catch(e){$('cc-home-detalle').textContent='No se pudo calcular tu saldo por rendir. Actualiza la página.';}
+  }
   async function load(){
     state=await api('/datos');$('csrf').value=state.csrf;
     $('nombre').textContent=state.personal.nombre.split(/\s+/)[0];$('proyecto').textContent=state.personal.proyecto||'TU ESPACIO';
@@ -157,6 +173,7 @@
     avisos.replaceChildren(...novedades.map(r => el('p', r.estado + ' · ' + r.codigo, 'notice')));
     avisos.hidden = !novedades.length;
     $('cargando').hidden=true;$('portal').hidden=false;
+    totalCajaChica();
   }
   async function actualizarRendicion() {
     const boton = $('actualizar-rendicion');
