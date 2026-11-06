@@ -12,8 +12,10 @@ def test_analytics_abre_gerencial(auth_client):
     assert 'Total depositado' in response.text
     assert 'Falta rendir' in response.text
     assert 'Evolución de depósitos' in response.text
-    assert 'Alertas para tomar acción' in response.text
-    assert 'Operación por proyecto' in response.text
+    assert 'Montos por proyecto' in response.text
+    assert 'id="dg-desde"' in response.text
+    assert 'id="dg-hasta"' in response.text
+    assert 'value="semana" selected' in response.text
 
 
 def test_gerencial_cruza_carteras_y_respeta_restricciones(app, auth_client):
@@ -52,6 +54,9 @@ def test_gerencial_cruza_carteras_y_respeta_restricciones(app, auth_client):
         try:
             ahora = datetime(2026, 10, 13, 12)
             completo = resumen(proyectos, usuario, 'zeno', ahora)
+            assert any(f['fecha'] == '2026-10-10' and f['proyecto'] == 'ENTEL'
+                       and f.get('depositado', 0) >= 80 and f.get('depositos', 0) >= 1
+                       for f in completo['actividad'])
             limitado = resumen([p for p in proyectos if p.nombre == 'FLM - ENTEL'], usuario, 'supervisor', ahora)
             assert completo['operaciones'][0]['antiguas'] >= 2
             assert any(a['titulo'] == 'Depósitos con más de 24 h sin sustento' and a['monto'] >= 80
