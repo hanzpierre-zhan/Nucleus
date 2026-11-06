@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f7fa">
+  <title>{{ {'validacion': 'Validación', 'depositos': 'Depósitos', 'por-rendir': 'Por rendir'}[bandeja] }} · Nucleus</title>
+  <script src="{{ url_for('static', filename='js/form-pruebas-theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form-pruebas.css', v=12) }}">
+</head>
+<body>
+<header class="top">
+  <a href="/" class="brand"><img src="{{ url_for('static', filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus</a>
+  <span class="badge">Pruebas</span>
+  <button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema"></button>
+</header>
+<main class="shell gestion-piloto">
+  <div class="notice">Rendición de prueba · Acciones sobre solicitudes del piloto</div>
+  <nav class="gestion-tabs" aria-label="Bandejas">
+    <a href="{{ url_for('form_pruebas.gestion', bandeja='validacion') }}"{% if bandeja == 'validacion' %} aria-current="page"{% endif %}>Validación</a>
+    <a href="{{ url_for('form_pruebas.gestion', bandeja='por-rendir') }}"{% if bandeja == 'por-rendir' %} aria-current="page"{% endif %}>Por rendir</a>
+    {% if puede_depositar %}<a href="{{ url_for('form_pruebas.gestion', bandeja='depositos') }}"{% if bandeja == 'depositos' %} aria-current="page"{% endif %}>Depósitos</a>{% endif %}
+  </nav>
+  {% if bandeja == 'por-rendir' %}
+  <h1>Por rendir</h1>
+  <p>{{ tecnicos|length }} técnicos con depósitos pendientes u observados · Lectura de Rendición</p>
+  {% if tecnicos %}
+  <label for="gestion-buscar">Buscar técnico o código de depósito</label>
+  <input id="gestion-buscar" type="search" placeholder="Nombre o código">
+  <p id="gestion-sin-resultados" class="hint" role="status" hidden>Sin coincidencias.</p>
+  {% endif %}
+  <div class="gestion-lista">
+    {% for tecnico in tecnicos %}
+    <details class="card gestion-ficha" data-busqueda="{{ tecnico.nombre }} {{ tecnico.depositos|map(attribute='codigo')|join(' ') }}">
+      <summary class="gestion-deuda">
+        <span><strong>{{ tecnico.nombre }}</strong><small>{{ tecnico.depositos|length }} depósitos</small></span>
+        <strong class="gestion-monto">S/ {{ '{:,.2f}'.format(tecnico.saldo) }}</strong>
+      </summary>
+      <ul class="gestion-conceptos">
+        {% for deposito in tecnico.depositos %}
+        <li><span><strong>{{ deposito.codigo }}</strong><small>{{ deposito.proyecto }} · {{ deposito.estado }}</small></span>
+          <strong>S/ {{ '{:,.2f}'.format(deposito.saldo) }}</strong></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% else %}
+    <p class="empty">No hay depósitos por rendir en los proyectos disponibles.</p>
+    {% endfor %}
+  </div>
+  {% else %}
+  <h1>{{ 'Validación de solicitudes' if validacion else 'Depósitos de prueba' }}</h1>
+  <p>{{ envios|length }} {{ 'pendientes de revisión' if validacion else 'aprobadas por depositar' }}</p>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  {% if registrado %}<p class="gestion-aviso" role="status">Cambio registrado en el piloto.</p>{% endif %}
+  {% if envios %}
+  <label for="gestion-buscar">Buscar por código, técnico o proyecto</label>
+  <input id="gestion-buscar" type="search" placeholder="Busca una solicitud">
+  <p id="gestion-sin-resultados" class="hint" role="status" hidden>Sin coincidencias.</p>
+  {% endif %}
+  <div class="gestion-lista">
+    {% for envio in envios %}
+    {% set datos = envio.datos %}
+    <article class="card gestion-ficha" data-busqueda="{{ envio.codigo }} {{ datos.personal.nombre }} {{ datos.proyecto or datos.personal.proyecto }}">
+      <header>
+        <div><span class="eyebrow">{{ datos.proyecto or datos.personal.proyecto or 'Sin proyecto' }}</span><h2>{{ datos.personal.nombre }}</h2><small>{{ envio.codigo }} · {{ envio.fecha }}</small></div>
+        <strong class="gestion-monto">S/ {{ datos.monto }}</strong>
+      </header>
+      <p>{{ datos.comentarios or datos.motivo }}</p>
+      {% if datos.site or datos.wo %}<p class="hint">{{ datos.site }}{% if datos.site and datos.wo %} · {% endif %}{{ datos.wo }}</p>{% endif %}
+      {% if datos.partidas %}
+      <ul class="gestion-conceptos">
+        {% for partida in datos.partidas %}
+        <li><span>{{ partida.etiqueta }}<small>{{ partida.presupuesto }}</small></span><strong>S/ {{ partida.monto }}</strong></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if validacion %}
+      <form method="post">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="id" value="{{ envio.id }}">
+        <button class="primary" type="submit" name="accion" value="aprobar">Aprobar solicitud <span aria-hidden="true">→</span></button>
+        <details class="gestion-rechazo"><summary>Rechazar solicitud</summary>
+          <label>Motivo del rechazo<textarea name="motivo" maxlength="500" rows="2"></textarea></label>
+          <button class="gestion-secundario" type="submit" name="accion" value="rechazar">Confirmar rechazo</button>
+        </details>
+      </form>
+      {% else %}
+      <dl class="gestion-banco">
+        <div><dt>Banco</dt><dd>{{ datos.banco or datos.medio_pago or 'Sin registrar' }}</dd></div>
+        <div><dt>Titular</dt><dd>{{ datos.titular or 'Sin registrar' }}</dd></div>
+        {% set cuenta = datos.cuenta_cci or datos.cuenta %}
+        {% if cuenta %}<div><dt>{{ 'CCI' if datos.cuenta_cci or datos.medio_pago == 'Transferencia bancaria' else 'Cuenta o celular' }}</dt><dd><code>{{ cuenta }}</code> <button class="gestion-secundario" type="button" data-copiar="{{ cuenta }}">Copiar</button></dd></div>{% endif %}
+        {% if datos.numero_billetera %}<div><dt>{{ datos.tipo_billetera }}</dt><dd>{{ datos.numero_billetera }}</dd></div>{% endif %}
+      </dl>
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="id" value="{{ envio.id }}">
+        <label>Foto del comprobante de prueba<input type="file" name="comprobante" accept="image/*" required></label>
+        <button class="primary" type="submit" name="accion" value="pagar">Registrar depósito de prueba <span aria-hidden="true">→</span></button>
+      </form>
+      {% endif %}
+    </article>
+    {% else %}
+    <p class="empty">{{ 'No hay solicitudes pendientes en tus proyectos.' if validacion else 'Las solicitudes aprobadas aparecerán aquí.' }}</p>
+    {% endfor %}
+  </div>
+  {% endif %}
+</main>
+<script src="{{ url_for('static', filename='js/form-pruebas-gestion.js', v=1) }}"></script>
+</body>
+</html>

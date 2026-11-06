@@ -42,7 +42,7 @@
   </div>
   {% macro escala(id, default) %}
   <select id="di-{{ id }}-scale" aria-label="Agrupar {{ 'evolución' if id == 'evolution' else 'cierres' }} por periodo">
-    {% for value, label in [('dia','Por día'), ('semana','Por semana'), ('mes','Por mes')] %}
+    {% for value, label in [('dia','Por día'), ('semana','Por semana'), ('mes','Por mes'), ('anio','Por año')] %}
     <option value="{{ value }}"{% if value == default %} selected{% endif %}>{{ label }}</option>
     {% endfor %}
   </select>
@@ -54,7 +54,7 @@
       <div class="dv-canvas"><canvas id="di-evolution" role="img" aria-label="Órdenes creadas, cerradas y abiertas"></canvas><p id="di-evolution-empty" hidden>Sin órdenes con fecha para esta selección.</p></div>
     </article>
     <article class="di-card dv-feature">
-      <div class="dv-chart-header"><h2>Cierres por duración</h2>{{ escala('closures', 'mes') }}</div>
+      <div class="dv-chart-header"><h2>Cierres por duración</h2>{{ escala('closures', 'semana') }}</div>
       <p id="di-closures-note"></p>
       <div class="dv-canvas"><canvas id="di-closures" role="img" aria-label="Cierres por duración"></canvas><p id="di-closures-empty" hidden>Sin cierres con duración válida.</p></div>
     </article>
@@ -78,7 +78,7 @@
   </article></details>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-claro-model.js?v=2"></script>
+<script src="/static/js/dashboard-claro-model.js?v=4"></script>
 <script src="/static/js/dashboard-operativo.js?v=2"></script>
 <script src="/static/js/dashboard-integratel.js?v=10"></script>
 {% endblock %}

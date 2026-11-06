@@ -115,8 +115,10 @@ def test_pantalla_cotizaciones_carga_modal(auth_client, cotizacion):
     assert b'id="cot-provider-heading"' in respuesta.data
     assert b'id="cot-proveedor-archivo"' in respuesta.data
     assert b'id="cot-cnt-proveedor"' in respuesta.data
-    assert b'id="cot-factura-numero"' in respuesta.data
-    assert b'id="cot-oc-numero"' in respuesta.data
+    # Documentos del proveedor: filas por factura, agregar registro y total.
+    assert b'id="cot-prov-registros"' in respuesta.data
+    assert b'id="cot-prov-agregar"' in respuesta.data
+    assert b'id="cot-prov-total"' in respuesta.data
 
 
 def test_rechaza_archivo_ejecutable(auth_client, cotizacion):
@@ -173,6 +175,37 @@ def test_proveedor_paralelo_no_cambia_sustento(app, auth_client, cotizacion):
     assert atendido.json['newData']['ADJUNTO FACTURA PROVEEDOR'] == factura.json['url']
     with app.app_context():
         assert NucleusData.query.filter_by(proyecto_id=pid, key_value=key).count() == 1
+
+
+def test_proveedor_varios_registros_y_total(auth_client, cotizacion):
+    pid, key = cotizacion
+    assert auth_client.post('/api/cotizacion/accion', json={'key': key, 'accion': 'conformar_aprobacion'}).status_code == 200
+    urls = []
+    for n in range(3):
+        r = auth_client.post('/api/cotizacion/subir_factura_proveedor', data={
+            'key': key, 'adjunto': (io.BytesIO(b'%PDF-1.4\nFactura'), 'factura-%d.pdf' % n)})
+        assert r.status_code == 200, r.json
+        urls.append(r.json['url'])
+    registros = [{'factura': 'F001-1', 'oc': 'OC-1', 'subtotal': '100.50', 'url': urls[0]},
+                 {'factura': 'F001-2', 'oc': 'OC-1', 'subtotal': '1,200.25', 'url': urls[1]},
+                 {'factura': 'F002-3', 'oc': 'OC-2', 'subtotal': '0', 'url': urls[2]}]
+    r = auth_client.post('/api/cotizacion/proveedor', json={'key': key, 'registros': registros})
+    assert r.status_code == 200, r.json
+    datos = r.json['newData']
+    assert [x['subtotal'] for x in datos['_PROVEEDOR_REGISTROS']] == ['100.50', '1200.25', '0.00']
+    # Campos de siempre: liquidaciones y dashboards leen estos.
+    assert datos['SUBTOTAL FACTURA PROVEEDOR'] == '1300.75'
+    assert datos['NUMERO FACTURA PROVEEDOR'] == 'F001-1, F001-2, F002-3'
+    assert datos['NUMERO OC PROVEEDOR'] == 'OC-1, OC-2'
+    assert datos['ADJUNTO FACTURA PROVEEDOR'] == urls[0]
+    assert datos['_PROVEEDOR_FACTURAS'] == urls
+    # Cada registro exige número, OC, subtotal y su propio archivo
+    for cambio, mensaje in (({'oc': ''}, 'OC'), ({'subtotal': 'abc'}, 'subtotal'), ({'url': ''}, 'adjunta'),
+                            ({'url': '/api/cotizacion/correo/1/OTRA/factura_proveedor_x.pdf'}, 'no corresponde')):
+        malo = [dict(registros[0]), {**registros[1], **cambio}]
+        r = auth_client.post('/api/cotizacion/proveedor', json={'key': key, 'registros': malo})
+        assert r.status_code == 400 and 'Registro 2' in r.json['error'] and mensaje in r.json['error'], r.json
+    assert auth_client.post('/api/cotizacion/proveedor', json={'key': key, 'registros': []}).status_code == 400
 
 
 def test_factura_no_se_guarda_antes_de_aprobar(auth_client, cotizacion):

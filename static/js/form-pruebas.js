@@ -108,10 +108,12 @@
     }
     const lista = $('depositos');
     lista.replaceChildren();
-    const registros = grupos.get(filtroRendicion);
+    const consulta = $('buscar-rendicion').value.trim().toLocaleLowerCase('es');
+    const registros = grupos.get(filtroRendicion).filter(registro =>
+      [registro.codigo, registro.motivo].some(valor => String(valor || '').toLocaleLowerCase('es').includes(consulta)));
     const mostrarRechazados = filtroRendicion === 'Rechazado';
     mostrarHistorial(mostrarRechazados ? registros : []);
-    if (!registros.length) lista.append(el('p', 'No tienes registros en este estado.', 'empty'));
+    if (!registros.length) lista.append(el('p', consulta ? 'No encontramos coincidencias.' : 'No tienes registros en este estado.', 'empty'));
     if (mostrarRechazados) return;
     for (const deposito of registros) {
       const ficha = el('button', undefined, 'deposit');
@@ -128,6 +130,7 @@
       lista.append(ficha);
     }
   }
+  $('buscar-rendicion')?.addEventListener('input', mostrarRendicion);
   async function load(){
     state=await api('/datos');$('csrf').value=state.csrf;
     $('nombre').textContent=state.personal.nombre.split(/\s+/)[0];$('proyecto').textContent=state.personal.proyecto||'TU ESPACIO';

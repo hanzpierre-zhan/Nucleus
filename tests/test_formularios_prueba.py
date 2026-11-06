@@ -178,13 +178,17 @@ def test_historial_pago_rechazo_y_foto_privada(portal, monkeypatch):
 
     with portal.app_context():
         admin = Usuario(username='admin-piloto', password_hash='no-login', rol='zeno')
-        db.session.add(admin)
+        gestora = Usuario(username='gestora-piloto', password_hash='no-login', rol='gestor')
+        proyecto = Proyecto(nombre='FLM - ENTEL')
+        db.session.add_all([admin, gestora, proyecto])
+        db.session.flush()
+        db.session.add(AccesoProyecto(usuario_id=gestora.id, proyecto_id=proyecto.id))
         fila = NucleusData.query.filter_by(key_value='p1').one()
         registro = json.loads(fila.data_json)
         registro['FOTO PAGO'] = f'/api/rendicion/foto/{fila.proyecto_id}/p1/rendicion_pago.jpg'
         fila.data_json = json.dumps(registro)
         db.session.commit()
-        admin_id, registro_id = admin.id, fila.id
+        admin_id, gestora_id, registro_id = admin.id, gestora.id, fila.id
     monkeypatch.setattr(rendicion, '_servir_foto_rendicion', lambda pid, key, nombre: (nombre, 200))
 
     tecnico = portal.test_client()
@@ -195,11 +199,24 @@ def test_historial_pago_rechazo_y_foto_privada(portal, monkeypatch):
     admin = portal.test_client()
     with admin.session_transaction() as sesion:
         sesion.update(user_id=admin_id, form_csrf='prueba-csrf')
-    assert admin.post('/form-pruebas/administrar', data={
+    validacion = portal.test_client()
+    with validacion.session_transaction() as sesion:
+        sesion.update(user_id=gestora_id, form_csrf='prueba-csrf')
+    assert validacion.get('/form-pruebas/gestion/depositos').status_code == 403
+    assert admin.post('/form-pruebas/gestion/depositos', data={
+        'csrf': 'prueba-csrf', 'accion': 'pagar', 'id': pagada['id'],
+        'comprobante': (imagen(), 'pago.png'),
+    }).status_code == 409
+    assert pagada['codigo'] in validacion.get('/form-pruebas/gestion/validacion').text
+    assert validacion.post('/form-pruebas/gestion/validacion', data={
+        'csrf': 'prueba-csrf', 'accion': 'aprobar', 'id': pagada['id'],
+    }).status_code == 302
+    assert pagada['codigo'] in admin.get('/form-pruebas/gestion/depositos').text
+    assert admin.post('/form-pruebas/gestion/depositos', data={
         'csrf': 'prueba-csrf', 'accion': 'pagar', 'id': pagada['id'],
         'comprobante': (imagen(), 'pago.png'),
     }).status_code == 302
-    assert admin.post('/form-pruebas/administrar', data={
+    assert admin.post('/form-pruebas/gestion/validacion', data={
         'csrf': 'prueba-csrf', 'accion': 'rechazar', 'id': rechazada['id'], 'motivo': 'Revisar importe',
     }).status_code == 302
 
@@ -463,3 +480,52 @@ def test_login_habitual_documento_como_usuario_y_clave(portal):
     other=portal.test_client()
     assert other.post('/login',data={'username':'00003333','password':'00003333'}).status_code==200
     assert other.get('/form-pruebas/datos').status_code==401
+
+
+def test_login_movil_de_gestora_abre_validacion_despues_de_conformidad(portal):
+    from werkzeug.security import generate_password_hash
+
+    with portal.app_context():
+        cuenta = Usuario(username='gestora-movil', rol='gestor',
+                         password_hash=generate_password_hash('prueba-movil'))
+        db.session.add(cuenta)
+        db.session.commit()
+    client = portal.test_client()
+    headers_movil = {'User-Agent': 'Mozilla/5.0 (iPhone) Mobile Safari'}
+    respuesta = client.post('/login', data={'username': 'gestora-movil', 'password': 'prueba-movil'},
+                            headers=headers_movil)
+    assert b'name="legal_accept"' in respuesta.data
+    respuesta = client.post('/login', data={'consent_step': '1', 'legal_accept': '1'}, headers=headers_movil)
+    assert respuesta.headers['Location'] == '/form-pruebas/gestion/validacion'
+    assert client.get(respuesta.headers['Location']).status_code == 200
+    assert client.get('/form-pruebas/gestion/depositos').status_code == 403
+
+
+def test_por_rendir_agrupa_y_ordena_depositos_del_proyecto(portal):
+    with portal.app_context():
+        gestora = Usuario(username='gestora-saldos', password_hash='no-login', rol='gestor')
+        proyecto = Proyecto(nombre='FLM - ENTEL')
+        db.session.add_all([gestora, proyecto])
+        db.session.flush()
+        db.session.add(AccesoProyecto(usuario_id=gestora.id, proyecto_id=proyecto.id))
+        for clave in ('p1', 'p2', 'p3'):
+            fila = NucleusData.query.filter_by(key_value=clave).one()
+            datos = json.loads(fila.data_json)
+            datos['Nombre del proyecto'] = 'FLM - ENTEL'
+            fila.data_json = json.dumps(datos)
+        datos['ESTADO'] = 'DEPOSITADO'
+        datos['CODIGO DEPOSITO'] = 'DEP-FUERA'
+        datos['Nombre del proyecto'] = 'FLM - CLARO'
+        db.session.add(NucleusData(proyecto_id=fila.proyecto_id, key_value='fuera-saldos', data_json=json.dumps(datos)))
+        db.session.commit()
+        uid = gestora.id
+    antes = fuente(portal)
+    client = portal.test_client()
+    with client.session_transaction() as session:
+        session['user_id'] = uid
+    respuesta = client.get('/form-pruebas/gestion/por-rendir')
+    assert respuesta.status_code == 200
+    assert respuesta.text.index('Luis Prueba') < respuesta.text.index('Ana Prueba')
+    assert 'DEP-p1' in respuesta.text and 'DEP-p2' in respuesta.text
+    assert 'DEP-p3' not in respuesta.text and 'DEP-FUERA' not in respuesta.text
+    assert fuente(portal) == antes

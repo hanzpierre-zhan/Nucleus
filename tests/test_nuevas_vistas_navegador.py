@@ -44,17 +44,19 @@ def test_proveedor_seleccion_multiple_y_reabrir(auth_client,servidor,cotizacion)
         browser,page=browser_page(auth_client,p,servidor)
         try:
             page.evaluate("cotAbrirProveedor('TEST-PROVEEDOR')")
-            files=[{'name':f'factura-{i}.pdf','mimeType':'application/pdf','buffer':b'%PDF test'} for i in range(2)]
-            page.locator('#cot-factura-archivo').set_input_files(files)
-            pw.expect(page.locator('#cot-factura-estado a')).to_have_count(2)
-            page.locator('#cot-oc-archivos').set_input_files(files)
-            pw.expect(page.locator('#cot-oc-estado a')).to_have_count(2)
-            page.locator('#cot-factura-numero').fill('F-1, F-2');page.locator('#cot-oc-numero').fill('OC-1, OC-2');page.locator('#cot-factura-subtotal').fill('123')
+            # Una fila por factura; las órdenes de compra ya no se adjuntan aquí.
+            for i,(factura,oc,subtotal) in enumerate([('F-1','OC-1','100'),('F-2','OC-2','23.50')]):
+                if i:page.locator('#cot-prov-agregar').click()
+                page.locator(f'#cot-prov-factura-{i}').fill(factura);page.locator(f'#cot-prov-oc-{i}').fill(oc);page.locator(f'#cot-prov-subtotal-{i}').fill(subtotal)
+                with page.expect_file_chooser() as elegir:
+                    page.locator('.cot-prov-fila').nth(i).locator('.cot-prov-subir').click()
+                elegir.value.set_files({'name':f'factura-{i}.pdf','mimeType':'application/pdf','buffer':b'%PDF test'})
+                pw.expect(page.locator('.cot-prov-fila').nth(i).locator('.cot-prov-doc')).to_have_count(1)
+            pw.expect(page.locator('#cot-prov-total')).to_have_text('S/ 123.50')
             page.locator('#cot-proveedor-guardar').click()
             pw.expect(page.locator('#cot-proveedor-modal')).to_be_hidden()
             page.evaluate("cotAbrirProveedor('TEST-PROVEEDOR')")
-            pw.expect(page.locator('#cot-factura-estado a')).to_have_count(2)
-            pw.expect(page.locator('#cot-oc-estado a')).to_have_count(2)
+            pw.expect(page.locator('.cot-prov-fila .cot-prov-doc')).to_have_count(2)
         finally:browser.close()
 
 

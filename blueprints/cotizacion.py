@@ -1157,6 +1157,14 @@ def api_cotizacion_proveedor():
     row = json.loads(fila.data_json or '{}')
     if not _cot_en_proveedor(row):
         return jsonify({'error': 'La cotización debe estar aprobada por el cliente.'}), 409
+    if 'registros' in data:
+        error = _guardar_registros_proveedor(proy, key, row, data.get('registros'))
+        if error:
+            return jsonify({'error': error}), 400
+        db.session.add(NucleusHistory(proyecto_id=proy.id, key_value=key, data_json=fila.data_json))
+        fila.data_json = safe_json_dumps(row)
+        db.session.commit()
+        return jsonify({'success': True, 'newData': row})
     numero = str(data.get('numero_factura') or '').strip()
     oc = str(data.get('numero_oc') or '').strip()
     adjunto = str(data.get('factura_proveedor') or '').strip()
@@ -1195,6 +1203,47 @@ def api_cotizacion_proveedor():
     fila.data_json = safe_json_dumps(row)
     db.session.commit()
     return jsonify({'success': True, 'newData': row})
+
+
+def _guardar_registros_proveedor(proy, key, row, registros):
+    """Una fila por factura: número, OC, subtotal y su archivo.
+
+    Los campos de siempre (NUMERO FACTURA/OC, SUBTOTAL, ADJUNTO) se derivan de
+    la lista para que liquidaciones y dashboards sigan funcionando igual.
+    """
+    from decimal import Decimal
+    from blueprints.refacturable import _monto, _importe
+    if not isinstance(registros, list) or not registros or len(registros) > 50:
+        return 'Agrega al menos un registro de factura.'
+    prefijo = '/api/cotizacion/correo/%d/%s/factura_proveedor_' % (proy.id, secure_filename(key))
+    limpios = []
+    for n, registro in enumerate(registros, 1):
+        if not isinstance(registro, dict):
+            return 'Registro de factura inválido.'
+        factura = str(registro.get('factura') or '').strip()[:100]
+        oc = str(registro.get('oc') or '').strip()[:100]
+        url = str(registro.get('url') or '').strip()
+        importe = _monto(registro.get('subtotal'))
+        if not factura or not oc:
+            return 'Registro %d: ingresa el número de factura y el número de OC.' % n
+        if importe is None or importe < 0:
+            return 'Registro %d: ingresa un subtotal válido, mayor o igual a cero.' % n
+        if not url:
+            return 'Registro %d: adjunta la factura del proveedor.' % n
+        if not url.startswith(prefijo) or any(c in url for c in ('<', '>', '"', "'", '\\')):
+            return 'Registro %d: la factura no corresponde a esta cotización.' % n
+        limpios.append({'factura': factura, 'oc': oc, 'subtotal': _importe(importe), 'url': url})
+    total = sum((_monto(r['subtotal']) for r in limpios), Decimal('0'))
+    row.update({
+        '_PROVEEDOR_REGISTROS': limpios,
+        'NUMERO FACTURA PROVEEDOR': ', '.join(dict.fromkeys(r['factura'] for r in limpios)),
+        'NUMERO OC PROVEEDOR': ', '.join(dict.fromkeys(r['oc'] for r in limpios)),
+        'SUBTOTAL FACTURA PROVEEDOR': _importe(total),
+        'ADJUNTO FACTURA PROVEEDOR': limpios[0]['url'],
+        '_PROVEEDOR_FACTURAS': list(dict.fromkeys(r['url'] for r in limpios)),
+        '_PROVEEDOR_PARALELO': True,
+    })
+    return None
 
 
 def _documentos_proveedor(datos, tipo):

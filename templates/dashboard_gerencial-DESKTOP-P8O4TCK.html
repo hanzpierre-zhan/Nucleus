@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Gerencial{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
+<link rel="stylesheet" href="/static/css/dashboard-gerencial.css?v=8">
+<section class="di-page dg-page">
+  {% from '_dashboard_header.html' import dashboard_header with context %}
+  {% call dashboard_header('Gerencial', 'Montos por proyecto', 'Corte ' ~ dashboard.hoy) %}
+    {% if dashboard.ve_rend or dashboard.ve_cot %}
+    <div class="dg-filtros" role="group" aria-label="Filtros del tablero">
+      <label>Desde<input id="dg-desde" type="date" value="{{ dashboard.desde }}"></label>
+      <label>Hasta<input id="dg-hasta" type="date" value="{{ dashboard.hoy }}"></label>
+      <label>Proyecto<select id="dg-proyecto"><option value="">Todos</option></select></label>
+      <label>Agrupar por<select id="dg-periodo">
+        <option value="dia">Día</option>
+        <option value="semana" selected>Semana</option>
+        <option value="mes">Mes</option>
+        <option value="anio">Año</option>
+      </select></label>
+    </div>
+    {% endif %}
+  {% endcall %}
+
+  {% if dashboard.ve_rend or dashboard.ve_cot %}
+  <p id="dg-error" class="dg-error" role="alert" hidden></p>
+  <div class="dg-kpis" aria-label="Resumen financiero del período">
+    {% if dashboard.ve_rend %}
+    <article data-tone="blue"><h2>Total depositado</h2><strong id="dg-depositado">—</strong><small id="dg-depositos">—</small></article>
+    <article data-tone="amber"><h2>Falta rendir</h2><strong id="dg-por_rendir">—</strong><small>De los depósitos del período</small></article>
+    <article data-tone="teal"><h2>En validación</h2><strong id="dg-por_validar">—</strong><small>De los depósitos del período</small></article>
+    {% endif %}
+    {% if dashboard.ve_cot %}
+    <article data-tone="violet"><h2>Importe de cotizaciones</h2><strong id="dg-cotizado">—</strong><small id="dg-cotizaciones">—</small></article>
+    {% endif %}
+  </div>
+
+  <div class="dg-panels">
+    <section class="dg-panel dg-chart-panel">
+      <header class="dg-panel-heading">
+        <div>
+          <h2 id="dg-chart-title">{{ 'Evolución de depósitos' if dashboard.ve_rend else 'Evolución de cotizaciones' }}</h2>
+          <p id="dg-fecha-base"></p>
+        </div>
+        {% if dashboard.ve_rend and dashboard.ve_cot %}
+        <select id="dg-metrica" aria-label="Importe del gráfico">
+          <option value="depositado">Depósitos</option>
+          <option value="cotizado">Cotizaciones</option>
+        </select>
+        {% endif %}
+      </header>
+      <div id="dg-grafico" class="dg-chart">
+        <canvas id="dg-evolucion" role="img" aria-labelledby="dg-chart-title"></canvas>
+      </div>
+      <p id="dg-vacio" class="dg-empty" hidden>Sin registros con fecha para esta selección.</p>
+    </section>
+
+    <section class="dg-panel dg-project-panel" aria-labelledby="dg-project-title">
+      <header class="dg-panel-heading">
+        <div><h2 id="dg-project-title">Montos por proyecto</h2><p>Importe y cantidad en el rango elegido.</p></div>
+      </header>
+      <div class="dg-table-wrap" tabindex="0" role="region" aria-label="Montos por proyecto">
+        <table>
+          <thead><tr><th scope="col">Proyecto</th>
+            {% if dashboard.ve_rend %}<th scope="col">Depositado</th>{% endif %}
+            {% if dashboard.ve_cot %}<th scope="col">Cotizaciones</th>{% endif %}
+          </tr></thead>
+          <tbody id="dg-proyectos"></tbody>
+        </table>
+      </div>
+      <p id="dg-sin-proyectos" class="dg-empty" hidden>Sin movimientos en el rango elegido.</p>
+    </section>
+  </div>
+  <footer class="dg-notes">
+    {% if dashboard.ve_rend %}<a href="{{ url_for('pages.analytics_rendicion') }}">Detalle de Caja Chica <span aria-hidden="true">↗</span></a>{% endif %}
+    {% if dashboard.ve_cot %}<a href="{{ url_for('pages.analytics_cotizaciones') }}">Detalle de Cotizaciones <span aria-hidden="true">↗</span></a>{% endif %}
+  </footer>
+  {% else %}
+  <p class="dg-panel">Los importes se muestran según tu acceso a Caja Chica y Cotizaciones.</p>
+  {% endif %}
+</section>
+{% if dashboard.ve_rend or dashboard.ve_cot %}
+<script id="dg-datos" type="application/json">{{ {'actividad': dashboard.actividad, 'rend': dashboard.ve_rend, 'cot': dashboard.ve_cot}|tojson }}</script>
+<script src="/static/js/dashboard-claro-model.js?v=4"></script>
+<script src="/static/js/dashboard-visual.js?v=3"></script>
+<script src="/static/js/dashboard-gerencial.js?v=4"></script>
+{% endif %}
+{% endblock %}

@@ -2803,22 +2803,24 @@ function cotElegirAdjunto() {
 }
 
 let _cotProveedorModal = null;
+// Documentos del proveedor: una fila por factura (número, OC, subtotal y archivo).
+function cotRegistrosProveedorIniciales(row) {
+    const guardados = Array.isArray(row._PROVEEDOR_REGISTROS) ? row._PROVEEDOR_REGISTROS.filter(r => r && typeof r === 'object') : [];
+    if (guardados.length) return guardados.map(r => ({factura: r.factura || '', oc: r.oc || '', subtotal: r.subtotal ?? '', url: r.url || ''}));
+    // Registros anteriores a la lista: los campos de siempre van en la primera fila
+    // y cada archivo adicional queda en su propia fila para completarla.
+    const archivos = [...new Set([row['ADJUNTO FACTURA PROVEEDOR'], ...(row._PROVEEDOR_FACTURAS || [])].filter(Boolean))];
+    const primera = {factura: row['NUMERO FACTURA PROVEEDOR'] || '', oc: row['NUMERO OC PROVEEDOR'] || '',
+                     subtotal: row['SUBTOTAL FACTURA PROVEEDOR'] ?? '', url: archivos[0] || ''};
+    return [primera, ...archivos.slice(1).map(url => ({factura: '', oc: '', subtotal: '', url}))];
+}
 function cotAbrirProveedor(key) {
     const row = rawData.find(r => r._key === key);
     if (!row) return;
-    _cotProveedorModal = {key, url: row['ADJUNTO FACTURA PROVEEDOR'] || '',
-        facturas:[...new Set([row['ADJUNTO FACTURA PROVEEDOR'],...(row._PROVEEDOR_FACTURAS||[])].filter(Boolean))],
-        ocs:[...new Set([row['ADJUNTO OC PROVEEDOR'],...(row._PROVEEDOR_OCS||[])].filter(Boolean))],subiendo: false};
-    // El modal ya no muestra el bloque "Documentos adjuntos".
+    _cotProveedorModal = {key, registros: cotRegistrosProveedorIniciales(row), subiendo: 0};
     document.getElementById('cot-proveedor-sub').textContent = 'Cotización: ' + key;
-    document.getElementById('cot-factura-numero').value = row['NUMERO FACTURA PROVEEDOR'] || '';
-    document.getElementById('cot-factura-subtotal').value = row['SUBTOTAL FACTURA PROVEEDOR'] ?? '';
-    document.getElementById('cot-oc-numero').value = row['NUMERO OC PROVEEDOR'] || '';
-    const input = document.getElementById('cot-factura-archivo'); input.value = ''; input.disabled = false;
-    document.getElementById('cot-factura-elegir').disabled = false;
     document.getElementById('cot-proveedor-guardar').disabled = false;
     document.getElementById('cot-proveedor-guardar').innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Guardar documentos';
-    document.getElementById('cot-factura-caption').textContent = 'Agregar facturas del proveedor';
     cotMostrarFactura();
     document.getElementById('cot-proveedor-modal').style.display = 'flex';
 }
@@ -2826,52 +2828,110 @@ function cotCerrarProveedor() {
     document.getElementById('cot-proveedor-modal').style.display = 'none';
     _cotProveedorModal = null;
 }
+function cotImporteProveedor(valor) {
+    const texto = String(valor ?? '').replace(/^\s*S\/\.?\s*/i, '').replace(/\s/g, '').replace(/,(?=\d{3}(\D|$))/g, '').replace(',', '.');
+    if (texto === '' || !/^\d+(\.\d+)?$/.test(texto)) return null;
+    return Number(texto);
+}
+function cotTotalProveedor() {
+    const modal = _cotProveedorModal; if (!modal) return;
+    const total = modal.registros.reduce((suma, r) => suma + (cotImporteProveedor(r.subtotal) || 0), 0);
+    document.getElementById('cot-prov-total').textContent = 'S/ ' + total.toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function cotAgregarRegistroProveedor() {
+    const modal = _cotProveedorModal; if (!modal) return;
+    if (modal.registros.length >= 50) { nucleusAlert('Máximo 50 registros por cotización.'); return; }
+    modal.registros.push({factura: '', oc: '', subtotal: '', url: ''});
+    cotMostrarFactura();
+    document.querySelector('#cot-prov-registros .cot-prov-fila:last-child input')?.focus();
+}
 function cotMostrarFactura() {
-    const modal=_cotProveedorModal;if(!modal)return;
-    for(const [kind,id,campo] of [['facturas','cot-factura-estado','ADJUNTO FACTURA PROVEEDOR'],['ocs','cot-oc-estado','ADJUNTO OC PROVEEDOR']]){
-        const estado=document.getElementById(id);estado.replaceChildren();estado.style.display='flex';estado.style.flexWrap='wrap';
-        modal[kind].forEach((url,i)=>{
-            const nombre=(rawData.find(r=>r._key===modal.key)?._ADJUNTOS_NOMBRES||{})[url.split('?')[0].split('/').pop()];
-            const link=document.createElement('a');link.href=url;link.download='';link.className='action-pill pill-blue';link.textContent=(kind==='facturas'?'Factura ':'OC ')+(i+1)+(nombre?' · '+nombre:'');
-            const remove=document.createElement('button');remove.type='button';remove.className='action-pill pill-neutral';remove.textContent='Quitar';remove.setAttribute('aria-label','Quitar '+link.textContent);
-            remove.onclick=async()=>{if(modal.subiendo||!await nucleusConfirm('¿Quitar este adjunto?'))return;remove.disabled=true;try{const r=await fetch('/api/cotizacion/adjunto/eliminar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:modal.key,campo,url})}),j=await nucleusLeerRespuestaJSON(r);if(!r.ok)throw Error(j.error);modal[kind]=modal[kind].filter(u=>u!==url);modal.url=modal.facturas[0]||'';cotTrasAccion(j,modal.key);cotMostrarFactura();}catch(e){nucleusAlert(e.message);remove.disabled=false;}};
-            estado.append(link,remove);
-        });
-    }
-}
-async function cotSubirFactura(input) {
-    return cotSubirDocumentosProveedor(input,'factura');
-}
-async function cotSubirDocumentosProveedor(input,tipo) {
-    const modal = _cotProveedorModal, archivos = [...input.files];
-    if (!modal || !archivos.length || modal.subiendo) return;
-    modal.subiendo = true; input.disabled = true;
-    document.getElementById('cot-factura-elegir').disabled = true;
-    document.getElementById('cot-proveedor-guardar').disabled = true;
-    const estado = document.getElementById('cot-factura-estado'); estado.textContent = 'Subiendo factura…';
-    try {
-        for(const archivo of archivos){
-        const datos = new FormData(); datos.append('key', modal.key); datos.append('adjunto', archivo);
-        const r = await fetch('/api/cotizacion/subir_'+tipo+'_proveedor', {method:'POST', body:datos});
-        const j = await r.json(); if (!r.ok || !j.success) throw new Error(j.error || 'Error al subir factura.');
-        if (_cotProveedorModal !== modal) return;
-        modal[tipo==='factura'?'facturas':'ocs'].push(j.url);modal.url=modal.facturas[0]||'';cotTrasAccion(j,modal.key);cotMostrarFactura();
+    const modal = _cotProveedorModal; if (!modal) return;
+    const lista = document.getElementById('cot-prov-registros'); lista.replaceChildren();
+    const nombres = rawData.find(r => r._key === modal.key)?._ADJUNTOS_NOMBRES || {};
+    const el = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto !== undefined) n.textContent = texto; return n; };
+    const icono = clase => { const i = el('i', clase); i.setAttribute('aria-hidden', 'true'); return i; };
+    modal.registros.forEach((registro, i) => {
+        const fila = el('div', 'cot-prov-fila');
+        fila.append(el('span', 'cot-prov-num', String(i + 1)));
+        for (const [campo, titulo, ejemplo, clase] of [['factura', 'N° de factura', 'F001-000123', 'cot-prov-factura'],
+                                                       ['oc', 'N° de OC', 'OC-000456', 'cot-prov-oc'],
+                                                       ['subtotal', 'Subtotal (S/)', '0.00', 'cot-prov-subtotal']]) {
+            const caja = el('div', clase), id = 'cot-prov-' + campo + '-' + i, label = el('label', null, titulo + ' '), input = el('input');
+            label.htmlFor = id; const req = el('span', 'cot-required', '*'); req.setAttribute('aria-hidden', 'true'); label.append(req);
+            Object.assign(input, {type: 'text', id, placeholder: ejemplo, value: registro[campo] ?? '', maxLength: campo === 'subtotal' ? 20 : 100});
+            if (campo === 'subtotal') input.inputMode = 'decimal';
+            input.addEventListener('input', () => { registro[campo] = input.value; if (campo === 'subtotal') cotTotalProveedor(); });
+            caja.append(label, input); fila.append(caja);
         }
-    } catch(e) { if (_cotProveedorModal === modal) {cotMostrarFactura(); estado.appendChild(document.createTextNode(' ' + e.message)); input.value = '';}}
-    finally {modal.subiendo = false; if (_cotProveedorModal === modal) {input.disabled = false;input.value=''; document.getElementById('cot-factura-elegir').disabled = false; document.getElementById('cot-proveedor-guardar').disabled = false; document.getElementById('cot-factura-caption').textContent = 'Agregar facturas del proveedor';}}
+        const caja = el('div', 'cot-prov-archivo-caja'); caja.append(el('label', null, 'Factura (archivo)'));
+        const zona = el('div', 'cot-prov-archivo');
+        if (registro.url) {
+            const nombre = nombres[registro.url.split('?')[0].split('/').pop()] || 'Factura ' + (i + 1);
+            const link = el('a', 'cot-prov-doc'); link.href = registro.url; link.download = ''; link.title = nombre;
+            link.append(icono('fa-solid fa-file-circle-check'), el('span', null, nombre));
+            const cambiar = el('button', 'cot-prov-icono'); cambiar.type = 'button'; cambiar.title = 'Reemplazar archivo';
+            cambiar.setAttribute('aria-label', 'Reemplazar archivo del registro ' + (i + 1)); cambiar.append(icono('fa-solid fa-arrow-up-from-bracket'));
+            cambiar.onclick = () => cotElegirArchivoProveedor(registro);
+            zona.append(link, cambiar);
+        } else {
+            const subir = el('button', 'cot-prov-subir'); subir.type = 'button'; subir.disabled = !!registro.subiendo;
+            subir.append(icono(registro.subiendo ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-arrow-up-from-bracket'), registro.subiendo ? ' Subiendo…' : ' Adjuntar');
+            subir.setAttribute('aria-label', 'Adjuntar factura del registro ' + (i + 1));
+            subir.onclick = () => cotElegirArchivoProveedor(registro);
+            zona.append(subir);
+        }
+        caja.append(zona); fila.append(caja);
+        const quitar = el('button', 'cot-prov-icono cot-prov-quitar'); quitar.type = 'button'; quitar.title = 'Quitar registro';
+        quitar.setAttribute('aria-label', 'Quitar registro ' + (i + 1)); quitar.append(icono('fa-solid fa-trash-can'));
+        quitar.disabled = modal.registros.length === 1 || !!registro.subiendo;
+        quitar.style.visibility = modal.registros.length === 1 ? 'hidden' : '';
+        quitar.onclick = async () => {
+            const lleno = registro.factura || registro.oc || registro.subtotal || registro.url;
+            if (lleno && !await nucleusConfirm('¿Quitar el registro ' + (i + 1) + '? Se aplicará al guardar.')) return;
+            modal.registros.splice(modal.registros.indexOf(registro), 1); cotMostrarFactura();
+        };
+        fila.append(quitar); lista.append(fila);
+    });
+    cotTotalProveedor();
+}
+function cotElegirArchivoProveedor(registro) {
+    const input = document.createElement('input'); input.type = 'file'; input.hidden = true;
+    input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp';
+    input.onchange = () => { const archivo = input.files[0]; input.remove(); if (archivo) cotSubirFacturaRegistro(registro, archivo); };
+    document.body.appendChild(input); input.click();
+}
+async function cotSubirFacturaRegistro(registro, archivo) {
+    const modal = _cotProveedorModal; if (!modal) return;
+    modal.subiendo++; registro.subiendo = true; cotMostrarFactura();
+    document.getElementById('cot-proveedor-guardar').disabled = true;
+    try {
+        const datos = new FormData(); datos.append('key', modal.key); datos.append('adjunto', archivo);
+        const r = await fetch('/api/cotizacion/subir_factura_proveedor', {method: 'POST', body: datos});
+        const j = await nucleusLeerRespuestaJSON(r); if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo subir la factura.');
+        registro.url = j.url;
+        const fila = rawData.find(x => x._key === modal.key);
+        if (fila) fila._ADJUNTOS_NOMBRES = {...(fila._ADJUNTOS_NOMBRES || {}), [j.url.split('?')[0].split('/').pop()]: archivo.name};
+    } catch (e) { nucleusAlert(e.message); }
+    finally {
+        modal.subiendo--; delete registro.subiendo;
+        if (_cotProveedorModal === modal) { cotMostrarFactura(); document.getElementById('cot-proveedor-guardar').disabled = modal.subiendo > 0; }
+    }
 }
 async function cotGuardarProveedor() {
     const modal = _cotProveedorModal; if (!modal) return;
     if (modal.subiendo) {nucleusAlert('Espera a que termine de subir la factura.'); return;}
-    const numero = document.getElementById('cot-factura-numero').value.trim();
-    const oc = document.getElementById('cot-oc-numero').value.trim();
-    const subtotal = document.getElementById('cot-factura-subtotal').value;
-    if (subtotal === '' || !Number.isFinite(Number(subtotal)) || Number(subtotal) < 0) {nucleusAlert('Ingresa el subtotal de la factura.'); return;}
-    if (!numero || !oc || !modal.url) {nucleusAlert('Completa el número de factura, el número de OC y adjunta la factura.'); return;}
+    const registros = modal.registros.map(r => ({factura: String(r.factura || '').trim(), oc: String(r.oc || '').trim(), subtotal: String(r.subtotal ?? '').trim(), url: r.url || ''}));
+    for (const [i, r] of registros.entries()) {
+        const n = i + 1;
+        if (!r.factura || !r.oc) { nucleusAlert('Registro ' + n + ': ingresa el número de factura y el número de OC.'); return; }
+        if (cotImporteProveedor(r.subtotal) === null) { nucleusAlert('Registro ' + n + ': ingresa un subtotal válido.'); return; }
+        if (!r.url) { nucleusAlert('Registro ' + n + ': adjunta la factura del proveedor.'); return; }
+    }
     const boton = document.getElementById('cot-proveedor-guardar'); boton.disabled = true; boton.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Guardando…';
     try {
-        const r = await fetch('/api/cotizacion/proveedor', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:modal.key,numero_factura:numero,numero_oc:oc,factura_proveedor:modal.url,facturas_proveedor:modal.facturas,ocs_proveedor:modal.ocs,subtotal_factura:subtotal})});
-        const j = await r.json(); if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo guardar.');
+        const r = await fetch('/api/cotizacion/proveedor', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:modal.key,registros})});
+        const j = await nucleusLeerRespuestaJSON(r); if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo guardar.');
         cotTrasAccion(j, modal.key); if (_cotProveedorModal === modal) cotCerrarProveedor();
     } catch(e) {nucleusAlert(e.message);} finally {if (_cotProveedorModal === modal) {boton.disabled = false; boton.innerHTML = '<i class="fa-solid fa-check" aria-hidden="true"></i> Guardar documentos';}}
 }

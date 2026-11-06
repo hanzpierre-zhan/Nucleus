@@ -69,6 +69,13 @@ def _iniciar_sesion(user, conformidad):
     if proyectos:
         session['current_proyecto_id'] = proyectos[0].id
         session['current_proyecto_nombre'] = proyectos[0].nombre
+    from blueprints.formularios_prueba import ROLES_ADMIN_PILOTO, habilitado
+    roles_gestion = (*ROLES_ADMIN_PILOTO, 'gestor', 'supervisor')
+    movil = request.headers.get('Sec-CH-UA-Mobile') == '?1' or bool(
+        re.search(r'Android|iPhone|iPad|iPod|Mobile', request.user_agent.string, re.IGNORECASE)
+    )
+    if movil and session['rol'] in roles_gestion and habilitado():
+        return redirect(url_for('form_pruebas.gestion', bandeja='validacion'))
     return redirect(url_for('pages.analytics'))
 
 

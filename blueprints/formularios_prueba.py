@@ -675,6 +675,105 @@ def foto_revision(uid, name):
     return send_file(ruta, mimetype='image/jpeg')
 
 
+ACCIONES_SOLICITUD = {
+    'aprobar': ('Pendiente', 'Aprobado'),
+    'rechazar': ('Pendiente', 'Rechazado'),
+    'pagar': ('Aprobado', 'Pagado'),
+}
+
+
+def alcance_gestion(bandeja):
+    rol = str(session.get('rol') or '').lower()
+    if rol in ROLES_ADMIN_PILOTO:
+        return None
+    if bandeja not in ('validacion', 'por-rendir') or rol not in ('gestor', 'supervisor'):
+        abort(403)
+    from services.utilidades import get_menu_proyectos
+    return {familia(p.nombre) for p in get_menu_proyectos(session['user_id'], rol)} - {''}
+
+
+def solicitud_en_alcance(datos, alcance):
+    return alcance is None or familia(datos.get('proyecto') or datos.get('personal', {}).get('proyecto')) in alcance
+
+
+def resolver_solicitud(accion, alcance):
+    uid = request.form.get('id', '')
+    if not re.fullmatch(r'[a-f0-9]{32}', uid):
+        abort(404)
+    esperado, nuevo = ACCIONES_SOLICITUD[accion]
+    ruta_pago = None
+    try:
+        with piloto.almacen() as con:
+            con.execute('BEGIN IMMEDIATE')
+            fila = con.execute("SELECT datos FROM envios WHERE id=? AND tipo='solicitud'", (uid,)).fetchone()
+            if not fila:
+                abort(404)
+            datos = json.loads(fila['datos'])
+            if not solicitud_en_alcance(datos, alcance):
+                abort(403)
+            if datos.get('estado', 'Pendiente') != esperado:
+                abort(409, 'La solicitud ya cambió de estado. Actualiza la bandeja.')
+            ahora = datetime.now(timezone.utc).isoformat()
+            datos.update(estado=nuevo, fecha_estado=ahora)
+            if accion == 'rechazar':
+                datos['motivo_rechazo'] = texto(request.form, 'motivo', 'el motivo del rechazo', 500)
+            if accion == 'pagar':
+                archivo = request.files.get('comprobante')
+                imagen = preparar_fotos([archivo] if archivo and archivo.filename else [])[0]
+                carpeta = piloto.raiz() / 'pagos'
+                carpeta.mkdir(exist_ok=True)
+                ruta_pago = carpeta / (uid + '.jpg')
+                ruta_pago.write_bytes(imagen)
+                datos['foto_pago'] = True
+            datos.setdefault('historial_gestion', []).append({
+                'accion': accion, 'usuario_id': session['user_id'], 'fecha': ahora,
+            })
+            con.execute('UPDATE envios SET datos=? WHERE id=?', (json.dumps(datos, ensure_ascii=False), uid))
+    except Exception:
+        if ruta_pago is not None:
+            ruta_pago.unlink(missing_ok=True)
+        raise
+
+
+@bp.route('/gestion/<bandeja>', methods=['GET', 'POST'])
+@login_required
+def gestion(bandeja):
+    if bandeja not in ('validacion', 'depositos', 'por-rendir'):
+        abort(404)
+    alcance = alcance_gestion(bandeja)
+    if bandeja == 'por-rendir':
+        if request.method != 'GET':
+            abort(405)
+        return render_template('form_pruebas_gestion.html', bandeja=bandeja,
+                               tecnicos=piloto.pendientes_por_tecnico(alcance),
+                               puede_depositar=alcance is None)
+    validacion = bandeja == 'validacion'
+    error = ''
+    if request.method == 'POST':
+        accion = request.form.get('accion')
+        if accion not in (('aprobar', 'rechazar') if validacion else ('pagar',)):
+            abort(403)
+        try:
+            resolver_solicitud(accion, alcance)
+        except ValueError as exc:
+            error = str(exc)
+        else:
+            return redirect(url_for('form_pruebas.gestion', bandeja=bandeja, registrado=accion))
+    estado = 'Pendiente' if validacion else 'Aprobado'
+    with piloto.almacen() as con:
+        rows = con.execute("SELECT id, creado, datos FROM envios WHERE tipo='solicitud' ORDER BY creado DESC")
+        envios = []
+        for fila in rows:
+            datos = json.loads(fila['datos'])
+            if datos.get('estado', 'Pendiente') == estado and solicitud_en_alcance(datos, alcance):
+                envios.append({'id': fila['id'], 'datos': datos,
+                               'codigo': piloto.codigo_solicitud(fila['id']),
+                               'fecha': piloto.fecha_solicitud(fila['creado'])})
+    return render_template('form_pruebas_gestion.html', bandeja=bandeja, envios=envios, validacion=validacion,
+                           puede_depositar=alcance is None, csrf_token=csrf(), error=error,
+                           registrado=request.args.get('registrado') in ACCIONES_SOLICITUD), 400 if error else 200
+
+
 @bp.route('/administrar', methods=['GET', 'POST'])
 @login_required
 def administrar():
@@ -689,34 +788,11 @@ def administrar():
             (folder / 'habilitado').touch()
         elif accion == 'deshabilitar':
             (folder / 'habilitado').unlink(missing_ok=True)
-        elif accion in ('pagar', 'rechazar'):
-            uid = request.form.get('id', '')
-            if not re.fullmatch(r'[a-f0-9]{32}', uid):
-                abort(404)
+        elif accion in ACCIONES_SOLICITUD:
             try:
-                if accion == 'pagar':
-                    archivo = request.files.get('comprobante')
-                    imagen = preparar_fotos([archivo] if archivo and archivo.filename else [])[0]
-                    cambios = {'estado': 'Pagado', 'foto_pago': True}
-                else:
-                    cambios = {'estado': 'Rechazado',
-                               'motivo_rechazo': texto(request.form, 'motivo', 'el motivo del rechazo', 500)}
+                resolver_solicitud(accion, None)
             except ValueError as error:
                 abort(400, str(error))
-            with piloto.almacen() as con:
-                con.execute('BEGIN IMMEDIATE')
-                fila = con.execute("SELECT datos FROM envios WHERE id=? AND tipo='solicitud'", (uid,)).fetchone()
-                if not fila:
-                    abort(404)
-                datos = json.loads(fila['datos'])
-                if datos.get('estado', 'Pendiente') != 'Pendiente':
-                    abort(409, 'La solicitud de prueba ya se resolvió.')
-                if accion == 'pagar':
-                    carpeta = folder / 'pagos'
-                    carpeta.mkdir(exist_ok=True)
-                    (carpeta / (uid + '.jpg')).write_bytes(imagen)
-                datos.update(cambios, fecha_estado=datetime.now(timezone.utc).isoformat())
-                con.execute('UPDATE envios SET datos=? WHERE id=?', (json.dumps(datos, ensure_ascii=False), uid))
         else:
             abort(400)
         return redirect(url_for('form_pruebas.administrar'))

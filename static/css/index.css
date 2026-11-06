@@ -2600,7 +2600,142 @@ body.light #modal-add-registro .cot-items-mode #btn-mar-generar-coti {
 }
 
 #cot-proveedor-modal .cot-dialog {
-  max-width: 660px !important;
+  max-width: 860px !important;
+}
+/* Facturación del proveedor: una fila por factura y total al final. */
+#cot-proveedor-modal .cot-prov-ayuda {
+  margin: -8px 0 14px;
+  font-size: 12px;
+  color: var(--ios-secondary);
+}
+#cot-proveedor-modal .cot-prov-registros {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#cot-proveedor-modal .cot-prov-fila {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.1fr) 34px;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--ios-hairline);
+  border-radius: 12px;
+  background: var(--ios-fill);
+}
+#cot-proveedor-modal .cot-prov-num {
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ios-blue) 18%, transparent);
+  color: var(--ios-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+#cot-proveedor-modal .cot-prov-fila label {
+  display: block;
+  margin: 0 0 6px;
+  color: var(--ios-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+#cot-proveedor-modal .cot-prov-fila input[type="text"] {
+  background: var(--ios-card-bg, var(--ios-fill));
+}
+#cot-proveedor-modal .cot-prov-subtotal input { text-align: right; font-variant-numeric: tabular-nums; }
+#cot-proveedor-modal .cot-prov-archivo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  min-width: 0;
+}
+#cot-proveedor-modal .cot-prov-subir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1px dashed var(--ios-blue);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ios-blue);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#cot-proveedor-modal .cot-prov-subir:hover { background: color-mix(in srgb, var(--ios-blue) 10%, transparent); }
+#cot-proveedor-modal .cot-prov-subir:disabled { opacity: .6; cursor: wait; }
+#cot-proveedor-modal .cot-prov-doc {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, #34C759 14%, transparent);
+  color: var(--ios-label);
+  font-size: 12px;
+  text-decoration: none;
+}
+#cot-proveedor-modal .cot-prov-doc i { color: #34C759; }
+#cot-proveedor-modal .cot-prov-doc span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cot-proveedor-modal .cot-prov-icono {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--ios-hairline);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ios-secondary);
+  cursor: pointer;
+}
+#cot-proveedor-modal .cot-prov-icono:hover { color: #FF3B30; border-color: #FF3B30; }
+#cot-proveedor-modal .cot-prov-quitar { align-self: center; }
+#cot-proveedor-modal .cot-prov-agregar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 9px 14px;
+  border: 1px dashed var(--ios-hairline);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ios-blue);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#cot-proveedor-modal .cot-prov-agregar:hover { border-color: var(--ios-blue); }
+#cot-proveedor-modal .cot-prov-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ios-blue) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ios-blue) 30%, transparent);
+}
+#cot-proveedor-modal .cot-prov-total span { font-size: 13px; font-weight: 600; color: var(--ios-secondary); }
+#cot-proveedor-modal .cot-prov-total strong { font-size: 20px; font-weight: 700; color: var(--ios-label); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  #cot-proveedor-modal .cot-prov-fila { grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) 34px; }
+  #cot-proveedor-modal .cot-prov-fila .cot-prov-subtotal { grid-column: 2; }
+  #cot-proveedor-modal .cot-prov-fila .cot-prov-archivo { grid-column: 3; }
+  #cot-proveedor-modal .cot-prov-quitar { grid-column: 4; grid-row: 1; }
 }
 .cot-provider-fields {
   display: grid;

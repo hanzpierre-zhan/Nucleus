@@ -2,7 +2,7 @@
 {% block title %}Resources · Nucleus{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/resources.css') }}?v=8">
-<div class="resources">
+<div class="resources" id="resources-monitor" data-url="{{ url_for('admin.api_salud') }}">
 <header class="resources-header"><div><h1>Resources</h1><p class="muted">Consumo y facturación · Capturas de referencia de noviembre de 2026</p></div></header>
 {% macro gauge(label, percent=none, value=none, limit=none, runtime=none) %}
 <div class="usage-quota" {% if runtime %}data-runtime="{{ runtime }}"{% endif %}
@@ -73,6 +73,14 @@
       <div><dt>Historial</dt><dd>0 GB</dd></div>
       <div><dt>Transferencia de red</dt><dd>14.86 GB</dd></div>
     </dl>
+    <section class="usage-runtime">
+      <p class="eyebrow">BASE CONECTADA · LECTURA AUTOMÁTICA</p>
+      <dl class="usage-readings">
+        <div><dt>Tamaño de la base</dt><dd data-live="neon-size">—</dd></div>
+        <div><dt>Conexiones</dt><dd data-live="neon-connections">—</dd></div>
+      </dl>
+      <p class="muted" data-live="neon-note">Consultando…</p>
+    </section>
     <details class="usage-details">
       <summary>Desglose de cargos</summary>
       <dl>
@@ -94,8 +102,16 @@
       {{ gauge('Descargas', 11.9, '119 MB', '1 GB') }}
     </div>
     <p class="muted">Cargos del día de la captura · US$ 0.00 en almacenamiento y US$ 0.00 en descargas.</p>
+    <section class="usage-runtime">
+      <p class="eyebrow">INVENTARIO DEL BUCKET · LECTURA AUTOMÁTICA</p>
+      <dl class="usage-readings">
+        <div><dt>Archivos visibles</dt><dd data-live="b2-files">—</dd></div>
+        <div><dt>Tamaño con versiones</dt><dd data-live="b2-size">—</dd></div>
+      </dl>
+      <p class="muted" data-live="b2-note">Consultando…</p>
+    </section>
   </section>
 </div>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/resources.js') }}?v=7"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/resources.js') }}?v=8"></script>{% endblock %}
