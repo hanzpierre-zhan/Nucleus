@@ -26,7 +26,7 @@
   async function accion(sol, nombre, cuerpo) {
     const opciones = cuerpo instanceof FormData ? {method: 'POST', body: cuerpo}
       : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo || {})};
-    if (nombre === 'editar') opciones.headers = {...opciones.headers, 'X-CSRF-Token': $('cc-excel').dataset.csrf};
+    if (['editar', 'documentos'].includes(nombre)) opciones.headers = {...opciones.headers, 'X-CSRF-Token': $('cc-excel').dataset.csrf};
     const r = await fetch('/api/caja-chica/' + sol.id + '/' + nombre, opciones);
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw Error(j.error || 'No se pudo completar la acción.');
@@ -116,15 +116,14 @@
     if (['DEPOSITADO', 'POR_DEVOLVER', 'ARCHIVADO'].includes(sol.estado)) d.append(tabla);
     if (sol.deposito_foto) { const p = el('p', 'cc-nota', 'Depósito: '); p.append(foto(sol, sol.deposito_foto, 'ver foto')); d.append(p); }
     if (sol.devolucion_foto && sol.estado === 'ARCHIVADO') { const p = el('p', 'cc-nota', 'Devolución: '); p.append(foto(sol, sol.devolucion_foto, 'ver foto')); d.append(p); }
-    d.append(acciones(sol));
-    const hist = el('details', 'cc-historial'); hist.append(el('summary', null, 'Historial (' + sol.historial.length + ')'));
-    sol.historial.slice().reverse().forEach(h => hist.append(el('p', 'cc-nota', new Date(h.fecha + 'Z').toLocaleString('es-PE') + ' · ' + h.usuario + ' · ' + h.accion + (h.motivo ? ' · ' + h.motivo : ''))));
-    d.append(hist);
+    const controles = acciones(sol);
+    if (controles.hasChildNodes()) d.append(controles);
     return d;
   }
 
-  function editorSolicitud(sol) {
+  function editorSolicitud(sol, documentos) {
     const form = el('form', 'cc-editar-solicitud');
+    form.id = 'cc-solicitud-editor';
     function seccion(titulo) {
       const grupo = el('fieldset');
       grupo.append(el('legend', null, titulo));
@@ -184,28 +183,27 @@
         return suma + (/^\d+(?:\.\d{0,2})?$/.test(decimal) ? Math.round(Number(decimal) * 100) : 0);
       }, 0);
       total.textContent = dinero(centimos / 100);
+      cotizacion.dataset.totalCentimos = String(centimos);
+      cotizacion.dispatchEvent(new Event('input'));
     };
     datosSolicitud.append(totalSolicitud(total));
     datosSolicitud.addEventListener('input', e => { if (e.target.hasAttribute('data-monto')) actualizarTotal(); });
-    actualizarTotal();
     const deposito = seccion('Datos del depósito');
     const banco = campo('Banco', selector(configuracion.bancos, sol.banco), deposito);
     const cuenta = campo('Número de cuenta', texto(sol.cuenta, 40, true), deposito);
     const validacion = seccion('Documentos de validación');
-    const cotizacion = campo('Número de cotización', texto(sol.revision?.cotizacion, 80), validacion);
-    const adjunto = campo('Adjuntar correo de validación', Object.assign(el('input'), {
-      type: 'file', accept: '.pdf,.eml,.msg,.jpg,.jpeg,.png,.webp',
-    }), validacion);
-    const guardar = el('button', 'cc-btn cc-ok', 'Guardar cambios');
-    guardar.type = 'submit';
+    const cotizacion = documentos.elements.namedItem('cotizacion');
+    validacion.append(cotizacion.closest('label'), documentos.querySelector('.cc-cotizacion-control'));
+    actualizarTotal();
+    const adjunto = campo('Adjuntar correo de validación', documentos.elements.namedItem('correo'), validacion);
+    const guardar = $('cc-solicitud-guardar');
     const error = el('p', 'cc-alerta');
     error.setAttribute('role', 'alert');
     error.hidden = true;
-    const pie = el('div', 'cc-acciones cc-editor-pie');
-    pie.append(boton('Cancelar', 'cc-neutro', () => verDetalle(sol)), guardar);
-    form.append(error, pie);
+    form.append(error);
     form.addEventListener('submit', async e => {
       e.preventDefault();
+      if (guardar.disabled) return;
       error.hidden = true;
       const datos = new FormData();
       datos.set('datos', JSON.stringify({proyecto: proyecto.value, motivo: motivo.value, banco: banco.value,
@@ -218,7 +216,7 @@
         error.textContent = e.message;
         error.hidden = false;
       } finally {
-        guardar.disabled = false;
+        if (form.isConnected) guardar.disabled = false;
       }
     });
     return form;
@@ -230,26 +228,34 @@
     return total;
   }
 
-  function datosEnviados(sol, datos, titulo) {
+  function datosEnviados(datos, titulo) {
     const panel = el('section', 'cc-datos-enviados');
-    panel.append(el('h3', null, titulo));
-    function grupo(titulo, campos) {
-      const seccion = el('section', 'cc-grupo-solicitud');
+    if (titulo) panel.append(el('h3', null, titulo));
+    const extra = datos.formulario || {};
+    function campos(datosCampos) {
       const lista = el('dl', 'cc-datos-solicitud');
-      for (const [etiqueta, valor] of campos) {
-        const campo = el('div');
-        campo.append(el('dt', null, etiqueta), el('dd', null, valor || '—'));
+      for (const [etiqueta, valor, ancho] of datosCampos) {
+        const campo = el('div', ancho ? 'cc-campo-ancho' : null);
+        campo.append(el('dt', null, etiqueta), el('dd', null, valor || 'Sin registrar'));
         lista.append(campo);
       }
-      seccion.append(el('h4', null, titulo), lista);
+      return lista;
+    }
+    function grupo(titulo, valores = []) {
+      const seccion = el('fieldset', 'cc-grupo-solicitud');
+      seccion.append(el('legend', null, titulo));
+      if (valores.length) seccion.append(campos(valores));
       panel.append(seccion);
       return seccion;
     }
-    grupo('Datos del técnico', [['Técnico', sol.tecnico], ['Documento', sol.documento], ['Proyecto', datos.proyecto]]);
-    const solicitud = grupo('Datos de la solicitud', [['Motivo', datos.motivo]]);
+    const solicitud = el('div', 'cc-solicitud-contenido');
+    panel.append(solicitud);
+    solicitud.append(el('h4', null, 'Conceptos solicitados'));
     for (const item of datos.items) {
       const fila = el('div', 'cc-concepto-enviado');
-      fila.append(el('strong', null, item.numero + '. ' + item.tipo_gasto),
+      const nombre = el('strong', 'cc-concepto-marcado');
+      nombre.append(icono('fa-square-check'), document.createTextNode(item.tipo_gasto));
+      fila.append(nombre,
         el('strong', 'cc-num', dinero(item.monto)));
       const detalle = el('div', 'cc-campo-ancho');
       for (const texto of [item.descripcion, item.tipo_presupuesto,
@@ -260,20 +266,119 @@
       solicitud.append(fila);
     }
     solicitud.append(totalSolicitud(el('strong', 'cc-num', dinero(datos.total))));
-    grupo('Datos del depósito', [['Banco', datos.banco], ['Número de cuenta', datos.cuenta]]);
+    solicitud.append(campos([['Nombre de site', extra.site], ['Número CM / PM / PLM', extra.wo],
+      ['Responsable de la validación', extra.responsable_validacion], ['Justificar la solicitud', datos.motivo, true]]));
+    grupo('Datos del depósito', [['CCI o número de cuenta', datos.cuenta], ['Banco', datos.banco],
+      ['Titular de la cuenta', extra.titular]]);
+    const billetera = [['Tipo de billetera', extra.tipo_billetera]];
+    if (extra.numero_billetera) billetera.push(['Número de Yape / Plin', extra.numero_billetera]);
+    grupo('Billetera digital', billetera);
     return panel;
+  }
+
+  function formularioDocumentos(sol) {
+    const form = el('form', 'cc-editar-solicitud cc-documentos-validacion');
+    form.id = 'cc-solicitud-documentos';
+    const grupo = el('fieldset');
+    grupo.append(el('legend', null, 'Documentos de validación'));
+    const cotizacion = el('label', null, 'Número de cotización');
+    const entrada = Object.assign(el('input'), {
+      name: 'cotizacion', value: sol.revision?.cotizacion || '', maxLength: 80,
+      autocomplete: 'off', placeholder: 'Busca por número de cotización',
+    });
+    const opciones = el('datalist');
+    opciones.id = 'cc-cotizaciones-opciones';
+    entrada.setAttribute('list', opciones.id);
+    const estado = el('span', 'cc-nota cc-cotizacion-estado');
+    estado.setAttribute('aria-live', 'polite');
+    cotizacion.append(entrada, opciones, estado);
+    const control = el('div', 'cc-cotizacion-control cc-campo-ancho');
+    control.hidden = true;
+    const actualizar = lista => {
+      const numero = entrada.value.trim().toUpperCase();
+      const seleccion = lista.find(c => c.numero.toUpperCase() === numero);
+      control.hidden = !seleccion;
+      if (!seleccion) {
+        estado.textContent = numero ? 'Selecciona una cotización de la lista.' : '';
+        return;
+      }
+      estado.textContent = [seleccion.estado || 'Sin estado', seleccion.proyecto].filter(Boolean).join(' · ');
+      const actual = Number(entrada.dataset.totalCentimos ?? Math.round(Number(sol.total) * 100));
+      const otras = Math.round(Number(seleccion.otras_solicitudes) * 100);
+      const acumulado = otras + actual;
+      const cotizado = seleccion.monto === null ? null : Math.round(Number(seleccion.monto) * 100);
+      const saldo = cotizado === null ? null : cotizado - acumulado;
+      const mensaje = el('p', 'cc-cotizacion-aviso', saldo === null ? 'Monto cotizado sin registrar.'
+        : saldo < 0 ? 'Excede el monto cotizado en ' + dinero(-saldo / 100) + '.'
+          : 'Dentro del monto cotizado. Saldo disponible: ' + dinero(saldo / 100) + '.');
+      mensaje.dataset.resultado = saldo === null ? '' : saldo < 0 ? 'excede' : 'dentro';
+      const tarjetas = el('dl', 'cc-cotizacion-importes');
+      const montos = [
+        ['Cotizado · suma de valores unitarios (' + seleccion.items + (seleccion.items === 1 ? ' ítem)' : ' ítems)'), cotizado],
+        ['Otras solicitudes activas', otras],
+        ['Esta solicitud', actual],
+        ['Total solicitado acumulado', acumulado],
+        ['Saldo / exceso', saldo],
+      ];
+      for (const [etiqueta, monto] of montos) {
+        const tarjeta = el('div');
+        tarjeta.append(el('dt', null, etiqueta), el('dd', null, monto === null ? '—' : dinero(monto / 100)));
+        tarjetas.append(tarjeta);
+      }
+      control.replaceChildren(mensaje, tarjetas, el('p', 'cc-nota',
+        'El cotizado suma los valores unitarios sin cantidad ni FEE. El acumulado considera las solicitudes activas de Caja Chica vinculadas a esta cotización. El resultado es informativo.'));
+    };
+    fetch('/api/caja-chica/cotizaciones?' + new URLSearchParams({solicitud: sol.id})).then(async respuesta => {
+      if (!respuesta.ok) throw Error('No se pudieron cargar las cotizaciones.');
+      const {cotizaciones} = await respuesta.json();
+      const lista = [...cotizaciones.filter(c => c.proyecto === sol.proyecto),
+        ...cotizaciones.filter(c => c.proyecto !== sol.proyecto)];
+      const sugerencias = document.createDocumentFragment();
+      for (const c of lista) {
+        sugerencias.append(new Option([c.estado || 'Sin estado', c.proyecto].filter(Boolean).join(' · '), c.numero));
+      }
+      opciones.replaceChildren(sugerencias);
+      entrada.addEventListener('input', () => actualizar(lista));
+      actualizar(lista);
+    }).catch(() => { estado.textContent = 'No se pudieron cargar las cotizaciones.'; });
+    const correo = el('label', null, 'Adjuntar correo de validación');
+    correo.append(Object.assign(el('input'), {
+      type: 'file', name: 'correo', accept: '.pdf,.eml,.msg,.jpg,.jpeg,.png,.webp',
+    }));
+    const guardar = $('cc-solicitud-guardar');
+    const editar = $('cc-solicitud-editar');
+    const error = el('p', 'cc-alerta cc-campo-ancho');
+    error.hidden = true;
+    error.setAttribute('role', 'alert');
+    grupo.append(cotizacion, correo, control, error);
+    form.append(grupo);
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      if (guardar.disabled) return;
+      guardar.disabled = true;
+      editar.disabled = true;
+      error.hidden = true;
+      try {
+        await accion(sol, 'documentos', new FormData(form));
+      } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+      } finally {
+        if (form.isConnected) {
+          guardar.disabled = false;
+          editar.disabled = false;
+        }
+      }
+    });
+    return form;
   }
 
   function verDetalle(sol) {
     solicitudAbierta = sol.id;
-    $('cc-solicitud-titulo').textContent = sol.codigo + ' · ' + sol.tecnico;
+    $('cc-solicitud-titulo').textContent = [sol.codigo, sol.tecnico, sol.proyecto].join(' · ');
     const contenido = $('cc-solicitud-contenido');
-    contenido.replaceChildren(el('p', 'cc-nota', [sol.documento, sol.proyecto, estadoDe(sol)[0], dinero(sol.total)].join(' · ')));
-    const ultimaCaptura = [...sol.historial].reverse().find(evento => ['solicitar', 'reenviar', 'editar solicitud'].includes(evento.accion));
-    const editada = ultimaCaptura?.accion === 'editar solicitud';
-    contenido.append(datosEnviados(sol, sol.envio_tecnico || sol,
-      !sol.envio_tecnico && editada ? 'Datos guardados de la solicitud' : 'Datos enviados por el técnico'));
-    if (sol.envio_tecnico) contenido.append(datosEnviados(sol, sol, 'Datos revisados por gestión'));
+    contenido.replaceChildren(datosEnviados(sol.envio_tecnico || sol, sol.envio_tecnico && 'Datos enviados por el técnico'));
+    if (sol.envio_tecnico) contenido.append(datosEnviados(sol, 'Datos revisados por gestión'));
     const revision = sol.revision || {};
     if (revision.cotizacion) contenido.append(el('p', null, 'Cotización: ' + revision.cotizacion));
     if (revision.archivo) {
@@ -283,30 +388,48 @@
     }
     if (sol.items.some(i => i.requiere_correo) && !revision.archivo) contenido.append(el('p', 'cc-alerta', 'Falta adjuntar el correo de validación.'));
     if (sol.items.some(i => i.requiere_cotizacion) && !revision.cotizacion) contenido.append(el('p', 'cc-alerta', 'Falta el número de cotización.'));
-    if (puedeGestionar && sol.estado === 'PENDIENTE') {
-      const editar = boton('Editar solicitud', 'cc-neutro', () => {
-        const form = editorSolicitud(sol);
-        editar.replaceWith(form);
-        form.scrollIntoView({block: 'nearest'});
-        form.querySelector('select').focus();
-      });
-      contenido.append(editar);
-    }
-    contenido.append(detalle(sol));
+    const editar = $('cc-solicitud-editar');
+    const guardar = $('cc-solicitud-guardar');
+    editar.disabled = !puedeGestionar || sol.estado !== 'PENDIENTE';
+    const documentos = editar.disabled ? null : formularioDocumentos(sol);
+    guardar.setAttribute('form', 'cc-solicitud-documentos');
+    guardar.disabled = !documentos;
+    editar.onclick = () => {
+      const form = editorSolicitud(sol, documentos);
+      documentos?.remove();
+      contenido.prepend(form);
+      editar.disabled = true;
+      guardar.setAttribute('form', form.id);
+      guardar.disabled = false;
+      form.querySelector('select').focus();
+    };
+    const seguimiento = detalle(sol);
+    if (seguimiento.hasChildNodes()) contenido.append(seguimiento);
+    if (documentos) contenido.append(documentos);
     if (!dialogo.open) dialogo.showModal();
   }
   // ── Tabla: columnas que se filtran y se mueven arrastrando ──
   const estadoDe = s => RETORNO[s.retorno] || [ESTADOS[s.estado] || s.estado, 'cc-' + s.estado.toLowerCase()];
   const creado = s => new Date(s.creado + 'Z');
   const COLUMNAS = {
-    codigo:   {titulo: 'Código', ancho: 'minmax(130px, 1fr)', texto: s => s.codigo, celda: s => {
+    codigo:   {titulo: 'Código depósito', ancho: 'minmax(145px, 1fr)', texto: s => s.codigo, celda: s => {
       const enlace = el('a', 'cc-codigo-link', s.codigo);
       enlace.href = '#solicitud-' + s.id;
       enlace.addEventListener('click', e => { e.preventDefault(); verDetalle(s); });
       return enlace;
     }},
     tecnico:  {titulo: 'Técnico · Documento', ancho: 'minmax(180px, 2.4fr)', texto: s => s.tecnico + ' · ' + s.documento},
-    proyecto: {titulo: 'Proyecto', ancho: 'minmax(100px, .8fr)', texto: s => s.proyecto, clase: 'cc-proyecto'},
+    proyecto: {titulo: 'Proyecto', ancho: 'minmax(100px, .8fr)', texto: s => s.proyecto, celda: s => {
+      const proyecto = el('span', 'cc-chip cc-proyecto', s.proyecto);
+      proyecto.dataset.proyecto = s.proyecto;
+      return proyecto;
+    }},
+    site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1fr)', texto: s => s.formulario?.site || '—'},
+    wo: {titulo: 'N.º CM / PM / PLM', ancho: 'minmax(145px, 1fr)', texto: s => s.formulario?.wo || '—'},
+    gasto: {titulo: 'Tipo de gasto', ancho: 'minmax(190px, 1.4fr)',
+            texto: s => [...new Set(s.items.map(item => item.tipo_gasto))].join(' · ') || '—'},
+    responsable: {titulo: 'Responsable de validación', ancho: 'minmax(190px, 1.3fr)',
+                  texto: s => s.formulario?.responsable_validacion || '—'},
     estado:   {titulo: 'Estado', ancho: 'minmax(180px, 1.3fr)', texto: s => estadoDe(s)[0],
                celda: s => { const [t, c] = estadoDe(s); return el('span', 'cc-chip ' + c, t); }},
     fecha:    {titulo: 'Fecha / Avance', ancho: 'minmax(140px, 1.1fr)', clase: 'cc-avance',

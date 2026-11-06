@@ -2,7 +2,6 @@
 import io
 import json
 import re
-from datetime import datetime, timedelta
 
 import pytest
 from PIL import Image
@@ -70,7 +69,9 @@ def test_catalogo_aplica_por_proyecto_y_conserva_regla_de_solicitud(app, auth_cl
     try:
         assert auth_client.post(ruta, json=catalogo, headers=permisos).status_code == 200
         item = {'tipo_gasto': materiales['nombre'], 'monto': '50'}
-        datos = {'proyecto': 'PEXT', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '12345678', 'items': [item]}
+        datos = {'proyecto': 'PEXT', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '12345678', 'items': [item],
+                 'site': 'LA2859', 'wo': 'CM-001', 'titular': 'Técnico Caja',
+                 'tipo_billetera': 'Yape', 'numero_billetera': '900000000'}
         assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400
         datos['proyecto'] = 'CLARO'
         assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400
@@ -94,7 +95,16 @@ def test_catalogo_aplica_por_proyecto_y_conserva_regla_de_solicitud(app, auth_cl
         assert revision.status_code == 200, revision.json
         assert revision.json['solicitud']['motivo'] == 'Correctivo revisado'
         assert revision.json['solicitud']['envio_tecnico']['motivo'] == 'Correctivo'
+        assert revision.json['solicitud']['envio_tecnico']['formulario']['site'] == 'LA2859'
+        assert revision.json['solicitud']['formulario']['numero_billetera'] == '900000000'
         assert revision.json['solicitud']['revision']['cotizacion'] == 'COT-001'
+        assert auth_client.get(gestion + '/correo-validacion').data == correo
+        documentos = auth_client.post(gestion + '/documentos', headers=permisos,
+                                       data={'cotizacion': 'COT-002'})
+        assert documentos.status_code == 200, documentos.json
+        actualizada = documentos.json['solicitud']
+        assert actualizada['revision']['cotizacion'] == 'COT-002'
+        assert actualizada['motivo'] == 'Correctivo revisado'
         assert auth_client.get(gestion + '/correo-validacion').data == correo
         assert 'revision' not in cli.get(base + '/datos').json['solicitudes'][0]
         assert auth_client.post(gestion + '/validar').status_code == 200
@@ -113,8 +123,8 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
         'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}, {'tipo_gasto': 'Peajes', 'descripcion': 'vuelta', 'monto': '50.00'}]})
     assert r.status_code == 200, r.json
     sol = r.json['solicitud']; sid = sol['id']
-    fecha_peru = datetime.fromisoformat(sol['creado']) - timedelta(hours=5)
-    assert sol['codigo'] == f'CC-{fecha_peru:%m-%Y}-{sid:06d}'
+    assert re.fullmatch(r'COB-\d{5,}', sol['codigo'])
+    assert int(sol['codigo'].split('-')[1]) >= 3000
     assert sol['total'] == '100.00' and sol['etapas'] == ['validacion']
     assert cli.get('/caja-chica/').status_code in (302, 401)  # el técnico no entra a la gestión
 

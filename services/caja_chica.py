@@ -19,9 +19,12 @@ from decimal import Decimal
 
 from flask import current_app
 from PIL import Image, ImageOps
+from sqlalchemy import Integer, String, cast
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from db import db
-from models import CajaChicaItem, CajaChicaSolicitud, Proyecto
+from models import AppConfig, CajaChicaItem, CajaChicaSolicitud, Proyecto
 
 MODULO = 'Caja Chica'
 MAX_ITEMS = 20
@@ -141,10 +144,16 @@ def crear(tecnico, datos, catalogo, proyectos, bancos, importe, formulario=None)
     sol = CajaChicaSolicitud(documento=tecnico['documento'], tecnico=tecnico['nombre'], estado='PENDIENTE')
     conceptos = _llenar(sol, datos, catalogo, proyectos, bancos, importe)
     _historial(sol, 'solicitar', tecnico['nombre'], conceptos=conceptos, formulario=formulario)
+    proyecto_id = Proyecto.query.filter_by(nombre=MODULO).with_entities(Proyecto.id).scalar()
+    insert = pg_insert if db.engine.dialect.name == 'postgresql' else sqlite_insert
+    contador = insert(AppConfig).values(proyecto_id=proyecto_id, clave='deposito_ultimo_codigo', valor='3000')
+    contador = contador.on_conflict_do_update(
+        index_elements=['proyecto_id', 'clave'],
+        set_={'valor': cast(cast(AppConfig.valor, Integer) + 1, String)},
+    ).returning(AppConfig.valor)
+    numero = int(db.session.execute(contador).scalar_one())
+    sol.codigo = f'COB-{numero:05d}'
     db.session.add(sol)
-    db.session.flush()
-    fecha_peru = sol.creado - timedelta(hours=5)
-    sol.codigo = f'CC-{fecha_peru:%m-%Y}-{sol.id:06d}'
     db.session.commit()
     return sol
 
@@ -202,6 +211,24 @@ def validar(sol, usuario):
     db.session.commit()
 
 
+def _documentos_revision(sol, cotizacion, archivo, revision):
+    cotizacion = str(cotizacion or '').strip()
+    _exigir(len(cotizacion) <= 80, 'El número de cotización admite hasta 80 caracteres.')
+    adjunto = revision.get('archivo', '')
+    if archivo and archivo.filename:
+        adjunto = guardar_correo(sol, archivo)
+    return {'archivo': adjunto, 'cotizacion': cotizacion}
+
+
+def guardar_documentos_revision(sol, usuario, cotizacion, archivo):
+    _exigir(sol.estado == 'PENDIENTE', 'Solo se pueden guardar documentos mientras la solicitud esté pendiente.')
+    anterior = a_dict(sol, gestion=True)['revision']
+    revision = _documentos_revision(sol, cotizacion, archivo, anterior)
+    if revision != anterior:
+        _historial(sol, 'guardar documentos de validación', usuario, revision=revision)
+        db.session.commit()
+
+
 def editar_revision(sol, usuario, datos, archivo, catalogo, proyectos, bancos, importe):
     _exigir(sol.estado == 'PENDIENTE', 'Solo se edita una solicitud pendiente de validación.')
     anterior = a_dict(sol, gestion=True)
@@ -213,14 +240,10 @@ def editar_revision(sol, usuario, datos, archivo, catalogo, proyectos, bancos, i
             {campo: item.get(campo) for campo in ('numero', 'tipo_gasto', 'descripcion', 'monto', 'tipo_presupuesto', 'correo_validador')}
             for item in anterior['items']
         ]
-    cotizacion = str(datos.get('cotizacion') or '').strip()
-    _exigir(len(cotizacion) <= 80, 'El número de cotización admite hasta 80 caracteres.')
     conceptos = _llenar(sol, datos, catalogo, proyectos, bancos, importe, anteriores=anterior['items'])
-    adjunto = anterior['revision'].get('archivo', '')
-    if archivo and archivo.filename:
-        adjunto = guardar_correo(sol, archivo)
+    revision = _documentos_revision(sol, datos.get('cotizacion'), archivo, anterior['revision'])
     _historial(sol, 'editar solicitud', usuario, conceptos=conceptos,
-               revision={'archivo': adjunto, 'cotizacion': cotizacion}, envio_tecnico=envio)
+               revision=revision, envio_tecnico=envio)
     db.session.commit()
 
 
@@ -337,6 +360,10 @@ def retorno(sol):
     return ''
 
 
+def revision_guardada(historial):
+    return next((evento['revision'] for evento in reversed(historial) if 'revision' in evento), {})
+
+
 def a_dict(sol, gestion=False):
     aprobados = sum(i.monto for i in sol.items if i.estado == 'APROBADO')
     historial = json.loads(sol.historial or '[]')
@@ -345,7 +372,7 @@ def a_dict(sol, gestion=False):
     revision = {}
     envio = None
     if gestion:
-        revision = next((e['revision'] for e in reversed(historial) if 'revision' in e), {})
+        revision = revision_guardada(historial)
         for evento in reversed(historial):
             if evento['accion'] in ('solicitar', 'reenviar'):
                 break
@@ -393,9 +420,9 @@ def exportar_excel(solicitudes):
     resumen = libro.active
     resumen.title = 'Solicitudes'
     detalle = libro.create_sheet('Conceptos')
-    agregar(resumen, ['Código', 'Técnico', 'Documento', 'Proyecto', 'Estado', 'Fecha de solicitud (Perú)',
+    agregar(resumen, ['Código depósito', 'Técnico', 'Documento', 'Proyecto', 'Estado', 'Fecha de solicitud (Perú)',
                       'Motivo', 'Total solicitado', 'Monto depositado', 'Fecha de depósito', 'Avance'])
-    agregar(detalle, ['Código', 'Ítem', 'Concepto', 'Tipo de presupuesto', 'Descripción', 'Monto solicitado',
+    agregar(detalle, ['Código depósito', 'Ítem', 'Concepto', 'Tipo de presupuesto', 'Descripción', 'Monto solicitado',
                       'Monto gastado', 'Estado', 'Correo de validación', 'RUC', 'Comprobante'])
     for solicitud in solicitudes:
         datos = a_dict(solicitud)

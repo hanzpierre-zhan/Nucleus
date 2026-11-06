@@ -1,4 +1,6 @@
 /* Caja Chica · portal del técnico (complementa form-pruebas.css). */
+#cc-form fieldset { min-width: 0; margin: 0 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
+#cc-form legend { padding: 0 6px; font-weight: 700; }
 .cc-subtitulo { font-size: 15px; margin: 18px 0 8px; }
 .cc-item { border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
 .cc-item-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 8px; }

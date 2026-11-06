@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=27">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=36">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-eliminar="{{ 'si' if puede_eliminar else 'no' }}">
   <div class="cc-barra">
@@ -45,18 +45,23 @@
       </div>
     </div>
   </div>
-  <div class="cc-tabla" id="cc-tabla">
+  <div class="cc-tabla" id="cc-tabla" tabindex="0" role="region" aria-label="Tabla de solicitudes de Caja Chica">
     <div class="cc-encabezado" id="cc-encabezado"></div>
     <div id="cc-lista" class="cc-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
   </div>
   <div class="cc-filtro" id="cc-filtro" role="dialog" aria-label="Filtrar columna" hidden></div>
   <dialog id="cc-solicitud-dialogo" aria-labelledby="cc-solicitud-titulo">
-    <header><h2 id="cc-solicitud-titulo"></h2>
-      <form method="dialog"><button type="submit" class="cc-btn cc-neutro" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
+    <header>
+      <h2 id="cc-solicitud-titulo"></h2>
+      <div class="cc-dialogo-acciones">
+        <button type="button" id="cc-solicitud-editar" class="cc-dialogo-icono cc-dialogo-editar" aria-label="Editar solicitud" title="Editar solicitud" disabled><i class="fa-solid fa-pencil" aria-hidden="true"></i></button>
+        <button type="submit" id="cc-solicitud-guardar" form="cc-solicitud-documentos" class="cc-dialogo-icono cc-dialogo-guardar" aria-label="Guardar cambios" title="Guardar cambios" disabled><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
+        <form method="dialog"><button type="submit" class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
+      </div>
     </header>
     <div id="cc-solicitud-contenido"></div>
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=14" defer></script>
+<script src="/static/js/caja-chica.js?v=25" defer></script>
 {% endblock %}

@@ -2,17 +2,21 @@
 import io
 import json
 import mimetypes
+from collections import defaultdict
+from decimal import Decimal
 
 from flask import (Blueprint, Response, abort, g, jsonify, redirect, render_template,
                    request, send_file, session, url_for)
 from sqlalchemy.orm import selectinload
 
 from db import db
-from models import AppConfig, CajaChicaItem, CajaChicaSolicitud, Proyecto
+from models import AppConfig, CajaChicaItem, CajaChicaSolicitud, NucleusData, Proyecto
 from services import audit_user, get_menu_proyectos, login_required
 from services import caja_chica as cc
 from services.formularios_prueba import importe
 from services.recursos_flm import familia
+from services.alcance_proyectos import _valor
+from services.rendicion_presupuesto_cotizacion import cantidad_items, proyecto as proyecto_cotizacion, suma_valores_unitarios
 from blueprints.formularios_prueba import (BANCOS, CATALOGO_GASTOS, PROYECTOS, comprobar_csrf,
                                            csrf, responsables_por_proyecto, tecnico)
 
@@ -177,6 +181,48 @@ def _en_alcance(sol, alcance):
     return alcance is None or sol.proyecto in alcance
 
 
+@bp.get('/api/caja-chica/cotizaciones')
+@login_required
+def gestion_cotizaciones():
+    alcance = _alcance()
+    acumulados = defaultdict(Decimal)
+    solicitud_id = request.args.get('solicitud', type=int)
+    if solicitud_id is not None:
+        solicitud = db.session.get(CajaChicaSolicitud, solicitud_id)
+        if not solicitud or solicitud.estado == 'ELIMINADO' or not _en_alcance(solicitud, alcance):
+            abort(404)
+        activas = CajaChicaSolicitud.query.filter(
+            CajaChicaSolicitud.id != solicitud_id,
+            CajaChicaSolicitud.estado.notin_(('ANULADO', 'ELIMINADO', 'RECHAZADO')),
+        )
+        if alcance is not None:
+            activas = activas.filter(CajaChicaSolicitud.proyecto.in_(alcance))
+        for total, historial in activas.with_entities(CajaChicaSolicitud.total, CajaChicaSolicitud.historial):
+            revision = cc.revision_guardada(json.loads(historial or '[]'))
+            codigo = str(revision.get('cotizacion') or '').strip().upper()
+            if codigo:
+                acumulados[codigo] += total
+    modulo = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not modulo:
+        return jsonify(cotizaciones=[])
+    raw = NucleusData.data_json
+    filas = NucleusData.query.filter_by(proyecto_id=modulo.id).with_entities(
+        NucleusData.key_value, _valor(raw, 'N° COTIZACION'), _valor(raw, 'ESTADO COTIZACION'),
+        _valor(raw, 'ITEMS_JSON'), _valor(raw, 'CLIENTE'), _valor(raw, 'Nombre del proyecto'), _valor(raw, 'PROYECTO'),
+    ).order_by(NucleusData.id.desc())
+    cotizaciones = []
+    for clave, numero, estado, items, cliente, nombre, proyecto in filas:
+        familia_cot = proyecto_cotizacion({'CLIENTE': cliente, 'Nombre del proyecto': nombre, 'PROYECTO': proyecto})
+        if alcance is not None and familia_cot not in alcance:
+            continue
+        codigo = str(numero or clave or '').strip()
+        if codigo:
+            cotizaciones.append({'numero': codigo, 'estado': str(estado or '').strip(), 'proyecto': familia_cot,
+                                 'monto': suma_valores_unitarios(items), 'items': cantidad_items(items),
+                                 'otras_solicitudes': str(acumulados[codigo.upper()])})
+    return jsonify(cotizaciones=cotizaciones)
+
+
 @bp.get('/caja-chica/')
 @login_required
 def gestion():
@@ -272,7 +318,7 @@ def gestion_accion(sid, accion):
     rol = str(session.get('rol') or '').lower()
     if rol in ('demo', 'contrata') or (accion == 'eliminar' and rol not in ROLES_ELIMINAR):
         return jsonify(error='Tu rol no permite gestionar Caja Chica.'), 403
-    if accion in ('eliminar', 'editar'):
+    if accion in ('eliminar', 'editar', 'documentos'):
         comprobar_csrf()
     alcance = _alcance()
     sol = db.session.get(CajaChicaSolicitud, sid)
@@ -283,6 +329,8 @@ def gestion_accion(sid, accion):
     try:
         if accion == 'validar':
             cc.validar(sol, usuario)
+        elif accion == 'documentos':
+            cc.guardar_documentos_revision(sol, usuario, request.form.get('cotizacion'), request.files.get('correo'))
         elif accion == 'editar':
             try:
                 cambios = json.loads(request.form.get('datos', ''))
