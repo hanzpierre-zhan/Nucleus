@@ -292,3 +292,28 @@ body.cc-redimensionando { cursor: col-resize; user-select: none; }
 /* El tema visual estiliza todos los botones: el de confirmar depósito conserva su verde. */
 #cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar { background: #16a34a !important; color: #fff !important; border: 0 !important; }
 #cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar:hover { background: #15803d !important; }
+/* Depósito ordenado: tarjeta de datos con filas alineadas y botón redondo de confirmar. */
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar {
+  display: grid; place-items: center; width: 54px; height: 54px; min-height: 0; padding: 0;
+  border-radius: 50% !important; font-size: 22px; flex: none;
+  box-shadow: 0 8px 18px rgba(22, 163, 74, .38); transition: transform .12s ease, box-shadow .12s ease;
+}
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar:hover { transform: translateY(-1px) scale(1.04); box-shadow: 0 10px 22px rgba(22, 163, 74, .45); }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar:focus-visible { outline: 3px solid color-mix(in srgb, #16a34a 45%, transparent); outline-offset: 3px; }
+.cc-deposito-cuerpo { align-items: stretch; }
+.cc-deposito-lateral { justify-content: stretch; }
+.cc-deposito-tarjeta { display: flex; flex-direction: column; height: 100%; padding: 14px; border-radius: 12px; background: var(--ios-card-bg, var(--ios-fill)); border: 1px solid var(--ios-hairline); }
+.cc-deposito-subtitulo { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--ios-label); }
+.cc-deposito-subtitulo i { color: #16a34a; }
+.cc-deposito-panel .cc-deposito-datos { display: flex; flex-direction: column; gap: 0; padding: 0; background: none; }
+.cc-deposito-fila { display: grid; grid-template-columns: 96px minmax(0, 1fr) 30px; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--ios-hairline); }
+.cc-deposito-fila:last-child { border-bottom: 0; }
+.cc-deposito-fila dt { margin: 0; font-size: 12px; color: var(--ios-secondary); }
+.cc-deposito-fila dd { margin: 0; min-width: 0; font-size: 14px; font-weight: 600; }
+.cc-deposito-cci { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .5px; }
+#cc-solicitud-dialogo .cc-deposito-fila .cc-deposito-copiar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-secondary); font-size: 12px; }
+#cc-solicitud-dialogo .cc-deposito-fila .cc-deposito-copiar:hover { color: #16a34a; border-color: #16a34a; }
+.cc-deposito-nota { display: flex; align-items: center; gap: 6px; margin: auto 0 0; padding-top: 10px; font-size: 11.5px; color: var(--ios-secondary); }
+.cc-deposito-nota i { color: #16a34a; }
+.cc-deposito-zona { min-height: 100%; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar { width: 54px !important; height: 54px !important; min-width: 54px !important; font-size: 22px !important; }

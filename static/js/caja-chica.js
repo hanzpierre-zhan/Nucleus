@@ -383,19 +383,26 @@
     const textos = el('div');
     textos.append(el('small', null, 'Monto a depositar'), el('strong', 'cc-deposito-monto', dinero(sol.total)));
     titulo.append(bolsa, textos);
+    // Botón redondo solo con ícono; el texto va en la ayuda y para lectores de pantalla.
     const enviar = el('button', 'cc-deposito-enviar');
     enviar.type = 'submit';
-    enviar.append(icono('fa-sack-dollar'), el('span', null, 'Confirmar depósito'));
+    enviar.title = 'Confirmar depósito';
+    enviar.setAttribute('aria-label', enviar.title);
+    enviar.append(icono('fa-sack-dollar'));
     cabecera.append(titulo, enviar);
 
     // Datos para depositar, con copiar al portapapeles.
+    const tarjeta = el('div', 'cc-deposito-tarjeta');
+    const subtitulo = el('h4', 'cc-deposito-subtitulo');
+    subtitulo.append(icono('fa-building-columns'), ' Datos para el depósito');
     const datos = el('dl', 'cc-deposito-datos');
     const filas = [['Banco', sol.banco], ['CCI / cuenta', sol.cuenta], ['Titular', formulario.titular || sol.tecnico]];
     if (formulario.tipo_billetera && formulario.tipo_billetera !== 'No aplica') filas.push([formulario.tipo_billetera, formulario.numero_billetera]);
     for (const [nombre, valor] of filas) {
       if (!valor) continue;
+      const fila = el('div', 'cc-deposito-fila');
       const dd = el('dd');
-      dd.append(el('span', null, valor));
+      dd.append(el('span', nombre === 'CCI / cuenta' ? 'cc-deposito-cci' : null, valor));
       const copiar = el('button', 'cc-deposito-copiar');
       copiar.type = 'button';
       copiar.title = 'Copiar ' + nombre.toLowerCase();
@@ -406,9 +413,12 @@
         catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
         setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
       });
-      dd.append(copiar);
-      datos.append(el('dt', null, nombre), dd);
+      fila.append(el('dt', null, nombre), dd, copiar);
+      datos.append(fila);
     }
+    const nota = el('p', 'cc-deposito-nota');
+    nota.append(icono('fa-clock'), ' La fecha y hora se registran solas al confirmar.');
+    tarjeta.append(subtitulo, datos, nota);
 
     const monto = Object.assign(el('input'), {type: 'hidden', name: 'monto', value: sol.total});
 
@@ -450,7 +460,7 @@
     error.hidden = true;
     const cuerpo = el('div', 'cc-deposito-cuerpo');
     const lateral = el('div', 'cc-deposito-lateral');
-    lateral.append(datos, el('p', 'cc-nota', 'La fecha y hora del depósito se registran automáticamente al confirmar.'));
+    lateral.append(tarjeta);
     cuerpo.append(lateral, zona);
     form.append(cabecera, error, cuerpo, monto);
     form.addEventListener('submit', async e => {
@@ -464,7 +474,7 @@
         return;
       }
       enviar.disabled = true;
-      enviar.lastChild.textContent = 'Depositando…';
+      enviar.replaceChildren(icono('fa-spinner fa-spin'));
       try {
         await accion(sol, 'depositar', new FormData(form));
       } catch (e) {
@@ -472,7 +482,7 @@
         error.hidden = false;
       } finally {
         enviar.disabled = false;
-        enviar.lastChild.textContent = 'Confirmar depósito';
+        enviar.replaceChildren(icono('fa-sack-dollar'));
       }
     });
     return form;
