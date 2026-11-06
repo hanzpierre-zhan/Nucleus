@@ -359,7 +359,7 @@ def gestion_accion(sid, accion):
                 raise ValueError('Adjunta la foto del depósito.')
             if sol.estado != 'VALIDADO':
                 raise ValueError('Solo se deposita una solicitud validada.')
-            cc.depositar(sol, usuario, datos.get('fecha'), datos.get('monto'), cc.guardar_foto(sol, archivo), importe)
+            cc.depositar(sol, usuario, datos.get('monto'), cc.guardar_foto(sol, archivo), importe)
         elif accion == 'revisar_item':
             item = db.session.get(CajaChicaItem, int(datos.get('item') or 0))
             if not item or item.solicitud_id != sol.id:

@@ -157,6 +157,7 @@ class CajaChicaSolicitud(db.Model):
     deposito_monto = db.Column(db.Numeric(12, 2))
     deposito_foto = db.Column(db.String(120))
     depositado_por = db.Column(db.String(100))
+    depositado_en = db.Column(db.DateTime)  # fecha y hora (UTC) en que se confirmó el depósito
     devolucion_monto = db.Column(db.Numeric(12, 2))
     devolucion_foto = db.Column(db.String(120))
     archivado_en = db.Column(db.DateTime)

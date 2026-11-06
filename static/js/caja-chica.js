@@ -89,7 +89,8 @@
   }
   function detalle(sol) {
     const d = el('div', 'cc-detalle');
-    if (sol.deposito_fecha) d.append(el('p', 'cc-nota', 'Depositado el ' + sol.deposito_fecha));
+    if (sol.depositado_en) d.append(el('p', 'cc-nota', 'Depositado el ' + new Date(sol.depositado_en + 'Z').toLocaleString('es-PE', {dateStyle: 'medium', timeStyle: 'short'})));
+    else if (sol.deposito_fecha) d.append(el('p', 'cc-nota', 'Depositado el ' + sol.deposito_fecha));
     if (sol.motivo_rechazo) d.append(el('p', 'cc-alerta', 'Motivo: ' + sol.motivo_rechazo));
     const tabla = el('table', 'cc-items'), cab = el('tr');
     ['Ítem', 'Tipo de gasto', 'Monto', 'Comprobante', 'Gastado', 'Fotos', 'Estado', ''].forEach(t => cab.append(el('th', null, t)));
@@ -409,12 +410,7 @@
       datos.append(el('dt', null, nombre), dd);
     }
 
-    const hoy = new Date();
-    const fecha = Object.assign(el('input'), {type: 'date', name: 'fecha', required: true,
-      value: new Date(hoy.getTime() - hoy.getTimezoneOffset() * 60000).toISOString().slice(0, 10)});
     const monto = Object.assign(el('input'), {type: 'hidden', name: 'monto', value: sol.total});
-    const etiquetaFecha = el('label', 'cc-deposito-fecha', 'Fecha del pago');
-    etiquetaFecha.append(fecha);
 
     // Foto: tocar, arrastrar o pegar (Ctrl+V), con vista previa.
     const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true, hidden: true});
@@ -454,7 +450,7 @@
     error.hidden = true;
     const cuerpo = el('div', 'cc-deposito-cuerpo');
     const lateral = el('div', 'cc-deposito-lateral');
-    lateral.append(datos, etiquetaFecha);
+    lateral.append(datos, el('p', 'cc-nota', 'La fecha y hora del depósito se registran automáticamente al confirmar.'));
     cuerpo.append(lateral, zona);
     form.append(cabecera, error, cuerpo, monto);
     form.addEventListener('submit', async e => {

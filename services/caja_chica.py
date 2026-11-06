@@ -37,6 +37,12 @@ def instalar():
     if not Proyecto.query.filter_by(nombre=MODULO).first():
         db.session.add(Proyecto(nombre=MODULO, icono='fa-cash-register'))
         db.session.commit()
+    # create_all no agrega columnas a tablas existentes (Neon): se añaden aquí.
+    from sqlalchemy import inspect
+    columnas = {c['name'] for c in inspect(db.engine).get_columns('caja_chica_solicitudes')}
+    if 'depositado_en' not in columnas:
+        db.session.execute(db.text('ALTER TABLE caja_chica_solicitudes ADD COLUMN depositado_en TIMESTAMP'))
+        db.session.commit()
 
 
 def dinero(valor):
@@ -278,12 +284,14 @@ def eliminar(solicitudes, usuario):
     db.session.commit()
 
 
-def depositar(sol, usuario, fecha, monto, foto, importe):
+def depositar(sol, usuario, monto, foto, importe):
+    """La fecha y hora se registran solas al confirmar (no las escribe el usuario)."""
     _exigir(sol.estado == 'VALIDADO', 'Solo se deposita una solicitud validada.')
-    _exigir(re.fullmatch(r'\d{4}-\d{2}-\d{2}', str(fecha or '')), 'Ingresa la fecha del depósito.')
     _exigir(importe(monto) == sol.total, 'El depósito debe ser el total solicitado (S/ %s).' % dinero(sol.total))
     _exigir(foto, 'Adjunta la foto del depósito.')
-    sol.estado, sol.deposito_fecha, sol.deposito_monto = 'DEPOSITADO', fecha, sol.total
+    ahora = datetime.utcnow()
+    sol.estado, sol.deposito_monto, sol.depositado_en = 'DEPOSITADO', sol.total, ahora
+    sol.deposito_fecha = (ahora - timedelta(hours=5)).strftime('%Y-%m-%d')  # día en Lima (UTC-5)
     sol.deposito_foto, sol.depositado_por = foto, usuario
     _historial(sol, 'depositar', usuario)
     db.session.commit()
@@ -386,6 +394,7 @@ def a_dict(sol, gestion=False):
         'estado': sol.estado, 'etapas': sorted(etapa(sol)), 'total': dinero(sol.total),
         'creado': sol.creado.isoformat(timespec='minutes'), 'motivo_rechazo': sol.motivo_rechazo or '',
         'deposito_fecha': sol.deposito_fecha or '', 'deposito_foto': sol.deposito_foto or '',
+        'depositado_en': sol.depositado_en.isoformat(timespec='minutes') if sol.depositado_en else '',
         'diferencia': dinero(diferencia(sol)) if sol.deposito_monto is not None else '',
         'devolucion_foto': sol.devolucion_foto or '',
         'pendiente': dinero(sol.total - aprobados) if sol.estado not in ESTADOS_FINALES else '0.00',

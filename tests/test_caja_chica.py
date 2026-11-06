@@ -141,10 +141,15 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert libro['Conceptos'].max_row == 3
     assert gestion('validar').status_code == 200
     # Depósito: monto exacto y foto
-    r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'fecha': '2026-11-06', 'monto': '90', 'foto': foto()})
+    r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '90', 'foto': foto()})
     assert r.status_code == 400 and '100.00' in r.json['error']
-    r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'fecha': '2026-11-06', 'monto': '100', 'foto': foto()})
+    # La fecha y hora se registran solas; una fecha enviada se ignora.
+    from datetime import datetime
+    antes = datetime.utcnow().replace(second=0, microsecond=0)
+    r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'fecha': '2020-01-01', 'monto': '100', 'foto': foto()})
     assert r.status_code == 200 and r.json['solicitud']['etapas'] == ['por_rendir'], r.json
+    assert datetime.fromisoformat(r.json['solicitud']['depositado_en']) >= antes
+    assert r.json['solicitud']['deposito_fecha'] != '2020-01-01'
     items = r.json['solicitud']['items']
 
     def rendir(item, gastado):
