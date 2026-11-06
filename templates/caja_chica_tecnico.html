@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Caja Chica · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-tecnico.css',v=2) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Caja Chica · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-tecnico.css',v=3) }}"></head>
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Caja Chica</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
 <main class="shell">
@@ -27,8 +27,9 @@
     </fieldset>
     <fieldset><legend>Datos de la solicitud</legend>
     <h2 class="cc-subtitulo">¿Qué necesitas solicitar?</h2>
-    <div id="cc-items"></div>
-    <button type="button" class="quiet" id="cc-agregar">＋ Agregar ítem</button>
+    <p class="hint">Marca uno o más conceptos.</p>
+    <div id="cc-items" class="expense-grid"></div>
+    <div class="expense-bag" role="status"><strong id="cc-cantidad">0 gastos</strong><output id="cc-subtotal">S/ 0.00</output></div>
     <label for="cc-site">Nombre de site</label><input id="cc-site" name="site" maxlength="150">
     <label for="cc-wo">Número CM / PM / PLM</label><input id="cc-wo" name="wo" maxlength="100">
     <label for="cc-responsable">Responsable de la validación</label><select id="cc-responsable" name="responsable_validacion"></select>
@@ -50,30 +51,32 @@
       <input id="cc-numero-billetera" name="numero_billetera" inputmode="numeric" maxlength="9" disabled>
     </div>
     </fieldset>
-    <div class="cc-total"><span>Total solicitado</span><strong id="cc-total">S/ 0.00</strong></div>
+    <div class="expense-bag"><span>Total de lo solicitado</span><output id="cc-total">S/ 0.00</output></div>
     <div class="error" role="alert" tabindex="-1" hidden></div>
     <button class="primary wide" type="submit">Enviar solicitud</button>
   </form>
 </section>
 
 <template id="cc-item-plantilla">
-  <div class="cc-item">
-    <div class="cc-item-cabecera"><strong></strong><button type="button" class="quiet cc-quitar">Quitar</button></div>
-    <label>Tipo de gasto</label>
-    <select data-campo="tipo_gasto" required><option value="">Selecciona</option></select>
-    <p class="notice" data-regla hidden></p>
+  <div class="expense-card">
+    <label>
+      <input type="checkbox" data-campo="tipo_gasto">
+      <span><strong data-nombre></strong><small class="expense-criterion"></small><small class="expense-classification"></small></span>
+    </label>
+    <div class="expense-amount" hidden>
+    <label class="expense-amount-label">Monto (S/)</label>
+    <input data-campo="monto" inputmode="decimal" maxlength="12" placeholder="0.00">
+    <label>Descripción (opcional)</label>
+    <input data-campo="descripcion" maxlength="300" placeholder="Ej.: Peaje Pasamayo ida y vuelta">
     <div data-correo hidden>
       <label>Correo de quien valida el gasto</label>
       <input data-campo="correo_validador" type="email" maxlength="254" autocomplete="off" disabled>
     </div>
-    <label>Descripción (opcional)</label>
-    <input data-campo="descripcion" maxlength="300" placeholder="Ej.: Peaje Pasamayo ida y vuelta">
-    <label>Monto (S/)</label>
-    <input data-campo="monto" inputmode="decimal" maxlength="12" required placeholder="0.00">
+    </div>
   </div>
 </template>
 
 <input id="csrf" type="hidden" value="{{ csrf }}">
 </main>
 <footer>NUCLEUS · Caja Chica</footer>
-<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=5) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=6) }}" defer></script></body></html>

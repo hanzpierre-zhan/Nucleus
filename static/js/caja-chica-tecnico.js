@@ -96,49 +96,56 @@
   async function cargar() { datos = await api('/datos'); pintar(); $('cargando').hidden = true; ver('cc-inicio'); }
 
   // ── Nueva solicitud ──
+  function itemsSeleccionados() {
+    return [...$('cc-items').querySelectorAll('.expense-card')]
+      .filter(card => card.querySelector('[type=checkbox]').checked)
+      .map(card => Object.fromEntries([...card.querySelectorAll('[data-campo]')]
+        .map(control => [control.dataset.campo, control.value.trim()])));
+  }
   function total() {
-    const suma = [...document.querySelectorAll('#cc-items [data-campo=monto]')].reduce((s, i) => s + (numero(i.value) || 0), 0);
-    $('cc-total').textContent = dinero(suma);
+    const items = itemsSeleccionados();
+    const suma = items.reduce((centimos, item) => centimos + Math.round((numero(item.monto) || 0) * 100), 0);
+    $('cc-cantidad').textContent = items.length + (items.length === 1 ? ' gasto' : ' gastos');
+    $('cc-subtotal').textContent = $('cc-total').textContent = dinero(suma / 100);
   }
-  function renumerar() {
-    const items = document.querySelectorAll('#cc-items .cc-item');
-    items.forEach((it, i) => { it.querySelector('.cc-item-cabecera strong').textContent = 'Ítem ' + (i + 1); it.querySelector('.cc-quitar').hidden = items.length === 1; });
-    total();
-  }
-  function opcionesItem(item, seleccionado) {
-    const select = item.querySelector('[data-campo=tipo_gasto]');
+  function mostrarConceptos(seleccionados = [], mostrarAnteriores = false) {
     const proyecto = $('cc-proyecto').value;
-    const disponibles = datos.catalogo.filter(c => c.proyectos[proyecto]);
-    select.replaceChildren(new Option('Selecciona', ''));
-    disponibles.forEach(c => select.add(new Option(c.nombre, c.nombre)));
-    select.value = disponibles.some(c => c.nombre === seleccionado) ? seleccionado : '';
-    reglaItem(item);
-  }
-  function reglaItem(item) {
-    const nombre = item.querySelector('[data-campo=tipo_gasto]').value;
-    const regla = datos.catalogo.find(c => c.nombre === nombre);
-    const nota = item.querySelector('[data-regla]');
-    nota.hidden = !regla;
-    nota.textContent = regla ? [regla.proyectos[$('cc-proyecto').value], regla.descripcion].filter(Boolean).join(' · ') : '';
-    const correo = item.querySelector('[data-campo=correo_validador]');
-    correo.parentElement.hidden = correo.disabled = !regla?.correo;
-    correo.required = !correo.disabled;
-    if (correo.disabled) correo.value = '';
-  }
-  function agregarItem(valores) {
-    const nuevo = $('cc-item-plantilla').content.firstElementChild.cloneNode(true);
-    opcionesItem(nuevo, valores?.tipo_gasto);
-    nuevo.querySelectorAll('[data-campo]').forEach(c => {
-      const id = 'cc-' + c.dataset.campo + '-' + Math.random().toString(36).slice(2, 8); c.id = id; c.previousElementSibling.htmlFor = id;
-      if (valores && valores[c.dataset.campo] !== undefined && !c.disabled && c.dataset.campo !== 'tipo_gasto') c.value = valores[c.dataset.campo];
-    });
-    nuevo.querySelector('[data-campo=tipo_gasto]').addEventListener('change', () => {
-      nuevo.querySelector('[data-campo=correo_validador]').value = '';
-      reglaItem(nuevo);
-    });
-    nuevo.querySelector('[data-campo=monto]').addEventListener('input', total);
-    nuevo.querySelector('.cc-quitar').addEventListener('click', () => { nuevo.remove(); renumerar(); });
-    $('cc-items').append(nuevo); renumerar();
+    const catalogo = datos.catalogo.filter(concepto => concepto.proyectos[proyecto]);
+    const porNombre = new Map(catalogo.map(concepto => [concepto.nombre, concepto]));
+    const nombresSeleccionados = new Set(seleccionados.map(item => item.tipo_gasto));
+    const filas = seleccionados.filter(item => mostrarAnteriores || porNombre.has(item.tipo_gasto))
+      .map(item => [porNombre.get(item.tipo_gasto) || {
+        nombre: item.tipo_gasto, descripcion: 'Este concepto ya no está disponible para el proyecto.',
+        proyectos: {}, correo: item.requiere_correo
+      }, item]);
+    catalogo.filter(concepto => !nombresSeleccionados.has(concepto.nombre))
+      .forEach(concepto => filas.push([concepto]));
+    $('cc-items').replaceChildren(...filas.map(([concepto, valores], indice) => {
+      const card = $('cc-item-plantilla').content.firstElementChild.cloneNode(true);
+      const checkbox = card.querySelector('[type=checkbox]');
+      const detalle = card.querySelector('.expense-amount');
+      const correo = card.querySelector('[data-correo]');
+      card.querySelector('[data-nombre]').textContent = concepto.nombre;
+      card.querySelector('.expense-criterion').textContent = concepto.descripcion || '';
+      card.querySelector('.expense-classification').textContent = concepto.proyectos[proyecto] || valores?.tipo_presupuesto || '';
+      checkbox.value = concepto.nombre;
+      checkbox.checked = Boolean(valores);
+      correo.hidden = !concepto.correo;
+      detalle.querySelectorAll('[data-campo]').forEach(control => {
+        control.id = 'cc-' + control.dataset.campo + '-' + indice;
+        control.previousElementSibling.htmlFor = control.id;
+        if (control.type === 'email') control.disabled = !concepto.correo;
+        if (valores && !control.disabled) control.value = valores[control.dataset.campo] ?? '';
+      });
+      detalle.hidden = !checkbox.checked;
+      checkbox.addEventListener('change', () => {
+        detalle.hidden = !checkbox.checked;
+        total();
+      });
+      card.querySelector('[data-campo=monto]').addEventListener('input', total);
+      return card;
+    }));
+    total();
   }
   // Nueva solicitud (sol vacío) o corrección de una rechazada (precargada con sus datos).
   function actualizarResponsables(valor = '') {
@@ -152,7 +159,7 @@
   }
   function abrirFormulario(sol) {
     corrigiendo = sol || null;
-    const form = $('cc-form'); form.reset(); $('cc-items').replaceChildren();
+    const form = $('cc-form'); form.reset();
     form.querySelector('.error').hidden = true;
     $('cc-rechazo').hidden = !sol;
     form.querySelector('[type=submit]').textContent = sol ? 'Reenviar solicitud' : 'Enviar solicitud';
@@ -163,11 +170,10 @@
       $('cc-rechazo').textContent = 'Rechazada: ' + sol.motivo_rechazo;
       $('cc-proyecto').value = sol.proyecto; $('cc-motivo').value = sol.motivo;
       $('cc-banco').value = sol.banco; $('cc-cuenta').value = sol.cuenta;
-      sol.items.forEach(agregarItem);
     } else {
       if (datos?.proyecto) $('cc-proyecto').value = datos.proyecto;
-      agregarItem();
     }
+    mostrarConceptos(sol?.items, Boolean(sol));
     const extra = sol?.formulario || {};
     $('cc-site').value = extra.site || '';
     $('cc-wo').value = extra.wo || '';
@@ -178,10 +184,9 @@
     actualizarBilletera();
     ver('cc-solicitud');
   }
-  $('cc-agregar').addEventListener('click', () => agregarItem());
   $('cc-proyecto').addEventListener('change', () => {
     actualizarResponsables();
-    document.querySelectorAll('#cc-items .cc-item').forEach(item => opcionesItem(item, item.querySelector('[data-campo=tipo_gasto]').value));
+    mostrarConceptos(itemsSeleccionados());
   });
   $('cc-billetera').addEventListener('change', actualizarBilletera);
   $('cc-nueva').addEventListener('click', () => abrirFormulario());
@@ -189,8 +194,11 @@
   $('cc-form').addEventListener('submit', e => {
     e.preventDefault(); const form = e.currentTarget, error = form.querySelector('.error');
     enviando(form.querySelector('[type=submit]'), error, async () => {
-      const items = [...document.querySelectorAll('#cc-items .cc-item')].map(it => Object.fromEntries([...it.querySelectorAll('[data-campo]')].map(c => [c.dataset.campo, c.value.trim()])));
-      items.forEach((it, i) => { if (!it.tipo_gasto || !(numero(it.monto) > 0)) throw Error('Ítem ' + (i + 1) + ': elige el tipo de gasto y escribe un monto mayor a cero.'); });
+      const items = itemsSeleccionados();
+      if (!items.length) throw Error('Selecciona al menos un concepto.');
+      items.forEach(item => {
+        if (!(numero(item.monto) > 0)) throw Error(item.tipo_gasto + ': escribe un monto mayor a cero.');
+      });
       const cuerpo = {...Object.fromEntries(new FormData(form)), items};
       const ruta = corrigiendo ? '/' + corrigiendo.id + '/reenviar' : '/solicitar';
       const r = await api(ruta, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});

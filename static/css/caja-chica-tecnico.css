@@ -2,10 +2,9 @@
 #cc-form fieldset { min-width: 0; margin: 0 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; }
 #cc-form legend { padding: 0 6px; font-weight: 700; }
 .cc-subtitulo { font-size: 15px; margin: 18px 0 8px; }
-.cc-item { border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
-.cc-item-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.cc-total { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0; padding: 12px 14px; border-radius: 12px; background: rgba(23, 62, 118, .08); }
-.cc-total strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+#cc-items { grid-template-columns: 1fr; }
+#cc-items .expense-card > label { min-height: 52px; }
+#cc-items .expense-amount input { font-size: 16px; }
 #cc-lista { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
 .cc-sol summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .cc-sol summary::-webkit-details-marker { display: none; }
