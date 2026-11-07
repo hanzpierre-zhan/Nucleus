@@ -76,7 +76,7 @@ def test_justificacion_en_etapas_y_editor_conserva_detalles(app, auth_client, se
             browser.close()
 
 
-def test_portal_tecnico_sin_contadores_y_botones_redondos(app, servidor, tecnico):
+def test_portal_tecnico_con_tres_filtros_y_botones_redondos(app, servidor, tecnico):
     cli, headers = tecnico
     result = cli.post('/form-pruebas/caja-chica/solicitar', headers=headers, json={
         'proyecto': 'CLARO', 'motivo': 'Solicitud activa de prueba', 'banco': 'BCP',
@@ -93,7 +93,9 @@ def test_portal_tecnico_sin_contadores_y_botones_redondos(app, servidor, tecnico
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(servidor + '/form-pruebas/caja-chica')
             expect(page.locator('#cc-inicio')).to_be_visible()
-            assert page.locator('#cc-filtros').count() == 0
+            assert page.locator('#cc-filtros button').count() == 3
+            assert 'Rechazado' not in page.locator('#cc-filtros').inner_text()
+            page.locator('[data-filtro=validar]').click()
             card = page.locator('#cc-lista button.deposit').filter(has_text=result.json['solicitud']['codigo'])
             expect(card).to_be_visible()
             assert card.evaluate('e=>getComputedStyle(e).borderRadius') == '24px'

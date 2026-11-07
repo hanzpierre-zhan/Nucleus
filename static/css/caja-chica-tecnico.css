@@ -73,3 +73,19 @@ a.back{text-decoration:none;display:inline-block}
 .shell button.primary, .shell button.cc-secundario, .shell button.back,
 .shell .estado-deposito, .shell .solicitud-antiguedad { border-radius: 999px; }
 .shell button.deposit { border-radius: 24px; }
+
+.shell :is(a, button).back:has(.back-icon) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 5px 15px 5px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 700;
+}
+#cc-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+#cc-filtros .filtro-rendicion { border-radius: 999px; }
+.cc-devolucion .hint { margin: 10px 0; }

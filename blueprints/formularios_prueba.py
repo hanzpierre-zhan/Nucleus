@@ -625,6 +625,15 @@ def rendir():
 
         images = [preparar_fotos([archivo])[0] for archivo in archivos]
         huellas = [hashlib.sha256(image).hexdigest() for image in images]
+        evidencias_vinculadas = []
+        if request.form.get('evidencia_por_comprobante') == '1':
+            for indice, partida in enumerate(partidas):
+                for posicion, comprobante in enumerate(partida['comprobantes']):
+                    archivo = request.files.get(f'evidencia-{indice}-{posicion}')
+                    if not archivo or not archivo.filename:
+                        raise ValueError('Adjunta una evidencia del gasto junto a cada comprobante.')
+                    evidencias_vinculadas.append(comprobante)
+                    images.extend(preparar_fotos([archivo]))
         fotos_evidencia = [f for f in request.files.getlist('evidencia') if f.filename]
         if fotos_evidencia:
             images.extend(preparar_fotos(fotos_evidencia))
@@ -644,7 +653,9 @@ def rendir():
         for partida in partidas:
             for comprobante in partida['comprobantes']:
                 comprobante['foto'] = next(nombres)
-        evidencia = list(nombres)
+        for comprobante in evidencias_vinculadas:
+            comprobante['evidencia'] = next(nombres)
+        evidencia = [comprobante['evidencia'] for comprobante in evidencias_vinculadas] + list(nombres)
         if devolucion:
             devolucion['foto'] = evidencia.pop()
         payload = {'referencia': ref, 'codigo': deposit['codigo'], 'monto': str(saldo),

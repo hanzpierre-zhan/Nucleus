@@ -162,14 +162,16 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert sin_evidencia.status_code == 400 and 'evidencia' in sin_evidencia.json['error']
     assert rendir(items[0], '50').status_code == 200
     r = rendir(items[1], '50')
-    # Sigue en "Por rendir" (ya depositada) y además entra a "Revisión".
-    assert r.json['solicitud']['etapas'] == ['por_rendir', 'revision']
+    # Ambos gastos rendidos quedan en revisión.
+    assert r.json['solicitud']['etapas'] == ['revision']
     # Ítem 1 aprobado, ítem 2 rechazado: queda S/ 50 pendiente y vuelve a "por rendir"
-    assert gestion('revisar_item', item=items[0]['id'], aprobar=True).status_code == 200
+    parcial = gestion('revisar_item', item=items[0]['id'], aprobar=True)
+    assert parcial.status_code == 200
+    assert parcial.json['solicitud']['montos_etapa'] == {'archivado': '50.00', 'revision': '50.00'}
     assert gestion('revisar_item', item=items[1]['id'], aprobar=False).status_code == 400  # sin motivo
     r = gestion('revisar_item', item=items[1]['id'], aprobar=False, motivo='Comprobante ilegible')
     s = r.json['solicitud']
-    assert s['etapas'] == ['por_rendir'] and s['pendiente'] == '50.00' and s['avance'] == '1 de 2 ítems aprobados'
+    assert s['etapas'] == ['archivado', 'por_rendir'] and s['pendiente'] == '50.00' and s['avance'] == '1 de 2 ítems aprobados'
     assert rendir(items[0], '50').status_code == 400  # el aprobado no se vuelve a rendir
     assert rendir(items[1], '40').status_code == 200  # gastó menos
     r = gestion('revisar_item', item=items[1]['id'], aprobar=True)
@@ -181,6 +183,17 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert cli.post(url, headers=h, data={'monto': '10', 'foto': foto()}).status_code == 200
     r = gestion('devolucion', aceptar=True)
     assert r.json['solicitud']['estado'] == 'ARCHIVADO' and r.json['solicitud']['etapas'] == ['archivado']
+    reporte = auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token})
+    assert reporte.status_code == 200
+    libro_final = load_workbook(io.BytesIO(reporte.data))
+    assert libro_final['Solicitudes'].max_row == 2
+    assert libro_final['Conceptos'].max_row == 3
+    resumen = dict(zip([c.value for c in libro_final['Solicitudes'][1]],
+                       [c.value for c in libro_final['Solicitudes'][2]]))
+    assert resumen['Monto depositado'] == 100
+    assert resumen['Gasto aprobado'] == 90
+    assert resumen['Monto devuelto confirmado'] == 10
+    assert resumen['Falta rendir'] == 0
     # Las fotos se ven desde la gestión y desde el portal del dueño
     nombre = r.json['solicitud']['items'][0]['fotos'][0]
     rendido = r.json['solicitud']['items'][0]

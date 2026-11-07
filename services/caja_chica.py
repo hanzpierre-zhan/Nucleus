@@ -364,20 +364,35 @@ def _cerrar_o_pedir_devolucion(sol, usuario):
 
 # ── Vistas ─────────────────────────────────────────────────────────────────
 
-def etapa(sol):
-    """Pestañas de la gestión. Una solicitud depositada puede estar en las dos.
-    Una rechazada en validación sigue visible en Validación mientras el técnico corrige."""
+def montos_etapa(sol):
+    """Importes por etapa sin repetir el depósito completo."""
     if sol.estado in ('PENDIENTE', 'RECHAZADO'):
-        return {'validacion'}
+        return {'validacion': sol.total}
     if sol.estado == 'VALIDADO':
-        return {'deposito'}
-    # "Por rendir" lista todo lo ya depositado y aún no archivado; además aparece en
-    # "Revisión" mientras tenga comprobantes o una devolución por revisar.
-    if sol.estado == 'DEPOSITADO':
-        return {'por_rendir'} | ({'revision'} if any(i.estado == 'EN_REVISION' for i in sol.items) else set())
+        return {'deposito': sol.total}
+    if sol.estado == 'ANULADO':
+        return {'anuladas': sol.total}
+    montos = {}
+    for item in sol.items:
+        if item.estado in ('POR_RENDIR', 'RECHAZADO'):
+            vista, monto = 'por_rendir', item.monto
+        elif item.estado == 'EN_REVISION':
+            vista, monto = 'revision', item.monto_gastado or Decimal('0')
+        elif item.estado == 'APROBADO':
+            vista, monto = 'archivado', item.monto_gastado or Decimal('0')
+        else:
+            continue
+        montos[vista] = montos.get(vista, Decimal('0')) + monto
     if sol.estado == 'POR_DEVOLVER':
-        return {'por_rendir'} | ({'revision'} if sol.devolucion_foto else set())
-    return {'archivado'} if sol.estado == 'ARCHIVADO' else {'anuladas'}
+        vista = 'revision' if sol.devolucion_foto else 'por_rendir'
+        montos[vista] = montos.get(vista, Decimal('0')) + max(Decimal('0'), diferencia(sol))
+    if sol.estado == 'ARCHIVADO':
+        montos.setdefault('archivado', Decimal('0'))
+    return montos
+
+
+def etapa(sol):
+    return set(montos_etapa(sol))
 
 
 def retorno(sol):
@@ -398,7 +413,7 @@ def revision_guardada(historial):
 
 
 def a_dict(sol, gestion=False):
-    aprobados = sum(i.monto for i in sol.items if i.estado == 'APROBADO')
+    montos = montos_etapa(sol)
     historial = json.loads(sol.historial or '[]')
     conceptos = next((evento['conceptos'] for evento in reversed(historial) if 'conceptos' in evento), {})
     formulario = next((e['formulario'] for e in reversed(historial) if 'formulario' in e), {})
@@ -416,7 +431,8 @@ def a_dict(sol, gestion=False):
         'retorno': retorno(sol),
         'id': sol.id, 'codigo': sol.codigo, 'documento': sol.documento, 'tecnico': sol.tecnico,
         'proyecto': sol.proyecto, 'motivo': sol.motivo, 'banco': sol.banco, 'cuenta': sol.cuenta,
-        'estado': sol.estado, 'etapas': sorted(etapa(sol)), 'total': dinero(sol.total),
+        'estado': sol.estado, 'etapas': sorted(montos), 'total': dinero(sol.total),
+        'montos_etapa': {vista: dinero(monto) for vista, monto in montos.items()},
         'creado': sol.creado.isoformat(timespec='minutes'), 'motivo_rechazo': sol.motivo_rechazo or '',
         'deposito_fecha': sol.deposito_fecha or '', 'deposito_foto': sol.deposito_foto or '',
         'depositado_en': sol.depositado_en.isoformat(timespec='minutes') if sol.depositado_en else '',
@@ -425,13 +441,16 @@ def a_dict(sol, gestion=False):
         'depositado_por': sol.depositado_por or '',
         'diferencia': dinero(diferencia(sol)) if sol.deposito_monto is not None else '',
         'devolucion_foto': sol.devolucion_foto or '',
-        'pendiente': dinero(sol.total - aprobados) if sol.estado not in ESTADOS_FINALES else '0.00',
+        'pendiente': dinero(sum(i.monto for i in sol.items if i.estado in ('POR_RENDIR', 'RECHAZADO'))) if sol.estado == 'DEPOSITADO' else '0.00',
         'avance': '%d de %d ítems aprobados' % (sum(i.estado == 'APROBADO' for i in sol.items), len(sol.items)),
         'items': [{'id': i.id, 'numero': i.numero, 'tipo_gasto': i.tipo_gasto, 'descripcion': i.descripcion,
                    'monto': dinero(i.monto), 'estado': i.estado, 'ruc': i.ruc or '', 'comprobante': i.comprobante or '',
                    'razon_social': i.razon_social or '', 'evidencia': i.evidencia or '',
                    'monto_gastado': dinero(i.monto_gastado) if i.monto_gastado is not None else '',
                    'fotos': json.loads(i.fotos or '[]'), 'motivo_rechazo': i.motivo_rechazo or '',
+                   'rendido_en': i.rendido_en.isoformat(timespec='minutes') if i.rendido_en else '',
+                   'revisado_en': i.revisado_en.isoformat(timespec='minutes') if i.revisado_en else '',
+                   'revisado_por': i.revisado_por or '',
                    **conceptos.get(str(i.numero), {})}
                   for i in sol.items],
         'formulario': formulario,
@@ -459,20 +478,31 @@ def exportar_excel(solicitudes):
     resumen.title = 'Solicitudes'
     detalle = libro.create_sheet('Conceptos')
     agregar(resumen, ['Código depósito', 'Técnico', 'Documento', 'Proyecto', 'Estado', 'Fecha de solicitud (Perú)',
-                      'Motivo', 'Total solicitado', 'Monto depositado', 'Fecha de depósito', 'Avance'])
+                      'Motivo', 'Total solicitado', 'Monto depositado', 'Fecha de depósito', 'Avance', 'Falta rendir', 'En revisión sustentado',
+                      'Gasto aprobado', 'Devolución pendiente', 'Monto devuelto confirmado', 'Fecha de archivo (UTC)'])
     agregar(detalle, ['Código depósito', 'Ítem', 'Concepto', 'Tipo de presupuesto', 'Descripción', 'Monto solicitado',
-                      'Monto gastado', 'Estado', 'Correo de validación', 'RUC', 'Comprobante'])
+                      'Monto gastado', 'Estado', 'Correo de validación', 'RUC', 'Comprobante', 'Razón social',
+                      'Fecha de rendición (UTC)', 'Fecha de revisión (UTC)', 'Revisado por',
+                      'Motivo de rechazo', 'Fotos del comprobante', 'Evidencia de uso'])
     for solicitud in solicitudes:
         datos = a_dict(solicitud)
+        montos = montos_etapa(solicitud)
+        en_revision = sum((i.monto_gastado or Decimal('0') for i in solicitud.items if i.estado == 'EN_REVISION'), Decimal('0'))
         fecha = (solicitud.creado - timedelta(hours=5)).strftime('%d/%m/%Y %H:%M')
         agregar(resumen, [solicitud.codigo, solicitud.tecnico, solicitud.documento, solicitud.proyecto,
                           solicitud.estado, fecha, solicitud.motivo, solicitud.total, solicitud.deposito_monto,
-                          solicitud.deposito_fecha, datos['avance']])
+                          solicitud.deposito_fecha, datos['avance'], Decimal(datos['pendiente']),
+                          en_revision, montos.get('archivado', Decimal('0')),
+                          diferencia(solicitud) if solicitud.estado == 'POR_DEVOLVER' else Decimal('0'),
+                          solicitud.devolucion_monto if solicitud.estado == 'ARCHIVADO' else None,
+                          solicitud.archivado_en])
         for item in datos['items']:
             agregar(detalle, [solicitud.codigo, item['numero'], item['tipo_gasto'], item.get('tipo_presupuesto'),
                               item['descripcion'], Decimal(item['monto']),
                               Decimal(item['monto_gastado']) if item['monto_gastado'] else None,
-                              item['estado'], item.get('correo_validador'), item['ruc'], item['comprobante']])
+                              item['estado'], item.get('correo_validador'), item['ruc'], item['comprobante'],
+                              item['razon_social'], item['rendido_en'], item['revisado_en'], item['revisado_por'],
+                              item['motivo_rechazo'], ', '.join(item['fotos']), item['evidencia']])
     for hoja in libro.worksheets:
         hoja.freeze_panes = 'A2'
         hoja.auto_filter.ref = hoja.dimensions

@@ -45,6 +45,18 @@
       else verDetalle(j.solicitud);
     }
   }
+  const estadosPorEtapa = {
+    por_rendir: ['POR_RENDIR', 'RECHAZADO'],
+    revision: ['EN_REVISION'],
+    archivado: ['APROBADO', 'DEVUELTO'],
+  };
+  function itemsEtapa(sol, etapa = tab) {
+    const estados = estadosPorEtapa[etapa];
+    return estados ? sol.items.filter(item =>
+      estados.includes(item.estado) && (item.estado !== 'DEVUELTO' || sol.estado === 'ARCHIVADO')) : sol.items;
+  }
+  const importeEtapa = (sol, etapa = tab) => sol.montos_etapa?.[etapa] ?? sol.total;
+
   const intentar = fn => async (...a) => { try { await fn(...a); } catch (e) { avisar(e.message); } };
   function boton(texto, clase, fn) { const b = el('button', 'cc-btn ' + clase, texto); b.type = 'button'; b.addEventListener('click', async () => { b.disabled = true; try { await fn(); } finally { b.disabled = false; } }); return b; }
   function conMotivo(sol, nombre, pregunta, extra = {}) {
@@ -640,27 +652,10 @@
     }
     detalleFicha.append(totales);
     columna.append(detalleFicha);
-    const grupos = [['Por revisar', ['EN_REVISION']], ['Con el técnico', ['RECHAZADO', 'POR_RENDIR']]];
-    for (const [titulo, estados] of grupos) {
-      const items = sol.items.filter(i => estados.includes(i.estado));
-      if (!items.length) continue;
-      columna.append(el('h5', 'cc-rev-seccion', titulo + ' · ' + items.length), ...items.map(i => tarjetaConcepto(sol, i)));
-    }
-    const cerrados = sol.items.filter(i => ['APROBADO', 'DEVUELTO'].includes(i.estado));
-    if (cerrados.length) {
-      columna.append(el('h5', 'cc-rev-seccion', 'Aprobados · ' + cerrados.length));
-      for (const item of cerrados) {
-        // Una línea plegada; al abrirla se ven los datos y las fotos.
-        const plegado = el('details', 'cc-ficha cc-rev-plegado');
-        const resumen = el('summary');
-        resumen.append(icono(item.estado === 'APROBADO' ? 'fa-circle-check' : 'fa-rotate-left'),
-          el('span', 'cc-rev-nombre', item.numero + ' · ' + item.tipo_gasto),
-          el('span', 'cc-ficha-suave', item.estado === 'APROBADO' ? [item.comprobante, 'gastó ' + dinero(item.monto_gastado)].filter(Boolean).join(' · ') : 'se devuelve ' + dinero(item.monto)),
-          el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
-        plegado.append(resumen);
-        if (item.estado === 'APROBADO') { const t = tarjetaConcepto(sol, item); plegado.append(t.querySelector('.cc-rev-cuerpo')); }
-        columna.append(plegado);
-      }
+    const porRevisar = itemsEtapa(sol, 'revision');
+    if (porRevisar.length) {
+      columna.append(el('h5', 'cc-rev-seccion', 'Por revisar · ' + porRevisar.length),
+        ...porRevisar.map(item => tarjetaConcepto(sol, item)));
     }
     const devolucion = el('section', 'cc-ficha cc-rev-devolucion');
     const cabeza = el('h4', 'cc-ficha-titulo'); cabeza.append(icono('fa-hand-holding-dollar'), el('span', 'cc-rev-nombre', 'Devolución'));
@@ -702,7 +697,15 @@
     cuando.append(el('small', null, 'Depositado'), el('strong', null, fechaDeposito(sol)));
     timer.append(icono('fa-clock'), textos, cuando);
     pintarSla(timer);
-    izquierda.append(...resumenSolicitud(sol));
+    const pendientes = itemsEtapa(sol, 'por_rendir');
+    if (sol.estado === 'POR_DEVOLVER') {
+      izquierda.append(ficha('fa-hand-holding-dollar', 'Devolución pendiente', [['Por devolver', dinero(sol.diferencia)]]));
+    }
+    const fichas = resumenSolicitud({...sol, items: pendientes, total: sol.pendiente});
+    izquierda.append(...(pendientes.length ? fichas : fichas.slice(1)));
+    for (const item of pendientes.filter(i => i.estado === 'RECHAZADO')) {
+      izquierda.append(el('p', 'cc-alerta', item.tipo_gasto + ' · ' + item.motivo_rechazo));
+    }
     const derecha = el('figure', 'cc-rendir-foto');
     if (sol.deposito_foto) {
       const enlace = el('a');
@@ -773,6 +776,17 @@
     editar.hidden = guardar.hidden = enDeposito;
     // El botón redondo de depósito (junto a la X) solo se ve al depositar.
     $('cc-solicitud-depositar').hidden = !(enDeposito && puedeGestionar);
+    if (tab === 'archivado') {
+      editar.hidden = guardar.hidden = true;
+      const fichaArchivada = ficha('fa-file-lines', 'Gastos conformes', [
+        ['Estado de la solicitud', sol.estado === 'ARCHIVADO' ? 'Cerrada' : 'Parcialmente archivada'],
+        ['Gasto aprobado', dinero(importeEtapa(sol, 'archivado'))],
+        ['Justificación', sol.motivo || 'Sin registrar', 'cc-justificacion-texto'],
+      ]);
+      contenido.replaceChildren(fichaArchivada, ...itemsEtapa(sol, 'archivado').map(item => tarjetaConcepto(sol, item)));
+      mostrarDetalle();
+      return;
+    }
     if (tab === 'revision' && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado)) {
       editar.hidden = guardar.hidden = true;
       contenido.replaceChildren(justificacionSolicitud(sol), panelRevision(sol));
@@ -835,7 +849,9 @@
     mostrarDetalle();
   }
   // ── Tabla: columnas que se filtran y se mueven arrastrando ──
-  const estadoDe = s => RETORNO[s.retorno] || [ESTADOS[s.estado] || s.estado, 'cc-' + s.estado.toLowerCase()];
+  const estadoDe = s => tab === 'archivado' && s.estado !== 'ARCHIVADO'
+    ? ['Parcialmente archivada', 'cc-aprobado']
+    : RETORNO[s.retorno] || [ESTADOS[s.estado] || s.estado, 'cc-' + s.estado.toLowerCase()];
   const creado = s => new Date(s.creado + 'Z');
   const NOMBRES_PROYECTO = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
   // Desplegable de proyecto: filtra cantidades, montos y la tabla. Vacío = todos.
@@ -892,15 +908,15 @@
     site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1fr)', texto: s => s.formulario?.site || '—'},
     wo: {titulo: 'N.º CM / PM / PLM', ancho: 'minmax(145px, 1fr)', texto: s => s.formulario?.wo || '—'},
     gasto: {titulo: 'Tipo de gasto', ancho: 'minmax(190px, 1.4fr)',
-            texto: s => [...new Set(s.items.map(item => item.tipo_gasto))].join(' · ') || '—'},
+            texto: s => [...new Set(itemsEtapa(s).map(item => item.tipo_gasto))].join(' · ') || '—'},
     responsable: {titulo: 'Responsable de validación', ancho: 'minmax(190px, 1.3fr)',
                   texto: s => s.formulario?.responsable_validacion || '—'},
     estado:   {titulo: 'Estado', ancho: 'minmax(180px, 1.3fr)', texto: s => estadoDe(s)[0],
                celda: s => { const [t, c] = estadoDe(s); return el('span', 'cc-chip ' + c, t); }},
     fecha:    {titulo: 'Fecha / Avance', ancho: 'minmax(140px, 1.1fr)', clase: 'cc-avance',
                texto: s => s.estado === 'DEPOSITADO' ? s.avance : creado(s).toLocaleDateString('es-PE')},
-    total:    {titulo: 'Total', ancho: 'minmax(110px, .8fr)', num: true, texto: s => dinero(s.total),
-               celda: s => el('strong', 'cc-num', dinero(s.total))},
+    total:    {titulo: 'Importe de etapa', ancho: 'minmax(110px, .8fr)', num: true, texto: s => dinero(importeEtapa(s)),
+               celda: s => el('strong', 'cc-num', dinero(importeEtapa(s)))},
   };
   // El orden y ancho de las columnas se recuerdan en este navegador.
   let columnas = Object.keys(COLUMNAS), filtros = {}, busquedas = {}, anchos = {};
@@ -1087,7 +1103,7 @@
     document.querySelectorAll('[data-cuenta]').forEach(c => { c.textContent = delProyecto().filter(s => s.etapas.includes(c.dataset.cuenta)).length; });
     // Plata acumulada de cada etapa: suma del total solicitado de sus solicitudes.
     document.querySelectorAll('[data-plata]').forEach(p => {
-      const suma = delProyecto().filter(s => s.etapas.includes(p.dataset.plata)).reduce((t, s) => t + Number(s.total || 0), 0);
+      const suma = delProyecto().filter(s => s.etapas.includes(p.dataset.plata)).reduce((t, s) => t + Number(importeEtapa(s, p.dataset.plata)), 0);
       p.textContent = 'S/ ' + suma.toLocaleString('es-PE', {minimumFractionDigits: suma >= 1000 || !suma ? 0 : 2, maximumFractionDigits: suma >= 1000 ? 0 : 2});
       p.title = 'Total acumulado: ' + dinero(suma);
     });

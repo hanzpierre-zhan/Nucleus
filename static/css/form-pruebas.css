@@ -149,3 +149,9 @@
 
 /* Caja Chica: la tarjeta del inicio es un enlace. */
 a.action{text-decoration:none;color:inherit}
+
+.adjuntos-rendicion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.adjuntos-rendicion .adjunto-comprobante { margin: 8px 0; min-width: 0; text-align: center; overflow-wrap: anywhere; }
+#devolucion-rendir { border-color: var(--blue); background: var(--accent); }
+#devolucion-rendir legend { font-weight: 700; }
+#devolucion-rendir #monto-devolucion { font-weight: 800; color: var(--ink); }

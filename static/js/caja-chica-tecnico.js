@@ -107,12 +107,13 @@
     fila('Gastado y aprobado', '− ' + dinero(aprobado));
     if (devueltos.length) fila('Ítems que devuelves', devueltos.map(i => i.tipo_gasto).join(', '));
     fila('Debes devolver', dinero(sol.diferencia), 'total');
-    form.append(el('h3', 'cc-devolucion-titulo', 'Devolución'), calculo);
+    form.append(el('h3', 'cc-devolucion-titulo', 'Devolución del saldo'), calculo,
+      el('p', 'hint', 'Devuelve el importe indicado y adjunta el comprobante. La devolución quedará pendiente de revisión.'));
     const monto = el('input'); Object.assign(monto, {name: 'monto', value: sol.diferencia, readOnly: true, type: 'hidden'});
-    const foto = casillaFoto('foto', 'Captura del depósito', 'Foto de la devolución');
+    const foto = casillaFoto('foto', 'Adjuntar comprobante de devolución', 'Captura de la transferencia');
     const archivo = foto.input;
     const error = el('div', 'error'); error.hidden = true; error.tabIndex = -1;
-    const boton = el('button', 'primary wide', 'Registrar devolución'); boton.type = 'submit';
+    const boton = el('button', 'primary wide', 'Enviar devolución a revisión'); boton.type = 'submit';
     form.classList.add('cc-devolucion');
     form.append(monto, foto.casilla, error, boton);
     form.addEventListener('submit', e => { e.preventDefault(); enviando(boton, error, async () => {
@@ -146,7 +147,7 @@
   function fichaDeposito(sol) {
     const descripcion = el('span');
     descripcion.append(el('strong', null, sol.codigo),
-      el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), rechazado(sol) ? 'Rechazado' : ESTADOS[sol.estado]),
+      el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), rechazado(sol) ? 'Rechazado' : sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto ? 'Devolución en revisión' : ESTADOS[sol.estado]),
       el('small', null, 'Motivo: ' + (sol.motivo || 'Sin motivo registrado')));
     const ultimo = sol.historial?.at(-1);
     const rechazo = sol.motivo_rechazo || sol.items.find(item => item.estado === 'RECHAZADO')?.motivo_rechazo
@@ -220,7 +221,11 @@
       }
       detalle.append(fila);
     }
-    if (sol.estado === 'POR_DEVOLVER' && !sol.devolucion_foto) detalle.append(formDevolucion(sol));
+    if (sol.estado === 'POR_DEVOLVER') {
+      detalle.append(sol.devolucion_foto
+        ? el('p', 'notice', 'Devolución de ' + dinero(sol.diferencia) + ' enviada. Está pendiente de revisión.')
+        : formDevolucion(sol));
+    }
     if (sol.estado === 'RECHAZADO') {
       const corregir = el('button', 'primary wide', 'Corregir y reenviar');
       corregir.type = 'button';
@@ -231,14 +236,34 @@
     ver('cc-detalle-rendicion');
     $('cc-titulo-rendir').focus({preventScroll: true});
   }
+  let filtro = 'rendir';
   function pintar() {
     const total = datos.solicitudes.reduce((suma, sol) => suma + montoPendiente(sol), 0);
     $('cc-pendiente').textContent = dinero(total / 100);
     const lista = $('cc-lista');
     lista.replaceChildren();
-    const solicitudes = datos.solicitudes.filter(sol =>
-      ['PENDIENTE', 'VALIDADO', 'DEPOSITADO', 'POR_DEVOLVER', 'RECHAZADO'].includes(sol.estado));
-    if (!solicitudes.length) lista.append(el('p', 'empty', 'No tienes solicitudes activas.'));
+    const grupos = [
+      ['validar', 'Por validar', datos.solicitudes.filter(sol => ['PENDIENTE', 'RECHAZADO'].includes(sol.estado))],
+      ['depositar', 'Por depositar', datos.solicitudes.filter(sol => sol.estado === 'VALIDADO')],
+      ['rendir', 'Por rendir', datos.solicitudes.filter(sol => ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado))],
+    ];
+    const filtros = $('cc-filtros');
+    filtros.replaceChildren();
+    for (const [clave, etiqueta, registros] of grupos) {
+      const boton = el('button', 'filtro-rendicion', etiqueta);
+      boton.type = 'button';
+      boton.dataset.filtro = clave;
+      boton.setAttribute('aria-pressed', String(filtro === clave));
+      boton.append(el('span', null, String(registros.length)));
+      boton.onclick = () => {
+        filtro = clave;
+        pintar();
+        filtros.querySelector('[aria-pressed="true"]').focus();
+      };
+      filtros.append(boton);
+    }
+    const solicitudes = grupos.find(([clave]) => clave === filtro)[2];
+    if (!solicitudes.length) lista.append(el('p', 'empty', 'No tienes solicitudes en esta etapa.'));
     for (const sol of solicitudes) {
       const ficha = el('button', 'deposit');
       ficha.type = 'button';
@@ -392,7 +417,7 @@
       }, 250);
     });
   }
-  $('cc-exito-volver').addEventListener('click', () => ver('cc-inicio'));
+  $('cc-exito-volver').addEventListener('click', () => { filtro = 'validar'; pintar(); ver('cc-inicio'); });
   document.querySelectorAll('[data-cc-volver]').forEach(b => b.addEventListener('click', () => ver('cc-inicio')));
   $('cc-form').addEventListener('submit', e => {
     e.preventDefault(); const form = e.currentTarget, error = form.querySelector('.error');

@@ -355,7 +355,10 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
         'comprobante-1-0': (imagen(), 'factura.png'),
         'monto_devolucion': '5.00', 'motivo_devolucion': 'Sobrante',
         'foto_devolucion': (imagen(), 'devolucion.png'),
-        'evidencia': [(imagen(), 'trabajo.png'), (imagen(), 'material.png')],
+        'evidencia_por_comprobante': '1',
+        'evidencia-0-0': (imagen(), 'trabajo.png'),
+        'evidencia-0-1': (imagen(), 'material.png'),
+        'evidencia-1-0': (imagen(), 'uso.png'),
     })
     assert result.status_code == 201, result.json
     assert result.json['fotos_comprobante_repetidas'] == 2
@@ -367,7 +370,8 @@ def test_rendicion_con_comprobantes_por_concepto_y_evidencia(portal):
     assert comprobantes[-1]['ruc'] == '20123456789'
     assert saved['gastado'] == '25.00' and saved['devolucion']['monto'] == '5.00'
     assert [c['foto'] for c in comprobantes] + saved['evidencia'] + [saved['devolucion']['foto']] == saved['fotos']
-    assert len(set(saved['fotos'])) == 6
+    assert [c['evidencia'] for c in comprobantes] == saved['evidencia']
+    assert len(set(saved['fotos'])) == 7
     with portal.app_context():
         usuario = Usuario(username='revisor', nombre='Revisor', password_hash='no-login', rol='admin')
         db.session.add(usuario)

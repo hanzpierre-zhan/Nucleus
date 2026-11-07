@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const base = '/form-pruebas', $ = id => document.getElementById(id);
-  let state = null, files = [], previewUrls = [];
+  let state = null;
   let filtroRendicion = 'Por rendir';
   const keys = {};
   const token = () => $('csrf').value;
@@ -56,7 +56,6 @@
     const form = $('rendir');
     if ($('referencia').value !== deposito.referencia) {
       form.reset();
-      clearPhotos();
       keys.rendicion = freshKey();
       form.querySelector('.error').hidden = true;
       $('referencia').value = deposito.referencia;
@@ -410,6 +409,10 @@
         foto.addEventListener('change', () => {
           fila.querySelector('[data-nombre-foto]').textContent = foto.files[0]?.name || '＋ Adjuntar foto del comprobante';
         });
+        const evidencia = fila.querySelector('[data-campo=evidencia]');
+        evidencia.addEventListener('change', () => {
+          fila.querySelector('[data-nombre-evidencia]').textContent = evidencia.files[0]?.name || '＋ Adjuntar evidencia del gasto';
+        });
         tipo.addEventListener('change', () => { ruc.required = tipo.value === 'Factura'; });
         quitar.addEventListener('click', () => {
           fila.remove();
@@ -456,18 +459,11 @@
   $('foto-devolucion')?.addEventListener('change', event => {
     $('nombre-foto-devolucion').textContent = event.target.files[0]?.name || '＋ Adjuntar foto de la devolución';
   });
-  function clearPhotos(){files=[];renderPhotos();}
-  function renderPhotos(){previewUrls.forEach(URL.revokeObjectURL);previewUrls=[];$('fotos').replaceChildren();files.forEach((file,index)=>{const card=el('div',undefined,'photo'),img=el('img'),remove=el('button','×');const url=URL.createObjectURL(file);previewUrls.push(url);img.src=url;img.alt=`Comprobante ${index+1}`;remove.type='button';remove.setAttribute('aria-label',`Quitar foto ${index+1}`);remove.addEventListener('click',()=>{files.splice(index,1);renderPhotos();});card.append(img,remove);$('fotos').append(card);});}
   async function compress(file){
     if(file.size>10*1024*1024)throw Error('Cada foto debe pesar como máximo 10 MB.');
     if(!/^image\//.test(file.type))throw Error('Selecciona solo fotos de tus comprobantes.');
     try{const image=await createImageBitmap(file,{imageOrientation:'from-image'});const ratio=Math.min(1,1600/Math.max(image.width,image.height));const canvas=document.createElement('canvas');canvas.width=Math.round(image.width*ratio);canvas.height=Math.round(image.height*ratio);canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);image.close();const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.82));return blob?new File([blob],'comprobante.jpg',{type:'image/jpeg'}):file;}catch{return file;}
   }
-  for(const id of ['camara','galeria'])$(id)?.addEventListener('change',async event=>{
-    const chosen=Array.from(event.target.files);event.target.value='';const form=$('rendir');
-    if(files.length+chosen.length>8){showError(form,'Puedes adjuntar como máximo 8 fotos.');return;}
-    try{const ready=[];for(const file of chosen)ready.push(await compress(file));files.push(...ready);renderPhotos();}catch(error){showError(form,error.message);}
-  });
   $('rendir')?.addEventListener('submit', event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -490,6 +486,7 @@
         Array.from(bloque.querySelectorAll('.comprobante-rendir'), (fila, posicion) => {
           const campo = nombre => fila.querySelector(`[data-campo=${nombre}]`);
           adjuntos.push([`comprobante-${indice}-${posicion}`, campo('foto').files[0]]);
+          adjuntos.push([`evidencia-${indice}-${posicion}`, campo('evidencia').files[0]]);
           return {tipo: campo('tipo').value, ruc: campo('ruc').value, monto: campo('monto').value};
         })
       );
@@ -497,13 +494,12 @@
       if (!$('devolucion-rendir').disabled) {
         data.set('foto_devolucion', await compress($('foto-devolucion').files[0]));
       }
-      files.forEach(foto => data.append('evidencia', foto));
+      data.set('evidencia_por_comprobante', '1');
       for (const [nombre, foto] of adjuntos) data.append(nombre, await compress(foto));
       const result = await api('/rendir', {method: 'POST', body: data});
       keys.rendicion = null;
       form.reset();
       $('referencia').value = '';
-      clearPhotos();
       const aviso = result.fotos_comprobante_repetidas
         ? ' Se detectó una foto repetida. El validador revisará el comprobante.' : '';
       await success(result, 'Tu rendición quedó guardada en el espacio de pruebas.' + aviso);
