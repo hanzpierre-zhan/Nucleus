@@ -155,3 +155,10 @@ a.action{text-decoration:none;color:inherit}
 #devolucion-rendir { border-color: var(--blue); background: var(--accent); }
 #devolucion-rendir legend { font-weight: 700; }
 #devolucion-rendir #monto-devolucion { font-weight: 800; color: var(--ink); }
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+}
