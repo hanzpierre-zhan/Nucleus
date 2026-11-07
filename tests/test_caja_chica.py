@@ -154,11 +154,16 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
 
     def rendir(item, gastado):
         return cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id']), headers=h,
-                        data={'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': gastado, 'fotos': [foto()]})
+                        data={'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': gastado, 'fotos': [foto()],
+                              'evidencia': foto('uso.png'), 'razon_social': 'FERRETERIA EL PERNO SAC'})
     assert rendir(items[0], '60').status_code == 400  # más que el ítem
+    sin_evidencia = cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, items[0]['id']), headers=h,
+                             data={'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': '50', 'fotos': [foto()]})
+    assert sin_evidencia.status_code == 400 and 'evidencia' in sin_evidencia.json['error']
     assert rendir(items[0], '50').status_code == 200
     r = rendir(items[1], '50')
-    assert r.json['solicitud']['etapas'] == ['revision']
+    # Sigue en "Por rendir" (ya depositada) y además entra a "Revisión".
+    assert r.json['solicitud']['etapas'] == ['por_rendir', 'revision']
     # Ítem 1 aprobado, ítem 2 rechazado: queda S/ 50 pendiente y vuelve a "por rendir"
     assert gestion('revisar_item', item=items[0]['id'], aprobar=True).status_code == 200
     assert gestion('revisar_item', item=items[1]['id'], aprobar=False).status_code == 400  # sin motivo
@@ -178,9 +183,36 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert r.json['solicitud']['estado'] == 'ARCHIVADO' and r.json['solicitud']['etapas'] == ['archivado']
     # Las fotos se ven desde la gestión y desde el portal del dueño
     nombre = r.json['solicitud']['items'][0]['fotos'][0]
+    rendido = r.json['solicitud']['items'][0]
+    assert rendido['razon_social'] == 'FERRETERIA EL PERNO SAC' and rendido['evidencia']
+    assert auth_client.get('/form-pruebas/caja-chica/foto/%d/%s' % (sid, rendido['evidencia'])).status_code == 200
     assert auth_client.get('/form-pruebas/caja-chica/foto/%d/%s' % (sid, nombre)).status_code == 200
     assert cli.get('/form-pruebas/caja-chica/foto/%d/%s' % (sid, nombre)).status_code == 200
     assert cli.get('/form-pruebas/caja-chica/foto/%d/otra.jpg' % sid).status_code == 404
+
+
+def test_item_rechazado_que_no_se_sustenta_pasa_a_devolucion(app, auth_client, tecnico):
+    cli, h = tecnico
+    sol = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}, {'tipo_gasto': 'Peajes', 'monto': '50'}]}).json['solicitud']
+    sid = sol['id']
+    gestion = lambda accion, **cuerpo: auth_client.post('/api/caja-chica/%d/%s' % (sid, accion), json=cuerpo)
+    assert gestion('validar').status_code == 200
+    items = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '100', 'foto': foto()}).json['solicitud']['items']
+    devolver = lambda item: cli.post('/form-pruebas/caja-chica/%d/item/%d/devolver' % (sid, item['id']), headers=h)
+    assert devolver(items[1]).status_code == 400  # solo un ítem rechazado se devuelve
+    for item in items:
+        assert cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id']), headers=h, data={
+            'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': '50',
+            'fotos': [foto()], 'evidencia': foto('uso.png')}).status_code == 200
+    assert gestion('revisar_item', item=items[0]['id'], aprobar=True).status_code == 200
+    assert gestion('revisar_item', item=items[1]['id'], aprobar=False, motivo='Boleta ilegible').status_code == 200
+    r = devolver(items[1])
+    assert r.status_code == 200, r.json
+    s = r.json['solicitud']
+    assert s['items'][1]['estado'] == 'DEVUELTO'
+    assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '50.00'
 
 
 BASE = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',

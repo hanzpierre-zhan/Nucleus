@@ -5,7 +5,7 @@
   const base = '/form-pruebas/caja-chica';
   const ESTADOS = {PENDIENTE: 'En validación', VALIDADO: 'Por depositar', DEPOSITADO: 'Por rendir',
                    POR_DEVOLVER: 'Falta la devolución', ARCHIVADO: 'Archivado', RECHAZADO: 'Rechazado: corrige y reenvía', ANULADO: 'Anulado'};
-  const ITEM = {POR_RENDIR: 'Por rendir', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado: vuelve a rendir'};
+  const ITEM = {POR_RENDIR: 'Por rendir', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', DEVUELTO: 'Se devuelve'};
   const el = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto !== undefined) n.textContent = texto; return n; };
   const dinero = v => 'S/ ' + Number(v || 0).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const numero = v => { const t = String(v || '').replace(/\s/g, '').replace(/,(?=\d{3}(\D|$))/g, '').replace(',', '.'); return /^\d+(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
@@ -27,23 +27,71 @@
 
   // ── Lista de solicitudes ──
   function foto(sid, nombre, texto) { const a = el('a', 'cc-foto', texto); a.href = base + '/foto/' + sid + '/' + nombre; a.target = '_blank'; a.rel = 'noopener'; return a; }
+  // Casilla de foto: toca para elegir o tomar la foto, con vista previa.
+  function casillaFoto(nombre, titulo, ayuda, varias = false) {
+    const casilla = el('label', 'cc-slot');
+    const input = el('input');
+    Object.assign(input, {type: 'file', name: nombre, accept: 'image/*', multiple: varias});
+    const vista = el('img'); vista.alt = ''; vista.hidden = true;
+    const texto = el('span', 'cc-slot-texto');
+    texto.append(el('span', 'cc-slot-icono', '📷'), el('strong', null, titulo), el('small', null, ayuda));
+    casilla.append(input, vista, texto);
+    input.addEventListener('change', () => {
+      const archivo = input.files[0];
+      casilla.classList.toggle('lleno', !!archivo);
+      vista.hidden = !archivo;
+      if (vista.src) URL.revokeObjectURL(vista.src);
+      if (archivo) vista.src = URL.createObjectURL(archivo);
+      texto.querySelector('small').textContent = archivo
+        ? (input.files.length > 1 ? input.files.length + ' fotos' : 'Toca para cambiarla') : ayuda;
+    });
+    return {casilla, input};
+  }
   function formRendir(sol, item) {
     const form = el('form', 'cc-rendir'); form.noValidate = true;
-    const campos = [['ruc', 'RUC del comprobante', 'numeric', '20123456789'], ['comprobante', 'N° de boleta o factura', 'text', 'F001-000123'],
-                    ['monto_gastado', 'Monto gastado (S/)', 'decimal', item.monto]];
-    for (const [nombre, titulo, modo, ejemplo] of campos) {
+    const campo = (nombre, titulo, modo, ejemplo, largo) => {
       const id = 'r' + item.id + '-' + nombre, label = el('label', null, titulo), input = el('input');
-      label.htmlFor = id; Object.assign(input, {id, name: nombre, inputMode: modo, placeholder: ejemplo, required: true, maxLength: 40});
+      label.htmlFor = id; Object.assign(input, {id, name: nombre, inputMode: modo, placeholder: ejemplo, required: true, maxLength: largo});
       form.append(label, input);
-    }
-    const lf = el('label', null, 'Fotos del comprobante (1 a 5)'), fotos = el('input'); lf.htmlFor = 'r' + item.id + '-fotos';
-    Object.assign(fotos, {id: 'r' + item.id + '-fotos', type: 'file', name: 'fotos', accept: 'image/*', multiple: true, required: true});
+      return input;
+    };
+    const ruc = campo('ruc', 'RUC del comprobante', 'numeric', '20123456789', 11);
+    // Al escribir los 11 dígitos se completa la razón social (openruc / padrón).
+    const razon = el('p', 'cc-razon'); razon.hidden = true; razon.setAttribute('aria-live', 'polite');
+    const razonOculta = Object.assign(el('input'), {type: 'hidden', name: 'razon_social'});
+    form.append(razon, razonOculta);
+    let consulta;
+    ruc.addEventListener('input', async () => {
+      consulta?.abort(); razonOculta.value = '';
+      razon.hidden = !/^[0-9]{11}$/.test(ruc.value); razon.className = 'cc-razon';
+      if (razon.hidden) return;
+      const actual = consulta = new AbortController();
+      razon.textContent = 'Consultando RUC…';
+      try {
+        const r = await api('/ruc/' + ruc.value, {signal: actual.signal}, '/form-pruebas');
+        if (actual.signal.aborted) return;
+        if (r.resultado === 'encontrado') {
+          razonOculta.value = r.razon_social;
+          razon.textContent = r.razon_social + (r.activo ? ' · Activo' : ' · No activo');
+          razon.classList.add(r.activo ? 'ok' : 'alerta');
+        } else {
+          razon.textContent = r.resultado === 'no_encontrado' ? 'RUC no encontrado. Revisa los dígitos.' : 'Consulta de RUC no disponible ahora.';
+          razon.classList.add('alerta');
+        }
+      } catch { if (!actual.signal.aborted) { razon.textContent = 'No se pudo consultar el RUC.'; razon.classList.add('alerta'); } }
+    });
+    campo('comprobante', 'N.º de boleta o factura', 'text', 'F001-000123', 40);
+    campo('monto_gastado', 'Monto gastado (S/)', 'decimal', item.monto, 12);
+    const boleta = casillaFoto('fotos', 'Boleta / factura', 'Foto del comprobante', true);
+    const evidencia = casillaFoto('evidencia', 'Evidencia del gasto', 'Foto del uso');
+    const fotos = el('div', 'cc-slots'); fotos.append(boleta.casilla, evidencia.casilla);
     const error = el('div', 'error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
     const boton = el('button', 'primary wide', 'Rendir ítem ' + item.numero); boton.type = 'submit';
-    form.append(lf, fotos, error, boton);
+    form.append(fotos, error, boton);
     form.addEventListener('submit', e => { e.preventDefault(); enviando(boton, error, async () => {
-      if (!fotos.files.length) throw Error('Adjunta al menos una foto del comprobante.');
-      if (fotos.files.length > 5) throw Error('Adjunta como máximo 5 fotos.');
+      if (!boleta.input.files.length) throw Error('Adjunta la foto de la boleta o factura.');
+      if (boleta.input.files.length > 5) throw Error('Adjunta como máximo 5 fotos de la boleta.');
+      if (!evidencia.input.files.length) throw Error('Adjunta la foto de la evidencia del gasto.');
       await api('/' + sol.id + '/item/' + item.id + '/rendir', {method: 'POST', body: new FormData(form)});
       await cargar();
     }); });
@@ -51,12 +99,22 @@
   }
   function formDevolucion(sol) {
     const form = el('form', 'cc-rendir'); form.noValidate = true;
-    form.append(el('p', 'notice', 'Gastaste menos de lo depositado. Devuelve ' + dinero(sol.diferencia) + ' y adjunta la foto del depósito.'));
-    const monto = el('input'); Object.assign(monto, {name: 'monto', value: sol.diferencia, readOnly: true});
-    const archivo = el('input'); Object.assign(archivo, {type: 'file', name: 'foto', accept: 'image/*', required: true});
+    const aprobado = sol.items.filter(i => i.estado === 'APROBADO').reduce((t, i) => t + Number(i.monto_gastado || 0), 0);
+    const devueltos = sol.items.filter(i => i.estado === 'DEVUELTO');
+    const calculo = el('dl', 'cc-calculo');
+    const fila = (a, b, clase) => { const d = el('div', clase || null); d.append(el('dt', null, a), el('dd', null, b)); calculo.append(d); };
+    fila('Depositado', dinero(sol.deposito_monto || sol.total));
+    fila('Gastado y aprobado', '− ' + dinero(aprobado));
+    if (devueltos.length) fila('Ítems que devuelves', devueltos.map(i => i.tipo_gasto).join(', '));
+    fila('Debes devolver', dinero(sol.diferencia), 'total');
+    form.append(el('h3', 'cc-devolucion-titulo', 'Devolución'), calculo);
+    const monto = el('input'); Object.assign(monto, {name: 'monto', value: sol.diferencia, readOnly: true, type: 'hidden'});
+    const foto = casillaFoto('foto', 'Captura del depósito', 'Foto de la devolución');
+    const archivo = foto.input;
     const error = el('div', 'error'); error.hidden = true; error.tabIndex = -1;
     const boton = el('button', 'primary wide', 'Registrar devolución'); boton.type = 'submit';
-    form.append(el('label', null, 'Monto a devolver (S/)'), monto, el('label', null, 'Foto del depósito'), archivo, error, boton);
+    form.classList.add('cc-devolucion');
+    form.append(monto, foto.casilla, error, boton);
     form.addEventListener('submit', e => { e.preventDefault(); enviando(boton, error, async () => {
       if (!archivo.files.length) throw Error('Adjunta la foto del depósito de devolución.');
       await api('/' + sol.id + '/devolucion', {method: 'POST', body: new FormData(form)}); await cargar();
@@ -118,18 +176,49 @@
     resumen.append(...fichaDeposito(sol));
     detalle.replaceChildren(resumen);
     $('cc-titulo-rendir').textContent = sol.estado === 'RECHAZADO' ? 'Solicitud rechazada' : 'Rendir depósito';
-    for (const item of sol.items) {
-      const fila = el('section', 'card cc-item-fila');
-      const cab = el('div', 'cc-item-cabecera');
-      cab.append(el('strong', null, item.tipo_gasto), el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
-      fila.append(cab, el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + dinero(item.monto)));
-      if (item.motivo_rechazo) fila.append(el('p', 'notice', 'Rechazado: ' + item.motivo_rechazo));
-      if (item.fotos.length) {
-        const fotos = el('div', 'cc-fotos');
-        item.fotos.forEach((nombre, i) => fotos.append(foto(sol.id, nombre, 'Foto ' + (i + 1))));
-        fila.append(fotos);
+    if (['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado)) {
+      // Resumen: depositado, aprobado y lo que falta sustentar.
+      const aprobado = sol.items.filter(i => i.estado === 'APROBADO').reduce((t, i) => t + Number(i.monto_gastado || 0), 0);
+      const porSustentar = sol.items.filter(i => ['POR_RENDIR', 'RECHAZADO', 'EN_REVISION'].includes(i.estado))
+        .reduce((t, i) => t + Number(i.monto || 0), 0);
+      const resumen = el('div', 'cc-resumen-rendir');
+      for (const [titulo, valor, clase] of [['Depositado', sol.deposito_monto || sol.total], ['Aprobado', aprobado, 'ok'], ['Por sustentar', porSustentar, 'pend']]) {
+        const caja = el('div', clase || null); caja.append(el('small', null, titulo), el('strong', null, dinero(valor))); resumen.append(caja);
       }
-      if (sol.estado === 'DEPOSITADO' && ['POR_RENDIR', 'RECHAZADO'].includes(item.estado)) fila.append(formRendir(sol, item));
+      detalle.append(resumen);
+    }
+    for (const item of sol.items) {
+      const fila = el('section', 'card cc-item-fila cc-item-' + item.estado.toLowerCase());
+      const cab = el('div', 'cc-item-cabecera');
+      cab.append(el('strong', null, item.numero + ' · ' + item.tipo_gasto), el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
+      fila.append(cab, el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + 'Solicitado ' + dinero(item.monto)));
+      if (item.estado === 'APROBADO' || item.estado === 'EN_REVISION') {
+        fila.append(el('p', 'cc-item-ok', (item.estado === 'APROBADO' ? '✓ Rendiste ' : 'Enviado · ') + dinero(item.monto_gastado)
+          + (item.comprobante ? ' · ' + item.comprobante : '')));
+      }
+      if (item.estado === 'DEVUELTO') fila.append(el('p', 'cc-item-ok', 'Lo incluyes en la devolución.'));
+      const rindiendo = sol.estado === 'DEPOSITADO' && ['POR_RENDIR', 'RECHAZADO'].includes(item.estado);
+      if (item.estado === 'RECHAZADO' && rindiendo) {
+        const motivo = el('p', 'cc-item-motivo'); motivo.append(el('strong', null, 'Motivo: '), item.motivo_rechazo || 'Sin motivo');
+        // Dos salidas: corregir (vuelve a rendir) o devolver ese monto.
+        const opciones = el('div', 'cc-item-opciones');
+        const corregir = el('button', 'primary', '↻ Corregir'); corregir.type = 'button';
+        const devolverBtn = el('button', 'cc-secundario', '↩ Devolver ' + dinero(item.monto)); devolverBtn.type = 'button';
+        const form = formRendir(sol, item); form.hidden = true;
+        const error = el('div', 'error'); error.hidden = true; error.tabIndex = -1;
+        corregir.addEventListener('click', () => { form.hidden = !form.hidden; if (!form.hidden) form.querySelector('input').focus(); });
+        devolverBtn.addEventListener('click', () => {
+          if (!confirm('¿No puedes sustentar este ítem? ' + dinero(item.monto) + ' se sumará a tu devolución.')) return;
+          enviando(devolverBtn, error, async () => {
+            await api('/' + sol.id + '/item/' + item.id + '/devolver', {method: 'POST'});
+            await cargar();
+          });
+        });
+        opciones.append(corregir, devolverBtn);
+        fila.append(motivo, opciones, error, form);
+      } else if (rindiendo) {
+        fila.append(formRendir(sol, item));
+      }
       detalle.append(fila);
     }
     if (sol.estado === 'POR_DEVOLVER' && !sol.devolucion_foto) detalle.append(formDevolucion(sol));

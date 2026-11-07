@@ -124,8 +124,30 @@ def portal_rendir(sid, iid):
         archivos = [a for a in request.files.getlist('fotos') if a and a.filename][:cc.MAX_FOTOS + 1]
         if len(archivos) > cc.MAX_FOTOS:
             raise ValueError('Adjunta como máximo %d fotos.' % cc.MAX_FOTOS)
+        evidencia = request.files.get('evidencia')
+        if not archivos:
+            raise ValueError('Adjunta la foto de la boleta o factura.')
+        if not evidencia or not evidencia.filename:
+            raise ValueError('Adjunta la foto de la evidencia del gasto.')
         fotos = [cc.guardar_foto(sol, a) for a in archivos]
-        cc.rendir_item(sol, item, g.tecnico['documento'], request.form, fotos, importe)
+        cc.rendir_item(sol, item, g.tecnico['documento'], request.form, fotos, importe, cc.guardar_foto(sol, evidencia))
+    except ValueError as exc:
+        db.session.rollback()
+        return _error(exc)
+    return jsonify(success=True, solicitud=cc.a_dict(sol))
+
+
+@bp.post('/form-pruebas/caja-chica/<int:sid>/item/<int:iid>/devolver')
+@tecnico
+def portal_devolver_item(sid, iid):
+    """Ítem rechazado que el técnico no puede sustentar: su monto pasa a la devolución."""
+    comprobar_csrf()
+    sol = _propia(sid)
+    item = db.session.get(CajaChicaItem, iid)
+    if not item or item.solicitud_id != sol.id:
+        abort(404)
+    try:
+        cc.devolver_item(sol, item, g.tecnico['documento'])
     except ValueError as exc:
         db.session.rollback()
         return _error(exc)

@@ -6,7 +6,7 @@
                    ARCHIVADO: 'Archivado', RECHAZADO: 'Rechazado · con el técnico', ANULADO: 'Anulado'};
   // Una solicitud que volvió a una etapa anterior se marca con su motivo de retorno.
   const RETORNO = {desde_deposito: ['Rechazado en depósito', 'cc-retorno'], reenviada: ['Corregida y reenviada', 'cc-reenviada']};
-  const ITEM = {POR_RENDIR: 'Por rendir', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado'};
+  const ITEM = {POR_RENDIR: 'Por rendir', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', DEVUELTO: 'Se devuelve'};
   const el = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto !== undefined) n.textContent = texto; return n; };
   const dinero = v => 'S/ ' + Number(v || 0).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const avisar = m => (window.nucleusAlert || alert)(m);
@@ -53,8 +53,36 @@
     b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); });
     return b;
   }
+  // SLA de "Por rendir": tiempo desde que se confirmó el depósito (depositado_en viene en UTC).
+  // Plazo para rendir: 24 h. Semáforo: azul < 6 h, verde < 12 h, amarillo < 18 h, ámbar < 24 h, rojo vencido.
+  const NIVELES_SLA = [[6, 'cc-sla-azul'], [12, 'cc-sla-verde'], [18, 'cc-sla-amarillo'], [24, 'cc-sla-ambar'], [Infinity, 'cc-sla-rojo']];
+  function pintarSla(nodo) {
+    const horas = Math.max(0, Math.floor((Date.now() - new Date(nodo.dataset.sla + 'Z')) / 3600000));
+    const dias = Math.floor(horas / 24);
+    nodo.querySelector('.cc-sla-tiempo').textContent = dias ? dias + 'd ' + (horas % 24) + 'h' : horas + 'h';
+    const nivel = NIVELES_SLA.find(([limite]) => horas < limite)[1];
+    NIVELES_SLA.forEach(([, clase]) => nodo.classList.toggle(clase, clase === nivel));
+  }
+  const fechaDeposito = sol => new Date(sol.depositado_en + 'Z').toLocaleString('es-PE', {dateStyle: 'short', timeStyle: 'short'});
+  function sla(sol) {
+    if (!sol.depositado_en) return el('span', 'cc-sla', '—');
+    const chip = boton('', 'cc-sla', () => verDetalle(sol));
+    chip.dataset.sla = sol.depositado_en;
+    chip.title = 'Depositado el ' + fechaDeposito(sol) + ' · ver solicitud';
+    chip.setAttribute('aria-label', 'Ver solicitud ' + sol.codigo);
+    chip.append(icono('fa-clock'), el('span', 'cc-sla-tiempo'));
+    chip.addEventListener('click', e => e.stopPropagation());
+    pintarSla(chip); return chip;
+  }
+  setInterval(() => document.querySelectorAll('[data-sla]').forEach(pintarSla), 60000);
   function accionesRapidas(sol) {
     const caja = el('span', 'cc-acciones-rapidas');
+    // En "Por rendir" no hay acciones: solo el tiempo transcurrido desde el depósito.
+    if (tab === 'por_rendir') { caja.append(sla(sol)); return caja; }
+    if (tab === 'revision') {
+      caja.append(botonRapido(sol, 'Revisar', 'cc-ok', 'fa-magnifying-glass-dollar', () => verDetalle(sol)));
+      return caja;
+    }
     if (tab === 'deposito') {
       if (puedeGestionar && sol.estado === 'VALIDADO') {
         caja.append(botonRapido(sol, 'Depositar', 'cc-ok', 'fa-money-bill-transfer', () => verDetalle(sol)));
@@ -120,21 +148,24 @@
     return d;
   }
 
+  // Edición en el mismo formato de la ventana: las fichas de la columna izquierda pasan a ser
+  // editables (misma cabecera, mismos bordes). Cotización y correo siguen en la columna derecha.
   function editorSolicitud(sol, documentos) {
-    const form = el('form', 'cc-editar-solicitud');
+    const form = el('form', 'cc-editar-solicitud cc-editor');
     form.id = 'cc-solicitud-editor';
-    function seccion(titulo) {
-      const grupo = el('fieldset');
-      grupo.append(el('legend', null, titulo));
-      form.append(grupo);
-      return grupo;
+    function seccion(iconoNombre, titulo) {
+      const caja = el('section', 'cc-ficha cc-editor-ficha');
+      const cabeza = el('h4', 'cc-ficha-titulo');
+      cabeza.append(icono(iconoNombre), el('span', null, titulo));
+      caja.append(cabeza);
+      form.append(caja);
+      return caja;
     }
-    const tecnico = seccion('Datos del técnico');
-    const datosSolicitud = seccion('Datos de la solicitud');
+    // Fila etiqueta / control, igual que las filas de solo lectura.
     function campo(titulo, control, contenedor) {
-      const etiqueta = el('label', null, titulo);
-      etiqueta.append(control);
-      contenedor.append(etiqueta);
+      const fila = el('label', 'cc-editor-fila');
+      fila.append(el('span', null, titulo), control);
+      contenedor.append(fila);
       return control;
     }
     function texto(valor, maxLength, required = false) {
@@ -146,16 +177,13 @@
       control.value = seleccionado;
       return control;
     }
-    campo('Técnico', Object.assign(texto(sol.tecnico, 150), {readOnly: true}), tecnico);
-    campo('Documento', Object.assign(texto(sol.documento, 20), {readOnly: true}), tecnico);
-    const proyecto = campo('Proyecto', selector(configuracion.proyectos, sol.proyecto), tecnico);
-    const motivo = campo('Motivo de la solicitud', Object.assign(el('textarea'), {value: sol.motivo, rows: 3, maxLength: 500, required: true}), datosSolicitud);
-    motivo.parentElement.classList.add('cc-campo-ancho');
+    // Conceptos: una fila por concepto (concepto · descripción · monto) y el total al pie.
+    const conceptos = seccion('fa-list-check', 'Conceptos solicitados');
+    const proyecto = selector(configuracion.proyectos, sol.proyecto);
     const controles = sol.items.map(item => {
-      const grupo = el('fieldset', 'cc-campo-ancho cc-concepto-editar');
-      grupo.append(el('legend', null, 'Concepto ' + item.numero));
-      datosSolicitud.append(grupo);
-      const tipo = campo('Concepto', selector([], item.tipo_gasto), grupo);
+      const fila = el('div', 'cc-editor-concepto');
+      const tipo = selector([], item.tipo_gasto);
+      tipo.setAttribute('aria-label', 'Concepto ' + item.numero);
       function actualizar() {
         const seleccionado = tipo.value;
         const disponibles = configuracion.catalogo.filter(c => c.proyectos[proyecto.value]).map(c => c.nombre);
@@ -168,13 +196,24 @@
       tipo.required = true;
       actualizar();
       proyecto.addEventListener('change', actualizar);
-      const descripcion = campo('Descripción', texto(item.descripcion, 300), grupo);
-      const monto = campo('Monto (S/)', Object.assign(texto(item.monto, 16, true), {inputMode: 'decimal'}), grupo);
+      const descripcion = Object.assign(texto(item.descripcion, 300), {placeholder: 'Descripción'});
+      descripcion.setAttribute('aria-label', 'Descripción del concepto ' + item.numero);
+      const montoCaja = el('span', 'cc-editor-monto');
+      const monto = Object.assign(texto(item.monto, 16, true), {inputMode: 'decimal'});
+      monto.setAttribute('aria-label', 'Monto del concepto ' + item.numero);
       monto.dataset.monto = '';
-      const correo = campo('Correo de quien valida', Object.assign(texto(item.correo_validador, 254), {type: 'email'}), grupo);
+      montoCaja.append(el('span', null, 'S/'), monto);
+      const correo = Object.assign(texto(item.correo_validador, 254), {type: 'email', placeholder: 'Correo de quien valida (opcional)'});
+      correo.setAttribute('aria-label', 'Correo de quien valida el concepto ' + item.numero);
+      fila.append(tipo, montoCaja, descripcion, correo);
+      conceptos.append(fila);
       return () => ({tipo_gasto: tipo.value, descripcion: descripcion.value, monto: monto.value, correo_validador: correo.value});
     });
     const total = el('output', 'cc-num');
+    const filaTotal = el('div', 'cc-ficha-concepto cc-ficha-total');
+    filaTotal.append(el('strong', null, 'Total solicitado'), total);
+    conceptos.append(filaTotal);
+    const cotizacion = documentos.elements.namedItem('cotizacion');
     const actualizarTotal = () => {
       const centimos = controles.reduce((suma, leer) => {
         const valor = leer().monto.replace('S/', '').replace(/ /g, '');
@@ -185,16 +224,20 @@
       cotizacion.dataset.totalCentimos = String(centimos);
       cotizacion.dispatchEvent(new Event('input'));
     };
-    datosSolicitud.append(totalSolicitud(total));
-    datosSolicitud.addEventListener('input', e => { if (e.target.hasAttribute('data-monto')) actualizarTotal(); });
-    const deposito = seccion('Datos del depósito');
+    conceptos.addEventListener('input', e => { if (e.target.hasAttribute('data-monto')) actualizarTotal(); });
+
+    const detalleFicha = seccion('fa-file-lines', 'Detalle de la solicitud');
+    campo('Técnico', Object.assign(texto([sol.tecnico, sol.documento].filter(Boolean).join(' · '), 200), {readOnly: true, tabIndex: -1}), detalleFicha);
+    campo('Proyecto', proyecto, detalleFicha);
+    const motivo = campo('Motivo', Object.assign(el('textarea'), {value: sol.motivo, rows: 2, maxLength: 500, required: true}), detalleFicha);
+
+    const deposito = seccion('fa-building-columns', 'Datos del depósito');
     const banco = campo('Banco', selector(configuracion.bancos, sol.banco), deposito);
-    const cuenta = campo('Número de cuenta', texto(sol.cuenta, 40, true), deposito);
-    const validacion = seccion('Documentos de validación');
-    const cotizacion = documentos.elements.namedItem('cotizacion');
-    validacion.append(cotizacion.closest('label'), documentos.querySelector('.cc-cotizacion-control'));
+    const cuenta = campo('CCI', Object.assign(texto(sol.cuenta, 40, true), {inputMode: 'numeric'}), deposito);
+    cuenta.classList.add('cc-mono');
     actualizarTotal();
-    const adjunto = campo('Adjuntar correo de validación', documentos.elements.namedItem('correo'), validacion);
+
+    const adjunto = documentos.elements.namedItem('correo');
     const guardar = $('cc-solicitud-guardar');
     const error = el('p', 'cc-alerta');
     error.setAttribute('role', 'alert');
@@ -207,7 +250,7 @@
       const datos = new FormData();
       datos.set('datos', JSON.stringify({proyecto: proyecto.value, motivo: motivo.value, banco: banco.value,
         cuenta: cuenta.value, items: controles.map(leer => leer()), cotizacion: cotizacion.value}));
-      if (adjunto.files.length) datos.set('correo', adjunto.files[0]);
+      if (adjunto?.files.length) datos.set('correo', adjunto.files[0]);
       guardar.disabled = true;
       try {
         await accion(sol, 'editar', datos);
@@ -275,16 +318,79 @@
     return panel;
   }
 
+  // Tarjeta compacta (formato de ventanas): título con ícono y filas etiqueta / valor.
+  // filas: [etiqueta, valor, clase?]; las vacías se omiten. copiable agrega "copiar".
+  function ficha(iconoNombre, titulo, filas, copiable = false) {
+    const caja = el('section', 'cc-ficha');
+    const cabeza = el('h4', 'cc-ficha-titulo');
+    cabeza.append(icono(iconoNombre), el('span', null, titulo));
+    const lista = el('dl', 'cc-ficha-datos' + (copiable ? ' cc-ficha-copiable' : ''));
+    for (const [nombre, valor, clase] of filas) {
+      if (!valor) continue;
+      const fila = el('div', 'cc-ficha-fila');
+      fila.append(el('dt', null, nombre), el('dd', clase || null, valor));
+      if (copiable) {
+        const copiar = el('button', 'cc-ficha-copiar');
+        copiar.type = 'button';
+        copiar.title = 'Copiar ' + nombre.toLowerCase();
+        copiar.setAttribute('aria-label', copiar.title);
+        copiar.append(icono('fa-copy'));
+        copiar.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(valor); copiar.replaceChildren(icono('fa-check')); }
+          catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
+          setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
+        });
+        fila.append(copiar);
+      }
+      lista.append(fila);
+    }
+    caja.append(cabeza, lista);
+    return caja;
+  }
+  function datosBancarios(sol) {
+    const f = sol.formulario || {};
+    const filas = [['Banco', sol.banco], ['CCI', sol.cuenta, 'cc-mono'], ['Titular', f.titular || sol.tecnico]];
+    if (f.tipo_billetera && f.tipo_billetera !== 'No aplica') filas.push([f.tipo_billetera, f.numero_billetera, 'cc-mono']);
+    return filas;
+  }
+  // Columna izquierda de la validación (y del resto de etapas): conceptos, detalle y depósito.
+  function resumenSolicitud(sol) {
+    const f = sol.formulario || {};
+    const conceptos = el('section', 'cc-ficha');
+    const cabeza = el('h4', 'cc-ficha-titulo');
+    cabeza.append(icono('fa-list-check'), el('span', null, 'Conceptos solicitados'));
+    conceptos.append(cabeza);
+    for (const item of sol.items) {
+      const fila = el('div', 'cc-ficha-concepto');
+      const nombre = el('span');
+      nombre.append(item.tipo_gasto);
+      if (item.tipo_presupuesto) nombre.append(el('span', 'cc-ficha-suave', ' · ' + item.tipo_presupuesto));
+      fila.append(nombre, el('strong', 'cc-num', dinero(item.monto)));
+      conceptos.append(fila);
+    }
+    const total = el('div', 'cc-ficha-concepto cc-ficha-total');
+    total.append(el('strong', null, 'Total solicitado'), el('strong', 'cc-num', dinero(sol.total)));
+    conceptos.append(total);
+    return [conceptos,
+      ficha('fa-file-lines', 'Detalle de la solicitud', [
+        ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Supervisor', f.supervisor],
+        ['Site', f.site], ['CM / PM / PLM', f.wo], ['Responsable', f.responsable_validacion], ['Motivo', sol.motivo]]),
+      ficha('fa-building-columns', 'Datos del depósito', datosBancarios(sol))];
+  }
+
   function formularioDocumentos(sol) {
     const form = el('form', 'cc-editar-solicitud cc-documentos-validacion');
     form.id = 'cc-solicitud-documentos';
-    const grupo = el('fieldset');
-    grupo.append(el('legend', null, 'Documentos de validación'));
-    const cotizacion = el('label', null, 'Número de cotización');
+    const grupo = el('section', 'cc-ficha cc-ficha-cotizacion');
+    const cabeza = el('h4', 'cc-ficha-titulo');
+    cabeza.append(icono('fa-file-invoice'), el('span', null, 'Cotización'));
+    grupo.append(cabeza);
+    const cotizacion = el('div', 'cc-cotizacion-campo');
     const entrada = Object.assign(el('input'), {
       name: 'cotizacion', value: sol.revision?.cotizacion || '', maxLength: 80,
       autocomplete: 'off', placeholder: 'Busca por número de cotización',
     });
+    entrada.setAttribute('aria-label', 'Número de cotización');
     const opciones = el('datalist');
     opciones.id = 'cc-cotizaciones-opciones';
     entrada.setAttribute('list', opciones.id);
@@ -311,21 +417,14 @@
         : saldo < 0 ? 'Excede el monto cotizado en ' + dinero(-saldo / 100) + '.'
           : 'Dentro del monto cotizado. Saldo disponible: ' + dinero(saldo / 100) + '.');
       mensaje.dataset.resultado = saldo === null ? '' : saldo < 0 ? 'excede' : 'dentro';
-      const tarjetas = el('dl', 'cc-cotizacion-importes');
-      const montos = [
-        ['Cotizado · suma de valores unitarios (' + seleccion.items + (seleccion.items === 1 ? ' ítem)' : ' ítems)'), cotizado],
-        ['Otras solicitudes activas', otras],
-        ['Esta solicitud', actual],
-        ['Total solicitado acumulado', acumulado],
-        ['Saldo / exceso', saldo],
-      ];
-      for (const [etiqueta, monto] of montos) {
-        const tarjeta = el('div');
-        tarjeta.append(el('dt', null, etiqueta), el('dd', null, monto === null ? '—' : dinero(monto / 100)));
-        tarjetas.append(tarjeta);
+      const tarjetas = el('dl', 'cc-cotizacion-montos');
+      for (const [etiqueta, monto] of [['Cotizado', cotizado], ['Otras solicitudes', otras],
+        ['Esta solicitud', actual], ['Acumulado', acumulado]]) {
+        const fila = el('div');
+        fila.append(el('dt', null, etiqueta), el('dd', 'cc-num', monto === null ? '—' : dinero(monto / 100)));
+        tarjetas.append(fila);
       }
-      control.replaceChildren(mensaje, tarjetas, el('p', 'cc-nota',
-        'El cotizado suma los valores unitarios sin cantidad ni FEE. El acumulado considera las solicitudes activas de Caja Chica vinculadas a esta cotización. El resultado es informativo.'));
+      control.replaceChildren(mensaje, tarjetas);
     };
     fetch('/api/caja-chica/cotizaciones?' + new URLSearchParams({solicitud: sol.id})).then(async respuesta => {
       if (!respuesta.ok) throw Error('No se pudieron cargar las cotizaciones.');
@@ -358,8 +457,8 @@
     const error = el('p', 'cc-alerta cc-campo-ancho');
     error.hidden = true;
     error.setAttribute('role', 'alert');
-    grupo.append(cotizacion, control, correo, error);
-    form.append(grupo);
+    grupo.append(cotizacion, control);
+    form.append(grupo, correo, error);
     form.addEventListener('submit', async e => {
       e.preventDefault();
       if (guardar.disabled) return;
@@ -396,44 +495,13 @@
     textos.append(el('small', null, 'Monto a depositar'), el('strong', 'cc-deposito-monto', dinero(sol.total)));
     monto.append(bolsa, textos);
 
-    function tarjeta(iconoNombre, titulo, filas, copiable) {
-      const caja = el('section', 'cc-deposito-tarjeta');
-      const subtitulo = el('h4', 'cc-deposito-subtitulo');
-      subtitulo.append(icono(iconoNombre), ' ' + titulo);
-      const lista = el('dl', 'cc-deposito-datos');
-      for (const [nombre, valor, clase] of filas) {
-        if (!valor) continue;
-        const fila = el('div', 'cc-deposito-fila' + (copiable ? '' : ' cc-deposito-fila-texto'));
-        const dd = el('dd');
-        dd.append(el('span', clase || null, valor));
-        fila.append(el('dt', null, nombre), dd);
-        if (copiable) {
-          const copiar = el('button', 'cc-deposito-copiar');
-          copiar.type = 'button';
-          copiar.title = 'Copiar ' + nombre.toLowerCase();
-          copiar.setAttribute('aria-label', copiar.title);
-          copiar.append(icono('fa-copy'));
-          copiar.addEventListener('click', async () => {
-            try { await navigator.clipboard.writeText(valor); copiar.replaceChildren(icono('fa-check')); }
-            catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
-            setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
-          });
-          fila.append(copiar);
-        }
-        lista.append(fila);
-      }
-      caja.append(subtitulo, lista);
-      return caja;
-    }
-    const bancarios = [['Banco', sol.banco], ['CCI / cuenta', sol.cuenta, 'cc-deposito-cci'], ['Titular', formulario.titular || sol.tecnico]];
-    if (formulario.tipo_billetera && formulario.tipo_billetera !== 'No aplica') bancarios.push([formulario.tipo_billetera, formulario.numero_billetera]);
     const conceptos = sol.items.map(item => item.tipo_gasto + ' ' + dinero(item.monto)).join(' · ');
     izquierda.append(monto,
-      tarjeta('fa-building-columns', 'Datos bancarios', bancarios, true),
-      tarjeta('fa-file-lines', 'Detalle de la solicitud', [
+      ficha('fa-building-columns', 'Datos bancarios', datosBancarios(sol), true),
+      ficha('fa-file-lines', 'Detalle de la solicitud', [
         ['Validado por', sol.validado_por || formulario.responsable_validacion],
         ['CM / PM / PLM', formulario.wo], ['Site', formulario.site],
-        ['Motivo', sol.motivo], ['Conceptos', conceptos]], false));
+        ['Motivo', sol.motivo], ['Conceptos', conceptos]]));
 
     // Foto: tocar, arrastrar o pegar (Ctrl+V), con vista previa.
     const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true, hidden: true});
@@ -500,8 +568,165 @@
     return form;
   }
 
+  // Ventana de "Revisión": detalle arriba y una tarjeta por concepto con sus 2 fotos.
+  // Se valida o rechaza cada concepto; la devolución aparece cuando ya no queda nada pendiente.
+  function fotoRevision(sol, nombre, titulo) {
+    const figura = el('figure', 'cc-rev-foto');
+    if (nombre) {
+      const enlace = el('a'); enlace.href = '/form-pruebas/caja-chica/foto/' + sol.id + '/' + nombre;
+      enlace.target = '_blank'; enlace.rel = 'noopener'; enlace.title = 'Abrir ' + titulo.toLowerCase();
+      const img = el('img'); img.src = enlace.href; img.alt = titulo; img.loading = 'lazy';
+      enlace.append(img); figura.append(enlace);
+    } else {
+      const vacio = el('div', 'cc-rev-sin-foto'); vacio.append(icono('fa-image')); figura.append(vacio);
+    }
+    figura.append(el('figcaption', null, titulo));
+    return figura;
+  }
+  function tarjetaConcepto(sol, item) {
+    const caja = el('section', 'cc-ficha cc-rev-item cc-rev-' + item.estado.toLowerCase());
+    const cabeza = el('h4', 'cc-ficha-titulo');
+    const iconos = {EN_REVISION: 'fa-magnifying-glass-dollar', RECHAZADO: 'fa-rotate-left', POR_RENDIR: 'fa-hourglass-half'};
+    const nombre = el('span', 'cc-rev-nombre', item.numero + ' · ' + item.tipo_gasto);
+    if (item.tipo_presupuesto) nombre.append(el('span', 'cc-ficha-suave', ' · ' + item.tipo_presupuesto));
+    cabeza.append(icono(iconos[item.estado] || 'fa-receipt'), nombre, el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
+    if (puedeGestionar && sol.estado === 'DEPOSITADO' && item.estado === 'EN_REVISION') {
+      const acciones = el('span', 'cc-dialogo-acciones');
+      const validar = boton('', 'cc-dialogo-icono cc-dialogo-guardar', intentar(() => accion(sol, 'revisar_item', {item: item.id, aprobar: true})));
+      validar.title = 'Validar ' + item.tipo_gasto; validar.setAttribute('aria-label', validar.title); validar.append(icono('fa-check'));
+      const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar',
+        conMotivo(sol, 'revisar_item', item.tipo_gasto + ': ¿qué debe corregir el técnico?', {item: item.id, aprobar: false}));
+      rechazar.title = 'Rechazar ' + item.tipo_gasto; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
+      acciones.append(validar, rechazar);
+      cabeza.append(acciones);
+    }
+    caja.append(cabeza);
+    if (item.estado === 'POR_RENDIR') {
+      caja.append(el('p', 'cc-rev-espera', 'El técnico aún no rinde este concepto · solicitado ' + dinero(item.monto)));
+      return caja;
+    }
+    const cuerpo = el('div', 'cc-rev-cuerpo');
+    const sobrante = Number(item.monto) - Number(item.monto_gastado || 0);
+    const razon = item.razon_social || (item.ruc ? 'Sin consultar' : '');
+    cuerpo.append(ficha('fa-receipt', '', [
+      ['RUC', item.ruc, 'cc-mono'], ['Razón social', razon], ['Comprobante', item.comprobante],
+      ['Solicitado', dinero(item.monto)], ['Gastó', item.monto_gastado && dinero(item.monto_gastado)],
+      ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) + ' · va a devolución' : '', 'cc-rev-sobrante']]).querySelector('dl'));
+    cuerpo.append(fotoRevision(sol, item.fotos[0], 'Boleta / factura'), fotoRevision(sol, item.evidencia, 'Evidencia del gasto'));
+    caja.append(cuerpo);
+    if (item.estado === 'RECHAZADO') {
+      const motivo = el('div', 'cc-rev-motivo');
+      const texto = el('span'); texto.append(el('strong', null, 'Motivo: '), item.motivo_rechazo || '');
+      motivo.append(texto, el('span', null, 'El técnico corrige o devuelve ' + dinero(item.monto)));
+      caja.append(motivo);
+    }
+    return caja;
+  }
+  function panelRevision(sol) {
+    const f = sol.formulario || {};
+    const columna = el('div', 'cc-rev');
+    const detalleFicha = ficha('fa-file-lines', 'Detalle de la solicitud', [
+      ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Supervisor', f.supervisor], ['Site', f.site],
+      ['CM / PM / PLM', f.wo], ['Cotización', sol.revision?.cotizacion], ['Motivo', sol.motivo],
+      ['Banco', sol.banco], ['Depositado', sol.depositado_en ? fechaDeposito(sol) : sol.deposito_fecha], ['Por', sol.depositado_por]]);
+    detalleFicha.classList.add('cc-rev-detalle');
+    // Totales: depositado, aprobado, en revisión, rechazado y la devolución estimada.
+    const suma = (estados, campo) => sol.items.filter(i => estados.includes(i.estado)).reduce((t, i) => t + Number(i[campo] || 0), 0);
+    const depositado = Number(sol.deposito_monto || sol.total);
+    const aprobado = suma(['APROBADO'], 'monto_gastado');
+    const enRevision = suma(['EN_REVISION'], 'monto_gastado');
+    const porDevolver = sol.estado === 'POR_DEVOLVER' ? Number(sol.diferencia)
+      : depositado - aprobado - enRevision - suma(['RECHAZADO', 'POR_RENDIR'], 'monto');
+    const totales = el('div', 'cc-rev-totales');
+    for (const [titulo, valor, clase] of [['Depositado', depositado], ['Aprobado', aprobado, 'ok'], ['En revisión', enRevision, 'rev'],
+      ['Rechazado', suma(['RECHAZADO'], 'monto'), 'no'], [sol.estado === 'POR_DEVOLVER' ? 'Por devolver' : 'Por devolver (estimado)', Math.max(0, porDevolver), 'dev']]) {
+      const caja = el('div', clase ? 'cc-rev-' + clase : null); caja.append(el('small', null, titulo), el('strong', null, dinero(valor))); totales.append(caja);
+    }
+    detalleFicha.append(totales);
+    columna.append(detalleFicha);
+    const grupos = [['Por revisar', ['EN_REVISION']], ['Con el técnico', ['RECHAZADO', 'POR_RENDIR']]];
+    for (const [titulo, estados] of grupos) {
+      const items = sol.items.filter(i => estados.includes(i.estado));
+      if (!items.length) continue;
+      columna.append(el('h5', 'cc-rev-seccion', titulo + ' · ' + items.length), ...items.map(i => tarjetaConcepto(sol, i)));
+    }
+    const cerrados = sol.items.filter(i => ['APROBADO', 'DEVUELTO'].includes(i.estado));
+    if (cerrados.length) {
+      columna.append(el('h5', 'cc-rev-seccion', 'Aprobados · ' + cerrados.length));
+      for (const item of cerrados) {
+        // Una línea plegada; al abrirla se ven los datos y las fotos.
+        const plegado = el('details', 'cc-ficha cc-rev-plegado');
+        const resumen = el('summary');
+        resumen.append(icono(item.estado === 'APROBADO' ? 'fa-circle-check' : 'fa-rotate-left'),
+          el('span', 'cc-rev-nombre', item.numero + ' · ' + item.tipo_gasto),
+          el('span', 'cc-ficha-suave', item.estado === 'APROBADO' ? [item.comprobante, 'gastó ' + dinero(item.monto_gastado)].filter(Boolean).join(' · ') : 'se devuelve ' + dinero(item.monto)),
+          el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
+        plegado.append(resumen);
+        if (item.estado === 'APROBADO') { const t = tarjetaConcepto(sol, item); plegado.append(t.querySelector('.cc-rev-cuerpo')); }
+        columna.append(plegado);
+      }
+    }
+    const devolucion = el('section', 'cc-ficha cc-rev-devolucion');
+    const cabeza = el('h4', 'cc-ficha-titulo'); cabeza.append(icono('fa-hand-holding-dollar'), el('span', 'cc-rev-nombre', 'Devolución'));
+    devolucion.append(cabeza);
+    if (sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto) {
+      if (puedeGestionar) {
+        const acciones = el('span', 'cc-dialogo-acciones');
+        const aceptar = boton('', 'cc-dialogo-icono cc-dialogo-guardar', intentar(() => accion(sol, 'devolucion', {aceptar: true})));
+        aceptar.title = 'Aceptar devolución y archivar'; aceptar.setAttribute('aria-label', aceptar.title); aceptar.append(icono('fa-check'));
+        const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar', conMotivo(sol, 'devolucion', 'Motivo del rechazo de la devolución:', {aceptar: false}));
+        rechazar.title = 'Rechazar la captura'; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
+        acciones.append(aceptar, rechazar); cabeza.append(acciones);
+      }
+      const cuerpo = el('div', 'cc-rev-cuerpo');
+      cuerpo.append(ficha('fa-receipt', '', [['Monto devuelto', dinero(sol.diferencia)]]).querySelector('dl'),
+        fotoRevision(sol, sol.devolucion_foto, 'Captura de la devolución'));
+      devolucion.append(cuerpo);
+    } else {
+      const aviso = el('div', 'cc-cotizacion-aviso');
+      aviso.dataset.resultado = '';
+      aviso.textContent = sol.estado === 'POR_DEVOLVER'
+        ? 'Esperando que el técnico devuelva ' + dinero(sol.diferencia) + ' y suba la captura.'
+        : 'Aparece cuando no quede nada por revisar ni corregir. El técnico verá el monto a devolver y subirá la captura; aquí se acepta o se rechaza.';
+      devolucion.append(aviso);
+    }
+    columna.append(devolucion);
+    return columna;
+  }
+
+  // Ventana de "Por rendir" (solo lectura): timer y datos a la izquierda, foto del depósito a la derecha.
+  function panelPorRendir(sol) {
+    const panel = el('div', 'cc-rendir-panel');
+    const izquierda = el('div', 'cc-deposito-izquierda');
+    const timer = el('div', 'cc-sla-timer');
+    timer.dataset.sla = sol.depositado_en;
+    const textos = el('div');
+    textos.append(el('small', null, 'Tiempo desde el depósito'), el('strong', 'cc-sla-tiempo'));
+    const cuando = el('div', 'cc-sla-cuando');
+    cuando.append(el('small', null, 'Depositado'), el('strong', null, fechaDeposito(sol)));
+    timer.append(icono('fa-clock'), textos, cuando);
+    pintarSla(timer);
+    izquierda.append(timer, ...resumenSolicitud(sol),
+      ficha('fa-sack-dollar', 'Depósito realizado', [
+        ['Monto', dinero(sol.deposito_monto || sol.total)], ['Depositado por', sol.depositado_por]]));
+    const derecha = el('figure', 'cc-rendir-foto');
+    if (sol.deposito_foto) {
+      const enlace = el('a');
+      enlace.href = '/form-pruebas/caja-chica/foto/' + sol.id + '/' + sol.deposito_foto;
+      enlace.target = '_blank'; enlace.rel = 'noopener'; enlace.title = 'Abrir la foto en otra pestaña';
+      const imagen = el('img'); imagen.src = enlace.href; imagen.alt = 'Comprobante del depósito de ' + sol.codigo;
+      enlace.append(imagen);
+      derecha.append(enlace, el('figcaption', null, 'Comprobante del depósito · clic para ampliar'));
+    } else {
+      derecha.append(el('p', 'cc-nota', 'Sin foto del depósito.'));
+    }
+    panel.append(izquierda, derecha);
+    return panel;
+  }
+
   function verDetalle(sol) {
     solicitudAbierta = sol.id;
+    $('cc-solicitud-editar').classList.remove('activo');
     $('cc-solicitud-titulo').textContent = [sol.codigo, sol.tecnico, sol.proyecto].join(' · ');
     const contenido = $('cc-solicitud-contenido');
     const editar = $('cc-solicitud-editar');
@@ -510,6 +735,18 @@
     editar.hidden = guardar.hidden = enDeposito;
     // El botón redondo de depósito (junto a la X) solo se ve al depositar.
     $('cc-solicitud-depositar').hidden = !(enDeposito && puedeGestionar);
+    if (tab === 'revision' && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado)) {
+      editar.hidden = guardar.hidden = true;
+      contenido.replaceChildren(panelRevision(sol));
+      if (!dialogo.open) dialogo.showModal();
+      return;
+    }
+    if (tab === 'por_rendir' && sol.depositado_en) {
+      editar.hidden = guardar.hidden = true;
+      contenido.replaceChildren(panelPorRendir(sol));
+      if (!dialogo.open) dialogo.showModal();
+      return;
+    }
     if (enDeposito) {
       contenido.replaceChildren(puedeGestionar ? formularioDeposito(sol) : datosEnviados(sol, 'Datos de la solicitud'));
       if (!dialogo.open) dialogo.showModal();
@@ -518,8 +755,12 @@
     // Dos columnas: detalle a la izquierda; cotización, revisión y adjunto a la derecha.
     const izquierda = el('div', 'cc-validacion-izquierda');
     const derecha = el('div', 'cc-validacion-derecha');
-    izquierda.append(datosEnviados(sol.envio_tecnico || sol, sol.envio_tecnico && 'Datos enviados por el técnico'));
-    if (sol.envio_tecnico) izquierda.append(datosEnviados(sol, 'Datos revisados por gestión'));
+    izquierda.append(...resumenSolicitud(sol));
+    if (sol.envio_tecnico) {
+      const original = el('details', 'cc-ficha cc-ficha-original');
+      original.append(el('summary', null, 'Ver lo que envió el técnico'), datosEnviados(sol.envio_tecnico));
+      izquierda.append(original);
+    }
     const revision = sol.revision || {};
     if (revision.cotizacion) derecha.append(el('p', 'cc-validacion-dato', 'Cotización: ' + revision.cotizacion));
     if (revision.archivo) {
@@ -537,11 +778,11 @@
     guardar.setAttribute('form', 'cc-solicitud-documentos');
     guardar.disabled = !documentos;
     editar.onclick = () => {
+      // La columna izquierda se vuelve editable; la derecha (cotización y correo) no cambia.
       const form = editorSolicitud(sol, documentos);
-      documentos?.remove();
-      columnas.classList.toggle('cc-una-columna', !derecha.hasChildNodes());
-      contenido.prepend(form);
+      izquierda.replaceChildren(form);
       editar.disabled = true;
+      editar.classList.add('activo');
       guardar.setAttribute('form', form.id);
       guardar.disabled = false;
       form.querySelector('select').focus();
@@ -555,6 +796,46 @@
   // ── Tabla: columnas que se filtran y se mueven arrastrando ──
   const estadoDe = s => RETORNO[s.retorno] || [ESTADOS[s.estado] || s.estado, 'cc-' + s.estado.toLowerCase()];
   const creado = s => new Date(s.creado + 'Z');
+  const NOMBRES_PROYECTO = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
+  // Desplegable de proyecto: filtra cantidades, montos y la tabla. Vacío = todos.
+  const selectorProyecto = $('cc-proyecto');
+  configuracion.proyectos.forEach(p => selectorProyecto.add(new Option(NOMBRES_PROYECTO[p] || p, p)));
+  const botonProyecto = $('cc-proyecto-btn'), menuProyecto = $('cc-proyecto-menu');
+  const cerrarProyecto = () => { menuProyecto.hidden = true; botonProyecto.setAttribute('aria-expanded', 'false'); };
+  const opcionesProyecto = [...selectorProyecto.options].map(o => {
+    const b = el('button', 'cc-proyecto-opcion'); b.type = 'button'; b.setAttribute('role', 'option'); b.dataset.valor = o.value;
+    const punto = el('span', 'cc-proyecto-punto ' + (o.value ? 'project-badge--' + o.value.toLowerCase() : 'cc-proyecto-todos'));
+    const check = el('i', 'fa-solid fa-check cc-proyecto-check'); check.setAttribute('aria-hidden', 'true');
+    b.append(check, punto, el('span', null, o.text), el('span', 'cc-proyecto-cuenta', '0'));
+    b.addEventListener('click', () => {
+      cerrarProyecto(); botonProyecto.focus();
+      if (selectorProyecto.value === o.value) return;
+      selectorProyecto.value = o.value; selectorProyecto.dispatchEvent(new Event('change'));
+    });
+    menuProyecto.append(b); return b;
+  });
+  botonProyecto.addEventListener('click', e => {
+    e.stopPropagation();
+    const abrir = menuProyecto.hidden; menuProyecto.hidden = !abrir; botonProyecto.setAttribute('aria-expanded', String(abrir));
+    if (abrir) (menuProyecto.querySelector('[aria-selected="true"]') || opcionesProyecto[0]).focus();
+  });
+  menuProyecto.addEventListener('keydown', e => {
+    const i = opcionesProyecto.indexOf(document.activeElement), n = opcionesProyecto.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); opcionesProyecto[(i + (e.key === 'ArrowDown' ? 1 : -1) + n) % n].focus(); }
+    else if (e.key === 'Escape') { cerrarProyecto(); botonProyecto.focus(); }
+  });
+  document.addEventListener('click', e => { if (!menuProyecto.hidden && !menuProyecto.contains(e.target)) cerrarProyecto(); });
+  // Texto del botón, opción marcada y cantidad de solicitudes por proyecto.
+  function pintarProyecto() {
+    const elegido = selectorProyecto.selectedOptions[0];
+    $('cc-proyecto-texto').textContent = elegido ? elegido.text : 'Todos los proyectos';
+    botonProyecto.closest('.cc-proyecto-pill').classList.toggle('activo', !!selectorProyecto.value);
+    opcionesProyecto.forEach(b => {
+      b.setAttribute('aria-selected', String(b.dataset.valor === selectorProyecto.value));
+      b.lastChild.textContent = solicitudes.filter(s => !b.dataset.valor || s.proyecto === b.dataset.valor).length;
+    });
+  }
+  const delProyecto = () => solicitudes.filter(s => !selectorProyecto.value || s.proyecto === selectorProyecto.value);
   const COLUMNAS = {
     codigo:   {titulo: 'Código depósito', ancho: 'minmax(145px, 1fr)', texto: s => s.codigo, celda: s => {
       const enlace = el('a', 'cc-codigo-link', s.codigo);
@@ -564,8 +845,7 @@
     }},
     tecnico:  {titulo: 'Técnico · Documento', ancho: 'minmax(180px, 2.4fr)', texto: s => s.tecnico + ' · ' + s.documento},
     proyecto: {titulo: 'Proyecto', ancho: 'minmax(100px, .8fr)', texto: s => s.proyecto, celda: s => {
-      const nombres = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
-      const nombre = nombres[s.proyecto];
+      const nombre = NOMBRES_PROYECTO[s.proyecto];
       return el('span', nombre ? 'project-badge project-badge--' + s.proyecto.toLowerCase() : null, nombre || s.proyecto);
     }},
     site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1fr)', texto: s => s.formulario?.site || '—'},
@@ -703,7 +983,7 @@
   // Solicitudes de la etapa con el buscador general y los filtros de columna (menos `excepto`).
   function base(excepto) {
     const texto = $('cc-buscar').value.trim().toLowerCase();
-    return solicitudes.filter(s => s.etapas.includes(tab)
+    return delProyecto().filter(s => s.etapas.includes(tab)
       && (!texto || [s.codigo, s.tecnico, s.documento, s.proyecto].join(' ').toLowerCase().includes(texto))
       && Object.entries(filtros).every(([id, vals]) => id === excepto || vals.includes(COLUMNAS[id].texto(s)))
       && Object.entries(busquedas).every(([id, t]) => plano(COLUMNAS[id].texto(s)).includes(plano(t.trim()))));
@@ -761,11 +1041,12 @@
     }
   });
   function pintar() {
+    pintarProyecto();
     document.querySelectorAll('.cc-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
-    document.querySelectorAll('[data-cuenta]').forEach(c => { c.textContent = solicitudes.filter(s => s.etapas.includes(c.dataset.cuenta)).length; });
+    document.querySelectorAll('[data-cuenta]').forEach(c => { c.textContent = delProyecto().filter(s => s.etapas.includes(c.dataset.cuenta)).length; });
     // Plata acumulada de cada etapa: suma del total solicitado de sus solicitudes.
     document.querySelectorAll('[data-plata]').forEach(p => {
-      const suma = solicitudes.filter(s => s.etapas.includes(p.dataset.plata)).reduce((t, s) => t + Number(s.total || 0), 0);
+      const suma = delProyecto().filter(s => s.etapas.includes(p.dataset.plata)).reduce((t, s) => t + Number(s.total || 0), 0);
       p.textContent = 'S/ ' + suma.toLocaleString('es-PE', {minimumFractionDigits: suma >= 1000 || !suma ? 0 : 2, maximumFractionDigits: suma >= 1000 ? 0 : 2});
       p.title = 'Total acumulado: ' + dinero(suma);
     });
@@ -810,6 +1091,7 @@
   // Los filtros de columna se aplican a la etapa elegida: al cambiar de etapa se limpian.
   document.querySelectorAll('.cc-tab').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; filtros = {}; busquedas = {}; seleccionadas.clear(); try { localStorage.setItem('cc-tab', tab); } catch (_) {} pintar(); }));
   $('cc-buscar').addEventListener('input', pintar);
+  selectorProyecto.addEventListener('change', () => { seleccionadas.clear(); pintar(); });
 
   // Engranaje: menú de opciones. Para agregar una opción, un botón con data-accion en la
   // plantilla y su caso aquí.
@@ -828,7 +1110,7 @@
       return;
     }
     if (opcion.dataset.accion === 'limpiar') {
-      filtros = {}; busquedas = {}; $('cc-buscar').value = ''; $('cc-filtro').hidden = true;
+      filtros = {}; busquedas = {}; $('cc-buscar').value = ''; selectorProyecto.value = ''; $('cc-filtro').hidden = true;
     } else if (opcion.dataset.accion === 'restablecer') {
       columnas = Object.keys(COLUMNAS); anchos = {}; guardar();
     }

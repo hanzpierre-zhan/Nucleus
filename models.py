@@ -175,12 +175,14 @@ class CajaChicaItem(db.Model):
     tipo_gasto = db.Column(db.String(80), nullable=False)
     descripcion = db.Column(db.String(300), nullable=False, default='')
     monto = db.Column(db.Numeric(12, 2), nullable=False)
-    # POR_RENDIR → EN_REVISION → APROBADO | RECHAZADO (vuelve a rendirse)
+    # POR_RENDIR → EN_REVISION → APROBADO | RECHAZADO (vuelve a rendirse o se devuelve: DEVUELTO)
     estado = db.Column(db.String(20), nullable=False, default='POR_RENDIR')
     ruc = db.Column(db.String(11))
+    razon_social = db.Column(db.String(200))
     comprobante = db.Column(db.String(40))
     monto_gastado = db.Column(db.Numeric(12, 2))
-    fotos = db.Column(db.Text, nullable=False, default='[]')
+    fotos = db.Column(db.Text, nullable=False, default='[]')  # fotos de la boleta o factura
+    evidencia = db.Column(db.String(120))  # foto que muestra en qué se usó el gasto
     rendido_en = db.Column(db.DateTime)
     motivo_rechazo = db.Column(db.Text)
     revisado_por = db.Column(db.String(100))

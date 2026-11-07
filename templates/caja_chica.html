@@ -1,11 +1,22 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=44">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=73">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-eliminar="{{ 'si' if puede_eliminar else 'no' }}">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar código, técnico o documento" aria-label="Buscar solicitud">
+    {# Filtro de proyecto: menú propio (la lista nativa del <select> no se puede estilizar).
+       El <select> oculto guarda el valor; caja-chica.js arma el menú con sus opciones. #}
+    <nav class="cc-proyecto-pill" aria-label="Filtrar por proyecto">
+      <button type="button" id="cc-proyecto-btn" class="cc-proyecto-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="cc-proyecto-menu" title="Filtrar por proyecto">
+        <i class="fa-solid fa-diagram-project" aria-hidden="true"></i>
+        <span id="cc-proyecto-texto">Todos los proyectos</span>
+        <i class="fa-solid fa-chevron-down cc-proyecto-flecha" aria-hidden="true"></i>
+      </button>
+      <div id="cc-proyecto-menu" class="cc-proyecto-menu" role="listbox" aria-label="Proyectos" hidden></div>
+      <select id="cc-proyecto" hidden><option value="">Todos los proyectos</option></select>
+    </nav>
     <nav class="cc-tabs" role="tablist" aria-label="Etapas">
       {% for clave, icono, nombre in [
           ('validacion', 'fa-clipboard-check', 'Validación'),
@@ -64,5 +75,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=32" defer></script>
+<script src="/static/js/caja-chica.js?v=65" defer></script>
 {% endblock %}

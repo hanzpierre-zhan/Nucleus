@@ -4,6 +4,8 @@ Flujo: PENDIENTE (gestora valida) → VALIDADO (responsable deposita) →
 DEPOSITADO (el técnico rinde cada ítem; la gestora aprueba o rechaza cada uno;
 un ítem rechazado vuelve a rendirse) → POR_DEVOLVER si gastó menos de lo
 depositado → ARCHIVADO cuando todo está aprobado. ANULADO solo antes de depositar.
+Un ítem rechazado que el técnico no puede sustentar pasa a DEVUELTO: su monto
+se suma a la devolución (depositado − gastado aprobado).
 
 Los rechazos no cierran la solicitud: la devuelven a la etapa anterior.
 - En validación → RECHAZADO: vuelve al técnico, que corrige y reenvía (PENDIENTE).
@@ -43,6 +45,11 @@ def instalar():
     if 'depositado_en' not in columnas:
         db.session.execute(db.text('ALTER TABLE caja_chica_solicitudes ADD COLUMN depositado_en TIMESTAMP'))
         db.session.commit()
+    columnas = {c['name'] for c in inspect(db.engine).get_columns('caja_chica_items')}
+    for nombre, tipo in (('razon_social', 'VARCHAR(200)'), ('evidencia', 'VARCHAR(120)')):
+        if nombre not in columnas:
+            db.session.execute(db.text('ALTER TABLE caja_chica_items ADD COLUMN %s %s' % (nombre, tipo)))
+            db.session.commit()
 
 
 def dinero(valor):
@@ -174,7 +181,7 @@ def reenviar(sol, tecnico, datos, catalogo, proyectos, bancos, importe, formular
     db.session.commit()
 
 
-def rendir_item(sol, item, documento, datos, fotos, importe):
+def rendir_item(sol, item, documento, datos, fotos, importe, evidencia=None):
     _exigir(sol.documento == documento, 'Esta solicitud no es tuya.')
     _exigir(sol.estado == 'DEPOSITADO', 'Solo se rinde una solicitud depositada.')
     _exigir(item.estado in ('POR_RENDIR', 'RECHAZADO'), 'Este ítem ya fue rendido.')
@@ -185,10 +192,23 @@ def rendir_item(sol, item, documento, datos, fotos, importe):
     gastado = importe(datos.get('monto_gastado'))
     _exigir(gastado <= item.monto, 'El monto gastado no puede superar el monto del ítem (S/ %s).' % dinero(item.monto))
     _exigir(1 <= len(fotos) <= MAX_FOTOS, 'Adjunta entre 1 y %d fotos del comprobante.' % MAX_FOTOS)
+    _exigir(evidencia, 'Adjunta la foto de la evidencia del gasto.')
     item.ruc, item.comprobante, item.monto_gastado = ruc, comprobante, gastado
-    item.fotos = json.dumps(fotos)
+    # La razón social la completa el portal con la consulta de RUC; solo se guarda como referencia.
+    item.razon_social = str(datos.get('razon_social') or '').strip()[:200] or None
+    item.fotos, item.evidencia = json.dumps(fotos), evidencia
     item.estado, item.rendido_en, item.motivo_rechazo = 'EN_REVISION', datetime.utcnow(), None
     _historial(sol, 'rendir ítem %d' % item.numero, sol.tecnico)
+    db.session.commit()
+
+
+def devolver_item(sol, item, documento):
+    """El técnico no puede sustentar un ítem rechazado: su monto pasa a la devolución."""
+    _exigir(sol.documento == documento, 'Esta solicitud no es tuya.')
+    _exigir(sol.estado == 'DEPOSITADO' and item.estado == 'RECHAZADO', 'Solo se devuelve un ítem rechazado.')
+    item.estado, item.monto_gastado = 'DEVUELTO', Decimal('0')
+    _historial(sol, 'devolver ítem %d' % item.numero, sol.tecnico)
+    _cerrar_si_resuelto(sol, sol.tecnico)
     db.session.commit()
 
 
@@ -306,9 +326,14 @@ def revisar_item(sol, item, usuario, aprobar, motivo=''):
         item.estado, item.motivo_rechazo = 'RECHAZADO', motivo.strip()
     item.revisado_por, item.revisado_en = usuario, datetime.utcnow()
     _historial(sol, ('aprobar' if aprobar else 'rechazar') + ' ítem %d' % item.numero, usuario, motivo or '')
-    if all(i.estado == 'APROBADO' for i in sol.items):
-        _cerrar_o_pedir_devolucion(sol, usuario)
+    _cerrar_si_resuelto(sol, usuario)
     db.session.commit()
+
+
+def _cerrar_si_resuelto(sol, usuario):
+    """Cuando ningún ítem queda por rendir, revisar o corregir: archiva o pide la devolución."""
+    if all(i.estado in ('APROBADO', 'DEVUELTO') for i in sol.items):
+        _cerrar_o_pedir_devolucion(sol, usuario)
 
 
 def confirmar_devolucion(sol, usuario, aceptar, motivo=''):
@@ -331,27 +356,27 @@ def diferencia(sol):
 def _cerrar_o_pedir_devolucion(sol, usuario):
     if diferencia(sol) > 0:
         sol.estado = 'POR_DEVOLVER'
-        _historial(sol, 'todos los ítems aprobados: falta la devolución', usuario)
+        _historial(sol, 'ítems resueltos: falta la devolución', usuario)
     else:
         sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
-        _historial(sol, 'todos los ítems aprobados: archivado', usuario)
+        _historial(sol, 'ítems resueltos: archivado', usuario)
 
 
 # ── Vistas ─────────────────────────────────────────────────────────────────
 
 def etapa(sol):
-    """Pestaña de la gestión. Una solicitud depositada puede estar en las dos.
+    """Pestañas de la gestión. Una solicitud depositada puede estar en las dos.
     Una rechazada en validación sigue visible en Validación mientras el técnico corrige."""
     if sol.estado in ('PENDIENTE', 'RECHAZADO'):
         return {'validacion'}
     if sol.estado == 'VALIDADO':
         return {'deposito'}
+    # "Por rendir" lista todo lo ya depositado y aún no archivado; además aparece en
+    # "Revisión" mientras tenga comprobantes o una devolución por revisar.
     if sol.estado == 'DEPOSITADO':
-        estados = {i.estado for i in sol.items}
-        return ({'por_rendir'} if estados & {'POR_RENDIR', 'RECHAZADO'} else set()) | (
-            {'revision'} if 'EN_REVISION' in estados else set())
+        return {'por_rendir'} | ({'revision'} if any(i.estado == 'EN_REVISION' for i in sol.items) else set())
     if sol.estado == 'POR_DEVOLVER':
-        return {'revision'} if sol.devolucion_foto else {'por_rendir'}
+        return {'por_rendir'} | ({'revision'} if sol.devolucion_foto else set())
     return {'archivado'} if sol.estado == 'ARCHIVADO' else {'anuladas'}
 
 
@@ -396,12 +421,15 @@ def a_dict(sol, gestion=False):
         'deposito_fecha': sol.deposito_fecha or '', 'deposito_foto': sol.deposito_foto or '',
         'depositado_en': sol.depositado_en.isoformat(timespec='minutes') if sol.depositado_en else '',
         'validado_por': sol.validado_por or '',
+        'deposito_monto': dinero(sol.deposito_monto) if sol.deposito_monto is not None else '',
+        'depositado_por': sol.depositado_por or '',
         'diferencia': dinero(diferencia(sol)) if sol.deposito_monto is not None else '',
         'devolucion_foto': sol.devolucion_foto or '',
         'pendiente': dinero(sol.total - aprobados) if sol.estado not in ESTADOS_FINALES else '0.00',
         'avance': '%d de %d ítems aprobados' % (sum(i.estado == 'APROBADO' for i in sol.items), len(sol.items)),
         'items': [{'id': i.id, 'numero': i.numero, 'tipo_gasto': i.tipo_gasto, 'descripcion': i.descripcion,
                    'monto': dinero(i.monto), 'estado': i.estado, 'ruc': i.ruc or '', 'comprobante': i.comprobante or '',
+                   'razon_social': i.razon_social or '', 'evidencia': i.evidencia or '',
                    'monto_gastado': dinero(i.monto_gastado) if i.monto_gastado is not None else '',
                    'fotos': json.loads(i.fotos or '[]'), 'motivo_rechazo': i.motivo_rechazo or '',
                    **conceptos.get(str(i.numero), {})}
@@ -524,4 +552,5 @@ def fotos_de(sol):
     nombres = {sol.deposito_foto, sol.devolucion_foto}
     for item in sol.items:
         nombres.update(json.loads(item.fotos or '[]'))
+        nombres.add(item.evidencia)
     return {n for n in nombres if n}

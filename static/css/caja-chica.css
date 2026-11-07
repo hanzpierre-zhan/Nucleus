@@ -40,6 +40,33 @@
 #cc-comentario-dialogo textarea { width: 100%; min-height: 110px !important; resize: vertical; box-sizing: border-box; }
 #cc-comentario-dialogo .cc-acciones { justify-content: flex-end; margin-top: 12px; }
 .cc-acciones-rapidas { display: flex; gap: 6px; justify-content: center; }
+/* SLA de "Por rendir": días y horas desde el depósito. El chip es un botón sólido que abre la ventana. */
+.cc-gestion .cc-acciones-rapidas .cc-sla { display: inline-flex !important; align-items: center; gap: 6px; min-height: 28px !important; height: 28px; padding: 0 12px !important; border-radius: 999px !important; border: 0 !important; background: var(--sla) !important; color: #fff !important; font-size: 12px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 8px color-mix(in srgb, var(--sla) 35%, transparent) !important; transition: transform .15s, box-shadow .15s; }
+.cc-gestion .cc-acciones-rapidas .cc-sla:hover { transform: translateY(-1px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sla) 30%, transparent) !important; }
+.cc-gestion .cc-acciones-rapidas .cc-sla i { color: #fff !important; font-size: 12px; }
+.cc-sla, .cc-sla-timer { --sla: var(--ios-secondary); }
+/* Plazo de 24 h para rendir */
+.cc-sla-azul { --sla: #3b82f6; }
+.cc-sla-verde { --sla: #16a34a; }
+.cc-sla-amarillo { --sla: #eab308; }
+.cc-sla-ambar { --sla: #f08a1c; }
+.cc-sla-rojo { --sla: #dc2626; }
+.cc-sla-timer.cc-sla-amarillo, .cc-gestion .cc-acciones-rapidas .cc-sla.cc-sla-amarillo { --sla: #ca8a04; }
+/* Ventana de "Por rendir": timer + datos a la izquierda, foto del depósito a la derecha. */
+#cc-solicitud-dialogo .cc-rendir-panel { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: stretch; margin: 4px 0 8px; }
+.cc-sla-timer { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: color-mix(in srgb, var(--sla) 12%, var(--ios-card-bg, transparent)); color: var(--sla); }
+.cc-sla-timer > i { font-size: 26px; }
+.cc-sla-timer small { display: block; font-size: 13px; font-weight: 500; }
+.cc-sla-timer .cc-sla-tiempo { display: block; font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cc-sla-cuando { margin-left: auto; text-align: right; }
+.cc-sla-cuando small { color: var(--ios-secondary); font-size: 12px; }
+.cc-sla-cuando strong { color: var(--ios-label); font-size: 13px; font-variant-numeric: tabular-nums; }
+.cc-rendir-foto { display: flex; flex-direction: column; gap: 8px; margin: 0; min-height: 320px; padding: 10px; border: 1px solid var(--ios-hairline); border-radius: 12px; background: var(--ios-fill); }
+.cc-rendir-foto a { flex: 1 1 0; display: grid; place-items: center; min-height: 0; border-radius: 8px; overflow: hidden; background: #000; }
+.cc-rendir-foto img { width: 100%; height: 100%; max-height: 100%; object-fit: contain; }
+.cc-rendir-foto figcaption { color: var(--ios-secondary); font-size: 12px; text-align: center; }
+.cc-rendir-foto > .cc-nota { margin: auto; }
+@media (max-width: 760px) { #cc-solicitud-dialogo .cc-rendir-panel { grid-template-columns: 1fr; } }
 .cc-acciones-cab { align-self: center; text-align: center; }
 .cc-gestion .cc-acciones-rapidas .cc-rapida {
   display: inline-grid; place-items: center; flex: none; width: 30px !important; height: 30px !important;
@@ -148,6 +175,25 @@
 .cc-ajustes-menu small { margin-left: auto; font-size: 10px; color: var(--ios-secondary); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #cc-buscar { flex: 0 1 260px; min-width: 160px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font: inherit; font-size: 12px; }
+/* Desplegable de proyecto con la misma forma de píldora que las etapas. */
+.cc-proyecto-pill { --cc-color: #3b82f6; position: relative; flex: none; }
+.cc-gestion .cc-proyecto-btn { display: inline-flex; align-items: center; gap: 8px; min-width: 190px; min-height: 38px; padding: 0 14px; border: 1px solid var(--ios-hairline); border-radius: 999px; background: transparent; color: var(--ios-secondary); font: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: none; transition: border-color .15s, color .15s, background .15s; }
+.cc-gestion .cc-proyecto-btn:hover, .cc-gestion .cc-proyecto-btn[aria-expanded="true"] { border-color: var(--cc-color); color: var(--ios-label); }
+.cc-gestion .cc-proyecto-btn:focus-visible { outline: 2px solid var(--cc-color); outline-offset: 1px; }
+.cc-proyecto-pill.activo .cc-proyecto-btn { border-color: var(--cc-color); background: color-mix(in srgb, var(--cc-color) 14%, transparent); color: var(--ios-label); }
+.cc-proyecto-btn > i { color: var(--cc-color); font-size: 12px; }
+.cc-proyecto-btn > .cc-proyecto-flecha { margin-left: auto; color: var(--ios-secondary); font-size: 10px; transition: transform .15s; }
+.cc-proyecto-btn[aria-expanded="true"] > .cc-proyecto-flecha { transform: rotate(180deg); }
+/* Menú: mismo estilo que el menú de opciones (engranaje). */
+.cc-proyecto-menu { position: absolute; left: 0; top: calc(100% + 8px); z-index: 30; min-width: 100%; width: max-content; padding: 6px; border: 1px solid var(--ios-hairline); border-radius: 12px; background: var(--ios-card-bg, #1f1f1f); box-shadow: 0 12px 32px rgba(0, 0, 0, .3); }
+.cc-gestion .cc-proyecto-opcion { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 0; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ios-label); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; box-shadow: none; }
+.cc-gestion .cc-proyecto-opcion:hover, .cc-gestion .cc-proyecto-opcion:focus-visible { background: var(--ios-fill); outline: none; }
+.cc-proyecto-opcion[aria-selected="true"] { font-weight: 700; }
+.cc-proyecto-punto { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--project-badge-bg, var(--ios-secondary)); }
+.cc-proyecto-punto.cc-proyecto-todos { background: conic-gradient(#da291c 0 25%, #0057b8 0 50%, #66cd00 0 75%, #ff9b35 0); }
+.cc-proyecto-cuenta { margin-left: auto; min-width: 20px; padding: 1px 7px; border-radius: 999px; background: var(--ios-fill); color: var(--ios-secondary); font-size: 11px; text-align: center; }
+.cc-proyecto-check { width: 12px; color: var(--cc-color); font-size: 11px; visibility: hidden; }
+.cc-proyecto-opcion[aria-selected="true"] .cc-proyecto-check { visibility: visible; }
 @media (max-width: 900px) {
   .cc-barra { flex-wrap: wrap; }
   .cc-tabs { flex-basis: 100%; }
@@ -159,12 +205,14 @@
 .cc-tab:focus-visible { outline: 2px solid var(--cc-color); outline-offset: 1px; }
 .cc-tab.activa { background: var(--cc-color); border-color: var(--cc-color); color: #fff; }
 .cc-tab.activa i { color: #fff; }
+/* Semáforo de etapas */
 .cc-tab-validacion { --cc-color: #3b82f6; }  /* azul: por validar */
-.cc-tab-deposito   { --cc-color: #d97706; }  /* ámbar: dinero por salir */
-.cc-tab-por_rendir { --cc-color: #8b5cf6; }  /* violeta: en manos del técnico */
-.cc-tab-revision   { --cc-color: #0891b2; }  /* turquesa: revisando comprobantes */
-.cc-tab-archivado  { --cc-color: #16a34a; }  /* verde: cerrado */
+.cc-tab-deposito   { --cc-color: #16a34a; }  /* verde: listo para depositar */
+.cc-tab-por_rendir { --cc-color: #f08a1c; }  /* ámbar: en manos del técnico */
+.cc-tab-revision   { --cc-color: #eab308; }  /* amarillo: revisando comprobantes */
+.cc-tab-archivado  { --cc-color: #0891b2; }  /* turquesa: cerrado */
 .cc-tab-anuladas   { --cc-color: #64748b; }  /* gris: anulado */
+.cc-tab-revision.activa, .cc-tab-revision.activa i { color: #1f1a05; }  /* texto oscuro: el blanco no se lee sobre amarillo */
 .cc-cuenta { min-width: 20px; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--cc-color) 18%, transparent); color: var(--cc-color); font-size: 11px; text-align: center; }
 .cc-tab.activa .cc-cuenta { background: rgba(255, 255, 255, .25); color: #fff; }
 .cc-tab-fila { display: inline-flex; align-items: center; gap: 7px; }
@@ -198,11 +246,14 @@ body.cc-redimensionando { cursor: col-resize; user-select: none; }
 .cc-gestion .cc-th .cc-th-btn:hover { background: rgba(59, 130, 246, .16) !important; color: #3b82f6 !important; }
 .cc-gestion .cc-th .cc-th-btn.activo { opacity: 1; color: #fff !important; background: #3b82f6 !important; }
 .cc-lista { display: flex; flex-direction: column; }
-/* Barras de desplazamiento vertical y horizontal siempre visibles en la tabla */
-.cc-tabla::-webkit-scrollbar { width: 18px; height: 18px; }
-.cc-tabla::-webkit-scrollbar-track { background: var(--ios-fill); }
-.cc-tabla::-webkit-scrollbar-thumb { background: var(--ios-blue, #173e76); border-radius: 10px; border: 3px solid var(--ios-fill); min-width: 40px; min-height: 40px; }
-.cc-tabla::-webkit-scrollbar-corner { background: var(--ios-fill); }
+/* Barras gruesas y siempre visibles. Llevan "body" e !important porque el tema
+   (themes.css) baja todas las barras a 6px grises con !important. */
+body .cc-tabla { overflow-x: scroll; overflow-y: scroll; }
+body .cc-tabla::-webkit-scrollbar { width: 18px !important; height: 18px !important; display: block; }
+body .cc-tabla::-webkit-scrollbar-track { background: var(--ios-fill) !important; }
+body .cc-tabla::-webkit-scrollbar-thumb { background: var(--ios-blue, #173e76) !important; border-radius: 10px !important; border: 3px solid var(--ios-fill); min-width: 40px; min-height: 40px; }
+body.dark-mode .cc-tabla::-webkit-scrollbar-thumb { background: #2f6fd6 !important; }
+body .cc-tabla::-webkit-scrollbar-corner { background: var(--ios-fill); }
 @supports not selector(::-webkit-scrollbar) {
   .cc-tabla { scrollbar-width: auto; scrollbar-color: var(--ios-blue, #173e76) var(--ios-fill); }
 }
@@ -347,3 +398,144 @@ body.cc-redimensionando { cursor: col-resize; user-select: none; }
 .cc-validacion-zona.con-archivo { border-style: solid; border-color: #16a34a; background: color-mix(in srgb, #16a34a 8%, var(--ios-fill)); }
 .cc-validacion-zona.con-archivo > i { color: #16a34a; }
 @media (max-width: 760px) { .cc-validacion-columnas { grid-template-columns: minmax(0, 1fr); } .cc-validacion-derecha { position: static; } }
+/* ── Formato de ventanas: tarjetas compactas (igual a las maquetas) ── */
+#cc-solicitud-dialogo { --cc-verde: #15803d; --cc-verde-fondo: rgba(22, 163, 74, .10); --cc-azul-borde: color-mix(in srgb, var(--ios-blue) 55%, var(--ios-hairline)); }
+body.dark-mode #cc-solicitud-dialogo { --cc-verde: #4ade80; --cc-verde-fondo: rgba(34, 197, 94, .12); }
+#cc-solicitud-dialogo .cc-ficha { display: block; margin: 0; padding: 12px 16px; border: 1px solid var(--ios-hairline); border-radius: 12px; background: transparent; font-size: 14px; }
+#cc-solicitud-dialogo .cc-ficha-titulo { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-ficha-titulo i { font-size: 13px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-ficha-datos { display: grid; gap: 6px; margin: 0; }
+#cc-solicitud-dialogo .cc-ficha-fila { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: baseline; gap: 10px; }
+#cc-solicitud-dialogo .cc-ficha-copiable .cc-ficha-fila { grid-template-columns: 120px minmax(0, 1fr) 22px; }
+#cc-solicitud-dialogo .cc-ficha-fila dt { margin: 0; font-size: 13.5px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-ficha-fila dd { margin: 0; font-size: 14px; color: var(--ios-label); overflow-wrap: anywhere; }
+#cc-solicitud-dialogo .cc-ficha-copiable dd { font-weight: 600; }
+#cc-solicitud-dialogo .cc-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .3px; }
+#cc-solicitud-dialogo .cc-ficha-copiar { width: 22px; height: 22px; padding: 0; border: 0 !important; background: none !important; box-shadow: none !important; color: var(--ios-secondary); cursor: pointer; font-size: 13px; }
+#cc-solicitud-dialogo .cc-ficha-copiar:hover { color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-ficha-concepto { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--ios-hairline); font-size: 14px; }
+#cc-solicitud-dialogo .cc-ficha-suave { color: var(--ios-secondary); font-weight: 400; }
+#cc-solicitud-dialogo .cc-ficha-total { border-bottom: 0; padding-top: 8px; }
+#cc-solicitud-dialogo .cc-ficha-total .cc-num { font-size: 16px; }
+#cc-solicitud-dialogo .cc-ficha-original summary { cursor: pointer; font-size: 13px; color: var(--ios-secondary); }
+/* Validación: tarjeta Cotización con borde azul y el correo debajo */
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-documentos-validacion { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+#cc-solicitud-dialogo .cc-ficha-cotizacion { border-color: var(--cc-azul-borde); }
+#cc-solicitud-dialogo .cc-cotizacion-campo input { width: 100%; min-height: 46px; padding: 10px 14px; font-size: 17px; border-radius: 10px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-cotizacion-estado { display: block; margin-top: 8px; font-size: 13.5px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-cotizacion-control { margin-top: 10px; }
+#cc-solicitud-dialogo .cc-cotizacion-aviso { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; background: var(--cc-verde-fondo); color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-cotizacion-aviso[data-resultado="excede"] { background: rgba(220, 38, 38, .12); color: #ef4444; }
+#cc-solicitud-dialogo .cc-cotizacion-aviso[data-resultado=""] { background: var(--ios-fill); color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-cotizacion-montos { display: grid; gap: 4px; margin: 0; }
+#cc-solicitud-dialogo .cc-cotizacion-montos div { display: flex; justify-content: space-between; font-size: 13.5px; }
+#cc-solicitud-dialogo .cc-cotizacion-montos dt { color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-cotizacion-montos dd { margin: 0; color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-cotizacion-montos div:last-child dd { font-weight: 700; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona { flex: 1; min-height: 200px; border-width: 1.5px; background: transparent; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona > i { color: var(--ios-blue); }
+/* Depósito: monto en verde sobre fondo verde suave, foto con borde verde punteado */
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-cabecera { padding: 14px 16px; border: 0; border-radius: 12px; background: var(--cc-verde-fondo); }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-bolsa { width: auto; height: auto; background: none; box-shadow: none; color: var(--cc-verde); font-size: 26px; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-cabecera small { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-monto { font-size: 26px; font-weight: 600; color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-zona { border: 1.5px dashed var(--cc-verde); background: transparent; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-ayuda strong { font-size: 15px; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-ayuda small { font-size: 13px; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-ayuda i { color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-deposito-izquierda, #cc-solicitud-dialogo .cc-validacion-izquierda { gap: 12px; }
+/* Bordes visibles en modo oscuro (como la maqueta) */
+#cc-solicitud-dialogo { --cc-borde: rgba(0, 0, 0, .12); }
+body.dark-mode #cc-solicitud-dialogo { --cc-borde: rgba(255, 255, 255, .14); }
+#cc-solicitud-dialogo .cc-ficha { border-color: var(--cc-borde); }
+#cc-solicitud-dialogo .cc-ficha-cotizacion { border-color: var(--cc-azul-borde); }
+#cc-solicitud-dialogo .cc-ficha-concepto { border-bottom-color: var(--cc-borde); }
+#cc-solicitud-dialogo .cc-ficha-total { border-bottom: 0; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona { border-color: var(--cc-borde); border-style: dashed; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona.con-archivo { border-color: var(--cc-verde); border-style: solid; }
+#cc-solicitud-dialogo { --cc-azul-borde: color-mix(in srgb, var(--ios-blue) 70%, transparent); --cc-punteado: rgba(0, 0, 0, .25); }
+body.dark-mode #cc-solicitud-dialogo { --cc-punteado: rgba(255, 255, 255, .28); }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona { border-color: var(--cc-punteado); }
+/* Editar en gris neutro, como en la maqueta; guardar verde y cerrar rojo se mantienen. */
+/* Editar en amarillo con ícono oscuro; mientras se edita queda resaltado (no apagado). */
+#cc-solicitud-dialogo .cc-dialogo-editar { background: #facc15 !important; color: #3a2a00 !important; border: 0 !important; }
+#cc-solicitud-dialogo .cc-dialogo-editar:hover:not(:disabled) { background: #eab308 !important; }
+#cc-solicitud-dialogo .cc-dialogo-editar.activo { opacity: 1 !important; clip-path: none; box-shadow: 0 0 0 3px color-mix(in srgb, #facc15 40%, transparent) !important; }
+/* El azul de la marca (#173E76) no se ve en modo oscuro: borde y ícono en un azul claro. */
+#cc-solicitud-dialogo { --cc-azul: #2563eb; --cc-azul-borde: rgba(37, 99, 235, .55); }
+body.dark-mode #cc-solicitud-dialogo { --cc-azul: #60a5fa; --cc-azul-borde: rgba(96, 165, 250, .6); }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona > i { color: var(--cc-azul); }
+#cc-solicitud-dialogo .cc-validacion-zona:hover, #cc-solicitud-dialogo .cc-validacion-zona:focus-within { border-color: var(--cc-azul); }
+
+/* Ventana de Revisión: una columna ancha, detalle arriba y una tarjeta compacta por concepto. */
+#cc-solicitud-dialogo .cc-rev { display: flex; flex-direction: column; gap: 10px; }
+#cc-solicitud-dialogo .cc-rev-detalle .cc-ficha-datos { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 28px; }
+#cc-solicitud-dialogo .cc-rev-detalle .cc-ficha-fila { grid-template-columns: 105px minmax(0, 1fr); }
+.cc-rev-totales { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cc-borde, var(--ios-hairline)); }
+.cc-rev-totales > div { padding: 8px 12px; border-radius: 10px; background: var(--ios-fill); }
+.cc-rev-totales small { display: block; font-size: 12px; color: var(--ios-secondary); }
+.cc-rev-totales strong { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--ios-label); }
+.cc-rev-totales .cc-rev-ok strong { color: #22c55e; }
+.cc-rev-totales .cc-rev-rev strong { color: #eab308; }
+.cc-rev-totales .cc-rev-no strong { color: #ef4444; }
+.cc-rev-totales .cc-rev-dev { background: rgba(240, 138, 28, .12); }
+.cc-rev-totales .cc-rev-dev small, .cc-rev-totales .cc-rev-dev strong { color: #f08a1c; }
+.cc-rev-seccion { margin: 6px 2px -2px; font-size: 12px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-rev-item .cc-ficha-titulo { gap: 10px; margin-bottom: 6px; }
+#cc-solicitud-dialogo .cc-rev-item .cc-ficha-titulo .cc-dialogo-acciones { display: flex; gap: 8px; }
+#cc-solicitud-dialogo .cc-rev-item .cc-dialogo-icono, #cc-solicitud-dialogo .cc-rev-devolucion .cc-dialogo-icono { width: 34px !important; height: 34px !important; min-width: 34px !important; min-height: 34px !important; font-size: 14px !important; }
+.cc-rev-nombre { flex: 1; font-size: 15px; }
+.cc-rev-en_revision { border-color: rgba(234, 179, 8, .55) !important; }
+.cc-rev-rechazado { border-color: rgba(220, 38, 38, .45) !important; }
+/* Compacto: datos a la izquierda, fotos bajas a la derecha. */
+.cc-rev-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 240px 240px; gap: 14px; align-items: start; }
+#cc-solicitud-dialogo .cc-rev-cuerpo .cc-ficha-datos { gap: 3px; }
+#cc-solicitud-dialogo .cc-rev-cuerpo .cc-ficha-fila { grid-template-columns: 110px minmax(0, 1fr); }
+.cc-rev-sobrante { color: #f08a1c !important; }
+.cc-rev-foto { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.cc-rev-foto a, .cc-rev-sin-foto { display: grid; place-items: center; height: 118px; border-radius: 10px; border: 1px solid var(--cc-borde, var(--ios-hairline)); background: var(--ios-fill); overflow: hidden; }
+.cc-rev-foto img { width: 100%; height: 100%; object-fit: cover; transition: transform .2s; }
+.cc-rev-foto a:hover img { transform: scale(1.04); }
+.cc-rev-sin-foto { border-style: dashed; color: var(--ios-secondary); font-size: 20px; }
+.cc-rev-foto figcaption { font-size: 11.5px; color: var(--ios-secondary); text-align: center; }
+.cc-rev-motivo { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; padding: 7px 10px; border-radius: 8px; background: rgba(220, 38, 38, .12); color: #ef4444; font-size: 13px; }
+.cc-rev-motivo span:last-child { color: var(--ios-secondary); }
+.cc-rev-espera { margin: 0; font-size: 13px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-rev-plegado { padding: 8px 16px; }
+.cc-rev-plegado summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; font-size: 14px; }
+.cc-rev-plegado summary::-webkit-details-marker { display: none; }
+.cc-rev-plegado summary > i { color: #22c55e; }
+.cc-rev-plegado summary .cc-rev-nombre { flex: none; font-weight: 600; font-size: 14px; }
+.cc-rev-plegado summary .cc-chip { margin-left: auto; }
+.cc-rev-plegado[open] .cc-rev-cuerpo { margin-top: 10px; }
+.cc-devuelto { background: rgba(127, 127, 127, .16); color: var(--ios-secondary); }
+.cc-rev-devolucion { border-color: rgba(240, 138, 28, .5) !important; }
+#cc-solicitud-dialogo .cc-rev-devolucion .cc-ficha-titulo i { color: #f08a1c; }
+.cc-rev-devolucion .cc-rev-cuerpo { grid-template-columns: minmax(0, 1fr) 240px; }
+@media (max-width: 900px) {
+  #cc-solicitud-dialogo .cc-rev-detalle .cc-ficha-datos { grid-template-columns: minmax(0, 1fr); }
+  .cc-rev-totales { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cc-rev-cuerpo, .cc-rev-devolucion .cc-rev-cuerpo { grid-template-columns: 1fr 1fr; }
+  .cc-rev-cuerpo > dl { grid-column: 1 / -1; }
+}
+
+/* Edición con el mismo formato de las fichas: etiqueta a la izquierda, control a la derecha. */
+#cc-solicitud-dialogo .cc-editor { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+#cc-solicitud-dialogo .cc-editor-ficha { border-color: color-mix(in srgb, #facc15 45%, var(--cc-borde, var(--ios-hairline))) !important; }
+#cc-solicitud-dialogo .cc-editor-fila { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 10px; margin: 0 0 6px; color: var(--ios-secondary); font-size: 13.5px; }
+#cc-solicitud-dialogo .cc-editor :is(input, select, textarea) {
+  width: 100%; min-width: 0; min-height: 34px !important; margin: 0; padding: 6px 10px !important; box-sizing: border-box;
+  border: 1px solid var(--cc-borde, var(--ios-hairline)) !important; border-radius: 8px !important; box-shadow: none !important;
+  background: var(--ios-fill) !important; color: var(--ios-label) !important; font: inherit; font-size: 14px !important;
+}
+#cc-solicitud-dialogo .cc-editor :is(input, select, textarea):focus { outline: none; border-color: #facc15 !important; box-shadow: 0 0 0 2px color-mix(in srgb, #facc15 30%, transparent) !important; }
+#cc-solicitud-dialogo .cc-editor input[readonly] { background: transparent !important; border-color: transparent !important; padding-left: 0 !important; color: var(--ios-label) !important; }
+#cc-solicitud-dialogo .cc-editor textarea { min-height: 56px !important; resize: vertical; }
+#cc-solicitud-dialogo .cc-editor-concepto { display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 6px 8px; padding: 8px 0; border-bottom: 1px solid var(--cc-borde, var(--ios-hairline)); }
+#cc-solicitud-dialogo .cc-editor-concepto > input { font-size: 13px !important; }
+.cc-editor-monto { position: relative; display: block; }
+.cc-editor-monto > span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ios-secondary); font-size: 13px; pointer-events: none; }
+#cc-solicitud-dialogo .cc-editor-monto input { padding-left: 30px !important; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+#cc-solicitud-dialogo .cc-editor .cc-ficha-total { padding-top: 10px; }
+#cc-solicitud-dialogo .cc-editor .cc-ficha-total output { font-size: 16px; font-weight: 700; }
+@media (max-width: 760px) { #cc-solicitud-dialogo .cc-editor-fila { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
