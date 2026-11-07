@@ -275,16 +275,79 @@
     return panel;
   }
 
+  // Tarjeta compacta (formato de ventanas): título con ícono y filas etiqueta / valor.
+  // filas: [etiqueta, valor, clase?]; las vacías se omiten. copiable agrega "copiar".
+  function ficha(iconoNombre, titulo, filas, copiable = false) {
+    const caja = el('section', 'cc-ficha');
+    const cabeza = el('h4', 'cc-ficha-titulo');
+    cabeza.append(icono(iconoNombre), el('span', null, titulo));
+    const lista = el('dl', 'cc-ficha-datos' + (copiable ? ' cc-ficha-copiable' : ''));
+    for (const [nombre, valor, clase] of filas) {
+      if (!valor) continue;
+      const fila = el('div', 'cc-ficha-fila');
+      fila.append(el('dt', null, nombre), el('dd', clase || null, valor));
+      if (copiable) {
+        const copiar = el('button', 'cc-ficha-copiar');
+        copiar.type = 'button';
+        copiar.title = 'Copiar ' + nombre.toLowerCase();
+        copiar.setAttribute('aria-label', copiar.title);
+        copiar.append(icono('fa-copy'));
+        copiar.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(valor); copiar.replaceChildren(icono('fa-check')); }
+          catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
+          setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
+        });
+        fila.append(copiar);
+      }
+      lista.append(fila);
+    }
+    caja.append(cabeza, lista);
+    return caja;
+  }
+  function datosBancarios(sol) {
+    const f = sol.formulario || {};
+    const filas = [['Banco', sol.banco], ['CCI', sol.cuenta, 'cc-mono'], ['Titular', f.titular || sol.tecnico]];
+    if (f.tipo_billetera && f.tipo_billetera !== 'No aplica') filas.push([f.tipo_billetera, f.numero_billetera, 'cc-mono']);
+    return filas;
+  }
+  // Columna izquierda de la validación (y del resto de etapas): conceptos, detalle y depósito.
+  function resumenSolicitud(sol) {
+    const f = sol.formulario || {};
+    const conceptos = el('section', 'cc-ficha');
+    const cabeza = el('h4', 'cc-ficha-titulo');
+    cabeza.append(icono('fa-list-check'), el('span', null, 'Conceptos solicitados'));
+    conceptos.append(cabeza);
+    for (const item of sol.items) {
+      const fila = el('div', 'cc-ficha-concepto');
+      const nombre = el('span');
+      nombre.append(item.tipo_gasto);
+      if (item.tipo_presupuesto) nombre.append(el('span', 'cc-ficha-suave', ' · ' + item.tipo_presupuesto));
+      fila.append(nombre, el('strong', 'cc-num', dinero(item.monto)));
+      conceptos.append(fila);
+    }
+    const total = el('div', 'cc-ficha-concepto cc-ficha-total');
+    total.append(el('strong', null, 'Total solicitado'), el('strong', 'cc-num', dinero(sol.total)));
+    conceptos.append(total);
+    return [conceptos,
+      ficha('fa-file-lines', 'Detalle de la solicitud', [
+        ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Supervisor', f.supervisor],
+        ['Site', f.site], ['CM / PM / PLM', f.wo], ['Responsable', f.responsable_validacion], ['Motivo', sol.motivo]]),
+      ficha('fa-building-columns', 'Datos del depósito', datosBancarios(sol))];
+  }
+
   function formularioDocumentos(sol) {
     const form = el('form', 'cc-editar-solicitud cc-documentos-validacion');
     form.id = 'cc-solicitud-documentos';
-    const grupo = el('fieldset');
-    grupo.append(el('legend', null, 'Documentos de validación'));
-    const cotizacion = el('label', null, 'Número de cotización');
+    const grupo = el('section', 'cc-ficha cc-ficha-cotizacion');
+    const cabeza = el('h4', 'cc-ficha-titulo');
+    cabeza.append(icono('fa-file-invoice'), el('span', null, 'Cotización'));
+    grupo.append(cabeza);
+    const cotizacion = el('div', 'cc-cotizacion-campo');
     const entrada = Object.assign(el('input'), {
       name: 'cotizacion', value: sol.revision?.cotizacion || '', maxLength: 80,
       autocomplete: 'off', placeholder: 'Busca por número de cotización',
     });
+    entrada.setAttribute('aria-label', 'Número de cotización');
     const opciones = el('datalist');
     opciones.id = 'cc-cotizaciones-opciones';
     entrada.setAttribute('list', opciones.id);
@@ -311,21 +374,14 @@
         : saldo < 0 ? 'Excede el monto cotizado en ' + dinero(-saldo / 100) + '.'
           : 'Dentro del monto cotizado. Saldo disponible: ' + dinero(saldo / 100) + '.');
       mensaje.dataset.resultado = saldo === null ? '' : saldo < 0 ? 'excede' : 'dentro';
-      const tarjetas = el('dl', 'cc-cotizacion-importes');
-      const montos = [
-        ['Cotizado · suma de valores unitarios (' + seleccion.items + (seleccion.items === 1 ? ' ítem)' : ' ítems)'), cotizado],
-        ['Otras solicitudes activas', otras],
-        ['Esta solicitud', actual],
-        ['Total solicitado acumulado', acumulado],
-        ['Saldo / exceso', saldo],
-      ];
-      for (const [etiqueta, monto] of montos) {
-        const tarjeta = el('div');
-        tarjeta.append(el('dt', null, etiqueta), el('dd', null, monto === null ? '—' : dinero(monto / 100)));
-        tarjetas.append(tarjeta);
+      const tarjetas = el('dl', 'cc-cotizacion-montos');
+      for (const [etiqueta, monto] of [['Cotizado', cotizado], ['Otras solicitudes', otras],
+        ['Esta solicitud', actual], ['Acumulado', acumulado]]) {
+        const fila = el('div');
+        fila.append(el('dt', null, etiqueta), el('dd', 'cc-num', monto === null ? '—' : dinero(monto / 100)));
+        tarjetas.append(fila);
       }
-      control.replaceChildren(mensaje, tarjetas, el('p', 'cc-nota',
-        'El cotizado suma los valores unitarios sin cantidad ni FEE. El acumulado considera las solicitudes activas de Caja Chica vinculadas a esta cotización. El resultado es informativo.'));
+      control.replaceChildren(mensaje, tarjetas);
     };
     fetch('/api/caja-chica/cotizaciones?' + new URLSearchParams({solicitud: sol.id})).then(async respuesta => {
       if (!respuesta.ok) throw Error('No se pudieron cargar las cotizaciones.');
@@ -358,8 +414,8 @@
     const error = el('p', 'cc-alerta cc-campo-ancho');
     error.hidden = true;
     error.setAttribute('role', 'alert');
-    grupo.append(cotizacion, control, correo, error);
-    form.append(grupo);
+    grupo.append(cotizacion, control);
+    form.append(grupo, correo, error);
     form.addEventListener('submit', async e => {
       e.preventDefault();
       if (guardar.disabled) return;
@@ -396,44 +452,13 @@
     textos.append(el('small', null, 'Monto a depositar'), el('strong', 'cc-deposito-monto', dinero(sol.total)));
     monto.append(bolsa, textos);
 
-    function tarjeta(iconoNombre, titulo, filas, copiable) {
-      const caja = el('section', 'cc-deposito-tarjeta');
-      const subtitulo = el('h4', 'cc-deposito-subtitulo');
-      subtitulo.append(icono(iconoNombre), ' ' + titulo);
-      const lista = el('dl', 'cc-deposito-datos');
-      for (const [nombre, valor, clase] of filas) {
-        if (!valor) continue;
-        const fila = el('div', 'cc-deposito-fila' + (copiable ? '' : ' cc-deposito-fila-texto'));
-        const dd = el('dd');
-        dd.append(el('span', clase || null, valor));
-        fila.append(el('dt', null, nombre), dd);
-        if (copiable) {
-          const copiar = el('button', 'cc-deposito-copiar');
-          copiar.type = 'button';
-          copiar.title = 'Copiar ' + nombre.toLowerCase();
-          copiar.setAttribute('aria-label', copiar.title);
-          copiar.append(icono('fa-copy'));
-          copiar.addEventListener('click', async () => {
-            try { await navigator.clipboard.writeText(valor); copiar.replaceChildren(icono('fa-check')); }
-            catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
-            setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
-          });
-          fila.append(copiar);
-        }
-        lista.append(fila);
-      }
-      caja.append(subtitulo, lista);
-      return caja;
-    }
-    const bancarios = [['Banco', sol.banco], ['CCI / cuenta', sol.cuenta, 'cc-deposito-cci'], ['Titular', formulario.titular || sol.tecnico]];
-    if (formulario.tipo_billetera && formulario.tipo_billetera !== 'No aplica') bancarios.push([formulario.tipo_billetera, formulario.numero_billetera]);
     const conceptos = sol.items.map(item => item.tipo_gasto + ' ' + dinero(item.monto)).join(' · ');
     izquierda.append(monto,
-      tarjeta('fa-building-columns', 'Datos bancarios', bancarios, true),
-      tarjeta('fa-file-lines', 'Detalle de la solicitud', [
+      ficha('fa-building-columns', 'Datos bancarios', datosBancarios(sol), true),
+      ficha('fa-file-lines', 'Detalle de la solicitud', [
         ['Validado por', sol.validado_por || formulario.responsable_validacion],
         ['CM / PM / PLM', formulario.wo], ['Site', formulario.site],
-        ['Motivo', sol.motivo], ['Conceptos', conceptos]], false));
+        ['Motivo', sol.motivo], ['Conceptos', conceptos]]));
 
     // Foto: tocar, arrastrar o pegar (Ctrl+V), con vista previa.
     const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true, hidden: true});
@@ -518,8 +543,12 @@
     // Dos columnas: detalle a la izquierda; cotización, revisión y adjunto a la derecha.
     const izquierda = el('div', 'cc-validacion-izquierda');
     const derecha = el('div', 'cc-validacion-derecha');
-    izquierda.append(datosEnviados(sol.envio_tecnico || sol, sol.envio_tecnico && 'Datos enviados por el técnico'));
-    if (sol.envio_tecnico) izquierda.append(datosEnviados(sol, 'Datos revisados por gestión'));
+    izquierda.append(...resumenSolicitud(sol));
+    if (sol.envio_tecnico) {
+      const original = el('details', 'cc-ficha cc-ficha-original');
+      original.append(el('summary', null, 'Ver lo que envió el técnico'), datosEnviados(sol.envio_tecnico));
+      izquierda.append(original);
+    }
     const revision = sol.revision || {};
     if (revision.cotizacion) derecha.append(el('p', 'cc-validacion-dato', 'Cotización: ' + revision.cotizacion));
     if (revision.archivo) {

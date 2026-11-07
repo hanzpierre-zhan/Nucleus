@@ -347,3 +347,68 @@ body.cc-redimensionando { cursor: col-resize; user-select: none; }
 .cc-validacion-zona.con-archivo { border-style: solid; border-color: #16a34a; background: color-mix(in srgb, #16a34a 8%, var(--ios-fill)); }
 .cc-validacion-zona.con-archivo > i { color: #16a34a; }
 @media (max-width: 760px) { .cc-validacion-columnas { grid-template-columns: minmax(0, 1fr); } .cc-validacion-derecha { position: static; } }
+/* ── Formato de ventanas: tarjetas compactas (igual a las maquetas) ── */
+#cc-solicitud-dialogo { --cc-verde: #15803d; --cc-verde-fondo: rgba(22, 163, 74, .10); --cc-azul-borde: color-mix(in srgb, var(--ios-blue) 55%, var(--ios-hairline)); }
+body.dark-mode #cc-solicitud-dialogo { --cc-verde: #4ade80; --cc-verde-fondo: rgba(34, 197, 94, .12); }
+#cc-solicitud-dialogo .cc-ficha { display: block; margin: 0; padding: 12px 16px; border: 1px solid var(--ios-hairline); border-radius: 12px; background: transparent; font-size: 14px; }
+#cc-solicitud-dialogo .cc-ficha-titulo { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-ficha-titulo i { font-size: 13px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-ficha-datos { display: grid; gap: 6px; margin: 0; }
+#cc-solicitud-dialogo .cc-ficha-fila { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: baseline; gap: 10px; }
+#cc-solicitud-dialogo .cc-ficha-copiable .cc-ficha-fila { grid-template-columns: 120px minmax(0, 1fr) 22px; }
+#cc-solicitud-dialogo .cc-ficha-fila dt { margin: 0; font-size: 13.5px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-ficha-fila dd { margin: 0; font-size: 14px; color: var(--ios-label); overflow-wrap: anywhere; }
+#cc-solicitud-dialogo .cc-ficha-copiable dd { font-weight: 600; }
+#cc-solicitud-dialogo .cc-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .3px; }
+#cc-solicitud-dialogo .cc-ficha-copiar { width: 22px; height: 22px; padding: 0; border: 0 !important; background: none !important; box-shadow: none !important; color: var(--ios-secondary); cursor: pointer; font-size: 13px; }
+#cc-solicitud-dialogo .cc-ficha-copiar:hover { color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-ficha-concepto { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--ios-hairline); font-size: 14px; }
+#cc-solicitud-dialogo .cc-ficha-suave { color: var(--ios-secondary); font-weight: 400; }
+#cc-solicitud-dialogo .cc-ficha-total { border-bottom: 0; padding-top: 8px; }
+#cc-solicitud-dialogo .cc-ficha-total .cc-num { font-size: 16px; }
+#cc-solicitud-dialogo .cc-ficha-original summary { cursor: pointer; font-size: 13px; color: var(--ios-secondary); }
+/* Validación: tarjeta Cotización con borde azul y el correo debajo */
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-documentos-validacion { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+#cc-solicitud-dialogo .cc-ficha-cotizacion { border-color: var(--cc-azul-borde); }
+#cc-solicitud-dialogo .cc-cotizacion-campo input { width: 100%; min-height: 46px; padding: 10px 14px; font-size: 17px; border-radius: 10px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-cotizacion-estado { display: block; margin-top: 8px; font-size: 13.5px; color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-cotizacion-control { margin-top: 10px; }
+#cc-solicitud-dialogo .cc-cotizacion-aviso { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; font-size: 13.5px; background: var(--cc-verde-fondo); color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-cotizacion-aviso[data-resultado="excede"] { background: rgba(220, 38, 38, .12); color: #ef4444; }
+#cc-solicitud-dialogo .cc-cotizacion-aviso[data-resultado=""] { background: var(--ios-fill); color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-cotizacion-montos { display: grid; gap: 4px; margin: 0; }
+#cc-solicitud-dialogo .cc-cotizacion-montos div { display: flex; justify-content: space-between; font-size: 13.5px; }
+#cc-solicitud-dialogo .cc-cotizacion-montos dt { color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-cotizacion-montos dd { margin: 0; color: var(--ios-label); }
+#cc-solicitud-dialogo .cc-cotizacion-montos div:last-child dd { font-weight: 700; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona { flex: 1; min-height: 200px; border-width: 1.5px; background: transparent; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona > i { color: var(--ios-blue); }
+/* Depósito: monto en verde sobre fondo verde suave, foto con borde verde punteado */
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-cabecera { padding: 14px 16px; border: 0; border-radius: 12px; background: var(--cc-verde-fondo); }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-bolsa { width: auto; height: auto; background: none; box-shadow: none; color: var(--cc-verde); font-size: 26px; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-cabecera small { font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-monto { font-size: 26px; font-weight: 600; color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-zona { border: 1.5px dashed var(--cc-verde); background: transparent; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-ayuda strong { font-size: 15px; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-ayuda small { font-size: 13px; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-ayuda i { color: var(--cc-verde); }
+#cc-solicitud-dialogo .cc-deposito-izquierda, #cc-solicitud-dialogo .cc-validacion-izquierda { gap: 12px; }
+/* Bordes visibles en modo oscuro (como la maqueta) */
+#cc-solicitud-dialogo { --cc-borde: rgba(0, 0, 0, .12); }
+body.dark-mode #cc-solicitud-dialogo { --cc-borde: rgba(255, 255, 255, .14); }
+#cc-solicitud-dialogo .cc-ficha { border-color: var(--cc-borde); }
+#cc-solicitud-dialogo .cc-ficha-cotizacion { border-color: var(--cc-azul-borde); }
+#cc-solicitud-dialogo .cc-ficha-concepto { border-bottom-color: var(--cc-borde); }
+#cc-solicitud-dialogo .cc-ficha-total { border-bottom: 0; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona { border-color: var(--cc-borde); border-style: dashed; }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona.con-archivo { border-color: var(--cc-verde); border-style: solid; }
+#cc-solicitud-dialogo { --cc-azul-borde: color-mix(in srgb, var(--ios-blue) 70%, transparent); --cc-punteado: rgba(0, 0, 0, .25); }
+body.dark-mode #cc-solicitud-dialogo { --cc-punteado: rgba(255, 255, 255, .28); }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona { border-color: var(--cc-punteado); }
+/* Editar en gris neutro, como en la maqueta; guardar verde y cerrar rojo se mantienen. */
+#cc-solicitud-dialogo .cc-dialogo-editar { background: var(--ios-fill) !important; color: var(--ios-label) !important; border: 1px solid var(--cc-borde) !important; }
+/* El azul de la marca (#173E76) no se ve en modo oscuro: borde y ícono en un azul claro. */
+#cc-solicitud-dialogo { --cc-azul: #2563eb; --cc-azul-borde: rgba(37, 99, 235, .55); }
+body.dark-mode #cc-solicitud-dialogo { --cc-azul: #60a5fa; --cc-azul-borde: rgba(96, 165, 250, .6); }
+#cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona > i { color: var(--cc-azul); }
+#cc-solicitud-dialogo .cc-validacion-zona:hover, #cc-solicitud-dialogo .cc-validacion-zona:focus-within { border-color: var(--cc-azul); }
