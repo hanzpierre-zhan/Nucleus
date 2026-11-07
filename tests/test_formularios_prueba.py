@@ -493,9 +493,11 @@ def test_login_habitual_documento_como_usuario_y_clave(portal):
     assert other.get('/form-pruebas/datos').status_code==401
 
 
-def test_login_movil_de_gestora_abre_validacion_despues_de_conformidad(portal):
+def test_login_movil_de_gestora_entra_a_nucleus_no_al_portal(portal):
+    """El diseño del portal es solo para el personal de Dataper."""
     from werkzeug.security import generate_password_hash
 
+    portal.add_url_rule('/analytics', endpoint='pages.analytics', view_func=lambda: 'Nucleus')
     with portal.app_context():
         cuenta = Usuario(username='gestora-movil', rol='gestor',
                          password_hash=generate_password_hash('prueba-movil'))
@@ -507,9 +509,7 @@ def test_login_movil_de_gestora_abre_validacion_despues_de_conformidad(portal):
                             headers=headers_movil)
     assert b'name="legal_accept"' in respuesta.data
     respuesta = client.post('/login', data={'consent_step': '1', 'legal_accept': '1'}, headers=headers_movil)
-    assert respuesta.headers['Location'] == '/form-pruebas/gestion/validacion'
-    assert client.get(respuesta.headers['Location']).status_code == 200
-    assert client.get('/form-pruebas/gestion/depositos').status_code == 403
+    assert respuesta.headers['Location'] == '/analytics'
 
 
 def test_por_rendir_agrupa_y_ordena_depositos_del_proyecto(portal):

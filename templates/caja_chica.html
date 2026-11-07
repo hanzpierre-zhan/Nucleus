@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=42">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=44">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-eliminar="{{ 'si' if puede_eliminar else 'no' }}">
   <div class="cc-barra">
@@ -56,6 +56,7 @@
       <div class="cc-dialogo-acciones">
         <button type="button" id="cc-solicitud-editar" class="cc-dialogo-icono cc-dialogo-editar" aria-label="Editar solicitud" title="Editar solicitud" disabled><i class="fa-solid fa-pencil" aria-hidden="true"></i></button>
         <button type="submit" id="cc-solicitud-guardar" form="cc-solicitud-documentos" class="cc-dialogo-icono cc-dialogo-guardar" aria-label="Guardar cambios" title="Guardar cambios" disabled><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
+        <button type="submit" id="cc-solicitud-depositar" form="cc-deposito-form" class="cc-dialogo-icono cc-dialogo-depositar" aria-label="Confirmar depósito" title="Confirmar depósito" hidden><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></button>
         <form method="dialog"><button type="submit" class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
       </div>
     </header>
@@ -63,5 +64,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=30" defer></script>
+<script src="/static/js/caja-chica.js?v=32" defer></script>
 {% endblock %}

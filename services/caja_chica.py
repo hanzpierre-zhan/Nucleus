@@ -395,6 +395,7 @@ def a_dict(sol, gestion=False):
         'creado': sol.creado.isoformat(timespec='minutes'), 'motivo_rechazo': sol.motivo_rechazo or '',
         'deposito_fecha': sol.deposito_fecha or '', 'deposito_foto': sol.deposito_foto or '',
         'depositado_en': sol.depositado_en.isoformat(timespec='minutes') if sol.depositado_en else '',
+        'validado_por': sol.validado_por or '',
         'diferencia': dinero(diferencia(sol)) if sol.deposito_monto is not None else '',
         'devolucion_foto': sol.devolucion_foto or '',
         'pendiente': dinero(sol.total - aprobados) if sol.estado not in ESTADOS_FINALES else '0.00',

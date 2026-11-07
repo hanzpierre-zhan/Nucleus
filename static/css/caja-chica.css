@@ -317,3 +317,33 @@ body.cc-redimensionando { cursor: col-resize; user-select: none; }
 .cc-deposito-nota i { color: #16a34a; }
 .cc-deposito-zona { min-height: 100%; }
 #cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-enviar { width: 54px !important; height: 54px !important; min-width: 54px !important; font-size: 22px !important; }
+/* Depósito en dos columnas: detalle a la izquierda, foto vertical a la derecha. */
+#cc-solicitud-dialogo .cc-dialogo-depositar { background: #16a34a !important; color: #fff !important; }
+#cc-solicitud-dialogo .cc-dialogo-depositar:hover { background: #15803d !important; }
+#cc-solicitud-dialogo .cc-dialogo-depositar[hidden] { display: none !important; }
+#cc-solicitud-dialogo .cc-deposito-panel { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: stretch; margin: 4px 0 8px; padding: 0; border: 0; background: none; }
+.cc-deposito-error { grid-column: 1 / -1; margin: 0; }
+.cc-deposito-izquierda { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cc-deposito-panel .cc-deposito-cabecera { justify-content: flex-start; gap: 12px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, #16a34a 9%, var(--ios-card-bg, transparent)); border: 1px solid color-mix(in srgb, #16a34a 35%, var(--ios-hairline)); }
+.cc-deposito-panel .cc-deposito-tarjeta { height: auto; }
+.cc-deposito-fila-texto { grid-template-columns: 110px minmax(0, 1fr); }
+.cc-deposito-fila-texto dd { font-weight: 500; overflow-wrap: anywhere; }
+#cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-zona { min-height: 0; height: 100%; }
+@media (max-width: 760px) { #cc-solicitud-dialogo .cc-deposito-panel { grid-template-columns: 1fr; } #cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-zona { min-height: 260px; } }
+/* Validación en dos columnas: detalle a la izquierda; cotización, revisión y adjunto a la derecha. */
+.cc-validacion-columnas { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.cc-validacion-columnas.cc-una-columna { grid-template-columns: minmax(0, 1fr); }
+.cc-validacion-izquierda, .cc-validacion-derecha { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cc-validacion-derecha { position: sticky; top: 0; }
+.cc-validacion-derecha .cc-editar-solicitud { margin: 0; }
+.cc-validacion-derecha .cc-editar-solicitud fieldset { grid-template-columns: minmax(0, 1fr); border-color: color-mix(in srgb, var(--ios-blue) 40%, var(--ios-hairline)); }
+.cc-validacion-dato { margin: 0; font-weight: 600; }
+.cc-validacion-zona { position: relative; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px; padding: 14px; border: 2px dashed var(--ios-hairline); border-radius: 12px; background: var(--ios-fill); text-align: center; cursor: pointer; color: var(--ios-label) !important; transition: border-color .15s, background .15s; }
+.cc-validacion-zona:hover, .cc-validacion-zona:focus-within { border-color: var(--ios-blue); background: color-mix(in srgb, var(--ios-blue) 8%, var(--ios-fill)); }
+.cc-validacion-zona > input[type="file"] { display: none !important; }
+.cc-validacion-zona > i { font-size: 24px; color: var(--ios-blue); }
+.cc-validacion-zona > strong { font-size: 14px; }
+.cc-validacion-zona > small { font-size: 12px; color: var(--ios-secondary); }
+.cc-validacion-zona.con-archivo { border-style: solid; border-color: #16a34a; background: color-mix(in srgb, #16a34a 8%, var(--ios-fill)); }
+.cc-validacion-zona.con-archivo > i { color: #16a34a; }
+@media (max-width: 760px) { .cc-validacion-columnas { grid-template-columns: minmax(0, 1fr); } .cc-validacion-derecha { position: static; } }

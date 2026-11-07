@@ -340,16 +340,25 @@
       entrada.addEventListener('input', () => actualizar(lista));
       actualizar(lista);
     }).catch(() => { estado.textContent = 'No se pudieron cargar las cotizaciones.'; });
-    const correo = el('label', null, 'Adjuntar correo de validación');
-    correo.append(Object.assign(el('input'), {
+    // Correo de validación como zona para tocar (el input se oculta solo dentro de la zona:
+    // el editor de la solicitud lo reutiliza y ahí debe verse).
+    const correo = el('label', 'cc-validacion-zona');
+    const archivoCorreo = Object.assign(el('input'), {
       type: 'file', name: 'correo', accept: '.pdf,.eml,.msg,.jpg,.jpeg,.png,.webp',
-    }));
+    });
+    const ayudaCorreo = el('small', null, 'Toca para adjuntar .msg, PDF o imagen');
+    correo.append(archivoCorreo, icono('fa-envelope'), el('strong', null, 'Correo de validación'), ayudaCorreo);
+    archivoCorreo.addEventListener('change', () => {
+      const elegido = archivoCorreo.files[0];
+      ayudaCorreo.textContent = elegido ? elegido.name + ' · toca para cambiarlo' : 'Toca para adjuntar .msg, PDF o imagen';
+      correo.classList.toggle('con-archivo', Boolean(elegido));
+    });
     const guardar = $('cc-solicitud-guardar');
     const editar = $('cc-solicitud-editar');
     const error = el('p', 'cc-alerta cc-campo-ancho');
     error.hidden = true;
     error.setAttribute('role', 'alert');
-    grupo.append(cotizacion, correo, control, error);
+    grupo.append(cotizacion, control, correo, error);
     form.append(grupo);
     form.addEventListener('submit', async e => {
       e.preventDefault();
@@ -372,55 +381,59 @@
     return form;
   }
 
-  // Panel de depósito: va arriba del detalle, con el botón de confirmar en su cabecera.
+  // Depósito: detalle a la izquierda, foto vertical a la derecha. Se confirma con
+  // el botón redondo de la cabecera (#cc-solicitud-depositar, junto a la X).
   function formularioDeposito(sol) {
     const form = el('form', 'cc-deposito-panel');
+    form.id = 'cc-deposito-form';
     const formulario = sol.formulario || {};
-    const cabecera = el('div', 'cc-deposito-cabecera');
-    const titulo = el('div', 'cc-deposito-titulo');
+    const izquierda = el('div', 'cc-deposito-izquierda');
+
+    const monto = el('div', 'cc-deposito-cabecera');
     const bolsa = el('span', 'cc-deposito-bolsa');
     bolsa.append(icono('fa-sack-dollar'));
     const textos = el('div');
     textos.append(el('small', null, 'Monto a depositar'), el('strong', 'cc-deposito-monto', dinero(sol.total)));
-    titulo.append(bolsa, textos);
-    // Botón redondo solo con ícono; el texto va en la ayuda y para lectores de pantalla.
-    const enviar = el('button', 'cc-deposito-enviar');
-    enviar.type = 'submit';
-    enviar.title = 'Confirmar depósito';
-    enviar.setAttribute('aria-label', enviar.title);
-    enviar.append(icono('fa-sack-dollar'));
-    cabecera.append(titulo, enviar);
+    monto.append(bolsa, textos);
 
-    // Datos para depositar, con copiar al portapapeles.
-    const tarjeta = el('div', 'cc-deposito-tarjeta');
-    const subtitulo = el('h4', 'cc-deposito-subtitulo');
-    subtitulo.append(icono('fa-building-columns'), ' Datos para el depósito');
-    const datos = el('dl', 'cc-deposito-datos');
-    const filas = [['Banco', sol.banco], ['CCI / cuenta', sol.cuenta], ['Titular', formulario.titular || sol.tecnico]];
-    if (formulario.tipo_billetera && formulario.tipo_billetera !== 'No aplica') filas.push([formulario.tipo_billetera, formulario.numero_billetera]);
-    for (const [nombre, valor] of filas) {
-      if (!valor) continue;
-      const fila = el('div', 'cc-deposito-fila');
-      const dd = el('dd');
-      dd.append(el('span', nombre === 'CCI / cuenta' ? 'cc-deposito-cci' : null, valor));
-      const copiar = el('button', 'cc-deposito-copiar');
-      copiar.type = 'button';
-      copiar.title = 'Copiar ' + nombre.toLowerCase();
-      copiar.setAttribute('aria-label', copiar.title);
-      copiar.append(icono('fa-copy'));
-      copiar.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(valor); copiar.replaceChildren(icono('fa-check')); }
-        catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
-        setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
-      });
-      fila.append(el('dt', null, nombre), dd, copiar);
-      datos.append(fila);
+    function tarjeta(iconoNombre, titulo, filas, copiable) {
+      const caja = el('section', 'cc-deposito-tarjeta');
+      const subtitulo = el('h4', 'cc-deposito-subtitulo');
+      subtitulo.append(icono(iconoNombre), ' ' + titulo);
+      const lista = el('dl', 'cc-deposito-datos');
+      for (const [nombre, valor, clase] of filas) {
+        if (!valor) continue;
+        const fila = el('div', 'cc-deposito-fila' + (copiable ? '' : ' cc-deposito-fila-texto'));
+        const dd = el('dd');
+        dd.append(el('span', clase || null, valor));
+        fila.append(el('dt', null, nombre), dd);
+        if (copiable) {
+          const copiar = el('button', 'cc-deposito-copiar');
+          copiar.type = 'button';
+          copiar.title = 'Copiar ' + nombre.toLowerCase();
+          copiar.setAttribute('aria-label', copiar.title);
+          copiar.append(icono('fa-copy'));
+          copiar.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(valor); copiar.replaceChildren(icono('fa-check')); }
+            catch (_) { copiar.replaceChildren(icono('fa-xmark')); }
+            setTimeout(() => copiar.replaceChildren(icono('fa-copy')), 1500);
+          });
+          fila.append(copiar);
+        }
+        lista.append(fila);
+      }
+      caja.append(subtitulo, lista);
+      return caja;
     }
-    const nota = el('p', 'cc-deposito-nota');
-    nota.append(icono('fa-clock'), ' La fecha y hora se registran solas al confirmar.');
-    tarjeta.append(subtitulo, datos, nota);
-
-    const monto = Object.assign(el('input'), {type: 'hidden', name: 'monto', value: sol.total});
+    const bancarios = [['Banco', sol.banco], ['CCI / cuenta', sol.cuenta, 'cc-deposito-cci'], ['Titular', formulario.titular || sol.tecnico]];
+    if (formulario.tipo_billetera && formulario.tipo_billetera !== 'No aplica') bancarios.push([formulario.tipo_billetera, formulario.numero_billetera]);
+    const conceptos = sol.items.map(item => item.tipo_gasto + ' ' + dinero(item.monto)).join(' · ');
+    izquierda.append(monto,
+      tarjeta('fa-building-columns', 'Datos bancarios', bancarios, true),
+      tarjeta('fa-file-lines', 'Detalle de la solicitud', [
+        ['Validado por', sol.validado_por || formulario.responsable_validacion],
+        ['CM / PM / PLM', formulario.wo], ['Site', formulario.site],
+        ['Motivo', sol.motivo], ['Conceptos', conceptos]], false));
 
     // Foto: tocar, arrastrar o pegar (Ctrl+V), con vista previa.
     const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true, hidden: true});
@@ -455,14 +468,13 @@
     form.addEventListener('paste', e => usar(e.clipboardData?.files));
     dialogo.addEventListener('paste', e => { if (form.isConnected && !form.contains(e.target)) usar(e.clipboardData?.files); });
 
-    const error = el('p', 'cc-alerta');
+    const error = el('p', 'cc-alerta cc-deposito-error');
     error.setAttribute('role', 'alert');
     error.hidden = true;
-    const cuerpo = el('div', 'cc-deposito-cuerpo');
-    const lateral = el('div', 'cc-deposito-lateral');
-    lateral.append(tarjeta);
-    cuerpo.append(lateral, zona);
-    form.append(cabecera, error, cuerpo, monto);
+    const montoOculto = Object.assign(el('input'), {type: 'hidden', name: 'monto', value: sol.total});
+    form.append(error, izquierda, zona, montoOculto);
+
+    const enviar = $('cc-solicitud-depositar');
     form.addEventListener('submit', async e => {
       e.preventDefault();
       if (enviar.disabled) return;
@@ -496,23 +508,30 @@
     const guardar = $('cc-solicitud-guardar');
     const enDeposito = tab === 'deposito' && sol.estado === 'VALIDADO';
     editar.hidden = guardar.hidden = enDeposito;
+    // El botón redondo de depósito (junto a la X) solo se ve al depositar.
+    $('cc-solicitud-depositar').hidden = !(enDeposito && puedeGestionar);
     if (enDeposito) {
-      contenido.replaceChildren(datosEnviados(sol, 'Datos de la solicitud'));
-      if (puedeGestionar) contenido.prepend(formularioDeposito(sol));
+      contenido.replaceChildren(puedeGestionar ? formularioDeposito(sol) : datosEnviados(sol, 'Datos de la solicitud'));
       if (!dialogo.open) dialogo.showModal();
       return;
     }
-    contenido.replaceChildren(datosEnviados(sol.envio_tecnico || sol, sol.envio_tecnico && 'Datos enviados por el técnico'));
-    if (sol.envio_tecnico) contenido.append(datosEnviados(sol, 'Datos revisados por gestión'));
+    // Dos columnas: detalle a la izquierda; cotización, revisión y adjunto a la derecha.
+    const izquierda = el('div', 'cc-validacion-izquierda');
+    const derecha = el('div', 'cc-validacion-derecha');
+    izquierda.append(datosEnviados(sol.envio_tecnico || sol, sol.envio_tecnico && 'Datos enviados por el técnico'));
+    if (sol.envio_tecnico) izquierda.append(datosEnviados(sol, 'Datos revisados por gestión'));
     const revision = sol.revision || {};
-    if (revision.cotizacion) contenido.append(el('p', null, 'Cotización: ' + revision.cotizacion));
+    if (revision.cotizacion) derecha.append(el('p', 'cc-validacion-dato', 'Cotización: ' + revision.cotizacion));
     if (revision.archivo) {
       const enlace = el('a', 'cc-foto', 'Descargar correo de validación');
       enlace.href = '/api/caja-chica/' + sol.id + '/correo-validacion';
-      contenido.append(enlace);
+      derecha.append(enlace);
     }
-    if (sol.items.some(i => i.requiere_correo) && !revision.archivo) contenido.append(el('p', 'cc-alerta', 'Falta adjuntar el correo de validación.'));
-    if (sol.items.some(i => i.requiere_cotizacion) && !revision.cotizacion) contenido.append(el('p', 'cc-alerta', 'Falta el número de cotización.'));
+    if (sol.items.some(i => i.requiere_correo) && !revision.archivo) derecha.append(el('p', 'cc-alerta', 'Falta adjuntar el correo de validación.'));
+    if (sol.items.some(i => i.requiere_cotizacion) && !revision.cotizacion) derecha.append(el('p', 'cc-alerta', 'Falta el número de cotización.'));
+    const columnas = el('div', 'cc-validacion-columnas');
+    columnas.append(izquierda, derecha);
+    contenido.replaceChildren(columnas);
     editar.disabled = !puedeGestionar || sol.estado !== 'PENDIENTE';
     const documentos = editar.disabled ? null : formularioDocumentos(sol);
     guardar.setAttribute('form', 'cc-solicitud-documentos');
@@ -520,6 +539,7 @@
     editar.onclick = () => {
       const form = editorSolicitud(sol, documentos);
       documentos?.remove();
+      columnas.classList.toggle('cc-una-columna', !derecha.hasChildNodes());
       contenido.prepend(form);
       editar.disabled = true;
       guardar.setAttribute('form', form.id);
@@ -527,8 +547,9 @@
       form.querySelector('select').focus();
     };
     const seguimiento = detalle(sol);
-    if (seguimiento.hasChildNodes()) contenido.append(seguimiento);
-    if (documentos) contenido.append(documentos);
+    if (seguimiento.hasChildNodes()) izquierda.append(seguimiento);
+    if (documentos) derecha.prepend(documentos);
+    columnas.classList.toggle('cc-una-columna', !derecha.hasChildNodes());
     if (!dialogo.open) dialogo.showModal();
   }
   // ── Tabla: columnas que se filtran y se mueven arrastrando ──
