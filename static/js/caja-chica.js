@@ -90,17 +90,10 @@
       return caja;
     }
     if (puedeGestionar && sol.estado === 'PENDIENTE') {
-      caja.append(botonRapido(sol, 'Validar', 'cc-ok', 'fa-check', intentar(async () => {
-        if (await confirmar('¿Validar ' + sol.codigo + ' por ' + dinero(sol.total) + '?')) await accion(sol, 'validar');
-      })));
-    }
-    if (puedeGestionar && ['PENDIENTE', 'VALIDADO'].includes(sol.estado)) {
-      const destino = sol.estado === 'VALIDADO' ? 'Validación' : 'el técnico';
-      caja.append(botonRapido(sol, 'Rechazar', 'cc-rechazar', 'fa-xmark',
-        conMotivo(sol, 'rechazar', 'Motivo del rechazo (vuelve a ' + destino + '):')));
+      caja.append(botonRapido(sol, 'Validar', 'cc-ok', 'fa-check', () => verDetalle(sol)));
     }
     if (puedeGestionar && ['PENDIENTE', 'VALIDADO', 'RECHAZADO'].includes(sol.estado)) {
-      caja.append(botonRapido(sol, 'Anular', 'cc-no', 'fa-ban', conMotivo(sol, 'anular', 'Motivo de la anulación:')));
+      caja.append(botonRapido(sol, 'Anular', 'cc-no', 'fa-ban', () => verDetalle(sol)));
     }
     return caja;
   }
@@ -354,7 +347,7 @@
   function datosSolicitud(sol) {
     const conceptos = el('section', 'cc-ficha');
     const cabeza = el('h4', 'cc-ficha-titulo');
-    cabeza.append(icono('fa-list-check'), el('span', null, 'Datos de la solicitud'));
+    cabeza.append(icono('fa-list-check'), el('span', null, 'Conceptos solicitados'));
     conceptos.append(cabeza);
     for (const item of sol.items) {
       const fila = el('div', 'cc-ficha-concepto');
@@ -375,7 +368,8 @@
     return [datosSolicitud(sol),
       ficha('fa-file-lines', 'Detalle de la solicitud', [
         ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Supervisor', f.supervisor],
-        ['Site', f.site], ['CM / PM / PLM', f.wo], ['Responsable', f.responsable_validacion]]),
+        ['Site', f.site], ['CM / PM / PLM', f.wo], ['Responsable', f.responsable_validacion || sol.validado_por],
+        ['Justificación', sol.motivo || 'Sin registrar', 'cc-justificacion-texto']]),
       ficha('fa-building-columns', 'Datos del depósito', datosBancarios(sol))];
   }
 
@@ -486,8 +480,8 @@
   function formularioDeposito(sol) {
     const form = el('form', 'cc-deposito-panel');
     form.id = 'cc-deposito-form';
-    const formulario = sol.formulario || {};
     const izquierda = el('div', 'cc-deposito-izquierda');
+    izquierda.append(...resumenSolicitud(sol));
 
     const monto = el('div', 'cc-deposito-cabecera');
     const bolsa = el('span', 'cc-deposito-bolsa');
@@ -495,16 +489,6 @@
     const textos = el('div');
     textos.append(el('small', null, 'Monto a depositar'), el('strong', 'cc-deposito-monto', dinero(sol.total)));
     monto.append(bolsa, textos);
-
-    const resumenDeposito = el('div', 'cc-deposito-resumen');
-    resumenDeposito.append(monto, ficha('fa-building-columns', 'Datos bancarios', datosBancarios(sol), true));
-    const solicitud = datosSolicitud(sol);
-    solicitud.classList.add('cc-deposito-solicitud');
-    solicitud.append(justificacionSolicitud(sol));
-    izquierda.append(resumenDeposito, solicitud,
-      ficha('fa-file-lines', 'Datos del trabajo', [
-        ['Validado por', sol.validado_por || formulario.responsable_validacion],
-        ['CM / PM / PLM', formulario.wo], ['Site', formulario.site]]));
 
     // Foto: tocar, arrastrar o pegar (Ctrl+V), con vista previa.
     const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true, hidden: true});
@@ -543,7 +527,9 @@
     error.setAttribute('role', 'alert');
     error.hidden = true;
     const montoOculto = Object.assign(el('input'), {type: 'hidden', name: 'monto', value: sol.total});
-    form.append(error, izquierda, zona, montoOculto);
+    const derecha = el('div', 'cc-deposito-derecha');
+    derecha.append(monto, zona);
+    form.append(error, izquierda, derecha, montoOculto);
 
     const enviar = $('cc-solicitud-depositar');
     form.addEventListener('submit', async e => {
@@ -709,9 +695,7 @@
     cuando.append(el('small', null, 'Depositado'), el('strong', null, fechaDeposito(sol)));
     timer.append(icono('fa-clock'), textos, cuando);
     pintarSla(timer);
-    izquierda.append(timer, ...resumenSolicitud(sol),
-      ficha('fa-sack-dollar', 'Depósito realizado', [
-        ['Monto', dinero(sol.deposito_monto || sol.total)], ['Depositado por', sol.depositado_por]]));
+    izquierda.append(...resumenSolicitud(sol));
     const derecha = el('figure', 'cc-rendir-foto');
     if (sol.deposito_foto) {
       const enlace = el('a');
@@ -723,7 +707,9 @@
     } else {
       derecha.append(el('p', 'cc-nota', 'Sin foto del depósito.'));
     }
-    panel.append(izquierda, derecha);
+    const columnaFoto = el('div', 'cc-rendir-derecha');
+    columnaFoto.append(timer, derecha);
+    panel.append(izquierda, columnaFoto);
     return panel;
   }
 
@@ -742,6 +728,24 @@
     const contenido = $('cc-solicitud-contenido');
     const editar = $('cc-solicitud-editar');
     const guardar = $('cc-solicitud-guardar');
+    const validar = $('cc-solicitud-validar');
+    const anular = $('cc-solicitud-anular');
+    validar.hidden = !puedeGestionar || sol.estado !== 'PENDIENTE';
+    anular.hidden = !puedeGestionar || !['PENDIENTE', 'VALIDADO', 'RECHAZADO'].includes(sol.estado);
+    validar.disabled = anular.disabled = false;
+    validar.onclick = intentar(async () => {
+      if (!await confirmar('¿Validar ' + sol.codigo + ' por ' + dinero(sol.total) + '?')) return;
+      validar.disabled = true;
+      try { await accion(sol, 'validar'); }
+      finally { validar.disabled = false; }
+    });
+    anular.onclick = intentar(async () => {
+      const motivo = prompt('Motivo de la anulación:');
+      if (motivo === null) return;
+      anular.disabled = true;
+      try { await accion(sol, 'anular', {motivo}); }
+      finally { anular.disabled = false; }
+    });
     const enDeposito = tab === 'deposito' && sol.estado === 'VALIDADO';
     editar.hidden = guardar.hidden = enDeposito;
     // El botón redondo de depósito (junto a la X) solo se ve al depositar.
@@ -754,7 +758,7 @@
     }
     if (tab === 'por_rendir' && sol.depositado_en) {
       editar.hidden = guardar.hidden = true;
-      contenido.replaceChildren(justificacionSolicitud(sol), panelPorRendir(sol));
+      contenido.replaceChildren(panelPorRendir(sol));
       if (!dialogo.open) dialogo.showModal();
       return;
     }
@@ -785,7 +789,7 @@
     if (sol.items.some(i => i.requiere_cotizacion) && !revision.cotizacion) derecha.append(el('p', 'cc-alerta', 'Falta el número de cotización.'));
     const columnas = el('div', 'cc-validacion-columnas');
     columnas.append(izquierda, derecha);
-    contenido.replaceChildren(justificacionSolicitud(sol), columnas);
+    contenido.replaceChildren(columnas);
     editar.disabled = !puedeGestionar || sol.estado !== 'PENDIENTE';
     const documentos = editar.disabled ? null : formularioDocumentos(sol);
     guardar.setAttribute('form', 'cc-solicitud-documentos');
@@ -793,10 +797,10 @@
     editar.onclick = () => {
       // La columna izquierda se vuelve editable; la derecha (cotización y correo) no cambia.
       const form = editorSolicitud(sol, documentos);
-      contenido.querySelector('.cc-justificacion').hidden = true;
       izquierda.replaceChildren(form);
       editar.disabled = true;
       editar.classList.add('activo');
+      validar.disabled = anular.disabled = true;
       guardar.setAttribute('form', form.id);
       guardar.disabled = false;
       form.querySelector('select').focus();

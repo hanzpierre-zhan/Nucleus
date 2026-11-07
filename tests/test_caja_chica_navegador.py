@@ -4,12 +4,13 @@ from test_e2e_navegador import servidor
 from test_caja_chica import tecnico
 
 
-def test_justificacion_en_etapas_y_editor_conserva_detalles(app, auth_client, servidor, tecnico):
+def test_justificacion_en_etapas_y_editor_conserva_detalles(app, auth_client, servidor, tecnico, tmp_path):
     cli, headers = tecnico
     result = cli.post('/form-pruebas/caja-chica/solicitar', headers=headers, json={
         'proyecto': 'CLARO', 'motivo': 'Justificación completa\nSegunda línea', 'banco': 'BCP',
         'cuenta': '00123456789012345678',
-        'items': [{'tipo_gasto': 'Peajes', 'monto': '50', 'descripcion': 'Detalle original'}]})
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '50', 'descripcion': 'Detalle original'},
+                  {'tipo_gasto': 'Viáticos', 'monto': '30'}, {'tipo_gasto': 'Peajes', 'monto': '20'}]})
     assert result.status_code == 200, result.json
     sol = result.json['solicitud']
     auth_client.get('/caja-chica/')
@@ -17,7 +18,7 @@ def test_justificacion_en_etapas_y_editor_conserva_detalles(app, auth_client, se
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         try:
-            context = browser.new_context(viewport={'width': 1400, 'height': 1000})
+            context = browser.new_context(viewport={'width': 1365, 'height': 600})
             context.add_cookies([{'name': 'session', 'value': cookie.value, 'domain': '127.0.0.1', 'path': '/'}])
             page = context.new_page()
             errors = []
@@ -26,25 +27,38 @@ def test_justificacion_en_etapas_y_editor_conserva_detalles(app, auth_client, se
                       ('DEPOSITADO', 'revision'), ('ARCHIVADO', 'archivado'), ('ANULADO', 'anuladas')]
             for estado, etapa in states:
                 data = {**sol, 'estado': estado, 'etapas': [etapa], 'revision': {}, 'envio_tecnico': None,
-                        'depositado_en': '2026-11-06T12:00' if estado == 'DEPOSITADO' else ''}
+                        'depositado_en': '2026-11-06T12:00' if estado == 'DEPOSITADO' else '',
+                        'formulario': {'supervisor': 'Supervisor de prueba', 'site': 'DO_PLAZA_SOL_ICA_P4',
+                                       'wo': 'CM-20260904-00000410', 'responsable_validacion': 'Jessica Cordero'}}
                 page.route('**/api/caja-chica/solicitudes', lambda route, request, data=data: route.fulfill(json={'solicitudes': [data]}))
                 page.goto(servidor + '/caja-chica/')
                 page.locator('[data-tab="' + etapa + '"]').click()
                 page.locator('#cc-lista a').filter(has_text=sol['codigo']).click()
-                expect(page.locator('.cc-justificacion')).to_be_visible()
                 expect(page.locator('.cc-justificacion-texto')).to_have_text(sol['motivo'])
-                if etapa == 'deposito':
-                    resumen = page.locator('.cc-deposito-resumen')
-                    monto = resumen.locator('.cc-deposito-cabecera').bounding_box()
-                    banco = resumen.locator('.cc-ficha').bounding_box()
-                    assert abs(monto['y'] - banco['y']) < 2
-                    assert banco['x'] > monto['x']
-                    solicitud = page.locator('.cc-deposito-solicitud')
-                    expect(solicitud.locator('.cc-ficha-titulo').first).to_have_text('Datos de la solicitud')
-                    assert solicitud.locator('.cc-ficha-concepto').count() == len(sol['items']) + 1
-                    expect(solicitud.locator('.cc-ficha-concepto').first).to_contain_text('Peajes')
-                    expect(solicitud.locator('.cc-justificacion-texto')).to_have_text(sol['motivo'])
+                if etapa in ('validacion', 'deposito', 'por_rendir'):
+                    contenido = page.locator('#cc-solicitud-contenido')
+                    assert contenido.evaluate('e=>e.scrollHeight <= e.clientHeight + 1')
+                    assert contenido.evaluate('e=>e.scrollWidth <= e.clientWidth + 1')
+                    izquierda = page.locator('.cc-deposito-izquierda' if etapa != 'validacion' else '.cc-validacion-izquierda')
+                    expect(izquierda.locator('.cc-ficha-titulo').first).to_have_text('Conceptos solicitados')
+                    assert izquierda.locator('.cc-ficha-concepto').count() == len(sol['items']) + 1
+                    expect(izquierda.locator('.cc-justificacion-texto')).to_have_text(sol['motivo'])
+                    if etapa == 'deposito':
+                        derecha = page.locator('.cc-deposito-derecha')
+                        monto = derecha.locator('.cc-deposito-cabecera').bounding_box()
+                        foto = derecha.locator('.cc-deposito-zona').bounding_box()
+                        assert monto['y'] + monto['height'] <= foto['y']
+                    if etapa == 'por_rendir':
+                        derecha = page.locator('.cc-rendir-derecha')
+                        timer = derecha.locator('.cc-sla-timer').bounding_box()
+                        foto = derecha.locator('.cc-rendir-foto').bounding_box()
+                        assert timer['y'] + timer['height'] <= foto['y']
+                    page.screenshot(path=str(tmp_path / (etapa + '.png')))
+                    print('CAPTURA', tmp_path / (etapa + '.png'))
                 if estado == 'PENDIENTE':
+                    expect(page.locator('#cc-solicitud-validar')).to_be_visible()
+                    expect(page.locator('#cc-solicitud-anular')).to_be_visible()
+                    assert page.locator('#cc-lista button[title="Rechazar"]').count() == 0
                     page.locator('#cc-solicitud-editar').click()
                     expect(page.locator('#cc-solicitud-editor textarea')).to_have_value(sol['motivo'])
                     assert page.locator('#cc-solicitud-editor input[placeholder="Descripción"]').count() == 0
@@ -86,5 +100,47 @@ def test_portal_tecnico_sin_contadores_y_botones_redondos(app, servidor, tecnico
             volver.click()
             expect(card).to_be_visible()
             assert not errors, errors
+        finally:
+            browser.close()
+
+
+def test_acciones_abren_detalle_y_header_valida_o_anula(app, auth_client, servidor, tecnico):
+    cli, headers = tecnico
+    result = cli.post('/form-pruebas/caja-chica/solicitar', headers=headers, json={
+        'proyecto': 'CLARO', 'motivo': 'Validar desde detalle', 'banco': 'BCP',
+        'cuenta': '00123456789012345678', 'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}]})
+    assert result.status_code == 200, result.json
+    sol = result.json['solicitud']
+    auth_client.get('/caja-chica/')
+    cookie = auth_client.get_cookie('session')
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        try:
+            context = browser.new_context(viewport={'width': 1365, 'height': 768})
+            context.add_cookies([{'name': 'session', 'value': cookie.value, 'domain': '127.0.0.1', 'path': '/'}])
+            page = context.new_page()
+            posts = []
+            page.on('request', lambda r: posts.append(r.url) if r.method == 'POST' else None)
+            page.goto(servidor + '/caja-chica/')
+            page.locator('[data-tab="validacion"]').click()
+            for titulo in ('Validar', 'Anular'):
+                page.locator('#cc-lista button[title="' + titulo + '"]').first.click()
+                expect(page.locator('#cc-solicitud-dialogo')).to_be_visible()
+                assert not posts
+                page.locator('#cc-solicitud-dialogo [aria-label="Cerrar detalle"]').click()
+            assert page.locator('#cc-lista button[title="Rechazar"]').count() == 0
+            page.locator('#cc-lista a').filter(has_text=sol['codigo']).click()
+            page.evaluate('window.nucleusConfirm = async () => true')
+            with page.expect_response('**/api/caja-chica/*/validar') as response:
+                page.locator('#cc-solicitud-validar').click()
+            assert response.value.status == 200
+            assert response.value.json()['solicitud']['estado'] == 'VALIDADO'
+            expect(page.locator('#cc-solicitud-validar')).to_be_hidden()
+            page.once('dialog', lambda dialog: dialog.accept('Anulación de prueba'))
+            with page.expect_response('**/api/caja-chica/*/anular') as response:
+                page.locator('#cc-solicitud-anular').click()
+            assert response.value.status == 200
+            assert response.value.json()['solicitud']['estado'] == 'ANULADO'
+            expect(page.locator('#cc-solicitud-anular')).to_be_hidden()
         finally:
             browser.close()

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=75">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=76">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-eliminar="{{ 'si' if puede_eliminar else 'no' }}">
   <div class="cc-barra">
@@ -65,6 +65,8 @@
     <header>
       <h2 id="cc-solicitud-titulo"></h2>
       <div class="cc-dialogo-acciones">
+        <button type="button" id="cc-solicitud-validar" class="cc-dialogo-icono cc-dialogo-guardar" aria-label="Validar solicitud" title="Validar solicitud" hidden><i class="fa-solid fa-check" aria-hidden="true"></i></button>
+        <button type="button" id="cc-solicitud-anular" class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Anular solicitud" title="Anular solicitud" hidden><i class="fa-solid fa-ban" aria-hidden="true"></i></button>
         <button type="button" id="cc-solicitud-editar" class="cc-dialogo-icono cc-dialogo-editar" aria-label="Editar solicitud" title="Editar solicitud" disabled><i class="fa-solid fa-pencil" aria-hidden="true"></i></button>
         <button type="submit" id="cc-solicitud-guardar" form="cc-solicitud-documentos" class="cc-dialogo-icono cc-dialogo-guardar" aria-label="Guardar cambios" title="Guardar cambios" disabled><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
         <button type="submit" id="cc-solicitud-depositar" form="cc-deposito-form" class="cc-dialogo-icono cc-dialogo-depositar" aria-label="Confirmar depósito" title="Confirmar depósito" hidden><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></button>
@@ -75,5 +77,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=67" defer></script>
+<script src="/static/js/caja-chica.js?v=68" defer></script>
 {% endblock %}
