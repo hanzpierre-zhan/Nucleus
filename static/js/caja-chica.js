@@ -177,8 +177,10 @@
       control.value = seleccionado;
       return control;
     }
-    // Conceptos: una fila por concepto (concepto · descripción · monto) y el total al pie.
-    const conceptos = seccion('fa-list-check', 'Conceptos solicitados');
+    const justificacion = seccion('fa-file-lines', 'Justificación de la solicitud');
+    const motivo = campo('Justificación', Object.assign(el('textarea'), {value: sol.motivo || '', rows: 3, maxLength: 500, required: true}), justificacion);
+    // Conceptos: concepto y monto por fila, con el total al pie.
+    const conceptos = seccion('fa-list-check', 'Datos de la solicitud');
     const proyecto = selector(configuracion.proyectos, sol.proyecto);
     const controles = sol.items.map(item => {
       const fila = el('div', 'cc-editor-concepto');
@@ -196,18 +198,14 @@
       tipo.required = true;
       actualizar();
       proyecto.addEventListener('change', actualizar);
-      const descripcion = Object.assign(texto(item.descripcion, 300), {placeholder: 'Descripción'});
-      descripcion.setAttribute('aria-label', 'Descripción del concepto ' + item.numero);
       const montoCaja = el('span', 'cc-editor-monto');
       const monto = Object.assign(texto(item.monto, 16, true), {inputMode: 'decimal'});
       monto.setAttribute('aria-label', 'Monto del concepto ' + item.numero);
       monto.dataset.monto = '';
       montoCaja.append(el('span', null, 'S/'), monto);
-      const correo = Object.assign(texto(item.correo_validador, 254), {type: 'email', placeholder: 'Correo de quien valida (opcional)'});
-      correo.setAttribute('aria-label', 'Correo de quien valida el concepto ' + item.numero);
-      fila.append(tipo, montoCaja, descripcion, correo);
+      fila.append(tipo, montoCaja);
       conceptos.append(fila);
-      return () => ({tipo_gasto: tipo.value, descripcion: descripcion.value, monto: monto.value, correo_validador: correo.value});
+      return () => ({tipo_gasto: tipo.value, descripcion: item.descripcion || '', monto: monto.value, correo_validador: item.correo_validador || ''});
     });
     const total = el('output', 'cc-num');
     const filaTotal = el('div', 'cc-ficha-concepto cc-ficha-total');
@@ -229,7 +227,6 @@
     const detalleFicha = seccion('fa-file-lines', 'Detalle de la solicitud');
     campo('Técnico', Object.assign(texto([sol.tecnico, sol.documento].filter(Boolean).join(' · '), 200), {readOnly: true, tabIndex: -1}), detalleFicha);
     campo('Proyecto', proyecto, detalleFicha);
-    const motivo = campo('Motivo', Object.assign(el('textarea'), {value: sol.motivo, rows: 2, maxLength: 500, required: true}), detalleFicha);
 
     const deposito = seccion('fa-building-columns', 'Datos del depósito');
     const banco = campo('Banco', selector(configuracion.bancos, sol.banco), deposito);
@@ -292,7 +289,7 @@
     }
     const solicitud = el('div', 'cc-solicitud-contenido');
     panel.append(solicitud);
-    solicitud.append(el('h4', null, 'Conceptos solicitados'));
+    solicitud.append(el('h4', null, 'Datos de la solicitud'));
     for (const item of datos.items) {
       const fila = el('div', 'cc-concepto-enviado');
       const nombre = el('strong', 'cc-concepto-marcado');
@@ -353,12 +350,11 @@
     if (f.tipo_billetera && f.tipo_billetera !== 'No aplica') filas.push([f.tipo_billetera, f.numero_billetera, 'cc-mono']);
     return filas;
   }
-  // Columna izquierda de la validación (y del resto de etapas): conceptos, detalle y depósito.
-  function resumenSolicitud(sol) {
-    const f = sol.formulario || {};
+  // Gastos seleccionados con su importe individual y el total.
+  function datosSolicitud(sol) {
     const conceptos = el('section', 'cc-ficha');
     const cabeza = el('h4', 'cc-ficha-titulo');
-    cabeza.append(icono('fa-list-check'), el('span', null, 'Conceptos solicitados'));
+    cabeza.append(icono('fa-list-check'), el('span', null, 'Datos de la solicitud'));
     conceptos.append(cabeza);
     for (const item of sol.items) {
       const fila = el('div', 'cc-ficha-concepto');
@@ -371,10 +367,15 @@
     const total = el('div', 'cc-ficha-concepto cc-ficha-total');
     total.append(el('strong', null, 'Total solicitado'), el('strong', 'cc-num', dinero(sol.total)));
     conceptos.append(total);
-    return [conceptos,
+    return conceptos;
+  }
+
+  function resumenSolicitud(sol) {
+    const f = sol.formulario || {};
+    return [datosSolicitud(sol),
       ficha('fa-file-lines', 'Detalle de la solicitud', [
         ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Supervisor', f.supervisor],
-        ['Site', f.site], ['CM / PM / PLM', f.wo], ['Responsable', f.responsable_validacion], ['Motivo', sol.motivo]]),
+        ['Site', f.site], ['CM / PM / PLM', f.wo], ['Responsable', f.responsable_validacion]]),
       ficha('fa-building-columns', 'Datos del depósito', datosBancarios(sol))];
   }
 
@@ -495,13 +496,15 @@
     textos.append(el('small', null, 'Monto a depositar'), el('strong', 'cc-deposito-monto', dinero(sol.total)));
     monto.append(bolsa, textos);
 
-    const conceptos = sol.items.map(item => item.tipo_gasto + ' ' + dinero(item.monto)).join(' · ');
-    izquierda.append(monto,
-      ficha('fa-building-columns', 'Datos bancarios', datosBancarios(sol), true),
-      ficha('fa-file-lines', 'Detalle de la solicitud', [
+    const resumenDeposito = el('div', 'cc-deposito-resumen');
+    resumenDeposito.append(monto, ficha('fa-building-columns', 'Datos bancarios', datosBancarios(sol), true));
+    const solicitud = datosSolicitud(sol);
+    solicitud.classList.add('cc-deposito-solicitud');
+    solicitud.append(justificacionSolicitud(sol));
+    izquierda.append(resumenDeposito, solicitud,
+      ficha('fa-file-lines', 'Datos del trabajo', [
         ['Validado por', sol.validado_por || formulario.responsable_validacion],
-        ['CM / PM / PLM', formulario.wo], ['Site', formulario.site],
-        ['Motivo', sol.motivo], ['Conceptos', conceptos]]));
+        ['CM / PM / PLM', formulario.wo], ['Site', formulario.site]]));
 
     // Foto: tocar, arrastrar o pegar (Ctrl+V), con vista previa.
     const archivo = Object.assign(el('input'), {type: 'file', name: 'foto', accept: 'image/*', required: true, hidden: true});
@@ -627,7 +630,7 @@
     const columna = el('div', 'cc-rev');
     const detalleFicha = ficha('fa-file-lines', 'Detalle de la solicitud', [
       ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Supervisor', f.supervisor], ['Site', f.site],
-      ['CM / PM / PLM', f.wo], ['Cotización', sol.revision?.cotizacion], ['Motivo', sol.motivo],
+      ['CM / PM / PLM', f.wo], ['Cotización', sol.revision?.cotizacion],
       ['Banco', sol.banco], ['Depositado', sol.depositado_en ? fechaDeposito(sol) : sol.deposito_fecha], ['Por', sol.depositado_por]]);
     detalleFicha.classList.add('cc-rev-detalle');
     // Totales: depositado, aprobado, en revisión, rechazado y la devolución estimada.
@@ -724,6 +727,14 @@
     return panel;
   }
 
+  function justificacionSolicitud(sol) {
+    const tarjeta = el('section', 'cc-ficha cc-justificacion');
+    const titulo = el('h4', 'cc-ficha-titulo');
+    titulo.append(icono('fa-file-lines'), el('span', null, 'Justificación de la solicitud'));
+    tarjeta.append(titulo, el('p', 'cc-justificacion-texto', sol.motivo || 'Sin registrar'));
+    return tarjeta;
+  }
+
   function verDetalle(sol) {
     solicitudAbierta = sol.id;
     $('cc-solicitud-editar').classList.remove('activo');
@@ -737,18 +748,20 @@
     $('cc-solicitud-depositar').hidden = !(enDeposito && puedeGestionar);
     if (tab === 'revision' && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado)) {
       editar.hidden = guardar.hidden = true;
-      contenido.replaceChildren(panelRevision(sol));
+      contenido.replaceChildren(justificacionSolicitud(sol), panelRevision(sol));
       if (!dialogo.open) dialogo.showModal();
       return;
     }
     if (tab === 'por_rendir' && sol.depositado_en) {
       editar.hidden = guardar.hidden = true;
-      contenido.replaceChildren(panelPorRendir(sol));
+      contenido.replaceChildren(justificacionSolicitud(sol), panelPorRendir(sol));
       if (!dialogo.open) dialogo.showModal();
       return;
     }
     if (enDeposito) {
-      contenido.replaceChildren(puedeGestionar ? formularioDeposito(sol) : datosEnviados(sol, 'Datos de la solicitud'));
+      contenido.replaceChildren(...(puedeGestionar
+        ? [formularioDeposito(sol)]
+        : [justificacionSolicitud(sol), datosEnviados(sol, 'Datos de la solicitud')]));
       if (!dialogo.open) dialogo.showModal();
       return;
     }
@@ -772,7 +785,7 @@
     if (sol.items.some(i => i.requiere_cotizacion) && !revision.cotizacion) derecha.append(el('p', 'cc-alerta', 'Falta el número de cotización.'));
     const columnas = el('div', 'cc-validacion-columnas');
     columnas.append(izquierda, derecha);
-    contenido.replaceChildren(columnas);
+    contenido.replaceChildren(justificacionSolicitud(sol), columnas);
     editar.disabled = !puedeGestionar || sol.estado !== 'PENDIENTE';
     const documentos = editar.disabled ? null : formularioDocumentos(sol);
     guardar.setAttribute('form', 'cc-solicitud-documentos');
@@ -780,6 +793,7 @@
     editar.onclick = () => {
       // La columna izquierda se vuelve editable; la derecha (cotización y correo) no cambia.
       const form = editorSolicitud(sol, documentos);
+      contenido.querySelector('.cc-justificacion').hidden = true;
       izquierda.replaceChildren(form);
       editar.disabled = true;
       editar.classList.add('activo');

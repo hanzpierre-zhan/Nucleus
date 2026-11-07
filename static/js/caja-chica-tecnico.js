@@ -124,7 +124,6 @@
   const fechaLima = new Intl.DateTimeFormat('es-PE', {
     dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima'
   });
-  let filtroRendicion = 'Por rendir';
   function montoPendiente(sol) {
     if (sol.estado === 'POR_DEVOLVER') return sol.devolucion_foto ? 0 : Math.round(Number(sol.diferencia) * 100);
     if (sol.estado !== 'DEPOSITADO') return 0;
@@ -233,39 +232,13 @@
     $('cc-titulo-rendir').focus({preventScroll: true});
   }
   function pintar() {
-    // Una solicitud sale de "Por rendir" en cuanto todos sus ítems están rendidos.
-    const grupos = {
-      'Por validar': datos.solicitudes.filter(sol => sol.estado === 'PENDIENTE'),
-      'Por depositar': datos.solicitudes.filter(sol => sol.estado === 'VALIDADO'),
-      'Por rendir': datos.solicitudes.filter(sol => montoPendiente(sol) > 0 && !rechazado(sol)),
-      'Rechazado': datos.solicitudes.filter(rechazado)
-    };
     const total = datos.solicitudes.reduce((suma, sol) => suma + montoPendiente(sol), 0);
     $('cc-pendiente').textContent = dinero(total / 100);
-    const filtros = $('cc-filtros');
-    filtros.replaceChildren();
-    for (const [estado, solicitudes] of Object.entries(grupos)) {
-      const boton = el('button', 'filtro-rendicion', estado);
-      boton.type = 'button';
-      // Color por estado (caja-chica-tecnico.css).
-      boton.dataset.estado = estado.toLowerCase().replace(/\s+/g, '-');
-      boton.append(el('span', null, String(solicitudes.length)));
-      boton.setAttribute('aria-pressed', String(estado === filtroRendicion));
-      boton.addEventListener('click', () => {
-        filtroRendicion = estado;
-        pintar();
-        filtros.querySelector('[aria-pressed=true]').focus();
-      });
-      filtros.append(boton);
-    }
     const lista = $('cc-lista');
     lista.replaceChildren();
-    const solicitudes = grupos[filtroRendicion];
-    const vacio = {'Por validar': 'No tienes solicitudes esperando validación.',
-                   'Por depositar': 'No tienes solicitudes esperando el depósito.',
-                   'Por rendir': 'No tienes depósitos pendientes por rendir.',
-                   'Rechazado': 'No tienes registros rechazados.'};
-    if (!solicitudes.length) lista.append(el('p', 'empty', vacio[filtroRendicion]));
+    const solicitudes = datos.solicitudes.filter(sol =>
+      ['PENDIENTE', 'VALIDADO', 'DEPOSITADO', 'POR_DEVOLVER', 'RECHAZADO'].includes(sol.estado));
+    if (!solicitudes.length) lista.append(el('p', 'empty', 'No tienes solicitudes activas.'));
     for (const sol of solicitudes) {
       const ficha = el('button', 'deposit');
       ficha.type = 'button';

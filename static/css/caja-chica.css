@@ -539,3 +539,32 @@ body.dark-mode #cc-solicitud-dialogo { --cc-azul: #60a5fa; --cc-azul-borde: rgba
 #cc-solicitud-dialogo .cc-editor .cc-ficha-total { padding-top: 10px; }
 #cc-solicitud-dialogo .cc-editor .cc-ficha-total output { font-size: 16px; font-weight: 700; }
 @media (max-width: 760px) { #cc-solicitud-dialogo .cc-editor-fila { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+
+#cc-solicitud-dialogo .cc-justificacion { margin-bottom: 12px; }
+#cc-solicitud-dialogo .cc-justificacion-texto { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+#cc-solicitud-dialogo .cc-justificacion[hidden] { display: none; }
+
+/* Monto y banco comparten la cabecera de la solicitud que se deposita. */
+#cc-solicitud-dialogo .cc-deposito-resumen {
+  display: grid;
+  grid-template-columns: minmax(110px, .8fr) minmax(0, 1.7fr);
+  gap: 12px;
+  align-items: stretch;
+}
+#cc-solicitud-dialogo .cc-deposito-resumen > * { min-width: 0; }
+#cc-solicitud-dialogo .cc-deposito-resumen .cc-ficha-copiable .cc-ficha-fila {
+  grid-template-columns: 42px minmax(0, 1fr) 22px;
+  gap: 6px;
+}
+#cc-solicitud-dialogo .cc-deposito-resumen .cc-ficha-fila dd { font-size: 13px; }
+#cc-solicitud-dialogo .cc-deposito-solicitud > .cc-justificacion {
+  margin: 10px 0 0;
+  padding: 10px 0 0;
+  border: 0;
+  border-top: 1px solid var(--cc-borde);
+  border-radius: 0;
+  background: transparent;
+}
+@media (max-width: 480px) {
+  #cc-solicitud-dialogo .cc-deposito-resumen { grid-template-columns: minmax(0, 1fr); }
+}
