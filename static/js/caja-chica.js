@@ -32,6 +32,13 @@
     if (!r.ok) throw Error(j.error || 'No se pudo completar la acción.');
     const i = solicitudes.findIndex(s => s.id === sol.id);
     if (i >= 0) solicitudes[i] = j.solicitud;
+    if (nombre === 'rechazar' && sol.estado === 'VALIDADO' && j.solicitud?.estado === 'PENDIENTE') {
+      tab = 'validacion';
+      filtros = {};
+      busquedas = {};
+      seleccionadas.clear();
+      try { localStorage.setItem('cc-tab', tab); } catch (_) {}
+    }
     pintar();
     if (dialogo.open && solicitudAbierta === sol.id && j.solicitud) {
       if (nombre === 'depositar') dialogo.close();
@@ -721,6 +728,12 @@
     return tarjeta;
   }
 
+  function mostrarDetalle() {
+    if (!dialogo.open) dialogo.showModal();
+    $('cc-solicitud-contenido').scrollTop = 0;
+    dialogo.scrollTop = 0;
+  }
+
   function verDetalle(sol) {
     solicitudAbierta = sol.id;
     $('cc-solicitud-editar').classList.remove('activo');
@@ -730,8 +743,18 @@
     const guardar = $('cc-solicitud-guardar');
     const validar = $('cc-solicitud-validar');
     const anular = $('cc-solicitud-anular');
+    const rechazar = $('cc-solicitud-rechazar');
     validar.hidden = !puedeGestionar || sol.estado !== 'PENDIENTE';
-    anular.hidden = !puedeGestionar || !['PENDIENTE', 'VALIDADO', 'RECHAZADO'].includes(sol.estado);
+    anular.hidden = !puedeGestionar || !['PENDIENTE', 'RECHAZADO'].includes(sol.estado);
+    rechazar.hidden = !puedeGestionar || sol.estado !== 'VALIDADO';
+    rechazar.disabled = false;
+    rechazar.onclick = intentar(async () => {
+      const motivo = prompt('Motivo del rechazo: la solicitud volverá a Validación.');
+      if (motivo === null) return;
+      rechazar.disabled = true;
+      try { await accion(sol, 'rechazar', {motivo}); }
+      finally { rechazar.disabled = false; }
+    });
     validar.disabled = anular.disabled = false;
     validar.onclick = intentar(async () => {
       if (!await confirmar('¿Validar ' + sol.codigo + ' por ' + dinero(sol.total) + '?')) return;
@@ -753,20 +776,20 @@
     if (tab === 'revision' && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado)) {
       editar.hidden = guardar.hidden = true;
       contenido.replaceChildren(justificacionSolicitud(sol), panelRevision(sol));
-      if (!dialogo.open) dialogo.showModal();
+      mostrarDetalle();
       return;
     }
     if (tab === 'por_rendir' && sol.depositado_en) {
       editar.hidden = guardar.hidden = true;
       contenido.replaceChildren(panelPorRendir(sol));
-      if (!dialogo.open) dialogo.showModal();
+      mostrarDetalle();
       return;
     }
     if (enDeposito) {
       contenido.replaceChildren(...(puedeGestionar
         ? [formularioDeposito(sol)]
         : [justificacionSolicitud(sol), datosEnviados(sol, 'Datos de la solicitud')]));
-      if (!dialogo.open) dialogo.showModal();
+      mostrarDetalle();
       return;
     }
     // Dos columnas: detalle a la izquierda; cotización, revisión y adjunto a la derecha.
@@ -809,7 +832,7 @@
     if (seguimiento.hasChildNodes()) izquierda.append(seguimiento);
     if (documentos) derecha.prepend(documentos);
     columnas.classList.toggle('cc-una-columna', !derecha.hasChildNodes());
-    if (!dialogo.open) dialogo.showModal();
+    mostrarDetalle();
   }
   // ── Tabla: columnas que se filtran y se mueven arrastrando ──
   const estadoDe = s => RETORNO[s.retorno] || [ESTADOS[s.estado] || s.estado, 'cc-' + s.estado.toLowerCase()];

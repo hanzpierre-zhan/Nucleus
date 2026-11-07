@@ -37,6 +37,10 @@ def test_justificacion_en_etapas_y_editor_conserva_detalles(app, auth_client, se
                 expect(page.locator('.cc-justificacion-texto')).to_have_text(sol['motivo'])
                 if etapa in ('validacion', 'deposito', 'por_rendir'):
                     contenido = page.locator('#cc-solicitud-contenido')
+                    assert contenido.evaluate('e=>e.scrollTop') == 0
+                    ventana = page.locator('#cc-solicitud-dialogo').bounding_box()
+                    cuerpo = contenido.bounding_box()
+                    assert ventana['y'] + ventana['height'] - cuerpo['y'] - cuerpo['height'] <= 3
                     assert contenido.evaluate('e=>e.scrollHeight <= e.clientHeight + 1')
                     assert contenido.evaluate('e=>e.scrollWidth <= e.clientWidth + 1')
                     izquierda = page.locator('.cc-deposito-izquierda' if etapa != 'validacion' else '.cc-validacion-izquierda')
@@ -136,6 +140,16 @@ def test_acciones_abren_detalle_y_header_valida_o_anula(app, auth_client, servid
             assert response.value.status == 200
             assert response.value.json()['solicitud']['estado'] == 'VALIDADO'
             expect(page.locator('#cc-solicitud-validar')).to_be_hidden()
+            expect(page.locator('#cc-solicitud-anular')).to_be_hidden()
+            expect(page.locator('#cc-solicitud-rechazar')).to_be_visible()
+            page.once('dialog', lambda dialog: dialog.accept('Revisar solicitud antes del depósito'))
+            with page.expect_response('**/api/caja-chica/*/rechazar') as response:
+                page.locator('#cc-solicitud-rechazar').click()
+            assert response.value.status == 200
+            assert response.value.json()['solicitud']['estado'] == 'PENDIENTE'
+            expect(page.locator('[data-tab="validacion"]')).to_have_attribute('aria-selected', 'true')
+            expect(page.locator('#cc-solicitud-rechazar')).to_be_hidden()
+            expect(page.locator('#cc-solicitud-anular')).to_be_visible()
             page.once('dialog', lambda dialog: dialog.accept('Anulación de prueba'))
             with page.expect_response('**/api/caja-chica/*/anular') as response:
                 page.locator('#cc-solicitud-anular').click()

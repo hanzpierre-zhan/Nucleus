@@ -547,7 +547,10 @@ body.dark-mode #cc-solicitud-dialogo { --cc-azul: #60a5fa; --cc-azul-borde: rgba
 /* Ventanas de validación, depósito y por rendir: datos a la izquierda, comprobante a la derecha. */
 #cc-solicitud-dialogo {
   width: min(1120px, calc(100% - 32px));
-  max-height: calc(var(--app-viewport-height, 100dvh) - 32px);
+  height: fit-content;
+  min-height: 0;
+  max-height: calc(var(--app-viewport-height, 100dvh) - 24px);
+  box-sizing: border-box;
 }
 #cc-solicitud-dialogo .cc-deposito-derecha,
 #cc-solicitud-dialogo .cc-rendir-derecha {
@@ -573,3 +576,5 @@ body.dark-mode #cc-solicitud-dialogo { --cc-azul: #60a5fa; --cc-azul-borde: rgba
   #cc-solicitud-dialogo .cc-ficha-datos { gap: 4px; }
   #cc-solicitud-dialogo .cc-ficha-concepto { padding: 5px 0; }
 }
+
+#cc-solicitud-dialogo .cc-dialogo-rechazar { background: #b45309 !important; }
