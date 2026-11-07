@@ -136,9 +136,16 @@ def test_acciones_abren_detalle_y_header_valida_o_anula(app, auth_client, servid
                 page.locator('#cc-solicitud-dialogo [aria-label="Cerrar detalle"]').click()
             assert page.locator('#cc-lista button[title="Rechazar"]').count() == 0
             page.locator('#cc-lista a').filter(has_text=sol['codigo']).click()
-            page.evaluate('window.nucleusConfirm = async () => true')
+            page.locator('#cc-solicitud-validar').click()
+            confirmacion = page.get_by_role('dialog', name='Validar solicitud')
+            expect(confirmacion).to_contain_text('pasará a Por depositar')
+            expect(confirmacion.get_by_role('button', name='Validar')).to_have_css('border-radius', '50%')
+            confirmacion.get_by_role('button', name='Cancelar').click()
+            expect(confirmacion).to_be_hidden()
+            assert not posts
+            page.locator('#cc-solicitud-validar').click()
             with page.expect_response('**/api/caja-chica/*/validar') as response:
-                page.locator('#cc-solicitud-validar').click()
+                confirmacion.get_by_role('button', name='Validar').click()
             assert response.value.status == 200
             assert response.value.json()['solicitud']['estado'] == 'VALIDADO'
             expect(page.locator('#cc-solicitud-validar')).to_be_hidden()

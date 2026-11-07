@@ -10,7 +10,7 @@
   const el = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto !== undefined) n.textContent = texto; return n; };
   const dinero = v => 'S/ ' + Number(v || 0).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const avisar = m => (window.nucleusAlert || alert)(m);
-  const confirmar = async m => window.nucleusConfirm ? window.nucleusConfirm(m) : confirm(m);
+  const confirmar = async (mensaje, titulo, opciones) => window.nucleusConfirm ? window.nucleusConfirm(mensaje, titulo, opciones) : confirm(mensaje);
   const permisos = document.querySelector('[data-gestionar]').dataset;
   const puedeGestionar = permisos.gestionar === 'si';
   const puedeEliminar = permisos.eliminar === 'si';
@@ -62,7 +62,18 @@
   function conMotivo(sol, nombre, pregunta, extra = {}) {
     return intentar(async () => { const motivo = prompt(pregunta); if (motivo === null) return; await accion(sol, nombre, {...extra, motivo}); });
   }
-  function foto(sol, nombre, texto) { const a = el('a', 'cc-foto', texto); a.href = '/form-pruebas/caja-chica/foto/' + sol.id + '/' + nombre; a.target = '_blank'; a.rel = 'noopener'; return a; }
+  function foto(sol, nombre, etiqueta) {
+    const enlace = el('a', 'cc-foto');
+    enlace.href = '/form-pruebas/caja-chica/foto/' + sol.id + '/' + nombre;
+    enlace.target = '_blank';
+    enlace.rel = 'noopener';
+    enlace.title = etiqueta;
+    enlace.setAttribute('aria-label', etiqueta);
+    const icono = el('i', 'fa-solid fa-camera');
+    icono.setAttribute('aria-hidden', 'true');
+    enlace.append(icono);
+    return enlace;
+  }
 
   function botonRapido(sol, etiqueta, clase, simbolo, ejecutar) {
     const b = boton('', 'cc-rapida ' + clase, ejecutar);
@@ -121,7 +132,7 @@
     const caja = el('div', 'cc-acciones');
     if (sol.estado === 'RECHAZADO') caja.append(el('span', 'cc-nota', 'Devuelta al técnico: cuando la corrija y reenvíe vuelve a esta etapa.'));
     if (sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto) {
-      caja.append(el('span', 'cc-nota', 'Devolución de ' + dinero(sol.diferencia) + ':'), foto(sol, sol.devolucion_foto, 'ver foto'),
+      caja.append(el('span', 'cc-nota', 'Devolución de ' + dinero(sol.diferencia) + ':'), foto(sol, sol.devolucion_foto, 'Ver foto de la devolución'),
                   boton('Aceptar devolución y archivar', 'cc-ok', intentar(() => accion(sol, 'devolucion', {aceptar: true}))),
                   boton('Rechazar devolución', 'cc-no', conMotivo(sol, 'devolucion', 'Motivo del rechazo de la devolución:', {aceptar: false})));
     }
@@ -153,8 +164,8 @@
       tabla.append(tr);
     }
     if (['DEPOSITADO', 'POR_DEVOLVER', 'ARCHIVADO'].includes(sol.estado)) d.append(tabla);
-    if (sol.deposito_foto) { const p = el('p', 'cc-nota', 'Depósito: '); p.append(foto(sol, sol.deposito_foto, 'ver foto')); d.append(p); }
-    if (sol.devolucion_foto && sol.estado === 'ARCHIVADO') { const p = el('p', 'cc-nota', 'Devolución: '); p.append(foto(sol, sol.devolucion_foto, 'ver foto')); d.append(p); }
+    if (sol.deposito_foto) { const p = el('p', 'cc-nota', 'Depósito: '); p.append(foto(sol, sol.deposito_foto, 'Ver foto del depósito')); d.append(p); }
+    if (sol.devolucion_foto && sol.estado === 'ARCHIVADO') { const p = el('p', 'cc-nota', 'Devolución: '); p.append(foto(sol, sol.devolucion_foto, 'Ver foto de la devolución')); d.append(p); }
     const controles = acciones(sol);
     if (controles.hasChildNodes()) d.append(controles);
     return d;
@@ -760,7 +771,7 @@
     });
     validar.disabled = anular.disabled = false;
     validar.onclick = intentar(async () => {
-      if (!await confirmar('¿Validar ' + sol.codigo + ' por ' + dinero(sol.total) + '?')) return;
+      if (!await confirmar('La solicitud ' + sol.codigo + ' por ' + dinero(sol.total) + ' pasará a Por depositar.', 'Validar solicitud', {okText: 'Validar', circular: true})) return;
       validar.disabled = true;
       try { await accion(sol, 'validar'); }
       finally { validar.disabled = false; }

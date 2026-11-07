@@ -11,7 +11,7 @@
     <link href="/static/vendor/css/tabulator.min.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="/static/vendor/css/fontawesome.min.css?v=1">
     <link rel="stylesheet" href="/static/css/style.css?v=3.1">
-    <link rel="stylesheet" href="/static/css/themes.css?v=7">
+    <link rel="stylesheet" href="/static/css/themes.css?v=8">
     <link rel="stylesheet" href="/static/css/mobile.css?v=2">
     <link rel="stylesheet" href="/static/css/platform-refinements.css?v=5">
     <link rel="stylesheet" href="/static/css/platform-density.css?v=2">
@@ -288,8 +288,8 @@
     </script>
 
     <!-- Nucleus Dialog — reemplaza alert/confirm/prompt nativos -->
-    <div id="nucleus-dialog" class="nucleus-dialog-overlay" aria-hidden="true">
-        <div class="nucleus-dialog-card" role="dialog" aria-modal="true" aria-labelledby="nucleus-dialog-title">
+    <dialog id="nucleus-dialog" class="nucleus-dialog-overlay" aria-labelledby="nucleus-dialog-title" aria-describedby="nucleus-dialog-message">
+        <div class="nucleus-dialog-card">
             <div id="nucleus-dialog-icon" class="nucleus-dialog-icon"><i class="fa-solid fa-circle-info"></i></div>
             <h3 id="nucleus-dialog-title" class="nucleus-dialog-title">Aviso</h3>
             <div id="nucleus-dialog-message" class="nucleus-dialog-message"></div>
@@ -299,7 +299,7 @@
                 <button id="nucleus-dialog-ok" class="nucleus-dialog-btn nucleus-dialog-btn-primary" type="button">Aceptar</button>
             </div>
         </div>
-    </div>
+    </dialog>
 
     <script>
     // Popup temático — reemplaza alert/confirm/prompt
@@ -314,7 +314,7 @@
         let _resolve = null;
         let _type = 'alert';
 
-        function show({type='alert', title='Aviso', message='', defaultValue='', placeholder='', okText='Aceptar', cancelText='Cancelar', icon='fa-circle-info', inputType='text'}){
+        function show({type='alert', title='Aviso', message='', defaultValue='', placeholder='', okText='Aceptar', cancelText='Cancelar', icon='fa-circle-info', inputType='text', circular=false}){
             return new Promise(resolve=>{
                 _resolve = resolve;
                 _type = type;
@@ -342,20 +342,23 @@
                     inputEl.style.display='none';
                     inputEl.type='text';
                 }
+                overlay.classList.toggle('nucleus-dialog-circular', circular);
                 okBtn.textContent = okText;
                 cancelBtn.textContent = cancelText;
+                for (const [button, label, symbol] of [[okBtn, okText, '✓'], [cancelBtn, cancelText, '×']]) {
+                    button.setAttribute('aria-label', label);
+                    button.title = label;
+                    if (circular) button.textContent = symbol;
+                }
                 cancelBtn.style.display = (type==='alert') ? 'none' : 'inline-flex';
-                overlay.style.display = '';
                 overlay.classList.add('show');
-                overlay.setAttribute('aria-hidden','false');
-                setTimeout(()=>{ (type==='prompt'?inputEl:okBtn).focus(); }, 30);
-                document.body.style.overflow='hidden';
+                if (!overlay.open) overlay.showModal();
+                (type === 'prompt' ? inputEl : circular ? cancelBtn : okBtn).focus();
             });
         }
         function close(result){
             overlay.classList.remove('show');
-            overlay.setAttribute('aria-hidden','true');
-            document.body.style.overflow='';
+            overlay.close();
             if(_resolve){ const r=_resolve; _resolve=null; r(result); }
         }
         okBtn.addEventListener('click', ()=>{
@@ -368,11 +371,15 @@
             else close(false);
         });
         overlay.addEventListener('click', (e)=>{ if(e.target===overlay) { if(_type==='prompt') close(null); else if(_type==='confirm') close(false); else close(true); } });
-        document.addEventListener('keydown', (e)=>{
-            if(!overlay.classList.contains('show')) return;
-            if(e.key==='Escape'){ e.preventDefault(); if(_type==='prompt') close(null); else if(_type==='confirm') close(false); else close(true); }
-            if(e.key==='Enter' && _type==='prompt'){ e.preventDefault(); close(inputEl.value); }
-            if(e.key==='Enter' && _type!=='prompt'){ e.preventDefault(); if(_type==='confirm') close(true); else close(true); }
+        overlay.addEventListener('cancel', (e)=>{
+            e.preventDefault();
+            close(_type === 'prompt' ? null : _type === 'alert');
+        });
+        inputEl.addEventListener('keydown', (e)=>{
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                close(inputEl.value);
+            }
         });
 
         window.nucleusAlert = (message, title='Aviso') => {
@@ -382,7 +389,7 @@
             }
             return show({type:'alert', title, message: String(message), okText:'Entendido', icon:'fa-circle-info'});
         };
-        window.nucleusConfirm = (message, title='Confirmar') => show({type:'confirm', title, message: String(message), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-circle-question'});
+        window.nucleusConfirm = (message, title='Confirmar', {okText='Aceptar', circular=false}={}) => show({type:'confirm', title, message: String(message), okText, cancelText:'Cancelar', icon:'fa-circle-question', circular});
         window.nucleusPrompt = (message, defaultValue='', title='Ingresar', inputType='text') => show({type:'prompt', title, message: String(message), defaultValue: String(defaultValue||''), okText:'Aceptar', cancelText:'Cancelar', icon:'fa-pen-to-square', inputType});
         window._originalAlert = window.alert;
         window._originalConfirm = window.confirm;
@@ -391,7 +398,6 @@
         window.alert = function(msg){ const m=String(msg||'').trim(); if(!m) return; try{ nucleusAlert(m); }catch(e){ window._originalAlert(m); } };
     })();
     </script>
-    <script>document.addEventListener('DOMContentLoaded',function(){var o=document.getElementById('nucleus-dialog'),m=document.getElementById('nucleus-dialog-message');if(o&&m&&!m.textContent.trim()){o.classList.remove('show');o.style.display='none'}});</script>
     {% include 'cookie_banner.html' %}
     {% include '_support_ticket.html' %}
 </body>

@@ -86,7 +86,7 @@
     const evidencia = casillaFoto('evidencia', 'Evidencia del gasto', 'Foto del uso');
     const fotos = el('div', 'cc-slots'); fotos.append(boleta.casilla, evidencia.casilla);
     const error = el('div', 'error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
-    const boton = el('button', 'primary wide', 'Rendir ítem ' + item.numero); boton.type = 'submit';
+    const boton = el('button', 'primary wide', item.tipo_gasto ? 'Rendir ' + item.tipo_gasto : 'Rendir'); boton.type = 'submit';
     form.append(fotos, error, boton);
     form.addEventListener('submit', e => { e.preventDefault(); enviando(boton, error, async () => {
       if (!boleta.input.files.length) throw Error('Adjunta la foto de la boleta o factura.');

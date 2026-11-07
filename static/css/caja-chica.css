@@ -304,7 +304,22 @@ body .cc-tabla::-webkit-scrollbar-corner { background: var(--ios-fill); }
 .cc-items .cc-btn { margin: 0 4px 4px 0; }
 .cc-deposito-confirmar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-weight: 700; }
 #cc-solicitud-dialogo .cc-deposito-archivo > input { border-style: dashed; cursor: pointer; }
-.cc-foto { color: var(--ios-blue); font-size: 12px; }
+a.cc-foto {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--ios-blue);
+  border-radius: 50%;
+  color: var(--ios-blue);
+  font-size: 14px;
+  text-decoration: none;
+  vertical-align: middle;
+}
+a.cc-foto:hover, a.cc-foto:focus-visible {
+  background: var(--ios-blue);
+  color: #fff;
+}
 .cc-historial summary { cursor: pointer; font-size: 12px; color: var(--ios-secondary); margin-top: 10px; }
 .cc-vacio { color: var(--ios-secondary); text-align: center; padding: 30px 0; }
 @media (max-width: 900px) {
