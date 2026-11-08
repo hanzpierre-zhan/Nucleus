@@ -314,7 +314,9 @@ def gestion_catalogo():
 @login_required
 def gestion_lista():
     alcance = _alcance()
-    consulta = CajaChicaSolicitud.query.filter(CajaChicaSolicitud.estado != 'ELIMINADO').order_by(CajaChicaSolicitud.id.desc())
+    # Los ítems se precargan en una sola consulta: sin esto, cada solicitud pide los suyos y la lista no termina de cargar.
+    consulta = (CajaChicaSolicitud.query.filter(CajaChicaSolicitud.estado != 'ELIMINADO')
+                .options(selectinload(CajaChicaSolicitud.items)).order_by(CajaChicaSolicitud.id.desc()))
     if alcance is not None:
         consulta = consulta.filter(CajaChicaSolicitud.proyecto.in_(alcance or {''}))
     return jsonify(solicitudes=[cc.a_dict(s, gestion=True) for s in consulta.limit(5000).all()])
@@ -347,7 +349,7 @@ def gestion_exportar():
     alcance = _alcance()
     comprobar_csrf()
     ids = request.get_json(silent=True)
-    if (not isinstance(ids, list) or not 1 <= len(ids) <= 1000
+    if (not isinstance(ids, list) or not 1 <= len(ids) <= 5000
             or any(type(i) is not int or not 0 < i <= 2147483647 for i in ids)):
         return _error('Selecciona solicitudes válidas para exportar.')
     consulta = (CajaChicaSolicitud.query.filter(CajaChicaSolicitud.id.in_(ids), CajaChicaSolicitud.estado != 'ELIMINADO')
