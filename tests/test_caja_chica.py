@@ -70,7 +70,7 @@ def test_catalogo_aplica_por_proyecto_y_conserva_regla_de_solicitud(app, auth_cl
         assert auth_client.post(ruta, json=catalogo, headers=permisos).status_code == 200
         item = {'tipo_gasto': materiales['nombre'], 'monto': '50'}
         datos = {'proyecto': 'PEXT', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'items': [item],
-                 'site': 'LA2859', 'wo': 'CM-001', 'titular': 'Técnico Caja',
+                 'site': 'LA2859', 'wo': 'CM-20260904-00000410', 'titular': 'Técnico Caja',
                  'tipo_billetera': 'Yape', 'numero_billetera': '900000000'}
         assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400
         datos['proyecto'] = 'CLARO'
@@ -119,7 +119,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     cli, h = tecnico
     assert cli.get('/form-pruebas/caja-chica').status_code == 200
     r = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
-        'proyecto': 'CLARO', 'motivo': 'Correctivo LA2859', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'proyecto': 'CLARO', 'motivo': 'Correctivo LA2859', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'site': 'LA2859', 'wo': 'CM-20260904-00000410',
         'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}, {'tipo_gasto': 'Peajes', 'descripcion': 'vuelta', 'monto': '50.00'}]})
     assert r.status_code == 200, r.json
     sol = r.json['solicitud']; sid = sol['id']
@@ -259,7 +259,7 @@ def test_saldo_no_gastado_de_un_item_se_suma_a_la_devolucion(app, auth_client, t
     assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '60.00'  # 10 de saldo + 50 del ítem devuelto
 
 
-BASE = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+BASE = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'site': 'LA2859', 'wo': 'CM-20260904-00000410',
         'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}
 
 
@@ -435,7 +435,7 @@ def test_catalogo_correo_y_cotizacion_por_proyecto(app, auth_client, tecnico):
         guardado = next(c for c in cli.get(base + '/datos').json['catalogo'] if c['nombre'] == 'Peajes')
         assert guardado['correo']['ENTEL'] is True and guardado['correo']['CLARO'] is False
         datos = {'proyecto': 'ENTEL', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '00123456789012345678',
-                 'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}], 'site': 'LA2859', 'wo': 'CM-001', 'titular': 'Técnico Caja'}
+                 'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}], 'site': 'LA2859', 'wo': 'CM-20260904-00000410', 'titular': 'Técnico Caja'}
         assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400  # Entel pide correo
         datos['proyecto'] = 'CLARO'
         respuesta = cli.post(base + '/solicitar', headers=headers, json=datos)
@@ -447,3 +447,16 @@ def test_catalogo_correo_y_cotizacion_por_proyecto(app, auth_client, tecnico):
             modulo = Proyecto.query.filter_by(nombre='Caja Chica').one()
             AppConfig.query.filter_by(proyecto_id=modulo.id, clave='catalogo_gastos').delete()
             db.session.commit()
+
+
+def test_cm_y_site_pendiente():
+    from services import caja_chica as cc
+    assert cc.normalizar_cm('') == 'CM PENDIENTE'
+    assert cc.normalizar_cm('cm 20261025-00000037') == 'CM-20261025-00000037'
+    assert cc.normalizar_cm('CM-20261025-00000037 y PM_20261101_00000002') == 'CM-20261025-00000037, PM-20261101-00000002'
+    for malo in ('Por regularizar', 'N/A', '.', '20261025-00000037'):
+        with pytest.raises(ValueError):
+            cc.normalizar_cm(malo)
+    assert cc.cm_pendiente('CM PENDIENTE') and cc.cm_pendiente('Pendiente') and not cc.cm_pendiente('CM-20261025-00000037')
+    formulario = cc.datos_formulario({'site': '', 'wo': ''}, '', {})
+    assert formulario['site'] == 'SITE PENDIENTE' and formulario['wo'] == 'CM PENDIENTE'

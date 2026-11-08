@@ -670,3 +670,12 @@ body.dark-mode .cc-chip.cc-e-archivada { color: #2dd4bf; }
 .cc-ley-correo { --c: #f59e0b; } .cc-ley-coti { --c: #14b8a6; }
 .cc-ley-correo::before, .cc-ley-coti::before { display: none; }
 .cc-ley-correo i, .cc-ley-coti i { color: var(--c); }
+
+/* CM / Site pendiente */
+.cc-falta { color: #ef4444; font-weight: 700; }
+dialog.cc-completar { border-top-color: #f59e0b; }
+dialog.cc-completar .cc-motivo-icono { background: rgba(245, 158, 11, .16); color: #f59e0b; }
+dialog.cc-completar input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--ios-hairline); border-radius: 10px; background: var(--ios-fill); color: var(--ios-label); font: inherit; font-size: 14px; }
+dialog.cc-completar input:focus { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .18); }
+dialog.cc-completar .cc-motivo-ok { background: #d97706; }
+dialog.cc-completar .cc-motivo-ok:hover:not(:disabled) { background: #b45309; }

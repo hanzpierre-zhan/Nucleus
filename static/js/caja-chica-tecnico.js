@@ -468,8 +468,8 @@
     }
     mostrarConceptos(sol?.items, Boolean(sol));
     const extra = sol?.formulario || {};
-    $('cc-site').value = extra.site || '';
-    $('cc-wo').value = extra.wo || '';
+    $('cc-site').value = extra.site === 'SITE PENDIENTE' ? '' : extra.site || '';
+    $('cc-wo').value = extra.wo === 'CM PENDIENTE' ? '' : extra.wo || '';
     $('cc-titular').value = extra.titular || '';
     $('cc-billetera').value = extra.tipo_billetera || 'No aplica';
     $('cc-numero-billetera').value = extra.numero_billetera || '';

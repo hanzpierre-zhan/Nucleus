@@ -79,6 +79,47 @@ def _error_fechas_ejecucion(datos):
 
 
 
+@bp.route('/api/dataper/documento', methods=['POST'])
+@login_required
+def api_dataper_cambiar_documento():
+    """Personal administrativo (no Contrata) corrige el documento de un registro de Dataper."""
+    rol = str(session.get('rol') or '').strip().lower()
+    if rol in ('demo', 'contrata'):
+        return jsonify({'error': 'Tu rol no permite editar Dataper.'}), 403
+    from services.utilidades import get_menu_proyectos
+    dataper = next((p for p in get_menu_proyectos(session.get('user_id'), rol) if p.nombre == 'Dataper'), None)
+    if dataper is None:
+        return jsonify({'error': 'No tienes acceso a Dataper.'}), 403
+    datos = request.get_json(silent=True) or {}
+    key = str(datos.get('key') or '').strip()
+    nuevo = str(datos.get('nuevo') or '').strip().upper()
+    if not re.fullmatch(r'[0-9A-Z]{6,15}', nuevo):
+        return jsonify({'error': 'El documento debe tener de 6 a 15 letras o números, sin espacios.'}), 400
+    record = NucleusData.query.filter_by(proyecto_id=dataper.id, key_value=key).first() if key else None
+    if not record:
+        return jsonify({'error': 'Personal no encontrado en Dataper.'}), 404
+    fila = json.loads(record.data_json)
+    if contexto_recursos() and not validar_fila_catalogo(fila):
+        return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
+    if nuevo == key:
+        return jsonify({'success': True, 'key': key})
+    if NucleusData.query.filter_by(proyecto_id=dataper.id, key_value=nuevo).first():
+        return jsonify({'error': 'Ya existe otra persona con el documento %s.' % nuevo}), 400
+    pk = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='primary_key').first()
+    campo = pk.valor if pk and pk.valor else 'DOCUMENTO'
+    fila[campo] = nuevo
+    record.key_value, record.data_json = nuevo, json.dumps(fila, ensure_ascii=False)
+    # La clave del portal era del documento mal escrito: con el nuevo vuelve a ser el documento.
+    from services import claves_tecnico
+    from services.formularios_prueba import documento
+    claves_tecnico.restablecer(documento(key))
+    db.session.add(HistorialCambios(proyecto_id=dataper.id, usuario_id=session.get('user_id'),
+                                    username=audit_user(), key_value=nuevo, campo_modificado=campo,
+                                    valor_anterior=key, valor_nuevo=nuevo))
+    db.session.commit()
+    return jsonify({'success': True, 'key': nuevo})
+
+
 @bp.route('/api/dataper/clave/restablecer', methods=['POST'])
 @login_required
 def api_dataper_restablecer_clave():
@@ -131,6 +172,8 @@ def api_rows_update():
             except ValueError as error: return jsonify(error=str(error)),400
 
         if session.get('current_proyecto_nombre') == 'Dataper':
+            if session.get('rol') == 'contrata':
+                return jsonify({'error': 'El rol Contrata no puede editar Dataper.'}), 403
             from services.personal import validar as validar_personal
             try: value = validar_personal({field:value}).get(field,value)
             except ValueError as error: return jsonify(error=str(error)),400
@@ -778,6 +821,8 @@ def api_rows_bulk_update(datos=None):
         if not key_val or not isinstance(updates, dict):
             return jsonify({'error': 'Datos incompletos'}), 400
         if session.get('current_proyecto_nombre') == 'Dataper':
+            if session.get('rol') == 'contrata':
+                return jsonify({'error': 'El rol Contrata no puede editar Dataper.'}), 403
             from services.personal import validar as validar_personal
             try: updates = validar_personal(updates)
             except ValueError as error: return jsonify(error=str(error)),400

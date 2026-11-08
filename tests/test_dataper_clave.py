@@ -34,3 +34,41 @@ def test_restablecer_clave_desde_dataper(app, auth_client):
 def test_menu_dice_dataper(auth_client):
     pagina = auth_client.get('/').get_data(as_text=True)
     assert 'sidebar-link-text">Dataper</span>' in pagina and 'sidebar-link-text">Personal</span>' not in pagina
+
+
+def test_corregir_documento_en_dataper(app, auth_client):
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Dataper').one().id
+        for clave in ('7777888', '66665555'):
+            db.session.add(NucleusData(proyecto_id=pid, key_value=clave,
+                                       data_json=json.dumps({'DOCUMENTO': clave, 'TECNICO': 'Técnico ' + clave, 'ESTADO': 'ACTIVO'})))
+        db.session.commit()
+    try:
+        ruta = '/api/dataper/documento'
+        assert auth_client.post(ruta, json={'key': '7777888', 'nuevo': '66665555'}).status_code == 400  # ya existe
+        assert auth_client.post(ruta, json={'key': '7777888', 'nuevo': '12 34'}).status_code == 400
+        r = auth_client.post(ruta, json={'key': '7777888', 'nuevo': '77778889'})
+        assert r.status_code == 200 and r.json['key'] == '77778889', r.json
+        with app.app_context():
+            fila = NucleusData.query.filter_by(proyecto_id=pid, key_value='77778889').one()
+            assert json.loads(fila.data_json)['DOCUMENTO'] == '77778889'
+            assert not NucleusData.query.filter_by(proyecto_id=pid, key_value='7777888').first()
+            assert HistorialCambios.query.filter_by(key_value='77778889', valor_anterior='7777888').count() == 1
+        from models import Usuario
+        with auth_client.session_transaction() as s:
+            uid = s['user_id']
+        with app.app_context():
+            usuario = db.session.get(Usuario, uid)
+            rol, usuario.rol = usuario.rol, 'contrata'
+            db.session.commit()
+        try:
+            assert auth_client.post(ruta, json={'key': '77778889', 'nuevo': '77778880'}).status_code == 403
+        finally:
+            with app.app_context():
+                db.session.get(Usuario, uid).rol = rol
+                db.session.commit()
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(['7777888', '77778889', '66665555'])).delete()
+            HistorialCambios.query.filter(HistorialCambios.key_value.in_(['77778889'])).delete()
+            db.session.commit()

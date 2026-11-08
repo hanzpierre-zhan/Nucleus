@@ -156,10 +156,63 @@ def _llenar(sol, datos, catalogo, proyectos, bancos, importe, anteriores=()):
     return conceptos
 
 
+CM_PENDIENTE, SITE_PENDIENTE = 'CM PENDIENTE', 'SITE PENDIENTE'
+_CODIGO_CM = re.compile(r'\b(CM|PM|PLM|INC)[\s_-]*(\d{8})[\s_-]*(\d{8})\b')
+_CODIGO_INC = re.compile(r'\bINC[\s_-]*(\d{6,7})\b')
+
+
+def normalizar_cm(valor):
+    """Vacío → CM PENDIENTE. Si no, solo códigos válidos (CM-AAAAMMDD-NNNNNNNN, PM, PLM, INC); otro texto no se acepta."""
+    texto = str(valor or '').strip().upper()
+    if not texto or texto == CM_PENDIENTE:
+        return CM_PENDIENTE
+    codigos = ['%s-%s-%s' % m.groups() for m in _CODIGO_CM.finditer(texto)]
+    resto = _CODIGO_CM.sub(' ', texto)
+    codigos += ['INC-%s' % m.group(1) for m in _CODIGO_INC.finditer(resto)]
+    resto = _CODIGO_INC.sub(' ', resto)
+    _exigir(codigos and not re.sub(r'[\s,;/]|\bY\b', '', resto),
+            'Escribe el CM como CM-AAAAMMDD-NNNNNNNN (o PM / PLM), o déjalo vacío.')
+    return ', '.join(dict.fromkeys(codigos))
+
+
+def cm_pendiente(valor):
+    """Falta el CM: vacío, CM PENDIENTE o un texto que no es un código válido."""
+    valor = str(valor or '').strip()
+    try:
+        return normalizar_cm(valor) in (CM_PENDIENTE, '') or normalizar_cm(valor) != valor
+    except ValueError:
+        return True
+
+
+def site_pendiente(valor):
+    return str(valor or '').strip().upper() in ('', SITE_PENDIENTE)
+
+
+def datos_pendientes(sol, formulario):
+    """Qué le falta a la solicitud (CM y/o site). Las anuladas no cuentan."""
+    if sol.estado in ('ANULADO', 'ELIMINADO'):
+        return []
+    return [nombre for nombre, falta in (('CM', cm_pendiente(formulario.get('wo'))), ('Site', site_pendiente(formulario.get('site')))) if falta]
+
+
+def completar_datos(sol, usuario, wo, site):
+    """El gestor completa el CM y/o el site. No cambia el estado ni la etapa de la solicitud."""
+    _exigir(sol.estado not in ('ANULADO', 'ELIMINADO'), 'La solicitud está anulada.')
+    site = str(site or '').strip()
+    _exigir(len(site) <= 150, 'El nombre del site admite hasta 150 caracteres.')
+    actual = a_dict(sol)['formulario']
+    nuevo = dict(actual, wo=normalizar_cm(wo), site=site or SITE_PENDIENTE)
+    if nuevo != actual:
+        _historial(sol, 'completar CM / site', usuario, formulario=nuevo)
+        db.session.commit()
+
+
 def datos_formulario(datos, supervisor, responsables):
     campos = {'site': 150, 'wo': 100, 'titular': 150}
     formulario = {campo: str(datos.get(campo) or '').strip() for campo in campos}
     _exigir(all(len(formulario[c]) <= limite for c, limite in campos.items()), 'Revisa la longitud de los datos de la solicitud.')
+    formulario['wo'] = normalizar_cm(formulario['wo'])
+    formulario['site'] = formulario['site'] or SITE_PENDIENTE
     billetera = str(datos.get('tipo_billetera') or 'No aplica')
     _exigir(billetera in ('No aplica', 'Yape', 'Plin'), 'Selecciona una billetera válida.')
     numero = str(datos.get('numero_billetera') or '').strip() if billetera != 'No aplica' else ''
@@ -473,6 +526,10 @@ def a_dict(sol, gestion=False):
     historial = json.loads(sol.historial or '[]')
     conceptos = next((evento['conceptos'] for evento in reversed(historial) if 'conceptos' in evento), {})
     formulario = next((e['formulario'] for e in reversed(historial) if 'formulario' in e), {})
+    # Pestaña extra "CM / Site pendiente": se suma a la etapa normal, no la reemplaza.
+    faltan = datos_pendientes(sol, formulario)
+    if faltan:
+        montos = dict(montos, pendientes=sol.total)
     revision = {}
     envio = None
     if gestion:
@@ -514,11 +571,14 @@ def a_dict(sol, gestion=False):
                    **conceptos.get(str(i.numero), {})}
                   for i in sol.items],
         'formulario': formulario,
+        'faltan': faltan,
         'historial': [{k: v for k, v in evento.items() if k not in ('conceptos', 'revision', 'envio_tecnico', 'formulario')} for evento in historial],
         **({'revision': revision, 'envio_tecnico': envio} if gestion else {}),
     }
 
 
+ESTADO_SOLICITUD = {'PENDIENTE': 'Pendiente', 'RECHAZADO': 'Devuelta al técnico', 'VALIDADO': 'Validada',
+                    'DEPOSITADO': 'Depositada', 'POR_DEVOLVER': 'Por devolver', 'ARCHIVADO': 'Archivada'}
 ESTADO_RENDICION = {'EN_REVISION': 'En revisión', 'RECHAZADO': 'Rechazado', 'POR_RENDIR': 'Por rendir', 'DEVUELTO': 'Devuelto'}
 PESTANAS = {'validacion': 'Validación', 'deposito': 'Depósito', 'por_rendir': 'Por rendir', 'revision': 'Revisión',
             'archivado': 'Archivado', 'anuladas': 'Anuladas'}
@@ -558,9 +618,15 @@ def exportar_excel(solicitudes):
                  'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta'])
     cero = Decimal('0')
     peru = lambda f: (f - timedelta(hours=5)).replace(second=0, microsecond=0) if f else None  # las fechas se guardan en UTC
+    pendientes = []
     for solicitud in solicitudes:
         datos = a_dict(solicitud, gestion=True)
         formulario = datos['formulario']
+        if datos['faltan']:
+            pendientes.append([formulario.get('responsable_validacion') or solicitud.validado_por or '', solicitud.codigo,
+                               peru(solicitud.creado), solicitud.proyecto, solicitud.tecnico, solicitud.documento,
+                               formulario.get('wo') or '', formulario.get('site') or '', ' y '.join(datos['faltan']),
+                               ESTADO_SOLICITUD.get(solicitud.estado, solicitud.estado), solicitud.total])
         cotizacion = (datos.get('revision') or {}).get('cotizacion') or ''
         tipos = {i['id']: i.get('tipo_presupuesto') or '' for i in datos['items']}
         fecha = peru(solicitud.creado)
@@ -609,13 +675,21 @@ def exportar_excel(solicitudes):
                     celda.number_format = 'DD/MM/YYYY HH:MM'
                 elif isinstance(celda.value, str):
                     celda.data_type = 's'
-    hoja.freeze_panes = 'A2'
-    hoja.auto_filter.ref = hoja.dimensions
-    for columna in hoja.columns:
-        titulo = columna[0]
-        titulo.font = Font(bold=True, color='FFFFFF')
-        titulo.fill = PatternFill('solid', fgColor='166534')
-        hoja.column_dimensions[get_column_letter(titulo.column)].width = min(40, max(8, *(len(str(c.value or '')) + 2 for c in columna)))
+    otra = libro.create_sheet('CM-Site pendiente')
+    otra.append(['Responsable de validación', 'Código', 'Fecha solicitud', 'Proyecto', 'Técnico', 'DNI',
+                 'N.º CM/PM/PLM', 'Site', 'Falta', 'Estado de solicitud', 'Total'])
+    for fila in sorted(pendientes, key=lambda f: (f[0].lower(), f[2] or datetime.min)):
+        otra.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in fila])
+        otra.cell(otra.max_row, 3).number_format = 'DD/MM/YYYY HH:MM'
+        otra.cell(otra.max_row, 11).number_format = '#,##0.00'
+    for h in (hoja, otra):
+        h.freeze_panes = 'A2'
+        h.auto_filter.ref = h.dimensions
+        for columna in h.columns:
+            titulo = columna[0]
+            titulo.font = Font(bold=True, color='FFFFFF')
+            titulo.fill = PatternFill('solid', fgColor='B45309' if h is otra else '166534')
+            h.column_dimensions[get_column_letter(titulo.column)].width = min(40, max(8, *(len(str(c.value or '')) + 2 for c in columna)))
     archivo = io.BytesIO()
     libro.save(archivo)
     archivo.seek(0)

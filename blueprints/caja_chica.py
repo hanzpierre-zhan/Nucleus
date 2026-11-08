@@ -370,7 +370,7 @@ def gestion_accion(sid, accion):
     rol = str(session.get('rol') or '').lower()
     if rol in ('demo', 'contrata') or (accion == 'eliminar' and rol not in ROLES_ELIMINAR):
         return jsonify(error='Tu rol no permite gestionar Caja Chica.'), 403
-    if accion in ('eliminar', 'editar', 'documentos'):
+    if accion in ('eliminar', 'editar', 'documentos', 'cm_site'):
         comprobar_csrf()
     alcance = _alcance()
     sol = db.session.get(CajaChicaSolicitud, sid)
@@ -397,6 +397,8 @@ def gestion_accion(sid, accion):
         elif accion == 'eliminar':
             cc.eliminar([sol], usuario)
             return jsonify(success=True)
+        elif accion == 'cm_site':
+            cc.completar_datos(sol, usuario, datos.get('wo'), datos.get('site'))
         elif accion == 'rechazar':
             cc.rechazar(sol, usuario, datos.get('motivo'))
         elif accion == 'anular':

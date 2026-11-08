@@ -10298,7 +10298,9 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 
 
-                if (inp.dataset.pk === '1' || (isGen && field.toLowerCase() === 'qr asignado')) {
+                // Dataper: el personal administrativo puede corregir también el documento (la llave).
+                const corrigeDocumento = currentProjectNombre.trim().toLowerCase() === 'dataper' && USER_ROLE !== 'contrata';
+                if ((inp.dataset.pk === '1' && !corrigeDocumento) || (isGen && field.toLowerCase() === 'qr asignado')) {
 
                     inp.readOnly = true;
 
@@ -10983,9 +10985,26 @@ btnItem.onclick = () => cotRegAgregarFila();
 
 
 
-            const fieldsToUpdate = Object.keys(data).filter(f => !f.startsWith('_'));
+            const pkInput = document.querySelector('#mar-fields [data-pk="1"]');
+            const pkField = pkInput ? pkInput.dataset.field : null;
+            const nuevoDocumento = pkField ? String(data[pkField] ?? '').trim().toUpperCase() : '';
+            let claveActual = manualEditKey;
+            const fieldsToUpdate = Object.keys(data).filter(f => !f.startsWith('_') && f !== pkField);
+            let cambioDocumento = Promise.resolve();
+            // Dataper: si se corrigió el documento, primero se cambia la llave y luego el resto de campos.
+            if (currentProjectNombre.trim().toLowerCase() === 'dataper' && pkField && nuevoDocumento && nuevoDocumento !== String(manualEditKey)) {
+                cambioDocumento = fetch('/api/dataper/documento', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: manualEditKey, nuevo: nuevoDocumento })
+                }).then(r => r.json()).then(res => {
+                    if (res.error) throw new Error(res.error);
+                    claveActual = res.key;
+                });
+            }
 
-            let chain = Promise.resolve();
+
+            let chain = cambioDocumento;
 
             fieldsToUpdate.forEach(field => {
 
@@ -10995,7 +11014,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                     headers: { 'Content-Type': 'application/json' },
 
-                    body: JSON.stringify({ key: manualEditKey, field: field, value: data[field] })
+                    body: JSON.stringify({ key: claveActual, field: field, value: data[field] })
 
                 }).then(r => r.json()).then(res => {
 

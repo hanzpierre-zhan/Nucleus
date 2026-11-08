@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=84">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=85">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-eliminar="{{ 'si' if puede_eliminar else 'no' }}">
   <div class="cc-barra">
@@ -24,7 +24,7 @@
           ('por_rendir', 'fa-receipt', 'Por rendir'),
           ('revision', 'fa-magnifying-glass-dollar', 'Revisión'),
           ('archivado', 'fa-box-archive', 'Archivado'),
-          ('anuladas', 'fa-ban', 'Anuladas')] %}
+          ('anuladas', 'fa-ban', 'Anuladas'), ('pendientes', 'fa-triangle-exclamation', 'CM / Site pendiente')] %}
       <button type="button" role="tab" class="cc-tab cc-tab-{{ clave }}" data-tab="{{ clave }}">
         <span class="cc-tab-fila"><i class="fa-solid {{ icono }}" aria-hidden="true"></i> {{ nombre }} <span class="cc-cuenta" data-cuenta="{{ clave }}" title="Solicitudes">0</span></span>
         <span class="cc-plata" data-plata="{{ clave }}">S/ 0</span>
@@ -90,5 +90,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=78" defer></script>
+<script src="/static/js/caja-chica.js?v=79" defer></script>
 {% endblock %}

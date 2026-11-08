@@ -26,7 +26,7 @@
   async function accion(sol, nombre, cuerpo) {
     const opciones = cuerpo instanceof FormData ? {method: 'POST', body: cuerpo}
       : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo || {})};
-    if (['editar', 'documentos'].includes(nombre)) opciones.headers = {...opciones.headers, 'X-CSRF-Token': $('cc-excel').dataset.csrf};
+    if (['editar', 'documentos', 'cm_site'].includes(nombre)) opciones.headers = {...opciones.headers, 'X-CSRF-Token': $('cc-excel').dataset.csrf};
     const r = await fetch('/api/caja-chica/' + sol.id + '/' + nombre, opciones);
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw Error(j.error || 'No se pudo completar la acción.');
@@ -199,8 +199,47 @@
     chip.addEventListener('click', e => e.stopPropagation());
     return chip;
   }
+  // Ventana para que el gestor complete el CM y/o el site que faltan.
+  function completarDatos(sol) {
+    const f = sol.formulario || {};
+    const dialogo = el('dialog', 'cc-motivo cc-completar');
+    const form = el('form', 'cc-motivo-form'); form.method = 'dialog';
+    const cabeza = el('header', 'cc-motivo-cabeza');
+    const marca = el('span', 'cc-motivo-icono'); marca.append(icono('fa-triangle-exclamation'));
+    const textos = el('div'); textos.append(el('h3', null, 'Completar CM / Site'), el('p', null, sol.codigo + ' · ' + (sol.tecnico || '')));
+    cabeza.append(marca, textos);
+    const limpio = (v, pendiente) => (v || '').trim().toUpperCase() === pendiente ? '' : (v || '');
+    const cm = Object.assign(el('input'), {maxLength: 100, value: limpio(f.wo, 'CM PENDIENTE'), placeholder: 'CM-AAAAMMDD-NNNNNNNN'});
+    const site = Object.assign(el('input'), {maxLength: 150, value: limpio(f.site, 'SITE PENDIENTE'), placeholder: 'Nombre del site'});
+    cm.setAttribute('aria-label', 'N.º CM / PM / PLM'); site.setAttribute('aria-label', 'Nombre del site');
+    const error = el('p', 'cc-alerta'); error.hidden = true;
+    const pie = el('nav', 'cc-motivo-pie');
+    const cancelar = el('button', 'cc-motivo-cancelar', 'Cancelar'); cancelar.type = 'button';
+    const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit';
+    ok.append(icono('fa-check'), el('span', null, 'Guardar'));
+    pie.append(cancelar, ok);
+    form.append(cabeza, el('span', 'cc-motivo-etiqueta', 'N.º CM / PM / PLM (vacío = CM PENDIENTE)'), cm,
+                el('span', 'cc-motivo-etiqueta', 'Nombre del site (vacío = SITE PENDIENTE)'), site, error, pie);
+    dialogo.append(form);
+    cancelar.addEventListener('click', () => dialogo.close());
+    dialogo.addEventListener('close', () => dialogo.remove());
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      ok.disabled = true; error.hidden = true;
+      try { await accion(sol, 'cm_site', {wo: cm.value, site: site.value}); dialogo.close(); }
+      catch (err) { error.textContent = err.message; error.hidden = false; }
+      finally { ok.disabled = false; }
+    });
+    document.body.append(dialogo);
+    dialogo.showModal();
+    (sol.faltan?.includes('CM') ? cm : site).focus();
+  }
   function accionesRapidas(sol) {
     const caja = el('span', 'cc-acciones-rapidas');
+    if (tab === 'pendientes') {
+      if (puedeGestionar) caja.append(botonRapido(sol, 'Completar CM / Site', 'cc-ok', 'fa-pen', () => completarDatos(sol)));
+      return caja;
+    }
     // En "Por rendir" no hay acciones: solo el tiempo transcurrido desde el depósito.
     if (tab === 'por_rendir') { caja.append(sla(sol)); return caja; }
     if (tab === 'archivado') { if (sol.estado === 'ARCHIVADO') caja.append(slaArchivo(sol)); return caja; }
@@ -1056,8 +1095,10 @@
       const nombre = NOMBRES_PROYECTO[s.proyecto];
       return el('span', nombre ? 'project-badge project-badge--' + s.proyecto.toLowerCase() : null, nombre || s.proyecto);
     }},
-    site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1fr)', texto: s => s.formulario?.site || '—'},
-    wo: {titulo: 'N.º CM / PM / PLM', ancho: 'minmax(145px, 1fr)', texto: s => s.formulario?.wo || '—'},
+    site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1fr)', texto: s => s.formulario?.site || '—',
+           celda: s => el('span', s.faltan?.includes('Site') ? 'cc-falta' : null, s.formulario?.site || '—')},
+    wo: {titulo: 'N.º CM / PM / PLM', ancho: 'minmax(145px, 1fr)', texto: s => s.formulario?.wo || '—',
+         celda: s => el('span', s.faltan?.includes('CM') ? 'cc-falta' : null, s.formulario?.wo || '—')},
     gasto: {titulo: 'Tipo de gasto', ancho: 'minmax(190px, 1.4fr)',
             texto: s => [...new Set(itemsEtapa(s).map(item => item.tipo_gasto))].join(' · ') || '—'},
     responsable: {titulo: 'Responsable de validación', ancho: 'minmax(190px, 1.3fr)',
@@ -1190,6 +1231,11 @@
 
   // Solicitudes de la etapa con el buscador general y los filtros de columna (menos `excepto`).
   function base(excepto) {
+    const filas = filtrar(excepto);
+    if (tab === 'pendientes') filas.sort((a, b) => COLUMNAS.responsable.texto(a).localeCompare(COLUMNAS.responsable.texto(b), 'es') || b.id - a.id);
+    return filas;
+  }
+  function filtrar(excepto) {
     const texto = $('cc-buscar').value.trim().toLowerCase();
     return delProyecto().filter(s => s.etapas.includes(tab)
       && (!texto || [s.codigo, s.tecnico, s.documento, s.proyecto].join(' ').toLowerCase().includes(texto))
@@ -1225,7 +1271,7 @@
   let exportando = false;
   // El botón de Excel despliega dos opciones: la pestaña actual (con filtros) o todo el historial.
   const menuExportar = $('cc-exportar-menu');
-  const NOMBRE_TAB = {validacion: 'Validación', deposito: 'Depósito', por_rendir: 'Por rendir', revision: 'Revisión', archivado: 'Archivado', anuladas: 'Anuladas'};
+  const NOMBRE_TAB = {validacion: 'Validación', deposito: 'Depósito', por_rendir: 'Por rendir', revision: 'Revisión', archivado: 'Archivado', anuladas: 'Anuladas', pendientes: 'CM-Site pendiente'};
   const cerrarExportar = () => { menuExportar.hidden = true; excel.setAttribute('aria-expanded', 'false'); };
   excel.addEventListener('click', e => {
     e.stopPropagation();
