@@ -259,6 +259,22 @@
       }
       detalle.append(fila);
     }
+    const acumulado = sol.items.reduce((t, i) => t + saldoItem(i), 0);
+    if (sol.estado === 'DEPOSITADO' && acumulado > 0) {
+      // Aún hay ítems por rendir o revisar: se muestra lo que ya va a devolución.
+      const aviso = el('section', 'cc-devolucion cc-devolucion-previa');
+      const calculo = el('dl', 'cc-calculo');
+      for (const item of sol.items.filter(i => saldoItem(i) > 0)) {
+        const d = el('div', 'detalle');
+        d.append(el('dt', null, '↩ ' + item.tipo_gasto + (item.estado === 'DEVUELTO' ? ' (completo)' : ' (saldo)')), el('dd', null, dinero(saldoItem(item))));
+        calculo.append(d);
+      }
+      const total = el('div', 'total'); total.append(el('dt', null, 'Llevas para devolver'), el('dd', null, dinero(acumulado)));
+      calculo.append(total);
+      aviso.append(el('h3', 'cc-devolucion-titulo', 'Devolución acumulada'), calculo,
+        el('p', 'hint', 'Podrás enviar la devolución cuando se revisen todos los ítems.'));
+      detalle.append(aviso);
+    }
     if (sol.estado === 'POR_DEVOLVER') {
       detalle.append(sol.devolucion_foto
         ? el('p', 'notice', 'Devolución de ' + dinero(sol.diferencia) + ' enviada. Está pendiente de revisión.')

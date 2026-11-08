@@ -85,8 +85,14 @@ a.back{text-decoration:none;display:inline-block}
   color: var(--ink);
   font-weight: 700;
 }
-#cc-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
-#cc-filtros .filtro-rendicion { border-radius: 999px; }
+/* Filtros en una sola fila, con el color de cada etapa (azul · verde · ámbar). */
+#cc-filtros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+#cc-filtros .filtro-rendicion { --c: #2563eb; --c-texto: #fff; justify-content: center; gap: 6px; min-width: 0; min-height: 42px; padding: 6px 8px; border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--c) 8%, var(--card)); color: var(--ink); font-size: 12.5px; white-space: nowrap; }
+#cc-filtros .filtro-rendicion[data-filtro="depositar"] { --c: #16a34a; }
+#cc-filtros .filtro-rendicion[data-filtro="rendir"] { --c: #f59e0b; --c-texto: #3a2a00; }
+#cc-filtros .filtro-rendicion span { padding: 0 7px; border-radius: 999px; background: var(--c); color: var(--c-texto); font-size: 11.5px; font-weight: 700; }
+#cc-filtros .filtro-rendicion[aria-pressed="true"] { border-color: var(--c); background: var(--c); color: var(--c-texto); box-shadow: 0 4px 12px color-mix(in srgb, var(--c) 35%, transparent); }
+#cc-filtros .filtro-rendicion[aria-pressed="true"] span { background: rgba(255, 255, 255, .25); color: inherit; }
 .cc-devolucion .hint { margin: 10px 0; }
 
 /* Devolución por ítem: check, botón naranja, saldo que se acumula y deshacer. */
@@ -111,3 +117,5 @@ a.back{text-decoration:none;display:inline-block}
 .cc-item-saldo { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #f59e0b; }
 .cc-deshacer { margin-left: auto; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font-size: 12.5px; font-weight: 600; }
 .cc-calculo .detalle dt, .cc-calculo .detalle dd { color: #d97706; font-weight: 600; }
+.cc-devolucion-previa { border-style: dashed; }
+.cc-devolucion-previa .hint { margin: 6px 0 0; }

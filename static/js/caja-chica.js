@@ -59,8 +59,80 @@
 
   const intentar = fn => async (...a) => { try { await fn(...a); } catch (e) { avisar(e.message); } };
   function boton(texto, clase, fn) { const b = el('button', 'cc-btn ' + clase, texto); b.type = 'button'; b.addEventListener('click', async () => { b.disabled = true; try { await fn(); } finally { b.disabled = false; } }); return b; }
-  function conMotivo(sol, nombre, pregunta, extra = {}) {
-    return intentar(async () => { const motivo = prompt(pregunta); if (motivo === null) return; await accion(sol, nombre, {...extra, motivo}); });
+  // Ventana para escribir un motivo: título, datos de contexto, motivos rápidos y texto libre.
+  // Devuelve el texto o null si se cancela.
+  const SUGERENCIAS = {
+    item: ['La boleta no se lee', 'El RUC no coincide', 'El monto no coincide con la boleta', 'Falta la foto de evidencia', 'El comprobante no es válido'],
+    rechazar: ['Falta la cotización', 'El monto no corresponde', 'Falta el correo de validación', 'Datos bancarios incorrectos'],
+    anular: ['Solicitud duplicada', 'Ya no se necesita', 'Registrada por error'],
+  };
+  function pedirMotivo({titulo, subtitulo = '', datos = [], sugerencias = [], ayuda = '', okText = 'Rechazar', iconoNombre = 'fa-rotate-left'}) {
+    return new Promise(resolve => {
+      const dialogo = el('dialog', 'cc-motivo');
+      const form = el('form', 'cc-motivo-form'); form.method = 'dialog';
+      const cabeza = el('header', 'cc-motivo-cabeza');
+      const marca = el('span', 'cc-motivo-icono'); marca.append(icono(iconoNombre));
+      const textos = el('div'); textos.append(el('h3', null, titulo));
+      if (subtitulo) textos.append(el('p', null, subtitulo));
+      cabeza.append(marca, textos);
+      form.append(cabeza);
+      if (datos.length) {
+        const lista = el('dl', 'cc-motivo-datos');
+        for (const [k, v, clase] of datos.filter(d => d[1])) { const d = el('div', clase || null); d.append(el('dt', null, k), el('dd', null, v)); lista.append(d); }
+        form.append(lista);
+      }
+      const texto = Object.assign(el('textarea'), {rows: 3, maxLength: 300, required: true, placeholder: 'Escribe el motivo…'});
+      texto.setAttribute('aria-label', titulo);
+      if (sugerencias.length) {
+        // En <nav> para que el decorador de botones del sitio no les cambie el estilo.
+        const chips = el('nav', 'cc-motivo-chips'); chips.setAttribute('aria-label', 'Motivos frecuentes');
+        for (const sugerencia of sugerencias) {
+          const chip = el('button', 'cc-motivo-chip', sugerencia); chip.type = 'button';
+          chip.addEventListener('click', () => {
+            texto.value = texto.value.trim() ? texto.value.trim().replace(/[.;,]?$/, '; ') + sugerencia.toLowerCase() : sugerencia;
+            chip.classList.add('usado'); texto.focus(); validar();
+          });
+          chips.append(chip);
+        }
+        form.append(el('span', 'cc-motivo-etiqueta', 'Motivos frecuentes'), chips);
+      }
+      form.append(el('span', 'cc-motivo-etiqueta', 'Motivo'), texto);
+      if (ayuda) form.append(el('p', 'cc-motivo-ayuda', ayuda));
+      const pie = el('nav', 'cc-motivo-pie');
+      const cancelar = el('button', 'cc-motivo-cancelar', 'Cancelar'); cancelar.type = 'button'; cancelar.value = '';
+      const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit'; ok.value = 'ok';
+      ok.append(icono(iconoNombre), el('span', null, okText));
+      pie.append(cancelar, ok);
+      form.append(pie);
+      dialogo.append(form);
+      const validar = () => { ok.disabled = !texto.value.trim(); };
+      texto.addEventListener('input', validar); validar();
+      texto.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && texto.value.trim()) form.requestSubmit(ok); });
+      cancelar.addEventListener('click', () => dialogo.close(''));
+      dialogo.addEventListener('close', () => {
+        resolve(dialogo.returnValue === 'ok' && texto.value.trim() ? texto.value.trim() : null);
+        dialogo.remove();
+      });
+      document.body.append(dialogo);
+      dialogo.showModal();
+      texto.focus();
+    });
+  }
+  function conMotivo(sol, nombre, opciones, extra = {}) {
+    return intentar(async () => {
+      const motivo = await pedirMotivo(opciones);
+      if (motivo === null) return;
+      await accion(sol, nombre, {...extra, motivo});
+    });
+  }
+  function motivoItem(sol, item) {
+    const sobrante = Number(item.monto) - Number(item.monto_gastado || 0);
+    return {
+      titulo: 'Rechazar ' + item.tipo_gasto, subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
+      datos: [['Comprobante', item.comprobante], ['Solicitado', dinero(item.monto)],
+        ['Gastó', item.monto_gastado && dinero(item.monto_gastado)], ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) : '', 'naranja']],
+      sugerencias: SUGERENCIAS.item, ayuda: 'El técnico verá este motivo y podrá corregir el ítem o devolverlo.',
+    };
   }
   function foto(sol, nombre, etiqueta) {
     const enlace = el('a', 'cc-foto');
@@ -154,7 +226,7 @@
       const botones = el('td');
       if (sol.estado === 'DEPOSITADO' && item.estado === 'EN_REVISION') {
         botones.append(boton('Aprobar', 'cc-ok', intentar(() => accion(sol, 'revisar_item', {item: item.id, aprobar: true}))),
-                       boton('Rechazar', 'cc-no', conMotivo(sol, 'revisar_item', 'Ítem ' + item.numero + ': ¿qué debe corregir el técnico?', {item: item.id, aprobar: false})));
+                       boton('Rechazar', 'cc-no', conMotivo(sol, 'revisar_item', motivoItem(sol, item), {item: item.id, aprobar: false})));
       }
       const concepto = el('td', null, [item.tipo_gasto, item.tipo_presupuesto, item.descripcion].filter(Boolean).join(' · '));
       if (item.correo_validador) concepto.append(el('div', null, 'Correo de validación: ' + item.correo_validador));
@@ -614,7 +686,7 @@
       const validar = boton('', 'cc-dialogo-icono cc-dialogo-guardar', intentar(() => accion(sol, 'revisar_item', {item: item.id, aprobar: true})));
       validar.title = 'Validar ' + item.tipo_gasto; validar.setAttribute('aria-label', validar.title); validar.append(icono('fa-check'));
       const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar',
-        conMotivo(sol, 'revisar_item', item.tipo_gasto + ': ¿qué debe corregir el técnico?', {item: item.id, aprobar: false}));
+        conMotivo(sol, 'revisar_item', motivoItem(sol, item), {item: item.id, aprobar: false}));
       rechazar.title = 'Rechazar ' + item.tipo_gasto; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
       acciones.append(validar, rechazar);
       cabeza.append(acciones);
@@ -763,7 +835,9 @@
     rechazar.hidden = !puedeGestionar || sol.estado !== 'VALIDADO';
     rechazar.disabled = false;
     rechazar.onclick = intentar(async () => {
-      const motivo = prompt('Motivo del rechazo: la solicitud volverá a Validación.');
+      const motivo = await pedirMotivo({titulo: 'Rechazar solicitud', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
+        datos: [['Proyecto', sol.proyecto], ['Total', dinero(sol.total)]], sugerencias: SUGERENCIAS.rechazar,
+        ayuda: 'La solicitud volverá a Validación.'});
       if (motivo === null) return;
       rechazar.disabled = true;
       try { await accion(sol, 'rechazar', {motivo}); }
@@ -777,7 +851,9 @@
       finally { validar.disabled = false; }
     });
     anular.onclick = intentar(async () => {
-      const motivo = prompt('Motivo de la anulación:');
+      const motivo = await pedirMotivo({titulo: 'Anular solicitud', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
+        datos: [['Proyecto', sol.proyecto], ['Total', dinero(sol.total)]], sugerencias: SUGERENCIAS.anular,
+        ayuda: 'La solicitud pasará a Anuladas.', okText: 'Anular', iconoNombre: 'fa-ban'});
       if (motivo === null) return;
       anular.disabled = true;
       try { await accion(sol, 'anular', {motivo}); }
