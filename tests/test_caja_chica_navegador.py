@@ -151,17 +151,19 @@ def test_acciones_abren_detalle_y_header_valida_o_anula(app, auth_client, servid
             expect(page.locator('#cc-solicitud-validar')).to_be_hidden()
             expect(page.locator('#cc-solicitud-anular')).to_be_hidden()
             expect(page.locator('#cc-solicitud-rechazar')).to_be_visible()
-            page.once('dialog', lambda dialog: dialog.accept('Revisar solicitud antes del depósito'))
+            page.locator('#cc-solicitud-rechazar').click()
+            page.locator('dialog.cc-motivo textarea').fill('Revisar solicitud antes del depósito')
             with page.expect_response('**/api/caja-chica/*/rechazar') as response:
-                page.locator('#cc-solicitud-rechazar').click()
+                page.locator('dialog.cc-motivo .cc-motivo-ok').click()
             assert response.value.status == 200
             assert response.value.json()['solicitud']['estado'] == 'PENDIENTE'
             expect(page.locator('[data-tab="validacion"]')).to_have_attribute('aria-selected', 'true')
             expect(page.locator('#cc-solicitud-rechazar')).to_be_hidden()
             expect(page.locator('#cc-solicitud-anular')).to_be_visible()
-            page.once('dialog', lambda dialog: dialog.accept('Anulación de prueba'))
+            page.locator('#cc-solicitud-anular').click()
+            page.locator('dialog.cc-motivo textarea').fill('Anulación de prueba')
             with page.expect_response('**/api/caja-chica/*/anular') as response:
-                page.locator('#cc-solicitud-anular').click()
+                page.locator('dialog.cc-motivo .cc-motivo-ok').click()
             assert response.value.status == 200
             assert response.value.json()['solicitud']['estado'] == 'ANULADO'
             expect(page.locator('#cc-solicitud-anular')).to_be_hidden()

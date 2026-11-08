@@ -45,6 +45,9 @@ def instalar():
     if 'depositado_en' not in columnas:
         db.session.execute(db.text('ALTER TABLE caja_chica_solicitudes ADD COLUMN depositado_en TIMESTAMP'))
         db.session.commit()
+    if 'devolucion_aceptada' not in columnas:
+        db.session.execute(db.text('ALTER TABLE caja_chica_solicitudes ADD COLUMN devolucion_aceptada BOOLEAN DEFAULT FALSE'))
+        db.session.commit()
     columnas = {c['name'] for c in inspect(db.engine).get_columns('caja_chica_items')}
     for nombre, tipo in (('razon_social', 'VARCHAR(200)'), ('evidencia', 'VARCHAR(120)')):
         if nombre not in columnas:
@@ -359,13 +362,20 @@ def _cerrar_si_resuelto(sol, usuario):
 
 
 def confirmar_devolucion(sol, usuario, aceptar, motivo=''):
-    _exigir(sol.estado == 'POR_DEVOLVER' and sol.devolucion_foto, 'No hay devolución por revisar.')
+    _exigir(sol.estado in ('POR_DEVOLVER', 'DEPOSITADO') and sol.devolucion_foto and not sol.devolucion_aceptada,
+            'No hay devolución por revisar.')
     if aceptar:
-        sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
-        _historial(sol, 'confirmar devolución y archivar', usuario)
+        sol.devolucion_aceptada = True
+        if sol.estado == 'POR_DEVOLVER':
+            sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
+            _historial(sol, 'confirmar devolución y archivar', usuario)
+        else:
+            # Faltan ítems por revisar: queda aprobada y se archiva al validar el último.
+            _historial(sol, 'aprobar devolución', usuario)
     else:
         _exigir(str(motivo or '').strip(), 'Escribe por qué se rechaza la devolución.')
         sol.devolucion_monto = sol.devolucion_foto = None
+        sol.devolucion_aceptada = False
         _historial(sol, 'rechazar devolución', usuario, motivo.strip())
     db.session.commit()
 
@@ -381,7 +391,11 @@ def _cerrar_o_pedir_devolucion(sol, usuario):
         _historial(sol, 'devolución enviada no coincide', usuario,
                    'Se envió S/ %s y corresponde S/ %s.' % (dinero(sol.devolucion_monto), dinero(max(diferencia(sol), Decimal('0')))))
         sol.devolucion_monto = sol.devolucion_foto = None
-    if diferencia(sol) > 0:
+        sol.devolucion_aceptada = False
+    if diferencia(sol) > 0 and sol.devolucion_foto and sol.devolucion_aceptada:
+        sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
+        _historial(sol, 'ítems resueltos y devolución aprobada: archivado', usuario)
+    elif diferencia(sol) > 0:
         sol.estado = 'POR_DEVOLVER'
         _historial(sol, 'ítems resueltos: falta la devolución', usuario)
     else:
@@ -463,12 +477,14 @@ def a_dict(sol, gestion=False):
         'creado': sol.creado.isoformat(timespec='minutes'), 'motivo_rechazo': sol.motivo_rechazo or '',
         'deposito_fecha': sol.deposito_fecha or '', 'deposito_foto': sol.deposito_foto or '',
         'depositado_en': sol.depositado_en.isoformat(timespec='minutes') if sol.depositado_en else '',
+        'archivado_en': sol.archivado_en.isoformat(timespec='minutes') if sol.archivado_en else '',
         'validado_por': sol.validado_por or '',
         'deposito_monto': dinero(sol.deposito_monto) if sol.deposito_monto is not None else '',
         'depositado_por': sol.depositado_por or '',
         'diferencia': dinero(diferencia(sol)) if sol.deposito_monto is not None else '',
         'devolucion_foto': sol.devolucion_foto or '',
         'devolucion_monto': dinero(sol.devolucion_monto) if sol.devolucion_monto is not None else '',
+        'devolucion_aceptada': bool(sol.devolucion_aceptada),
         'puede_devolver': puede_devolver(sol),
         'pendiente': dinero(sum(i.monto for i in sol.items if i.estado in ('POR_RENDIR', 'RECHAZADO'))) if sol.estado == 'DEPOSITADO' else '0.00',
         'avance': '%d de %d ítems aprobados' % (sum(i.estado == 'APROBADO' for i in sol.items), len(sol.items)),

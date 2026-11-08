@@ -160,6 +160,7 @@ class CajaChicaSolicitud(db.Model):
     depositado_en = db.Column(db.DateTime)  # fecha y hora (UTC) en que se confirmó el depósito
     devolucion_monto = db.Column(db.Numeric(12, 2))
     devolucion_foto = db.Column(db.String(120))
+    devolucion_aceptada = db.Column(db.Boolean, default=False)
     archivado_en = db.Column(db.DateTime)
     historial = db.Column(db.Text, nullable=False, default='[]')
     items = db.relationship('CajaChicaItem', backref='solicitud', order_by='CajaChicaItem.numero',

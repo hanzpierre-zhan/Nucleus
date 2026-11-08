@@ -125,7 +125,13 @@
       fila('↩ ' + item.tipo_gasto + (item.estado === 'DEVUELTO' ? ' (completo)' : ' (saldo)'), dinero(saldoItem(item)), 'detalle');
     }
     fila('Debes devolver', dinero(sol.diferencia), 'total');
-    form.append(el('h3', 'cc-devolucion-titulo', 'Devolución del saldo'), calculo,
+    const ultimo = sol.historial?.at(-1);
+    form.append(el('h3', 'cc-devolucion-titulo', 'Devolución del saldo'));
+    if (ultimo?.accion === 'rechazar devolución') {
+      const motivo = el('p', 'cc-item-motivo'); motivo.append(el('strong', null, 'Devolución rechazada: '), ultimo.motivo || 'Sin motivo');
+      form.append(motivo, el('p', 'hint', 'Vuelve a subir la captura correcta.'));
+    }
+    form.append(calculo,
       el('p', 'hint', 'Devuelve el importe indicado y adjunta el comprobante. La devolución quedará pendiente de revisión.'));
     const monto = el('input'); Object.assign(monto, {name: 'monto', value: sol.diferencia, readOnly: true, type: 'hidden'});
     const foto = casillaFoto('foto', 'Adjuntar comprobante de devolución', 'Captura de la transferencia');
@@ -154,7 +160,7 @@
   const porDevolver = sol => sol.estado === 'POR_DEVOLVER' || (sol.estado === 'DEPOSITADO' && sol.puede_devolver);
   function rechazado(sol) {
     return sol.estado === 'RECHAZADO' || (sol.estado === 'DEPOSITADO' && sol.items.some(item => item.estado === 'RECHAZADO'))
-      || (sol.estado === 'POR_DEVOLVER' && sol.historial?.at(-1)?.accion === 'rechazar devolución');
+      || (['POR_DEVOLVER', 'DEPOSITADO'].includes(sol.estado) && !sol.devolucion_foto && sol.historial?.at(-1)?.accion === 'rechazar devolución');
   }
   function actualizarAntiguedad() {
     document.querySelectorAll('[data-cc-solicitada]').forEach(indicador => {
@@ -168,7 +174,8 @@
   function fichaDeposito(sol) {
     const descripcion = el('span');
     descripcion.append(el('strong', null, sol.codigo),
-      el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), rechazado(sol) ? 'Rechazado' : sol.devolucion_foto && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado) ? 'Devolución en revisión'
+      el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), rechazado(sol) ? 'Rechazado' : sol.devolucion_aceptada && sol.estado === 'DEPOSITADO' ? 'Devolución aprobada'
+        : sol.devolucion_foto && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado) ? 'Devolución en revisión'
         : sol.puede_devolver && sol.estado === 'DEPOSITADO' ? ESTADOS.POR_DEVOLVER : ESTADOS[sol.estado]),
       el('small', null, 'Motivo: ' + (sol.motivo || 'Sin motivo registrado')));
     const ultimo = sol.historial?.at(-1);
@@ -310,7 +317,8 @@
     if (sol.estado === 'DEPOSITADO' && !sol.puede_devolver && !sol.devolucion_foto) detalle.append(previaDevolucion(sol, detalle));
     if (sol.estado === 'POR_DEVOLVER' || (sol.estado === 'DEPOSITADO' && (sol.puede_devolver || sol.devolucion_foto))) {
       detalle.append(sol.devolucion_foto
-        ? el('p', 'notice', 'Devolución de ' + dinero(sol.devolucion_monto || sol.diferencia) + ' enviada. Está pendiente de revisión.')
+        ? el('p', 'notice', 'Devolución de ' + dinero(sol.devolucion_monto || sol.diferencia)
+          + (sol.devolucion_aceptada ? ' aprobada. ✓' : ' enviada. Está pendiente de revisión.'))
         : formDevolucion(sol));
     }
     if (sol.estado === 'RECHAZADO') {

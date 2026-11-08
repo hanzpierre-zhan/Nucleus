@@ -126,6 +126,10 @@
       await accion(sol, nombre, {...extra, motivo});
     });
   }
+  const MOTIVO_DEVOLUCION = sol => ({titulo: 'Rechazar devolución', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
+    datos: [['Monto', dinero(sol.devolucion_monto || sol.diferencia)]],
+    sugerencias: ['La transferencia no llegó', 'El monto no coincide', 'La captura no se lee', 'No se ve la operación'],
+    ayuda: 'El técnico deberá volver a subir la captura.'});
   function motivoItem(sol, item) {
     const sobrante = Number(item.monto) - Number(item.monto_gastado || 0);
     return {
@@ -178,10 +182,30 @@
     pintarSla(chip); return chip;
   }
   setInterval(() => document.querySelectorAll('[data-sla]').forEach(pintarSla), 60000);
+  // Archivado: tiempo total desde que pidió hasta que terminó de rendir (último ítem rendido).
+  const horasEntre = (a, b) => Math.max(0, Math.floor((new Date(b + 'Z') - new Date(a + 'Z')) / 3600000));
+  const duracion = horas => { const d = Math.floor(horas / 24); return d ? d + 'd ' + (horas % 24) + 'h' : horas + 'h'; };
+  const fechaCorta = f => new Date(f + 'Z').toLocaleString('es-PE', {dateStyle: 'short', timeStyle: 'short'});
+  function slaArchivo(sol) {
+    const rendidos = sol.items.map(i => i.rendido_en).filter(Boolean).sort();
+    const fin = rendidos.at(-1) || sol.archivado_en;
+    if (!sol.creado || !fin) return el('span', 'cc-sla', '—');
+    const total = horasEntre(sol.creado, fin);
+    const chip = boton('', 'cc-sla cc-sla-cerrado ' + NIVELES_SLA.find(([limite]) => total < limite)[1], () => verDetalle(sol));
+    chip.title = ['Pidió: ' + fechaCorta(sol.creado),
+      sol.depositado_en && 'Depositado: ' + fechaCorta(sol.depositado_en) + ' (' + duracion(horasEntre(sol.creado, sol.depositado_en)) + ')',
+      'Rindió: ' + fechaCorta(fin) + (sol.depositado_en ? ' (' + duracion(horasEntre(sol.depositado_en, fin)) + ' desde el depósito)' : ''),
+      'Total: ' + duracion(total)].filter(Boolean).join('\n');
+    chip.setAttribute('aria-label', 'Tiempo total ' + duracion(total) + ' · ver solicitud ' + sol.codigo);
+    chip.append(icono('fa-stopwatch'), el('span', 'cc-sla-tiempo', duracion(total)));
+    chip.addEventListener('click', e => e.stopPropagation());
+    return chip;
+  }
   function accionesRapidas(sol) {
     const caja = el('span', 'cc-acciones-rapidas');
     // En "Por rendir" no hay acciones: solo el tiempo transcurrido desde el depósito.
     if (tab === 'por_rendir') { caja.append(sla(sol)); return caja; }
+    if (tab === 'archivado') { if (sol.estado === 'ARCHIVADO') caja.append(slaArchivo(sol)); return caja; }
     if (tab === 'revision') {
       caja.append(botonRapido(sol, 'Revisar', 'cc-ok', 'fa-magnifying-glass-dollar', () => verDetalle(sol)));
       return caja;
@@ -207,7 +231,7 @@
     if (sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto) {
       caja.append(el('span', 'cc-nota', 'Devolución de ' + dinero(sol.diferencia) + ':'), foto(sol, sol.devolucion_foto, 'Ver foto de la devolución'),
                   boton('Aceptar devolución y archivar', 'cc-ok', intentar(() => accion(sol, 'devolucion', {aceptar: true}))),
-                  boton('Rechazar devolución', 'cc-no', conMotivo(sol, 'devolucion', {titulo: 'Rechazar devolución', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), datos: [['Monto', dinero(sol.devolucion_monto || sol.diferencia)]], sugerencias: ['La captura no se lee', 'El monto no coincide', 'No se ve la operación'], ayuda: 'El técnico deberá subir otra captura.'}, {aceptar: false})));
+                  boton('Rechazar devolución', 'cc-no', conMotivo(sol, 'devolucion', MOTIVO_DEVOLUCION(sol), {aceptar: false})));
     }
     return caja;
   }
@@ -749,7 +773,7 @@
         const acciones = el('span', 'cc-dialogo-acciones');
         const aceptar = boton('', 'cc-dialogo-icono cc-dialogo-guardar', intentar(() => accion(sol, 'devolucion', {aceptar: true})));
         aceptar.title = 'Aceptar devolución y archivar'; aceptar.setAttribute('aria-label', aceptar.title); aceptar.append(icono('fa-check'));
-        const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar', conMotivo(sol, 'devolucion', {titulo: 'Rechazar devolución', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), datos: [['Monto', dinero(sol.devolucion_monto || sol.diferencia)]], sugerencias: ['La captura no se lee', 'El monto no coincide', 'No se ve la operación'], ayuda: 'El técnico deberá subir otra captura.'}, {aceptar: false}));
+        const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar', conMotivo(sol, 'devolucion', MOTIVO_DEVOLUCION(sol), {aceptar: false}));
         rechazar.title = 'Rechazar la captura'; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
         acciones.append(aceptar, rechazar); cabeza.append(acciones);
       }
@@ -758,9 +782,20 @@
         fotoRevision(sol, sol.devolucion_foto, 'Captura de la devolución'));
       devolucion.append(cuerpo);
     } else if (sol.estado === 'DEPOSITADO' && sol.devolucion_foto) {
-      // El técnico ya devolvió; se acepta al terminar de revisar los ítems.
+      // La captura llegó antes de revisar todos los ítems: se aprueba o rechaza ya.
+      const aprobada = sol.devolucion_aceptada;
+      cabeza.append(el('span', 'cc-chip ' + (aprobada ? 'cc-aprobado' : 'cc-en_revision'), aprobada ? 'Aprobada' : 'Por revisar'));
+      if (puedeGestionar && !aprobada) {
+        const acciones = el('span', 'cc-dialogo-acciones');
+        const aceptar = boton('', 'cc-dialogo-icono cc-dialogo-guardar', intentar(() => accion(sol, 'devolucion', {aceptar: true})));
+        aceptar.title = 'Aprobar devolución'; aceptar.setAttribute('aria-label', aceptar.title); aceptar.append(icono('fa-check'));
+        const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar', conMotivo(sol, 'devolucion', MOTIVO_DEVOLUCION(sol), {aceptar: false}));
+        rechazar.title = 'Rechazar devolución'; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
+        acciones.append(aceptar, rechazar); cabeza.append(acciones);
+      }
       const cuerpo = el('div', 'cc-rev-cuerpo');
-      cuerpo.append(ficha('fa-receipt', '', [['Monto devuelto', dinero(sol.devolucion_monto)], ['Estado', 'Se acepta al validar todos los ítems']]).querySelector('dl'),
+      cuerpo.append(ficha('fa-receipt', '', [['Monto devuelto', dinero(sol.devolucion_monto)],
+        ['Estado', aprobada ? 'Aprobada · se archiva al validar todos los ítems' : 'Revisa que la transferencia haya llegado']]).querySelector('dl'),
         fotoRevision(sol, sol.devolucion_foto, 'Captura de la devolución'));
       devolucion.append(cuerpo);
     } else {
