@@ -198,6 +198,13 @@ def foto(sid, nombre):
             abort(404)
     elif not session.get('user_id') or not _en_alcance(sol, _alcance()):
         abort(404)
+    if nombre.startswith('ren~'):
+        # Solicitudes migradas desde Rendición: la foto sigue guardada donde la dejó Rendición.
+        from blueprints.rendicion import _servir_foto_rendicion
+        _, pid, clave, archivo = (nombre.split('~', 3) + ['', '', ''])[:4]
+        if not pid.isdigit() or not clave or not archivo:
+            abort(404)
+        return _servir_foto_rendicion(int(pid), clave, archivo)
     try:
         contenido = cc.leer_foto(sol, nombre)
     except Exception:
@@ -310,7 +317,7 @@ def gestion_lista():
     consulta = CajaChicaSolicitud.query.filter(CajaChicaSolicitud.estado != 'ELIMINADO').order_by(CajaChicaSolicitud.id.desc())
     if alcance is not None:
         consulta = consulta.filter(CajaChicaSolicitud.proyecto.in_(alcance or {''}))
-    return jsonify(solicitudes=[cc.a_dict(s, gestion=True) for s in consulta.limit(1000).all()])
+    return jsonify(solicitudes=[cc.a_dict(s, gestion=True) for s in consulta.limit(5000).all()])
 
 
 @bp.get('/api/caja-chica/<int:sid>/correo-validacion')
