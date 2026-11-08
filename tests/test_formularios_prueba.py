@@ -586,3 +586,15 @@ def test_restablecer_vuelve_al_documento(portal):
         claves_tecnico.restablecer('00001111'); db.session.commit()
     r = entrar(portal.test_client(), '00001111')
     assert r.status_code == 200 and r.json['debe_cambiar'] is True
+
+
+def test_muchos_ingresos_seguidos_no_se_bloquean_entre_si(portal):
+    """Varios técnicos desde la misma IP: solo se frena al documento con claves erradas."""
+    for _ in range(12):  # 12 ingresos correctos seguidos desde la misma IP
+        with portal.test_client() as client:
+            assert entrar(client).status_code == 200
+    with portal.test_client() as client:
+        for _ in range(8):
+            assert entrar(client, '00002222', 'clave-mala').status_code == 401
+        assert entrar(client, '00002222').status_code == 429  # Luis espera un minuto
+        assert entrar(client, '00001111').status_code == 200  # Ana entra igual

@@ -4,7 +4,7 @@ import os
 bind = '0.0.0.0:' + str(int(os.environ.get('PORT', '10000')))
 workers = 1
 worker_class = 'gthread'
-threads = 4
+threads = 8
 timeout = 300
 preload_app = False
 accesslog = '-'

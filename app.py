@@ -116,6 +116,9 @@ def create_app(config_object=None):
     """Construye la app con la configuración indicada (útil para tests)."""
     config = config_object or get_default_config()
     app = Flask(__name__)
+    # Render está detrás de un proxy: así request.remote_addr es la IP real del usuario.
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
     startup_started = perf_counter()
     def startup_stage(name):
         app.logger.warning('[startup] %s (%.1f s)', name, perf_counter()-startup_started)

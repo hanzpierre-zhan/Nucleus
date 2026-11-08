@@ -185,19 +185,25 @@ def ingresar():
     data = request.get_json(silent=True) or {}
     doc = piloto.documento(data.get('documento'))
     password = str(data.get('clave') or '')
+    # Solo cuentan las claves erradas, por documento + IP: muchos técnicos entrando a la vez
+    # (o compartiendo la IP del operador móvil) no se bloquean entre sí.
     key = hmac.new(str(current_app.secret_key).encode(),
-                   (request.remote_addr or 'local').encode(), 'sha256').hexdigest()
+                   f"{request.remote_addr or 'local'}|{doc}".encode(), 'sha256').hexdigest()
+    now = time.time()
     with piloto.almacen() as con:
         previous = con.execute('SELECT cantidad,inicio FROM intentos WHERE clave=?', (key,)).fetchone()
-        now = time.time()
-        if previous and now - previous['inicio'] < 60 and previous['cantidad'] >= 8:
-            return jsonify(error='Espera un minuto antes de volver a intentar.'), 429
-        count = previous['cantidad'] + 1 if previous and now - previous['inicio'] < 60 else 1
-        start = previous['inicio'] if previous and now - previous['inicio'] < 60 else now
-        con.execute('INSERT OR REPLACE INTO intentos VALUES(?,?,?)', (key, count, start))
+    if previous and now - previous['inicio'] < 60 and previous['cantidad'] >= 8:
+        return jsonify(error='Espera un minuto antes de volver a intentar.'), 429
     person = piloto.buscar_personal(doc) if re.fullmatch(r'[A-Z0-9]{6,15}', doc) else None
     if not person or not claves.verificar(doc, password):
+        count = previous['cantidad'] + 1 if previous and now - previous['inicio'] < 60 else 1
+        start = previous['inicio'] if previous and now - previous['inicio'] < 60 else now
+        with piloto.almacen() as con:
+            con.execute('INSERT OR REPLACE INTO intentos VALUES(?,?,?)', (key, count, start))
         return jsonify(error='Documento o clave incorrectos, o personal no habilitado. Consulta con tu supervisor.'), 401
+    if previous:
+        with piloto.almacen() as con:
+            con.execute('DELETE FROM intentos WHERE clave=?', (key,))
     iniciar_tecnico(person)
     session['form_debe_cambiar'] = claves.debe_cambiar(doc)
     return jsonify(success=True, debe_cambiar=session['form_debe_cambiar'])
