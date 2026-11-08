@@ -119,6 +119,7 @@
     });
   }
   function conMotivo(sol, nombre, opciones, extra = {}) {
+    if (typeof opciones === 'string') opciones = {titulo: opciones};
     return intentar(async () => {
       const motivo = await pedirMotivo(opciones);
       if (motivo === null) return;
@@ -206,7 +207,7 @@
     if (sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto) {
       caja.append(el('span', 'cc-nota', 'Devolución de ' + dinero(sol.diferencia) + ':'), foto(sol, sol.devolucion_foto, 'Ver foto de la devolución'),
                   boton('Aceptar devolución y archivar', 'cc-ok', intentar(() => accion(sol, 'devolucion', {aceptar: true}))),
-                  boton('Rechazar devolución', 'cc-no', conMotivo(sol, 'devolucion', 'Motivo del rechazo de la devolución:', {aceptar: false})));
+                  boton('Rechazar devolución', 'cc-no', conMotivo(sol, 'devolucion', {titulo: 'Rechazar devolución', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), datos: [['Monto', dinero(sol.devolucion_monto || sol.diferencia)]], sugerencias: ['La captura no se lee', 'El monto no coincide', 'No se ve la operación'], ayuda: 'El técnico deberá subir otra captura.'}, {aceptar: false})));
     }
     return caja;
   }
@@ -748,12 +749,18 @@
         const acciones = el('span', 'cc-dialogo-acciones');
         const aceptar = boton('', 'cc-dialogo-icono cc-dialogo-guardar', intentar(() => accion(sol, 'devolucion', {aceptar: true})));
         aceptar.title = 'Aceptar devolución y archivar'; aceptar.setAttribute('aria-label', aceptar.title); aceptar.append(icono('fa-check'));
-        const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar', conMotivo(sol, 'devolucion', 'Motivo del rechazo de la devolución:', {aceptar: false}));
+        const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar', conMotivo(sol, 'devolucion', {titulo: 'Rechazar devolución', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), datos: [['Monto', dinero(sol.devolucion_monto || sol.diferencia)]], sugerencias: ['La captura no se lee', 'El monto no coincide', 'No se ve la operación'], ayuda: 'El técnico deberá subir otra captura.'}, {aceptar: false}));
         rechazar.title = 'Rechazar la captura'; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
         acciones.append(aceptar, rechazar); cabeza.append(acciones);
       }
       const cuerpo = el('div', 'cc-rev-cuerpo');
       cuerpo.append(ficha('fa-receipt', '', [['Monto devuelto', dinero(sol.diferencia)]]).querySelector('dl'),
+        fotoRevision(sol, sol.devolucion_foto, 'Captura de la devolución'));
+      devolucion.append(cuerpo);
+    } else if (sol.estado === 'DEPOSITADO' && sol.devolucion_foto) {
+      // El técnico ya devolvió; se acepta al terminar de revisar los ítems.
+      const cuerpo = el('div', 'cc-rev-cuerpo');
+      cuerpo.append(ficha('fa-receipt', '', [['Monto devuelto', dinero(sol.devolucion_monto)], ['Estado', 'Se acepta al validar todos los ítems']]).querySelector('dl'),
         fotoRevision(sol, sol.devolucion_foto, 'Captura de la devolución'));
       devolucion.append(cuerpo);
     } else {

@@ -225,9 +225,18 @@ def deshacer_devolucion_item(sol, item, documento):
     db.session.commit()
 
 
+def puede_devolver(sol):
+    """La devolución se envía cuando ya no queda nada por rendir ni corregir, aunque falte la revisión."""
+    if sol.devolucion_foto or diferencia(sol) <= 0:
+        return False
+    if sol.estado == 'POR_DEVOLVER':
+        return True
+    return sol.estado == 'DEPOSITADO' and all(i.estado in ('EN_REVISION', 'APROBADO', 'DEVUELTO') for i in sol.items)
+
+
 def devolver(sol, documento, monto, foto, importe):
     _exigir(sol.documento == documento, 'Esta solicitud no es tuya.')
-    _exigir(sol.estado == 'POR_DEVOLVER' and not sol.devolucion_foto, 'No hay devolución pendiente.')
+    _exigir(puede_devolver(sol), 'No hay devolución pendiente.')
     _exigir(importe(monto) == diferencia(sol), 'La devolución debe ser exactamente S/ %s.' % dinero(diferencia(sol)))
     sol.devolucion_monto, sol.devolucion_foto = diferencia(sol), foto
     _historial(sol, 'registrar devolución', sol.tecnico)
@@ -367,6 +376,11 @@ def diferencia(sol):
 
 
 def _cerrar_o_pedir_devolucion(sol, usuario):
+    if sol.devolucion_foto and sol.devolucion_monto != diferencia(sol):
+        # La devolución se envió antes de la revisión y luego cambió el monto: se pide de nuevo.
+        _historial(sol, 'devolución enviada no coincide', usuario,
+                   'Se envió S/ %s y corresponde S/ %s.' % (dinero(sol.devolucion_monto), dinero(max(diferencia(sol), Decimal('0')))))
+        sol.devolucion_monto = sol.devolucion_foto = None
     if diferencia(sol) > 0:
         sol.estado = 'POR_DEVOLVER'
         _historial(sol, 'ítems resueltos: falta la devolución', usuario)
@@ -454,6 +468,8 @@ def a_dict(sol, gestion=False):
         'depositado_por': sol.depositado_por or '',
         'diferencia': dinero(diferencia(sol)) if sol.deposito_monto is not None else '',
         'devolucion_foto': sol.devolucion_foto or '',
+        'devolucion_monto': dinero(sol.devolucion_monto) if sol.devolucion_monto is not None else '',
+        'puede_devolver': puede_devolver(sol),
         'pendiente': dinero(sum(i.monto for i in sol.items if i.estado in ('POR_RENDIR', 'RECHAZADO'))) if sol.estado == 'DEPOSITADO' else '0.00',
         'avance': '%d de %d ítems aprobados' % (sum(i.estado == 'APROBADO' for i in sol.items), len(sol.items)),
         'items': [{'id': i.id, 'numero': i.numero, 'tipo_gasto': i.tipo_gasto, 'descripcion': i.descripcion,

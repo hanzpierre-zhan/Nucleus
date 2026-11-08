@@ -349,3 +349,43 @@ def test_usuario_sin_modulo_no_entra(app, client):
     finally:
         with app.app_context():
             Usuario.query.filter_by(id=uid).delete(); db.session.commit()
+
+
+def test_devolucion_se_envia_al_terminar_de_rendir_sin_esperar_la_revision(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}, {'tipo_gasto': 'Peajes', 'monto': '50'}]}).json['solicitud']['id']
+    assert auth_client.post('/api/caja-chica/%d/validar' % sid).status_code == 200
+    items = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '100', 'foto': foto()}).json['solicitud']['items']
+    rendir = lambda item, monto: cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id']), headers=h, data={
+        'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': monto, 'fotos': [foto()], 'evidencia': foto('uso.png')})
+    devolver = lambda monto: cli.post('/form-pruebas/caja-chica/%d/devolucion' % sid, headers=h, data={'monto': monto, 'foto': foto()})
+    s = rendir(items[0], '40').json['solicitud']
+    assert not s['puede_devolver'] and devolver('10').status_code == 400  # aún falta rendir un ítem
+    s = rendir(items[1], '50').json['solicitud']
+    assert s['estado'] == 'DEPOSITADO' and s['puede_devolver'] and s['diferencia'] == '10.00'
+    r = devolver('10')
+    assert r.status_code == 200 and r.json['solicitud']['devolucion_monto'] == '10.00'
+    for item in items:
+        r = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': item['id'], 'aprobar': True})
+        assert r.status_code == 200
+    s = r.json['solicitud']
+    assert s['estado'] == 'POR_DEVOLVER' and s['devolucion_foto']  # queda lista para aceptar
+
+
+def test_devolucion_anticipada_se_pide_de_nuevo_si_cambia_el_monto(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}, {'tipo_gasto': 'Peajes', 'monto': '50'}]}).json['solicitud']['id']
+    assert auth_client.post('/api/caja-chica/%d/validar' % sid).status_code == 200
+    items = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '100', 'foto': foto()}).json['solicitud']['items']
+    for item, monto in zip(items, ('40', '50')):
+        assert cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id']), headers=h, data={
+            'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': monto, 'fotos': [foto()], 'evidencia': foto('uso.png')}).status_code == 200
+    assert cli.post('/form-pruebas/caja-chica/%d/devolucion' % sid, headers=h, data={'monto': '10', 'foto': foto()}).status_code == 200
+    assert auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': items[0]['id'], 'aprobar': True}).status_code == 200
+    assert auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': items[1]['id'], 'aprobar': False, 'motivo': 'x'}).status_code == 200
+    s = cli.post('/form-pruebas/caja-chica/%d/item/%d/devolver' % (sid, items[1]['id']), headers=h).json['solicitud']
+    assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '60.00' and not s['devolucion_foto'] and s['puede_devolver']

@@ -114,11 +114,12 @@
   }
   function formDevolucion(sol) {
     const form = el('form', 'cc-rendir'); form.noValidate = true;
-    const aprobado = sol.items.filter(i => i.estado === 'APROBADO').reduce((t, i) => t + Number(i.monto_gastado || 0), 0);
+    const enRevision = sol.items.some(i => i.estado === 'EN_REVISION');
+    const aprobado = sol.items.filter(i => ['APROBADO', 'EN_REVISION'].includes(i.estado)).reduce((t, i) => t + Number(i.monto_gastado || 0), 0);
     const calculo = el('dl', 'cc-calculo');
     const fila = (a, b, clase) => { const d = el('div', clase || null); d.append(el('dt', null, a), el('dd', null, b)); calculo.append(d); };
     fila('Depositado', dinero(sol.deposito_monto || sol.total));
-    fila('Gastado y aprobado', '− ' + dinero(aprobado));
+    fila(enRevision ? 'Gastado (rendido)' : 'Gastado y aprobado', '− ' + dinero(aprobado));
     // Qué suma la devolución, ítem por ítem.
     for (const item of sol.items.filter(i => saldoItem(i) > 0)) {
       fila('↩ ' + item.tipo_gasto + (item.estado === 'DEVUELTO' ? ' (completo)' : ' (saldo)'), dinero(saldoItem(item)), 'detalle');
@@ -142,12 +143,15 @@
   const fechaLima = new Intl.DateTimeFormat('es-PE', {
     dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima'
   });
+  // Lo que falta: ítems por rendir, o el saldo a devolver cuando ya se rindió todo.
   function montoPendiente(sol) {
     if (sol.estado === 'POR_DEVOLVER') return sol.devolucion_foto ? 0 : Math.round(Number(sol.diferencia) * 100);
     if (sol.estado !== 'DEPOSITADO') return 0;
-    return sol.items.filter(item => ['POR_RENDIR', 'RECHAZADO'].includes(item.estado))
+    const porRendir = sol.items.filter(item => ['POR_RENDIR', 'RECHAZADO'].includes(item.estado))
       .reduce((suma, item) => suma + Math.round(Number(item.monto) * 100), 0);
+    return porRendir || (sol.puede_devolver ? Math.round(Number(sol.diferencia) * 100) : 0);
   }
+  const porDevolver = sol => sol.estado === 'POR_DEVOLVER' || (sol.estado === 'DEPOSITADO' && sol.puede_devolver);
   function rechazado(sol) {
     return sol.estado === 'RECHAZADO' || (sol.estado === 'DEPOSITADO' && sol.items.some(item => item.estado === 'RECHAZADO'))
       || (sol.estado === 'POR_DEVOLVER' && sol.historial?.at(-1)?.accion === 'rechazar devolución');
@@ -164,7 +168,8 @@
   function fichaDeposito(sol) {
     const descripcion = el('span');
     descripcion.append(el('strong', null, sol.codigo),
-      el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), rechazado(sol) ? 'Rechazado' : sol.estado === 'POR_DEVOLVER' && sol.devolucion_foto ? 'Devolución en revisión' : ESTADOS[sol.estado]),
+      el('span', 'cc-estado cc-' + sol.estado.toLowerCase(), rechazado(sol) ? 'Rechazado' : sol.devolucion_foto && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado) ? 'Devolución en revisión'
+        : sol.puede_devolver && sol.estado === 'DEPOSITADO' ? ESTADOS.POR_DEVOLVER : ESTADOS[sol.estado]),
       el('small', null, 'Motivo: ' + (sol.motivo || 'Sin motivo registrado')));
     const ultimo = sol.historial?.at(-1);
     const rechazo = sol.motivo_rechazo || sol.items.find(item => item.estado === 'RECHAZADO')?.motivo_rechazo
@@ -181,7 +186,8 @@
     const montos = el('span', 'cc-rendir-importes');
     const pendiente = montoPendiente(sol);
     montos.append(el('strong', 'cc-rendir-monto', dinero(pendiente ? pendiente / 100 : sol.total)),
-      el('small', null, sol.estado === 'POR_DEVOLVER' ? 'Por devolver' : pendiente ? 'Por rendir' : 'Solicitado'));
+      el('small', null, porDevolver(sol) ? 'Por devolver' : pendiente ? 'Por rendir'
+        : sol.estado === 'DEPOSITADO' ? 'En revisión' : 'Solicitado'));
     if (pendiente > 0 && pendiente !== Math.round(Number(sol.total) * 100)) {
       montos.append(el('small', null, 'Total solicitado: ' + dinero(sol.total)));
     }
@@ -260,7 +266,7 @@
       detalle.append(fila);
     }
     const acumulado = sol.items.reduce((t, i) => t + saldoItem(i), 0);
-    if (sol.estado === 'DEPOSITADO' && acumulado > 0) {
+    if (sol.estado === 'DEPOSITADO' && acumulado > 0 && !sol.puede_devolver && !sol.devolucion_foto) {
       // Aún hay ítems por rendir o revisar: se muestra lo que ya va a devolución.
       const aviso = el('section', 'cc-devolucion cc-devolucion-previa');
       const calculo = el('dl', 'cc-calculo');
@@ -272,12 +278,12 @@
       const total = el('div', 'total'); total.append(el('dt', null, 'Llevas para devolver'), el('dd', null, dinero(acumulado)));
       calculo.append(total);
       aviso.append(el('h3', 'cc-devolucion-titulo', 'Devolución acumulada'), calculo,
-        el('p', 'hint', 'Podrás enviar la devolución cuando se revisen todos los ítems.'));
+        el('p', 'hint', 'Podrás enviar la devolución cuando rindas todos los ítems.'));
       detalle.append(aviso);
     }
-    if (sol.estado === 'POR_DEVOLVER') {
+    if (sol.estado === 'POR_DEVOLVER' || (sol.estado === 'DEPOSITADO' && (sol.puede_devolver || sol.devolucion_foto))) {
       detalle.append(sol.devolucion_foto
-        ? el('p', 'notice', 'Devolución de ' + dinero(sol.diferencia) + ' enviada. Está pendiente de revisión.')
+        ? el('p', 'notice', 'Devolución de ' + dinero(sol.devolucion_monto || sol.diferencia) + ' enviada. Está pendiente de revisión.')
         : formDevolucion(sol));
     }
     if (sol.estado === 'RECHAZADO') {
