@@ -314,6 +314,17 @@ def gestion_catalogo():
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
 
+@bp.get('/api/caja-chica/resumen')
+@login_required
+def gestion_resumen():
+    """Contador del menú lateral: solicitudes que esperan validación (en el alcance del usuario)."""
+    alcance = _alcance()
+    consulta = CajaChicaSolicitud.query.filter_by(estado='PENDIENTE')
+    if alcance is not None:
+        consulta = consulta.filter(CajaChicaSolicitud.proyecto.in_(alcance or {''}))
+    return jsonify(por_validar=consulta.count())
+
+
 @bp.get('/api/caja-chica/solicitudes')
 @login_required
 def gestion_lista():

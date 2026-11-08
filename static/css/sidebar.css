@@ -1,0 +1,120 @@
+/* Menú lateral: panel flotante de color sólido, con grupos, buscador y usuario abajo.
+   Usa los colores de la plataforma (claro / oscuro). Se carga después de themes.css. */
+body.theme-vercel .app-sidebar.sb {
+  --sb-activo: var(--ios-blue, #173E76);
+  --sb-borde: var(--ios-hairline);
+  position: relative;
+  width: 264px !important;
+  min-width: 264px !important;
+  margin: 10px 0 10px 10px;
+  padding: 14px 12px 12px !important;
+  border: 1px solid var(--sb-borde) !important;
+  border-radius: 22px;
+  background: var(--ios-card-bg) !important;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, .08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  overflow: visible;
+}
+body.theme-vercel.dark-mode .app-sidebar.sb { background: #181818 !important; box-shadow: 0 10px 30px rgba(0, 0, 0, .35) !important; }
+
+/* Cabecera: símbolo, nombre y botón para plegar */
+.sb .sb-cab { display: flex; align-items: center; gap: 10px; padding: 0 2px 12px; }
+.sb .sb-marca { display: flex; align-items: center; gap: 11px; min-width: 0; color: var(--ios-label); text-decoration: none; }
+.sb .sb-marca img { flex: none; width: 38px; height: 38px; border-radius: 11px; box-shadow: 0 4px 12px rgba(23, 62, 118, .25); }
+.sb .sb-marca strong { display: block; font-size: 16px; font-weight: 700; line-height: 1.15; }
+.sb .sb-marca small { display: block; font-size: 11px; letter-spacing: .06em; color: var(--ios-gray-1); }
+body.theme-vercel .sb .sb-plegar { margin-left: auto; flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--sb-borde) !important; border-radius: 50% !important; background: var(--ios-card-bg) !important; color: var(--ios-label) !important; font-size: 11px; cursor: pointer; box-shadow: 0 2px 6px rgba(0, 0, 0, .12) !important; }
+body.theme-vercel .sb .sb-plegar:hover { background: var(--sb-activo) !important; color: #fff !important; border-color: var(--sb-activo) !important; }
+
+/* Lista */
+.sb .sidebar-nav { padding: 0 2px !important; scrollbar-width: thin; }
+body.theme-vercel .sb .sidebar-section-label { padding: 14px 10px 5px !important; font-size: 10.5px !important; font-weight: 700; letter-spacing: .12em !important; }
+body.theme-vercel .sb .sidebar-section-label::before { display: none; }
+body.theme-vercel .sb .sidebar-link,
+body.theme-vercel .sb .sb-grupo-btn { position: relative; display: flex; align-items: center; gap: 11px !important; width: 100%; height: 38px !important; margin: 1px 0; padding: 0 12px !important; border: 0; border-radius: 12px !important; background: transparent; color: var(--ios-secondary) !important; font: inherit; font-size: 13.5px !important; font-weight: 500 !important; text-align: left; text-decoration: none; cursor: pointer; box-shadow: none; }
+body.theme-vercel .sb .sidebar-link i, body.theme-vercel .sb .sb-grupo-btn > i:first-child { width: 18px; flex: none; text-align: center; font-size: 14px; color: var(--ios-gray-1) !important; }
+body.theme-vercel .sb .sidebar-link:hover, body.theme-vercel .sb .sb-grupo-btn:hover { background: var(--ios-fill) !important; color: var(--ios-label) !important; }
+body.theme-vercel .sb .sidebar-link.active { background: var(--sb-activo) !important; color: #fff !important; font-weight: 600 !important; box-shadow: 0 6px 16px rgba(23, 62, 118, .28) !important; }
+body.theme-vercel .sb .sidebar-link.active i { color: #fff !important; }
+.sb .sidebar-link-text, .sb .sb-texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb .sb-flecha { margin-left: auto; font-size: 10px; color: var(--ios-gray-1); transition: transform .18s; }
+
+/* Grupos que se abren y cierran */
+.sb .sb-grupo-btn[aria-expanded="true"] .sb-flecha { transform: rotate(180deg); }
+.sb .sb-grupo-items { display: none; margin: 2px 0 4px 20px; padding-left: 10px; border-left: 1px solid var(--sb-borde); }
+.sb .sb-grupo-btn[aria-expanded="true"] + .sb-grupo-items { display: block; }
+body.theme-vercel .sb .sb-grupo-items .sidebar-link { height: 34px !important; font-size: 13px !important; padding: 0 10px !important; }
+
+/* Contador (p. ej. solicitudes por validar en Caja Chica) */
+.sb .sb-chip { margin-left: auto; flex: none; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #f59e0b; color: #111; font-size: 11px; font-weight: 700; text-align: center; }
+.sb .sb-chip[hidden] { display: none; }
+
+/* Pie: modo noche y usuario */
+.sb .sb-pie { padding-top: 8px; border-top: 1px solid var(--sb-borde); }
+body.theme-vercel .sb .sb-noche { display: flex; align-items: center; gap: 11px; width: 100%; height: 38px; padding: 0 12px; border: 0 !important; border-radius: 12px !important; background: transparent !important; color: var(--ios-secondary) !important; font: inherit; font-size: 13.5px; cursor: pointer; box-shadow: none !important; }
+body.theme-vercel .sb .sb-noche:hover { background: var(--ios-fill) !important; }
+.sb .sb-noche > i { width: 18px; text-align: center; color: var(--ios-gray-1); }
+.sb .sb-switch { position: relative; margin-left: auto; flex: none; width: 38px; height: 22px; border-radius: 999px; background: var(--ios-gray-4, #d1d5db); transition: background .18s; }
+.sb .sb-switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .18s; }
+.sb .sb-noche[aria-checked="true"] .sb-switch { background: #3b82f6; }
+.sb .sb-noche[aria-checked="true"] .sb-switch::after { transform: translateX(16px); }
+.sb .sb-usuario { position: relative; margin-top: 6px; }
+body.theme-vercel .sb .sb-usuario-btn { display: flex; align-items: center; gap: 11px; width: 100%; padding: 8px 10px; border: 1px solid var(--sb-borde) !important; border-radius: 14px !important; background: var(--ios-fill) !important; color: var(--ios-label) !important; font: inherit; text-align: left; cursor: pointer; box-shadow: none !important; }
+body.theme-vercel .sb .sb-usuario-btn:hover { border-color: var(--sb-activo) !important; }
+.sb .sb-avatar { position: relative; flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--sb-activo); color: #fff; font-weight: 700; font-size: 14px; }
+.sb .sb-avatar::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; border: 2px solid var(--ios-fill); }
+.sb .sb-usuario-btn strong { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+.sb .sb-usuario-btn small { display: block; font-size: 10.5px; color: var(--ios-gray-1); text-transform: uppercase; letter-spacing: .05em; }
+.sb .sb-usuario-menu { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 40; padding: 6px; border: 1px solid var(--sb-borde); border-radius: 14px; background: var(--ios-card-bg); box-shadow: 0 14px 34px rgba(0, 0, 0, .18); }
+body.theme-vercel.dark-mode .sb .sb-usuario-menu { background: #1f1f1f; }
+.sb .sb-usuario-menu[hidden] { display: none; }
+.sb .sb-usuario-menu a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; color: var(--ios-label); font-size: 13px; text-decoration: none; }
+.sb .sb-usuario-menu a i { width: 16px; text-align: center; color: var(--ios-gray-1); }
+.sb .sb-usuario-menu a:hover { background: var(--ios-fill); }
+.sb .sb-usuario-menu .sb-salir { margin-top: 4px; border-top: 1px solid var(--sb-borde); border-radius: 0 0 9px 9px; color: #ef4444; }
+.sb .sb-usuario-menu .sb-salir i { color: #ef4444; }
+
+/* ── Menú cerrado: solo íconos ─────────────────────────────────────────── */
+body.theme-vercel.sidebar-collapsed .app-sidebar.sb { width: 68px !important; min-width: 68px !important; padding: 14px 10px 12px !important; border-radius: 34px; }
+body.sidebar-collapsed .sb .sb-texto, body.sidebar-collapsed .sb .sidebar-link-text,
+body.sidebar-collapsed .sb .sb-flecha, body.sidebar-collapsed .sb .sb-switch { display: none !important; }
+body.sidebar-collapsed .sb .sb-cab { flex-direction: column; padding-bottom: 10px; }
+body.theme-vercel.sidebar-collapsed .sb .sb-plegar { position: absolute; top: 22px; right: -14px; z-index: 5; }
+body.theme-vercel.sidebar-collapsed .sb .sidebar-section-label { height: 1px; margin: 8px 12px; padding: 0 !important; overflow: hidden; background: var(--sb-borde); font-size: 0 !important; }
+body.sidebar-collapsed .sb .sb-grupo-btn { display: none !important; }
+body.sidebar-collapsed .sb .sb-grupo-items { display: block; margin: 0; padding: 0; border: 0; }
+body.theme-vercel.sidebar-collapsed .sb .sidebar-link,
+body.theme-vercel.sidebar-collapsed .sb .sb-grupo-items .sidebar-link { justify-content: center; width: 46px; height: 46px !important; margin: 2px auto; padding: 0 !important; border-radius: 50% !important; }
+body.theme-vercel.sidebar-collapsed .sb .sidebar-link i { font-size: 16px; }
+body.sidebar-collapsed .sb .sb-chip { position: absolute; top: 6px; right: 6px; min-width: 0; width: 10px; height: 10px; padding: 0; font-size: 0; background: #ef4444; border: 2px solid var(--ios-card-bg); }
+body.sidebar-collapsed .sb .sb-pie { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+body.theme-vercel.sidebar-collapsed .sb .sb-noche { justify-content: center; width: 46px; height: 46px; padding: 0; border-radius: 50% !important; }
+body.theme-vercel.sidebar-collapsed .sb .sb-usuario-btn { justify-content: center; width: 46px; height: 46px; padding: 0; border: 0 !important; border-radius: 50% !important; background: transparent !important; }
+body.sidebar-collapsed .sb .sb-usuario-menu { left: calc(100% + 14px); right: auto; bottom: 0; width: 200px; }
+
+/* Lo filtrado por el buscador se oculta aunque otra regla le ponga display. */
+.sb [hidden] { display: none !important; }
+
+/* Texto como en la maqueta: sin mayúsculas forzadas; íconos un poco más grandes. */
+.sb .sidebar-link-text { text-transform: none !important; letter-spacing: normal !important; }
+body.theme-vercel .sb .sidebar-link i { font-size: 15px !important; }
+body.theme-vercel.sidebar-collapsed .sb .sidebar-link i { font-size: 17px !important; }
+body.sidebar-collapsed .sb .project-brand-icon { width: 22px; height: 22px; flex-basis: 22px; }
+
+/* Lista sin barras de desplazamiento visibles (se sigue pudiendo bajar con la rueda). */
+.sb .sidebar-nav { overflow-x: hidden !important; scrollbar-width: none; }
+.sb .sidebar-nav::-webkit-scrollbar { display: none; }
+/* Contraído: logo arriba, botón para abrir debajo, íconos centrados en una columna. */
+body.sidebar-collapsed .sb .sb-cab { gap: 8px; padding: 0 0 8px; }
+body.theme-vercel.sidebar-collapsed .sb .sb-plegar { position: static; margin: 0 auto; }
+body.theme-vercel.sidebar-collapsed .app-sidebar.sb { padding: 12px 8px 10px !important; }
+body.sidebar-collapsed .sb .sidebar-nav { padding: 0 !important; }
+body.theme-vercel.sidebar-collapsed .sb .sidebar-link,
+body.theme-vercel.sidebar-collapsed .sb .sb-grupo-items .sidebar-link { width: 42px; height: 42px !important; margin: 3px auto; }
+body.theme-vercel.sidebar-collapsed .sb .sidebar-section-label { margin: 6px 14px; }
+body.sidebar-collapsed .sb .sb-pie { padding-top: 6px; }
+/* Contraído: íconos un poco más juntos para que entren todos sin desplazar. */
+body.theme-vercel.sidebar-collapsed .sb .sidebar-link,
+body.theme-vercel.sidebar-collapsed .sb .sb-grupo-items .sidebar-link { width: 38px; height: 38px !important; margin: 2px auto; }
+body.theme-vercel.sidebar-collapsed .sb .sidebar-section-label { margin: 4px 14px; }

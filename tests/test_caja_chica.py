@@ -483,3 +483,13 @@ def test_cm_y_site_pendiente():
     assert cc.cm_pendiente('CM PENDIENTE') and cc.cm_pendiente('Pendiente') and not cc.cm_pendiente('CM-20261025-00000037')
     formulario = cc.datos_formulario({'site': '', 'wo': ''}, '', {})
     assert formulario['site'] == 'SITE PENDIENTE' and formulario['wo'] == 'CM PENDIENTE'
+
+
+def test_resumen_para_el_menu(auth_client, tecnico):
+    cli, h = tecnico
+    antes = auth_client.get('/api/caja-chica/resumen').json['por_validar']
+    datos = {'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}
+    assert cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json=datos).status_code == 200
+    assert auth_client.get('/api/caja-chica/resumen').json['por_validar'] == antes + 1
+    pagina = auth_client.get('/caja-chica/').get_data(as_text=True)
+    assert 'id="sb-cc-pendientes"' in pagina and 'data-grupo="flm"' in pagina

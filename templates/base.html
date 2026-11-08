@@ -31,6 +31,7 @@
     <script src="/static/js/column-layout.js?v=2"></script>
     <script src="/static/js/rendicion-estados-labels.js?v=1"></script>
     <link rel="stylesheet" href="/static/css/toast.css?v=1">
+    <link rel="stylesheet" href="/static/css/sidebar.css?v=4">
 </head>
 <body data-options-role="{{ session.get('rol', '') }}" data-options-user="{{ session.get('user_id', '') }}">
     <script>
@@ -50,11 +51,16 @@
     <div class="app-shell">
         {% if session.get('user_id') %}
         <!-- Sidebar de navegacion (el Gestor ve solo sus módulos y el Dashboard en lectura) -->
-        <aside class="app-sidebar">
-            <button id="sidebar-collapse" class="sidebar-collapse-btn" title="Contraer/Expandir menú" aria-label="Contraer o expandir menú">
-                <i class="fa-solid fa-angles-left"></i>
-            </button>
-            {% set brand_location = 'sidebar' %}{% include '_brand_lockup.html' %}
+        <aside class="app-sidebar sb">
+            <div class="sb-cab">
+                <a href="/" class="sb-marca" title="Nucleus · Inicio" aria-label="Nucleus · Inicio">
+                    <img src="/static/img/brand-symbol.svg?v=4" width="38" height="38" alt="">
+                    <span class="sb-texto"><strong>Nucleus</strong><small>COBRA PERÚ</small></span>
+                </a>
+                <button id="sidebar-collapse" class="sb-plegar" type="button" title="Contraer o expandir menú" aria-label="Contraer o expandir menú">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+            </div>
 
             <nav class="sidebar-nav">
                 {% if request.path == '/espacios' and navegacion_negocio and not navegacion_negocio.admin %}
@@ -67,19 +73,26 @@
                 </a>
                 {% endif %}
 
-                <div class="sidebar-section-label">Proyectos</div>
-                {% set _flm_asignados = proyectos_list | selectattr('nombre', 'in', ['FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT']) | list %}
+                {# Proyectos FLM: un grupo que se abre y cierra (en el menú cerrado se ven solo los logos). #}
                 {% set _orden_modulos = ['FLM', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT'] %}
-                {% for _nombre_mod in _orden_modulos %}
-                {% for p in proyectos_list %}
-                {% if p.nombre == _nombre_mod %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and (p.id == session.get('current_proyecto_id') or (flm_resource_context and p.id == flm_resource_context.flm_id)) %}active{% endif %}" data-nav="/">
-                    {% set operator_icon = {'FLM - ENTEL': 'entel', 'FLM - CLARO': 'claro', 'FLM - INTEGRATEL': 'integratel', 'FLM - PEXT': 'pext'}.get(p.nombre) %}
-                    {% if operator_icon %}<img class="project-brand-icon" src="/static/img/project-{{ operator_icon }}.svg?v=1" width="20" height="20" alt="" aria-hidden="true">{% else %}<i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i>{% endif %} <span class="sidebar-link-text">{{ p.nombre }}</span>
-                </a>
+                {% set _proyectos_flm = [] %}
+                {% for _nombre_mod in _orden_modulos %}{% for p in proyectos_list %}{% if p.nombre == _nombre_mod %}{% set _ = _proyectos_flm.append(p) %}{% endif %}{% endfor %}{% endfor %}
+                {% if _proyectos_flm %}
+                <div class="sidebar-section-label">Proyectos</div>
+                <div class="sb-grupo" data-grupo="flm">
+                    <button type="button" class="sb-grupo-btn" aria-expanded="false">
+                        <i class="fa-solid fa-tower-cell"></i><span class="sb-texto">FLM</span><i class="fa-solid fa-chevron-down sb-flecha" aria-hidden="true"></i>
+                    </button>
+                    <div class="sb-grupo-items">
+                    {% for p in _proyectos_flm %}
+                    <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and (p.id == session.get('current_proyecto_id') or (flm_resource_context and p.id == flm_resource_context.flm_id)) %}active{% endif %}" data-nav="/" title="{{ p.nombre }}">
+                        {% set operator_icon = {'FLM - ENTEL': 'entel', 'FLM - CLARO': 'claro', 'FLM - INTEGRATEL': 'integratel', 'FLM - PEXT': 'pext'}.get(p.nombre) %}
+                        {% if operator_icon %}<img class="project-brand-icon" src="/static/img/project-{{ operator_icon }}.svg?v=1" width="20" height="20" alt="" aria-hidden="true">{% else %}<i class="fa-solid {{ p.icono or 'fa-folder-open' }}"></i>{% endif %} <span class="sidebar-link-text">{{ p.nombre }}</span>
+                    </a>
+                    {% endfor %}
+                    </div>
+                </div>
                 {% endif %}
-                {% endfor %}
-                {% endfor %}
 
                 <div class="sidebar-section-label">Módulos</div>
                 {# Generadores vive DENTRO de Combustible: se entra con el botón del módulo
@@ -91,49 +104,54 @@
                 {% if nombre != 'Generadores' or not _ve_combustible %}
                 {% for p in proyectos_list %}{% if p.nombre == nombre %}
                 {% set _submodulo = (nombre == 'Combustible' and not flm_resource_context and (session.get('current_proyecto_nombre') or '') == 'Generadores') or (nombre == 'SITE' and request.path in ['/mapa', '/mapa-site']) %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if (request.path == '/' and p.id == session.get('current_proyecto_id')) or _submodulo %}active{% endif %}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if (request.path == '/' and p.id == session.get('current_proyecto_id')) or _submodulo %}active{% endif %}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
                 {% endif %}{% endfor %}
                 {% endif %}
                 {% endfor %}
                 {# Caja Chica es un módulo aislado (tablas propias): no pasa por switch_project. #}
                 {% for p in proyectos_list %}{% if p.nombre == 'Caja Chica' %}
-                <a href="/caja-chica/" class="sidebar-link {% if request.path.startswith('/caja-chica') %}active{% endif %}" data-nav="/caja-chica/"><i class="fa-solid fa-cash-register"></i><span class="sidebar-link-text">Caja Chica</span></a>
+                <a href="/caja-chica/" class="sidebar-link {% if request.path.startswith('/caja-chica') %}active{% endif %}" data-nav="/caja-chica/" title="Caja Chica"><i class="fa-solid fa-cash-register"></i><span class="sidebar-link-text">Caja Chica</span><span class="sb-chip" id="sb-cc-pendientes" title="Solicitudes por validar" hidden></span></a>
                 {% endif %}{% endfor %}
-                <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/">
+                <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/" title="Liquidaciones">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
-
-
                 {% endif %}
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <div class="sidebar-section-label">Configuración</div>
-                <a href="{{ url_for('form_pruebas.administrar') }}" class="sidebar-link {% if request.path.startswith('/form-pruebas') %}active{% endif %}"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Portal de técnicos</span></a>
-                <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' or (request.path == '/espacios' and request.args.get('administrar') == '1') %}active{% endif %}" data-nav="/usuarios">
-                    <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
-                </a>
-                <a href="/salud" class="sidebar-link {% if request.path == '/salud' %}active{% endif %}" data-nav="/salud">
-                    <i class="fa-solid fa-heart-pulse"></i> <span class="sidebar-link-text">Resources</span>
-                </a>
+                <div class="sb-grupo" data-grupo="configuracion">
+                    <button type="button" class="sb-grupo-btn" aria-expanded="false">
+                        <i class="fa-solid fa-gear"></i><span class="sb-texto">Configuración</span><i class="fa-solid fa-chevron-down sb-flecha" aria-hidden="true"></i>
+                    </button>
+                    <div class="sb-grupo-items">
+                    <a href="{{ url_for('form_pruebas.administrar') }}" class="sidebar-link {% if request.path.startswith('/form-pruebas') %}active{% endif %}" title="Portal de técnicos"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Portal de técnicos</span></a>
+                    <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' or (request.path == '/espacios' and request.args.get('administrar') == '1') %}active{% endif %}" data-nav="/usuarios" title="Usuarios">
+                        <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
+                    </a>
+                    <a href="/salud" class="sidebar-link {% if request.path == '/salud' %}active{% endif %}" data-nav="/salud" title="Resources">
+                        <i class="fa-solid fa-heart-pulse"></i> <span class="sidebar-link-text">Resources</span>
+                    </a>
+                    </div>
+                </div>
                 {% endif %}
             </nav>
 
-            <nav class="sidebar-legal" aria-label="Políticas de Nucleus">
-                <a href="/privacidad">Privacidad</a>
-                <a href="/terminos">Términos</a>
-                <a href="/cookies">Cookies</a>
-            </nav>
-            <div class="sidebar-footer">
-                <div class="sidebar-user">
-                    <div class="sidebar-user-info">
-                        <div style="font-size: 13px; font-weight: 700; color: var(--ios-label, #1C1C1E);">{{ nombre_usuario_actual or session.get('username') }}</div>
-                        <div style="font-size: 10px; color: var(--ios-gray-1, #8E8E93); text-transform: uppercase; letter-spacing: 0.4px;">{{ session.get('rol') }}</div>
-                    </div>
-                </div>
-                <div class="sidebar-actions">
-                    <button id="theme-toggle" class="sidebar-theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
-                        <i class="fa-solid fa-moon"></i>
+            <div class="sb-pie">
+                <button id="theme-toggle" class="sb-noche" type="button" role="switch" aria-checked="false" title="Modo noche" aria-label="Modo noche">
+                    <i class="fa-solid fa-moon"></i><span class="sb-texto">Modo noche</span><span class="sb-switch" aria-hidden="true"></span>
+                </button>
+                {% set _nombre_actual = nombre_usuario_actual or session.get('username') or '' %}
+                <div class="sb-usuario">
+                    <button id="sb-usuario-btn" class="sb-usuario-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="sb-usuario-menu" title="{{ _nombre_actual }}">
+                        <span class="sb-avatar">{{ (_nombre_actual[:1] or '?')|upper }}</span>
+                        <span class="sb-texto"><strong>{{ _nombre_actual }}</strong><small>{{ session.get('rol') }}</small></span>
+                        <i class="fa-solid fa-chevron-up sb-flecha" aria-hidden="true"></i>
                     </button>
-                    <a href="/logout" title="Cerrar Sesión" class="sidebar-logout"><i class="fa-solid fa-right-from-bracket"></i></a>
+                    <nav id="sb-usuario-menu" class="sb-usuario-menu" aria-label="Cuenta" hidden>
+                        <a href="/privacidad"><i class="fa-solid fa-shield-halved"></i> Privacidad</a>
+                        <a href="/terminos"><i class="fa-solid fa-file-contract"></i> Términos</a>
+                        <a href="/cookies"><i class="fa-solid fa-cookie-bite"></i> Cookies</a>
+                        <a href="/logout" class="sb-salir"><i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión</a>
+                    </nav>
                 </div>
             </div>
         </aside>
@@ -174,49 +192,10 @@
 
         // Vercel es el único tema — se asegura clase fija
 
-        // Toggle de tema claro/oscuro (persistente)
-        (function () {
-            const toggleBtn = document.getElementById('theme-toggle');
-            if (!toggleBtn) return;
-            const icon = toggleBtn.querySelector('i');
-            const applyIcon = () => {
-                const dark = document.body.classList.contains('dark-mode');
-                icon.className = dark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-            };
-            applyIcon();
-            toggleBtn.addEventListener('click', () => {
-                const dark = document.body.classList.toggle('dark-mode');
-                try { localStorage.setItem('nucleus-theme', dark ? 'dark' : 'light'); } catch (e) {}
-                applyIcon();
-            });
-        })();
-
-        // Toggle de contraer/expandir el menú lateral (persistente)
-        (function () {
-            const btn = document.getElementById('sidebar-collapse');
-            if (!btn) return;
-            const icon = btn.querySelector('i');
-            const applyIcon = () => {
-                const collapsed = document.body.classList.contains('sidebar-collapsed');
-                icon.className = collapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
-            };
-            try {
-                if (localStorage.getItem('nucleus-sidebar') === 'collapsed') {
-                    document.body.classList.add('sidebar-collapsed');
-                }
-            } catch (e) {}
-            applyIcon();
-            btn.addEventListener('click', () => {
-                const collapsed = document.body.classList.toggle('sidebar-collapsed');
-                try { localStorage.setItem('nucleus-sidebar', collapsed ? 'collapsed' : 'expanded'); } catch (e) {}
-                applyIcon();
-                window.dispatchEvent(new Event('resize'));
-            });
-        })();
-
     </script>
     <script src="{{ url_for('static', filename='js/api-response.js') }}?v=2"></script>
     <script src="/static/js/toast.js?v=1"></script>
+    <script src="/static/js/sidebar.js?v=2"></script>
     <script src="{{ url_for('static', filename='js/catalogos-autocomplete.js') }}?v=1"></script>
 
     {% block scripts %}{% endblock %}
