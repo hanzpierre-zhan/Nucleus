@@ -82,6 +82,18 @@ def _exigir(condicion, mensaje):
 
 # ── Técnico ────────────────────────────────────────────────────────────────
 
+def por_proyecto(valor, proyectos):
+    """Correo/cotización por proyecto. Acepta el formato antiguo (un solo Sí/No para todos)."""
+    if isinstance(valor, dict):
+        return {p: valor.get(p) is True for p in proyectos}
+    return {p: valor is True for p in proyectos}
+
+
+def catalogo_por_proyecto(catalogo, proyectos):
+    return [dict(fila, correo=por_proyecto(fila.get('correo'), proyectos),
+                 cotizacion=por_proyecto(fila.get('cotizacion'), proyectos)) for fila in catalogo]
+
+
 def normalizar_catalogo(filas, proyectos):
     _exigir(isinstance(filas, list) and len(filas) <= 200, 'El catálogo admite hasta 200 conceptos.')
     nombres, catalogo = set(), []
@@ -97,7 +109,8 @@ def normalizar_catalogo(filas, proyectos):
                 'Selecciona una clasificación válida para cada proyecto.')
         nombres.add(nombre.casefold())
         catalogo.append({'nombre': nombre, 'descripcion': descripcion, 'proyectos': reglas,
-                         'correo': fila.get('correo') is True, 'cotizacion': fila.get('cotizacion') is True})
+                         'correo': por_proyecto(fila.get('correo'), proyectos),
+                         'cotizacion': por_proyecto(fila.get('cotizacion'), proyectos)})
     return catalogo
 
 
@@ -125,7 +138,9 @@ def _llenar(sol, datos, catalogo, proyectos, bancos, importe, anteriores=()):
                      'cotizacion': anterior.get('requiere_cotizacion', False)}
         else:
             _exigir(tipo in disponibles, 'Ítem %d: selecciona un tipo de gasto disponible para este proyecto.' % n)
-            regla = disponibles[tipo]
+            regla = dict(disponibles[tipo])
+            regla['correo'] = por_proyecto(regla.get('correo'), [proyecto])[proyecto]
+            regla['cotizacion'] = por_proyecto(regla.get('cotizacion'), [proyecto])[proyecto]
         correo = str(item.get('correo_validador') or '').strip() if regla['correo'] else ''
         _exigir(not regla['correo'] or (len(correo) <= 254 and re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', correo)),
                 'Ítem %d: ingresa el correo de quien valida el gasto.' % n)

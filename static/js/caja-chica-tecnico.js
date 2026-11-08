@@ -405,8 +405,9 @@
     const filas = seleccionados.filter(item => mostrarAnteriores || porNombre.has(item.tipo_gasto))
       .map(item => [porNombre.get(item.tipo_gasto) || {
         nombre: item.tipo_gasto, descripcion: 'Este concepto ya no está disponible para el proyecto.',
-        proyectos: {}, correo: item.requiere_correo
+        proyectos: {}, correo: {[proyecto]: item.requiere_correo}
       }, item]);
+    const pideCorreo = concepto => typeof concepto.correo === 'object' ? Boolean(concepto.correo?.[proyecto]) : Boolean(concepto.correo);
     catalogo.filter(concepto => !nombresSeleccionados.has(concepto.nombre))
       .forEach(concepto => filas.push([concepto]));
     $('cc-items').replaceChildren(...filas.map(([concepto, valores], indice) => {
@@ -420,11 +421,11 @@
       card.querySelector('.expense-classification').textContent = concepto.proyectos[proyecto] || valores?.tipo_presupuesto || '';
       checkbox.value = concepto.nombre;
       checkbox.checked = Boolean(valores);
-      correo.hidden = !concepto.correo;
+      correo.hidden = !pideCorreo(concepto);
       detalle.querySelectorAll('[data-campo]').forEach(control => {
         control.id = 'cc-' + control.dataset.campo + '-' + indice;
         control.previousElementSibling.htmlFor = control.id;
-        if (control.type === 'email') control.disabled = !concepto.correo;
+        if (control.type === 'email') control.disabled = !pideCorreo(concepto);
         if (valores && !control.disabled) control.value = valores[control.dataset.campo] ?? '';
       });
       detalle.hidden = !checkbox.checked;

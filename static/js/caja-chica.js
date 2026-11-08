@@ -1223,8 +1223,31 @@
     }
   }));
   let exportando = false;
-  excel.addEventListener('click', async () => {
-    const ids = base().map(s => s.id);
+  // El botón de Excel despliega dos opciones: la pestaña actual (con filtros) o todo el historial.
+  const menuExportar = $('cc-exportar-menu');
+  const NOMBRE_TAB = {validacion: 'Validación', deposito: 'Depósito', por_rendir: 'Por rendir', revision: 'Revisión', archivado: 'Archivado', anuladas: 'Anuladas'};
+  const cerrarExportar = () => { menuExportar.hidden = true; excel.setAttribute('aria-expanded', 'false'); };
+  excel.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!menuExportar.hidden) { cerrarExportar(); return; }
+    const visibles = base().length;
+    const opcionPestana = menuExportar.querySelector('[data-alcance="pestana"]');
+    opcionPestana.disabled = !visibles;
+    $('cc-exportar-pestana').textContent = NOMBRE_TAB[tab] + ' · ' + visibles + (visibles === 1 ? ' solicitud' : ' solicitudes');
+    $('cc-exportar-todo').textContent = 'Todas las pestañas · ' + solicitudes.length + (solicitudes.length === 1 ? ' solicitud' : ' solicitudes');
+    menuExportar.hidden = false; excel.setAttribute('aria-expanded', 'true');
+    menuExportar.querySelector('button:not(:disabled)')?.focus();
+  });
+  document.addEventListener('click', e => { if (!menuExportar.hidden && !menuExportar.contains(e.target)) cerrarExportar(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menuExportar.hidden) { cerrarExportar(); excel.focus(); } });
+  menuExportar.querySelectorAll('.cc-exportar-opcion').forEach(opcion => opcion.addEventListener('click', () => {
+    const todo = opcion.dataset.alcance === 'todo';
+    cerrarExportar();
+    exportar(todo ? solicitudes.map(s => s.id) : base().map(s => s.id),
+      todo ? 'Caja-Chica-historial.xlsx' : 'Caja-Chica-' + NOMBRE_TAB[tab].replace(/\s+/g, '-') + '.xlsx');
+  }));
+  async function exportar(ids, nombre) {
+    if (!ids.length) return;
     exportando = excel.disabled = true;
     try {
       const respuesta = await fetch(excel.dataset.url, {
@@ -1238,16 +1261,16 @@
       const url = URL.createObjectURL(await respuesta.blob());
       const descarga = el('a');
       descarga.href = url;
-      descarga.download = 'Caja-Chica.xlsx';
+      descarga.download = nombre;
       descarga.click();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (error) {
       alert(error.message);
     } finally {
       exportando = false;
-      excel.disabled = !base().length;
+      excel.disabled = !solicitudes.length;
     }
-  });
+  }
   function pintar() {
     pintarProyecto();
     document.querySelectorAll('.cc-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
@@ -1264,7 +1287,7 @@
     const idsVisibles = new Set(visibles.map(sol => sol.id));
     for (const id of seleccionadas) if (!idsVisibles.has(id)) seleccionadas.delete(id);
     estadoEliminar();
-    excel.disabled = exportando || !visibles.length;
+    excel.disabled = exportando || !solicitudes.length;
     if (!visibles.length) {
       const hayFiltros = Object.keys(filtros).length || Object.keys(busquedas).length || $('cc-buscar').value.trim();
       lista.append(el('p', 'cc-vacio', hayFiltros && solicitudes.some(s => s.etapas.includes(tab)) ? 'Ninguna solicitud coincide con los filtros.' : 'No hay solicitudes en esta etapa.'));

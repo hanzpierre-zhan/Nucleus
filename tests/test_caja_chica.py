@@ -418,3 +418,32 @@ def test_devolucion_anticipada_se_aprueba_o_rechaza_antes_de_revisar_los_items(a
     assert gestion(aceptar=True).status_code == 400  # ya aprobada
     s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': item['id'], 'aprobar': True}).json['solicitud']
     assert s['estado'] == 'ARCHIVADO'  # ítems validados + devolución aprobada
+
+
+def test_catalogo_correo_y_cotizacion_por_proyecto(app, auth_client, tecnico):
+    cli, headers = tecnico
+    ruta = '/caja-chica/catalogo'
+    token = re.search(rb'data-csrf="([^"]+)"', auth_client.get(ruta).data).group(1).decode()
+    base = '/form-pruebas/caja-chica'
+    catalogo = cli.get(base + '/datos').json['catalogo']
+    peajes = next(c for c in catalogo if c['nombre'] == 'Peajes')
+    assert peajes['correo'] == {'ENTEL': False, 'CLARO': False, 'INTEGRATEL': False, 'PEXT': False}
+    peajes['correo'] = {'ENTEL': True, 'CLARO': False, 'INTEGRATEL': False, 'PEXT': False}
+    peajes['cotizacion'] = {'ENTEL': False, 'CLARO': True, 'INTEGRATEL': False, 'PEXT': False}
+    try:
+        assert auth_client.post(ruta, json=catalogo, headers={'X-CSRF-Token': token}).status_code == 200
+        guardado = next(c for c in cli.get(base + '/datos').json['catalogo'] if c['nombre'] == 'Peajes')
+        assert guardado['correo']['ENTEL'] is True and guardado['correo']['CLARO'] is False
+        datos = {'proyecto': 'ENTEL', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+                 'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}], 'site': 'LA2859', 'wo': 'CM-001', 'titular': 'Técnico Caja'}
+        assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400  # Entel pide correo
+        datos['proyecto'] = 'CLARO'
+        respuesta = cli.post(base + '/solicitar', headers=headers, json=datos)
+        assert respuesta.status_code == 200, respuesta.json  # Claro no pide correo
+        item = respuesta.json['solicitud']['items'][0]
+        assert item['requiere_correo'] is False and item['requiere_cotizacion'] is True
+    finally:
+        with app.app_context():
+            modulo = Proyecto.query.filter_by(nombre='Caja Chica').one()
+            AppConfig.query.filter_by(proyecto_id=modulo.id, clave='catalogo_gastos').delete()
+            db.session.commit()

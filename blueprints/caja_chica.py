@@ -34,9 +34,10 @@ def _config_catalogo():
 
 def _catalogo(config):
     if config:
-        return json.loads(config.valor)
+        return cc.catalogo_por_proyecto(json.loads(config.valor), PROYECTOS)
     return [
-        {'nombre': nombre, 'descripcion': descripcion, 'correo': False, 'cotizacion': False,
+        {'nombre': nombre, 'descripcion': descripcion,
+         'correo': dict.fromkeys(PROYECTOS, False), 'cotizacion': dict.fromkeys(PROYECTOS, False),
          'proyectos': {p: regla.get(p, '') if isinstance(regla, dict) else regla for p in PROYECTOS}}
         for _, _, nombre, regla, descripcion in CATALOGO_GASTOS
     ]

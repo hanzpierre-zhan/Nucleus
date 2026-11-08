@@ -23,6 +23,13 @@
     comentarioActivo = null;
   });
 
+  // Color por clasificación; sin asignar apaga correo y cotización de ese proyecto.
+  function pintarCelda(campo) {
+    const celda = campo.closest('.cc-celda-proyecto');
+    celda.dataset.tipo = campo.value === 'Refacturable' ? 'refa' : campo.value ? 'cobra' : 'sin';
+    celda.querySelectorAll('input[type=checkbox]').forEach(c => { c.disabled = !campo.value; if (!campo.value) c.checked = false; });
+  }
+
   function agregarFila(concepto) {
     const fila = document.getElementById('cc-catalogo-fila').content.firstElementChild.cloneNode(true);
     const nombre = fila.querySelector('[name=nombre]');
@@ -35,16 +42,13 @@
       dialogo.returnValue = '';
       dialogo.showModal();
     });
-    fila.querySelector('[name=correo]').value = concepto?.correo ? 'si' : 'no';
-    fila.querySelector('[name=cotizacion]').value = concepto?.cotizacion ? 'si' : 'no';
+    const pide = (valor, proyecto) => typeof valor === 'object' && valor ? Boolean(valor[proyecto]) : Boolean(valor);
+    fila.querySelectorAll('[data-correo]').forEach(c => { c.checked = pide(concepto?.correo, c.dataset.correo); });
+    fila.querySelectorAll('[data-cotizacion]').forEach(c => { c.checked = pide(concepto?.cotizacion, c.dataset.cotizacion); });
     fila.querySelectorAll('[data-proyecto]').forEach(campo => {
-      const tipo = concepto?.proyectos[campo.dataset.proyecto] ?? 'Gasto Cobra';
-      if (!tipo) {
-        const anterior = new Option('Sin asignar', '');
-        anterior.disabled = true;
-        campo.prepend(anterior);
-      }
-      campo.value = tipo;
+      campo.value = concepto?.proyectos[campo.dataset.proyecto] ?? 'Gasto Cobra';
+      pintarCelda(campo);
+      campo.addEventListener('change', () => pintarCelda(campo));
     });
     fila.querySelector('[data-quitar]').addEventListener('click', () => {
       fila.remove();
@@ -62,8 +66,8 @@
     const catalogo = Array.from(filas.children, fila => ({
       nombre: fila.querySelector('[name=nombre]').value,
       descripcion: fila.querySelector('[name=descripcion]').value,
-      correo: fila.querySelector('[name=correo]').value === 'si',
-      cotizacion: fila.querySelector('[name=cotizacion]').value === 'si',
+      correo: Object.fromEntries(Array.from(fila.querySelectorAll('[data-correo]'), c => [c.dataset.correo, c.checked])),
+      cotizacion: Object.fromEntries(Array.from(fila.querySelectorAll('[data-cotizacion]'), c => [c.dataset.cotizacion, c.checked])),
       proyectos: Object.fromEntries(Array.from(fila.querySelectorAll('[data-proyecto]'),
         campo => [campo.dataset.proyecto, campo.value])),
     }));
