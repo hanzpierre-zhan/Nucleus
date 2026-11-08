@@ -504,11 +504,31 @@ def a_dict(sol, gestion=False):
     }
 
 
-RESULTADO_ITEM = {'EN_REVISION': 'En revisión', 'RECHAZADO': 'Rechazado', 'POR_RENDIR': 'Por rendir', 'DEVUELTO': 'Devuelto'}
+ESTADO_RENDICION = {'EN_REVISION': 'En revisión', 'RECHAZADO': 'Rechazado', 'POR_RENDIR': 'Por rendir', 'DEVUELTO': 'Devuelto'}
+PESTANAS = {'validacion': 'Validación', 'deposito': 'Depósito', 'por_rendir': 'Por rendir', 'revision': 'Revisión',
+            'archivado': 'Archivado', 'anuladas': 'Anuladas'}
+
+
+def pestana_item(sol, item):
+    """Pestaña de Caja chica donde está hoy cada ítem (la misma regla que reparte los montos por etapa)."""
+    if sol.estado in ('PENDIENTE', 'RECHAZADO'):
+        return PESTANAS['validacion']
+    if sol.estado == 'VALIDADO':
+        return PESTANAS['deposito']
+    if sol.estado == 'ANULADO':
+        return PESTANAS['anuladas']
+    if item.estado in ('POR_RENDIR', 'RECHAZADO'):
+        return PESTANAS['por_rendir']
+    if item.estado == 'EN_REVISION':
+        return PESTANAS['revision']
+    if item.estado == 'DEVUELTO' and sol.estado != 'ARCHIVADO':
+        # Ítem devuelto: espera la captura (Por rendir) o su revisión (Revisión).
+        return PESTANAS['revision' if sol.devolucion_foto and not sol.devolucion_aceptada else 'por_rendir']
+    return PESTANAS['archivado']
 
 
 def exportar_excel(solicitudes):
-    """Historial plano: una fila por ítem, lista para tablas dinámicas (Solicitado = Gastado + Devuelto)."""
+    """Historial plano: una fila por ítem, lista para tablas dinámicas (Depositado = Gastado + Devuelto al cerrar)."""
     from openpyxl import Workbook
     from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
     from openpyxl.styles import Font, PatternFill
@@ -517,37 +537,63 @@ def exportar_excel(solicitudes):
     libro = Workbook()
     hoja = libro.active
     hoja.title = 'Historial'
-    hoja.append(['Código', 'Fecha solicitud', 'Año', 'Mes', 'Día', 'Proyecto', 'Site', 'N.º CM/PM/PLM', 'Técnico', 'DNI',
-                 'Concepto', 'Solicitado', 'Gastado', 'Devuelto', 'Resultado', 'RUC', 'Razón social', 'N.º boleta',
-                 'Horas para rendir'])
+    hoja.append(['Código', 'Fecha solicitud', 'Proyecto', 'Site', 'N.º CM/PM/PLM', 'N.º cotización',
+                 'Técnico', 'DNI', 'Estado de solicitud', 'Concepto', 'Tipo de gasto', 'Solicitado', 'Depositado',
+                 'Fecha depósito', 'Gastado', 'Devuelto', 'Estado de rendición', 'Fecha rendición',
+                 'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta'])
     cero = Decimal('0')
+    peru = lambda f: (f - timedelta(hours=5)).replace(second=0, microsecond=0) if f else None  # las fechas se guardan en UTC
     for solicitud in solicitudes:
-        formulario = a_dict(solicitud)['formulario']
-        fecha = solicitud.creado - timedelta(hours=5)  # hora de Perú
+        datos = a_dict(solicitud, gestion=True)
+        formulario = datos['formulario']
+        cotizacion = (datos.get('revision') or {}).get('cotizacion') or ''
+        tipos = {i['id']: i.get('tipo_presupuesto') or '' for i in datos['items']}
+        fecha = peru(solicitud.creado)
+        depositada = solicitud.deposito_monto is not None
+        # El depósito se reparte por ítem según lo solicitado; el último ítem absorbe el redondeo.
+        repartido, por_item = cero, {}
+        for n, item in enumerate(solicitud.items):
+            if not depositada:
+                por_item[item.id] = cero
+            elif n == len(solicitud.items) - 1:
+                por_item[item.id] = solicitud.deposito_monto - repartido
+            else:
+                por_item[item.id] = (solicitud.deposito_monto * item.monto / solicitud.total).quantize(Decimal('0.01')) if solicitud.total else cero
+                repartido += por_item[item.id]
         for item in solicitud.items:
             rendido = item.estado in ('APROBADO', 'EN_REVISION')
             gastado = (item.monto_gastado or cero) if rendido else cero
             devuelto = item.monto if item.estado == 'DEVUELTO' else (item.monto - gastado if rendido else cero)
-            antes = {'PENDIENTE': 'En validación', 'RECHAZADO': 'En validación', 'VALIDADO': 'Por depositar', 'ANULADO': 'Anulada'}
-            if solicitud.estado in antes:
-                resultado = antes[solicitud.estado]
+            if not depositada:
+                estado_rendicion = 'Sin depósito'
             elif item.estado == 'APROBADO':
-                resultado = 'Rendido con saldo' if devuelto > 0 else 'Rendido'
+                estado_rendicion = 'Rendido con saldo' if devuelto > 0 else 'Rendido'
             else:
-                resultado = RESULTADO_ITEM.get(item.estado, item.estado)
-            horas = (round((item.rendido_en - solicitud.depositado_en).total_seconds() / 3600, 1)
-                     if rendido and item.rendido_en and solicitud.depositado_en else None)
-            fila = [solicitud.codigo, fecha.date(), fecha.year, fecha.month, fecha.day, solicitud.proyecto,
-                    formulario.get('site') or '', formulario.get('wo') or '', solicitud.tecnico, solicitud.documento,
-                    item.tipo_gasto, item.monto, gastado, devuelto, resultado,
-                    item.ruc or '', item.razon_social or '', item.comprobante or '', horas]
+                estado_rendicion = ESTADO_RENDICION.get(item.estado, item.estado)
+            rendicion = item.rendido_en if rendido else None
+            # Plazo: rendir dentro de 24 h desde el depósito. Si aún no rinde, se compara con la hora actual.
+            plazo = ''
+            if solicitud.depositado_en and (rendicion or item.estado in ('POR_RENDIR', 'RECHAZADO')):
+                horas = ((rendicion or datetime.utcnow()) - solicitud.depositado_en).total_seconds() / 3600
+                plazo = 'Fuera de plazo' if horas > 24 else 'Dentro de plazo' if rendicion else ''
+            # SLA: desde el depósito hasta la rendición, en días y horas.
+            total = ''
+            if rendicion and solicitud.depositado_en:
+                horas_total = int((rendicion - solicitud.depositado_en).total_seconds() // 3600)
+                total = ('%d d %d h' % divmod(horas_total, 24)) if horas_total >= 24 else '%d h' % horas_total
+            fila = [solicitud.codigo, fecha, solicitud.proyecto,
+                    formulario.get('site') or '', formulario.get('wo') or '', cotizacion, solicitud.tecnico, solicitud.documento,
+                    pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''),
+                    item.monto, por_item[item.id], peru(solicitud.depositado_en), gastado, devuelto,
+                    estado_rendicion, peru(rendicion), total, plazo, item.ruc or '', item.razon_social or '', item.comprobante or '']
             hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in fila])
             for celda in hoja[hoja.max_row]:
                 if isinstance(celda.value, Decimal):
                     celda.number_format = '#,##0.00'
+                elif isinstance(celda.value, datetime):
+                    celda.number_format = 'DD/MM/YYYY HH:MM'
                 elif isinstance(celda.value, str):
                     celda.data_type = 's'
-            hoja.cell(hoja.max_row, 2).number_format = 'DD/MM/YYYY'
     hoja.freeze_panes = 'A2'
     hoja.auto_filter.ref = hoja.dimensions
     for columna in hoja.columns:

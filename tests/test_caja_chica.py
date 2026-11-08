@@ -138,7 +138,9 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     libro = load_workbook(io.BytesIO(exportacion.data))
     hoja = libro['Historial']
     assert hoja['A2'].value == sol['codigo'] and hoja.max_row == 3  # una fila por ítem
-    assert [hoja['L2'].value, hoja['O2'].value] == [50, 'En validación']
+    fila = dict(zip([c.value for c in hoja[1]], [c.value for c in hoja[2]]))
+    assert [fila['Solicitado'], fila['Depositado'], fila['Estado de rendición'], fila['Estado de solicitud']] == [50, 0, 'Sin depósito', 'Validación']
+    assert fila['Tipo de gasto'] == sol['items'][0].get('tipo_presupuesto', fila['Tipo de gasto'])
     assert gestion('validar').status_code == 200
     # Depósito: monto exacto y foto
     r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '90', 'foto': foto()})
@@ -189,10 +191,13 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     filas = list(libro_final['Historial'].values)
     columnas = filas[0]
     items_excel = [dict(zip(columnas, fila)) for fila in filas[1:]]
-    assert len(items_excel) == 2 and {'Año', 'Mes', 'Día', 'Site', 'N.º CM/PM/PLM'} <= set(columnas)
+    assert len(items_excel) == 2 and {'Fecha solicitud', 'Site', 'N.º CM/PM/PLM'} <= set(columnas)
     assert sum(i['Gastado'] for i in items_excel) == 90 and sum(i['Devuelto'] for i in items_excel) == 10
     assert all(i['Solicitado'] == i['Gastado'] + i['Devuelto'] for i in items_excel)
-    assert sorted(i['Resultado'] for i in items_excel) == ['Rendido', 'Rendido con saldo']
+    assert sorted(i['Estado de rendición'] for i in items_excel) == ['Rendido', 'Rendido con saldo']
+    assert sum(i['Depositado'] for i in items_excel) == 100 and all(i['Estado de solicitud'] == 'Archivado' for i in items_excel)
+    assert all(i['Fecha depósito'] and i['Fecha rendición'] for i in items_excel)
+    assert all(i['Plazo 24 h'] == 'Dentro de plazo' and i['Tiempo de rendición'].endswith('h') for i in items_excel)
     # Las fotos se ven desde la gestión y desde el portal del dueño
     nombre = r.json['solicitud']['items'][0]['fotos'][0]
     rendido = r.json['solicitud']['items'][0]

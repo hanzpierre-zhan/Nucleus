@@ -182,21 +182,19 @@
     pintarSla(chip); return chip;
   }
   setInterval(() => document.querySelectorAll('[data-sla]').forEach(pintarSla), 60000);
-  // Archivado: tiempo total desde que pidió hasta que terminó de rendir (último ítem rendido).
+  // Archivado: SLA desde el depósito hasta que terminó de rendir (último ítem rendido).
   const horasEntre = (a, b) => Math.max(0, Math.floor((new Date(b + 'Z') - new Date(a + 'Z')) / 3600000));
   const duracion = horas => { const d = Math.floor(horas / 24); return d ? d + 'd ' + (horas % 24) + 'h' : horas + 'h'; };
   const fechaCorta = f => new Date(f + 'Z').toLocaleString('es-PE', {dateStyle: 'short', timeStyle: 'short'});
   function slaArchivo(sol) {
     const rendidos = sol.items.map(i => i.rendido_en).filter(Boolean).sort();
     const fin = rendidos.at(-1) || sol.archivado_en;
-    if (!sol.creado || !fin) return el('span', 'cc-sla', '—');
-    const total = horasEntre(sol.creado, fin);
+    if (!sol.depositado_en || !fin) return el('span', 'cc-sla', '—');
+    const total = horasEntre(sol.depositado_en, fin);
     const chip = boton('', 'cc-sla cc-sla-cerrado ' + NIVELES_SLA.find(([limite]) => total < limite)[1], () => verDetalle(sol));
-    chip.title = ['Pidió: ' + fechaCorta(sol.creado),
-      sol.depositado_en && 'Depositado: ' + fechaCorta(sol.depositado_en) + ' (' + duracion(horasEntre(sol.creado, sol.depositado_en)) + ')',
-      'Rindió: ' + fechaCorta(fin) + (sol.depositado_en ? ' (' + duracion(horasEntre(sol.depositado_en, fin)) + ' desde el depósito)' : ''),
-      'Total: ' + duracion(total)].filter(Boolean).join('\n');
-    chip.setAttribute('aria-label', 'Tiempo total ' + duracion(total) + ' · ver solicitud ' + sol.codigo);
+    chip.title = ['Depositado: ' + fechaCorta(sol.depositado_en), 'Rindió: ' + fechaCorta(fin),
+      'Tiempo de rendición: ' + duracion(total) + (total <= 24 ? ' · dentro de plazo' : ' · fuera de plazo')].join('\n');
+    chip.setAttribute('aria-label', 'Tiempo de rendición ' + duracion(total) + ' · ver solicitud ' + sol.codigo);
     chip.append(icono('fa-stopwatch'), el('span', 'cc-sla-tiempo', duracion(total)));
     chip.addEventListener('click', e => e.stopPropagation());
     return chip;
@@ -978,9 +976,33 @@
     mostrarDetalle();
   }
   // ── Tabla: columnas que se filtran y se mueven arrastrando ──
-  const estadoDe = s => tab === 'archivado' && s.estado !== 'ARCHIVADO'
-    ? ['Parcialmente archivada', 'cc-aprobado']
-    : RETORNO[s.retorno] || [ESTADOS[s.estado] || s.estado, 'cc-' + s.estado.toLowerCase()];
+  // Columna "Estado": dice qué falta en lenguaje simple, con el color de la pestaña.
+  function estadoDe(s) {
+    const items = s.items || [];
+    const hay = estado => items.some(i => i.estado === estado);
+    const devolucionPorRevisar = s.devolucion_foto && !s.devolucion_aceptada;
+    if (s.estado === 'ANULADO') return ['Anulada', 'cc-e-anulada'];
+    if (s.estado === 'RECHAZADO') return ['Observada · la corrige el técnico', 'cc-e-observada'];
+    if (s.estado === 'PENDIENTE') {
+      if (s.retorno === 'desde_deposito') return ['Devuelta desde Depósito · por validar', 'cc-e-observada'];
+      if (s.retorno === 'reenviada') return ['Corregida · por validar', 'cc-e-reenviada'];
+      return ['Por validar', 'cc-e-validar'];
+    }
+    if (s.estado === 'VALIDADO') return ['Por depositar', 'cc-e-depositar'];
+    if (s.estado === 'ARCHIVADO') return ['Archivada · cerrada', 'cc-e-archivada'];
+    // Depositada: el texto depende de la pestaña donde se mira.
+    if (tab === 'archivado') return ['Archivada en parte · ítems pendientes', 'cc-e-archivada'];
+    if (tab === 'revision') {
+      if (hay('EN_REVISION')) return [devolucionPorRevisar ? 'Ítems y devolución por revisar' : 'Ítems por revisar', 'cc-e-revisar'];
+      return ['Devolución por revisar', 'cc-e-revisar'];
+    }
+    if (hay('RECHAZADO')) return ['Ítem observado · lo corrige el técnico', 'cc-e-observada'];
+    if (hay('POR_RENDIR')) return ['Por rendir', 'cc-e-rendir'];
+    if (Number(s.diferencia) > 0 && !s.devolucion_foto) return ['Falta la devolución', 'cc-e-rendir'];
+    if (devolucionPorRevisar) return ['Devolución por revisar', 'cc-e-revisar'];
+    if (hay('EN_REVISION')) return ['Rendida · por revisar', 'cc-e-revisar'];
+    return [ESTADOS[s.estado] || s.estado, 'cc-e-rendir'];
+  }
   const creado = s => new Date(s.creado + 'Z');
   const NOMBRES_PROYECTO = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
   // Desplegable de proyecto: filtra cantidades, montos y la tabla. Vacío = todos.
