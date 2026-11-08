@@ -81,7 +81,16 @@
       } catch { if (!actual.signal.aborted) { razon.textContent = 'No se pudo consultar el RUC.'; razon.classList.add('alerta'); } }
     });
     campo('comprobante', 'N.º de boleta o factura', 'text', 'F001-000123', 40);
-    campo('monto_gastado', 'Monto gastado (S/)', 'decimal', item.monto, 12);
+    const gastado = campo('monto_gastado', 'Monto gastado (S/)', 'decimal', item.monto, 12);
+    // Si gasta menos de lo solicitado, el saldo se acumula solo en la devolución.
+    const saldo = el('p', 'cc-item-saldo'); saldo.hidden = true; saldo.setAttribute('aria-live', 'polite');
+    gastado.addEventListener('input', () => {
+      const valor = Number(gastado.value.replace(',', '.'));
+      const resto = Math.round((Number(item.monto) - valor) * 100) / 100;
+      saldo.hidden = !(gastado.value && Number.isFinite(valor) && valor >= 0 && resto > 0);
+      saldo.textContent = '↩ ' + dinero(resto) + ' pasa a tu devolución';
+    });
+    form.append(saldo);
     const boleta = casillaFoto('fotos', 'Boleta / factura', 'Foto del comprobante', true);
     const evidencia = casillaFoto('evidencia', 'Evidencia del gasto', 'Foto del uso');
     const fotos = el('div', 'cc-slots'); fotos.append(boleta.casilla, evidencia.casilla);
@@ -97,15 +106,23 @@
     }); });
     return form;
   }
+  // Lo que un ítem suma a la devolución: todo si se devuelve, o lo no gastado si ya se rindió.
+  function saldoItem(item) {
+    if (item.estado === 'DEVUELTO') return Number(item.monto || 0);
+    if (!['EN_REVISION', 'APROBADO'].includes(item.estado)) return 0;
+    return Math.max(0, Math.round((Number(item.monto || 0) - Number(item.monto_gastado || 0)) * 100) / 100);
+  }
   function formDevolucion(sol) {
     const form = el('form', 'cc-rendir'); form.noValidate = true;
     const aprobado = sol.items.filter(i => i.estado === 'APROBADO').reduce((t, i) => t + Number(i.monto_gastado || 0), 0);
-    const devueltos = sol.items.filter(i => i.estado === 'DEVUELTO');
     const calculo = el('dl', 'cc-calculo');
     const fila = (a, b, clase) => { const d = el('div', clase || null); d.append(el('dt', null, a), el('dd', null, b)); calculo.append(d); };
     fila('Depositado', dinero(sol.deposito_monto || sol.total));
     fila('Gastado y aprobado', '− ' + dinero(aprobado));
-    if (devueltos.length) fila('Ítems que devuelves', devueltos.map(i => i.tipo_gasto).join(', '));
+    // Qué suma la devolución, ítem por ítem.
+    for (const item of sol.items.filter(i => saldoItem(i) > 0)) {
+      fila('↩ ' + item.tipo_gasto + (item.estado === 'DEVUELTO' ? ' (completo)' : ' (saldo)'), dinero(saldoItem(item)), 'detalle');
+    }
     fila('Debes devolver', dinero(sol.diferencia), 'total');
     form.append(el('h3', 'cc-devolucion-titulo', 'Devolución del saldo'), calculo,
       el('p', 'hint', 'Devuelve el importe indicado y adjunta el comprobante. La devolución quedará pendiente de revisión.'));
@@ -181,8 +198,10 @@
       const aprobado = sol.items.filter(i => i.estado === 'APROBADO').reduce((t, i) => t + Number(i.monto_gastado || 0), 0);
       const porSustentar = sol.items.filter(i => ['POR_RENDIR', 'RECHAZADO', 'EN_REVISION'].includes(i.estado))
         .reduce((t, i) => t + Number(i.monto || 0), 0);
+      const aDevolver = sol.items.reduce((t, i) => t + saldoItem(i), 0);
       const resumen = el('div', 'cc-resumen-rendir');
-      for (const [titulo, valor, clase] of [['Depositado', sol.deposito_monto || sol.total], ['Aprobado', aprobado, 'ok'], ['Por sustentar', porSustentar, 'pend']]) {
+      for (const [titulo, valor, clase] of [['Depositado', sol.deposito_monto || sol.total], ['Aprobado', aprobado, 'ok'],
+        ['Por sustentar', porSustentar, 'pend'], ['A devolver', aDevolver, 'dev']]) {
         const caja = el('div', clase || null); caja.append(el('small', null, titulo), el('strong', null, dinero(valor))); resumen.append(caja);
       }
       detalle.append(resumen);
@@ -196,28 +215,47 @@
         fila.append(el('p', 'cc-item-ok', (item.estado === 'APROBADO' ? '✓ Rendiste ' : 'Enviado · ') + dinero(item.monto_gastado)
           + (item.comprobante ? ' · ' + item.comprobante : '')));
       }
-      if (item.estado === 'DEVUELTO') fila.append(el('p', 'cc-item-ok', 'Lo incluyes en la devolución.'));
-      const rindiendo = sol.estado === 'DEPOSITADO' && ['POR_RENDIR', 'RECHAZADO'].includes(item.estado);
-      if (item.estado === 'RECHAZADO' && rindiendo) {
-        const motivo = el('p', 'cc-item-motivo'); motivo.append(el('strong', null, 'Motivo: '), item.motivo_rechazo || 'Sin motivo');
-        // Dos salidas: corregir (vuelve a rendir) o devolver ese monto.
-        const opciones = el('div', 'cc-item-opciones');
-        const corregir = el('button', 'primary', '↻ Corregir'); corregir.type = 'button';
-        const devolverBtn = el('button', 'cc-secundario', '↩ Devolver ' + dinero(item.monto)); devolverBtn.type = 'button';
-        const form = formRendir(sol, item); form.hidden = true;
-        const error = el('div', 'error'); error.hidden = true; error.tabIndex = -1;
-        corregir.addEventListener('click', () => { form.hidden = !form.hidden; if (!form.hidden) form.querySelector('input').focus(); });
-        devolverBtn.addEventListener('click', () => {
-          if (!confirm('¿No puedes sustentar este ítem? ' + dinero(item.monto) + ' se sumará a tu devolución.')) return;
-          enviando(devolverBtn, error, async () => {
-            await api('/' + sol.id + '/item/' + item.id + '/devolver', {method: 'POST'});
+      const saldo = saldoItem(item);
+      if (saldo > 0 && item.estado !== 'DEVUELTO') fila.append(el('p', 'cc-item-saldo', '↩ ' + dinero(saldo) + ' pasa a tu devolución'));
+      if (item.estado === 'DEVUELTO') {
+        const nota = el('p', 'cc-item-saldo', '↩ Devuelves ' + dinero(saldo));
+        // Mientras no se envíe la devolución, se puede desmarcar.
+        if (sol.estado === 'DEPOSITADO' || (sol.estado === 'POR_DEVOLVER' && !sol.devolucion_foto)) {
+          const deshacer = el('button', 'cc-deshacer', 'Deshacer'); deshacer.type = 'button';
+          const error = el('div', 'error'); error.hidden = true; error.tabIndex = -1;
+          deshacer.addEventListener('click', () => enviando(deshacer, error, async () => {
+            await api('/' + sol.id + '/item/' + item.id + '/deshacer', {method: 'POST'});
             await cargar();
-          });
+          }));
+          nota.append(deshacer);
+          fila.append(nota, error);
+        } else fila.append(nota);
+      }
+      const rindiendo = sol.estado === 'DEPOSITADO' && ['POR_RENDIR', 'RECHAZADO'].includes(item.estado);
+      if (rindiendo) {
+        if (item.estado === 'RECHAZADO') {
+          const motivo = el('p', 'cc-item-motivo'); motivo.append(el('strong', null, 'Motivo: '), item.motivo_rechazo || 'Sin motivo');
+          fila.append(motivo);
+        }
+        // Check de devolución: al marcarlo se oculta la rendición y queda el botón para devolver todo el ítem.
+        const check = el('label', 'cc-check-devolver');
+        const marca = Object.assign(el('input'), {type: 'checkbox'}); marca.setAttribute('role', 'switch');
+        check.append(marca, el('span', null, 'Devolver'));
+        check.title = 'Devolver todo el ítem (' + dinero(item.monto) + ')';
+        cab.querySelector('.cc-chip').before(check);
+        const form = formRendir(sol, item);
+        const devolverBtn = el('button', 'primary wide cc-btn-devolver', '↩ Devolver ' + dinero(item.monto)); devolverBtn.type = 'button';
+        devolverBtn.hidden = true;
+        const error = el('div', 'error'); error.hidden = true; error.tabIndex = -1;
+        marca.addEventListener('change', () => {
+          fila.classList.toggle('cc-marcado-devolver', marca.checked);
+          form.hidden = marca.checked; devolverBtn.hidden = !marca.checked; error.hidden = true;
         });
-        opciones.append(corregir, devolverBtn);
-        fila.append(motivo, opciones, error, form);
-      } else if (rindiendo) {
-        fila.append(formRendir(sol, item));
+        devolverBtn.addEventListener('click', () => enviando(devolverBtn, error, async () => {
+          await api('/' + sol.id + '/item/' + item.id + '/devolver', {method: 'POST'});
+          await cargar();
+        }));
+        fila.append(form, devolverBtn, error);
       }
       detalle.append(fila);
     }

@@ -203,12 +203,25 @@ def rendir_item(sol, item, documento, datos, fotos, importe, evidencia=None):
 
 
 def devolver_item(sol, item, documento):
-    """El técnico no puede sustentar un ítem rechazado: su monto pasa a la devolución."""
+    """El técnico no usó (o no puede sustentar) un ítem: todo su monto pasa a la devolución."""
     _exigir(sol.documento == documento, 'Esta solicitud no es tuya.')
-    _exigir(sol.estado == 'DEPOSITADO' and item.estado == 'RECHAZADO', 'Solo se devuelve un ítem rechazado.')
+    _exigir(sol.estado == 'DEPOSITADO' and item.estado in ('POR_RENDIR', 'RECHAZADO'),
+            'Solo se devuelve un ítem por rendir o rechazado.')
     item.estado, item.monto_gastado = 'DEVUELTO', Decimal('0')
     _historial(sol, 'devolver ítem %d' % item.numero, sol.tecnico)
     _cerrar_si_resuelto(sol, sol.tecnico)
+    db.session.commit()
+
+
+def deshacer_devolucion_item(sol, item, documento):
+    """Desmarca un ítem devuelto mientras la devolución aún no se envió: vuelve a quedar por rendir."""
+    _exigir(sol.documento == documento, 'Esta solicitud no es tuya.')
+    _exigir(item.estado == 'DEVUELTO', 'Este ítem no está marcado para devolver.')
+    _exigir(sol.estado == 'DEPOSITADO' or (sol.estado == 'POR_DEVOLVER' and not sol.devolucion_foto),
+            'La devolución ya se envió; no se puede deshacer.')
+    item.estado, item.monto_gastado, item.motivo_rechazo = 'POR_RENDIR', None, None
+    sol.estado = 'DEPOSITADO'
+    _historial(sol, 'deshacer devolución del ítem %d' % item.numero, sol.tecnico)
     db.session.commit()
 
 

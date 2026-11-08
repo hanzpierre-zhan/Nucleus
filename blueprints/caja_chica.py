@@ -140,7 +140,7 @@ def portal_rendir(sid, iid):
 @bp.post('/form-pruebas/caja-chica/<int:sid>/item/<int:iid>/devolver')
 @tecnico
 def portal_devolver_item(sid, iid):
-    """Ítem rechazado que el técnico no puede sustentar: su monto pasa a la devolución."""
+    """Ítem que el técnico no usó o no puede sustentar: su monto pasa a la devolución."""
     comprobar_csrf()
     sol = _propia(sid)
     item = db.session.get(CajaChicaItem, iid)
@@ -148,6 +148,22 @@ def portal_devolver_item(sid, iid):
         abort(404)
     try:
         cc.devolver_item(sol, item, g.tecnico['documento'])
+    except ValueError as exc:
+        db.session.rollback()
+        return _error(exc)
+    return jsonify(success=True, solicitud=cc.a_dict(sol))
+
+
+@bp.post('/form-pruebas/caja-chica/<int:sid>/item/<int:iid>/deshacer')
+@tecnico
+def portal_deshacer_devolucion(sid, iid):
+    comprobar_csrf()
+    sol = _propia(sid)
+    item = db.session.get(CajaChicaItem, iid)
+    if not item or item.solicitud_id != sol.id:
+        abort(404)
+    try:
+        cc.deshacer_devolucion_item(sol, item, g.tecnico['documento'])
     except ValueError as exc:
         db.session.rollback()
         return _error(exc)

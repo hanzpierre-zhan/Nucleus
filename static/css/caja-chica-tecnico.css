@@ -28,10 +28,11 @@
 .cc-vacio { opacity: .7; text-align: center; padding: 20px 0; }
 a.back{text-decoration:none;display:inline-block}
 /* Rendición por ítem: resumen, tarjeta por concepto, 2 fotos y devolución. */
-.cc-resumen-rendir { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
+.cc-resumen-rendir { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 12px; }
 .cc-resumen-rendir > div { padding: 10px 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); text-align: center; }
 .cc-resumen-rendir small { display: block; font-size: 11px; color: var(--muted); }
-.cc-resumen-rendir strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+.cc-resumen-rendir strong { font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cc-resumen-rendir .dev strong { color: #f59e0b; }
 .cc-resumen-rendir .ok strong { color: #15803d; }
 .cc-resumen-rendir .pend strong { color: #c2410c; }
 #cc-detalle-contenido .cc-item-fila { margin: 0 0 12px; padding: 16px; border-top: 1px solid var(--line); border-radius: 18px; }
@@ -41,8 +42,6 @@ a.back{text-decoration:none;display:inline-block}
 .cc-item-devuelto .cc-item-ok { color: var(--muted); }
 .cc-devuelto { background: rgba(127,127,127,.15); color: var(--muted); }
 .cc-item-motivo { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: var(--error-bg); color: var(--error-text); font-size: 13px; }
-.cc-item-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.cc-item-opciones .primary { justify-content: center; min-height: 46px; padding: 10px; }
 .cc-secundario { min-height: 46px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); font-weight: 600; font-size: 14px; }
 .cc-razon { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .cc-razon.ok { color: #15803d; }
@@ -89,3 +88,26 @@ a.back{text-decoration:none;display:inline-block}
 #cc-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
 #cc-filtros .filtro-rendicion { border-radius: 999px; }
 .cc-devolucion .hint { margin: 10px 0; }
+
+/* Devolución por ítem: check, botón naranja, saldo que se acumula y deshacer. */
+.shell label.cc-check-devolver { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 0 auto; padding: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none; }
+/* Switch: pista redondeada con perilla que se desliza; naranja al activarse. */
+.shell .cc-check-devolver input[type=checkbox] {
+  -webkit-appearance: none; appearance: none; position: relative; flex: 0 0 auto;
+  width: 34px !important; height: 20px !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important;
+  border: 0 !important; border-radius: 999px !important; background: var(--line) !important; box-shadow: none !important;
+  outline: none !important; cursor: pointer; transition: background .18s;
+}
+.shell .cc-check-devolver input[type=checkbox]::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .18s;
+}
+.shell .cc-check-devolver input[type=checkbox]:checked { background: #f08a1c !important; }
+.shell .cc-check-devolver input[type=checkbox]:checked::after { transform: translateX(14px); }
+.shell label.cc-check-devolver:has(input:focus-visible) input { outline: 2px solid #f08a1c !important; outline-offset: 2px; }
+.shell .cc-marcado-devolver label.cc-check-devolver { color: #f59e0b; }
+.cc-marcado-devolver { border-color: color-mix(in srgb, #f08a1c 55%, var(--line)) !important; }
+.shell button.cc-btn-devolver { margin-top: 12px; background: #c2410c; }
+.cc-item-saldo { display: flex; align-items: center; gap: 10px; margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #f59e0b; }
+.cc-deshacer { margin-left: auto; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font-size: 12.5px; font-weight: 600; }
+.cc-calculo .detalle dt, .cc-calculo .detalle dd { color: #d97706; font-weight: 600; }
