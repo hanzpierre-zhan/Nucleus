@@ -119,3 +119,4 @@ a.back{text-decoration:none;display:inline-block}
 .cc-calculo .detalle dt, .cc-calculo .detalle dd { color: #d97706; font-weight: 600; }
 .cc-devolucion-previa { border-style: dashed; }
 .cc-devolucion-previa .hint { margin: 6px 0 0; }
+.cc-devolucion-previa .cc-devolucion-titulo::after { content: ' · en curso'; font-weight: 500; font-size: 13px; opacity: .75; }
