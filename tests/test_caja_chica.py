@@ -136,9 +136,9 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     exportacion = auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token})
     assert exportacion.status_code == 200
     libro = load_workbook(io.BytesIO(exportacion.data))
-    assert libro['Solicitudes']['A2'].value == sol['codigo']
-    assert libro['Solicitudes']['H2'].value == 100
-    assert libro['Conceptos'].max_row == 3
+    hoja = libro['Historial']
+    assert hoja['A2'].value == sol['codigo'] and hoja.max_row == 3  # una fila por ítem
+    assert [hoja['L2'].value, hoja['O2'].value] == [50, 'En validación']
     assert gestion('validar').status_code == 200
     # Depósito: monto exacto y foto
     r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '90', 'foto': foto()})
@@ -186,14 +186,13 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     reporte = auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token})
     assert reporte.status_code == 200
     libro_final = load_workbook(io.BytesIO(reporte.data))
-    assert libro_final['Solicitudes'].max_row == 2
-    assert libro_final['Conceptos'].max_row == 3
-    resumen = dict(zip([c.value for c in libro_final['Solicitudes'][1]],
-                       [c.value for c in libro_final['Solicitudes'][2]]))
-    assert resumen['Monto depositado'] == 100
-    assert resumen['Gasto aprobado'] == 90
-    assert resumen['Monto devuelto confirmado'] == 10
-    assert resumen['Falta rendir'] == 0
+    filas = list(libro_final['Historial'].values)
+    columnas = filas[0]
+    items_excel = [dict(zip(columnas, fila)) for fila in filas[1:]]
+    assert len(items_excel) == 2 and {'Año', 'Mes', 'Día', 'Site', 'N.º CM/PM/PLM'} <= set(columnas)
+    assert sum(i['Gastado'] for i in items_excel) == 90 and sum(i['Devuelto'] for i in items_excel) == 10
+    assert all(i['Solicitado'] == i['Gastado'] + i['Devuelto'] for i in items_excel)
+    assert sorted(i['Resultado'] for i in items_excel) == ['Rendido', 'Rendido con saldo']
     # Las fotos se ven desde la gestión y desde el portal del dueño
     nombre = r.json['solicitud']['items'][0]['fotos'][0]
     rendido = r.json['solicitud']['items'][0]

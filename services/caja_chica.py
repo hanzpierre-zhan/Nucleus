@@ -504,58 +504,57 @@ def a_dict(sol, gestion=False):
     }
 
 
+RESULTADO_ITEM = {'EN_REVISION': 'En revisión', 'RECHAZADO': 'Rechazado', 'POR_RENDIR': 'Por rendir', 'DEVUELTO': 'Devuelto'}
+
+
 def exportar_excel(solicitudes):
+    """Historial plano: una fila por ítem, lista para tablas dinámicas (Solicitado = Gastado + Devuelto)."""
     from openpyxl import Workbook
     from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
     from openpyxl.styles import Font, PatternFill
     from openpyxl.utils import get_column_letter
 
-    def agregar(hoja, valores):
-        hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in valores])
-        for celda in hoja[hoja.max_row]:
-            if isinstance(celda.value, str):
-                celda.data_type = 's'
-            elif isinstance(celda.value, Decimal):
-                celda.number_format = '"S/ " #,##0.00'
-
     libro = Workbook()
-    resumen = libro.active
-    resumen.title = 'Solicitudes'
-    detalle = libro.create_sheet('Conceptos')
-    agregar(resumen, ['Código depósito', 'Técnico', 'Documento', 'Proyecto', 'Estado', 'Fecha de solicitud (Perú)',
-                      'Motivo', 'Total solicitado', 'Monto depositado', 'Fecha de depósito', 'Avance', 'Falta rendir', 'En revisión sustentado',
-                      'Gasto aprobado', 'Devolución pendiente', 'Monto devuelto confirmado', 'Fecha de archivo (UTC)'])
-    agregar(detalle, ['Código depósito', 'Ítem', 'Concepto', 'Tipo de presupuesto', 'Descripción', 'Monto solicitado',
-                      'Monto gastado', 'Estado', 'Correo de validación', 'RUC', 'Comprobante', 'Razón social',
-                      'Fecha de rendición (UTC)', 'Fecha de revisión (UTC)', 'Revisado por',
-                      'Motivo de rechazo', 'Fotos del comprobante', 'Evidencia de uso'])
+    hoja = libro.active
+    hoja.title = 'Historial'
+    hoja.append(['Código', 'Fecha solicitud', 'Año', 'Mes', 'Día', 'Proyecto', 'Site', 'N.º CM/PM/PLM', 'Técnico', 'DNI',
+                 'Concepto', 'Solicitado', 'Gastado', 'Devuelto', 'Resultado', 'RUC', 'Razón social', 'N.º boleta',
+                 'Horas para rendir'])
+    cero = Decimal('0')
     for solicitud in solicitudes:
-        datos = a_dict(solicitud)
-        montos = montos_etapa(solicitud)
-        en_revision = sum((i.monto_gastado or Decimal('0') for i in solicitud.items if i.estado == 'EN_REVISION'), Decimal('0'))
-        fecha = (solicitud.creado - timedelta(hours=5)).strftime('%d/%m/%Y %H:%M')
-        agregar(resumen, [solicitud.codigo, solicitud.tecnico, solicitud.documento, solicitud.proyecto,
-                          solicitud.estado, fecha, solicitud.motivo, solicitud.total, solicitud.deposito_monto,
-                          solicitud.deposito_fecha, datos['avance'], Decimal(datos['pendiente']),
-                          en_revision, montos.get('archivado', Decimal('0')),
-                          diferencia(solicitud) if solicitud.estado == 'POR_DEVOLVER' else Decimal('0'),
-                          solicitud.devolucion_monto if solicitud.estado == 'ARCHIVADO' else None,
-                          solicitud.archivado_en])
-        for item in datos['items']:
-            agregar(detalle, [solicitud.codigo, item['numero'], item['tipo_gasto'], item.get('tipo_presupuesto'),
-                              item['descripcion'], Decimal(item['monto']),
-                              Decimal(item['monto_gastado']) if item['monto_gastado'] else None,
-                              item['estado'], item.get('correo_validador'), item['ruc'], item['comprobante'],
-                              item['razon_social'], item['rendido_en'], item['revisado_en'], item['revisado_por'],
-                              item['motivo_rechazo'], ', '.join(item['fotos']), item['evidencia']])
-    for hoja in libro.worksheets:
-        hoja.freeze_panes = 'A2'
-        hoja.auto_filter.ref = hoja.dimensions
-        for columna in hoja.columns:
-            titulo = columna[0]
-            titulo.font = Font(bold=True, color='FFFFFF')
-            titulo.fill = PatternFill('solid', fgColor='166534')
-            hoja.column_dimensions[get_column_letter(titulo.column)].width = min(45, max(14, *(len(str(c.value or '')) + 2 for c in columna)))
+        formulario = a_dict(solicitud)['formulario']
+        fecha = solicitud.creado - timedelta(hours=5)  # hora de Perú
+        for item in solicitud.items:
+            rendido = item.estado in ('APROBADO', 'EN_REVISION')
+            gastado = (item.monto_gastado or cero) if rendido else cero
+            devuelto = item.monto if item.estado == 'DEVUELTO' else (item.monto - gastado if rendido else cero)
+            antes = {'PENDIENTE': 'En validación', 'RECHAZADO': 'En validación', 'VALIDADO': 'Por depositar', 'ANULADO': 'Anulada'}
+            if solicitud.estado in antes:
+                resultado = antes[solicitud.estado]
+            elif item.estado == 'APROBADO':
+                resultado = 'Rendido con saldo' if devuelto > 0 else 'Rendido'
+            else:
+                resultado = RESULTADO_ITEM.get(item.estado, item.estado)
+            horas = (round((item.rendido_en - solicitud.depositado_en).total_seconds() / 3600, 1)
+                     if rendido and item.rendido_en and solicitud.depositado_en else None)
+            fila = [solicitud.codigo, fecha.date(), fecha.year, fecha.month, fecha.day, solicitud.proyecto,
+                    formulario.get('site') or '', formulario.get('wo') or '', solicitud.tecnico, solicitud.documento,
+                    item.tipo_gasto, item.monto, gastado, devuelto, resultado,
+                    item.ruc or '', item.razon_social or '', item.comprobante or '', horas]
+            hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in fila])
+            for celda in hoja[hoja.max_row]:
+                if isinstance(celda.value, Decimal):
+                    celda.number_format = '#,##0.00'
+                elif isinstance(celda.value, str):
+                    celda.data_type = 's'
+            hoja.cell(hoja.max_row, 2).number_format = 'DD/MM/YYYY'
+    hoja.freeze_panes = 'A2'
+    hoja.auto_filter.ref = hoja.dimensions
+    for columna in hoja.columns:
+        titulo = columna[0]
+        titulo.font = Font(bold=True, color='FFFFFF')
+        titulo.fill = PatternFill('solid', fgColor='166534')
+        hoja.column_dimensions[get_column_letter(titulo.column)].width = min(40, max(8, *(len(str(c.value or '')) + 2 for c in columna)))
     archivo = io.BytesIO()
     libro.save(archivo)
     archivo.seek(0)
