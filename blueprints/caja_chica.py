@@ -101,7 +101,11 @@ def _datos_portal():
         raise ValueError('Los datos de la solicitud no son válidos.')
     if not re.fullmatch(r'[0-9]{20}', str(datos.get('cuenta') or '')):
         raise ValueError('Ingresa el CCI de 20 dígitos.')
-    proyecto = str(datos.get('proyecto') or '').strip()
+    # El proyecto no lo elige el técnico: es el que tiene en Dataper.
+    proyecto = familia(g.tecnico.get('proyecto', ''))
+    if proyecto not in PROYECTOS:
+        raise ValueError('Tu proyecto en Dataper no es válido. Pide a tu gestor que lo corrija.')
+    datos['proyecto'] = proyecto
     responsables = responsables_por_proyecto().get(proyecto, {}) if datos.get('responsable_validacion') else {}
     return datos, cc.datos_formulario(datos, g.tecnico.get('supervisor', ''), responsables)
 

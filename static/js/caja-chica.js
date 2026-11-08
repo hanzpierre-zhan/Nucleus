@@ -1076,6 +1076,7 @@
   function pintarProyecto() {
     const elegido = selectorProyecto.selectedOptions[0];
     $('cc-proyecto-texto').textContent = elegido ? elegido.text : 'Todos los proyectos';
+    $('cc-proyecto-btn').title = 'Proyecto: ' + (elegido ? elegido.text : 'Todos los proyectos');
     botonProyecto.closest('.cc-proyecto-pill').classList.toggle('activo', !!selectorProyecto.value);
     opcionesProyecto.forEach(b => {
       b.setAttribute('aria-selected', String(b.dataset.valor === selectorProyecto.value));

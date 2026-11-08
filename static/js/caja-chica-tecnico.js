@@ -451,6 +451,11 @@
   function abrirFormulario(sol) {
     corrigiendo = sol || null;
     const form = $('cc-form'); form.reset();
+    // El proyecto es el del técnico en Dataper: se muestra, pero no se puede cambiar.
+    const selectorProyecto = $('cc-proyecto');
+    for (const opcion of [...selectorProyecto.options]) if (opcion.value !== datos.proyecto) opcion.remove();
+    if (!selectorProyecto.options.length) selectorProyecto.add(new Option('Sin proyecto en Dataper', ''));
+    selectorProyecto.disabled = true;
     form.querySelector('.error').hidden = true;
     $('cc-rechazo').hidden = !sol;
     $('cc-volver-solicitud').hidden = !sol;
@@ -461,10 +466,8 @@
     $('cc-supervisor').value = datos.personal.supervisor || '';
     if (sol) {
       $('cc-rechazo').textContent = 'Rechazada: ' + sol.motivo_rechazo;
-      $('cc-proyecto').value = sol.proyecto; $('cc-motivo').value = sol.motivo;
+      $('cc-motivo').value = sol.motivo;
       $('cc-banco').value = sol.banco; $('cc-cuenta').value = sol.cuenta;
-    } else {
-      if (datos?.proyecto) $('cc-proyecto').value = datos.proyecto;
     }
     mostrarConceptos(sol?.items, Boolean(sol));
     const extra = sol?.formulario || {};

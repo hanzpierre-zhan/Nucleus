@@ -332,7 +332,7 @@ def test_anulacion_va_a_anuladas(app, auth_client, tecnico):
 def test_validaciones_de_la_solicitud(tecnico):
     cli, h = tecnico
     base = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}
-    for cambio in ({'proyecto': 'OTRO'}, {'motivo': ''}, {'banco': 'Inventado'}, {'cuenta': 'abc'},
+    for cambio in ({'motivo': ''}, {'banco': 'Inventado'}, {'cuenta': 'abc'},
                    {'cuenta': '1' * 19}, {'cuenta': '1' * 21}, {'items': []},
                    {'items': [{'tipo_gasto': 'Inventado', 'monto': '5'}]}, {'items': [{'tipo_gasto': 'Peajes', 'monto': '0'}]}):
         assert cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={**base, **cambio}).status_code == 400, cambio
@@ -420,6 +420,28 @@ def test_devolucion_anticipada_se_aprueba_o_rechaza_antes_de_revisar_los_items(a
     assert s['estado'] == 'ARCHIVADO'  # ítems validados + devolución aprobada
 
 
+def _proyecto_tecnico(app, proyecto):
+    """Cambia el proyecto del técnico de prueba en Dataper (el portal lo toma de ahí)."""
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Dataper').one().id
+        fila = NucleusData.query.filter_by(proyecto_id=pid, key_value=DOC).one()
+        fila.data_json = json.dumps({**json.loads(fila.data_json), 'PROYECTO': proyecto})
+        db.session.commit()
+
+
+def test_el_proyecto_sale_de_dataper(app, tecnico):
+    cli, h = tecnico
+    datos = {'proyecto': 'ENTEL', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+             'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}
+    r = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json=datos)
+    assert r.status_code == 200 and r.json['solicitud']['proyecto'] == 'CLARO', r.json  # se ignora lo que mande
+    _proyecto_tecnico(app, '')
+    try:
+        assert cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json=datos).status_code == 400
+    finally:
+        _proyecto_tecnico(app, 'FLM - CLARO')
+
+
 def test_catalogo_correo_y_cotizacion_por_proyecto(app, auth_client, tecnico):
     cli, headers = tecnico
     ruta = '/caja-chica/catalogo'
@@ -436,8 +458,9 @@ def test_catalogo_correo_y_cotizacion_por_proyecto(app, auth_client, tecnico):
         assert guardado['correo']['ENTEL'] is True and guardado['correo']['CLARO'] is False
         datos = {'proyecto': 'ENTEL', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '00123456789012345678',
                  'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}], 'site': 'LA2859', 'wo': 'CM-20260904-00000410', 'titular': 'Técnico Caja'}
+        _proyecto_tecnico(app, 'FLM - ENTEL')
         assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400  # Entel pide correo
-        datos['proyecto'] = 'CLARO'
+        _proyecto_tecnico(app, 'FLM - CLARO')
         respuesta = cli.post(base + '/solicitar', headers=headers, json=datos)
         assert respuesta.status_code == 200, respuesta.json  # Claro no pide correo
         item = respuesta.json['solicitud']['items'][0]
