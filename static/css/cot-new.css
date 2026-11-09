@@ -1,0 +1,71 @@
+/* Cot_New: lo propio de Cotizaciones; el resto viene de caja-chica.css. */
+.cn-gestion .cc-tab { border-color: color-mix(in srgb, var(--cc-color) 55%, transparent); }
+
+/* Botones redondos (mismo diseño que Caja Chica) */
+.cn-gestion .cn-redondo, #cc-solicitud-dialogo .cn-redondo {
+  display: inline-grid; place-items: center; flex: none; width: 30px !important; height: 30px !important;
+  min-width: 0 !important; min-height: 0 !important; padding: 0 !important; border: 0 !important;
+  border-radius: 50% !important; clip-path: circle(50%); color: #fff !important; font-size: 13px;
+  text-decoration: none; cursor: pointer; box-shadow: none !important;
+}
+.cn-gestion .cc-barra > .cn-redondo, #cc-solicitud-dialogo .cn-redondo.cn-grande { width: 38px !important; height: 38px !important; font-size: 16px; }
+.cn-redondo:disabled { opacity: .5; cursor: default; }
+.cn-verde { background: #217346 !important; }
+.cn-rojo { background: #b91c1c !important; }
+.cn-naranja { background: #a14a08 !important; }
+.cn-azul { background: #1d4ed8 !important; }
+.cn-morado { background: #6d28d9 !important; }
+.cn-neutro { background: #475569 !important; }
+.cn-gestion .cc-acciones-rapidas { display: flex; gap: 6px; justify-content: center; }
+
+/* Estado como etiqueta de color */
+.cc-chip.cn-e-registro { background: rgba(100, 116, 139, .18); color: #94a3b8; }
+.cc-chip.cn-e-cliente { background: rgba(240, 138, 28, .18); color: #f08a1c; }
+.cc-chip.cn-e-sustentar { background: rgba(37, 99, 235, .18); color: #3b82f6; }
+.cc-chip.cn-e-atendido { background: rgba(22, 163, 74, .18); color: #16a34a; }
+.cc-chip.cn-e-cancelado { background: rgba(148, 163, 184, .18); color: #94a3b8; }
+.cn-motivo { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Detalle: tabla de ítems a la derecha */
+.cn-items-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cn-items-tabla th { text-align: left; font-weight: 600; color: var(--ios-secondary); padding: 4px 6px; border-bottom: 1px solid var(--ios-hairline); }
+.cn-items-tabla td { padding: 6px; border-bottom: 1px solid var(--ios-hairline); vertical-align: top; }
+.cn-items-tabla .cc-num { text-align: right; white-space: nowrap; }
+.cn-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--ios-fill); }
+.cn-total strong { font-size: 18px; }
+
+/* Colores de los botones redondos de cada fila (gana a .cc-rapida verde por defecto) */
+.cc-gestion .cc-acciones-rapidas .cc-rapida.cn-verde { background: #217346 !important; }
+.cc-gestion .cc-acciones-rapidas .cc-rapida.cn-rojo { background: #b91c1c !important; }
+.cc-gestion .cc-acciones-rapidas .cc-rapida.cn-naranja { background: #a14a08 !important; }
+.cc-gestion .cc-acciones-rapidas .cc-rapida.cn-azul { background: #1d4ed8 !important; }
+.cc-gestion .cc-acciones-rapidas .cc-rapida.cn-morado { background: #6d28d9 !important; }
+.cc-gestion .cc-acciones-rapidas .cc-rapida.cn-neutro { background: #475569 !important; }
+#cc-solicitud-dialogo .cc-dialogo-icono.cn-verde { background: #217346 !important; }
+#cc-solicitud-dialogo .cc-dialogo-icono.cn-rojo { background: #b91c1c !important; }
+#cc-solicitud-dialogo .cc-dialogo-icono.cn-naranja { background: #a14a08 !important; }
+#cc-solicitud-dialogo .cc-dialogo-icono.cn-azul { background: #1d4ed8 !important; }
+#cc-solicitud-dialogo .cc-dialogo-icono.cn-morado { background: #6d28d9 !important; }
+
+/* Vistas nuevas (Dataper, Material, Sites, Combustible, Usuarios) */
+.vn-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; align-content: start; }
+.vn-form > .cc-ficha-titulo, .vn-form > .cc-nota { grid-column: 1 / -1; }
+.cc-pendiente-campo { display: grid; gap: 4px; font-size: 12px; color: var(--ios-secondary); }
+.cc-pendiente-campo input, .cc-pendiente-campo select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font-size: 13px; }
+.cc-pendiente-campo input:disabled, .cc-pendiente-campo select:disabled { opacity: .8; }
+.vn-centro { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-weight: 600; }
+.vn-mapa { display: grid; gap: 2px; padding: 12px; border-radius: 10px; background: var(--ios-fill); color: var(--ios-label); text-decoration: none; }
+.vn-mapa small { color: #3b82f6; }
+.vn-foto img { width: 100%; max-height: 320px; object-fit: contain; border-radius: 10px; }
+.vn-modulos { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; max-height: 50vh; overflow: auto; }
+.vn-modulos label { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; background: var(--ios-fill); font-size: 12.5px; }
+.vn-mas { display: block; margin: 12px auto; }
+/* El decorador global de botones ([data-action]) pinta un fondo claro: estos colores ganan. */
+body .cn-gestion .cc-barra .cn-redondo, body .cn-gestion .cc-acciones-rapidas .cn-redondo { color: #fff !important; border: 0 !important; }
+body .cn-gestion .cn-redondo.cn-verde { background: #217346 !important; }
+body .cn-gestion .cn-redondo.cn-rojo { background: #b91c1c !important; }
+body .cn-gestion .cn-redondo.cn-naranja { background: #a14a08 !important; }
+body .cn-gestion .cn-redondo.cn-azul { background: #1d4ed8 !important; }
+body .cn-gestion .cn-redondo.cn-morado { background: #6d28d9 !important; }
+body .cn-gestion .cn-redondo.cn-neutro { background: #475569 !important; }
+body .cn-gestion .cc-barra > .cn-redondo { width: 38px !important; height: 38px !important; min-height: 0 !important; padding: 0 !important; border-radius: 50% !important; }

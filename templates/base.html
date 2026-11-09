@@ -115,6 +115,19 @@
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/" title="Liquidaciones">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
+                {# Vistas nuevas en prueba, con el diseño de Caja Chica. Usan los mismos datos de cada módulo. #}
+                {% set _nombres_menu = proyectos_list | map(attribute='nombre') | list %}
+                {% set _vistas_nuevas = [('Cotizaciones','/cot-new/','Cot_New','fa-file-signature'),('Dataper','/vista/dataper/','Dataper_New','fa-users'),('Material','/vista/material/','Material_New','fa-boxes-stacked'),('SITE','/vista/sites/','Sites_New','fa-location-dot'),('Combustible','/vista/combustible/','Combustible_New','fa-gas-pump')] %}
+                {% set _rol_menu = (session.get('rol') or '').lower() %}
+                {% if _vistas_nuevas | selectattr(0, 'in', _nombres_menu) | list or _rol_menu in ['zeno', 'suport'] %}
+                <div class="sidebar-section-label">Vistas nuevas (prueba)</div>
+                {% for modulo, ruta, etiqueta, icono in _vistas_nuevas %}{% if modulo in _nombres_menu %}
+                <a href="{{ ruta }}" class="sidebar-link {% if request.path.startswith(ruta) %}active{% endif %}" data-nav="{{ ruta }}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                {% endif %}{% endfor %}
+                {% if _rol_menu in ['zeno', 'suport'] %}
+                <a href="/vista/usuarios/" class="sidebar-link {% if request.path.startswith('/vista/usuarios') %}active{% endif %}" data-nav="/vista/usuarios/" title="Usuarios_New"><i class="fa-solid fa-user-gear"></i><span class="sidebar-link-text">Usuarios_New</span></a>
+                {% endif %}
+                {% endif %}
                 {% endif %}
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <div class="sidebar-section-label">Configuración</div>

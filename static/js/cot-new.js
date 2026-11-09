@@ -1,0 +1,386 @@
+/* Cot_New · Cotizaciones con el diseño de Caja Chica: pestañas, tuerca, tabla con filtros y detalle. */
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto !== undefined) n.textContent = texto; return n; };
+  const icono = nombre => { const i = el('i', 'fa-solid ' + nombre); i.setAttribute('aria-hidden', 'true'); return i; };
+  const dinero = v => 'S/ ' + Number(v || 0).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const avisar = m => (window.nucleusAlert || alert)(m);
+  const seccion = document.querySelector('.cn-gestion');
+  const puedeGestionar = seccion.dataset.gestionar === 'si';
+  const proyectoId = seccion.dataset.proyecto;
+  const clasico = '/switch_project/' + proyectoId + '?next=/';
+  const dialogo = $('cc-solicitud-dialogo');
+  const NOMBRE_TAB = Object.fromEntries([...document.querySelectorAll('.cn-tab')].map(b => [b.dataset.tab, b.textContent.trim().replace(/\s+\d+\s+S\/.*$/s, '').trim()]));
+  const COLOR_ESTADO = {registro: 'cn-e-registro', cliente: 'cn-e-cliente', sustentar: 'cn-e-sustentar', atendido: 'cn-e-atendido', cancelado: 'cn-e-cancelado'};
+  const CLIENTES = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
+
+  let cotizaciones = [], tab = 'registro', cliente = '', orden = null, filtros = {}, busquedas = {};
+  try { tab = localStorage.getItem('cn-tab') || tab; } catch (_) {}
+  if (!document.querySelector('.cn-tab[data-tab="' + tab + '"]')) tab = 'registro';
+
+  // Fecha guardada como '2026-11-07 15:57' o '07/11/2026': se ordena por su valor real.
+  function fechaValor(t) {
+    const s = String(t || '').trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if (m) return new Date(+m[1], m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)).getTime();
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    return m ? new Date(+m[3], m[2] - 1, +m[1]).getTime() : 0;
+  }
+  const fechaTexto = t => { const v = fechaValor(t); return v ? new Date(v).toLocaleDateString('es-PE') : (t || '—'); };
+
+  // ── Columnas ──
+  const COLUMNAS = {
+    numero: {titulo: 'N.º cotización', ancho: 'minmax(150px, 1fr)', texto: c => c['N° COTIZACION'] || c.key, celda: c => {
+      const a = el('a', 'cc-codigo-link', c['N° COTIZACION'] || c.key); a.href = '#cot-' + c.id;
+      a.addEventListener('click', e => { e.preventDefault(); verDetalle(c); }); return a;
+    }},
+    fecha: {titulo: 'Fecha', ancho: 'minmax(100px, .7fr)', texto: c => fechaTexto(c.FECHA), orden: c => fechaValor(c.FECHA)},
+    cliente: {titulo: 'Cliente', ancho: 'minmax(100px, .7fr)', texto: c => CLIENTES[c.familia] || c.CLIENTE || '—', celda: c => {
+      const nombre = CLIENTES[c.familia];
+      return el('span', nombre ? 'project-badge project-badge--' + c.familia.toLowerCase() : null, nombre || c.CLIENTE || '—');
+    }},
+    site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1.1fr)', texto: c => c['NOMBRE SITE'] || '—'},
+    wo: {titulo: 'N.º WO', ancho: 'minmax(130px, .9fr)', texto: c => c['NUMERO WO'] || '—'},
+    motivo: {titulo: 'Motivo', ancho: 'minmax(200px, 1.8fr)', texto: c => c.MOTIVO || c.OBJETIVO || '—', clase: 'cn-motivo'},
+    supervisor: {titulo: 'Supervisor', ancho: 'minmax(140px, 1fr)', texto: c => c.SUPERVISOR || '—'},
+    gestor: {titulo: 'Solicitado por', ancho: 'minmax(120px, .9fr)', texto: c => c['SOLICITADO POR'] || c.GESTOR || '—'},
+    estado: {titulo: 'Estado', ancho: 'minmax(130px, .9fr)', texto: c => c['ESTADO COTIZACION'] || 'Pdt. Cotización',
+             celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), c['ESTADO COTIZACION'] || 'Pdt. Cotización')},
+    monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
+            celda: c => el('strong', 'cc-num', dinero(c.monto))},
+  };
+  let columnas = Object.keys(COLUMNAS);
+  try {
+    const guardadas = JSON.parse(localStorage.getItem('cn-columnas') || 'null');
+    if (Array.isArray(guardadas) && guardadas.length === columnas.length && columnas.every(c => guardadas.includes(c))) columnas = guardadas;
+  } catch (_) {}
+  const guardarColumnas = () => { try { localStorage.setItem('cn-columnas', JSON.stringify(columnas)); } catch (_) {} };
+  const plano = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  function plantilla() {
+    const minimo = columnas.reduce((s, c) => s + parseInt(COLUMNAS[c].ancho.slice(7), 10), 0) + 12 * columnas.length + 140;
+    $('cn-tabla').style.setProperty('--cc-min', minimo + 'px');
+    return ['112px', ...columnas.map(c => COLUMNAS[c].ancho)].join(' ');
+  }
+
+  function pintarEncabezado() {
+    $('cn-tabla').style.setProperty('--cc-cols', plantilla());
+    const cab = $('cn-encabezado');
+    const activo = document.activeElement, foco = activo && cab.contains(activo) && activo.dataset.buscar
+      ? {col: activo.dataset.buscar, ini: activo.selectionStart, fin: activo.selectionEnd} : null;
+    cab.replaceChildren(el('div', 'cc-th cc-th-nombre cc-acciones-cab', 'Acciones'));
+    for (const id of columnas) {
+      const col = COLUMNAS[id], th = el('div', 'cc-th' + (col.num ? ' cc-th-num' : ''));
+      const fila = el('div', 'cc-th-fila'); fila.draggable = true; fila.title = 'Arrastra para mover la columna';
+      const sentido = orden?.col === id ? orden.dir : 0;
+      const ordenar = el('button', 'cc-th-btn' + (sentido ? ' activo' : '')); ordenar.type = 'button';
+      ordenar.append(icono(sentido === 1 ? 'fa-arrow-up-short-wide' : sentido === -1 ? 'fa-arrow-down-wide-short' : 'fa-sort'));
+      ordenar.title = sentido === 1 ? 'De menor a mayor · clic: de mayor a menor' : sentido === -1 ? 'De mayor a menor · clic: quitar orden' : 'Ordenar de menor a mayor';
+      ordenar.addEventListener('click', e => { e.stopPropagation(); orden = sentido === 1 ? {col: id, dir: -1} : sentido === -1 ? null : {col: id, dir: 1}; pintar(); });
+      const filtrar = el('button', 'cc-th-btn' + (filtros[id] ? ' activo' : '')); filtrar.type = 'button';
+      filtrar.append(icono('fa-filter')); filtrar.title = 'Filtrar ' + col.titulo;
+      filtrar.addEventListener('click', e => { e.stopPropagation(); abrirFiltro(id, filtrar); });
+      fila.append(el('span', 'cc-th-nombre', col.titulo), ordenar, filtrar);
+      const buscar = el('input', 'cc-th-buscar'); buscar.dataset.buscar = id;
+      Object.assign(buscar, {type: 'search', value: busquedas[id] || '', placeholder: 'Buscar…'});
+      buscar.setAttribute('aria-label', 'Buscar en ' + col.titulo);
+      buscar.addEventListener('input', () => { if (buscar.value.trim()) busquedas[id] = buscar.value; else delete busquedas[id]; pintar(); });
+      th.append(fila, buscar);
+      fila.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', id); th.classList.add('arrastrando'); });
+      th.addEventListener('dragover', e => { e.preventDefault(); const r = th.getBoundingClientRect(), antes = e.clientX < r.left + r.width / 2; th.classList.toggle('soltar-antes', antes); th.classList.toggle('soltar-despues', !antes); });
+      th.addEventListener('dragleave', () => th.classList.remove('soltar-antes', 'soltar-despues'));
+      th.addEventListener('drop', e => {
+        e.preventDefault();
+        const origen = e.dataTransfer.getData('text/plain');
+        if (!COLUMNAS[origen] || origen === id) return pintarEncabezado();
+        const antes = th.classList.contains('soltar-antes');
+        columnas = columnas.filter(c => c !== origen);
+        columnas.splice(columnas.indexOf(id) + (antes ? 0 : 1), 0, origen);
+        guardarColumnas(); pintar();
+      });
+      cab.append(th);
+    }
+    if (foco) { const i = cab.querySelector('[data-buscar="' + foco.col + '"]'); if (i) { i.focus(); i.setSelectionRange(foco.ini, foco.fin); } }
+  }
+
+  // Filtro por columna: lista de valores de la pestaña, como en Excel.
+  function abrirFiltro(id, boton) {
+    const caja = $('cn-filtro');
+    if (!caja.hidden && caja.dataset.col === id) { caja.hidden = true; return; }
+    const col = COLUMNAS[id], valores = [...new Set(base(id).map(col.texto))].sort((a, b) => a.localeCompare(b, 'es', {numeric: true}));
+    const marcados = new Set(filtros[id] || valores);
+    caja.dataset.col = id; caja.replaceChildren();
+    const buscar = Object.assign(el('input'), {type: 'search', placeholder: 'Buscar en ' + col.titulo.toLowerCase()});
+    const lista = el('div', 'cc-filtro-valores');
+    const todos = el('label', 'cc-todos'), todosCheck = Object.assign(el('input'), {type: 'checkbox'}); todos.append(todosCheck, 'Seleccionar todo');
+    const checks = valores.map(v => { const l = el('label'), c = Object.assign(el('input'), {type: 'checkbox', value: v, checked: marcados.has(v)}); l.append(c, v || '(vacío)'); return l; });
+    const sincronizar = () => { const v = checks.filter(l => !l.hidden); todosCheck.checked = v.length > 0 && v.every(l => l.firstChild.checked); };
+    todosCheck.addEventListener('change', () => checks.filter(l => !l.hidden).forEach(l => { l.firstChild.checked = todosCheck.checked; }));
+    checks.forEach(l => l.firstChild.addEventListener('change', sincronizar));
+    buscar.addEventListener('input', () => { const t = plano(buscar.value.trim()); checks.forEach(l => { l.hidden = t && !plano(l.textContent).includes(t); }); sincronizar(); });
+    lista.append(todos, ...checks);
+    const limpiar = el('button', 'cc-btn', 'Limpiar'), aplicar = el('button', 'cc-btn cc-ok', 'Aplicar');
+    limpiar.type = aplicar.type = 'button';
+    limpiar.addEventListener('click', () => { delete filtros[id]; caja.hidden = true; pintar(); });
+    aplicar.addEventListener('click', () => {
+      const elegidos = checks.filter(l => l.firstChild.checked).map(l => l.firstChild.value);
+      if (elegidos.length === valores.length) delete filtros[id]; else filtros[id] = elegidos;
+      caja.hidden = true; pintar();
+    });
+    const pie = el('div', 'cc-filtro-pie'); pie.append(limpiar, aplicar);
+    caja.append(buscar, lista, pie); sincronizar(); caja.hidden = false;
+    const r = boton.getBoundingClientRect();
+    caja.style.top = Math.min(r.bottom + 6, innerHeight - caja.offsetHeight - 8) + 'px';
+    caja.style.left = Math.max(8, Math.min(r.left - 8, innerWidth - caja.offsetWidth - 8)) + 'px';
+    buscar.focus();
+  }
+  document.addEventListener('click', e => { const c = $('cn-filtro'); if (!c.hidden && !c.contains(e.target)) c.hidden = true; });
+
+  const delCliente = () => cotizaciones.filter(c => !cliente || c.familia === cliente);
+  function base(excepto) {
+    const texto = plano($('cc-buscar').value.trim());
+    const filas = delCliente().filter(c => c.pestanas.includes(tab)
+      && (!texto || plano([c['N° COTIZACION'], c.key, c['NOMBRE SITE'], c['NUMERO WO'], c.MOTIVO, c.SUPERVISOR].join(' ')).includes(texto))
+      && Object.entries(filtros).every(([id, vals]) => id === excepto || vals.includes(COLUMNAS[id].texto(c)))
+      && Object.entries(busquedas).every(([id, t]) => plano(COLUMNAS[id].texto(c)).includes(plano(t.trim()))));
+    const col = orden && COLUMNAS[orden.col];
+    filas.sort(col ? (a, b) => (col.orden ? col.orden(a) - col.orden(b)
+      : String(col.texto(a)).localeCompare(String(col.texto(b)), 'es', {numeric: true, sensitivity: 'base'})) * orden.dir || b.id - a.id
+      : (a, b) => fechaValor(b.FECHA) - fechaValor(a.FECHA) || b.id - a.id);
+    return filas;
+  }
+
+  // ── Acciones (botones redondos) ──
+  async function accion(c, nombre, extra = {}) {
+    const r = await fetch('/api/cotizacion/accion', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: c.key, accion: nombre, ...extra})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.success === false) throw Error(j.error || 'No se pudo completar la acción.');
+    await cargar();
+  }
+  function pedirMotivo(titulo, subtitulo, okText, iconoNombre) {
+    return new Promise(resolve => {
+      const d = el('dialog', 'cc-motivo'), form = el('form', 'cc-motivo-form'); form.method = 'dialog';
+      const cabeza = el('header', 'cc-motivo-cabeza'), marca = el('span', 'cc-motivo-icono'); marca.append(icono(iconoNombre));
+      const textos = el('div'); textos.append(el('h3', null, titulo), el('p', null, subtitulo)); cabeza.append(marca, textos);
+      const texto = Object.assign(el('textarea'), {rows: 3, maxLength: 300, placeholder: 'Escribe el motivo…'});
+      const pie = el('nav', 'cc-motivo-pie');
+      const cancelar = el('button', 'cc-motivo-cancelar', 'Cancelar'); cancelar.type = 'button';
+      const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit'; ok.value = 'ok'; ok.append(icono(iconoNombre), el('span', null, okText));
+      pie.append(cancelar, ok);
+      form.append(cabeza, el('span', 'cc-motivo-etiqueta', 'Motivo'), texto, pie); d.append(form);
+      const validar = () => { ok.disabled = !texto.value.trim(); }; texto.addEventListener('input', validar); validar();
+      cancelar.addEventListener('click', () => d.close(''));
+      d.addEventListener('close', () => { resolve(d.returnValue === 'ok' ? texto.value.trim() : null); d.remove(); });
+      document.body.append(d); d.showModal(); texto.focus();
+    });
+  }
+  const conMotivo = (c, nombre, titulo, okText, iconoNombre) => async () => {
+    const motivo = await pedirMotivo(titulo, (c['N° COTIZACION'] || c.key) + ' · ' + (c['NOMBRE SITE'] || ''), okText, iconoNombre);
+    if (motivo === null) return;
+    try { await accion(c, nombre, {motivo}); if (dialogo.open) dialogo.close(); } catch (e) { avisar(e.message); }
+  };
+  // Lo que aún no está en Cot_New (generar, aprobar con correo, sustento, proveedor) se abre en Cotizaciones.
+  const abrirClasico = () => location.assign(clasico);
+  function accionesDe(c) {
+    const p = tab;
+    const lista = [];
+    if (!puedeGestionar) return lista;
+    if (p === 'registro') lista.push(['Generar cotización (en Cotizaciones)', 'cn-verde', 'fa-paper-plane', abrirClasico],
+      ['Rechazar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar', 'Rechazar cotización', 'Rechazar', 'fa-rotate-left')],
+      ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
+    else if (p === 'cliente') lista.push(['Aprobar (en Cotizaciones)', 'cn-verde', 'fa-check', abrirClasico],
+      ['Rechazar: vuelve a Registro', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar', 'Rechazar cotización', 'Rechazar', 'fa-rotate-left')],
+      ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
+    else if (p === 'sustentar') lista.push(['Sustento del WO (en Cotizaciones)', 'cn-azul', 'fa-camera', abrirClasico]);
+    else if (p === 'proveedor') lista.push(['Documentos del proveedor (en Cotizaciones)', 'cn-morado', 'fa-file-invoice', abrirClasico]);
+    return lista;
+  }
+  function botonRedondo([titulo, clase, simbolo, fn], tamano) {
+    // Fila: mismo botón redondo de Caja Chica (cc-rapida); ventana: botón grande junto a la X.
+    const b = el('button', (tamano ? 'cc-dialogo-icono cn-redondo ' : 'cc-rapida cn-redondo ') + clase + (tamano ? ' ' + tamano : '')); b.type = 'button';
+    b.title = titulo; b.setAttribute('aria-label', titulo); b.append(icono(simbolo));
+    b.addEventListener('click', async e => { e.stopPropagation(); b.disabled = true; try { await fn(); } finally { b.disabled = false; } });
+    return b;
+  }
+
+  // ── Detalle: datos a la izquierda; ítems y monto a la derecha ──
+  function ficha(iconoNombre, titulo, filas) {
+    const caja = el('section', 'cc-ficha'), cabeza = el('h4', 'cc-ficha-titulo');
+    cabeza.append(icono(iconoNombre), el('span', null, titulo));
+    const lista = el('dl', 'cc-ficha-datos');
+    for (const [k, v] of filas) { if (!v) continue; const f = el('div', 'cc-ficha-fila'); f.append(el('dt', null, k), el('dd', null, v)); lista.append(f); }
+    caja.append(cabeza, lista); return caja;
+  }
+  function verDetalle(c) {
+    $('cc-solicitud-titulo').textContent = [c['N° COTIZACION'] || c.key, CLIENTES[c.familia] || c.CLIENTE].filter(Boolean).join(' · ');
+    const acciones = $('cn-dialogo-acciones');
+    acciones.querySelectorAll('.cn-redondo').forEach(b => b.remove());
+    acciones.prepend(...accionesDe(c).map(a => botonRedondo(a, 'cn-grande')));
+    const izquierda = el('div', 'cc-validacion-izquierda');
+    izquierda.append(
+      ficha('fa-file-lines', 'Detalle de la cotización', [['Fecha', fechaTexto(c.FECHA)], ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']],
+        ['Motivo', c.MOTIVO], ['Objetivo', c.OBJETIVO !== c.MOTIVO ? c.OBJETIVO : ''], ['Supervisor', c.SUPERVISOR],
+        ['Departamento', c.DEPARTAMENTO], ['Tipo de gasto', c['TIPO DE GASTO']], ['Tipo', c['TIPO DE COTIZACION']], ['Código interno', c['CODIGO INTERNO']]]),
+      ficha('fa-users', 'Responsables', [['Solicitado por', c['SOLICITADO POR']], ['Gestor', c.GESTOR], ['Cotizado por', c['COTIZADO POR']],
+        ['Fecha cotizado', c['FECHA COTIZADO']], ['Enviado al cliente', c['FECHA ENVIO CLIENTE']], ['Aprobado', c['FECHA APROBACION']]]));
+    const estado = [['Estado', c['ESTADO COTIZACION'] || 'Pdt. Cotización'], ['Rechazo', c['MOTIVO RECHAZO'] && (c['MOTIVO RECHAZO'] + ' · ' + (c['FECHA RECHAZO'] || ''))],
+      ['Anulación', c['MOTIVO CANCELACION'] && (c['MOTIVO CANCELACION'] + ' · ' + (c['FECHA CANCELACION'] || ''))],
+      ['Comentario', c['COMENTARIO APROBACION']], ['Gasto', c['TIPO GASTO APROBACION']], ['Proveedor', c['NOMBRE DE PROVEEDOR']],
+      ['Factura', c['NUMERO FACTURA PROVEEDOR']], ['OC', c['NUMERO OC PROVEEDOR']],
+      ['Tránsito', c.transito && ('Enviada ' + (c.transito.fecha || '') + ' · ' + (c.transito.usuario || ''))]];
+    izquierda.append(ficha('fa-flag', 'Estado', estado));
+    const derecha = el('div', 'cc-validacion-derecha');
+    const items = el('section', 'cc-ficha cn-items');
+    const t = el('h4', 'cc-ficha-titulo'); t.append(icono('fa-list-check'), el('span', null, 'Ítems de la cotización (' + c.items.length + ')'));
+    const tabla = el('table', 'cn-items-tabla');
+    const cab = el('tr'); ['Descripción', 'Und', 'Cant.', 'V. unit.', 'Total'].forEach(h => cab.append(el('th', null, h)));
+    tabla.append(cab);
+    for (const i of c.items) {
+      const tr = el('tr');
+      tr.append(el('td', null, i.texto || i.descripcion || '—'), el('td', null, i.und || ''), el('td', 'cc-num', i.cantidad || ''),
+        el('td', 'cc-num', i.valor_unitario ? dinero(i.valor_unitario) : ''), el('td', 'cc-num', i.valor_total ? dinero(i.valor_total) : ''));
+      tabla.append(tr);
+    }
+    if (!c.items.length) { const tr = el('tr'); const td = el('td', 'cc-nota', 'Sin ítems registrados.'); td.colSpan = 5; tr.append(td); tabla.append(tr); }
+    const total = el('div', 'cn-total'); total.append(el('span', null, 'Sub total + FEE'), el('strong', null, dinero(c.monto)));
+    items.append(t, tabla, total);
+    derecha.append(items);
+    const columnasDetalle = el('div', 'cc-validacion-columnas'); columnasDetalle.append(izquierda, derecha);
+    $('cc-solicitud-contenido').replaceChildren(columnasDetalle);
+    if (!dialogo.open) dialogo.showModal();
+  }
+
+  // ── Pintar ──
+  const resumenPlata = s => 'S/ ' + s.toLocaleString('es-PE', {minimumFractionDigits: s >= 1000 || !s ? 0 : 2, maximumFractionDigits: s >= 1000 ? 0 : 2});
+  function pintar() {
+    pintarCliente();
+    document.querySelectorAll('.cn-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
+    document.querySelectorAll('[data-cuenta]').forEach(n => { n.textContent = delCliente().filter(c => c.pestanas.includes(n.dataset.cuenta)).length; });
+    document.querySelectorAll('[data-plata]').forEach(p => {
+      const suma = delCliente().filter(c => c.pestanas.includes(p.dataset.plata)).reduce((t, c) => t + Number(c.monto || 0), 0);
+      p.textContent = resumenPlata(suma); p.title = 'Total: ' + dinero(suma);
+    });
+    pintarEncabezado();
+    const lista = $('cn-lista'); lista.replaceChildren();
+    const visibles = base();
+    $('cc-excel').disabled = !cotizaciones.length;
+    if (!visibles.length) {
+      const hay = Object.keys(filtros).length || Object.keys(busquedas).length || $('cc-buscar').value.trim();
+      lista.append(el('p', 'cc-vacio', hay ? 'Ninguna cotización coincide con los filtros.' : 'No hay cotizaciones en esta etapa.'));
+      return;
+    }
+    for (const c of visibles) {
+      const fila = el('div', 'cc-card cc-resumen cc-fila-solicitud');
+      const controles = el('span', 'cc-acciones-rapidas cc-col-acciones');
+      const botones = accionesDe(c).map(a => botonRedondo(a));
+      if (!botones.length) botones.push(botonRedondo(['Ver detalle', 'cn-neutro', 'fa-eye', () => verDetalle(c)]));
+      controles.append(...botones);
+      fila.append(controles);
+      for (const id of columnas) { const col = COLUMNAS[id]; fila.append(col.celda ? col.celda(c) : el('span', col.clase || null, col.texto(c))); }
+      lista.append(fila);
+    }
+  }
+
+  // ── Cliente (píldora) ──
+  const botonCliente = $('cn-cliente-btn'), menuCliente = $('cn-cliente-menu');
+  const cerrarCliente = () => { menuCliente.hidden = true; botonCliente.setAttribute('aria-expanded', 'false'); };
+  const opcionesCliente = [['', 'Todos los clientes'], ...Object.entries(CLIENTES)].map(([valor, texto]) => {
+    const b = el('button', 'cc-proyecto-opcion'); b.type = 'button'; b.setAttribute('role', 'option'); b.dataset.valor = valor;
+    const punto = el('span', 'cc-proyecto-punto ' + (valor ? 'project-badge--' + valor.toLowerCase() : 'cc-proyecto-todos'));
+    b.append(icono('fa-check cc-proyecto-check'), punto, el('span', null, texto), el('span', 'cc-proyecto-cuenta', '0'));
+    b.addEventListener('click', () => { cerrarCliente(); cliente = valor; pintar(); });
+    menuCliente.append(b); return b;
+  });
+  botonCliente.addEventListener('click', e => { e.stopPropagation(); const abrir = menuCliente.hidden; menuCliente.hidden = !abrir; botonCliente.setAttribute('aria-expanded', String(abrir)); });
+  document.addEventListener('click', e => { if (!menuCliente.hidden && !menuCliente.contains(e.target)) cerrarCliente(); });
+  function pintarCliente() {
+    $('cc-proyecto-texto').textContent = cliente ? CLIENTES[cliente] : 'Todos los clientes';
+    botonCliente.closest('.cc-proyecto-pill').classList.toggle('activo', !!cliente);
+    opcionesCliente.forEach(b => {
+      b.setAttribute('aria-selected', String(b.dataset.valor === cliente));
+      b.lastChild.textContent = cotizaciones.filter(c => !b.dataset.valor || c.familia === b.dataset.valor).length;
+    });
+  }
+
+  // ── Exportar ──
+  const excel = $('cc-excel'), menuExportar = $('cn-exportar-menu');
+  const cerrarExportar = () => { menuExportar.hidden = true; excel.setAttribute('aria-expanded', 'false'); };
+  excel.addEventListener('click', e => {
+    e.stopPropagation();
+    if (!menuExportar.hidden) return cerrarExportar();
+    $('cn-exportar-pestana').textContent = NOMBRE_TAB[tab] + ' · ' + base().length + ' cotizaciones';
+    $('cn-exportar-todo').textContent = 'Todas las pestañas · ' + delCliente().length + ' cotizaciones';
+    menuExportar.hidden = false; excel.setAttribute('aria-expanded', 'true');
+  });
+  document.addEventListener('click', e => { if (!menuExportar.hidden && !menuExportar.contains(e.target)) cerrarExportar(); });
+  menuExportar.querySelectorAll('.cc-exportar-opcion').forEach(o => o.addEventListener('click', async () => {
+    cerrarExportar();
+    const todo = o.dataset.alcance === 'todo', ids = (todo ? delCliente() : base()).map(c => c.id);
+    if (!ids.length) return;
+    excel.disabled = true;
+    try {
+      const r = await fetch('/api/cot-new/exportar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(ids)});
+      if (!r.ok) throw Error('No se pudo exportar.');
+      descargar(await r.blob(), todo ? 'Cotizaciones.xlsx' : 'Cotizaciones-' + NOMBRE_TAB[tab] + '.xlsx');
+    } catch (e) { avisar(e.message); } finally { excel.disabled = false; }
+  }));
+  function descargar(blob, nombre) {
+    const a = el('a'); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // ── Tuerca ──
+  const ajustes = $('cn-ajustes-btn'), menu = $('cn-ajustes-menu');
+  const cerrarMenu = () => { menu.hidden = true; ajustes.setAttribute('aria-expanded', 'false'); };
+  ajustes.addEventListener('click', e => { e.stopPropagation(); const abrir = menu.hidden; menu.hidden = !abrir; ajustes.setAttribute('aria-expanded', String(abrir)); });
+  document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) cerrarMenu(); });
+  menu.addEventListener('click', async e => {
+    const opcion = e.target.closest('[data-accion]'); if (!opcion) return;
+    e.stopPropagation(); cerrarMenu();
+    const a = opcion.dataset.accion;
+    if (a === 'clasico') return location.assign(clasico);
+    if (a === 'pdfs') return $('cn-pdfs').showModal();
+    if (a === 'copiar') {
+      const filas = base(), texto = [columnas.map(c => COLUMNAS[c].titulo).join('\t'),
+        ...filas.map(f => columnas.map(c => String(COLUMNAS[c].texto(f)).replace(/\s+/g, ' ')).join('\t'))].join('\n');
+      try { await navigator.clipboard.writeText(texto); avisar(filas.length + ' filas copiadas. Pégalas en Excel o Google Sheets.'); }
+      catch (_) { avisar('No se pudo copiar al portapapeles.'); }
+      return;
+    }
+    if (a === 'limpiar') { filtros = {}; busquedas = {}; orden = null; cliente = ''; $('cc-buscar').value = ''; }
+    if (a === 'restablecer') { columnas = Object.keys(COLUMNAS); guardarColumnas(); }
+    pintar();
+  });
+  // PDFs en lote: el mismo servicio de Cotizaciones.
+  const formPdfs = $('cn-pdfs-form');
+  formPdfs.querySelector('.cc-motivo-cancelar').addEventListener('click', () => $('cn-pdfs').close());
+  formPdfs.addEventListener('submit', async e => {
+    e.preventDefault();
+    const error = formPdfs.querySelector('.cc-alerta'); error.hidden = true;
+    try {
+      const r = await fetch('/api/cotizacion/descargar_lote', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({desde: formPdfs.desde.value, hasta: formPdfs.hasta.value})});
+      if (!r.ok) throw Error((await r.json().catch(() => ({}))).error || 'No se pudieron descargar los PDFs.');
+      descargar(await r.blob(), 'Cotizaciones-' + formPdfs.desde.value + '_' + formPdfs.hasta.value + '.zip');
+      $('cn-pdfs').close();
+    } catch (err) { error.textContent = err.message; error.hidden = false; }
+  });
+
+  document.querySelectorAll('.cn-tab').forEach(b => b.addEventListener('click', () => {
+    tab = b.dataset.tab; filtros = {}; busquedas = {};
+    try { localStorage.setItem('cn-tab', tab); } catch (_) {}
+    pintar();
+  }));
+  $('cc-buscar').addEventListener('input', pintar);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('cn-filtro').hidden = true; cerrarMenu(); cerrarExportar(); cerrarCliente(); } });
+
+  async function cargar() {
+    const r = await fetch('/api/cot-new/lista'); const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $('cn-lista').replaceChildren(el('p', 'cc-alerta', j.error || 'No se pudieron cargar las cotizaciones.')); return; }
+    cotizaciones = j.cotizaciones; pintar();
+  }
+  pintarEncabezado();
+  cargar();
+})();

@@ -3793,7 +3793,8 @@ let _rendCambiandoVista = false;
 
     // Dataper: restablecer la clave del portal de técnicos a su documento.
     if (_projNorm === 'dataper') {
-        tableColumns.push({
+        // Al inicio de la tabla: es la acción que más se busca y no debe quedar escondida a la derecha.
+        tableColumns.unshift({
             field: '_clave_portal', title: 'Clave portal', headerSort: false, width: 130, minWidth: 120,
             formatter: function (cell) {
                 const key = cell.getRow().getData()._key;
@@ -4581,6 +4582,8 @@ let _rendCambiandoVista = false;
     // La configuración compartida es la única fuente de visibilidad.
     if (hasServerLayout) tableColumns.forEach(c => {
         if (c.field) c.visible = layoutVisibleMap.has(c.field) && layoutVisibleMap.get(c.field);
+        // Clave portal es una acción, no un dato: se ve aunque el layout guardado sea anterior a ella.
+        if (c.field === '_clave_portal' && !layoutVisibleMap.has(c.field)) c.visible = true;
     });
     // Aplicar a las columnas definitivas, incluidas las importadas del formulario.
     window.NucleusOrden.configurar(tableColumns, manualColsConfig, currentProjectNombre);

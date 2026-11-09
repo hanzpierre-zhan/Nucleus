@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Cot_New — Nucleus{% endblock %}
+{% block content %}
+{# Mismo diseño que Caja Chica: reutiliza su hoja de estilos y sus clases cc-*. #}
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=94">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=4">
+<section class="cc-gestion cn-gestion" aria-label="Cotizaciones" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
+         data-proyecto="{{ proyecto_id }}">
+  <div class="cc-barra">
+    <input type="search" id="cc-buscar" placeholder="Buscar N.º cotización, site o WO" aria-label="Buscar cotización">
+    <nav class="cc-tabs" role="tablist" aria-label="Etapas">
+      {% for clave, nombre, icono, color in pestanas %}
+      <button type="button" role="tab" class="cc-tab cn-tab" data-tab="{{ clave }}" style="--cc-color: {{ color }}">
+        <span class="cc-tab-fila"><i class="fa-solid {{ icono }}" aria-hidden="true"></i> {{ nombre }} <span class="cc-cuenta" data-cuenta="{{ clave }}" title="Cotizaciones">0</span></span>
+        <span class="cc-plata" data-plata="{{ clave }}">S/ 0</span>
+      </button>
+      {% endfor %}
+    </nav>
+    <nav class="cc-proyecto-pill" aria-label="Filtrar por cliente">
+      <button type="button" id="cn-cliente-btn" class="cc-proyecto-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="cn-cliente-menu" title="Filtrar por cliente">
+        <i class="fa-solid fa-building" aria-hidden="true"></i>
+        <span id="cc-proyecto-texto">Todos los clientes</span>
+        <i class="fa-solid fa-chevron-down cc-proyecto-flecha" aria-hidden="true"></i>
+      </button>
+      <div id="cn-cliente-menu" class="cc-proyecto-menu" role="listbox" aria-label="Clientes" hidden></div>
+    </nav>
+    {% if puede_gestionar %}
+    <a id="cn-nueva" class="cn-redondo cn-verde" href="/switch_project/{{ proyecto_id }}?next=/" title="Nueva cotización (abre Cotizaciones)" aria-label="Nueva cotización">
+      <i class="fa-solid fa-plus" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+    <div class="cc-exportar">
+      <button type="button" id="cc-excel" class="cc-excel" aria-haspopup="menu" aria-expanded="false" aria-controls="cn-exportar-menu"
+              title="Exportar a Excel" aria-label="Exportar a Excel">
+        <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+      </button>
+      <nav id="cn-exportar-menu" class="cc-exportar-menu" role="menu" aria-label="Qué exportar" hidden>
+        <button type="button" role="menuitem" class="cc-exportar-opcion" data-alcance="pestana">
+          <i class="fa-solid fa-table-list" aria-hidden="true"></i>
+          <span><strong>Pestaña actual</strong><small id="cn-exportar-pestana">Lo que ves en pantalla</small></span>
+        </button>
+        <button type="button" role="menuitem" class="cc-exportar-opcion" data-alcance="todo">
+          <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+          <span><strong>Exportar todo</strong><small id="cn-exportar-todo">Todas las pestañas</small></span>
+        </button>
+      </nav>
+    </div>
+    <div class="cc-ajustes">
+      <button type="button" id="cn-ajustes-btn" class="cc-ajustes-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="cn-ajustes-menu" title="Opciones">
+        <i class="fa-solid fa-gear" aria-hidden="true"></i><span class="sr-only">Opciones</span>
+      </button>
+      {# Tuerca: aquí van las acciones que antes estaban sueltas en la barra. #}
+      <div id="cn-ajustes-menu" class="cc-ajustes-menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-accion="pdfs"><i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i> Descargar PDFs por fecha</button>
+        <button type="button" role="menuitem" data-accion="copiar"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copiar tabla</button>
+        <button type="button" role="menuitem" data-accion="clasico"><i class="fa-solid fa-table" aria-hidden="true"></i> Abrir Cotizaciones (clásico)</button>
+        <button type="button" role="menuitem" data-accion="limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros y búsquedas</button>
+        <button type="button" role="menuitem" data-accion="restablecer"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Restablecer columnas</button>
+      </div>
+    </div>
+  </div>
+  <div class="cc-tabla" id="cn-tabla" tabindex="0" role="region" aria-label="Tabla de cotizaciones">
+    <div class="cc-encabezado" id="cn-encabezado"></div>
+    <div id="cn-lista" class="cc-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
+  </div>
+  <div class="cc-filtro" id="cn-filtro" role="dialog" aria-label="Filtrar columna" hidden></div>
+  <dialog id="cc-solicitud-dialogo" class="cn-dialogo" aria-labelledby="cc-solicitud-titulo">
+    <header>
+      <h2 id="cc-solicitud-titulo"></h2>
+      <div class="cc-dialogo-acciones" id="cn-dialogo-acciones">
+        <form method="dialog"><button type="submit" class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
+      </div>
+    </header>
+    <div id="cc-solicitud-contenido"></div>
+  </dialog>
+  <dialog id="cn-pdfs" class="cc-motivo">
+    <form method="dialog" class="cc-motivo-form" id="cn-pdfs-form">
+      <header class="cc-motivo-cabeza"><span class="cc-motivo-icono"><i class="fa-solid fa-file-zipper" aria-hidden="true"></i></span>
+        <div><h3>PDFs en lote</h3><p>Rango de fechas de generación</p></div></header>
+      <span class="cc-motivo-etiqueta">Desde</span><input type="date" name="desde" required>
+      <span class="cc-motivo-etiqueta">Hasta</span><input type="date" name="hasta" required>
+      <p class="cc-alerta" hidden></p>
+      <nav class="cc-motivo-pie"><button type="button" class="cc-motivo-cancelar" value="">Cancelar</button>
+        <button type="submit" class="cc-motivo-ok"><i class="fa-solid fa-download" aria-hidden="true"></i><span>Descargar</span></button></nav>
+    </form>
+  </dialog>
+</section>
+<script src="/static/js/cot-new.js?v=2" defer></script>
+{% endblock %}
