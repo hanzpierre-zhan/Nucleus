@@ -181,6 +181,14 @@ def normalizar_catalogo(filas, proyectos):
     return catalogo
 
 
+def _monto_vacio(valor):
+    texto = str(valor if valor is not None else '').strip().replace('S/', '').replace(',', '.').strip()
+    try:
+        return not texto or Decimal(texto) == 0
+    except Exception:
+        return False
+
+
 def _llenar(sol, datos, catalogo, proyectos, bancos, importe, anteriores=()):
     """Valida la cabecera y los ítems del técnico y los copia en la solicitud."""
     proyecto = str(datos.get('proyecto') or '').strip()
@@ -192,7 +200,10 @@ def _llenar(sol, datos, catalogo, proyectos, bancos, importe, anteriores=()):
     cuenta = re.sub(r'\s', '', str(datos.get('cuenta') or ''))
     _exigir(re.fullmatch(r'[0-9-]{6,40}', cuenta), 'Escribe un número de cuenta válido.')
     items = datos.get('items')
-    _exigir(isinstance(items, list) and 1 <= len(items) <= MAX_ITEMS, 'Agrega entre 1 y %d ítems.' % MAX_ITEMS)
+    _exigir(isinstance(items, list), 'Agrega entre 1 y %d ítems.' % MAX_ITEMS)
+    # Un concepto marcado sin monto (vacío o 0) no se considera.
+    items = [i for i in items if not (isinstance(i, dict) and _monto_vacio(i.get('monto')))]
+    _exigir(1 <= len(items) <= MAX_ITEMS, 'Marca al menos un concepto con su monto (máximo %d).' % MAX_ITEMS)
     disponibles = {fila['nombre']: fila for fila in catalogo if fila['proyectos'].get(proyecto)}
     nuevos, conceptos, total = [], {}, Decimal('0')
     for n, item in enumerate(items, 1):

@@ -624,11 +624,9 @@
     e.preventDefault(); const form = e.currentTarget, error = form.querySelector('.error');
     enviando(form.querySelector('[type=submit]'), error, async () => {
       if (!/^[0-9]{20}$/.test($('cc-cuenta').value)) throw Error('Ingresa el CCI de 20 dígitos.');
-      const items = itemsSeleccionados();
-      if (!items.length) throw Error('Selecciona al menos un concepto.');
-      items.forEach(item => {
-        if (!(numero(item.monto) > 0)) throw Error(item.tipo_gasto + ': escribe un monto mayor a cero.');
-      });
+      // Un concepto marcado sin monto (vacío o 0) no se considera.
+      const items = itemsSeleccionados().filter(item => numero(item.monto) > 0);
+      if (!items.length) throw Error('Marca al menos un concepto y escribe su monto.');
       const cuerpo = {...Object.fromEntries(new FormData(form)), items};
       const ruta = corrigiendo ? '/' + corrigiendo.id + '/reenviar' : '/solicitar';
       const r = await api(ruta, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});

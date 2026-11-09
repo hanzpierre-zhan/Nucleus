@@ -545,7 +545,8 @@ def test_resumen_para_el_menu(auth_client, tecnico):
     assert cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json=datos).status_code == 200
     assert auth_client.get('/api/caja-chica/resumen').json['por_validar'] == antes + 1
     pagina = auth_client.get('/caja-chica/').get_data(as_text=True)
-    assert 'id="sb-cc-pendientes"' in pagina and 'data-grupo="flm"' in pagina
+    # El número del menú se quitó a pedido: el menú no muestra el contador.
+    assert 'id="sb-cc-pendientes"' not in pagina and 'data-grupo="flm"' in pagina
 
 
 def test_solicitud_migrada_muestra_las_fotos_de_rendicion(app, auth_client, tecnico, monkeypatch):
@@ -653,3 +654,22 @@ def test_depositante_entra_desde_el_celular_y_deposita_con_el_mismo_flujo(app, a
         assert r.status_code == 200 and r.json['solicitud']['estado'] == 'DEPOSITADO'
     finally:
         auth_client.post('/api/vista/usuarios/depositante', json={'id': uid, 'activo': False})
+
+
+def test_conceptos_marcados_sin_monto_no_se_consideran(tecnico):
+    cli, h = tecnico
+    base = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678'}
+    r = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={**base, 'items': [
+        {'tipo_gasto': 'Peajes', 'monto': '30'}, {'tipo_gasto': 'Peajes', 'monto': '0'}, {'tipo_gasto': 'Peajes', 'monto': ''}]})
+    assert r.status_code == 200, r.json
+    assert [i['monto'] for i in r.json['solicitud']['items']] == ['30.00'] and r.json['solicitud']['total'] == '30.00'
+    vacia = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={**base, 'items': [{'tipo_gasto': 'Peajes', 'monto': '0'}]})
+    assert vacia.status_code == 400 and 'monto' in vacia.json['error']
+
+
+def test_cotizado_en_caja_chica_es_la_suma_de_valores_unitarios():
+    from services.rendicion_presupuesto_cotizacion import suma_valores_unitarios
+    items = json.dumps([{'cantidad': '1', 'valor_unitario': '360', 'valor_total': '378.00'},
+                        {'cantidad': '70', 'valor_unitario': '33.21', 'valor_total': '2440.94'}])
+    assert suma_valores_unitarios(items) == '393.21'  # 360 + 33.21, sin cantidad ni FEE
+    assert suma_valores_unitarios('[]') is None

@@ -17,7 +17,7 @@ from services import caja_chica as cc
 from services.formularios_prueba import importe
 from services.recursos_flm import familia
 from services.alcance_proyectos import _valor
-from services.rendicion_presupuesto_cotizacion import cantidad_items, monto_cotizacion, proyecto as proyecto_cotizacion
+from services.rendicion_presupuesto_cotizacion import cantidad_items, proyecto as proyecto_cotizacion, suma_valores_unitarios
 from blueprints.formularios_prueba import (BANCOS, CATALOGO_GASTOS, PROYECTOS, comprobar_csrf,
                                            csrf, responsables_por_proyecto, tecnico)
 
@@ -296,7 +296,7 @@ def gestion_cotizaciones():
         codigo = str(numero or clave or '').strip()
         if codigo:
             cotizaciones.append({'numero': codigo, 'estado': str(estado or '').strip(), 'proyecto': familia_cot,
-                                 'monto': monto_cotizacion(subtotal, items), 'items': cantidad_items(items),
+                                 'monto': suma_valores_unitarios(items), 'items': cantidad_items(items),
                                  'otras_solicitudes': str(acumulados[codigo.upper()])})
     return jsonify(cotizaciones=cotizaciones)
 

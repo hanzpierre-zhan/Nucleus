@@ -673,6 +673,11 @@
     error.setAttribute('role', 'alert');
     grupo.append(cotizacion, control);
     form.append(grupo, correo, error);
+    // Cotización y correo solo se piden si algún concepto de gasto lo exige (o ya se cargaron).
+    form.pideCotizacion = sol.items.some(i => i.requiere_cotizacion) || Boolean(sol.revision?.cotizacion);
+    form.pideCorreo = sol.items.some(i => i.requiere_correo) || Boolean(sol.revision?.archivo);
+    grupo.hidden = !form.pideCotizacion;
+    correo.hidden = !form.pideCorreo;
     form.addEventListener('submit', async e => {
       e.preventDefault();
       if (guardar.disabled) return;
@@ -1157,8 +1162,9 @@
     };
     const seguimiento = detalle(sol);
     if (seguimiento.hasChildNodes()) izquierda.append(seguimiento);
-    if (documentos) derecha.prepend(documentos);
-    columnas.classList.toggle('cc-una-columna', !derecha.hasChildNodes());
+    if (documentos && (documentos.pideCotizacion || documentos.pideCorreo)) derecha.prepend(documentos);
+    else if (documentos) { documentos.hidden = true; derecha.append(documentos); }  // el botón Guardar sigue apuntando al formulario
+    columnas.classList.toggle('cc-una-columna', ![...derecha.children].some(n => !n.hidden));
     mostrarDetalle();
   }
   // ── Tabla: columnas que se filtran y se mueven arrastrando ──

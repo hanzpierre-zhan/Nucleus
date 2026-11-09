@@ -29,6 +29,17 @@ def importe(value):
 def numero(value):return str(value or '').strip().upper()
 
 
+def suma_valores_unitarios(items):
+    """Cotizado para controlar Caja Chica y Rendición: la suma de la columna VALOR UNITARIO
+    de los ítems (cada valor unitario una vez, sin cantidad ni FEE)."""
+    try:
+        if isinstance(items,str):items=json.loads(items)
+        if not isinstance(items,list) or not items:return None
+        return str(sum((importe(item['valor_unitario']) for item in items),Decimal('0.00')))
+    except (ValueError,TypeError,KeyError):
+        return None
+
+
 def monto_cotizacion(subtotal_fee, items):
     """Monto de la cotización: su "SUB TOTAL + FEE" vigente; si falta, la suma de los valores totales de sus ítems."""
     try:
@@ -77,7 +88,7 @@ def catalogo(row,consulta):
         data={'CLIENTE':cliente,'Nombre del proyecto':nombre,'PROYECTO':proyecto_nombre}
         code=str(code or '').strip()
         if not code or proyecto(data)!=proyecto(row):continue
-        result.append({'id':rid,'numero':code,'monto':monto_cotizacion(subtotal,items),'key':key,
+        result.append({'id':rid,'numero':code,'monto':suma_valores_unitarios(items),'key':key,
                        'items':cantidad_items(items)})
     return result
 
@@ -91,7 +102,7 @@ def encontrar(row,code,opciones=None):
 
 def resumen(row,key,cotizacion,solicitado=None):
     try:limite=importe(cotizacion['monto'])
-    except ValueError:raise ValueError('La cotización no tiene un monto válido (Sub total + FEE o el total de sus ítems); revisa el detalle.')
+    except ValueError:raise ValueError('La cotización no tiene valores unitarios válidos en todos sus ítems; revisa el detalle.')
     actual=importe(row.get('Monto total del depósito') if solicitado is None else solicitado)
     proy=Proyecto.query.filter_by(nombre='Rendicion').first()
     acumulado=Decimal('0');cantidad=0;invalidos=0
