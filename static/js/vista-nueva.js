@@ -120,7 +120,8 @@
     if (!r.ok) throw Error(j.error || 'No se pudo restablecer la clave.');
     avisar('Clave restablecida: ahora es el documento ' + f.key + '.');
   }
-  const LISTAS = cfg.slug === 'dataper' ? {ESTADO: [['ACTIVO', 'ACTIVO'], ['CESADO', 'CESADO']]} : {};
+  // Campos que se eligen de una lista (Dataper: estado, proyecto y departamento del Perú).
+  const LISTAS = Object.fromEntries(Object.entries(cfg.listas || {}).map(([c, ops]) => [c, ops.map(o => [o, o])]));
   // Dataper: cesar o reactivar al técnico con un toque (queda registrado como cualquier edición).
   async function cambiarEstado(f) {
     const activo = String(f.datos.ESTADO || '').toUpperCase() !== 'CESADO';
@@ -148,8 +149,20 @@
   function campoEdicion(nombre, actual, opciones) {
     const fila = el('label', 'cc-pendiente-campo');
     let control;
-    if (opciones) { control = el('select'); opciones.forEach(([v, t]) => control.add(new Option(t, v))); control.value = actual; }
-    else control = Object.assign(el('input'), {value: actual ?? '', maxLength: 500});
+    if (opciones) {
+      control = el('select');
+      control.add(new Option('Selecciona…', ''));
+      opciones.forEach(([v, t]) => control.add(new Option(t, v)));
+      // Un valor antiguo que no está en la lista se conserva para no perderlo al guardar otro campo.
+      const igual = opciones.find(([v]) => v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase() === String(actual ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase());
+      if (igual) actual = igual[0];
+      else if (actual) control.add(new Option(actual + ' (revisar)', actual));
+      control.value = actual ?? '';
+    } else if (cfg.slug === 'dataper' && nombre === 'CELULAR') {
+      // Celular: solo 9 dígitos, sin espacios ni signos.
+      control = Object.assign(el('input'), {value: String(actual ?? '').replace(/\D/g, '').slice(-9), inputMode: 'numeric', maxLength: 9, pattern: '9[0-9]{8}', placeholder: '9XXXXXXXX'});
+      control.addEventListener('input', () => { control.value = control.value.replace(/\D/g, '').slice(0, 9); });
+    } else control = Object.assign(el('input'), {value: actual ?? '', maxLength: 500});
     if (!cfg.editar) control.disabled = true;
     control.dataset.campo = nombre; control.dataset.inicial = actual ?? '';
     fila.append(el('span', null, nombre), control);

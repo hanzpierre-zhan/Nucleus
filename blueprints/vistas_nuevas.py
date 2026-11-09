@@ -72,6 +72,14 @@ def _columnas(proyecto, filas):
     return sorted(conteo, key=lambda k: -conteo[k])
 
 
+def _listas(slug):
+    """Campos que se eligen de una lista en la ventana de edición."""
+    if slug != 'dataper':
+        return {}
+    from services.personal import DEPARTAMENTOS, proyectos_permitidos
+    return {'ESTADO': ['ACTIVO', 'CESADO'], 'PROYECTO': proyectos_permitidos(), 'DEPARTAMENTO': DEPARTAMENTOS}
+
+
 @bp.get('/vista/<slug>/')
 @login_required
 def pagina(slug):
@@ -89,7 +97,7 @@ def pagina(slug):
                            pestanas=_pestanas(slug), campo_clave=clave, unidad=unidad, suma=suma or '',
                            puede_editar=rol not in ('demo', 'contrata') and (slug != 'sites' or rol in ('zeno', 'suport', 'supervisor')),
                            puede_clave=slug == 'dataper' and rol not in ('demo', 'contrata'), proyectos=None,
-                           extras=extras, proyectos_list=menu)
+                           extras=extras, listas=_listas(slug), proyectos_list=menu)
 
 
 @bp.get('/api/vista/<slug>/lista')

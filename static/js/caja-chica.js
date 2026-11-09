@@ -1409,10 +1409,14 @@
     } else if (tab === 'pendientes') filas.sort((a, b) => COLUMNAS.responsable.texto(a).localeCompare(COLUMNAS.responsable.texto(b), 'es') || b.id - a.id);
     return filas;
   }
+  // Buscador general: busca en todas las pestañas (no solo en la que se ve).
+  const coincideBusqueda = s => {
+    const texto = plano($('cc-buscar').value.trim());
+    return !texto || plano([s.codigo, s.tecnico, s.documento, s.proyecto, s.formulario?.site, s.formulario?.wo].join(' ')).includes(texto);
+  };
   function filtrar(excepto) {
-    const texto = $('cc-buscar').value.trim().toLowerCase();
     return delProyecto().filter(s => s.etapas.includes(tab)
-      && (!texto || [s.codigo, s.tecnico, s.documento, s.proyecto].join(' ').toLowerCase().includes(texto))
+      && coincideBusqueda(s)
       && Object.entries(filtros).every(([id, vals]) => id === excepto || vals.includes(COLUMNAS[id].texto(s)))
       && Object.entries(busquedas).every(([id, t]) => plano(COLUMNAS[id].texto(s)).includes(plano(t.trim()))));
   }
@@ -1495,7 +1499,9 @@
   function pintar() {
     pintarProyecto();
     document.querySelectorAll('.cc-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
-    document.querySelectorAll('[data-cuenta]').forEach(c => { c.textContent = delProyecto().filter(s => s.etapas.includes(c.dataset.cuenta)).length; });
+    // Con el buscador lleno, cada pestaña cuenta solo lo que coincide: así se ve dónde está el registro.
+    const buscados = delProyecto().filter(coincideBusqueda);
+    document.querySelectorAll('[data-cuenta]').forEach(c => { c.textContent = buscados.filter(s => s.etapas.includes(c.dataset.cuenta)).length; });
     // Plata acumulada de cada etapa: suma del total solicitado de sus solicitudes.
     document.querySelectorAll('[data-plata]').forEach(p => {
       const suma = delProyecto().filter(s => s.etapas.includes(p.dataset.plata)).reduce((t, s) => t + Number(importeEtapa(s, p.dataset.plata)), 0);
@@ -1542,7 +1548,17 @@
   }
   // Los filtros de columna se aplican a la etapa elegida: al cambiar de etapa se limpian.
   document.querySelectorAll('.cc-tab').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; filtros = {}; busquedas = {}; seleccionadas.clear(); try { localStorage.setItem('cc-tab', tab); } catch (_) {} pintar(); }));
-  $('cc-buscar').addEventListener('input', pintar);
+  $('cc-buscar').addEventListener('input', () => {
+    // Si en la pestaña actual no hay coincidencias, salta a la primera pestaña donde está el registro.
+    if ($('cc-buscar').value.trim()) {
+      const buscados = delProyecto().filter(coincideBusqueda);
+      if (!buscados.some(s => s.etapas.includes(tab))) {
+        const destino = [...document.querySelectorAll('.cc-tab')].map(b => b.dataset.tab).find(t => buscados.some(s => s.etapas.includes(t)));
+        if (destino) { tab = destino; filtros = {}; busquedas = {}; seleccionadas.clear(); }
+      }
+    }
+    pintar();
+  });
   selectorProyecto.addEventListener('change', () => { seleccionadas.clear(); pintar(); });
 
   // Engranaje: menú de opciones. Para agregar una opción, un botón con data-accion en la

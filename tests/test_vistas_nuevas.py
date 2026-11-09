@@ -36,6 +36,16 @@ def test_lista_editar_y_exportar_dataper(app, auth_client, persona):
     assert auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': 'ESTADO', 'value': 'CESADO'}).status_code == 200
     assert auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': 'ESTADO', 'value': 'OTRO'}).status_code == 400
     assert auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': 'ESTADO', 'value': 'ACTIVO'}).status_code == 200
+    # Celular: 9 dígitos sin espacios; departamento: uno del Perú (con su nombre oficial).
+    act = lambda campo, valor: auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': campo, 'value': valor})
+    assert act('CELULAR', '988 142 044').status_code == 200
+    assert act('CELULAR', '12345').status_code == 400
+    assert act('DEPARTAMENTO', 'junin').status_code == 200
+    assert act('DEPARTAMENTO', 'Narnia').status_code == 400
+    with app.app_context():
+        guardado = json.loads(db.session.get(NucleusData, persona).data_json)
+    assert guardado['CELULAR'] == '988142044' and guardado['DEPARTAMENTO'] == 'Junín'
+    assert act('CELULAR', '911111111').status_code == 200
     libro = load_workbook(io.BytesIO(auth_client.post('/api/vista/dataper/exportar',
                                                       json={'ids': [persona], 'columnas': ['TECNICO', 'CELULAR']}).data))
     assert [c.value for c in libro.active[2]] == ['VN-71234567', 'Prueba Vista', '911111111']
