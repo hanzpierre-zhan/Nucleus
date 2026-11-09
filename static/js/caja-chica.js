@@ -3,7 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const ESTADOS = {PENDIENTE: 'Pendiente', VALIDADO: 'Validado', DEPOSITADO: 'Depositado', POR_DEVOLVER: 'Por devolver',
-                   ARCHIVADO: 'Archivado', RECHAZADO: 'Rechazado · con el técnico', ANULADO: 'Anulado'};
+                   SUSTENTO: 'En sustento', ARCHIVADO: 'Archivado', RECHAZADO: 'Rechazado · con el técnico', ANULADO: 'Anulado'};
   // Una solicitud que volvió a una etapa anterior se marca con su motivo de retorno.
   const RETORNO = {desde_deposito: ['Rechazado en depósito', 'cc-retorno'], reenviada: ['Corregida y reenviada', 'cc-reenviada']};
   const ITEM = {POR_RENDIR: 'Por rendir', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', DEVUELTO: 'Se devuelve'};
@@ -14,6 +14,7 @@
   const permisos = document.querySelector('[data-gestionar]').dataset;
   const puedeGestionar = permisos.gestionar === 'si';
   const puedeEliminar = permisos.eliminar === 'si';
+  const esAdmin = permisos.admin === 'si';
   const seleccionadas = new Set();
   const eliminar = $('cc-eliminar');
   let eliminando = false;
@@ -26,7 +27,7 @@
   async function accion(sol, nombre, cuerpo) {
     const opciones = cuerpo instanceof FormData ? {method: 'POST', body: cuerpo}
       : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo || {})};
-    if (['editar', 'documentos', 'cm_site'].includes(nombre)) opciones.headers = {...opciones.headers, 'X-CSRF-Token': $('cc-excel').dataset.csrf};
+    if (['editar', 'documentos', 'cm_site', 'tecnico'].includes(nombre)) opciones.headers = {...opciones.headers, 'X-CSRF-Token': $('cc-excel').dataset.csrf};
     const r = await fetch('/api/caja-chica/' + sol.id + '/' + nombre, opciones);
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw Error(j.error || 'No se pudo completar la acción.');
@@ -48,12 +49,13 @@
   const estadosPorEtapa = {
     por_rendir: ['POR_RENDIR', 'RECHAZADO'],
     revision: ['EN_REVISION'],
+    sustento: ['APROBADO', 'DEVUELTO'],
     archivado: ['APROBADO', 'DEVUELTO'],
   };
   function itemsEtapa(sol, etapa = tab) {
     const estados = estadosPorEtapa[etapa];
     return estados ? sol.items.filter(item =>
-      estados.includes(item.estado) && (item.estado !== 'DEVUELTO' || sol.estado === 'ARCHIVADO')) : sol.items;
+      estados.includes(item.estado) && (item.estado !== 'DEVUELTO' || ['SUSTENTO', 'ARCHIVADO'].includes(sol.estado))) : sol.items;
   }
   const importeEtapa = (sol, etapa = tab) => sol.montos_etapa?.[etapa] ?? sol.total;
 
@@ -234,6 +236,46 @@
     dialogo.showModal();
     (sol.faltan?.includes('CM') ? cm : site).focus();
   }
+  // Sustento ⇄ Archivado: un solo botón en cada pestaña (fila y ventana de detalle).
+  async function pasarEtapa(sol, nombre) {
+    const archivar = nombre === 'archivar';
+    if (!await confirmar('La solicitud ' + sol.codigo + (archivar ? ' pasará a Archivado.' : ' volverá a Sustento.'),
+      archivar ? 'Archivar solicitud' : 'Volver a Sustento', {okText: archivar ? 'Archivar' : 'Volver', circular: true})) return;
+    await accion(sol, nombre);
+    if (dialogo.open && solicitudAbierta === sol.id) dialogo.close();
+  }
+  // Corrige un DNI mal escrito: el nombre se toma de Dataper (solo administradores).
+  function corregirTecnico(sol) {
+    const dialogo = el('dialog', 'cc-motivo cc-completar');
+    const form = el('form', 'cc-motivo-form'); form.method = 'dialog';
+    const cabeza = el('header', 'cc-motivo-cabeza');
+    const marca = el('span', 'cc-motivo-icono'); marca.append(icono('fa-id-card'));
+    const textos = el('div'); textos.append(el('h3', null, 'Corregir DNI del técnico'), el('p', null, sol.codigo + ' · ahora: ' + sol.documento + ' · ' + (sol.tecnico || '')));
+    cabeza.append(marca, textos);
+    const dni = Object.assign(el('input'), {maxLength: 15, inputMode: 'numeric', placeholder: 'DNI correcto'});
+    dni.setAttribute('aria-label', 'DNI correcto');
+    const error = el('p', 'cc-alerta'); error.hidden = true;
+    const pie = el('nav', 'cc-motivo-pie');
+    const cancelar = el('button', 'cc-motivo-cancelar', 'Cancelar'); cancelar.type = 'button';
+    const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit';
+    ok.append(icono('fa-check'), el('span', null, 'Corregir'));
+    pie.append(cancelar, ok);
+    form.append(cabeza, el('span', 'cc-motivo-etiqueta', 'DNI correcto (debe estar ACTIVO en Dataper)'), dni,
+                el('p', 'cc-motivo-ayuda', 'El nombre del técnico se toma de Dataper y el cambio queda en el historial.'), error, pie);
+    dialogo.append(form);
+    cancelar.addEventListener('click', () => dialogo.close());
+    dialogo.addEventListener('close', () => dialogo.remove());
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      ok.disabled = true; error.hidden = true;
+      try { await accion(sol, 'tecnico', {documento: dni.value}); dialogo.close(); }
+      catch (err) { error.textContent = err.message; error.hidden = false; }
+      finally { ok.disabled = false; }
+    });
+    document.body.append(dialogo);
+    dialogo.showModal();
+    dni.focus();
+  }
   function accionesRapidas(sol) {
     const caja = el('span', 'cc-acciones-rapidas');
     if (tab === 'pendientes') {
@@ -242,7 +284,20 @@
     }
     // En "Por rendir" no hay acciones: solo el tiempo transcurrido desde el depósito.
     if (tab === 'por_rendir') { caja.append(sla(sol)); return caja; }
-    if (tab === 'archivado') { if (sol.estado === 'ARCHIVADO') caja.append(slaArchivo(sol)); return caja; }
+    if (tab === 'sustento') {
+      if (sol.estado === 'SUSTENTO') {
+        caja.append(slaArchivo(sol));
+        if (puedeGestionar) caja.append(botonRapido(sol, 'Archivar', 'cc-ok', 'fa-box-archive', () => pasarEtapa(sol, 'archivar')));
+      }
+      return caja;
+    }
+    if (tab === 'archivado') {
+      if (sol.estado === 'ARCHIVADO') {
+        caja.append(slaArchivo(sol));
+        if (puedeGestionar) caja.append(botonRapido(sol, 'Volver a Sustento', 'cc-no', 'fa-rotate-left', () => pasarEtapa(sol, 'sustento')));
+      }
+      return caja;
+    }
     if (tab === 'revision') {
       caja.append(botonRapido(sol, 'Revisar', 'cc-ok', 'fa-magnifying-glass-dollar', () => verDetalle(sol)));
       return caja;
@@ -297,9 +352,9 @@
                 el('td', 'cc-num', item.monto_gastado ? dinero(item.monto_gastado) : '—'), fotos, estado, botones);
       tabla.append(tr);
     }
-    if (['DEPOSITADO', 'POR_DEVOLVER', 'ARCHIVADO'].includes(sol.estado)) d.append(tabla);
+    if (['DEPOSITADO', 'POR_DEVOLVER', 'SUSTENTO', 'ARCHIVADO'].includes(sol.estado)) d.append(tabla);
     if (sol.deposito_foto) { const p = el('p', 'cc-nota', 'Depósito: '); p.append(foto(sol, sol.deposito_foto, 'Ver foto del depósito')); d.append(p); }
-    if (sol.devolucion_foto && sol.estado === 'ARCHIVADO') { const p = el('p', 'cc-nota', 'Devolución: '); p.append(foto(sol, sol.devolucion_foto, 'Ver foto de la devolución')); d.append(p); }
+    if (sol.devolucion_foto && ['SUSTENTO', 'ARCHIVADO'].includes(sol.estado)) { const p = el('p', 'cc-nota', 'Devolución: '); p.append(foto(sol, sol.devolucion_foto, 'Ver foto de la devolución')); d.append(p); }
     const controles = acciones(sol);
     if (controles.hasChildNodes()) d.append(controles);
     return d;
@@ -996,14 +1051,22 @@
     editar.hidden = guardar.hidden = enDeposito;
     // El botón redondo de depósito (junto a la X) solo se ve al depositar.
     $('cc-solicitud-depositar').hidden = !(enDeposito && puedeGestionar);
-    if (tab === 'archivado') {
+    const botonTecnico = $('cc-solicitud-tecnico');
+    botonTecnico.hidden = !esAdmin;
+    botonTecnico.onclick = () => corregirTecnico(sol);
+    const botonArchivar = $('cc-solicitud-archivar'), botonSustento = $('cc-solicitud-sustento');
+    botonArchivar.hidden = !(puedeGestionar && tab === 'sustento' && sol.estado === 'SUSTENTO');
+    botonSustento.hidden = !(puedeGestionar && tab === 'archivado' && sol.estado === 'ARCHIVADO');
+    botonArchivar.onclick = intentar(() => pasarEtapa(sol, 'archivar'));
+    botonSustento.onclick = intentar(() => pasarEtapa(sol, 'sustento'));
+    if (tab === 'archivado' || tab === 'sustento') {
       editar.hidden = guardar.hidden = true;
       const fichaArchivada = ficha('fa-file-lines', 'Gastos conformes', [
-        ['Estado de la solicitud', sol.estado === 'ARCHIVADO' ? 'Cerrada' : 'Parcialmente archivada'],
-        ['Gasto aprobado', dinero(importeEtapa(sol, 'archivado'))],
+        ['Estado de la solicitud', sol.estado === 'ARCHIVADO' ? 'Cerrada' : sol.estado === 'SUSTENTO' ? 'Lista para archivar' : 'Faltan ítems por rendir o revisar'],
+        ['Gasto aprobado', dinero(importeEtapa(sol, tab))],
         ['Justificación', sol.motivo || 'Sin registrar', 'cc-justificacion-texto'],
       ]);
-      contenido.replaceChildren(fichaArchivada, ...itemsEtapa(sol, 'archivado').map(item => tarjetaConcepto(sol, item)));
+      contenido.replaceChildren(fichaArchivada, ...itemsEtapa(sol, tab).map(item => tarjetaConcepto(sol, item)));
       mostrarDetalle();
       return;
     }
@@ -1083,8 +1146,9 @@
     }
     if (s.estado === 'VALIDADO') return ['Por depositar', 'cc-e-depositar'];
     if (s.estado === 'ARCHIVADO') return ['Archivada · cerrada', 'cc-e-archivada'];
+    if (s.estado === 'SUSTENTO') return ['Por archivar', 'cc-e-sustento'];
     // Depositada: el texto depende de la pestaña donde se mira.
-    if (tab === 'archivado') return ['Archivada en parte · ítems pendientes', 'cc-e-archivada'];
+    if (tab === 'sustento') return ['Aprobada en parte · ítems pendientes', 'cc-e-archivada'];
     if (tab === 'revision') {
       if (hay('EN_REVISION')) return [devolucionPorRevisar ? 'Ítems y devolución por revisar' : 'Ítems por revisar', 'cc-e-revisar'];
       return ['Devolución por revisar', 'cc-e-revisar'];
@@ -1345,7 +1409,7 @@
   let exportando = false;
   // El botón de Excel despliega dos opciones: la pestaña actual (con filtros) o todo el historial.
   const menuExportar = $('cc-exportar-menu');
-  const NOMBRE_TAB = {validacion: 'Validación', deposito: 'Depósito', por_rendir: 'Por rendir', revision: 'Revisión', archivado: 'Archivado', anuladas: 'Anuladas', pendientes: 'CM-Site pendiente'};
+  const NOMBRE_TAB = {validacion: 'Validación', deposito: 'Depósito', por_rendir: 'Por rendir', revision: 'Revisión', sustento: 'Sustento', archivado: 'Archivado', anuladas: 'Anuladas', pendientes: 'CM-Site pendiente'};
   const cerrarExportar = () => { menuExportar.hidden = true; excel.setAttribute('aria-expanded', 'false'); };
   excel.addEventListener('click', e => {
     e.stopPropagation();

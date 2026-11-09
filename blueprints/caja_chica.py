@@ -432,7 +432,9 @@ def gestion_accion(sid, accion):
     rol = str(session.get('rol') or '').lower()
     if rol in ('demo', 'contrata') or (accion == 'eliminar' and rol not in ROLES_ELIMINAR):
         return jsonify(error='Tu rol no permite gestionar Caja Chica.'), 403
-    if accion in ('eliminar', 'editar', 'documentos', 'cm_site'):
+    if accion == 'tecnico' and rol not in ROLES_TODO:
+        return jsonify(error='Solo un administrador corrige el DNI del técnico.'), 403
+    if accion in ('eliminar', 'editar', 'documentos', 'cm_site', 'tecnico'):
         comprobar_csrf()
     alcance = _alcance()
     sol = db.session.get(CajaChicaSolicitud, sid)
@@ -477,6 +479,12 @@ def gestion_accion(sid, accion):
             if not item or item.solicitud_id != sol.id:
                 abort(404)
             cc.revisar_item(sol, item, usuario, datos.get('aprobar') is True, datos.get('motivo') or '')
+        elif accion == 'tecnico':
+            cc.corregir_tecnico(sol, usuario, datos.get('documento'))
+        elif accion == 'archivar':
+            cc.archivar(sol, usuario)
+        elif accion == 'sustento':
+            cc.volver_a_sustento(sol, usuario)
         elif accion == 'devolucion':
             cc.confirmar_devolucion(sol, usuario, datos.get('aceptar') is True, datos.get('motivo') or '')
         else:

@@ -211,6 +211,7 @@
 .cc-tab-deposito   { --cc-color: #16a34a; }  /* verde: listo para depositar */
 .cc-tab-por_rendir { --cc-color: #f08a1c; }  /* ámbar: en manos del técnico */
 .cc-tab-revision   { --cc-color: #eab308; }  /* amarillo: revisando comprobantes */
+.cc-tab-sustento   { --cc-color: #7c3aed; }  /* morado: listo para archivar */
 .cc-tab-archivado  { --cc-color: #0891b2; }  /* turquesa: cerrado */
 .cc-tab-anuladas   { --cc-color: #64748b; }  /* gris: anulado */
 .cc-tab-pendientes { --cc-color: #f59e0b; }  /* ámbar: falta CM o site */
@@ -706,3 +707,4 @@ dialog.cc-completar .cc-motivo-ok:hover:not(:disabled) { background: #b45309; }
 .cc-rev-miniaturas img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; border: 1px solid var(--ios-separator, rgba(128,128,128,.35)); display: block; }
 .cc-rev-origen { grid-column: 2 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .cc-rev-origen .cc-rev-foto img { max-height: 200px; }
+.cc-chip.cc-e-sustento { background: rgba(124, 58, 237, .16); color: #8b5cf6; }

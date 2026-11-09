@@ -33,7 +33,8 @@ MAX_ITEMS = 20
 MAX_FOTOS = 5
 MAX_COMPROBANTES = 10
 MAX_EVIDENCIAS = 3
-ESTADOS_FINALES = ('ARCHIVADO', 'ANULADO')
+# SUSTENTO: todo resuelto, la gestión lo revisa y lo archiva. Para el técnico ya terminó.
+ESTADOS_FINALES = ('SUSTENTO', 'ARCHIVADO', 'ANULADO')
 
 
 def instalar():
@@ -425,6 +426,20 @@ def editar_revision(sol, usuario, datos, archivo, catalogo, proyectos, bancos, i
     db.session.commit()
 
 
+def corregir_tecnico(sol, usuario, documento):
+    """Corrige el DNI mal escrito: el técnico debe existir (ACTIVO y único) en Dataper; el nombre sale de ahí."""
+    from services.formularios_prueba import buscar_personal, documento as limpiar
+    nuevo = limpiar(documento)
+    _exigir(re.fullmatch(r'[A-Z0-9]{8,15}', nuevo), 'Escribe un DNI o documento válido.')
+    _exigir(nuevo != limpiar(sol.documento), 'Es el mismo documento que ya tiene la solicitud.')
+    persona = buscar_personal(nuevo)
+    _exigir(persona, 'Ese documento no está ACTIVO en Dataper (o está repetido). Corrígelo primero en Dataper.')
+    anterior = '%s · %s' % (sol.documento, sol.tecnico)
+    sol.documento, sol.tecnico = nuevo, persona['nombre'][:150]
+    _historial(sol, 'corregir técnico', usuario, 'Antes: %s' % anterior)
+    db.session.commit()
+
+
 def rechazar(sol, usuario, motivo):
     """Devuelve la solicitud a la etapa anterior: validación → técnico, depósito → validación."""
     _exigir(sol.estado in ('PENDIENTE', 'VALIDADO'), 'Solo se rechaza en validación o en depósito.')
@@ -494,8 +509,8 @@ def confirmar_devolucion(sol, usuario, aceptar, motivo=''):
     if aceptar:
         sol.devolucion_aceptada = True
         if sol.estado == 'POR_DEVOLVER':
-            sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
-            _historial(sol, 'confirmar devolución y archivar', usuario)
+            sol.estado = 'SUSTENTO'
+            _historial(sol, 'confirmar devolución: pasa a sustento', usuario)
         else:
             # Faltan ítems por revisar: queda aprobada y se archiva al validar el último.
             _historial(sol, 'aprobar devolución', usuario)
@@ -520,14 +535,28 @@ def _cerrar_o_pedir_devolucion(sol, usuario):
         sol.devolucion_monto = sol.devolucion_foto = None
         sol.devolucion_aceptada = False
     if diferencia(sol) > 0 and sol.devolucion_foto and sol.devolucion_aceptada:
-        sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
-        _historial(sol, 'ítems resueltos y devolución aprobada: archivado', usuario)
+        sol.estado = 'SUSTENTO'
+        _historial(sol, 'ítems resueltos y devolución aprobada: sustento', usuario)
     elif diferencia(sol) > 0:
         sol.estado = 'POR_DEVOLVER'
         _historial(sol, 'ítems resueltos: falta la devolución', usuario)
     else:
-        sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
-        _historial(sol, 'ítems resueltos: archivado', usuario)
+        sol.estado = 'SUSTENTO'
+        _historial(sol, 'ítems resueltos: sustento', usuario)
+
+
+def archivar(sol, usuario):
+    _exigir(sol.estado == 'SUSTENTO', 'Solo se archiva una solicitud en Sustento.')
+    sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
+    _historial(sol, 'archivar', usuario)
+    db.session.commit()
+
+
+def volver_a_sustento(sol, usuario):
+    _exigir(sol.estado == 'ARCHIVADO', 'Solo vuelve a Sustento una solicitud archivada.')
+    sol.estado, sol.archivado_en = 'SUSTENTO', None
+    _historial(sol, 'volver a sustento', usuario)
+    db.session.commit()
 
 
 # ── Vistas ─────────────────────────────────────────────────────────────────
@@ -547,7 +576,8 @@ def montos_etapa(sol):
         elif item.estado == 'EN_REVISION':
             vista, monto = 'revision', item.monto_gastado or Decimal('0')
         elif item.estado == 'APROBADO':
-            vista, monto = 'archivado', item.monto_gastado or Decimal('0')
+            # Lo aprobado espera en Sustento hasta que la gestión archiva la solicitud.
+            vista, monto = 'archivado' if sol.estado == 'ARCHIVADO' else 'sustento', item.monto_gastado or Decimal('0')
         else:
             continue
         montos[vista] = montos.get(vista, Decimal('0')) + monto
@@ -556,6 +586,8 @@ def montos_etapa(sol):
         montos[vista] = montos.get(vista, Decimal('0')) + max(Decimal('0'), diferencia(sol))
     if sol.estado == 'ARCHIVADO':
         montos.setdefault('archivado', Decimal('0'))
+    if sol.estado == 'SUSTENTO':
+        montos.setdefault('sustento', Decimal('0'))
     return montos
 
 
@@ -650,10 +682,10 @@ def a_dict(sol, gestion=False):
 
 
 ESTADO_SOLICITUD = {'PENDIENTE': 'Pendiente', 'RECHAZADO': 'Devuelta al técnico', 'VALIDADO': 'Validada',
-                    'DEPOSITADO': 'Depositada', 'POR_DEVOLVER': 'Por devolver', 'ARCHIVADO': 'Archivada'}
+                    'DEPOSITADO': 'Depositada', 'POR_DEVOLVER': 'Por devolver', 'SUSTENTO': 'En sustento', 'ARCHIVADO': 'Archivada'}
 ESTADO_RENDICION = {'EN_REVISION': 'En revisión', 'RECHAZADO': 'Rechazado', 'POR_RENDIR': 'Por rendir', 'DEVUELTO': 'Devuelto'}
 PESTANAS = {'validacion': 'Validación', 'deposito': 'Depósito', 'por_rendir': 'Por rendir', 'revision': 'Revisión',
-            'archivado': 'Archivado', 'anuladas': 'Anuladas'}
+            'sustento': 'Sustento', 'archivado': 'Archivado', 'anuladas': 'Anuladas'}
 
 
 def pestana_item(sol, item):
@@ -668,10 +700,14 @@ def pestana_item(sol, item):
         return PESTANAS['por_rendir']
     if item.estado == 'EN_REVISION':
         return PESTANAS['revision']
-    if item.estado == 'DEVUELTO' and sol.estado != 'ARCHIVADO':
+    if sol.estado == 'ARCHIVADO':
+        return PESTANAS['archivado']
+    if item.estado in ('APROBADO', 'DEVUELTO') and sol.estado == 'SUSTENTO':
+        return PESTANAS['sustento']
+    if item.estado == 'DEVUELTO':
         # Ítem devuelto: espera la captura (Por rendir) o su revisión (Revisión).
         return PESTANAS['revision' if sol.devolucion_foto and not sol.devolucion_aceptada else 'por_rendir']
-    return PESTANAS['archivado']
+    return PESTANAS['sustento']
 
 
 def exportar_excel(solicitudes, dataper=None):

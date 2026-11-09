@@ -172,11 +172,11 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     # Ítem 1 aprobado, ítem 2 rechazado: queda S/ 50 pendiente y vuelve a "por rendir"
     parcial = gestion('revisar_item', item=items[0]['id'], aprobar=True)
     assert parcial.status_code == 200
-    assert parcial.json['solicitud']['montos_etapa'] == {'archivado': '50.00', 'revision': '50.00'}
+    assert parcial.json['solicitud']['montos_etapa'] == {'sustento': '50.00', 'revision': '50.00'}
     assert gestion('revisar_item', item=items[1]['id'], aprobar=False).status_code == 400  # sin motivo
     r = gestion('revisar_item', item=items[1]['id'], aprobar=False, motivo='Comprobante ilegible')
     s = r.json['solicitud']
-    assert s['etapas'] == ['archivado', 'por_rendir'] and s['pendiente'] == '50.00' and s['avance'] == '1 de 2 ítems aprobados'
+    assert s['etapas'] == ['por_rendir', 'sustento'] and s['pendiente'] == '50.00' and s['avance'] == '1 de 2 ítems aprobados'
     assert rendir(items[0], '50').status_code == 400  # el aprobado no se vuelve a rendir
     assert rendir(items[1], '40').status_code == 200  # gastó menos
     r = gestion('revisar_item', item=items[1]['id'], aprobar=True)
@@ -187,7 +187,15 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert cli.post(url, headers=h, data={'monto': '5', 'foto': foto()}).status_code == 400
     assert cli.post(url, headers=h, data={'monto': '10', 'foto': foto()}).status_code == 200
     r = gestion('devolucion', aceptar=True)
+    # Todo resuelto: pasa a Sustento y la gestión lo archiva (y puede regresarlo a Sustento).
+    assert r.json['solicitud']['estado'] == 'SUSTENTO' and r.json['solicitud']['etapas'] == ['sustento']
+    assert gestion('sustento').status_code == 400  # aún no está archivada
+    r = gestion('archivar')
     assert r.json['solicitud']['estado'] == 'ARCHIVADO' and r.json['solicitud']['etapas'] == ['archivado']
+    assert gestion('archivar').status_code == 400
+    r = gestion('sustento')
+    assert r.json['solicitud']['estado'] == 'SUSTENTO' and r.json['solicitud']['archivado_en'] == ''
+    assert gestion('archivar').status_code == 200
     reporte = auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token})
     assert reporte.status_code == 200
     libro_final = load_workbook(io.BytesIO(reporte.data))
@@ -460,7 +468,7 @@ def test_devolucion_anticipada_se_aprueba_o_rechaza_antes_de_revisar_los_items(a
     assert s['estado'] == 'DEPOSITADO' and s['devolucion_aceptada']
     assert gestion(aceptar=True).status_code == 400  # ya aprobada
     s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': item['id'], 'aprobar': True}).json['solicitud']
-    assert s['estado'] == 'ARCHIVADO'  # ítems validados + devolución aprobada
+    assert s['estado'] == 'SUSTENTO'  # ítems validados + devolución aprobada: queda para archivar
 
 
 def _proyecto_tecnico(app, proyecto):
@@ -573,3 +581,32 @@ def test_solicitud_migrada_muestra_las_fotos_de_rendicion(app, auth_client, tecn
     finally:
         with app.app_context():
             NucleusData.query.filter_by(id=rid).delete(); db.session.commit()
+
+
+def test_admin_corrige_el_dni_mal_escrito_con_dataper(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}).json['solicitud']['id']
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Dataper').one().id
+        otro = NucleusData(proyecto_id=pid, key_value='41265049', data_json=json.dumps(
+            {'DOCUMENTO': '41265049', 'TECNICO': 'LUIS MARINO CAMACUARI GONZALES', 'ESTADO': 'ACTIVO', 'PROYECTO': 'FLM - CLARO'}))
+        db.session.add(otro); db.session.commit()
+        oid = otro.id
+    try:
+        assert auth_client.get('/caja-chica/').status_code == 200
+        with auth_client.session_transaction() as sesion:
+            token = sesion['form_csrf']
+        url = '/api/caja-chica/%d/tecnico' % sid
+        mal = auth_client.post(url, json={'documento': '88888888'}, headers={'X-CSRF-Token': token})
+        assert mal.status_code == 400 and 'Dataper' in mal.json['error']
+        r = auth_client.post(url, json={'documento': '41265049'}, headers={'X-CSRF-Token': token})
+        assert r.status_code == 200, r.json
+        assert r.json['solicitud']['documento'] == '41265049'
+        assert r.json['solicitud']['tecnico'] == 'LUIS MARINO CAMACUARI GONZALES'
+        assert r.json['solicitud']['historial'][-1]['accion'] == 'corregir técnico'
+    finally:
+        with app.app_context():
+            CajaChicaSolicitud.query.filter_by(documento='41265049').delete()
+            NucleusData.query.filter_by(id=oid).delete(); db.session.commit()

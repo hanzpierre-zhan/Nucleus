@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=92">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=93">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
-         data-eliminar="{{ 'si' if puede_eliminar else 'no' }}">
+         data-eliminar="{{ 'si' if puede_eliminar else 'no' }}" data-admin="{{ 'si' if administra_catalogo else 'no' }}">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar código, técnico o documento" aria-label="Buscar solicitud">
     <nav class="cc-tabs" role="tablist" aria-label="Etapas">
@@ -12,6 +12,7 @@
           ('deposito', 'fa-building-columns', 'Depósito'),
           ('por_rendir', 'fa-receipt', 'Por rendir'),
           ('revision', 'fa-magnifying-glass-dollar', 'Revisión'),
+          ('sustento', 'fa-folder-open', 'Sustento'),
           ('archivado', 'fa-box-archive', 'Archivado'),
           ('anuladas', 'fa-ban', 'Anuladas'), ('pendientes', 'fa-triangle-exclamation', 'CM / Site pendiente')] %}
       <button type="button" role="tab" class="cc-tab cc-tab-{{ clave }}" data-tab="{{ clave }}">
@@ -82,6 +83,9 @@
         <button type="button" id="cc-solicitud-anular" class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Anular solicitud" title="Anular solicitud" hidden><i class="fa-solid fa-ban" aria-hidden="true"></i></button>
         <button type="button" id="cc-solicitud-editar" class="cc-dialogo-icono cc-dialogo-editar" aria-label="Editar solicitud" title="Editar solicitud" disabled><i class="fa-solid fa-pencil" aria-hidden="true"></i></button>
         <button type="submit" id="cc-solicitud-guardar" form="cc-solicitud-documentos" class="cc-dialogo-icono cc-dialogo-guardar" aria-label="Guardar cambios" title="Guardar cambios" disabled><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
+        <button type="button" id="cc-solicitud-tecnico" class="cc-dialogo-icono cc-dialogo-editar" aria-label="Corregir DNI del técnico" title="Corregir DNI del técnico" hidden><i class="fa-solid fa-id-card" aria-hidden="true"></i></button>
+        <button type="button" id="cc-solicitud-archivar" class="cc-dialogo-icono cc-dialogo-guardar" aria-label="Archivar solicitud" title="Archivar solicitud" hidden><i class="fa-solid fa-box-archive" aria-hidden="true"></i></button>
+        <button type="button" id="cc-solicitud-sustento" class="cc-dialogo-icono cc-dialogo-editar" aria-label="Volver a Sustento" title="Volver a Sustento" hidden><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button>
         <button type="submit" id="cc-solicitud-depositar" form="cc-deposito-form" class="cc-dialogo-icono cc-dialogo-depositar" aria-label="Confirmar depósito" title="Confirmar depósito" hidden><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i></button>
         <form method="dialog"><button type="submit" class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
       </div>
@@ -90,5 +94,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=84" defer></script>
+<script src="/static/js/caja-chica.js?v=86" defer></script>
 {% endblock %}
