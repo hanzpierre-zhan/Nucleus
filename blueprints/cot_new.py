@@ -161,3 +161,28 @@ def exportar():
     archivo.seek(0)
     return send_file(archivo, as_attachment=True, download_name='Cotizaciones.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def _fijar_cotizaciones():
+    """Crear y generar reutilizan los servicios de Cotizaciones, que trabajan sobre el módulo de la sesión."""
+    modulo = _proyecto()
+    session.pop('flm_resource_context', None)
+    session['current_proyecto_id'], session['current_proyecto_nombre'] = int(modulo.id), modulo.nombre
+
+
+@bp.post('/api/cot-new/agregar')
+@login_required
+def agregar():
+    """Nueva cotización: mismo alta de Cotizaciones (numeración, GESTOR y validaciones)."""
+    _fijar_cotizaciones()
+    from blueprints.rows import api_rows_add
+    return api_rows_add()
+
+
+@bp.post('/api/cot-new/generar')
+@login_required
+def generar():
+    """Marca la cotización como generada y devuelve su PDF (mismo servicio de Cotizaciones)."""
+    _fijar_cotizaciones()
+    from blueprints.cotizacion import api_cotizacion_registro_generar
+    return api_cotizacion_registro_generar()

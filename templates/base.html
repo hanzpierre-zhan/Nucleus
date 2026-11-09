@@ -117,7 +117,7 @@
                 {% endfor %}
                 {# Caja Chica es un módulo aislado (tablas propias): no pasa por switch_project. #}
                 {% for p in proyectos_list %}{% if p.nombre == 'Caja Chica' %}
-                <a href="/caja-chica/" class="sidebar-link {% if request.path.startswith('/caja-chica') %}active{% endif %}" data-nav="/caja-chica/" title="Caja Chica"><i class="fa-solid fa-cash-register"></i><span class="sidebar-link-text">Caja Chica</span><span class="sb-chip" id="sb-cc-pendientes" title="Solicitudes por validar" hidden></span></a>
+                <a href="/caja-chica/" class="sidebar-link {% if request.path.startswith('/caja-chica') %}active{% endif %}" data-nav="/caja-chica/" title="Caja Chica"><i class="fa-solid fa-cash-register"></i><span class="sidebar-link-text">Caja Chica</span></a>
                 {% endif %}{% endfor %}
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/" title="Liquidaciones">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
@@ -207,7 +207,7 @@
     </script>
     <script src="{{ url_for('static', filename='js/api-response.js') }}?v=2"></script>
     <script src="/static/js/toast.js?v=1"></script>
-    <script src="/static/js/sidebar.js?v=2"></script>
+    <script src="/static/js/sidebar.js?v=3"></script>
     <script src="{{ url_for('static', filename='js/catalogos-autocomplete.js') }}?v=1"></script>
 
     {% block scripts %}{% endblock %}

@@ -3,7 +3,7 @@
 {% block content %}
 {# Mismo diseño que Caja Chica: reutiliza su hoja de estilos y sus clases cc-*. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=94">
-<link rel="stylesheet" href="/static/css/cot-new.css?v=6">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=7">
 <section class="cc-gestion cn-gestion" aria-label="Cotizaciones" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-proyecto="{{ proyecto_id }}">
   <div class="cc-barra">
@@ -25,9 +25,9 @@
       <div id="cn-cliente-menu" class="cc-proyecto-menu" role="listbox" aria-label="Clientes" hidden></div>
     </nav>
     {% if puede_gestionar %}
-    <a id="cn-nueva" class="cn-redondo cn-verde" href="/switch_project/{{ proyecto_id }}?next=/" title="Nueva cotización (abre Cotizaciones)" aria-label="Nueva cotización">
+    <button type="button" id="cn-nueva" class="cn-redondo cn-verde" title="Nueva cotización" aria-label="Nueva cotización">
       <i class="fa-solid fa-plus" aria-hidden="true"></i>
-    </a>
+    </button>
     {% endif %}
     <div class="cc-exportar">
       <button type="button" id="cc-excel" class="cc-excel" aria-haspopup="menu" aria-expanded="false" aria-controls="cn-exportar-menu"
@@ -85,5 +85,5 @@
     </form>
   </dialog>
 </section>
-<script src="/static/js/cot-new.js?v=2" defer></script>
+<script src="/static/js/cot-new.js?v=3" defer></script>
 {% endblock %}

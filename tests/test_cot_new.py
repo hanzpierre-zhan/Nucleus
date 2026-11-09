@@ -45,3 +45,17 @@ def test_lista_y_exportar(app, auth_client):
     finally:
         with app.app_context():
             NucleusData.query.filter_by(id=fid).delete(); db.session.commit()
+
+
+def test_nueva_cotizacion_desde_cot_new(app, auth_client):
+    items = [{'tipo': 'REEMBOLSABLE', 'texto': 'Cable', 'cantidad': '10', 'valor_unitario': '33.21', 'valor_total': '348.71'}]
+    r = auth_client.post('/api/cot-new/agregar', json={'key': '', 'numeracion_modo': 'automatico', 'data': {
+        'CLIENTE': 'CLARO', 'MOTIVO': 'Prueba', 'ITEMS_JSON': json.dumps(items), 'SUB TOTAL + FEE': '348.71',
+        'ESTADO COTIZACION': 'Pdt. Cotización'}})
+    assert r.status_code == 200 and r.json['key'].startswith('CL-'), r.json
+    try:
+        fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == r.json['key'])
+        assert fila['pestanas'] == ['registro'] and fila['monto'] == '348.71' and fila['GESTOR']
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(key_value=r.json['key']).delete(); db.session.commit()

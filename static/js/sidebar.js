@@ -60,12 +60,4 @@
   document.addEventListener('click', e => { if (!menuUsuario.hidden && !menuUsuario.contains(e.target)) cerrarUsuario(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menuUsuario.hidden) { cerrarUsuario(); usuario.focus(); } });
 
-  // Contador de Caja Chica: solicitudes que esperan validación.
-  const chip = document.getElementById('sb-cc-pendientes');
-  if (chip) {
-    fetch('/api/caja-chica/resumen').then(r => (r.ok ? r.json() : null)).then(datos => {
-      const n = Number(datos?.por_validar || 0);
-      if (n > 0) { chip.textContent = n > 99 ? '99+' : String(n); chip.hidden = false; }
-    }).catch(() => {});
-  }
 })();

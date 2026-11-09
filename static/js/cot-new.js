@@ -181,13 +181,128 @@
     if (motivo === null) return;
     try { await accion(c, nombre, {motivo}); if (dialogo.open) dialogo.close(); } catch (e) { avisar(e.message); }
   };
-  // Lo que aún no está en Cot_New (generar, aprobar con correo, sustento, proveedor) se abre en Cotizaciones.
+  // ── Nueva cotización: datos a la izquierda, ítems a la derecha; guarda con el alta de Cotizaciones ──
+  const TIPOS_ITEM = ['REEMBOLSABLE', 'LPU', 'GASTO COBRA'];
+  const num = v => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
+  function campo(form, etiqueta, control) {
+    const l = el('label', 'cc-pendiente-campo'); l.append(el('span', null, etiqueta), control); form.append(l); return control;
+  }
+  function filaItem(cuerpo, recalcular, item = {}) {
+    const tr = el('tr');
+    const tipo = el('select'); TIPOS_ITEM.forEach(t => tipo.add(new Option(t, t))); tipo.value = item.tipo || 'REEMBOLSABLE';
+    const entrada = (v, cls, modo) => Object.assign(el('input', cls), {value: v ?? '', inputMode: modo || 'text'});
+    const texto = entrada(item.texto, 'cn-item-texto'), und = entrada(item.und || 'UND', 'cn-item-und');
+    const cant = entrada(item.cantidad || '1', 'cn-item-num', 'decimal'), vu = entrada(item.valor_unitario, 'cn-item-num', 'decimal');
+    const fee = entrada(item.fee ?? (tipo.value === 'REEMBOLSABLE' ? '5' : '0'), 'cn-item-num', 'decimal');
+    const total = el('td', 'cc-num cn-item-total');
+    const quitar = el('button', 'cn-item-quitar', '×'); quitar.type = 'button'; quitar.title = 'Quitar ítem';
+    quitar.addEventListener('click', () => { tr.remove(); recalcular(); });
+    tipo.addEventListener('change', () => { fee.value = tipo.value === 'REEMBOLSABLE' ? '5' : '0'; recalcular(); });
+    [cant, vu, fee].forEach(i => i.addEventListener('input', recalcular));
+    const td = n => { const c = el('td'); c.append(n); return c; };
+    const tdq = el('td'); tdq.append(quitar);
+    tr.append(td(tipo), td(texto), td(und), td(cant), td(vu), td(fee), total, tdq);
+    tr.leer = () => {
+      const t = Math.round(num(cant.value) * num(vu.value) * (1 + num(fee.value) / 100) * 100) / 100;
+      return {tipo: tipo.value, texto: texto.value.trim(), und: und.value.trim(), cantidad: cant.value.trim(),
+              valor_unitario: vu.value.trim(), fee: fee.value.trim(), valor_total: t.toFixed(2), comentarios: ''};
+    };
+    tr.pintar = () => { total.textContent = dinero(tr.leer().valor_total); };
+    cuerpo.append(tr); recalcular();
+    return tr;
+  }
+  function nuevaCotizacion() {
+    $('cc-solicitud-titulo').textContent = 'Nueva cotización';
+    const acciones = $('cn-dialogo-acciones');
+    acciones.querySelectorAll('.cn-redondo').forEach(b => b.remove());
+    const form = el('form', 'cc-ficha vn-form'); form.noValidate = true;
+    const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-file-lines'), el('span', null, 'Datos')); form.append(h);
+    const cliente = el('select'); Object.entries(CLIENTES).forEach(([v, t]) => cliente.add(new Option(t, v)));
+    cliente.value = window._cnUltimoCliente || 'CLARO';
+    campo(form, 'Cliente', cliente);
+    const ahora = new Date(); ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
+    const fecha = campo(form, 'Fecha', Object.assign(el('input'), {type: 'datetime-local', value: ahora.toISOString().slice(0, 16)}));
+    const lista = el('datalist'); lista.id = 'cn-supervisores';
+    [...new Set(cotizaciones.map(c => c.SUPERVISOR).filter(Boolean))].sort().forEach(s => lista.append(new Option(s)));
+    form.append(lista);
+    const supervisor = campo(form, 'Supervisor', Object.assign(el('input'), {maxLength: 150})); supervisor.setAttribute('list', 'cn-supervisores');
+    const site = campo(form, 'Nombre del site', Object.assign(el('input'), {maxLength: 150}));
+    const wo = campo(form, 'N.º WO', Object.assign(el('input'), {maxLength: 100, placeholder: 'CM-AAAAMMDD-NNNNNNNN'}));
+    const motivo = campo(form, 'Motivo', Object.assign(el('input'), {maxLength: 300}));
+    const objetivo = campo(form, 'Objetivo', Object.assign(el('input'), {maxLength: 300}));
+    const tipoGasto = el('select'); ['Refacturable', 'Gasto Cobra'].forEach(t => tipoGasto.add(new Option(t, t))); campo(form, 'Tipo de gasto', tipoGasto);
+    const departamento = campo(form, 'Departamento', Object.assign(el('input'), {maxLength: 80}));
+    form.append(el('p', 'cc-nota', 'El N.º de cotización se asigna solo al guardar.'));
+    const derecha = el('section', 'cc-ficha cn-items');
+    const t = el('h4', 'cc-ficha-titulo'); t.append(icono('fa-list-check'), el('span', null, 'Ítems de la cotización')); derecha.append(t);
+    const tabla = el('table', 'cn-items-tabla cn-items-editar');
+    const cab = el('tr'); ['Tipo', 'Descripción', 'Und', 'Cant.', 'V. unit.', 'FEE %', 'Total', ''].forEach(x => cab.append(el('th', null, x)));
+    const cuerpo = el('tbody'); tabla.append(cab, cuerpo);
+    const total = el('strong');
+    const recalcular = () => {
+      let suma = 0; [...cuerpo.children].forEach(tr => { if (tr.leer) { tr.pintar(); suma += num(tr.leer().valor_total); } });
+      total.textContent = dinero(suma);
+    };
+    const agregar = el('button', 'cc-btn cn-agregar-item', '+ Agregar ítem'); agregar.type = 'button';
+    agregar.addEventListener('click', () => filaItem(cuerpo, recalcular).querySelector('.cn-item-texto').focus());
+    const pie = el('div', 'cn-total'); pie.append(el('span', null, 'Sub total + FEE'), total);
+    const envoltura = el('div', 'cn-items-scroll'); envoltura.append(tabla);
+    derecha.append(envoltura, agregar, pie);
+    filaItem(cuerpo, recalcular);
+    const error = el('p', 'cc-alerta'); error.hidden = true; form.append(error);
+    const columnasDetalle = el('div', 'cc-validacion-columnas cn-nueva'); columnasDetalle.append(form, derecha);
+
+    async function guardar(generarDespues) {
+      error.hidden = true;
+      const items = [...cuerpo.children].map(tr => tr.leer()).filter(i => i.texto || num(i.valor_unitario));
+      if (items.some(i => !i.texto || !(num(i.valor_unitario) > 0) || !(num(i.cantidad) > 0))) throw Error('Cada ítem necesita descripción, cantidad y valor unitario.');
+      if (generarDespues && !items.length) throw Error('Agrega al menos un ítem antes de generar.');
+      if (!motivo.value.trim()) throw Error('Escribe el motivo.');
+      const subtotal = items.reduce((s, i) => s + num(i.valor_total), 0);
+      const datos = {CLIENTE: cliente.value, FECHA: fecha.value.replace('T', ' '), SUPERVISOR: supervisor.value.trim(),
+        'NOMBRE SITE': site.value.trim(), 'NUMERO WO': wo.value.trim(), MOTIVO: motivo.value.trim(), OBJETIVO: objetivo.value.trim() || motivo.value.trim(),
+        'TIPO DE GASTO': tipoGasto.value, DEPARTAMENTO: departamento.value.trim(), 'ESTADO COTIZACION': 'Pdt. Cotización',
+        ITEMS_JSON: JSON.stringify(items), 'SUB TOTAL + FEE': subtotal > 0 ? subtotal.toFixed(2) : ''};
+      const r = await fetch('/api/cot-new/agregar', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({key: '', data: datos, numeracion_modo: 'automatico'})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) throw Error(j.error || 'No se pudo guardar la cotización.');
+      window._cnUltimoCliente = cliente.value;
+      if (generarDespues) await generarClave(j.key);
+      dialogo.close();
+      await cargar();
+      avisar('Cotización ' + j.key + (generarDespues ? ' generada: pasó a Cliente.' : ' guardada en Registro.'));
+    }
+    const conError = fn => async () => { try { await fn(); } catch (e) { error.textContent = e.message; error.hidden = false; } };
+    acciones.prepend(botonRedondo(['Guardar y generar (pasa a Cliente)', 'cn-verde', 'fa-paper-plane', conError(() => guardar(true))], 'cn-grande'));
+    acciones.prepend(botonRedondo(['Guardar en Registro', 'cn-azul', 'fa-floppy-disk', conError(() => guardar(false))], 'cn-grande'));
+    $('cc-solicitud-contenido').replaceChildren(columnasDetalle);
+    if (!dialogo.open) dialogo.showModal();
+    motivo.focus();
+  }
+  // Generar: descarga el PDF (queda como generada) y la cotización pasa a Cliente.
+  async function generarClave(key) {
+    const r = await fetch('/api/cot-new/generar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key})});
+    if (!r.ok) throw Error((await r.json().catch(() => ({}))).error || 'No se pudo generar el PDF.');
+    descargar(await r.blob(), key + '.pdf');
+    const a = await fetch('/api/cotizacion/accion', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key, accion: 'generar'})});
+    const j = await a.json().catch(() => ({}));
+    if (!a.ok || j.success === false) throw Error(j.error || 'Se generó el PDF, pero no pasó a Cliente.');
+  }
+  async function generarCotizacion(c) {
+    if (!(c.items || []).length) { avisar('Agrega ítems a la cotización antes de generarla.'); return; }
+    const ok = await (window.nucleusConfirm ? window.nucleusConfirm('Se descargará el PDF de ' + (c['N° COTIZACION'] || c.key) + ' por ' + dinero(c.monto) + ' y pasará a Cliente.',
+      'Generar cotización', {okText: 'Generar', circular: true}) : confirm('¿Generar la cotización?'));
+    if (!ok) return;
+    try { await generarClave(c.key); if (dialogo.open) dialogo.close(); await cargar(); } catch (e) { avisar(e.message); }
+  }
+  // Lo que aún no está en Cot_New (aprobar con correo, sustento, proveedor) se abre en Cotizaciones.
   const abrirClasico = () => location.assign(clasico);
   function accionesDe(c) {
     const p = tab;
     const lista = [];
     if (!puedeGestionar) return lista;
-    if (p === 'registro') lista.push(['Generar cotización (en Cotizaciones)', 'cn-verde', 'fa-paper-plane', abrirClasico],
+    if (p === 'registro') lista.push(['Generar cotización (PDF y pasa a Cliente)', 'cn-verde', 'fa-paper-plane', () => generarCotizacion(c)],
       ['Rechazar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar', 'Rechazar cotización', 'Rechazar', 'fa-rotate-left')],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
     else if (p === 'cliente') lista.push(['Aprobar (en Cotizaciones)', 'cn-verde', 'fa-check', abrirClasico],
@@ -374,6 +489,7 @@
     pintar();
   }));
   $('cc-buscar').addEventListener('input', pintar);
+  $('cn-nueva')?.addEventListener('click', nuevaCotizacion);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('cn-filtro').hidden = true; cerrarMenu(); cerrarExportar(); cerrarCliente(); } });
 
   async function cargar() {
