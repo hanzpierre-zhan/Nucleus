@@ -1059,6 +1059,36 @@
     botonSustento.hidden = !(puedeGestionar && tab === 'archivado' && sol.estado === 'ARCHIVADO');
     botonArchivar.onclick = intentar(() => pasarEtapa(sol, 'archivar'));
     botonSustento.onclick = intentar(() => pasarEtapa(sol, 'sustento'));
+    if (tab === 'pendientes') {
+      // CM / Site pendiente: solo se edita el site y el N.º CM / PM / PLM; nada más de la solicitud.
+      [editar, validar, anular, rechazar, botonTecnico, botonArchivar, botonSustento, $('cc-solicitud-depositar')]
+        .forEach(b => { b.hidden = true; });
+      const f = sol.formulario || {};
+      const limpio = (v, pendiente) => (v || '').trim().toUpperCase() === pendiente ? '' : (v || '');
+      const form = el('form', 'cc-ficha cc-pendiente-form'); form.id = 'cc-pendiente-form'; form.noValidate = true;
+      const titulo = el('h4', 'cc-ficha-titulo'); titulo.append(icono('fa-triangle-exclamation'), el('span', null, 'Completar ' + (sol.faltan || []).join(' y ')));
+      const cm = Object.assign(el('input'), {maxLength: 100, value: limpio(f.wo, 'CM PENDIENTE'), placeholder: 'CM-AAAAMMDD-NNNNNNNN'});
+      const site = Object.assign(el('input'), {maxLength: 150, value: limpio(f.site, 'SITE PENDIENTE'), placeholder: 'Nombre del site'});
+      const etiqueta = (texto, control) => { const l = el('label', 'cc-pendiente-campo'); l.append(el('span', null, texto), control); return l; };
+      const error = el('p', 'cc-alerta'); error.hidden = true;
+      form.append(titulo, etiqueta('N.º CM / PM / PLM (vacío = CM PENDIENTE)', cm), etiqueta('Nombre del site (vacío = SITE PENDIENTE)', site), error);
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        guardar.disabled = true; error.hidden = true;
+        try { await accion(sol, 'cm_site', {wo: cm.value, site: site.value}); dialogo.close(); }
+        catch (err) { error.textContent = err.message; error.hidden = false; }
+        finally { guardar.disabled = false; }
+      });
+      const resumen = ficha('fa-file-lines', 'Solicitud', [
+        ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Proyecto', sol.proyecto],
+        ['Responsable', f.responsable_validacion], ['Total', dinero(sol.total)]]);
+      guardar.hidden = !puedeGestionar; guardar.disabled = !puedeGestionar;
+      guardar.setAttribute('form', form.id);
+      contenido.replaceChildren(resumen, form);
+      mostrarDetalle();
+      (sol.faltan?.includes('CM') ? cm : site).focus();
+      return;
+    }
     if (tab === 'archivado' || tab === 'sustento') {
       editar.hidden = guardar.hidden = true;
       const fichaArchivada = ficha('fa-file-lines', 'Gastos conformes', [
