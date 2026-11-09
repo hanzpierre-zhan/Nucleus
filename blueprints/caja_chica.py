@@ -456,9 +456,10 @@ def gestion_accion(sid, accion):
     usuario = audit_user() or 'Desconocido'
     try:
         if accion == 'validar':
-            cc.validar(sol, usuario)
+            cc.validar(sol, usuario, datos.get('tiempo'))
         elif accion == 'documentos':
-            cc.guardar_documentos_revision(sol, usuario, request.form.get('cotizacion'), request.files.get('correo'))
+            cc.guardar_documentos_revision(sol, usuario, request.form.get('cotizacion'), request.files.get('correo'),
+                                           request.form.get('tiempo'))
         elif accion == 'editar':
             try:
                 cambios = json.loads(request.form.get('datos', ''))

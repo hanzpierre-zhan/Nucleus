@@ -666,13 +666,28 @@
       ayudaCorreo.textContent = elegido ? elegido.name + ' · toca para cambiarlo' : 'Toca para adjuntar .msg, PDF o imagen';
       correo.classList.toggle('con-archivo', Boolean(elegido));
     });
+    const tiempo = el('section', 'cc-ficha cc-ficha-tiempo');
+    const cabezaTiempo = el('h4', 'cc-ficha-titulo');
+    cabezaTiempo.append(icono('fa-stopwatch'), el('span', null, 'Tiempo de respuesta *'));
+    const opcionesTiempo = el('div', 'cc-tiempo');
+    opcionesTiempo.setAttribute('role', 'radiogroup');
+    opcionesTiempo.setAttribute('aria-label', 'Tiempo de respuesta');
+    for (const [valor, simbolo] of [['Menor a 4 horas', 'fa-regular fa-clock'], ['Mayor a 4 horas', 'fa-solid fa-clock'],
+      ['Atención Continua', 'fa-solid fa-headset'], ['No aplica', 'fa-solid fa-ban']]) {
+      const opcion = el('label');
+      const radio = Object.assign(el('input'), {type: 'radio', name: 'tiempo', value: valor});
+      radio.checked = (sol.revision?.tiempo || '') === valor;
+      opcion.append(radio, icono(simbolo), el('span', null, valor));
+      opcionesTiempo.append(opcion);
+    }
+    tiempo.append(cabezaTiempo, opcionesTiempo);
     const guardar = $('cc-solicitud-guardar');
     const editar = $('cc-solicitud-editar');
     const error = el('p', 'cc-alerta cc-campo-ancho');
     error.hidden = true;
     error.setAttribute('role', 'alert');
     grupo.append(cotizacion, control);
-    form.append(grupo, correo, error);
+    form.append(grupo, tiempo, correo, error);
     // Cotización y correo solo se piden si algún concepto de gasto lo exige (o ya se cargaron).
     form.pideCotizacion = sol.items.some(i => i.requiere_cotizacion) || Boolean(sol.revision?.cotizacion);
     form.pideCorreo = sol.items.some(i => i.requiere_correo) || Boolean(sol.revision?.archivo);
@@ -1038,9 +1053,11 @@
     });
     validar.disabled = anular.disabled = false;
     validar.onclick = intentar(async () => {
+      const elegido = document.querySelector('#cc-solicitud-documentos input[name="tiempo"]:checked')?.value || sol.revision?.tiempo;
+      if (!elegido) { avisar('Elige el tiempo de respuesta antes de validar.'); return; }
       if (!await confirmar('La solicitud ' + sol.codigo + ' por ' + dinero(sol.total) + ' pasará a Por depositar.', 'Validar solicitud', {okText: 'Validar', circular: true})) return;
       validar.disabled = true;
-      try { await accion(sol, 'validar'); }
+      try { await accion(sol, 'validar', {tiempo: elegido}); }
       finally { validar.disabled = false; }
     });
     anular.onclick = intentar(async () => {
@@ -1134,6 +1151,7 @@
       izquierda.append(original);
     }
     const revision = sol.revision || {};
+    if (revision.tiempo) derecha.append(el('p', 'cc-validacion-dato', 'Tiempo de respuesta: ' + revision.tiempo));
     if (revision.cotizacion) derecha.append(el('p', 'cc-validacion-dato', 'Cotización: ' + revision.cotizacion));
     if (revision.archivo) {
       const enlace = el('a', 'cc-foto', 'Descargar correo de validación');
@@ -1162,8 +1180,7 @@
     };
     const seguimiento = detalle(sol);
     if (seguimiento.hasChildNodes()) izquierda.append(seguimiento);
-    if (documentos && (documentos.pideCotizacion || documentos.pideCorreo)) derecha.prepend(documentos);
-    else if (documentos) { documentos.hidden = true; derecha.append(documentos); }  // el botón Guardar sigue apuntando al formulario
+    if (documentos) derecha.prepend(documentos);
     columnas.classList.toggle('cc-una-columna', ![...derecha.children].some(n => !n.hidden));
     mostrarDetalle();
   }

@@ -420,7 +420,16 @@ def devolver(sol, documento, monto, foto, importe):
 
 # ── Gestión (Nucleus) ──────────────────────────────────────────────────────
 
-def validar(sol, usuario):
+TIEMPOS_RESPUESTA = ('Menor a 4 horas', 'Mayor a 4 horas', 'Atención Continua', 'No aplica')
+
+
+def _tiempo_respuesta(tiempo):
+    tiempo = str(tiempo or '').strip()
+    _exigir(tiempo in ('',) + TIEMPOS_RESPUESTA, 'Elige un tiempo de respuesta válido.')
+    return tiempo
+
+
+def validar(sol, usuario, tiempo=None):
     _exigir(sol.estado == 'PENDIENTE', 'Solo se valida una solicitud pendiente.')
     datos = a_dict(sol, gestion=True)
     revision = datos['revision']
@@ -428,25 +437,30 @@ def validar(sol, usuario):
             'Abre el código de la solicitud y adjunta el correo de validación.')
     _exigir(not any(i.get('requiere_cotizacion') for i in datos['items']) or revision.get('cotizacion'),
             'Abre el código de la solicitud e ingresa el número de cotización.')
+    tiempo = _tiempo_respuesta(tiempo)
     sol.estado, sol.validado_por, sol.validado_en = 'VALIDADO', usuario, datetime.utcnow()
     sol.motivo_rechazo = None
-    _historial(sol, 'validar', usuario)
+    if tiempo:
+        _historial(sol, 'validar', usuario, revision={**revision, 'tiempo': tiempo})
+    else:
+        _historial(sol, 'validar', usuario)
     db.session.commit()
 
 
-def _documentos_revision(sol, cotizacion, archivo, revision):
+def _documentos_revision(sol, cotizacion, archivo, revision, tiempo=None):
     cotizacion = str(cotizacion or '').strip()
     _exigir(len(cotizacion) <= 80, 'El número de cotización admite hasta 80 caracteres.')
     adjunto = revision.get('archivo', '')
     if archivo and archivo.filename:
         adjunto = guardar_correo(sol, archivo)
-    return {'archivo': adjunto, 'cotizacion': cotizacion}
+    tiempo = _tiempo_respuesta(tiempo if tiempo is not None else revision.get('tiempo'))
+    return {'archivo': adjunto, 'cotizacion': cotizacion, 'tiempo': tiempo}
 
 
-def guardar_documentos_revision(sol, usuario, cotizacion, archivo):
+def guardar_documentos_revision(sol, usuario, cotizacion, archivo, tiempo=None):
     _exigir(sol.estado == 'PENDIENTE', 'Solo se pueden guardar documentos mientras la solicitud esté pendiente.')
     anterior = a_dict(sol, gestion=True)['revision']
-    revision = _documentos_revision(sol, cotizacion, archivo, anterior)
+    revision = _documentos_revision(sol, cotizacion, archivo, anterior, tiempo)
     if revision != anterior:
         _historial(sol, 'guardar documentos de validación', usuario, revision=revision)
         db.session.commit()

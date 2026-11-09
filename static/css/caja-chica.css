@@ -452,6 +452,16 @@ body.dark-mode #cc-solicitud-dialogo { --cc-verde: #4ade80; --cc-verde-fondo: rg
 #cc-solicitud-dialogo .cc-cotizacion-montos div:last-child dd { font-weight: 700; }
 #cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona { flex: 1; min-height: 200px; border-width: 1.5px; background: transparent; }
 #cc-solicitud-dialogo .cc-validacion-derecha .cc-validacion-zona > i { color: var(--ios-blue); }
+/* Tiempo de respuesta: 4 botones en 2x2, mismo estilo que Gasto Cobra / Refacturable */
+#cc-solicitud-dialogo .cc-ficha-tiempo { border-color: var(--cc-azul-borde); }
+#cc-solicitud-dialogo .cc-tiempo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+#cc-solicitud-dialogo .cc-tiempo label { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px; border: 1px solid var(--ios-hairline); border-radius: 9px; background: var(--ios-fill); color: var(--ios-label); font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; }
+#cc-solicitud-dialogo .cc-tiempo label:hover { border-color: var(--ios-blue); }
+#cc-solicitud-dialogo .cc-tiempo label:has(input:checked) { border-color: var(--ios-blue); background: color-mix(in srgb, var(--ios-blue) 12%, var(--ios-fill)); box-shadow: inset 0 0 0 1px var(--ios-blue); }
+#cc-solicitud-dialogo .cc-tiempo label:focus-within { outline: 2px solid var(--ios-blue); outline-offset: 1px; }
+#cc-solicitud-dialogo .cc-tiempo input { position: absolute; opacity: 0; pointer-events: none; }
+#cc-solicitud-dialogo .cc-tiempo i { color: var(--ios-secondary); }
+#cc-solicitud-dialogo .cc-tiempo label:has(input:checked) i { color: var(--ios-blue); }
 /* Depósito: monto en verde sobre fondo verde suave, foto con borde verde punteado */
 #cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-cabecera { padding: 14px 16px; border: 0; border-radius: 12px; background: var(--cc-verde-fondo); }
 #cc-solicitud-dialogo .cc-deposito-panel .cc-deposito-bolsa { width: auto; height: auto; background: none; box-shadow: none; color: var(--cc-verde); font-size: 26px; }
