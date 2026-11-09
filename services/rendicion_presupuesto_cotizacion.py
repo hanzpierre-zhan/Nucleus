@@ -38,8 +38,13 @@ def monto_cotizacion(subtotal_fee, items):
     try:
         if isinstance(items,str):items=json.loads(items)
         if not isinstance(items,list) or not items:return None
-        return str(sum((importe(item.get('valor_total')) for item in items),Decimal('0.00')))
-    except (ValueError,TypeError,AttributeError):
+        total=Decimal('0.00')
+        for item in items:
+            # Total del ítem; si no lo tiene, cantidad × valor unitario (cantidad 1 si falta).
+            if str(item.get('valor_total') or '').strip():total+=importe(item.get('valor_total'))
+            else:total+=(importe(item.get('cantidad') or '1')*importe(item['valor_unitario'])).quantize(Decimal('0.01'))
+        return str(total)
+    except (ValueError,TypeError,AttributeError,KeyError):
         return None
 
 
@@ -86,7 +91,7 @@ def encontrar(row,code,opciones=None):
 
 def resumen(row,key,cotizacion,solicitado=None):
     try:limite=importe(cotizacion['monto'])
-    except ValueError:raise ValueError('La cotización no tiene valores unitarios válidos en todos sus ítems; revisa el detalle.')
+    except ValueError:raise ValueError('La cotización no tiene un monto válido (Sub total + FEE o el total de sus ítems); revisa el detalle.')
     actual=importe(row.get('Monto total del depósito') if solicitado is None else solicitado)
     proy=Proyecto.query.filter_by(nombre='Rendicion').first()
     acumulado=Decimal('0');cantidad=0;invalidos=0

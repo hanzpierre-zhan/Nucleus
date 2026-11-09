@@ -57,8 +57,10 @@ def test_combustible_incluye_generadores(app, auth_client):
     generadores = auth_client.get('/')
     assert generadores.status_code == 200
     assert b'Volver a Combustible' in generadores.data
-    # El enlace del menú a Combustible más el botón de volver.
-    assert generadores.data.count(enlace_comb) == 2
+    # El botón de volver (el menú lateral abre la vista nueva de Combustible).
+    assert generadores.data.count(enlace_comb) == 1 and b'href="/vista/combustible/"' in generadores.data
+    # Desde la vista nueva de Combustible se entra a Generadores por la tuerca.
+    assert enlace_gen in auth_client.get('/vista/combustible/').data
     # El menú marca Combustible mientras se está en Generadores.
     assert b'class="sidebar-link active"' in generadores.data
 

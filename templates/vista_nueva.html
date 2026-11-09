@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}{{ titulo }}_New — Nucleus{% endblock %}
+{% block title %}{{ titulo }} — Nucleus{% endblock %}
 {% block content %}
 {# Vista en prueba con el diseño de Caja Chica: reutiliza caja-chica.css, cot-new.css y sus clases. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=94">
-<link rel="stylesheet" href="/static/css/cot-new.css?v=5">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=6">
 <section class="cc-gestion cn-gestion vn-gestion" aria-label="{{ titulo }}">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar en {{ titulo }}" aria-label="Buscar">
@@ -29,7 +29,8 @@
       </button>
       <div id="cn-ajustes-menu" class="cc-ajustes-menu" role="menu" hidden>
         <button type="button" role="menuitem" data-accion="copiar"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copiar tabla</button>
-        {% if slug != 'usuarios' %}<button type="button" role="menuitem" data-accion="clasico"><i class="fa-solid fa-table" aria-hidden="true"></i> Abrir {{ titulo }} (clásico)</button>{% endif %}
+        {% for nombre, url, ic in extras or [] %}<a role="menuitem" class="vn-enlace" href="{{ url }}"><i class="fa-solid {{ ic }}" aria-hidden="true"></i> {{ nombre }}</a>{% endfor %}
+        <button type="button" role="menuitem" data-accion="clasico"><i class="fa-solid fa-table" aria-hidden="true"></i> Abrir {{ titulo }} (vista clásica)</button>
         <button type="button" role="menuitem" data-accion="limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros y búsquedas</button>
         <button type="button" role="menuitem" data-accion="restablecer"><i class="fa-solid fa-table-columns" aria-hidden="true"></i> Restablecer columnas</button>
       </div>
@@ -51,5 +52,5 @@
   </dialog>
   <script id="vn-config" type="application/json">{{ {'slug': slug, 'titulo': titulo, 'proyecto': proyecto_id, 'clave': campo_clave, 'suma': suma, 'unidad': unidad, 'editar': puede_editar, 'clave_portal': puede_clave, 'pestanas': pestanas, 'proyectos': proyectos or []} | tojson }}</script>
 </section>
-<script src="/static/js/vista-nueva.js?v=3" defer></script>
+<script src="/static/js/vista-nueva.js?v=4" defer></script>
 {% endblock %}

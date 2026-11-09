@@ -104,7 +104,14 @@
                 {% if nombre != 'Generadores' or not _ve_combustible %}
                 {% for p in proyectos_list %}{% if p.nombre == nombre %}
                 {% set _submodulo = (nombre == 'Combustible' and not flm_resource_context and (session.get('current_proyecto_nombre') or '') == 'Generadores') or (nombre == 'SITE' and request.path in ['/mapa', '/mapa-site']) %}
+                {# Dataper, Material, Sites y Combustible abren la vista nueva (diseño de Caja Chica);
+                   la vista clásica sigue disponible desde su tuerca. #}
+                {% set _vista = {'Dataper': '/vista/dataper/', 'Material': '/vista/material/', 'SITE': '/vista/sites/', 'Combustible': '/vista/combustible/'}.get(nombre) %}
+                {% if _vista %}
+                <a href="{{ _vista }}" class="sidebar-link {% if request.path.startswith(_vista) or (request.path == '/' and p.id == session.get('current_proyecto_id')) or _submodulo %}active{% endif %}" data-nav="{{ _vista }}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                {% else %}
                 <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if (request.path == '/' and p.id == session.get('current_proyecto_id')) or _submodulo %}active{% endif %}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                {% endif %}
                 {% endif %}{% endfor %}
                 {% endif %}
                 {% endfor %}
@@ -115,19 +122,11 @@
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/" title="Liquidaciones">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
-                {# Vistas nuevas en prueba, con el diseño de Caja Chica. Usan los mismos datos de cada módulo. #}
-                {% set _nombres_menu = proyectos_list | map(attribute='nombre') | list %}
-                {% set _vistas_nuevas = [('Cotizaciones','/cot-new/','Cot_New','fa-file-signature'),('Dataper','/vista/dataper/','Dataper_New','fa-users'),('Material','/vista/material/','Material_New','fa-boxes-stacked'),('SITE','/vista/sites/','Sites_New','fa-location-dot'),('Combustible','/vista/combustible/','Combustible_New','fa-gas-pump')] %}
-                {% set _rol_menu = (session.get('rol') or '').lower() %}
-                {% if _vistas_nuevas | selectattr(0, 'in', _nombres_menu) | list or _rol_menu in ['zeno', 'suport'] %}
+                {# Vista nueva en prueba: Cotizaciones con el diseño de Caja Chica. #}
+                {% for p in proyectos_list %}{% if p.nombre == 'Cotizaciones' %}
                 <div class="sidebar-section-label">Vistas nuevas (prueba)</div>
-                {% for modulo, ruta, etiqueta, icono in _vistas_nuevas %}{% if modulo in _nombres_menu %}
-                <a href="{{ ruta }}" class="sidebar-link {% if request.path.startswith(ruta) %}active{% endif %}" data-nav="{{ ruta }}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                <a href="/cot-new/" class="sidebar-link {% if request.path.startswith('/cot-new') %}active{% endif %}" data-nav="/cot-new/" title="Cot_New"><i class="fa-solid fa-file-signature"></i><span class="sidebar-link-text">Cot_New</span></a>
                 {% endif %}{% endfor %}
-                {% if _rol_menu in ['zeno', 'suport'] %}
-                <a href="/vista/usuarios/" class="sidebar-link {% if request.path.startswith('/vista/usuarios') %}active{% endif %}" data-nav="/vista/usuarios/" title="Usuarios_New"><i class="fa-solid fa-user-gear"></i><span class="sidebar-link-text">Usuarios_New</span></a>
-                {% endif %}
-                {% endif %}
                 {% endif %}
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <div class="sidebar-section-label">Configuración</div>
@@ -137,7 +136,7 @@
                     </button>
                     <div class="sb-grupo-items">
                     <a href="{{ url_for('form_pruebas.administrar') }}" class="sidebar-link {% if request.path.startswith('/form-pruebas') %}active{% endif %}" title="Portal de técnicos"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Portal de técnicos</span></a>
-                    <a href="/usuarios" class="sidebar-link {% if request.path == '/usuarios' or (request.path == '/espacios' and request.args.get('administrar') == '1') %}active{% endif %}" data-nav="/usuarios" title="Usuarios">
+                    <a href="/vista/usuarios/" class="sidebar-link {% if request.path.startswith('/vista/usuarios') or request.path == '/usuarios' or (request.path == '/espacios' and request.args.get('administrar') == '1') %}active{% endif %}" data-nav="/vista/usuarios/" title="Usuarios">
                         <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
                     </a>
                     <a href="/salud" class="sidebar-link {% if request.path == '/salud' %}active{% endif %}" data-nav="/salud" title="Resources">

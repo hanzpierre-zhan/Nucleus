@@ -81,11 +81,15 @@ def pagina(slug):
     session['current_proyecto_id'], session['current_proyecto_nombre'] = int(proyecto.id), proyecto.nombre
     _, titulo, icono, _, _, clave, suma, unidad = MODULOS[slug]
     rol = _rol()
+    menu = get_menu_proyectos(session.get('user_id'), session.get('rol'))
+    # Generadores vive dentro de Combustible: se entra desde su tuerca.
+    extras = [('Generadores', '/switch_project/%d?next=/' % p.id, 'fa-bolt') for p in menu
+              if slug == 'combustible' and p.nombre == 'Generadores']
     return render_template('vista_nueva.html', slug=slug, titulo=titulo, icono=icono, proyecto_id=proyecto.id,
                            pestanas=_pestanas(slug), campo_clave=clave, unidad=unidad, suma=suma or '',
                            puede_editar=rol not in ('demo', 'contrata') and (slug != 'sites' or rol in ('zeno', 'suport', 'supervisor')),
                            puede_clave=slug == 'dataper' and rol not in ('demo', 'contrata'), proyectos=None,
-                           proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
+                           extras=extras, proyectos_list=menu)
 
 
 @bp.get('/api/vista/<slug>/lista')
