@@ -296,7 +296,151 @@
     if (!ok) return;
     try { await generarClave(c.key); if (dialogo.open) dialogo.close(); await cargar(); } catch (e) { avisar(e.message); }
   }
-  // Lo que aún no está en Cot_New (aprobar con correo, sustento, proveedor) se abre en Cotizaciones.
+  // ── Flujo dentro de Cot_New: aprobar, proveedor, sustento y atención (mismos servicios de Cotizaciones) ──
+  async function subir(ruta, key, archivo) {
+    const datos = new FormData(); datos.append('key', key); datos.append('adjunto', archivo);
+    const r = await fetch(ruta, {method: 'POST', body: datos});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) throw Error(j.error || 'No se pudo subir el archivo.');
+    return j;
+  }
+  function ventana(titulo, izquierda, derecha, botones) {
+    $('cc-solicitud-titulo').textContent = titulo;
+    const acciones = $('cn-dialogo-acciones');
+    acciones.querySelectorAll('.cn-redondo').forEach(b => b.remove());
+    acciones.prepend(...botones.map(b => botonRedondo(b, 'cn-grande')));
+    const cols = el('div', 'cc-validacion-columnas' + (derecha ? '' : ' cc-una-columna'));
+    cols.append(izquierda); if (derecha) cols.append(derecha);
+    $('cc-solicitud-contenido').replaceChildren(cols);
+    if (!dialogo.open) dialogo.showModal();
+  }
+  const resumenCot = c => ficha('fa-file-lines', 'Cotización', [['N.º', c['N° COTIZACION'] || c.key], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
+    ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']], ['Motivo', c.MOTIVO], ['Enviada', c['FECHA ENVIO CLIENTE']],
+    ['Aprobada', c['FECHA APROBACION']], ['Se atiende con', c['TIPO GASTO APROBACION']], ['Sub total + FEE', dinero(c.monto)]]);
+  function zonaArchivo(texto, ayuda, acepta) {
+    const zona = el('label', 'cc-validacion-zona');
+    const input = Object.assign(el('input'), {type: 'file', accept: acepta});
+    const pie = el('small', null, ayuda);
+    zona.append(input, icono('fa-paperclip'), el('strong', null, texto), pie);
+    input.addEventListener('change', () => { const f = input.files[0]; pie.textContent = f ? f.name + ' · toca para cambiarlo' : ayuda; zona.classList.toggle('con-archivo', !!f); });
+    zona.input = input; return zona;
+  }
+  const errorCaja = () => { const e = el('p', 'cc-alerta'); e.hidden = true; return e; };
+  const conErrorEn = (caja, fn) => async () => { caja.hidden = true; try { await fn(); } catch (e) { caja.textContent = e.message; caja.hidden = false; } };
+
+  // Aprobar: conformidad del cliente (correo), fecha y si se atiende con Caja chica o Proveedor.
+  function aprobar(c) {
+    const izquierda = el('div'); izquierda.append(resumenCot(c));
+    const form = el('form', 'cc-ficha vn-form'); form.noValidate = true;
+    const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-check'), el('span', null, 'Conformidad del cliente')); form.append(h);
+    const ahora = new Date(); ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
+    const fecha = campo(form, 'Fecha de aprobación', Object.assign(el('input'), {type: 'datetime-local', value: ahora.toISOString().slice(0, 16)}));
+    const tipo = el('select'); [['Caja Chica', 'Caja chica'], ['Proveedor', 'Proveedor']].forEach(([v, t]) => tipo.add(new Option(t, v)));
+    if (c['TIPO GASTO APROBACION']) tipo.value = /prov/i.test(c['TIPO GASTO APROBACION']) ? 'Proveedor' : 'Caja Chica';
+    campo(form, 'Se atiende con', tipo);
+    const proveedor = campo(form, 'Nombre del proveedor', Object.assign(el('input'), {maxLength: 200, value: c['NOMBRE DE PROVEEDOR'] || ''}));
+    const comentario = campo(form, 'Comentario', Object.assign(el('input'), {maxLength: 500}));
+    izquierda.append(form);
+    const derecha = el('div', 'cn-columna-archivos');
+    const correo = zonaArchivo('Correo de aprobación', 'Toca para adjuntar .msg, PDF o imagen', '.msg,.eml,.pdf,.jpg,.jpeg,.png,.webp');
+    const cotProv = zonaArchivo('Cotización del proveedor', 'Opcional · PDF, Word, Excel o imagen', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp');
+    const verProveedor = () => { const p = tipo.value === 'Proveedor'; proveedor.closest('label').hidden = !p; cotProv.hidden = !p; };
+    tipo.addEventListener('change', verProveedor); verProveedor();
+    const error = errorCaja();
+    derecha.append(correo, cotProv, error);
+    ventana('Aprobar · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Aprobar', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
+      if (!correo.input.files.length) throw Error('Adjunta el correo de aprobación del cliente.');
+      if (tipo.value === 'Proveedor' && !proveedor.value.trim()) throw Error('Escribe el nombre del proveedor.');
+      const subido = await subir('/api/cotizacion/subir_correo', c.key, correo.input.files[0]);
+      const extra = {tipo_gasto_aprobacion: tipo.value, fecha_aprobacion: fecha.value.replace('T', ' '), comentario: comentario.value.trim(),
+                     nombre_proveedor: tipo.value === 'Proveedor' ? proveedor.value.trim() : '', adjunto_correo: subido.url, nombre_correo: subido.nombre};
+      if (tipo.value === 'Proveedor' && cotProv.input.files.length) extra.adjunto_cotizacion_proveedor = (await subir('/api/cotizacion/subir_cotizacion_proveedor', c.key, cotProv.input.files[0])).url;
+      await accion(c, 'conformar_aprobacion', extra);
+      dialogo.close();
+    })]]);
+  }
+
+  // Proveedor: una fila por factura (N.º, OC, subtotal y su archivo).
+  function proveedor(c) {
+    const izquierda = el('div'); izquierda.append(resumenCot(c));
+    const derecha = el('section', 'cc-ficha cn-items');
+    const t = el('h4', 'cc-ficha-titulo'); t.append(icono('fa-file-invoice'), el('span', null, 'Facturas del proveedor')); derecha.append(t);
+    const tabla = el('table', 'cn-items-tabla cn-items-editar');
+    const cab = el('tr'); ['N.º factura', 'N.º OC', 'Subtotal', 'Archivo', ''].forEach(x => cab.append(el('th', null, x)));
+    const cuerpo = el('tbody'); tabla.append(cab, cuerpo);
+    const total = el('strong');
+    const recalcular = () => { total.textContent = dinero([...cuerpo.children].reduce((s, tr) => s + num(tr.subtotal.value), 0)); };
+    const fila = (r = {}) => {
+      const tr = el('tr');
+      const entrada = (v, cls, modo) => Object.assign(el('input', cls), {value: v ?? '', inputMode: modo || 'text'});
+      tr.factura = entrada(r.factura, 'cn-item-texto'); tr.oc = entrada(r.oc, 'cn-item-und'); tr.subtotal = entrada(r.subtotal, 'cn-item-num', 'decimal');
+      tr.url = r.url || '';
+      const archivo = Object.assign(el('input'), {type: 'file', accept: '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp'});
+      const estado = el('small', 'cc-nota', r.url ? 'Cargada' : '');
+      archivo.addEventListener('change', () => { estado.textContent = archivo.files[0] ? archivo.files[0].name : (tr.url ? 'Cargada' : ''); });
+      tr.archivo = archivo;
+      const quitar = el('button', 'cn-item-quitar', '×'); quitar.type = 'button'; quitar.addEventListener('click', () => { tr.remove(); recalcular(); });
+      tr.subtotal.addEventListener('input', recalcular);
+      const td = (...n) => { const x = el('td'); x.append(...n); return x; };
+      tr.append(td(tr.factura), td(tr.oc), td(tr.subtotal), td(archivo, estado), td(quitar));
+      cuerpo.append(tr); recalcular();
+    };
+    (Array.isArray(c._PROVEEDOR_REGISTROS) && c._PROVEEDOR_REGISTROS.length ? c._PROVEEDOR_REGISTROS : [{}]).forEach(fila);
+    const agregar = el('button', 'cc-btn cn-agregar-item', '+ Agregar factura'); agregar.type = 'button'; agregar.addEventListener('click', () => fila());
+    const pie = el('div', 'cn-total'); pie.append(el('span', null, 'Total facturado'), total);
+    const error = errorCaja();
+    const envoltura = el('div', 'cn-items-scroll'); envoltura.append(tabla);
+    derecha.append(envoltura, agregar, pie, error);
+    ventana('Proveedor · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Guardar facturas', 'cn-verde', 'fa-floppy-disk', conErrorEn(error, async () => {
+      const registros = [];
+      for (const tr of cuerpo.children) {
+        let url = tr.url;
+        if (tr.archivo.files.length) url = (await subir('/api/cotizacion/subir_factura_proveedor', c.key, tr.archivo.files[0])).url;
+        registros.push({factura: tr.factura.value.trim(), oc: tr.oc.value.trim(), subtotal: tr.subtotal.value.trim(), url});
+      }
+      const r = await fetch('/api/cotizacion/proveedor', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, registros})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) throw Error(j.error || 'No se pudieron guardar las facturas.');
+      dialogo.close(); await cargar();
+    })]]);
+  }
+
+  // Sustento: fotos y bitácora por WO; desde aquí se pasa a Atendido o se revisa (aprobar / rechazar).
+  async function sustento(c) {
+    const r = await fetch('/api/cotizacion/sustento?key=' + encodeURIComponent(c.key));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.success) { avisar(j.error || 'No se pudo cargar el sustento.'); return; }
+    const izquierda = el('div'); izquierda.append(resumenCot(c));
+    if (c['OBSERVACION SUSTENTO']) izquierda.append(ficha('fa-triangle-exclamation', 'Observación anterior', [['Motivo', c['OBSERVACION SUSTENTO']]]));
+    const derecha = el('div');
+    for (const w of (j.wos.length ? j.wos : [{wo: 'Sin WO', encontrado: false}])) {
+      const caja = el('section', 'cc-ficha');
+      const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-camera'), el('span', null, 'WO ' + (w.wo || '—'))); caja.append(h);
+      if (!w.encontrado) { caja.append(el('p', 'cc-nota', 'El WO no está registrado en su FLM.')); derecha.append(caja); continue; }
+      for (const fase of ['inicio', 'proceso', 'cierre']) {
+        const fotos = (w.fotos_urls?.[fase] || []).filter(Boolean);
+        caja.append(el('p', 'cn-fase', fase[0].toUpperCase() + fase.slice(1) + ' · ' + fotos.length + ' foto' + (fotos.length === 1 ? '' : 's')));
+        if (fotos.length) {
+          const tira = el('div', 'cc-rev-miniaturas');
+          fotos.forEach(u => { const a = el('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; const img = el('img'); img.src = u; img.loading = 'lazy'; img.alt = fase; a.append(img); tira.append(a); });
+          caja.append(tira);
+        }
+        if (w.bitacoras?.[fase]) caja.append(el('small', 'cc-nota', w.bitacoras[fase]));
+      }
+      derecha.append(caja);
+    }
+    const botones = [];
+    if (tab === 'sustentar') botones.push(['Pasar a Atendido', 'cn-verde', 'fa-circle-check', async () => {
+      if (!await (window.nucleusConfirm ? window.nucleusConfirm('La cotización pasará a Atendido para revisar su sustento.', 'Pasar a Atendido', {okText: 'Pasar', circular: true}) : confirm('¿Pasar a Atendido?'))) return;
+      try { await accion(c, 'pasar_atendido'); dialogo.close(); } catch (e) { avisar(e.message); }
+    }]);
+    if (tab === 'atendido' && !j.sustento_aprobado) botones.push(
+      ['Aprobar sustento', 'cn-verde', 'fa-check', async () => { try { await accion(c, 'aprobar_sustento'); dialogo.close(); } catch (e) { avisar(e.message); } }],
+      ['Rechazar sustento: vuelve a Sustentar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar_sustento', 'Rechazar sustento', 'Rechazar', 'fa-rotate-left')]);
+    botones.push(['Cargar o editar fotos (en Cotizaciones)', 'cn-azul', 'fa-images', abrirClasico]);
+    ventana('Sustento · ' + (c['N° COTIZACION'] || c.key) + (j.sustento_aprobado ? ' · aprobado' : ''), izquierda, derecha, botones);
+  }
+  // Solo la carga de fotos del sustento se hace todavía en Cotizaciones.
   const abrirClasico = () => location.assign(clasico);
   function accionesDe(c) {
     const p = tab;
@@ -305,11 +449,12 @@
     if (p === 'registro') lista.push(['Generar cotización (PDF y pasa a Cliente)', 'cn-verde', 'fa-paper-plane', () => generarCotizacion(c)],
       ['Rechazar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar', 'Rechazar cotización', 'Rechazar', 'fa-rotate-left')],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
-    else if (p === 'cliente') lista.push(['Aprobar (en Cotizaciones)', 'cn-verde', 'fa-check', abrirClasico],
+    else if (p === 'cliente') lista.push(['Aprobar (conformidad del cliente)', 'cn-verde', 'fa-check', () => aprobar(c)],
       ['Rechazar: vuelve a Registro', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar', 'Rechazar cotización', 'Rechazar', 'fa-rotate-left')],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
-    else if (p === 'sustentar') lista.push(['Sustento del WO (en Cotizaciones)', 'cn-azul', 'fa-camera', abrirClasico]);
-    else if (p === 'proveedor') lista.push(['Documentos del proveedor (en Cotizaciones)', 'cn-morado', 'fa-file-invoice', abrirClasico]);
+    else if (p === 'sustentar') lista.push(['Sustento del WO y pasar a Atendido', 'cn-azul', 'fa-camera', () => sustento(c)]);
+    else if (p === 'atendido') lista.push(['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
+    else if (p === 'proveedor') lista.push(['Facturas del proveedor', 'cn-morado', 'fa-file-invoice', () => proveedor(c)]);
     return lista;
   }
   function botonRedondo([titulo, clase, simbolo, fn], tamano) {

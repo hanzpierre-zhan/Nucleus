@@ -667,9 +667,9 @@ def test_conceptos_marcados_sin_monto_no_se_consideran(tecnico):
     assert vacia.status_code == 400 and 'monto' in vacia.json['error']
 
 
-def test_cotizado_en_caja_chica_es_la_suma_de_valores_unitarios():
+def test_cotizado_en_caja_chica_es_cantidad_por_valor_unitario_sin_fee():
     from services.rendicion_presupuesto_cotizacion import suma_valores_unitarios
     items = json.dumps([{'cantidad': '1', 'valor_unitario': '360', 'valor_total': '378.00'},
                         {'cantidad': '70', 'valor_unitario': '33.21', 'valor_total': '2440.94'}])
-    assert suma_valores_unitarios(items) == '393.21'  # 360 + 33.21, sin cantidad ni FEE
+    assert suma_valores_unitarios(items) == '2684.70'  # 1 × 360 + 70 × 33.21 (2,324.70), sin FEE
     assert suma_valores_unitarios('[]') is None

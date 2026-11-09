@@ -38,18 +38,18 @@ def test_acumulado_no_duplica_actual_y_excluye_anulados(auth_client,escenarios):
     result=consulta(auth_client)
     assert result.status_code==200
     control=result.json['control']
-    assert control['cotizado']=='1000.00'
+    assert control['cotizado']=='2600.00'  # 3 × 600 + 2 × 400, sin FEE
     assert control['items']==2
     assert control['otras_solicitudes']=='650.00'
     assert control['solicitud_actual']=='100.00'
-    assert control['acumulado']=='750.00' and control['saldo']=='250.00'
+    assert control['acumulado']=='750.00' and control['saldo']=='1850.00'
     assert control['cantidad_otras']==2 and control['excede'] is False
-    excedido=consulta(auth_client,monto='400').json['control']
+    excedido=consulta(auth_client,monto='2000').json['control']
     assert excedido['excede'] is True and excedido['saldo']=='-50.00'
 
 
-def test_cotizado_es_la_suma_de_valores_unitarios_y_no_el_total_con_fee(app,auth_client,escenarios):
-    """Caso del reporte: VU 660 + FEE 5% (total 693) => Cotizado 660, no 693."""
+def test_cotizado_es_cantidad_por_valor_unitario_sin_fee(app,auth_client,escenarios):
+    """Caso del reporte: 1 × VU 660 + FEE 5% (total 693) => Cotizado 660, sin el FEE."""
     with app.app_context():
         cot=NucleusData.query.filter_by(key_value='PRES-COT').one()
         datos=json.loads(cot.data_json)

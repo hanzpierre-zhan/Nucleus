@@ -30,13 +30,17 @@ def numero(value):return str(value or '').strip().upper()
 
 
 def suma_valores_unitarios(items):
-    """Cotizado para controlar Caja Chica y Rendición: la suma de la columna VALOR UNITARIO
-    de los ítems (cada valor unitario una vez, sin cantidad ni FEE)."""
+    """Cotizado para controlar Caja Chica y Rendición: suma de CANTIDAD × VALOR UNITARIO de cada
+    ítem, sin el FEE (70 × 33.21 = 2,324.70). Sin cantidad se toma 1."""
     try:
         if isinstance(items,str):items=json.loads(items)
         if not isinstance(items,list) or not items:return None
-        return str(sum((importe(item['valor_unitario']) for item in items),Decimal('0.00')))
-    except (ValueError,TypeError,KeyError):
+        total=Decimal('0.00')
+        for item in items:
+            cantidad=importe(item.get('cantidad')) if str(item.get('cantidad') or '').strip() else Decimal('1')
+            total+=(cantidad*importe(item['valor_unitario'])).quantize(Decimal('0.01'))
+        return str(total)
+    except (ValueError,TypeError,KeyError,AttributeError):
         return None
 
 

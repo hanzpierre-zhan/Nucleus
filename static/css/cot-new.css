@@ -87,3 +87,5 @@ body .cn-gestion .cc-barra > .cn-redondo { width: 38px !important; height: 38px 
 .cn-agregar-item { margin-top: 8px; width: 100%; border: 1.5px dashed #2563eb !important; color: #2563eb !important; background: transparent !important; }
 .cn-items-editar select { min-width: 118px; }
 body #cc-solicitud-dialogo .cn-item-quitar { width: 26px !important; height: 26px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: transparent !important; color: #dc2626 !important; box-shadow: none !important; }
+.cn-columna-archivos { display: grid; gap: 12px; align-content: start; }
+.cn-fase { margin: 8px 0 2px; font-size: 12.5px; font-weight: 600; color: var(--ios-secondary); }
