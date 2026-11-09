@@ -750,6 +750,8 @@
     }
     return figura;
   }
+  // ID de un archivo de Google Drive (open?id=ID, /file/d/ID/view, uc?id=ID).
+  const driveId = u => (String(u || '').match(/[?&]id=([A-Za-z0-9_-]{8,})/) || String(u || '').match(/\/d\/([A-Za-z0-9_-]{8,})/) || [])[1] || null;
   const cacheOrigen = new Map();
   function fotosOrigen(sol) {
     if (!cacheOrigen.has(sol.id)) {
@@ -802,10 +804,18 @@
         if (!fotos.length) { origen.append(fotoRevision(sol, '', 'Sin fotos en el registro de Rendición')); return; }
         for (const f of fotos) {
           const figura = el('figure', 'cc-rev-foto'), enlace = el('a');
-          enlace.href = f.url; enlace.target = '_blank'; enlace.rel = 'noopener'; enlace.title = 'Abrir ' + f.etiqueta.toLowerCase();
-          const img = el('img'); img.src = f.url; img.alt = f.etiqueta; img.loading = 'lazy';
-          // Enlaces del formulario (Drive) no siempre se muestran como imagen: queda el enlace para abrirla.
-          img.addEventListener('error', () => { img.replaceWith(el('span', 'cc-rev-sin-foto', 'Abrir foto')); });
+          const id = driveId(f.url);
+          enlace.href = id ? 'https://drive.google.com/file/d/' + id + '/view' : f.url;
+          enlace.target = '_blank'; enlace.rel = 'noopener'; enlace.title = 'Abrir ' + f.etiqueta.toLowerCase();
+          // Fotos del formulario (Drive): se prueban las miniaturas de Google, como en Rendición.
+          const opciones = id ? ['https://lh3.googleusercontent.com/d/' + id + '=w600',
+            'https://drive.google.com/thumbnail?id=' + id + '&sz=w600', f.url] : [f.url];
+          const img = el('img'); img.alt = f.etiqueta; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+          img.src = opciones.shift();
+          img.addEventListener('error', () => {
+            if (opciones.length) img.src = opciones.shift();
+            else img.replaceWith(el('span', 'cc-rev-sin-foto', 'Abrir foto'));
+          });
           enlace.append(img); figura.append(enlace, el('figcaption', null, f.etiqueta)); origen.append(figura);
         }
       });
