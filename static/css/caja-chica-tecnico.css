@@ -120,3 +120,32 @@ a.back{text-decoration:none;display:inline-block}
 .cc-devolucion-previa { border-style: dashed; }
 .cc-devolucion-previa .hint { margin: 6px 0 0; }
 .cc-devolucion-previa .cc-devolucion-titulo::after { content: ' · en curso'; font-weight: 500; font-size: 13px; opacity: .75; }
+
+/* Cuenta a la que se devuelve el saldo */
+.cc-cuenta-devolucion { display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; padding: 12px; border-radius: 14px; background: var(--card); border: 1px solid color-mix(in srgb, #f08a1c 45%, transparent); }
+.cc-cuenta-devolucion > div { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.cc-cuenta-devolucion small { font-size: 12px; opacity: .75; }
+.cc-cuenta-devolucion strong { font-size: 20px; letter-spacing: .5px; }
+.cc-cuenta-devolucion span { font-size: 14px; }
+.cc-cuenta-tipo { flex: none; padding: 6px 10px; border-radius: 10px; background: #6d28d9; color: #fff; font-weight: 800; font-size: 13px !important; }
+.cc-copiar { flex: none; padding: 8px 12px; border-radius: 10px; border: 1px solid #c2410c; background: transparent; color: #c2410c; font-weight: 700; }
+
+/* Rendir: varios comprobantes, cada uno con su foto */
+.cc-comp { margin-top: 12px; padding: 12px; border: 1px solid var(--input-border); border-radius: 16px; background: var(--card); }
+.cc-comp:first-child { margin-top: 0; }
+.cc-comp-cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.cc-comp-cab strong { font-size: 14px; }
+.cc-comp-quitar { border: 0; background: transparent; color: var(--error-text); font-weight: 700; font-size: 13px; padding: 4px 6px; }
+.cc-comp-fila { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; }
+.cc-comp-fila input { min-width: 0; width: 100%; }
+.cc-comp-foto { min-height: 84px; margin-top: 12px !important; }
+.cc-agregar { width: 100%; margin-top: 12px; padding: 11px; border: 1.5px dashed #2563eb; border-radius: 12px; background: transparent; color: #2563eb; font-weight: 700; font-size: 14px; }
+.cc-comp-totales { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--field); font-size: 13.5px; }
+.cc-comp-totales div { display: flex; justify-content: space-between; gap: 10px; }
+.cc-comp-totales dt { margin: 0; } .cc-comp-totales dd { margin: 0; font-weight: 700; }
+.cc-comp-totales .dev { color: #c2410c; }
+.cc-comp-totales .alerta { color: var(--error-text); }
+.cc-subtitulo-evidencia { margin: 16px 0 0; font-weight: 700; font-size: 14px; }
+.cc-evidencias { margin-top: 8px; grid-template-columns: repeat(2, 1fr); }
+.cc-slot-agregar { color: #2563eb; border-color: #2563eb; font-weight: 700; font: inherit; }
+.cc-slot-quitar { position: absolute; top: 6px; right: 6px; z-index: 2; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .6); color: #fff; font-size: 16px; line-height: 1; }

@@ -134,7 +134,7 @@
     const sobrante = Number(item.monto) - Number(item.monto_gastado || 0);
     return {
       titulo: 'Rechazar ' + item.tipo_gasto, subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
-      datos: [['Comprobante', item.comprobante], ['Solicitado', dinero(item.monto)],
+      datos: [['Comprobante', (item.comprobantes || []).map(c => c.comprobante).join(' / ') || item.comprobante], ['Solicitado', dinero(item.monto)],
         ['Gastó', item.monto_gastado && dinero(item.monto_gastado)], ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) : '', 'naranja']],
       sugerencias: SUGERENCIAS.item, ayuda: 'El técnico verá este motivo y podrá corregir el ítem o devolverlo.',
     };
@@ -293,7 +293,7 @@
       const concepto = el('td', null, [item.tipo_gasto, item.tipo_presupuesto, item.descripcion].filter(Boolean).join(' · '));
       if (item.correo_validador) concepto.append(el('div', null, 'Correo de validación: ' + item.correo_validador));
       tr.append(el('td', null, String(item.numero)), concepto,
-                el('td', 'cc-num', dinero(item.monto)), el('td', null, item.comprobante ? item.comprobante + ' · RUC ' + item.ruc : '—'),
+                el('td', 'cc-num', dinero(item.monto)), el('td', null, (item.comprobantes || []).length > 1 ? item.comprobantes.map(c => c.comprobante).join(' / ') : item.comprobante ? item.comprobante + ' · RUC ' + item.ruc : '—'),
                 el('td', 'cc-num', item.monto_gastado ? dinero(item.monto_gastado) : '—'), fotos, estado, botones);
       tabla.append(tr);
     }
@@ -736,6 +736,20 @@
     figura.append(el('figcaption', null, titulo));
     return figura;
   }
+  // Primera foto en grande y el resto en miniaturas (varios comprobantes o evidencias).
+  function galeriaRevision(sol, nombres, titulo) {
+    const figura = fotoRevision(sol, nombres[0], titulo + (nombres.length > 1 ? ' (' + nombres.length + ')' : ''));
+    if (nombres.length > 1) {
+      const tira = el('div', 'cc-rev-miniaturas');
+      nombres.slice(1).forEach((n, i) => {
+        const a = el('a'); a.href = '/form-pruebas/caja-chica/foto/' + sol.id + '/' + n; a.target = '_blank'; a.rel = 'noopener';
+        a.title = titulo + ' ' + (i + 2);
+        const img = el('img'); img.src = a.href; img.alt = a.title; img.loading = 'lazy'; a.append(img); tira.append(a);
+      });
+      figura.insertBefore(tira, figura.querySelector('figcaption'));
+    }
+    return figura;
+  }
   function tarjetaConcepto(sol, item) {
     const caja = el('section', 'cc-ficha cc-rev-item cc-rev-' + item.estado.toLowerCase());
     const cabeza = el('h4', 'cc-ficha-titulo');
@@ -761,11 +775,16 @@
     const cuerpo = el('div', 'cc-rev-cuerpo');
     const sobrante = Number(item.monto) - Number(item.monto_gastado || 0);
     const razon = item.razon_social || (item.ruc ? 'Sin consultar' : '');
+    const comps = item.comprobantes || [];
+    const filasComp = comps.length > 1
+      ? comps.map((c, i) => ['Comprobante ' + (i + 1), [c.comprobante, dinero(c.monto), 'RUC ' + c.ruc, c.razon_social].filter(Boolean).join(' · ')])
+      : [['RUC', item.ruc, 'cc-mono'], ['Razón social', razon], ['Comprobante', item.comprobante]];
     cuerpo.append(ficha('fa-receipt', '', [
-      ['RUC', item.ruc, 'cc-mono'], ['Razón social', razon], ['Comprobante', item.comprobante],
+      ...filasComp,
       ['Solicitado', dinero(item.monto)], ['Gastó', item.monto_gastado && dinero(item.monto_gastado)],
       ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) + ' · va a devolución' : '', 'cc-rev-sobrante']]).querySelector('dl'));
-    cuerpo.append(fotoRevision(sol, item.fotos[0], 'Boleta / factura'), fotoRevision(sol, item.evidencia, 'Evidencia del gasto'));
+    const evidencias = item.evidencias?.length ? item.evidencias : [item.evidencia].filter(Boolean);
+    cuerpo.append(galeriaRevision(sol, item.fotos, 'Boleta / factura'), galeriaRevision(sol, evidencias, 'Evidencia del gasto'));
     caja.append(cuerpo);
     if (item.estado === 'RECHAZADO') {
       const motivo = el('div', 'cc-rev-motivo');
@@ -1102,17 +1121,21 @@
          celda: s => el('span', s.faltan?.includes('CM') ? 'cc-falta' : null, s.formulario?.wo || '—')},
     gasto: {titulo: 'Tipo de gasto', ancho: 'minmax(190px, 1.4fr)',
             texto: s => [...new Set(itemsEtapa(s).map(item => item.tipo_gasto))].join(' · ') || '—'},
+    dataper: {titulo: 'Dataper', ancho: 'minmax(150px, .9fr)', texto: s => s.dataper ? 'Registrado' : 'No registrado',
+              celda: s => el('span', 'cc-chip ' + (s.dataper ? 'cc-dataper-si' : 'cc-dataper-no'), s.dataper ? 'Registrado' : 'No registrado')},
     responsable: {titulo: 'Responsable de validación', ancho: 'minmax(190px, 1.3fr)',
                   texto: s => s.formulario?.responsable_validacion || '—'},
     estado:   {titulo: 'Estado', ancho: 'minmax(180px, 1.3fr)', texto: s => estadoDe(s)[0],
                celda: s => { const [t, c] = estadoDe(s); return el('span', 'cc-chip ' + c, t); }},
-    fecha:    {titulo: 'Fecha / Avance', ancho: 'minmax(140px, 1.1fr)', clase: 'cc-avance',
+    fecha:    {titulo: 'Fecha / Avance', ancho: 'minmax(140px, 1.1fr)', clase: 'cc-avance', orden: s => creado(s).getTime(),
                texto: s => s.estado === 'DEPOSITADO' ? s.avance : creado(s).toLocaleDateString('es-PE')},
-    total:    {titulo: 'Importe de etapa', ancho: 'minmax(110px, .8fr)', num: true, texto: s => dinero(importeEtapa(s)),
+    total:    {titulo: 'Importe de etapa', ancho: 'minmax(110px, .8fr)', num: true, orden: s => Number(importeEtapa(s)) || 0, texto: s => dinero(importeEtapa(s)),
                celda: s => el('strong', 'cc-num', dinero(importeEtapa(s)))},
   };
   // El orden y ancho de las columnas se recuerdan en este navegador.
   let columnas = Object.keys(COLUMNAS), filtros = {}, busquedas = {}, anchos = {};
+  // Orden de la tabla: columna y sentido (1 = menor a mayor, -1 = mayor a menor).
+  let orden = null;
   // Búsqueda sin distinguir mayúsculas ni tildes ("peru" encuentra "Perú").
   const plano = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   try {
@@ -1170,7 +1193,18 @@
       const filtrar = el('button', 'cc-th-btn' + (filtros[id] ? ' activo' : '')); filtrar.type = 'button';
       filtrar.append(icono('fa-filter')); filtrar.title = filtrar.ariaLabel = 'Filtrar ' + col.titulo;
       filtrar.addEventListener('click', e => { e.stopPropagation(); abrirFiltro(id, filtrar); });
-      fila.append(el('span', 'cc-th-nombre', col.titulo), filtrar);
+      // Ordenar: 1.er clic de menor a mayor, 2.º de mayor a menor, 3.º quita el orden.
+      const sentido = orden?.col === id ? orden.dir : 0;
+      const ordenar = el('button', 'cc-th-btn' + (sentido ? ' activo' : '')); ordenar.type = 'button';
+      ordenar.append(icono(sentido === 1 ? 'fa-arrow-up-short-wide' : sentido === -1 ? 'fa-arrow-down-wide-short' : 'fa-sort'));
+      ordenar.title = ordenar.ariaLabel = sentido === 1 ? 'Ordenado de menor a mayor · clic: de mayor a menor'
+        : sentido === -1 ? 'Ordenado de mayor a menor · clic: quitar orden' : 'Ordenar ' + col.titulo + ' de menor a mayor';
+      ordenar.addEventListener('click', e => {
+        e.stopPropagation();
+        orden = sentido === 1 ? {col: id, dir: -1} : sentido === -1 ? null : {col: id, dir: 1};
+        pintar();
+      });
+      fila.append(el('span', 'cc-th-nombre', col.titulo), ordenar, filtrar);
       th.append(fila, buscar, asa(id, th));
       fila.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; th.classList.add('arrastrando'); });
       th.addEventListener('dragend', () => cab.querySelectorAll('.cc-th').forEach(t => t.classList.remove('arrastrando', 'soltar-antes', 'soltar-despues')));
@@ -1233,7 +1267,11 @@
   // Solicitudes de la etapa con el buscador general y los filtros de columna (menos `excepto`).
   function base(excepto) {
     const filas = filtrar(excepto);
-    if (tab === 'pendientes') filas.sort((a, b) => COLUMNAS.responsable.texto(a).localeCompare(COLUMNAS.responsable.texto(b), 'es') || b.id - a.id);
+    if (orden && COLUMNAS[orden.col]) {
+      const col = COLUMNAS[orden.col];
+      filas.sort((a, b) => (col.orden ? col.orden(a) - col.orden(b)
+        : String(col.texto(a)).localeCompare(String(col.texto(b)), 'es', {numeric: true, sensitivity: 'base'})) * orden.dir || b.id - a.id);
+    } else if (tab === 'pendientes') filas.sort((a, b) => COLUMNAS.responsable.texto(a).localeCompare(COLUMNAS.responsable.texto(b), 'es') || b.id - a.id);
     return filas;
   }
   function filtrar(excepto) {
@@ -1281,7 +1319,8 @@
     const opcionPestana = menuExportar.querySelector('[data-alcance="pestana"]');
     opcionPestana.disabled = !visibles;
     $('cc-exportar-pestana').textContent = NOMBRE_TAB[tab] + ' · ' + visibles + (visibles === 1 ? ' solicitud' : ' solicitudes');
-    $('cc-exportar-todo').textContent = 'Todas las pestañas · ' + solicitudes.length + (solicitudes.length === 1 ? ' solicitud' : ' solicitudes');
+    const todas = delProyecto().length;
+    $('cc-exportar-todo').textContent = 'Todas las pestañas' + (selectorProyecto.value ? ' · ' + selectorProyecto.value : '') + ' · ' + todas + (todas === 1 ? ' solicitud' : ' solicitudes');
     menuExportar.hidden = false; excel.setAttribute('aria-expanded', 'true');
     menuExportar.querySelector('button:not(:disabled)')?.focus();
   });
@@ -1290,7 +1329,7 @@
   menuExportar.querySelectorAll('.cc-exportar-opcion').forEach(opcion => opcion.addEventListener('click', () => {
     const todo = opcion.dataset.alcance === 'todo';
     cerrarExportar();
-    exportar(todo ? solicitudes.map(s => s.id) : base().map(s => s.id),
+    exportar(todo ? delProyecto().map(s => s.id) : base().map(s => s.id),
       todo ? 'Caja-Chica-historial.xlsx' : 'Caja-Chica-' + NOMBRE_TAB[tab].replace(/\s+/g, '-') + '.xlsx');
   }));
   async function exportar(ids, nombre) {
@@ -1388,7 +1427,7 @@
       return;
     }
     if (opcion.dataset.accion === 'limpiar') {
-      filtros = {}; busquedas = {}; $('cc-buscar').value = ''; selectorProyecto.value = ''; $('cc-filtro').hidden = true;
+      filtros = {}; busquedas = {}; orden = null; $('cc-buscar').value = ''; selectorProyecto.value = ''; $('cc-filtro').hidden = true;
     } else if (opcion.dataset.accion === 'restablecer') {
       columnas = Object.keys(COLUMNAS); anchos = {}; guardar();
     }

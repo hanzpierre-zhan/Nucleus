@@ -47,61 +47,142 @@
     });
     return {casilla, input};
   }
+  const MAX_COMPROBANTES = 10, MAX_EVIDENCIAS = 3;
+  const aNumero = t => { const v = Number(String(t || '').replace(',', '.').trim()); return Number.isFinite(v) ? v : NaN; };
+  // Rendir un ítem: uno o más comprobantes (RUC, N.º, monto y su foto) y de 1 a 3 fotos de evidencia.
   function formRendir(sol, item) {
     const form = el('form', 'cc-rendir'); form.noValidate = true;
-    const campo = (nombre, titulo, modo, ejemplo, largo) => {
-      const id = 'r' + item.id + '-' + nombre, label = el('label', null, titulo), input = el('input');
-      label.htmlFor = id; Object.assign(input, {id, name: nombre, inputMode: modo, placeholder: ejemplo, required: true, maxLength: largo});
-      form.append(label, input);
+    const lista = el('div', 'cc-comps');
+    const agregar = el('button', 'cc-agregar', '+ Agregar otro comprobante'); agregar.type = 'button';
+    const totales = el('dl', 'cc-comp-totales');
+    let correlativo = 0;
+
+    function campo(caja, titulo, modo, ejemplo, largo, clase) {
+      const id = 'r' + item.id + '-' + (++correlativo), label = el('label', null, titulo), input = el('input');
+      label.htmlFor = id; Object.assign(input, {id, inputMode: modo, placeholder: ejemplo, required: true, maxLength: largo});
+      input.dataset.campo = clase;
+      const envoltura = el('div'); envoltura.append(label, input); caja.append(envoltura);
       return input;
+    }
+    function comprobante(anterior) {
+      const caja = el('div', 'cc-comp');
+      const cab = el('div', 'cc-comp-cab');
+      const quitar = el('button', 'cc-comp-quitar', 'Quitar'); quitar.type = 'button'; quitar.title = 'Quitar comprobante';
+      quitar.addEventListener('click', () => { caja.remove(); renumerar(); });
+      cab.append(el('strong'), quitar);
+      caja.append(cab);
+      const ruc = campo(caja, 'RUC', 'numeric', '20123456789', 11, 'ruc');
+      // Al escribir los 11 dígitos se completa la razón social (openruc / padrón).
+      const razon = el('p', 'cc-razon'); razon.hidden = true; razon.setAttribute('aria-live', 'polite');
+      caja.append(razon);
+      caja.razonSocial = '';
+      let consulta;
+      const consultar = async () => {
+        consulta?.abort(); caja.razonSocial = '';
+        razon.hidden = !/^[0-9]{11}$/.test(ruc.value); razon.className = 'cc-razon';
+        if (razon.hidden) return;
+        const actual = consulta = new AbortController();
+        razon.textContent = 'Consultando RUC…';
+        try {
+          const r = await api('/ruc/' + ruc.value, {signal: actual.signal}, '/form-pruebas');
+          if (actual.signal.aborted) return;
+          if (r.resultado === 'encontrado') {
+            caja.razonSocial = r.razon_social;
+            razon.textContent = r.razon_social + (r.activo ? ' · Activo' : ' · No activo');
+            razon.classList.add(r.activo ? 'ok' : 'alerta');
+          } else {
+            razon.textContent = r.resultado === 'no_encontrado' ? 'RUC no encontrado. Revisa los dígitos.' : 'Consulta de RUC no disponible ahora.';
+            razon.classList.add('alerta');
+          }
+        } catch { if (!actual.signal.aborted) { razon.textContent = 'No se pudo consultar el RUC.'; razon.classList.add('alerta'); } }
+      };
+      ruc.addEventListener('input', consultar);
+      const fila = el('div', 'cc-comp-fila');
+      campo(fila, 'N.º boleta / factura', 'text', 'B001-000123', 40, 'numero');
+      const monto = campo(fila, 'Monto (S/)', 'decimal', '0.00', 12, 'monto');
+      caja.append(fila);
+      const foto = casillaFoto('', 'Foto del comprobante', 'Tomar o elegir foto');
+      foto.casilla.classList.add('cc-comp-foto');
+      caja.foto = foto.input;
+      caja.append(foto.casilla);
+      monto.addEventListener('input', actualizar);
+      // El RUC se copia del comprobante anterior: suele ser el mismo proveedor, pero se puede cambiar.
+      if (anterior?.value) { ruc.value = anterior.value; consultar(); }
+      lista.append(caja);
+      renumerar();
+      return caja;
+    }
+    function renumerar() {
+      const cajas = [...lista.children];
+      cajas.forEach((c, i) => {
+        c.querySelector('.cc-comp-cab strong').textContent = 'Comprobante ' + (i + 1);
+        c.querySelector('.cc-comp-quitar').hidden = cajas.length === 1;
+      });
+      agregar.hidden = cajas.length >= MAX_COMPROBANTES;
+      actualizar();
+    }
+    function actualizar() {
+      const montos = [...lista.querySelectorAll('[data-campo=monto]')].map(i => aNumero(i.value));
+      const gastado = Math.round(montos.reduce((t, m) => t + (m > 0 ? m : 0), 0) * 100) / 100;
+      const resto = Math.round((Number(item.monto) - gastado) * 100) / 100;
+      const fila = (a, b, clase) => { const d = el('div', clase || null); d.append(el('dt', null, a), el('dd', null, b)); return d; };
+      totales.replaceChildren(fila('Total gastado', dinero(gastado) + ' de ' + dinero(item.monto)),
+        ...(resto > 0 && gastado > 0 ? [fila('Pasa a tu devolución', dinero(resto), 'dev')] : []),
+        ...(resto < 0 ? [fila('Excede lo depositado', dinero(-resto), 'alerta')] : []));
+      totales.hidden = gastado <= 0;
+      form.dataset.gastado = String(gastado);
+      form.closest('.cc-rindiendo')?.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+    agregar.addEventListener('click', () => {
+      const ultimo = lista.lastElementChild;
+      comprobante(ultimo?.querySelector('[data-campo=ruc]')).querySelector('[data-campo=numero]').focus();
+    });
+
+    // Evidencia: una foto obligatoria y hasta dos adicionales.
+    const evidencias = el('div', 'cc-slots cc-evidencias');
+    const otraEvidencia = el('button', 'cc-slot cc-slot-agregar'); otraEvidencia.type = 'button';
+    otraEvidencia.append(el('span', 'cc-slot-texto', '+ Foto adicional'));
+    const estadoEvidencias = () => { otraEvidencia.hidden = evidencias.querySelectorAll('.cc-evidencia').length >= MAX_EVIDENCIAS; };
+    const slotEvidencia = opcional => {
+      const f = casillaFoto('', opcional ? 'Evidencia adicional' : 'Evidencia del gasto', opcional ? 'Opcional' : 'Foto del uso');
+      f.casilla.classList.add('cc-evidencia');
+      if (opcional) {
+        const quitar = el('button', 'cc-slot-quitar', '×'); quitar.type = 'button'; quitar.title = 'Quitar foto';
+        quitar.setAttribute('aria-label', 'Quitar foto');
+        quitar.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); f.casilla.remove(); estadoEvidencias(); });
+        f.casilla.append(quitar);
+      }
+      evidencias.insertBefore(f.casilla, otraEvidencia);
+      estadoEvidencias();
+      return f;
     };
-    const ruc = campo('ruc', 'RUC del comprobante', 'numeric', '20123456789', 11);
-    // Al escribir los 11 dígitos se completa la razón social (openruc / padrón).
-    const razon = el('p', 'cc-razon'); razon.hidden = true; razon.setAttribute('aria-live', 'polite');
-    const razonOculta = Object.assign(el('input'), {type: 'hidden', name: 'razon_social'});
-    form.append(razon, razonOculta);
-    let consulta;
-    ruc.addEventListener('input', async () => {
-      consulta?.abort(); razonOculta.value = '';
-      razon.hidden = !/^[0-9]{11}$/.test(ruc.value); razon.className = 'cc-razon';
-      if (razon.hidden) return;
-      const actual = consulta = new AbortController();
-      razon.textContent = 'Consultando RUC…';
-      try {
-        const r = await api('/ruc/' + ruc.value, {signal: actual.signal}, '/form-pruebas');
-        if (actual.signal.aborted) return;
-        if (r.resultado === 'encontrado') {
-          razonOculta.value = r.razon_social;
-          razon.textContent = r.razon_social + (r.activo ? ' · Activo' : ' · No activo');
-          razon.classList.add(r.activo ? 'ok' : 'alerta');
-        } else {
-          razon.textContent = r.resultado === 'no_encontrado' ? 'RUC no encontrado. Revisa los dígitos.' : 'Consulta de RUC no disponible ahora.';
-          razon.classList.add('alerta');
-        }
-      } catch { if (!actual.signal.aborted) { razon.textContent = 'No se pudo consultar el RUC.'; razon.classList.add('alerta'); } }
-    });
-    campo('comprobante', 'N.º de boleta o factura', 'text', 'F001-000123', 40);
-    const gastado = campo('monto_gastado', 'Monto gastado (S/)', 'decimal', item.monto, 12);
-    // Si gasta menos de lo solicitado, el saldo se acumula solo en la devolución.
-    const saldo = el('p', 'cc-item-saldo'); saldo.hidden = true; saldo.setAttribute('aria-live', 'polite');
-    gastado.addEventListener('input', () => {
-      const valor = Number(gastado.value.replace(',', '.'));
-      const resto = Math.round((Number(item.monto) - valor) * 100) / 100;
-      saldo.hidden = !(gastado.value && Number.isFinite(valor) && valor >= 0 && resto > 0);
-      saldo.textContent = '↩ ' + dinero(resto) + ' pasa a tu devolución';
-    });
-    form.append(saldo);
-    const boleta = casillaFoto('fotos', 'Boleta / factura', 'Foto del comprobante', true);
-    const evidencia = casillaFoto('evidencia', 'Evidencia del gasto', 'Foto del uso');
-    const fotos = el('div', 'cc-slots'); fotos.append(boleta.casilla, evidencia.casilla);
+    evidencias.append(otraEvidencia);
+    otraEvidencia.addEventListener('click', () => slotEvidencia(true).input.click());
+    slotEvidencia(false);
+
+    comprobante(null);
     const error = el('div', 'error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
     const boton = el('button', 'primary wide', item.tipo_gasto ? 'Rendir ' + item.tipo_gasto : 'Rendir'); boton.type = 'submit';
-    form.append(fotos, error, boton);
+    form.append(lista, agregar, totales, el('p', 'cc-subtitulo-evidencia', 'Evidencia del gasto'), evidencias,
+      el('p', 'hint', 'Opcional: hasta ' + MAX_EVIDENCIAS + ' fotos de evidencia.'), error, boton);
     form.addEventListener('submit', e => { e.preventDefault(); enviando(boton, error, async () => {
-      if (!boleta.input.files.length) throw Error('Adjunta la foto de la boleta o factura.');
-      if (boleta.input.files.length > 5) throw Error('Adjunta como máximo 5 fotos de la boleta.');
-      if (!evidencia.input.files.length) throw Error('Adjunta la foto de la evidencia del gasto.');
-      await api('/' + sol.id + '/item/' + item.id + '/rendir', {method: 'POST', body: new FormData(form)});
+      const cajas = [...lista.children], datos = new FormData();
+      cajas.forEach((c, i) => {
+        const pre = cajas.length > 1 ? 'Comprobante ' + (i + 1) + ': ' : '';
+        const v = k => c.querySelector('[data-campo=' + k + ']').value.trim();
+        if (!/^[0-9]{11}$/.test(v('ruc'))) throw Error(pre + 'escribe el RUC de 11 dígitos.');
+        if (!v('numero')) throw Error(pre + 'escribe el número de la boleta o factura.');
+        if (!(aNumero(v('monto')) > 0)) throw Error(pre + 'escribe el monto de la boleta.');
+        if (!c.foto.files.length) throw Error(pre + 'adjunta la foto de la boleta o factura.');
+        datos.append('comp_ruc', v('ruc')); datos.append('comp_numero', v('numero'));
+        datos.append('comp_monto', v('monto')); datos.append('comp_razon', c.razonSocial || '');
+        datos.append('comp_foto_' + i, c.foto.files[0]);
+      });
+      if (Number(form.dataset.gastado) > Number(item.monto)) throw Error('El total gastado no puede superar ' + dinero(item.monto) + '.');
+      const fotos = [...evidencias.querySelectorAll('.cc-evidencia input')].filter(i => i.files.length);
+      if (!fotos.length) throw Error('Adjunta la foto de la evidencia del gasto.');
+      fotos.forEach(i => datos.append('evidencia', i.files[0]));
+      await api('/' + sol.id + '/item/' + item.id + '/rendir', {method: 'POST', body: datos});
       await recargar(sol);
     }); });
     return form;
@@ -111,6 +192,21 @@
     if (item.estado === 'DEVUELTO') return Number(item.monto || 0);
     if (!['EN_REVISION', 'APROBADO'].includes(item.estado)) return 0;
     return Math.max(0, Math.round((Number(item.monto || 0) - Number(item.monto_gastado || 0)) * 100) / 100);
+  }
+  // Dónde devolver: la cuenta que define Nucleus (con botón para copiar el número).
+  function cuentaDevolucion() {
+    const c = datos?.cuenta_devolucion;
+    if (!c?.numero) return document.createTextNode('');
+    const caja = el('div', 'cc-cuenta-devolucion');
+    const info = el('div');
+    info.append(el('small', null, 'Devuelve a este ' + c.tipo), el('strong', null, c.numero), el('span', null, c.titular));
+    const copiar = el('button', 'cc-copiar', 'Copiar'); copiar.type = 'button';
+    copiar.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(c.numero); copiar.textContent = '¡Copiado!'; } catch (_) { copiar.textContent = c.numero; }
+      setTimeout(() => { copiar.textContent = 'Copiar'; }, 1800);
+    });
+    caja.append(el('span', 'cc-cuenta-tipo', c.tipo), info, copiar);
+    return caja;
   }
   function formDevolucion(sol) {
     const form = el('form', 'cc-rendir'); form.noValidate = true;
@@ -131,7 +227,7 @@
       const motivo = el('p', 'cc-item-motivo'); motivo.append(el('strong', null, 'Devolución rechazada: '), ultimo.motivo || 'Sin motivo');
       form.append(motivo, el('p', 'hint', 'Vuelve a subir la captura correcta.'));
     }
-    form.append(calculo,
+    form.append(calculo, cuentaDevolucion(),
       el('p', 'hint', 'Devuelve el importe indicado y adjunta el comprobante. La devolución quedará pendiente de revisión.'));
     const monto = el('input'); Object.assign(monto, {name: 'monto', value: sol.diferencia, readOnly: true, type: 'hidden'});
     const foto = casillaFoto('foto', 'Adjuntar comprobante de devolución', 'Captura de la transferencia');
@@ -205,7 +301,7 @@
     const aviso = el('section', 'cc-devolucion cc-devolucion-previa');
     const calculo = el('dl', 'cc-calculo');
     const ayuda = el('p', 'hint');
-    aviso.append(el('h3', 'cc-devolucion-titulo', 'Devolución'), calculo, ayuda);
+    aviso.append(el('h3', 'cc-devolucion-titulo', 'Devolución'), calculo, cuentaDevolucion(), ayuda);
     const resumenDev = detalle.querySelector('.cc-resumen-rendir .dev strong');
     const actualizar = () => {
       const lineas = sol.items.filter(i => saldoItem(i) > 0)
@@ -215,9 +311,8 @@
         pendientes++;
         const monto = Number(fila.dataset.monto);
         if (fila.querySelector('.cc-check-devolver input')?.checked) { lineas.push([fila.dataset.tipo + ' (completo)', monto]); return; }
-        const texto = (fila.querySelector('input[name=monto_gastado]')?.value || '').replace(',', '.').trim();
-        const gastado = Number(texto);
-        if (texto && Number.isFinite(gastado) && gastado >= 0 && gastado < monto) {
+        const gastado = Number(fila.querySelector('form.cc-rendir')?.dataset.gastado || 0);
+        if (gastado > 0 && gastado < monto) {
           lineas.push([fila.dataset.tipo + ' (saldo)', Math.round((monto - gastado) * 100) / 100]);
         }
       });
@@ -263,7 +358,7 @@
       fila.append(cab, el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + 'Solicitado ' + dinero(item.monto)));
       if (item.estado === 'APROBADO' || item.estado === 'EN_REVISION') {
         fila.append(el('p', 'cc-item-ok', (item.estado === 'APROBADO' ? '✓ Rendiste ' : 'Enviado · ') + dinero(item.monto_gastado)
-          + (item.comprobante ? ' · ' + item.comprobante : '')));
+          + ((item.comprobantes || []).length > 1 ? ' · ' + item.comprobantes.length + ' comprobantes' : item.comprobante ? ' · ' + item.comprobante : '')));
       }
       const saldo = saldoItem(item);
       if (saldo > 0 && item.estado !== 'DEVUELTO') fila.append(el('p', 'cc-item-saldo', '↩ ' + dinero(saldo) + ' pasa a tu devolución'));

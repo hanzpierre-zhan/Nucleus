@@ -184,6 +184,10 @@ class CajaChicaItem(db.Model):
     monto_gastado = db.Column(db.Numeric(12, 2))
     fotos = db.Column(db.Text, nullable=False, default='[]')  # fotos de la boleta o factura
     evidencia = db.Column(db.String(120))  # foto que muestra en qué se usó el gasto
+    # Varios comprobantes por ítem: [{ruc, razon_social, comprobante, monto, foto}] y fotos de evidencia.
+    # ruc/comprobante/razon_social/fotos/evidencia guardan el primero (compatibilidad con lo ya rendido).
+    comprobantes = db.Column(db.Text)
+    evidencias = db.Column(db.Text)
     rendido_en = db.Column(db.DateTime)
     motivo_rechazo = db.Column(db.Text)
     revisado_por = db.Column(db.String(100))

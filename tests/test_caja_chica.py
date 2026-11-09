@@ -25,7 +25,8 @@ def tecnico(app, monkeypatch, tmp_path):
     with app.app_context():
         pid = Proyecto.query.filter_by(nombre='Dataper').one().id
         fila = NucleusData(proyecto_id=pid, key_value=DOC, data_json=json.dumps(
-            {'DOCUMENTO': DOC, 'TECNICO': 'Técnico Caja', 'ESTADO': 'ACTIVO', 'PROYECTO': 'FLM - CLARO'}))
+            {'DOCUMENTO': DOC, 'TECNICO': 'Técnico Caja', 'ESTADO': 'ACTIVO', 'PROYECTO': 'FLM - CLARO',
+             'SUPERVISOR': 'Supervisor Caja'}))
         db.session.add_all([fila, ClaveTecnico(documento=DOC, clave_hash=generate_password_hash('Clave-123'))])
         db.session.commit()
         rid = fila.id
@@ -139,6 +140,10 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     fila = dict(zip([c.value for c in hoja[1]], [c.value for c in hoja[2]]))
     assert [fila['Solicitado'], fila['Depositado'], fila['Estado de rendición'], fila['Estado de solicitud']] == [50, 0, 'Sin depósito', 'Validación']
     assert fila['Tipo de gasto'] == sol['items'][0].get('tipo_presupuesto', fila['Tipo de gasto'])
+    assert fila['Supervisor'] == 'Supervisor Caja' and fila['Registrado en Dataper'] == 'Registrado'
+    listado = next(x for x in auth_client.get('/api/caja-chica/solicitudes').json['solicitudes'] if x['id'] == sid)
+    assert listado['dataper'] is True and listado['supervisor'] == 'Supervisor Caja'
+    assert cli.get('/form-pruebas/caja-chica/datos', headers=h).json['cuenta_devolucion']['numero'] == '988191318'
     assert gestion('validar').status_code == 200
     # Depósito: monto exacto y foto
     r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '90', 'foto': foto()})
@@ -256,6 +261,46 @@ def test_saldo_no_gastado_de_un_item_se_suma_a_la_devolucion(app, auth_client, t
     s = cli.post('/form-pruebas/caja-chica/%d/item/%d/devolver' % (sid, items[1]['id']), headers=h).json['solicitud']
     assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '60.00'  # 10 de saldo + 50 del ítem devuelto
 
+
+
+def test_rendir_varios_comprobantes_con_su_foto_y_evidencias(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '100'}]}).json['solicitud']['id']
+    assert auth_client.post('/api/caja-chica/%d/validar' % sid).status_code == 200
+    item = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '100', 'foto': foto()}).json['solicitud']['items'][0]
+    url = '/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id'])
+
+    def datos(montos=('45', '40'), numeros=('B001-452', 'B001-453'), fotos=True, evidencias=2,
+              rucs=('20123456789', '20600000001')):
+        d = {'comp_ruc': list(rucs), 'comp_numero': list(numeros), 'comp_monto': list(montos),
+             'comp_razon': ['PEAJES DEL SUR S.A.', ''], 'evidencia': [foto('e%d.png' % i) for i in range(evidencias)]}
+        if fotos:
+            d['comp_foto_0'], d['comp_foto_1'] = foto('b1.png'), foto('b2.png')
+        return d
+    assert cli.post(url, headers=h, data=datos(montos=('60', '50'))).status_code == 400  # suma más que el ítem
+    repetida = cli.post(url, headers=h, data=datos(numeros=('B001-452', 'B001-452'), rucs=('20123456789',) * 2))
+    assert repetida.status_code == 400 and 'ya está' in repetida.json['error']
+    sin_foto = cli.post(url, headers=h, data=datos(fotos=False))
+    assert sin_foto.status_code == 400 and 'foto' in sin_foto.json['error']
+    assert cli.post(url, headers=h, data=datos(evidencias=4)).status_code == 400  # máximo 3 evidencias
+    r = cli.post(url, headers=h, data=datos())
+    assert r.status_code == 200, r.json
+    rendido = r.json['solicitud']['items'][0]
+    assert rendido['monto_gastado'] == '85.00' and rendido['estado'] == 'EN_REVISION'
+    assert [c['comprobante'] for c in rendido['comprobantes']] == ['B001-452', 'B001-453']
+    assert [c['monto'] for c in rendido['comprobantes']] == ['45.00', '40.00']
+    assert len(rendido['fotos']) == 2 and len(rendido['evidencias']) == 2
+    for nombre in rendido['fotos'] + rendido['evidencias']:
+        assert cli.get('/form-pruebas/caja-chica/foto/%d/%s' % (sid, nombre)).status_code == 200
+    assert auth_client.get('/caja-chica/').status_code == 200
+    with auth_client.session_transaction() as sesion:
+        token = sesion['form_csrf']
+    libro = load_workbook(io.BytesIO(auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token}).data))
+    fila = dict(zip(*[[c.value for c in f] for f in list(libro['Historial'].rows)[:2]]))
+    assert fila['N.º boleta'] == 'B001-452 / B001-453' and fila['RUC'] == '20123456789 / 20600000001'
+    assert fila['Gastado'] == 85
 
 BASE = {'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'site': 'LA2859', 'wo': 'CM-20260904-00000410',
         'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}

@@ -31,6 +31,8 @@ from models import AppConfig, CajaChicaItem, CajaChicaSolicitud, Proyecto
 MODULO = 'Caja Chica'
 MAX_ITEMS = 20
 MAX_FOTOS = 5
+MAX_COMPROBANTES = 10
+MAX_EVIDENCIAS = 3
 ESTADOS_FINALES = ('ARCHIVADO', 'ANULADO')
 
 
@@ -49,10 +51,41 @@ def instalar():
         db.session.execute(db.text('ALTER TABLE caja_chica_solicitudes ADD COLUMN devolucion_aceptada BOOLEAN DEFAULT FALSE'))
         db.session.commit()
     columnas = {c['name'] for c in inspect(db.engine).get_columns('caja_chica_items')}
-    for nombre, tipo in (('razon_social', 'VARCHAR(200)'), ('evidencia', 'VARCHAR(120)')):
+    for nombre, tipo in (('razon_social', 'VARCHAR(200)'), ('evidencia', 'VARCHAR(120)'),
+                         ('comprobantes', 'TEXT'), ('evidencias', 'TEXT')):
         if nombre not in columnas:
             db.session.execute(db.text('ALTER TABLE caja_chica_items ADD COLUMN %s %s' % (nombre, tipo)))
             db.session.commit()
+
+
+# Cuenta a la que el técnico devuelve el saldo no gastado.
+CUENTA_DEVOLUCION = {'tipo': 'Plin', 'titular': 'Jessica Cordero', 'numero': '988191318'}
+
+
+def dataper_por_documento(documentos):
+    """{documento: {'registrado': bool, 'supervisor': str}} según Dataper (activo = registrado)."""
+    from models import NucleusData
+    from services.formularios_prueba import documento as limpiar, valor
+    buscados = {limpiar(d) for d in documentos if d}
+    resultado = {d: {'registrado': False, 'supervisor': ''} for d in buscados}
+    if not buscados:
+        return resultado
+    filas = (NucleusData.query.join(Proyecto, Proyecto.id == NucleusData.proyecto_id)
+             .filter(Proyecto.nombre == 'Dataper').with_entities(NucleusData.data_json))
+    for (crudo,) in filas:
+        try:
+            data = json.loads(crudo or '{}')
+        except ValueError:
+            continue
+        doc = limpiar(valor(data, 'DOCUMENTO'))
+        if doc not in buscados:
+            continue
+        activo = str(valor(data, 'ESTADO')).strip().upper() == 'ACTIVO'
+        actual = resultado[doc]
+        if activo or not actual['registrado']:
+            actual['registrado'] = actual['registrado'] or activo
+            actual['supervisor'] = str(valor(data, 'SUPERVISOR')).strip() or actual['supervisor']
+    return resultado
 
 
 def dinero(valor):
@@ -254,22 +287,46 @@ def reenviar(sol, tecnico, datos, catalogo, proyectos, bancos, importe, formular
     db.session.commit()
 
 
-def rendir_item(sol, item, documento, datos, fotos, importe, evidencia=None):
+def preparar_rendicion(sol, item, documento, comprobantes, importe):
+    """Valida los comprobantes antes de guardar fotos. Cada uno: {ruc, razon_social, comprobante, monto}."""
     _exigir(sol.documento == documento, 'Esta solicitud no es tuya.')
     _exigir(sol.estado == 'DEPOSITADO', 'Solo se rinde una solicitud depositada.')
     _exigir(item.estado in ('POR_RENDIR', 'RECHAZADO'), 'Este ítem ya fue rendido.')
-    ruc = re.sub(r'\D', '', str(datos.get('ruc') or ''))
-    _exigir(len(ruc) == 11, 'Escribe el RUC del comprobante (11 dígitos).')
-    comprobante = str(datos.get('comprobante') or '').strip().upper()
-    _exigir(re.fullmatch(r'[A-Z0-9-]{3,40}', comprobante), 'Escribe el número de la boleta o factura.')
-    gastado = importe(datos.get('monto_gastado'))
-    _exigir(gastado <= item.monto, 'El monto gastado no puede superar el monto del ítem (S/ %s).' % dinero(item.monto))
-    _exigir(1 <= len(fotos) <= MAX_FOTOS, 'Adjunta entre 1 y %d fotos del comprobante.' % MAX_FOTOS)
-    _exigir(evidencia, 'Adjunta la foto de la evidencia del gasto.')
-    item.ruc, item.comprobante, item.monto_gastado = ruc, comprobante, gastado
-    # La razón social la completa el portal con la consulta de RUC; solo se guarda como referencia.
-    item.razon_social = str(datos.get('razon_social') or '').strip()[:200] or None
-    item.fotos, item.evidencia = json.dumps(fotos), evidencia
+    _exigir(1 <= len(comprobantes) <= MAX_COMPROBANTES, 'Agrega entre 1 y %d comprobantes.' % MAX_COMPROBANTES)
+    limpios, vistos = [], set()
+    for n, datos in enumerate(comprobantes, 1):
+        pre = 'Comprobante %d: ' % n if len(comprobantes) > 1 else ''
+        ruc = re.sub(r'\D', '', str(datos.get('ruc') or ''))
+        _exigir(len(ruc) == 11, pre + 'escribe el RUC del comprobante (11 dígitos).')
+        numero = str(datos.get('comprobante') or '').strip().upper()
+        _exigir(re.fullmatch(r'[A-Z0-9-]{3,40}', numero), pre + 'escribe el número de la boleta o factura.')
+        _exigir((ruc, numero) not in vistos, pre + 'la boleta %s ya está en este gasto.' % numero)
+        vistos.add((ruc, numero))
+        try:
+            monto = importe(datos.get('monto'))
+        except ValueError as exc:
+            raise ValueError(pre + str(exc)) from None
+        # La razón social la completa el portal con la consulta de RUC; solo se guarda como referencia.
+        limpios.append({'ruc': ruc, 'comprobante': numero, 'monto': monto,
+                        'razon_social': str(datos.get('razon_social') or '').strip()[:200]})
+    gastado = sum(c['monto'] for c in limpios)
+    _exigir(gastado <= item.monto, 'El monto gastado (S/ %s) no puede superar el monto del ítem (S/ %s).'
+            % (dinero(gastado), dinero(item.monto)))
+    return limpios
+
+
+def rendir_item(sol, item, documento, comprobantes, evidencias, importe=None):
+    """comprobantes: salida de preparar_rendicion con 'fotos' (lista) en cada uno; evidencias: nombres de foto."""
+    _exigir(all(1 <= len(c.get('fotos') or []) <= MAX_FOTOS for c in comprobantes),
+            'Adjunta la foto de cada boleta o factura.')
+    _exigir(1 <= len(evidencias) <= MAX_EVIDENCIAS, 'Adjunta la foto de la evidencia del gasto (máximo %d).' % MAX_EVIDENCIAS)
+    primero = comprobantes[0]
+    item.ruc, item.comprobante = primero['ruc'], primero['comprobante']
+    item.razon_social = primero['razon_social'] or None
+    item.monto_gastado = sum(c['monto'] for c in comprobantes)
+    item.fotos = json.dumps([f for c in comprobantes for f in c['fotos']])
+    item.evidencia, item.evidencias = evidencias[0], json.dumps(evidencias)
+    item.comprobantes = json.dumps([{**c, 'monto': dinero(c['monto'])} for c in comprobantes], ensure_ascii=False)
     item.estado, item.rendido_en, item.motivo_rechazo = 'EN_REVISION', datetime.utcnow(), None
     _historial(sol, 'rendir ítem %d' % item.numero, sol.tecnico)
     db.session.commit()
@@ -519,6 +576,17 @@ def retorno(sol):
     return ''
 
 
+def comprobantes_de(item):
+    """Comprobantes del ítem; lo rendido antes de esta función se ve como un solo comprobante."""
+    if item.comprobantes:
+        return json.loads(item.comprobantes)
+    if not item.comprobante:
+        return []
+    return [{'ruc': item.ruc or '', 'razon_social': item.razon_social or '', 'comprobante': item.comprobante,
+             'monto': dinero(item.monto_gastado) if item.monto_gastado is not None else '',
+             'fotos': json.loads(item.fotos or '[]')}]
+
+
 def revision_guardada(historial):
     return next((evento['revision'] for evento in reversed(historial) if 'revision' in evento), {})
 
@@ -567,6 +635,8 @@ def a_dict(sol, gestion=False):
                    'razon_social': i.razon_social or '', 'evidencia': i.evidencia or '',
                    'monto_gastado': dinero(i.monto_gastado) if i.monto_gastado is not None else '',
                    'fotos': json.loads(i.fotos or '[]'), 'motivo_rechazo': i.motivo_rechazo or '',
+                   'comprobantes': comprobantes_de(i),
+                   'evidencias': json.loads(i.evidencias or 'null') or ([i.evidencia] if i.evidencia else []),
                    'rendido_en': i.rendido_en.isoformat(timespec='minutes') if i.rendido_en else '',
                    'revisado_en': i.revisado_en.isoformat(timespec='minutes') if i.revisado_en else '',
                    'revisado_por': i.revisado_por or '',
@@ -604,7 +674,7 @@ def pestana_item(sol, item):
     return PESTANAS['archivado']
 
 
-def exportar_excel(solicitudes):
+def exportar_excel(solicitudes, dataper=None):
     """Historial plano: una fila por ítem, lista para tablas dinámicas (Depositado = Gastado + Devuelto al cerrar)."""
     from openpyxl import Workbook
     from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
@@ -615,7 +685,7 @@ def exportar_excel(solicitudes):
     hoja = libro.active
     hoja.title = 'Historial'
     hoja.append(['Código', 'Fecha solicitud', 'Proyecto', 'Site', 'N.º CM/PM/PLM', 'N.º cotización',
-                 'Técnico', 'DNI', 'Estado de solicitud', 'Concepto', 'Tipo de gasto', 'Solicitado', 'Depositado',
+                 'Técnico', 'DNI', 'Supervisor', 'Registrado en Dataper', 'Estado de solicitud', 'Concepto', 'Tipo de gasto', 'Solicitado', 'Depositado',
                  'Fecha depósito', 'Gastado', 'Devuelto', 'Estado de rendición', 'Fecha rendición',
                  'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta'])
     cero = Decimal('0')
@@ -630,6 +700,9 @@ def exportar_excel(solicitudes):
                                formulario.get('wo') or '', formulario.get('site') or '', ' y '.join(datos['faltan']),
                                ESTADO_SOLICITUD.get(solicitud.estado, solicitud.estado), solicitud.total])
         cotizacion = (datos.get('revision') or {}).get('cotizacion') or ''
+        info = (dataper or {}).get(re.sub(r'[\s.\-]', '', solicitud.documento or '').upper(), {})
+        supervisor = info.get('supervisor') or formulario.get('supervisor') or ''
+        registrado = 'Registrado' if info.get('registrado') else 'No registrado'
         tipos = {i['id']: i.get('tipo_presupuesto') or '' for i in datos['items']}
         fecha = peru(solicitud.creado)
         depositada = solicitud.deposito_monto is not None
@@ -664,11 +737,13 @@ def exportar_excel(solicitudes):
             if rendicion and solicitud.depositado_en:
                 horas_total = int((rendicion - solicitud.depositado_en).total_seconds() // 3600)
                 total = ('%d d %d h' % divmod(horas_total, 24)) if horas_total >= 24 else '%d h' % horas_total
+            comps = comprobantes_de(item)
             fila = [solicitud.codigo, fecha, solicitud.proyecto,
                     formulario.get('site') or '', formulario.get('wo') or '', cotizacion, solicitud.tecnico, solicitud.documento,
-                    pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''),
+                    supervisor, registrado, pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''),
                     item.monto, por_item[item.id], peru(solicitud.depositado_en), gastado, devuelto,
-                    estado_rendicion, peru(rendicion), total, plazo, item.ruc or '', item.razon_social or '', item.comprobante or '']
+                    estado_rendicion, peru(rendicion), total, plazo,
+                    *(' / '.join(dict.fromkeys(str(c.get(k) or '') for c in comps if c.get(k))) for k in ('ruc', 'razon_social', 'comprobante'))]
             hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in fila])
             for celda in hoja[hoja.max_row]:
                 if isinstance(celda.value, Decimal):
@@ -763,5 +838,6 @@ def fotos_de(sol):
     nombres = {sol.deposito_foto, sol.devolucion_foto}
     for item in sol.items:
         nombres.update(json.loads(item.fotos or '[]'))
+        nombres.update(json.loads(item.evidencias or '[]'))
         nombres.add(item.evidencia)
     return {n for n in nombres if n}

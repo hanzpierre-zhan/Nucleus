@@ -64,7 +64,7 @@ def portal_datos():
                    .options(selectinload(CajaChicaSolicitud.items))
                    .order_by(CajaChicaSolicitud.id.desc()).all())
     return jsonify(personal=g.tecnico, proyecto=familia(g.tecnico['proyecto']), catalogo=_catalogo(_config_catalogo()[1]),
-                   responsables=responsables_por_proyecto(),
+                   responsables=responsables_por_proyecto(), cuenta_devolucion=cc.CUENTA_DEVOLUCION,
                    solicitudes=[cc.a_dict(s) for s in solicitudes])
 
 
@@ -126,16 +126,36 @@ def portal_rendir(sid, iid):
     if not item or item.solicitud_id != sol.id:
         abort(404)
     try:
-        archivos = [a for a in request.files.getlist('fotos') if a and a.filename][:cc.MAX_FOTOS + 1]
-        if len(archivos) > cc.MAX_FOTOS:
-            raise ValueError('Adjunta como máximo %d fotos.' % cc.MAX_FOTOS)
-        evidencia = request.files.get('evidencia')
-        if not archivos:
-            raise ValueError('Adjunta la foto de la boleta o factura.')
-        if not evidencia or not evidencia.filename:
+        forma, archivos = request.form, request.files
+        validos = lambda lista: [a for a in lista if a and a.filename]
+        if 'comp_ruc' in forma:
+            # Varios comprobantes: comp_ruc/comp_numero/comp_monto/comp_razon y la foto comp_foto_<n>.
+            campos = [forma.getlist(c) for c in ('comp_ruc', 'comp_numero', 'comp_monto', 'comp_razon')]
+            if len({len(c) for c in campos[:3]}) != 1:
+                raise ValueError('Los datos de los comprobantes no son válidos.')
+            crudos = [{'ruc': r, 'comprobante': n, 'monto': m, 'razon_social': (campos[3][i] if i < len(campos[3]) else '')}
+                      for i, (r, n, m) in enumerate(zip(*campos[:3]))]
+            fotos_comp = [validos(archivos.getlist('comp_foto_%d' % i))[:cc.MAX_FOTOS + 1] for i in range(len(crudos))]
+        else:
+            # Formulario anterior (un solo comprobante con hasta 5 fotos).
+            crudos = [{'ruc': forma.get('ruc'), 'comprobante': forma.get('comprobante'),
+                       'monto': forma.get('monto_gastado'), 'razon_social': forma.get('razon_social')}]
+            fotos_comp = [validos(archivos.getlist('fotos'))[:cc.MAX_FOTOS + 1]]
+        evidencias = validos(archivos.getlist('evidencia'))[:cc.MAX_EVIDENCIAS + 1]
+        comprobantes = cc.preparar_rendicion(sol, item, g.tecnico['documento'], crudos, importe)
+        for n, fotos in enumerate(fotos_comp, 1):
+            pre = 'Comprobante %d: ' % n if len(fotos_comp) > 1 else ''
+            if not fotos:
+                raise ValueError(pre + 'adjunta la foto de la boleta o factura.')
+            if len(fotos) > cc.MAX_FOTOS:
+                raise ValueError(pre + 'adjunta como máximo %d fotos.' % cc.MAX_FOTOS)
+        if not evidencias:
             raise ValueError('Adjunta la foto de la evidencia del gasto.')
-        fotos = [cc.guardar_foto(sol, a) for a in archivos]
-        cc.rendir_item(sol, item, g.tecnico['documento'], request.form, fotos, importe, cc.guardar_foto(sol, evidencia))
+        if len(evidencias) > cc.MAX_EVIDENCIAS:
+            raise ValueError('Adjunta como máximo %d fotos de evidencia.' % cc.MAX_EVIDENCIAS)
+        for comprobante, fotos in zip(comprobantes, fotos_comp):
+            comprobante['fotos'] = [cc.guardar_foto(sol, a) for a in fotos]
+        cc.rendir_item(sol, item, g.tecnico['documento'], comprobantes, [cc.guardar_foto(sol, a) for a in evidencias])
     except ValueError as exc:
         db.session.rollback()
         return _error(exc)
@@ -334,7 +354,16 @@ def gestion_lista():
                 .options(selectinload(CajaChicaSolicitud.items)).order_by(CajaChicaSolicitud.id.desc()))
     if alcance is not None:
         consulta = consulta.filter(CajaChicaSolicitud.proyecto.in_(alcance or {''}))
-    return jsonify(solicitudes=[cc.a_dict(s, gestion=True) for s in consulta.limit(5000).all()])
+    filas = consulta.limit(5000).all()
+    dataper = cc.dataper_por_documento(s.documento for s in filas)
+    solicitudes = []
+    for s in filas:
+        datos = cc.a_dict(s, gestion=True)
+        info = dataper.get(re.sub(r'[\s.\-]', '', s.documento or '').upper(), {})
+        datos['dataper'] = bool(info.get('registrado'))
+        datos['supervisor'] = info.get('supervisor') or datos['formulario'].get('supervisor') or ''
+        solicitudes.append(datos)
+    return jsonify(solicitudes=solicitudes)
 
 
 @bp.get('/api/caja-chica/<int:sid>/correo-validacion')
@@ -374,7 +403,8 @@ def gestion_exportar():
     filas = {s.id: s for s in consulta.all()}
     if set(ids) != filas.keys():
         abort(404)
-    archivo = cc.exportar_excel(filas[i] for i in dict.fromkeys(ids))
+    archivo = cc.exportar_excel((filas[i] for i in dict.fromkeys(ids)),
+                                cc.dataper_por_documento(s.documento for s in filas.values()))
     return send_file(archivo, as_attachment=True, download_name='Caja-Chica.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
