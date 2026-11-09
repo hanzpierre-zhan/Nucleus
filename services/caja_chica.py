@@ -834,6 +834,58 @@ def leer_foto(sol, nombre):
         return origen.read()
 
 
+def fotos_rendicion(sol):
+    """Fotos del registro de Rendición del que se migró la solicitud (mismo CODIGO DEPOSITO).
+
+    Devuelve [{'etiqueta', 'nombre'}] para fotos guardadas por Nucleus (se sirven como
+    'ren~pid~clave~archivo') y [{'etiqueta', 'url'}] para enlaces externos (formulario)."""
+    from models import NucleusData
+    from urllib.parse import unquote, urlparse
+    modulo = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if not modulo or not sol.codigo:
+        return []
+    candidatas = NucleusData.query.filter(NucleusData.proyecto_id == modulo.id,
+                                          NucleusData.data_json.like('%' + sol.codigo + '%')).limit(20).all()
+    fila = None
+    for c in candidatas:
+        try:
+            datos = json.loads(c.data_json or '{}')
+        except ValueError:
+            continue
+        if str(datos.get('CODIGO DEPOSITO') or '').strip().upper() == sol.codigo.upper():
+            fila = (c, datos)
+            break
+    if not fila:
+        return []
+    registro, datos = fila
+    fotos, vistas = [], set()
+
+    def agregar(etiqueta, valor):
+        texto = str(valor or '').replace('\\/', '/')
+        urls = re.findall(r"""(?:https?://[^\s,;"'<>\]]+|/(?:api|static)/[^\s,;"'<>\]]+)""", texto)
+        for n, url in enumerate(urls, 1):
+            if url in vistas:
+                continue
+            vistas.add(url)
+            nombre_foto = etiqueta + (' %d' % n if len(urls) > 1 else '')
+            ruta = urlparse(url).path if url.startswith('/') else ''
+            partes = ruta.split('/')
+            if ruta.startswith('/api/rendicion/foto/') and len(partes) >= 7:
+                # /api/rendicion/foto/<pid>/<clave>/<archivo>
+                fotos.append({'etiqueta': nombre_foto,
+                              'nombre': 'ren~%s~%s~%s' % (partes[4], unquote(partes[5]), unquote(partes[6]))})
+            elif url.startswith('http'):
+                fotos.append({'etiqueta': nombre_foto, 'url': url})
+    agregar('Foto de sustento', datos.get('FOTOS SUSTENTO'))
+    for clave, valor in datos.items():
+        if str(clave).upper().startswith('SUSTENTO_') and str(clave).upper() != 'SUSTENTO_MARCAS':
+            etiqueta = str(clave)[9:].strip()
+            if etiqueta.upper().startswith('FOTO '):
+                etiqueta = etiqueta[5:].strip()
+            agregar(etiqueta.capitalize() or 'Sustento', valor)
+    return fotos
+
+
 def fotos_de(sol):
     nombres = {sol.deposito_foto, sol.devolucion_foto}
     for item in sol.items:

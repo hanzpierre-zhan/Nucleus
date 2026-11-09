@@ -750,6 +750,14 @@
     }
     return figura;
   }
+  const cacheOrigen = new Map();
+  function fotosOrigen(sol) {
+    if (!cacheOrigen.has(sol.id)) {
+      cacheOrigen.set(sol.id, fetch('/api/caja-chica/' + sol.id + '/fotos-origen', {credentials: 'same-origin'})
+        .then(r => r.ok ? r.json() : {fotos: []}).then(j => j.fotos || []).catch(() => []));
+    }
+    return cacheOrigen.get(sol.id);
+  }
   function tarjetaConcepto(sol, item) {
     const caja = el('section', 'cc-ficha cc-rev-item cc-rev-' + item.estado.toLowerCase());
     const cabeza = el('h4', 'cc-ficha-titulo');
@@ -784,7 +792,24 @@
       ['Solicitado', dinero(item.monto)], ['Gastó', item.monto_gastado && dinero(item.monto_gastado)],
       ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) + ' · va a devolución' : '', 'cc-rev-sobrante']]).querySelector('dl'));
     const evidencias = item.evidencias?.length ? item.evidencias : [item.evidencia].filter(Boolean);
-    cuerpo.append(galeriaRevision(sol, item.fotos, 'Boleta / factura'), galeriaRevision(sol, evidencias, 'Evidencia del gasto'));
+    if (!item.fotos.length && !evidencias.length) {
+      // Solicitud migrada desde Rendición: las fotos quedaron en el registro original.
+      const origen = el('div', 'cc-rev-origen');
+      origen.append(el('p', 'cc-nota', 'Buscando fotos en Rendición…'));
+      cuerpo.append(origen);
+      fotosOrigen(sol).then(fotos => {
+        origen.replaceChildren();
+        if (!fotos.length) { origen.append(fotoRevision(sol, '', 'Sin fotos en el registro de Rendición')); return; }
+        for (const f of fotos) {
+          const figura = el('figure', 'cc-rev-foto'), enlace = el('a');
+          enlace.href = f.url; enlace.target = '_blank'; enlace.rel = 'noopener'; enlace.title = 'Abrir ' + f.etiqueta.toLowerCase();
+          const img = el('img'); img.src = f.url; img.alt = f.etiqueta; img.loading = 'lazy';
+          // Enlaces del formulario (Drive) no siempre se muestran como imagen: queda el enlace para abrirla.
+          img.addEventListener('error', () => { img.replaceWith(el('span', 'cc-rev-sin-foto', 'Abrir foto')); });
+          enlace.append(img); figura.append(enlace, el('figcaption', null, f.etiqueta)); origen.append(figura);
+        }
+      });
+    } else cuerpo.append(galeriaRevision(sol, item.fotos, 'Boleta / factura'), galeriaRevision(sol, evidencias, 'Evidencia del gasto'));
     caja.append(cuerpo);
     if (item.estado === 'RECHAZADO') {
       const motivo = el('div', 'cc-rev-motivo');

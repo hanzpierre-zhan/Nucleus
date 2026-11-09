@@ -538,3 +538,38 @@ def test_resumen_para_el_menu(auth_client, tecnico):
     assert auth_client.get('/api/caja-chica/resumen').json['por_validar'] == antes + 1
     pagina = auth_client.get('/caja-chica/').get_data(as_text=True)
     assert 'id="sb-cc-pendientes"' in pagina and 'data-grupo="flm"' in pagina
+
+
+def test_solicitud_migrada_muestra_las_fotos_de_rendicion(app, auth_client, tecnico, monkeypatch):
+    """Lo migrado desde Rendición no trae fotos en el ítem: se toman del registro original (mismo código)."""
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '25'}]}).json['solicitud']['id']
+    with app.app_context():
+        sol = db.session.get(CajaChicaSolicitud, sid)
+        codigo = sol.codigo
+        modulo = Proyecto.query.filter_by(nombre='Rendicion').first()
+        if not modulo:
+            modulo = Proyecto(nombre='Rendicion'); db.session.add(modulo); db.session.flush()
+        pid = modulo.id
+        fila = NucleusData(proyecto_id=pid, key_value='6/10/2026 14:30:00', data_json=json.dumps({
+            'CODIGO DEPOSITO': codigo, 'FOTO PAGO': '/api/rendicion/foto/%d/x/pago.jpg' % pid,
+            'FOTOS SUSTENTO': json.dumps(['/api/rendicion/foto/%d/6_10_2026_14_30_00/boleta.jpg?v=1' % pid]),
+            'SUSTENTO_FOTO EVIDENCIA': 'https://drive.google.com/open?id=abc'}))
+        db.session.add(fila); db.session.commit()
+        rid = fila.id
+    try:
+        fotos = auth_client.get('/api/caja-chica/%d/fotos-origen' % sid).json['fotos']
+        assert [f['etiqueta'] for f in fotos] == ['Foto de sustento', 'Evidencia']  # la foto del pago no entra
+        assert fotos[1]['url'] == 'https://drive.google.com/open?id=abc'
+        servidas = []
+        import blueprints.rendicion as rendicion
+        monkeypatch.setattr(rendicion, '_servir_foto_rendicion', lambda p, c, a: (servidas.append((p, c, a)), 'ok')[1])
+        assert auth_client.get(fotos[0]['url']).status_code == 200
+        assert servidas == [(pid, '6_10_2026_14_30_00', 'boleta.jpg')]
+        # Un nombre inventado no se sirve, ni el técnico usa esta vía.
+        assert auth_client.get('/form-pruebas/caja-chica/foto/%d/ren~%d~x~otra.jpg' % (sid, pid)).status_code == 404
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(id=rid).delete(); db.session.commit()

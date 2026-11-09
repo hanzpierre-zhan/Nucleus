@@ -215,7 +215,10 @@ def portal_devolucion(sid):
 def foto(sid, nombre):
     """El técnico ve sus fotos; la gestión, las de su alcance."""
     sol = db.session.get(CajaChicaSolicitud, sid)
-    if not sol or sol.estado == 'ELIMINADO' or nombre not in cc.fotos_de(sol):
+    if not sol or sol.estado == 'ELIMINADO':
+        abort(404)
+    if nombre not in cc.fotos_de(sol) and not (nombre.startswith('ren~') and session.get('user_id')
+                                               and any(f.get('nombre') == nombre for f in cc.fotos_rendicion(sol))):
         abort(404)
     if session.get('form_documento'):
         if session['form_documento'] != sol.documento:
@@ -385,6 +388,20 @@ def gestion_correo(sid):
                           mimetype='application/octet-stream')
     respuesta.headers['Cache-Control'] = 'private, no-store'
     return respuesta
+
+
+@bp.get('/api/caja-chica/<int:sid>/fotos-origen')
+@login_required
+def gestion_fotos_origen(sid):
+    """Solicitudes migradas desde Rendición: fotos que quedaron en el registro original."""
+    alcance = _alcance()
+    sol = db.session.get(CajaChicaSolicitud, sid)
+    if not sol or sol.estado == 'ELIMINADO' or not _en_alcance(sol, alcance):
+        abort(404)
+    fotos = [{'etiqueta': f['etiqueta'],
+              'url': f.get('url') or url_for('caja_chica.foto', sid=sid, nombre=f['nombre'])}
+             for f in cc.fotos_rendicion(sol)]
+    return jsonify(fotos=fotos)
 
 
 @bp.post('/api/caja-chica/exportar')
