@@ -1254,6 +1254,17 @@
            celda: s => el('span', s.faltan?.includes('Site') ? 'cc-falta' : null, s.formulario?.site || '—')},
     wo: {titulo: 'N.º CM / PM / PLM', ancho: 'minmax(145px, 1fr)', texto: s => s.formulario?.wo || '—',
          celda: s => el('span', s.faltan?.includes('CM') ? 'cc-falta' : null, s.formulario?.wo || '—')},
+    // Gasto Cobra / Refacturable según los conceptos de la solicitud (pueden ser ambos).
+    presupuesto: {titulo: 'Gasto Cobra / Refacturable', ancho: 'minmax(150px, 1fr)',
+                  texto: s => [...new Set(itemsEtapa(s).map(i => i.tipo_presupuesto).filter(Boolean))].join(' · ') || '—',
+                  celda: s => {
+                    const tipos = [...new Set(itemsEtapa(s).map(i => i.tipo_presupuesto).filter(Boolean))];
+                    if (!tipos.length) return el('span', null, '—');
+                    const caja = el('span', 'cc-presupuestos');
+                    tipos.forEach(t => caja.append(el('span', 'cc-chip ' + (/refact/i.test(t) ? 'cc-refacturable' : 'cc-gasto-cobra'), t)));
+                    return caja;
+                  }},
+    justificacion: {titulo: 'Justificación', ancho: 'minmax(220px, 1.8fr)', texto: s => s.motivo || '—', clase: 'cc-justificacion-celda'},
     gasto: {titulo: 'Tipo de gasto', ancho: 'minmax(190px, 1.4fr)',
             texto: s => [...new Set(itemsEtapa(s).map(item => item.tipo_gasto))].join(' · ') || '—'},
     dataper: {titulo: 'Dataper', ancho: 'minmax(150px, .9fr)', texto: s => s.dataper ? 'Registrado' : 'No registrado',

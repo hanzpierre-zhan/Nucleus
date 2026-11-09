@@ -59,3 +59,26 @@ def test_nueva_cotizacion_desde_cot_new(app, auth_client):
     finally:
         with app.app_context():
             NucleusData.query.filter_by(key_value=r.json['key']).delete(); db.session.commit()
+
+
+def test_nuevo_registro_busca_sites_y_wo_del_proyecto(app, auth_client):
+    with app.app_context():
+        site = Proyecto.query.filter_by(nombre='SITE').one().id
+        flm = Proyecto.query.filter_by(nombre='FLM - CLARO').one().id
+        filas = [NucleusData(proyecto_id=site, key_value='ZZ9901_PRUEBA', data_json=json.dumps({
+                    'Site': 'ZZ9901_PRUEBA', 'Nombre del sitio | Site name': 'PRUEBA', 'Código del sitio | Site ID': 'ZZ9901',
+                    'Distrito | District': 'PERENE', 'Provincia | Provincia': 'CHANCHAMAYO', 'Region | Region': 'CENTRO', 'Proyecto': 'FLM - CLARO'})),
+                 NucleusData(proyecto_id=flm, key_value='CM-20261109-00009901', data_json=json.dumps({'Site ID': 'ZZ9901', 'Site Name': 'PRUEBA'}))]
+        db.session.add_all(filas); db.session.commit()
+        ids = [f.id for f in filas]
+    try:
+        sitios = auth_client.get('/api/cot-new/sites?proyecto=FLM - CLARO&q=ZZ9901').json['sites']
+        assert sitios == [{'site': 'ZZ9901_PRUEBA', 'nombre': 'PRUEBA', 'codigo': 'ZZ9901', 'distrito': 'PERENE',
+                           'provincia': 'CHANCHAMAYO', 'region': 'CENTRO'}]
+        assert auth_client.get('/api/cot-new/sites?proyecto=FLM - ENTEL&q=ZZ9901').json['sites'] == []  # otro proyecto
+        wos = auth_client.get('/api/cot-new/wos?proyecto=FLM - CLARO&codigo=ZZ9901&nombre=PRUEBA').json['wos']
+        assert 'CM-20261109-00009901' in wos
+        assert auth_client.get('/api/cot-new/sites?proyecto=OTRO').status_code == 400
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.id.in_(ids)).delete(synchronize_session=False); db.session.commit()

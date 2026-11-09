@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=95">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=96">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-eliminar="{{ 'si' if puede_eliminar else 'no' }}" data-admin="{{ 'si' if administra_catalogo else 'no' }}">
   <div class="cc-barra">
@@ -94,5 +94,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=90" defer></script>
+<script src="/static/js/caja-chica.js?v=91" defer></script>
 {% endblock %}

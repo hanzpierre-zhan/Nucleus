@@ -40,7 +40,8 @@ CAMPOS = ('N° ORDEN', 'N° COTIZACION', 'FECHA', 'CLIENTE', 'SUPERVISOR', 'NOMB
           'SUBTOTAL FACTURA PROVEEDOR', 'MOTIVO RECHAZO', 'FECHA RECHAZO', 'MOTIVO CANCELACION', 'FECHA CANCELACION',
           'CODIGO INTERNO', 'COMENTARIO APROBACION', 'ITEMS_JSON', 'ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE',
           'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR', '_PROVEEDOR_REGISTROS', '_SUSTENTO_APROBADO',
-          'OBSERVACION SUSTENTO', 'FECHA ATENCION', 'GENERADA')
+          'OBSERVACION SUSTENTO', 'FECHA ATENCION', 'GENERADA', 'TIPO DE CONCEPTO', 'PROYECTO FLM', 'CODIGO SITE',
+          'DISTRITO', 'PROVINCIA', 'REGION', 'COTIZADOR', 'COTIZADOR USUARIO')
 
 
 def _proyecto():
@@ -112,7 +113,9 @@ def _filas():
 def pagina():
     modulo = _proyecto()
     rol = str(session.get('rol') or '').strip().lower()
-    return render_template('cot_new.html', pestanas=PESTANAS, proyecto_id=modulo.id,
+    return render_template('cot_new.html', pestanas=PESTANAS, proyecto_id=modulo.id, tipos_concepto=TIPOS_CONCEPTO,
+                           cotizadores=[{'nombre': n, 'usuario': u} for n, u in COTIZADORES],
+                           proyectos_flm=PROYECTOS_FLM,
                            puede_gestionar=rol not in ('demo', 'contrata'),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
@@ -188,3 +191,89 @@ def generar():
     _fijar_cotizaciones()
     from blueprints.cotizacion import api_cotizacion_registro_generar
     return api_cotizacion_registro_generar()
+
+
+# ── Nuevo registro: proyecto FLM, site registrado (con sus datos) y WO registrados ──
+PROYECTOS_FLM = ('FLM - CLARO', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - PEXT')
+# PEXT no tiene sites propios en la base de sites: usa los de Entel (por confirmar con el usuario).
+SITES_DE = {'FLM - PEXT': 'FLM - ENTEL'}
+CAMPOS_SITE_WO = ('Site Name', 'Site ID', 'Nombre de Site', 'Código Site', 'Site Id', 'Site Id Name', 'Site')
+# Cotizadores que se asignan al registrar (nombre y usuario de Nucleus, como figuran en Usuarios).
+COTIZADORES = (('Luciano Aracca', 'laracca'), ('Diego Rodriguez', 'drodriguez'), ('Ricardo Huaman', 'rhuaman'), ('Edwin Lopez', 'elopez'))
+TIPOS_CONCEPTO = ('Servicio', 'Alquiler', 'Acarreo', 'Compras y suministros', 'Desplazamiento fuera de zona',
+                  'Transporte fluvial', 'Custodio y resguardo', 'Personal y mano de obra')
+
+
+def _site(datos):
+    return {'site': str(datos.get('Site') or datos.get('Nombre del sitio | Site name') or '').strip(),
+            'nombre': str(datos.get('Nombre del sitio | Site name') or '').strip(),
+            'codigo': str(datos.get('Código del sitio | Site ID') or '').strip(),
+            'distrito': str(datos.get('Distrito | District') or '').strip(),
+            'provincia': str(datos.get('Provincia | Provincia') or '').strip(),
+            'region': str(datos.get('Region | Region') or '').strip()}
+
+
+@bp.get('/api/cot-new/sites')
+@login_required
+def sites():
+    """Sites registrados del proyecto, buscando por nombre o código (máximo 30)."""
+    _proyecto()
+    from services.alcance_proyectos import _valor
+    proyecto = request.args.get('proyecto', '')
+    if proyecto not in PROYECTOS_FLM:
+        return jsonify(error='Elige un proyecto FLM.'), 400
+    modulo = Proyecto.query.filter_by(nombre='SITE').first()
+    if not modulo:
+        return jsonify(sites=[])
+    texto = str(request.args.get('q') or '').strip()
+    raw = NucleusData.data_json
+    consulta = NucleusData.query.filter(NucleusData.proyecto_id == modulo.id,
+                                        _valor(raw, 'Proyecto') == SITES_DE.get(proyecto, proyecto))
+    if texto:
+        patron = '%' + texto.replace('%', '') + '%'
+        consulta = consulta.filter(NucleusData.data_json.ilike(patron))
+    resultado = []
+    for (crudo,) in consulta.with_entities(NucleusData.data_json).limit(30):
+        try:
+            resultado.append(_site(json.loads(crudo or '{}')))
+        except ValueError:
+            continue
+    return jsonify(sites=resultado)
+
+
+@bp.get('/api/cot-new/wos')
+@login_required
+def wos():
+    """WO registrados en el FLM del proyecto para ese site (por código o nombre del site)."""
+    _proyecto()
+    proyecto = request.args.get('proyecto', '')
+    if proyecto not in PROYECTOS_FLM:
+        return jsonify(error='Elige un proyecto FLM.'), 400
+    claves = [c for c in (str(request.args.get('codigo') or '').strip(), str(request.args.get('nombre') or '').strip()) if c]
+    modulo = Proyecto.query.filter_by(nombre=proyecto).first()
+    texto = str(request.args.get('q') or '').strip().replace('%', '')
+    if modulo and (texto or not claves):
+        # Búsqueda por número (o, sin texto ni site, los WO más recientes del proyecto).
+        consulta = NucleusData.query.filter(NucleusData.proyecto_id == modulo.id, ~NucleusData.key_value.like('WO-TEMP-%'))
+        if texto:
+            consulta = consulta.filter(NucleusData.key_value.ilike('%' + texto + '%'))
+        encontrados = consulta.with_entities(NucleusData.key_value).order_by(NucleusData.id.desc()).limit(25)
+        return jsonify(wos=[k for (k,) in encontrados])
+    if not modulo or not claves:
+        return jsonify(wos=[])
+    from sqlalchemy import or_
+    consulta = (NucleusData.query.filter(NucleusData.proyecto_id == modulo.id,
+                                         or_(*[NucleusData.data_json.ilike('%' + c.replace('%', '') + '%') for c in claves]))
+                .with_entities(NucleusData.key_value, NucleusData.data_json).order_by(NucleusData.id.desc()).limit(300))
+    buscadas = {c.upper() for c in claves}
+    resultado = []
+    for key, crudo in consulta:
+        try:
+            datos = json.loads(crudo or '{}')
+        except ValueError:
+            continue
+        valores = {str(datos.get(c) or '').strip().upper() for c in CAMPOS_SITE_WO}
+        if valores & buscadas or any(b in v for b in buscadas for v in valores if v):
+            if not str(key).startswith('WO-TEMP-'):
+                resultado.append(str(key))
+    return jsonify(wos=list(dict.fromkeys(resultado))[:60])

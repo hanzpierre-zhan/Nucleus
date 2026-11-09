@@ -712,3 +712,13 @@ dialog.cc-completar .cc-motivo-ok:hover:not(:disabled) { background: #b45309; }
 .cc-pendiente-campo { display: grid; gap: 4px; font-size: 12px; color: var(--ios-secondary); }
 .cc-pendiente-campo input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--cc-borde, var(--ios-hairline)); background: var(--ios-fill); color: var(--ios-label); font-size: 14px; }
 .cc-gestion [hidden], #cc-solicitud-dialogo [hidden] { display: none !important; }
+/* Gasto Cobra / Refacturable y justificación en la tabla */
+.cc-presupuestos { display: flex; flex-wrap: wrap; gap: 4px; }
+.cc-chip.cc-gasto-cobra { background: rgba(100, 116, 139, .18); color: #64748b; }
+.cc-chip.cc-refacturable { background: rgba(124, 58, 237, .16); color: #7c3aed; }
+.cc-justificacion-celda { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* Código de depósito: en modo oscuro el azul de Nucleus no se ve; se usa un azul claro y más grueso. */
+.cc-codigo-link { font-weight: 800; }
+body.dark-mode .cc-codigo-link { color: #7cb4ff; }
+body.dark-mode .cc-chip.cc-gasto-cobra { color: #cbd5e1; }
+body.dark-mode .cc-chip.cc-refacturable { color: #c4b5fd; }

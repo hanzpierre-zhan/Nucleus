@@ -89,3 +89,22 @@ body .cn-gestion .cc-barra > .cn-redondo { width: 38px !important; height: 38px 
 body #cc-solicitud-dialogo .cn-item-quitar { width: 26px !important; height: 26px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: transparent !important; color: #dc2626 !important; box-shadow: none !important; }
 .cn-columna-archivos { display: grid; gap: 12px; align-content: start; }
 .cn-fase { margin: 8px 0 2px; font-size: 12.5px; font-weight: 600; color: var(--ios-secondary); }
+/* Nuevo registro */
+.cn-registro { grid-template-columns: 1fr; }
+.cn-buscador { position: relative; display: grid; gap: 6px; }
+.cn-buscador input { font-size: 13px; }  /* color y borde: los mismos del tema que los demás campos */
+.cn-opciones { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; max-height: 220px; overflow: auto; margin-top: 4px; border: 1px solid var(--ios-hairline); border-radius: 10px; background: var(--ios-card-bg, #222); box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+body .cn-opcion { display: flex !important; flex-direction: column; align-items: flex-start; width: 100%; padding: 7px 10px !important; border: 0 !important; border-bottom: 1px solid var(--ios-hairline) !important; border-radius: 0 !important; background: transparent !important; color: var(--ios-label) !important; text-align: left; cursor: pointer; }
+.cn-opcion small { color: var(--ios-secondary); }
+body .cn-opcion:hover { background: var(--ios-fill) !important; }
+.cn-auto { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.cn-auto div { padding: 6px 8px; border-radius: 8px; background: var(--ios-fill); display: grid; }
+.cn-auto small { font-size: 10.5px; color: var(--ios-secondary); }
+.cn-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cn-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; background: rgba(37,99,235,.16); color: #3b82f6; font-size: 12px; font-weight: 600; }
+body .cn-chip button { width: 18px !important; height: 18px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: transparent !important; color: inherit !important; }
+.cn-segmento { display: flex; border: 1px solid var(--ios-hairline); border-radius: 999px; overflow: hidden; }
+body .cn-segmento button { flex: 1; padding: 7px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; color: var(--ios-label) !important; font-weight: 600; }
+body .cn-segmento button.activo { background: #173E76 !important; color: #fff !important; }
+.cn-registro textarea { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font: inherit; resize: vertical; }
+#cc-solicitud-dialogo .cn-registro-cols { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
