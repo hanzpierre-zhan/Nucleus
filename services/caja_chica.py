@@ -546,16 +546,16 @@ def _cerrar_o_pedir_devolucion(sol, usuario):
 
 
 def archivar(sol, usuario):
-    _exigir(sol.estado == 'SUSTENTO', 'Solo se archiva una solicitud en Sustento.')
+    _exigir(sol.estado == 'SUSTENTO', 'Solo se archiva una solicitud sustentada.')
     sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
     _historial(sol, 'archivar', usuario)
     db.session.commit()
 
 
 def volver_a_sustento(sol, usuario):
-    _exigir(sol.estado == 'ARCHIVADO', 'Solo vuelve a Sustento una solicitud archivada.')
+    _exigir(sol.estado == 'ARCHIVADO', 'Solo vuelve a Sustentado una solicitud archivada.')
     sol.estado, sol.archivado_en = 'SUSTENTO', None
-    _historial(sol, 'volver a sustento', usuario)
+    _historial(sol, 'volver a sustentado', usuario)
     db.session.commit()
 
 
@@ -682,10 +682,10 @@ def a_dict(sol, gestion=False):
 
 
 ESTADO_SOLICITUD = {'PENDIENTE': 'Pendiente', 'RECHAZADO': 'Devuelta al técnico', 'VALIDADO': 'Validada',
-                    'DEPOSITADO': 'Depositada', 'POR_DEVOLVER': 'Por devolver', 'SUSTENTO': 'En sustento', 'ARCHIVADO': 'Archivada'}
+                    'DEPOSITADO': 'Depositada', 'POR_DEVOLVER': 'Por devolver', 'SUSTENTO': 'Sustentada', 'ARCHIVADO': 'Archivada'}
 ESTADO_RENDICION = {'EN_REVISION': 'En revisión', 'RECHAZADO': 'Rechazado', 'POR_RENDIR': 'Por rendir', 'DEVUELTO': 'Devuelto'}
 PESTANAS = {'validacion': 'Validación', 'deposito': 'Depósito', 'por_rendir': 'Por rendir', 'revision': 'Revisión',
-            'sustento': 'Sustento', 'archivado': 'Archivado', 'anuladas': 'Anuladas'}
+            'sustento': 'Sustentado', 'archivado': 'Archivado', 'anuladas': 'Anuladas'}
 
 
 def pestana_item(sol, item):

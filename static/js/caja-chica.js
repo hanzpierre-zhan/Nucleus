@@ -3,7 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const ESTADOS = {PENDIENTE: 'Pendiente', VALIDADO: 'Validado', DEPOSITADO: 'Depositado', POR_DEVOLVER: 'Por devolver',
-                   SUSTENTO: 'En sustento', ARCHIVADO: 'Archivado', RECHAZADO: 'Rechazado · con el técnico', ANULADO: 'Anulado'};
+                   SUSTENTO: 'Sustentada', ARCHIVADO: 'Archivado', RECHAZADO: 'Rechazado · con el técnico', ANULADO: 'Anulado'};
   // Una solicitud que volvió a una etapa anterior se marca con su motivo de retorno.
   const RETORNO = {desde_deposito: ['Rechazado en depósito', 'cc-retorno'], reenviada: ['Corregida y reenviada', 'cc-reenviada']};
   const ITEM = {POR_RENDIR: 'Por rendir', EN_REVISION: 'En revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', DEVUELTO: 'Se devuelve'};
@@ -236,11 +236,11 @@
     dialogo.showModal();
     (sol.faltan?.includes('CM') ? cm : site).focus();
   }
-  // Sustento ⇄ Archivado: un solo botón en cada pestaña (fila y ventana de detalle).
+  // Sustentado ⇄ Archivado: un solo botón en cada pestaña (fila y ventana de detalle).
   async function pasarEtapa(sol, nombre) {
     const archivar = nombre === 'archivar';
-    if (!await confirmar('La solicitud ' + sol.codigo + (archivar ? ' pasará a Archivado.' : ' volverá a Sustento.'),
-      archivar ? 'Archivar solicitud' : 'Volver a Sustento', {okText: archivar ? 'Archivar' : 'Volver', circular: true})) return;
+    if (!await confirmar('La solicitud ' + sol.codigo + (archivar ? ' pasará a Archivado.' : ' volverá a Sustentado.'),
+      archivar ? 'Archivar solicitud' : 'Volver a Sustentado', {okText: archivar ? 'Archivar' : 'Volver', circular: true})) return;
     await accion(sol, nombre);
     if (dialogo.open && solicitudAbierta === sol.id) dialogo.close();
   }
@@ -294,7 +294,7 @@
     if (tab === 'archivado') {
       if (sol.estado === 'ARCHIVADO') {
         caja.append(slaArchivo(sol));
-        if (puedeGestionar) caja.append(botonRapido(sol, 'Volver a Sustento', 'cc-no', 'fa-rotate-left', () => pasarEtapa(sol, 'sustento')));
+        if (puedeGestionar) caja.append(botonRapido(sol, 'Volver a Sustentado', 'cc-no', 'fa-rotate-left', () => pasarEtapa(sol, 'sustento')));
       }
       return caja;
     }
@@ -1439,7 +1439,7 @@
   let exportando = false;
   // El botón de Excel despliega dos opciones: la pestaña actual (con filtros) o todo el historial.
   const menuExportar = $('cc-exportar-menu');
-  const NOMBRE_TAB = {validacion: 'Validación', deposito: 'Depósito', por_rendir: 'Por rendir', revision: 'Revisión', sustento: 'Sustento', archivado: 'Archivado', anuladas: 'Anuladas', pendientes: 'CM-Site pendiente'};
+  const NOMBRE_TAB = {validacion: 'Validación', deposito: 'Depósito', por_rendir: 'Por rendir', revision: 'Revisión', sustento: 'Sustentado', archivado: 'Archivado', anuladas: 'Anuladas', pendientes: 'CM-Site pendiente'};
   const cerrarExportar = () => { menuExportar.hidden = true; excel.setAttribute('aria-expanded', 'false'); };
   excel.addEventListener('click', e => {
     e.stopPropagation();
