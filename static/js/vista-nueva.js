@@ -120,8 +120,26 @@
     if (!r.ok) throw Error(j.error || 'No se pudo restablecer la clave.');
     avisar('Clave restablecida: ahora es el documento ' + f.key + '.');
   }
+  const LISTAS = cfg.slug === 'dataper' ? {ESTADO: [['ACTIVO', 'ACTIVO'], ['CESADO', 'CESADO']]} : {};
+  // Dataper: cesar o reactivar al técnico con un toque (queda registrado como cualquier edición).
+  async function cambiarEstado(f) {
+    const activo = String(f.datos.ESTADO || '').toUpperCase() !== 'CESADO';
+    const nuevo = activo ? 'CESADO' : 'ACTIVO';
+    if (!await confirmar((f.datos.TECNICO || f.key) + (activo ? ' pasará a CESADO: ya no podrá entrar al portal ni pedir Caja Chica.' : ' volverá a ACTIVO y podrá entrar al portal.'),
+      activo ? 'Cesar técnico' : 'Reactivar técnico', {okText: activo ? 'Cesar' : 'Reactivar', circular: true})) return;
+    const r = await fetch('/api/vista/' + cfg.slug + '/actualizar', {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({key: f.key, field: 'ESTADO', value: nuevo})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) throw Error(j.error || 'No se pudo cambiar el estado.');
+    if (dialogo.open) dialogo.close();
+    await cargar();
+  }
+  const botonEstado = (f, grande) => String(f.datos.ESTADO || '').toUpperCase() === 'CESADO'
+    ? redondo('Reactivar (pasar a ACTIVO)', 'cn-verde', 'fa-user-check', () => cambiarEstado(f), grande)
+    : redondo('Cesar (pasar a CESADO)', 'cn-rojo', 'fa-user-xmark', () => cambiarEstado(f), grande);
   function acciones(f) {
     const lista = [redondo(cfg.editar ? 'Ver y editar' : 'Ver detalle', cfg.editar ? 'cn-azul' : 'cn-neutro', cfg.editar ? 'fa-pen' : 'fa-eye', () => verDetalle(f))];
+    if (cfg.slug === 'dataper' && cfg.editar) lista.push(botonEstado(f));
     if (cfg.clave_portal) lista.push(redondo('Restablecer clave del portal (vuelve a ser el documento)', 'cn-naranja', 'fa-key', () => restablecerClave(f)));
     return lista;
   }
@@ -174,12 +192,14 @@
     form.append(cab);
     if (nuevo) form.append(campoEdicion(cfg.clave + ' (clave)', '', null));
     const campos = [...new Set([...columnasBase, ...Object.keys(f.datos)])].filter(c => c !== 'EDITADO POR');
-    for (const c of campos) form.append(campoEdicion(c, f.datos[c] ?? ''));
+    // Campos con valores fijos: se eligen de una lista (p. ej. ESTADO en Dataper).
+    for (const c of campos) form.append(campoEdicion(c, f.datos[c] ?? (nuevo && LISTAS[c] ? LISTAS[c][0][0] : ''), LISTAS[c]));
     if (!nuevo && f.datos['EDITADO POR']) form.append(el('p', 'cc-nota', 'Última edición: ' + f.datos['EDITADO POR']));
     const derecha = tarjetaDerecha(f, nuevo);
     const contenedor = el('div', 'cc-validacion-columnas' + (derecha ? '' : ' cc-una-columna'));
     contenedor.append(form); if (derecha) contenedor.append(derecha);
     if (cfg.editar) accionesCab.prepend(redondo(nuevo ? 'Crear registro' : 'Guardar cambios', 'cn-verde', 'fa-floppy-disk', () => guardar(f, form, nuevo), true));
+    if (cfg.editar && cfg.slug === 'dataper' && !nuevo) accionesCab.prepend(botonEstado(f, true));
     $('cc-solicitud-contenido').replaceChildren(contenedor);
     if (!dialogo.open) dialogo.showModal();
   }

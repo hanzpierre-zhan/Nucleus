@@ -32,6 +32,10 @@ def test_lista_editar_y_exportar_dataper(app, auth_client, persona):
     assert r.status_code == 200, r.json
     with app.app_context():
         assert json.loads(db.session.get(NucleusData, persona).data_json)['CELULAR'] == '911111111'
+    # Cesar y reactivar: solo ACTIVO o CESADO.
+    assert auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': 'ESTADO', 'value': 'CESADO'}).status_code == 200
+    assert auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': 'ESTADO', 'value': 'OTRO'}).status_code == 400
+    assert auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': 'ESTADO', 'value': 'ACTIVO'}).status_code == 200
     libro = load_workbook(io.BytesIO(auth_client.post('/api/vista/dataper/exportar',
                                                       json={'ids': [persona], 'columnas': ['TECNICO', 'CELULAR']}).data))
     assert [c.value for c in libro.active[2]] == ['VN-71234567', 'Prueba Vista', '911111111']
