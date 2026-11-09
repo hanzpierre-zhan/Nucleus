@@ -3,7 +3,7 @@
 {% block content %}
 {# Mismo diseño que Caja Chica: reutiliza su hoja de estilos y sus clases cc-*. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=97">
-<link rel="stylesheet" href="/static/css/cot-new.css?v=11">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=14">
 <section class="cc-gestion cn-gestion" aria-label="Cotizaciones" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-proyecto="{{ proyecto_id }}">
   <div class="cc-barra">
@@ -85,6 +85,6 @@
     </form>
   </dialog>
 </section>
-<script id="cn-config" type="application/json">{{ {'tipos_concepto': tipos_concepto, 'proyectos': proyectos_flm, 'cotizadores': cotizadores} | tojson }}</script>
-<script src="/static/js/cot-new.js?v=11" defer></script>
+<script id="cn-config" type="application/json">{{ {'tipos_concepto': tipos_concepto, 'proyectos': proyectos_flm, 'cotizadores': cotizadores, 'nombres_cliente': nombres_cliente} | tojson }}</script>
+<script src="/static/js/cot-new.js?v=13" defer></script>
 {% endblock %}

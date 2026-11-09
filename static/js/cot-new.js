@@ -40,6 +40,7 @@
       const nombre = CLIENTES[c.familia];
       return el('span', nombre ? 'project-badge project-badge--' + c.familia.toLowerCase() : null, nombre || c.CLIENTE || '—');
     }},
+    nombreCliente: {titulo: 'Nombre de cliente', ancho: 'minmax(150px, 1.1fr)', texto: c => c['NOMBRE CLIENTE'] || '—'},
     site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1.1fr)', texto: c => c['NOMBRE SITE'] || '—'},
     wo: {titulo: 'N.º WO', ancho: 'minmax(130px, .9fr)', texto: c => c['NUMERO WO'] || '—'},
     motivo: {titulo: 'Motivo', ancho: 'minmax(200px, 1.8fr)', texto: c => c.MOTIVO || c.OBJETIVO || '—', clase: 'cn-motivo'},
@@ -185,8 +186,9 @@
   // ── Nueva cotización: datos a la izquierda, ítems a la derecha; guarda con el alta de Cotizaciones ──
   const TIPOS_ITEM = ['REEMBOLSABLE', 'LPU', 'GASTO COBRA'];
   const num = v => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0; };
-  function campo(form, etiqueta, control) {
-    const l = el('label', 'cc-pendiente-campo'); l.append(el('span', null, etiqueta), control); form.append(l); return control;
+  function campo(form, etiqueta, control, clase) {
+    const l = el('label', 'cc-pendiente-campo' + (clase ? ' ' + clase : ''));
+    l.append(el('span', null, etiqueta), control); form.append(l); return control;
   }
   function filaItem(cuerpo, recalcular, item = {}) {
     const tr = el('tr');
@@ -287,16 +289,25 @@
     $('cc-solicitud-titulo').textContent = 'Nuevo registro · cotización';
     const acciones = $('cn-dialogo-acciones');
     acciones.querySelectorAll('.cn-redondo').forEach(b => b.remove());
-    // Izquierda: proyecto, site (con sus datos), WO y justificación.
+    // Izquierda: proyecto, nombre de cliente, site (con sus datos) y WO.
     const izq = el('form', 'cc-ficha vn-form cn-registro'); izq.noValidate = true;
     const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-location-dot'), el('span', null, 'Proyecto y site')); izq.append(h);
     const proyecto = el('select'); proyecto.add(new Option('Selecciona el proyecto', ''));
     (CN_CFG.proyectos || []).forEach(p => proyecto.add(new Option(p, p)));
     campo(izq, 'Proyecto', proyecto);
+    const nombreCliente = el('select');
+    const pintarNombresCliente = () => {
+      const familia = proyecto.value.replace('FLM - ', '');
+      nombreCliente.replaceChildren(new Option(proyecto.value ? 'Selecciona el nombre del cliente' : 'Elige primero el proyecto', ''));
+      (CN_CFG.nombres_cliente?.[familia] || []).forEach(n => nombreCliente.add(new Option(n, n)));
+      nombreCliente.disabled = !proyecto.value;
+    };
+    pintarNombresCliente();
+    campo(izq, 'Nombre de cliente', nombreCliente);
     const buscarSite = Object.assign(el('input'), {type: 'text', placeholder: 'Escribe el nombre o código del site', autocomplete: 'off'});
     const listaSites = el('div', 'cn-opciones'); listaSites.hidden = true;
     const envSite = el('div', 'cn-buscador'); envSite.append(buscarSite, listaSites);
-    campo(izq, 'Nombre del site (registrados en el proyecto)', envSite);
+    campo(izq, 'Nombre del site (registrados en el proyecto)', envSite, 'cn-ancho');
     const auto = el('div', 'cn-auto');
     const dato = t => { const d = el('div'); const v = el('strong', null, '—'); d.append(el('small', null, t), v); auto.append(d); return v; };
     const vCodigo = dato('Código'), vDistrito = dato('Distrito'), vProvincia = dato('Provincia'), vRegion = dato('Región');
@@ -311,9 +322,8 @@
     };
     const listaWo = el('div', 'cn-opciones'); listaWo.hidden = true;
     const envWo = el('div', 'cn-buscador'); envWo.append(chips, otroWo, listaWo);
-    campo(izq, 'N.º WO (puedes elegir varios)', envWo);
-    const justificacion = campo(izq, 'Justificación de la solicitud', Object.assign(el('textarea'), {rows: 4, maxLength: 500}));
-    // Derecha: clasificación.
+    campo(izq, 'N.º WO (puedes elegir varios)', envWo, 'cn-ancho');
+    // Derecha: clasificación y justificación.
     const der = el('section', 'cc-ficha');
     const h2 = el('h4', 'cc-ficha-titulo'); h2.append(icono('fa-tag'), el('span', null, 'Clasificación')); der.append(h2);
     const gasto = el('div', 'cn-segmento'); let tipoGasto = 'Gasto Cobra';
@@ -329,7 +339,8 @@
     const cotizador = el('select'); cotizador.add(new Option('Selecciona el cotizador', ''));
     (CN_CFG.cotizadores || []).forEach(c => cotizador.add(new Option(c.nombre, c.nombre)));
     campo(der, 'Usuario cotizador', cotizador);
-    der.append(el('p', 'cc-nota', 'Al enviar queda en Registro como "Pdt. Cotización" para que la coticen.'));
+    const justificacion = campo(der, 'Justificación de la solicitud', Object.assign(el('textarea'), {rows: 4, maxLength: 500}));
+    der.append(el('p', 'cc-nota', 'Explica brevemente qué se necesita cotizar. Al enviar queda en Registro como "Pdt. Cotización".'));
     const error = el('p', 'cc-alerta'); error.hidden = true; der.append(error);
 
     let siteElegido = null, buscaSite = 0, sitesWo = [];
@@ -339,6 +350,7 @@
     };
     proyecto.addEventListener('change', () => {
       buscarSite.value = ''; limpiarSite(); wos.clear(); pintarChips(); listaSites.hidden = listaWo.hidden = true; encontradosWo = [];
+      pintarNombresCliente();
     });
     // La lista de sites sale al tocar el campo (sin escribir) y se filtra al escribir.
     buscarSite.addEventListener('focus', () => { if (!siteElegido) cargarSites(); });
@@ -415,6 +427,7 @@
       try {
         agregarEscrito();
         if (!proyecto.value) throw Error('Elige el proyecto.');
+        if (!nombreCliente.value) throw Error('Elige el nombre del cliente.');
         if (!siteElegido) throw Error('Elige el site de la lista.');
         if (!concepto.value) throw Error('Elige el tipo de concepto.');
         if (!cotizador.value) throw Error('Elige el usuario cotizador.');
@@ -422,6 +435,7 @@
         const familia = proyecto.value.replace('FLM - ', '');
         const ahora = new Date(); ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
         const datos = {CLIENTE: familia, 'PROYECTO FLM': proyecto.value, FECHA: ahora.toISOString().slice(0, 16).replace('T', ' '),
+          'NOMBRE CLIENTE': nombreCliente.value,
           'NOMBRE SITE': siteElegido.site, 'CODIGO SITE': siteElegido.codigo, DISTRITO: siteElegido.distrito, PROVINCIA: siteElegido.provincia,
           REGION: siteElegido.region, DEPARTAMENTO: siteElegido.region, 'NUMERO WO': [...wos].join(', '),
           'TIPO DE GASTO': tipoGasto, 'TIPO DE CONCEPTO': concepto.value, 'TIPO DE COTIZACION': concepto.value,
@@ -646,7 +660,7 @@
     acciones.prepend(...accionesDe(c).map(a => botonRedondo(a, 'cn-grande')));
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(
-      ficha('fa-file-lines', 'Detalle de la cotización', [['Fecha', fechaTexto(c.FECHA)], ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']],
+      ficha('fa-file-lines', 'Detalle de la cotización', [['Fecha', fechaTexto(c.FECHA)], ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']],
         ['Motivo', c.MOTIVO], ['Objetivo', c.OBJETIVO !== c.MOTIVO ? c.OBJETIVO : ''], ['Supervisor', c.SUPERVISOR],
         ['Departamento', c.DEPARTAMENTO], ['Tipo de gasto', c['TIPO DE GASTO']], ['Tipo', c['TIPO DE COTIZACION']], ['Código interno', c['CODIGO INTERNO']]]),
       ficha('fa-users', 'Responsables', [['Solicitado por', c['SOLICITADO POR']], ['Gestor', c.GESTOR], ['Cotizador asignado', c.COTIZADOR], ['Cotizado por', c['COTIZADO POR']],

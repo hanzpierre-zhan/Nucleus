@@ -33,7 +33,7 @@ ESTADO_PESTANA = {
     'cancelado': 'cancelado', 'anulado': 'cancelado', 'anulada': 'cancelado',
 }
 # Campos que viajan a la pantalla (sin fotos, sustentos ni historial pesado).
-CAMPOS = ('N° ORDEN', 'N° COTIZACION', 'FECHA', 'CLIENTE', 'SUPERVISOR', 'NOMBRE SITE', 'NUMERO WO', 'MOTIVO',
+CAMPOS = ('N° ORDEN', 'N° COTIZACION', 'FECHA', 'CLIENTE', 'NOMBRE CLIENTE', 'SUPERVISOR', 'NOMBRE SITE', 'NUMERO WO', 'MOTIVO',
           'OBJETIVO', 'DEPARTAMENTO', 'TIPO DE GASTO', 'TIPO DE COTIZACION', 'SUB TOTAL + FEE', 'ESTADO COTIZACION',
           'GESTOR', 'SOLICITADO POR', 'COTIZADO POR', 'FECHA COTIZADO', 'FECHA ENVIO CLIENTE', 'FECHA APROBACION',
           'TIPO GASTO APROBACION', 'NOMBRE DE PROVEEDOR', 'NUMERO FACTURA PROVEEDOR', 'NUMERO OC PROVEEDOR',
@@ -115,6 +115,7 @@ def pagina():
     rol = str(session.get('rol') or '').strip().lower()
     return render_template('cot_new.html', pestanas=PESTANAS, proyecto_id=modulo.id, tipos_concepto=TIPOS_CONCEPTO,
                            cotizadores=[{'nombre': n, 'usuario': u} for n, u in COTIZADORES],
+                           nombres_cliente=NOMBRES_CLIENTE,
                            proyectos_flm=PROYECTOS_FLM,
                            puede_gestionar=rol not in ('demo', 'contrata'),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
@@ -144,7 +145,7 @@ def exportar():
     libro = Workbook()
     hoja = libro.active
     hoja.title = 'Cotizaciones'
-    columnas = ('N° COTIZACION', 'FECHA', 'CLIENTE', 'SUPERVISOR', 'NOMBRE SITE', 'NUMERO WO', 'MOTIVO',
+    columnas = ('N° COTIZACION', 'FECHA', 'CLIENTE', 'NOMBRE CLIENTE', 'SUPERVISOR', 'NOMBRE SITE', 'NUMERO WO', 'MOTIVO',
                 'ESTADO COTIZACION', 'GESTOR', 'SOLICITADO POR', 'COTIZADO POR', 'TIPO DE GASTO', 'TIPO GASTO APROBACION')
     hoja.append(['Pestaña', *columnas, 'Sub total + FEE'])
     for i in ids:
@@ -200,6 +201,13 @@ SITES_DE = {'FLM - PEXT': 'FLM - ENTEL'}
 CAMPOS_SITE_WO = ('Site Name', 'Site ID', 'Nombre de Site', 'Código Site', 'Site Id', 'Site Id Name', 'Site')
 # Cotizadores que se asignan al registrar (nombre y usuario de Nucleus, como figuran en Usuarios).
 COTIZADORES = (('Luciano Aracca', 'laracca'), ('Diego Rodriguez', 'drodriguez'), ('Ricardo Huaman', 'rhuaman'), ('Edwin Lopez', 'elopez'))
+# Contactos del cliente que se eligen al registrar la cotización, según el proyecto.
+NOMBRES_CLIENTE = {
+    'ENTEL': ('George McCloun', 'Sergio Huaman', 'Even Junior Vivar'),
+    'PEXT': ('Marco Gomez',),
+    'INTEGRATEL': ('Daivis Mendoza',),
+    'CLARO': ('Percy Huaman', 'Carlos Ocana', 'Giancarlo Saldarriaga', 'Giancarlo Costa', 'Ernesto Rojas'),
+}
 TIPOS_CONCEPTO = ('Servicio', 'Alquiler', 'Acarreo', 'Compras y suministros', 'Desplazamiento fuera de zona',
                   'Transporte fluvial', 'Custodio y resguardo', 'Personal y mano de obra')
 

@@ -89,8 +89,13 @@ body .cn-gestion .cc-barra > .cn-redondo { width: 38px !important; height: 38px 
 body #cc-solicitud-dialogo .cn-item-quitar { width: 26px !important; height: 26px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: transparent !important; color: #dc2626 !important; box-shadow: none !important; }
 .cn-columna-archivos { display: grid; gap: 12px; align-content: start; }
 .cn-fase { margin: 8px 0 2px; font-size: 12.5px; font-weight: 600; color: var(--ios-secondary); }
-/* Nuevo registro */
-.cn-registro { grid-template-columns: 1fr; }
+/* Nuevo registro: dos columnas internas para que no quede apretado */
+#cc-solicitud-dialogo .cn-registro { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.cn-registro > .cc-ficha-titulo, .cn-registro > .cc-nota, .cn-registro > .cn-auto,
+.cn-registro > .cn-ancho { grid-column: 1 / -1; }
+.cn-registro .cc-pendiente-campo textarea { min-height: 96px; resize: vertical; }
+#cc-solicitud-dialogo .cn-registro-cols { gap: 18px; }
+@media (max-width: 560px) { #cc-solicitud-dialogo .cn-registro { grid-template-columns: 1fr; } }
 .cn-buscador { position: relative; display: grid; gap: 6px; }
 .cn-buscador input { font-size: 13px; }  /* color y borde: los mismos del tema que los demás campos */
 .cn-opciones { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; max-height: 220px; overflow: auto; margin-top: 4px; border: 1px solid var(--ios-hairline); border-radius: 10px; background: var(--ios-card-bg, #222); box-shadow: 0 8px 24px rgba(0,0,0,.25); }
