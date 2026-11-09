@@ -113,9 +113,11 @@ def almacen():
 def buscar_personal(doc):
     """Busca por clave DOCUMENTO sin cargar ni exponer el catálogo completo."""
     table = NucleusData.__table__
+    # La clave en Dataper puede tener espacios, puntos o guiones (p. ej. "CEX 002141327").
+    clave = func.upper(func.replace(func.replace(func.replace(table.c.key_value, ' ', ''), '.', ''), '-', ''))
     rows = db.session.execute(select(table.c.id, table.c.data_json).join(
         Proyecto.__table__, table.c.proyecto_id == Proyecto.id).where(
-            Proyecto.nombre == 'Dataper', table.c.key_value == doc)).all()
+            Proyecto.nombre == 'Dataper', (table.c.key_value == doc) | (clave == doc))).all()
     candidates = []
     for row in rows:
         data = json.loads(row.data_json or '{}')

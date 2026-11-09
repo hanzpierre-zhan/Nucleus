@@ -598,3 +598,16 @@ def test_muchos_ingresos_seguidos_no_se_bloquean_entre_si(portal):
             assert entrar(client, '00002222', 'clave-mala').status_code == 401
         assert entrar(client, '00002222').status_code == 429  # Luis espera un minuto
         assert entrar(client, '00001111').status_code == 200  # Ana entra igual
+
+
+def test_documento_con_espacios_en_dataper_puede_ingresar(portal):
+    with portal.app_context():
+        from werkzeug.security import generate_password_hash
+        from models import ClaveTecnico
+        dataper = Proyecto.query.filter_by(nombre='Dataper').one()
+        db.session.add(NucleusData(proyecto_id=dataper.id, key_value='CEX 002141327', data_json=json.dumps(
+            dict(DOCUMENTO='CEX 002141327', TECNICO='Extranjero Prueba', ESTADO='ACTIVO', PROYECTO='FLM - PEXT'))))
+        db.session.add(ClaveTecnico(documento='CEX002141327', clave_hash=generate_password_hash('Clave-123')))
+        db.session.commit()
+    with portal.test_client() as client:
+        assert entrar(client, 'CEX 002141327', 'Clave-123').status_code == 200

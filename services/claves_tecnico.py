@@ -5,6 +5,7 @@ cuando pasaron más de DIAS_VIGENCIA desde el último cambio, se exige crear una
 nueva antes de usar el portal.
 """
 import hmac
+import re
 from datetime import datetime, timedelta
 
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -19,7 +20,8 @@ LARGO_MINIMO = 6
 def verificar(documento, clave):
     registro = db.session.get(ClaveTecnico, documento)
     if registro is None:
-        return hmac.compare_digest(str(documento), str(clave))
+        # Clave inicial = documento; se acepta escrito con espacios, puntos o guiones.
+        return hmac.compare_digest(str(documento), re.sub(r'[\s.\-]', '', str(clave)).upper())
     return check_password_hash(registro.clave_hash, str(clave))
 
 

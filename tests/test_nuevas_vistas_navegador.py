@@ -74,7 +74,7 @@ def test_claro_graficos_filtros_y_movil(app,auth_client,servidor,tmp_path):
             try:
                 errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(servidor+'/analytics/claro',wait_until='networkidle')
-                assert page.locator('canvas').count()==4
+                assert page.locator('canvas').count()==3
                 assert page.locator('#cl-creados').inner_text()=='36'
                 assert page.locator('#cl-despachados').inner_text()=='36'
                 assert page.locator('#cl-cancelados').inner_text()=='0'

@@ -4,6 +4,7 @@ import pytest
 
 from db import db
 from models import Proyecto, NucleusData
+from services.importacion_identidad import CLAVES
 from services.utilidades import get_menu_proyectos
 
 
@@ -21,7 +22,7 @@ def test_nuevo_wo_en_modulo_independiente(app, auth_client, nombre):
     assert respuesta.status_code == 200, respuesta.json
     with app.app_context():
         registro = NucleusData.query.filter_by(proyecto_id=pid, key_value='TEST-WO-FLM').one()
-        assert json.loads(registro.data_json)['Task Id' if nombre == 'FLM - INTEGRATEL' else 'Número de WO'] == 'TEST-WO-FLM'
+        assert json.loads(registro.data_json)[CLAVES.get(nombre, 'Número de WO')] == 'TEST-WO-FLM'
         db.session.delete(registro)
         db.session.commit()
 
@@ -75,7 +76,7 @@ def test_wo_pendiente_codigo_permanente_y_asignacion(app, auth_client, nombre):
         origen_id = registro.id
         datos = json.loads(registro.data_json)
         assert datos['CODIGO INTERNO'] == codigo
-        assert datos['Task Id' if nombre == 'FLM - INTEGRATEL' else 'Número de WO'] == ''
+        assert datos[CLAVES.get(nombre, 'Número de WO')] == ''
         assert datos['_WO_PENDIENTE'] is True
     try:
         nueva = auth_client.post('/api/rows/edit_key', json={'old_key': codigo, 'new_key': 'CM-PENDIENTE-TEST'})
@@ -84,7 +85,7 @@ def test_wo_pendiente_codigo_permanente_y_asignacion(app, auth_client, nombre):
             registro = db.session.get(NucleusData, origen_id)
             datos = json.loads(registro.data_json)
             assert datos['CODIGO INTERNO'] == codigo
-            assert datos['Task Id' if nombre == 'FLM - INTEGRATEL' else 'Número de WO'] == 'CM-PENDIENTE-TEST'
+            assert datos[CLAVES.get(nombre, 'Número de WO')] == 'CM-PENDIENTE-TEST'
             assert datos['_WO_PENDIENTE'] is False
     finally:
         with app.app_context():
