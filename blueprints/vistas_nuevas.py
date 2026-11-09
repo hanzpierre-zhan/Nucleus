@@ -204,5 +204,24 @@ def usuarios_lista():
     accesos = {}
     for a in AccesoProyecto.query.all():
         accesos.setdefault(a.usuario_id, []).append(a.proyecto_id)
+    from services.caja_chica import depositantes
+    marcados = depositantes()
     return jsonify(usuarios=[{'id': u.id, 'nombre': u.nombre or '', 'username': u.username, 'rol': u.rol or '',
-                              'proyectos': accesos.get(u.id, [])} for u in usuarios_activos().all()])
+                              'proyectos': accesos.get(u.id, []), 'depositante': u.id in marcados}
+                             for u in usuarios_activos().all()])
+
+
+@bp.post('/api/vista/usuarios/depositante')
+@login_required
+def usuarios_depositante():
+    """Marca al usuario como depositante de Caja Chica en el celular."""
+    _solo_admin()
+    from models import Usuario
+    from services.caja_chica import marcar_depositante
+    datos = request.get_json(silent=True) or {}
+    uid = datos.get('id')
+    from db import db
+    if type(uid) is not int or not db.session.get(Usuario, uid):
+        return jsonify(error='Usuario no válido.'), 400
+    marcar_depositante(uid, datos.get('activo') is True)
+    return jsonify(success=True)

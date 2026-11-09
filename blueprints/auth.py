@@ -69,8 +69,11 @@ def _iniciar_sesion(user, conformidad):
     if proyectos:
         session['current_proyecto_id'] = proyectos[0].id
         session['current_proyecto_nombre'] = proyectos[0].nombre
-    # Los usuarios administrativos entran siempre a Nucleus, también desde el
-    # celular: el portal móvil es solo para el personal de Dataper.
+    # Los usuarios administrativos entran siempre a Nucleus, también desde el celular,
+    # salvo el depositante de Caja Chica: en el celular va directo a depositar.
+    from services import caja_chica as cc
+    if cc.es_celular(request.headers.get('User-Agent')) and user.id in cc.depositantes():
+        return redirect('/caja-chica/movil')
     return redirect(url_for('pages.analytics'))
 
 

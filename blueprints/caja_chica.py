@@ -314,6 +314,17 @@ def gestion():
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
 
+@bp.get('/caja-chica/movil')
+@login_required
+def gestion_movil():
+    """Versión de celular del depositante: lista Por depositar y depósito con captura (mismo flujo)."""
+    _alcance()
+    rol = str(session.get('rol') or '').lower()
+    if rol in ('demo', 'contrata') or (session.get('user_id') not in cc.depositantes() and rol not in ROLES_TODO):
+        abort(403)
+    return render_template('caja_chica_movil.html', usuario=session.get('username') or '')
+
+
 @bp.route('/caja-chica/catalogo', methods=['GET', 'POST'])
 @login_required
 def gestion_catalogo():

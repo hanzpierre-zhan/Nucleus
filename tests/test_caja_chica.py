@@ -619,3 +619,37 @@ def test_monto_de_cotizacion_es_el_sub_total_con_fee():
     assert monto_cotizacion('2,802.25', '[]') == '2802.25'
     assert monto_cotizacion('', items) == '2440.94'  # sin SUB TOTAL + FEE: suma de valores totales
     assert monto_cotizacion(None, None) is None
+
+
+def test_depositante_entra_desde_el_celular_y_deposita_con_el_mismo_flujo(app, auth_client, tecnico):
+    from models import Usuario
+    with app.app_context():
+        uid = Usuario.query.filter_by(username='zeno').one().id
+    try:
+        assert auth_client.post('/api/vista/usuarios/depositante', json={'id': uid, 'activo': True}).status_code == 200
+        marcado = next(u for u in auth_client.get('/api/vista/usuarios/lista').json['usuarios'] if u['id'] == uid)
+        assert marcado['depositante'] is True
+        celular = {'User-Agent': 'Mozilla/5.0 (Linux; Android 14) Mobile Safari'}
+        nuevo = app.test_client()
+        r = nuevo.post('/login', data={'username': 'zeno', 'password': 'zeno123', 'legal_accept': '1'}, headers=celular)
+        if r.status_code == 200 and b'name="consent_step"' in r.data:
+            r = nuevo.post('/login', data={'consent_step': '1', 'legal_accept': '1'}, headers=celular)
+        assert r.headers['Location'].endswith('/caja-chica/movil')
+        assert nuevo.get('/caja-chica/movil').status_code == 200
+        # Desde computadora entra a Nucleus normal.
+        pc = app.test_client()
+        r = pc.post('/login', data={'username': 'zeno', 'password': 'zeno123', 'legal_accept': '1'})
+        if r.status_code == 200 and b'name="consent_step"' in r.data:
+            r = pc.post('/login', data={'consent_step': '1', 'legal_accept': '1'})
+        assert '/caja-chica/movil' not in r.headers['Location']
+        # Deposita con el mismo flujo: solo validadas, monto exacto y captura.
+        cli, h = tecnico
+        sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+            'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+            'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}]}).json['solicitud']['id']
+        assert nuevo.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '20', 'foto': foto()}).status_code == 400  # sin validar
+        assert auth_client.post('/api/caja-chica/%d/validar' % sid).status_code == 200
+        r = nuevo.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '20', 'foto': foto()})
+        assert r.status_code == 200 and r.json['solicitud']['estado'] == 'DEPOSITADO'
+    finally:
+        auth_client.post('/api/vista/usuarios/depositante', json={'id': uid, 'activo': False})

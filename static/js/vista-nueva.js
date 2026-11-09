@@ -225,6 +225,15 @@
       l.append(c, el('span', null, p.nombre)); lista.append(l);
     }
     derecha.append(lista);
+    // Celular: el depositante de Caja Chica entra directo a "Por depositar" desde el móvil.
+    const celular = el('label', 'vn-interruptor');
+    const depositante = Object.assign(el('input'), {type: 'checkbox', checked: !!u.depositante});
+    depositante.setAttribute('role', 'switch');
+    const textoCel = el('span'); textoCel.append(el('strong', null, 'Depositante de Caja Chica'),
+      el('small', null, 'En el celular entra directo a "Por depositar" y deposita con su captura. Necesita el módulo Caja Chica. En computadora sigue viendo Nucleus normal.'));
+    celular.append(depositante, textoCel);
+    const hCel = el('h4', 'cc-ficha-titulo'); hCel.append(icono('fa-mobile-screen'), el('span', null, 'Celular'));
+    derecha.append(hCel, celular);
     const contenedor = el('div', 'cc-validacion-columnas'); contenedor.append(form, derecha);
     accionesCab.prepend(redondo(nuevo ? 'Crear usuario' : 'Guardar cambios', 'cn-verde', 'fa-floppy-disk', async () => {
       const v = n => form.querySelector('[data-campo="' + n + '"]').value.trim();
@@ -234,6 +243,12 @@
       const r = await fetch('/api/admin/usuario', {method: nuevo ? 'POST' : 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) throw Error(j.error || 'No se pudo guardar el usuario.');
+      const id = nuevo ? j.id : u.id;
+      if (id && depositante.checked !== !!u.depositante) {
+        const d = await fetch('/api/vista/usuarios/depositante', {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({id, activo: depositante.checked})});
+        if (!d.ok) throw Error((await d.json().catch(() => ({}))).error || 'Se guardó el usuario, pero no la opción de celular.');
+      }
       dialogo.close(); await cargar();
     }, true));
     $('cc-solicitud-contenido').replaceChildren(contenedor);
@@ -310,10 +325,11 @@
     if (!r.ok) { $('cn-lista').replaceChildren(el('p', 'cc-alerta', j.error || 'No se pudo cargar.')); return; }
     if (esUsuarios) {
       const nombres = Object.fromEntries(cfg.proyectos.map(p => [p.id, p.nombre]));
-      columnasBase = ['Nombre', 'Usuario', 'Rol', 'Módulos'];
+      columnasBase = ['Nombre', 'Usuario', 'Rol', 'Módulos', 'Celular'];
       filas = j.usuarios.map(u => ({id: u.id, key: u.username, pestana: u.rol, usuario: u,
         datos: {Nombre: u.nombre, Usuario: u.username, Rol: (ROLES.find(r => r[0] === u.rol) || [0, u.rol])[1],
-                'Módulos': u.proyectos.map(p => nombres[p]).filter(Boolean).join(', ')}}));
+                'Módulos': u.proyectos.map(p => nombres[p]).filter(Boolean).join(', '),
+                Celular: u.depositante ? 'Depositante Caja Chica' : ''}}));
     } else { columnasBase = j.columnas; filas = j.filas; }
     let guardadas = null;
     try { guardadas = JSON.parse(localStorage.getItem(memoria + '-columnas') || 'null'); } catch (_) {}

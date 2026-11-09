@@ -59,6 +59,39 @@ def instalar():
             db.session.commit()
 
 
+# Usuarios administrativos que, desde el celular, entran directo a depositar Caja Chica.
+CLAVE_DEPOSITANTES = 'depositantes_movil'
+
+
+def depositantes():
+    modulo = Proyecto.query.filter_by(nombre=MODULO).first()
+    cfg = modulo and AppConfig.query.filter_by(proyecto_id=modulo.id, clave=CLAVE_DEPOSITANTES).first()
+    try:
+        return {int(i) for i in json.loads(cfg.valor or '[]')} if cfg else set()
+    except (TypeError, ValueError):
+        return set()
+
+
+def marcar_depositante(usuario_id, activo):
+    modulo = Proyecto.query.filter_by(nombre=MODULO).first()
+    _exigir(modulo, 'No existe el módulo Caja Chica.')
+    actuales = depositantes()
+    if activo:
+        actuales.add(int(usuario_id))
+    else:
+        actuales.discard(int(usuario_id))
+    cfg = AppConfig.query.filter_by(proyecto_id=modulo.id, clave=CLAVE_DEPOSITANTES).first()
+    if cfg is None:
+        cfg = AppConfig(proyecto_id=modulo.id, clave=CLAVE_DEPOSITANTES)
+        db.session.add(cfg)
+    cfg.valor = json.dumps(sorted(actuales))
+    db.session.commit()
+
+
+def es_celular(user_agent):
+    return bool(re.search(r'Mobi|Android|iPhone|iPod', str(user_agent or '')))
+
+
 # Cuenta a la que el técnico devuelve el saldo no gastado.
 CUENTA_DEVOLUCION = {'tipo': 'Plin', 'titular': 'Jessica Cordero', 'numero': '988191318'}
 

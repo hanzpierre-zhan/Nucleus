@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Depósitos · Caja Chica</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=11) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-movil.css',v=1) }}"></head>
+<body>
+<header class="top"><a href="/caja-chica/movil" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>CAJA CHICA</span></a>
+  <div class="top-actions"><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button>
+  <a class="theme-toggle" href="/logout" aria-label="Salir" title="Salir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5m-1-8h12m-4-4 4 4-4 4"/></svg></a></div></header>
+<main class="shell">
+  <section id="cm-lista-vista" class="view">
+    <div class="eyebrow">{{ usuario }} · DEPOSITANTE</div><h1>Por depositar</h1>
+    <div class="balance compact"><span class="balance-label">TOTAL POR DEPOSITAR</span><div id="cm-total" class="big-money">S/ 0.00</div><small id="cm-cantidad" class="cm-cantidad"></small></div>
+    <input type="search" id="cm-buscar" class="cm-buscar" placeholder="Buscar código, técnico o DNI" aria-label="Buscar solicitud">
+    <div id="cm-lista" aria-live="polite"><p class="hint">Cargando…</p></div>
+  </section>
+  <section id="cm-detalle-vista" class="view" hidden>
+    <button class="back" type="button" id="cm-volver"><span class="back-icon" aria-hidden="true">←</span>Por depositar</button>
+    <h1 id="cm-codigo" tabindex="-1"></h1>
+    <div id="cm-detalle"></div>
+    <form id="cm-form" class="card" novalidate>
+      <h2 class="cm-subtitulo">Captura del depósito</h2>
+      <label class="cm-captura" id="cm-captura"><input type="file" name="foto" accept="image/*" id="cm-foto"><img alt="" hidden><span class="cm-captura-texto"><span aria-hidden="true">📷</span><strong>Tomar o elegir la captura</strong><small>La fecha y hora se registran solas</small></span></label>
+      <input type="hidden" name="monto" id="cm-monto">
+      <div class="error" role="alert" tabindex="-1" hidden></div>
+      <button class="primary wide cm-depositar" type="submit">💰 Confirmar depósito</button>
+    </form>
+  </section>
+  <section id="cm-exito" class="view card success" hidden>
+    <div class="success-icon" aria-hidden="true">✓</div>
+    <h1 tabindex="-1" id="cm-exito-titulo">¡Depósito registrado!</h1>
+    <p class="hint" id="cm-exito-texto"></p>
+    <button type="button" class="primary wide" id="cm-exito-volver">Seguir depositando</button>
+  </section>
+</main>
+<script src="{{ url_for('static',filename='js/caja-chica-movil.js',v=1) }}" defer></script>
+</body></html>

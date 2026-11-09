@@ -69,3 +69,7 @@ body .cn-gestion .cn-redondo.cn-azul { background: #1d4ed8 !important; }
 body .cn-gestion .cn-redondo.cn-morado { background: #6d28d9 !important; }
 body .cn-gestion .cn-redondo.cn-neutro { background: #475569 !important; }
 body .cn-gestion .cc-barra > .cn-redondo { width: 38px !important; height: 38px !important; min-height: 0 !important; padding: 0 !important; border-radius: 50% !important; }
+.vn-interruptor { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #217346; background: rgba(33, 115, 70, .1); cursor: pointer; }
+.vn-interruptor input { width: 18px; height: 18px; margin-top: 2px; accent-color: #217346; }
+.vn-interruptor span { display: grid; gap: 2px; }
+.vn-interruptor small { color: var(--ios-secondary); }
