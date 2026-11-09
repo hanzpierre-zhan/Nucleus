@@ -141,9 +141,11 @@ def _llenar(sol, datos, catalogo, proyectos, bancos, importe, anteriores=()):
             regla = dict(disponibles[tipo])
             regla['correo'] = por_proyecto(regla.get('correo'), [proyecto])[proyecto]
             regla['cotizacion'] = por_proyecto(regla.get('cotizacion'), [proyecto])[proyecto]
+        # El técnico no da el correo: la gestora adjunta el correo de validación al validar
+        # (requiere_correo). Aquí solo se acepta, opcional, desde la edición de gestión.
         correo = str(item.get('correo_validador') or '').strip() if regla['correo'] else ''
-        _exigir(not regla['correo'] or (len(correo) <= 254 and re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', correo)),
-                'Ítem %d: ingresa el correo de quien valida el gasto.' % n)
+        _exigir(not correo or (len(correo) <= 254 and re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', correo)),
+                'Ítem %d: el correo de quien valida no es válido.' % n)
         conceptos[str(n)] = {'tipo_presupuesto': regla['proyectos'][proyecto], 'correo_validador': correo,
                              'requiere_correo': regla['correo'], 'requiere_cotizacion': regla.get('cotizacion', False)}
         descripcion = str(item.get('descripcion') or '').strip()

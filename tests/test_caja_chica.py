@@ -72,17 +72,15 @@ def test_catalogo_aplica_por_proyecto_y_conserva_regla_de_solicitud(app, auth_cl
         datos = {'proyecto': 'PEXT', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '00123456789012345678', 'items': [item],
                  'site': 'LA2859', 'wo': 'CM-20260904-00000410', 'titular': 'Técnico Caja',
                  'tipo_billetera': 'Yape', 'numero_billetera': '900000000'}
-        assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400
         datos['proyecto'] = 'CLARO'
-        assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400
-        item['correo_validador'] = 'validador@example.com'
+        # El técnico no da el correo: el concepto lo pide, pero lo adjunta la gestora al validar.
         respuesta = cli.post(base + '/solicitar', headers=headers, json=datos)
         assert respuesta.status_code == 200, respuesta.json
         materiales['proyectos']['CLARO'] = 'Refacturable'
         assert auth_client.post(ruta, json=catalogo, headers=permisos).status_code == 200
         guardado = cli.get(base + '/datos').json['solicitudes'][0]['items'][0]
         assert guardado['tipo_presupuesto'] == 'Gasto Cobra'
-        assert guardado['correo_validador'] == 'validador@example.com'
+        assert guardado['correo_validador'] == '' and guardado['requiere_correo'] is True
         assert guardado['requiere_cotizacion'] is True
         sid = respuesta.json['solicitud']['id']
         gestion = f'/api/caja-chica/{sid}'
@@ -459,7 +457,9 @@ def test_catalogo_correo_y_cotizacion_por_proyecto(app, auth_client, tecnico):
         datos = {'proyecto': 'ENTEL', 'motivo': 'Correctivo', 'banco': 'BCP', 'cuenta': '00123456789012345678',
                  'items': [{'tipo_gasto': 'Peajes', 'monto': '20'}], 'site': 'LA2859', 'wo': 'CM-20260904-00000410', 'titular': 'Técnico Caja'}
         _proyecto_tecnico(app, 'FLM - ENTEL')
-        assert cli.post(base + '/solicitar', headers=headers, json=datos).status_code == 400  # Entel pide correo
+        respuesta = cli.post(base + '/solicitar', headers=headers, json=datos)
+        assert respuesta.status_code == 200, respuesta.json  # el técnico no da correo; Entel lo pedirá al validar
+        assert respuesta.json['solicitud']['items'][0]['requiere_correo'] is True
         _proyecto_tecnico(app, 'FLM - CLARO')
         respuesta = cli.post(base + '/solicitar', headers=headers, json=datos)
         assert respuesta.status_code == 200, respuesta.json  # Claro no pide correo

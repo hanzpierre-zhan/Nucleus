@@ -1,5 +1,8 @@
 import json
-from playwright.sync_api import sync_playwright, expect
+import pytest
+# Sin Playwright instalado el archivo se salta, sin romper el resto de la suite.
+_pw = pytest.importorskip('playwright.sync_api')
+sync_playwright, expect = _pw.sync_playwright, _pw.expect
 from test_e2e_navegador import servidor
 from test_caja_chica import tecnico
 
