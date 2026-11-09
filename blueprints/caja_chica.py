@@ -17,7 +17,7 @@ from services import caja_chica as cc
 from services.formularios_prueba import importe
 from services.recursos_flm import familia
 from services.alcance_proyectos import _valor
-from services.rendicion_presupuesto_cotizacion import cantidad_items, proyecto as proyecto_cotizacion, suma_valores_unitarios
+from services.rendicion_presupuesto_cotizacion import cantidad_items, monto_cotizacion, proyecto as proyecto_cotizacion
 from blueprints.formularios_prueba import (BANCOS, CATALOGO_GASTOS, PROYECTOS, comprobar_csrf,
                                            csrf, responsables_por_proyecto, tecnico)
 
@@ -286,16 +286,17 @@ def gestion_cotizaciones():
     filas = NucleusData.query.filter_by(proyecto_id=modulo.id).with_entities(
         NucleusData.key_value, _valor(raw, 'N° COTIZACION'), _valor(raw, 'ESTADO COTIZACION'),
         _valor(raw, 'ITEMS_JSON'), _valor(raw, 'CLIENTE'), _valor(raw, 'Nombre del proyecto'), _valor(raw, 'PROYECTO'),
+        _valor(raw, 'SUB TOTAL + FEE'),
     ).order_by(NucleusData.id.desc())
     cotizaciones = []
-    for clave, numero, estado, items, cliente, nombre, proyecto in filas:
+    for clave, numero, estado, items, cliente, nombre, proyecto, subtotal in filas:
         familia_cot = proyecto_cotizacion({'CLIENTE': cliente, 'Nombre del proyecto': nombre, 'PROYECTO': proyecto})
         if alcance is not None and familia_cot not in alcance:
             continue
         codigo = str(numero or clave or '').strip()
         if codigo:
             cotizaciones.append({'numero': codigo, 'estado': str(estado or '').strip(), 'proyecto': familia_cot,
-                                 'monto': suma_valores_unitarios(items), 'items': cantidad_items(items),
+                                 'monto': monto_cotizacion(subtotal, items), 'items': cantidad_items(items),
                                  'otras_solicitudes': str(acumulados[codigo.upper()])})
     return jsonify(cotizaciones=cotizaciones)
 

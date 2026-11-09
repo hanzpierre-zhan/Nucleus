@@ -38,18 +38,18 @@ def test_acumulado_no_duplica_actual_y_excluye_anulados(auth_client,escenarios):
     result=consulta(auth_client)
     assert result.status_code==200
     control=result.json['control']
-    assert control['cotizado']=='1000.00'
+    assert control['cotizado']=='2100.00'  # SUB TOTAL + FEE de la cotización
     assert control['items']==2
     assert control['otras_solicitudes']=='650.00'
     assert control['solicitud_actual']=='100.00'
-    assert control['acumulado']=='750.00' and control['saldo']=='250.00'
+    assert control['acumulado']=='750.00' and control['saldo']=='1350.00'
     assert control['cantidad_otras']==2 and control['excede'] is False
-    excedido=consulta(auth_client,monto='400').json['control']
+    excedido=consulta(auth_client,monto='1500').json['control']
     assert excedido['excede'] is True and excedido['saldo']=='-50.00'
 
 
-def test_cotizado_es_la_suma_de_valores_unitarios_y_no_el_total_con_fee(app,auth_client,escenarios):
-    """Caso del reporte: VU 660 + FEE 5% (total 693) => Cotizado 660, no 693."""
+def test_cotizado_es_el_sub_total_con_fee_vigente(app,auth_client,escenarios):
+    """La cotización vale su SUB TOTAL + FEE actual (VU 660 + FEE 5% => 693), no la suma de unitarios."""
     with app.app_context():
         cot=NucleusData.query.filter_by(key_value='PRES-COT').one()
         datos=json.loads(cot.data_json)
@@ -58,7 +58,7 @@ def test_cotizado_es_la_suma_de_valores_unitarios_y_no_el_total_con_fee(app,auth
                                          'cantidad':'1','valor_unitario':'660','valor_total':'693.00'}])
         cot.data_json=json.dumps(datos);db.session.commit()
     control=consulta(auth_client).json['control']
-    assert control['cotizado']=='660.00'
+    assert control['cotizado']=='693.00'
     assert control['items']==1
     assert control['acumulado']=='750.00'  # 650 de otras + 100 de esta
 

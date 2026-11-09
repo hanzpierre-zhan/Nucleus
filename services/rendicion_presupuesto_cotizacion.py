@@ -29,13 +29,17 @@ def importe(value):
 def numero(value):return str(value or '').strip().upper()
 
 
-def suma_valores_unitarios(items):
-    """Base de comparación: cada valor unitario una vez, sin cantidad ni FEE."""
+def monto_cotizacion(subtotal_fee, items):
+    """Monto de la cotización: su "SUB TOTAL + FEE" vigente; si falta, la suma de los valores totales de sus ítems."""
+    try:
+        return str(importe(subtotal_fee))
+    except ValueError:
+        pass
     try:
         if isinstance(items,str):items=json.loads(items)
         if not isinstance(items,list) or not items:return None
-        return str(sum((importe(item['valor_unitario']) for item in items),Decimal('0.00')))
-    except (ValueError,TypeError,KeyError):
+        return str(sum((importe(item.get('valor_total')) for item in items),Decimal('0.00')))
+    except (ValueError,TypeError,AttributeError):
         return None
 
 
@@ -63,12 +67,12 @@ def catalogo(row,consulta):
     # Solo los campos necesarios: ítems para sumar unitarios, sin fotos ni historial.
     query=query.with_entities(NucleusData.id,NucleusData.key_value,codigo,
                               _valor(raw,'ITEMS_JSON'),_valor(raw,'CLIENTE'),
-                              _valor(raw,'Nombre del proyecto'),_valor(raw,'PROYECTO'))
-    for rid,key,code,items,cliente,nombre,proyecto_nombre in query.order_by(NucleusData.id.desc()).all():
+                              _valor(raw,'Nombre del proyecto'),_valor(raw,'PROYECTO'),_valor(raw,'SUB TOTAL + FEE'))
+    for rid,key,code,items,cliente,nombre,proyecto_nombre,subtotal in query.order_by(NucleusData.id.desc()).all():
         data={'CLIENTE':cliente,'Nombre del proyecto':nombre,'PROYECTO':proyecto_nombre}
         code=str(code or '').strip()
         if not code or proyecto(data)!=proyecto(row):continue
-        result.append({'id':rid,'numero':code,'monto':suma_valores_unitarios(items),'key':key,
+        result.append({'id':rid,'numero':code,'monto':monto_cotizacion(subtotal,items),'key':key,
                        'items':cantidad_items(items)})
     return result
 

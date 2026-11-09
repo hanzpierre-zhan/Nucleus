@@ -610,3 +610,12 @@ def test_admin_corrige_el_dni_mal_escrito_con_dataper(app, auth_client, tecnico)
         with app.app_context():
             CajaChicaSolicitud.query.filter_by(documento='41265049').delete()
             NucleusData.query.filter_by(id=oid).delete(); db.session.commit()
+
+
+def test_monto_de_cotizacion_es_el_sub_total_con_fee():
+    from services.rendicion_presupuesto_cotizacion import monto_cotizacion
+    items = json.dumps([{'cantidad': '70', 'valor_unitario': '33.21', 'valor_total': '2440.94'}])
+    assert monto_cotizacion('2440.94', items) == '2440.94'  # caso CL-2026-11-000658
+    assert monto_cotizacion('2,802.25', '[]') == '2802.25'
+    assert monto_cotizacion('', items) == '2440.94'  # sin SUB TOTAL + FEE: suma de valores totales
+    assert monto_cotizacion(None, None) is None
