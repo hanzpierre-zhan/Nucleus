@@ -188,14 +188,21 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert cli.post(url, headers=h, data={'monto': '5', 'foto': foto()}).status_code == 400
     assert cli.post(url, headers=h, data={'monto': '10', 'foto': foto()}).status_code == 200
     r = gestion('devolucion', aceptar=True)
-    # Todo resuelto: pasa a Sustento y la gestión lo archiva (y puede regresarlo a Sustento).
+    # Todo resuelto: pasa a Sustentado y la gestión lo archiva.
     assert r.json['solicitud']['estado'] == 'SUSTENTO' and r.json['solicitud']['etapas'] == ['sustento']
-    assert gestion('sustento').status_code == 400  # aún no está archivada
     r = gestion('archivar')
     assert r.json['solicitud']['estado'] == 'ARCHIVADO' and r.json['solicitud']['etapas'] == ['archivado']
     assert gestion('archivar').status_code == 400
-    r = gestion('sustento')
-    assert r.json['solicitud']['estado'] == 'SUSTENTO' and r.json['solicitud']['archivado_en'] == ''
+    assert gestion('sustento').status_code == 404  # "Volver a Sustentado" ya no existe
+    # Rechazar desde Archivado: los ítems vuelven al técnico (Por rendir) con el motivo.
+    assert gestion('rechazar_sustentada').status_code == 400  # sin motivo
+    rechazo = gestion('rechazar_sustentada', motivo='Falta la boleta original').json['solicitud']
+    assert rechazo['estado'] == 'DEPOSITADO' and 'por_rendir' in rechazo['etapas'] and rechazo['archivado_en'] == ''
+    assert all(i['estado'] == 'RECHAZADO' and i['motivo_rechazo'] == 'Falta la boleta original' for i in rechazo['items'])
+    assert rendir(items[0], '50').status_code == 200 and rendir(items[1], '40').status_code == 200
+    assert gestion('revisar_item', item=items[0]['id'], aprobar=True).status_code == 200
+    r = gestion('revisar_item', item=items[1]['id'], aprobar=True)
+    assert r.json['solicitud']['estado'] == 'SUSTENTO'
     assert gestion('archivar').status_code == 200
     reporte = auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token})
     assert reporte.status_code == 200

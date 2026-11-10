@@ -29,3 +29,4 @@
 .cm-captura.lleno .cm-captura-texto { margin-top: auto; padding: 4px 10px; border-radius: 8px; background: rgba(0, 0, 0, .55); color: #fff; }
 .cm-captura.lleno .cm-captura-texto small { color: #e2e8f0; }
 .cm-depositar { margin-top: 14px; background: #166534 !important; }
+.cm-fecha { font-size: 12px; }

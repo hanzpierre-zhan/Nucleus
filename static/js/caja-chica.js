@@ -287,14 +287,19 @@
     if (tab === 'sustento') {
       if (sol.estado === 'SUSTENTO') {
         caja.append(slaArchivo(sol));
-        if (puedeGestionar) caja.append(botonRapido(sol, 'Archivar', 'cc-ok', 'fa-box-archive', () => pasarEtapa(sol, 'archivar')));
+        if (puedeGestionar) caja.append(botonRapido(sol, 'Archivar', 'cc-ok', 'fa-box-archive', () => pasarEtapa(sol, 'archivar')),
+          botonRapido(sol, 'Rechazar: vuelve a Por rendir', 'cc-rechazar', 'fa-rotate-left', conMotivo(sol, 'rechazar_sustentada', {
+            titulo: 'Rechazar sustentada', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), sugerencias: SUGERENCIAS.item,
+            ayuda: 'Los ítems vuelven al técnico en Por rendir para que corrija.', okText: 'Rechazar'})));
       }
       return caja;
     }
     if (tab === 'archivado') {
       if (sol.estado === 'ARCHIVADO') {
         caja.append(slaArchivo(sol));
-        if (puedeGestionar) caja.append(botonRapido(sol, 'Volver a Sustentado', 'cc-no', 'fa-rotate-left', () => pasarEtapa(sol, 'sustento')));
+        if (puedeGestionar) caja.append(botonRapido(sol, 'Rechazar: vuelve a Por rendir', 'cc-rechazar', 'fa-rotate-left', conMotivo(sol, 'rechazar_sustentada', {
+          titulo: 'Rechazar archivada', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), sugerencias: SUGERENCIAS.item,
+          ayuda: 'Los ítems vuelven al técnico en Por rendir para que corrija.', okText: 'Rechazar'})));
       }
       return caja;
     }
@@ -1089,14 +1094,19 @@
     const botonTecnico = $('cc-solicitud-tecnico');
     botonTecnico.hidden = !esAdmin;
     botonTecnico.onclick = () => corregirTecnico(sol);
-    const botonArchivar = $('cc-solicitud-archivar'), botonSustento = $('cc-solicitud-sustento');
+    const botonArchivar = $('cc-solicitud-archivar');
     botonArchivar.hidden = !(puedeGestionar && tab === 'sustento' && sol.estado === 'SUSTENTO');
-    botonSustento.hidden = !(puedeGestionar && tab === 'archivado' && sol.estado === 'ARCHIVADO');
     botonArchivar.onclick = intentar(() => pasarEtapa(sol, 'archivar'));
-    botonSustento.onclick = intentar(() => pasarEtapa(sol, 'sustento'));
+    // Sustentado: rechazar devuelve los ítems al técnico (Por rendir) con el motivo.
+    const botonRechazarSustento = $('cc-solicitud-rechazar-sustento');
+    // Sustentado y Archivado: rechazar devuelve los ítems al técnico (Por rendir).
+    botonRechazarSustento.hidden = !(puedeGestionar && ((tab === 'sustento' && sol.estado === 'SUSTENTO') || (tab === 'archivado' && sol.estado === 'ARCHIVADO')));
+    botonRechazarSustento.onclick = conMotivo(sol, 'rechazar_sustentada', {titulo: sol.estado === 'ARCHIVADO' ? 'Rechazar archivada' : 'Rechazar sustentada', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
+      datos: [['Gasto aprobado', dinero(importeEtapa(sol, 'sustento'))]], sugerencias: SUGERENCIAS.item,
+      ayuda: 'Los ítems vuelven al técnico en Por rendir para que corrija.', okText: 'Rechazar'});
     if (tab === 'pendientes') {
       // CM / Site pendiente: solo se edita el site y el N.º CM / PM / PLM; nada más de la solicitud.
-      [editar, validar, anular, rechazar, botonTecnico, botonArchivar, botonSustento, $('cc-solicitud-depositar')]
+      [editar, validar, anular, rechazar, botonTecnico, botonArchivar, botonRechazarSustento, $('cc-solicitud-depositar')]
         .forEach(b => { b.hidden = true; });
       const f = sol.formulario || {};
       const limpio = (v, pendiente) => (v || '').trim().toUpperCase() === pendiente ? '' : (v || '');
@@ -1131,7 +1141,13 @@
         ['Gasto aprobado', dinero(importeEtapa(sol, tab))],
         ['Justificación', sol.motivo || 'Sin registrar', 'cc-justificacion-texto'],
       ]);
-      contenido.replaceChildren(fichaArchivada, ...itemsEtapa(sol, tab).map(item => tarjetaConcepto(sol, item)));
+      // Foto del depósito realizado, junto al resumen.
+      const deposito = el('section', 'cc-ficha cc-deposito-hecho');
+      const tituloDep = el('h4', 'cc-ficha-titulo'); tituloDep.append(icono('fa-money-bill-transfer'), el('span', null, 'Depósito realizado'));
+      deposito.append(tituloDep, el('p', 'cc-nota', [dinero(sol.deposito_monto || sol.total), sol.depositado_en ? fechaDeposito(sol) : sol.deposito_fecha, sol.depositado_por].filter(Boolean).join(' · ')),
+        fotoRevision(sol, sol.deposito_foto, 'Comprobante del depósito'));
+      const cabecera = el('div', 'cc-validacion-columnas'); cabecera.append(fichaArchivada, deposito);
+      contenido.replaceChildren(cabecera, ...itemsEtapa(sol, tab).map(item => tarjetaConcepto(sol, item)));
       mostrarDetalle();
       return;
     }
@@ -1324,10 +1340,10 @@
   const plantilla = () => {
     // Ancho mínimo de la tabla = suma de columnas + espacios; si no cabe, se desplaza a lo ancho.
     const minimo = columnas.reduce((s, c) => s + (anchos[c] || parseInt(COLUMNAS[c].ancho.slice(7), 10)), 0)
-      + 12 * columnas.length + 140 + (puedeEliminar ? 52 : 0);
+      + 12 * columnas.length + 140 + 52;
     $('cc-tabla').style.setProperty('--cc-min', minimo + 'px');
     const medidas = columnas.map(c => anchos[c] ? anchos[c] + 'px' : COLUMNAS[c].ancho);
-    return [...(puedeEliminar ? ['40px'] : []), '108px', ...medidas].join(' ');
+    return ['40px', '108px', ...medidas].join(' ');  // la casilla de selección es para todos
   };
   // Nucleus aplica zoom al área principal: factor para pasar px de pantalla a px CSS.
   const escala = () => { const t = $('cc-tabla'); return t.getBoundingClientRect().width / t.offsetWidth || 1; };
@@ -1357,7 +1373,14 @@
     const activo = document.activeElement, foco = activo && cab.contains(activo) && activo.dataset.buscar
       ? {col: activo.dataset.buscar, ini: activo.selectionStart, fin: activo.selectionEnd} : null;
     cab.replaceChildren();
-    if (puedeEliminar) cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab cc-seleccion', 'Sel.'));
+    // Seleccionar: todos los roles (para exportar lo marcado); eliminar sigue siendo solo de administración.
+    const celdaTodas = el('div', 'cc-th cc-th-nombre cc-acciones-cab cc-seleccion');
+    const todas = Object.assign(el('input'), {type: 'checkbox', title: 'Seleccionar todas las visibles'});
+    const visiblesIds = base().map(x => x.id);
+    todas.checked = visiblesIds.length > 0 && visiblesIds.every(id => seleccionadas.has(id));
+    todas.addEventListener('change', () => { visiblesIds.forEach(id => todas.checked ? seleccionadas.add(id) : seleccionadas.delete(id)); pintar(); });
+    celdaTodas.append(todas);
+    cab.append(celdaTodas);
     cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab cc-col-acciones', 'Acciones'));
     for (const id of columnas) {
       const col = COLUMNAS[id], th = el('div', 'cc-th' + (col.num ? ' cc-th-num' : ''));
@@ -1498,6 +1521,9 @@
     const visibles = base().length;
     const opcionPestana = menuExportar.querySelector('[data-alcance="pestana"]');
     opcionPestana.disabled = !visibles;
+    const opcionSeleccion = menuExportar.querySelector('[data-alcance="seleccion"]');
+    opcionSeleccion.disabled = !seleccionadas.size;
+    $('cc-exportar-seleccion').textContent = seleccionadas.size ? seleccionadas.size + (seleccionadas.size === 1 ? ' solicitud marcada' : ' solicitudes marcadas') : 'Marca solicitudes con la casilla';
     $('cc-exportar-pestana').textContent = NOMBRE_TAB[tab] + ' · ' + visibles + (visibles === 1 ? ' solicitud' : ' solicitudes');
     const todas = delProyecto().length;
     $('cc-exportar-todo').textContent = 'Todas las pestañas' + (selectorProyecto.value ? ' · ' + selectorProyecto.value : '') + ' · ' + todas + (todas === 1 ? ' solicitud' : ' solicitudes');
@@ -1507,8 +1533,9 @@
   document.addEventListener('click', e => { if (!menuExportar.hidden && !menuExportar.contains(e.target)) cerrarExportar(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menuExportar.hidden) { cerrarExportar(); excel.focus(); } });
   menuExportar.querySelectorAll('.cc-exportar-opcion').forEach(opcion => opcion.addEventListener('click', () => {
-    const todo = opcion.dataset.alcance === 'todo';
+    const alcance = opcion.dataset.alcance, todo = alcance === 'todo';
     cerrarExportar();
+    if (alcance === 'seleccion') return exportar([...seleccionadas], 'Caja-Chica-seleccionadas.xlsx');
     exportar(todo ? delProyecto().map(s => s.id) : base().map(s => s.id),
       todo ? 'Caja-Chica-historial.xlsx' : 'Caja-Chica-' + NOMBRE_TAB[tab].replace(/\s+/g, '-') + '.xlsx');
   }));
@@ -1563,7 +1590,7 @@
     }
     for (const sol of visibles) {
       const s = el('div', 'cc-card cc-resumen cc-fila-solicitud');
-      if (puedeEliminar) {
+      {
         const celda = el('span', 'cc-seleccion');
         const check = Object.assign(el('input'), {type: 'checkbox', checked: seleccionadas.has(sol.id)});
         check.setAttribute('aria-label', 'Seleccionar ' + sol.codigo);

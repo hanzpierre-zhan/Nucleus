@@ -33,7 +33,8 @@
       const b = el('button', 'card cm-item'); b.type = 'button';
       const izq = el('span', 'cm-item-izq');
       const linea = el('span', 'cm-item-codigo'); linea.append(el('strong', null, s.codigo), el('span', 'cm-chip cm-' + s.proyecto.toLowerCase(), PROYECTOS[s.proyecto] || s.proyecto));
-      izq.append(linea, el('small', null, s.tecnico + ' · ' + (s.formulario?.tipo_billetera && s.formulario.tipo_billetera !== 'No aplica' ? s.formulario.tipo_billetera : s.banco)));
+      izq.append(linea, el('small', null, s.tecnico + ' · ' + (s.formulario?.tipo_billetera && s.formulario.tipo_billetera !== 'No aplica' ? s.formulario.tipo_billetera : s.banco)),
+        el('small', 'cm-fecha', '🕒 ' + new Date(s.creado + 'Z').toLocaleString('es-PE', {dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima'})));
       b.append(izq, el('strong', 'cm-item-monto', dinero(s.total)));
       b.addEventListener('click', () => abrir(s));
       cont.append(b);

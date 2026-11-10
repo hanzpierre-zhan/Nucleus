@@ -610,10 +610,18 @@ def archivar(sol, usuario):
     db.session.commit()
 
 
-def volver_a_sustento(sol, usuario):
-    _exigir(sol.estado == 'ARCHIVADO', 'Solo vuelve a Sustentado una solicitud archivada.')
-    sol.estado, sol.archivado_en = 'SUSTENTO', None
-    _historial(sol, 'volver a sustentado', usuario)
+def rechazar_sustentada(sol, usuario, motivo):
+    """Sustentado o Archivado → Por rendir: los ítems aprobados vuelven al técnico como rechazados, con el motivo."""
+    _exigir(sol.estado in ('SUSTENTO', 'ARCHIVADO'), 'Solo se rechaza una solicitud sustentada o archivada.')
+    motivo = str(motivo or '').strip()
+    _exigir(motivo, 'Escribe por qué se rechaza.')
+    ahora = datetime.utcnow()
+    for item in sol.items:
+        if item.estado == 'APROBADO':
+            item.estado, item.motivo_rechazo, item.revisado_por, item.revisado_en = 'RECHAZADO', motivo, usuario, ahora
+    desde = 'archivada' if sol.estado == 'ARCHIVADO' else 'sustentada'
+    sol.estado, sol.archivado_en = 'DEPOSITADO', None
+    _historial(sol, 'rechazar %s: vuelve a Por rendir' % desde, usuario, motivo)
     db.session.commit()
 
 

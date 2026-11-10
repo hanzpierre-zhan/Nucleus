@@ -496,8 +496,8 @@ def gestion_accion(sid, accion):
             cc.corregir_tecnico(sol, usuario, datos.get('documento'))
         elif accion == 'archivar':
             cc.archivar(sol, usuario)
-        elif accion == 'sustento':
-            cc.volver_a_sustento(sol, usuario)
+        elif accion == 'rechazar_sustentada':
+            cc.rechazar_sustentada(sol, usuario, datos.get('motivo'))
         elif accion == 'devolucion':
             cc.confirmar_devolucion(sol, usuario, datos.get('aceptar') is True, datos.get('motivo') or '')
         else:
