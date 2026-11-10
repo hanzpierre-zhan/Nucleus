@@ -779,7 +779,7 @@ def exportar_excel(solicitudes, dataper=None):
     hoja = libro.active
     hoja.title = 'Historial'
     hoja.append(['Código', 'Fecha solicitud', 'Proyecto', 'Site', 'N.º CM/PM/PLM', 'N.º cotización',
-                 'Técnico', 'DNI', 'Supervisor', 'Registrado en Dataper', 'Estado de solicitud', 'Concepto', 'Tipo de gasto', 'Solicitado', 'Depositado',
+                 'Técnico', 'DNI', 'Supervisor', 'Registrado en Dataper', 'Estado de solicitud', 'Concepto', 'Tipo de gasto', 'Justificación', 'Solicitado', 'Depositado',
                  'Fecha depósito', 'Gastado', 'Devuelto', 'Estado de rendición', 'Fecha rendición',
                  'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta'])
     cero = Decimal('0')
@@ -834,7 +834,7 @@ def exportar_excel(solicitudes, dataper=None):
             comps = comprobantes_de(item)
             fila = [solicitud.codigo, fecha, solicitud.proyecto,
                     formulario.get('site') or '', formulario.get('wo') or '', cotizacion, solicitud.tecnico, solicitud.documento,
-                    supervisor, registrado, pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''),
+                    supervisor, registrado, pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''), solicitud.motivo or '',
                     item.monto, por_item[item.id], peru(solicitud.depositado_en), gastado, devuelto,
                     estado_rendicion, peru(rendicion), total, plazo,
                     *(' / '.join(dict.fromkeys(str(c.get(k) or '') for c in comps if c.get(k))) for k in ('ruc', 'razon_social', 'comprobante'))]

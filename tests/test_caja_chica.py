@@ -141,6 +141,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert [fila['Solicitado'], fila['Depositado'], fila['Estado de rendición'], fila['Estado de solicitud']] == [50, 0, 'Sin depósito', 'Validación']
     assert fila['Tipo de gasto'] == sol['items'][0].get('tipo_presupuesto', fila['Tipo de gasto'])
     assert fila['Supervisor'] == 'Supervisor Caja' and fila['Registrado en Dataper'] == 'Registrado'
+    assert fila['Justificación'] == 'Correctivo LA2859'
     listado = next(x for x in auth_client.get('/api/caja-chica/solicitudes').json['solicitudes'] if x['id'] == sid)
     assert listado['dataper'] is True and listado['supervisor'] == 'Supervisor Caja'
     assert cli.get('/form-pruebas/caja-chica/datos', headers=h).json['cuenta_devolucion']['numero'] == '988191318'
