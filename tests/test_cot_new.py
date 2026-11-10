@@ -82,3 +82,38 @@ def test_nuevo_registro_busca_sites_y_wo_del_proyecto(app, auth_client):
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.id.in_(ids)).delete(synchronize_session=False); db.session.commit()
+
+
+def test_flujo_pago_caja_chica_proveedor_transito(app, auth_client):
+    from blueprints.cot_new import pestanas_de
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Cotizaciones').one().id
+        base = {'CLIENTE': 'CLARO', 'ESTADO COTIZACION': 'Aprobado', '_PAGO_PENDIENTE': '1', 'SUB TOTAL + FEE': '100.00'}
+        transito = NucleusData(proyecto_id=pid, key_value='CN-PAGO-T', data_json=json.dumps({**base, 'TIPO GASTO APROBACION': 'Tránsito'}))
+        caja = NucleusData(proyecto_id=pid, key_value='CN-PAGO-C', data_json=json.dumps({**base, 'TIPO GASTO APROBACION': 'Caja Chica'}))
+        db.session.add_all([transito, caja]); db.session.commit()
+    pestanas = lambda key: next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == key)['pestanas']
+    foto = '/api/cotizacion/correo/%d/%s/pago_abc.jpg'
+    try:
+        # Aprobadas antes del flujo de pago: van directo a Operaciones.
+        assert pestanas_de({'ESTADO COTIZACION': 'Aprobado', 'TIPO GASTO APROBACION': 'Caja Chica'}) == ['sustentar']
+        # Tránsito: cae en Caja chica; al pagar va a Operaciones y queda en Tránsito.
+        assert pestanas('CN-PAGO-T') == ['cajachica']
+        assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': '/otra/foto.jpg'}).status_code == 400
+        r = auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': foto % (pid, 'CN-PAGO-T')})
+        assert r.status_code == 200 and r.json['pestanas'] == ['sustentar', 'transito'], r.json
+        fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == 'CN-PAGO-T')
+        assert fila['FECHA PAGO'] and fila['FOTO PAGO'].endswith('pago_abc.jpg') and fila['MONTO PAGADO'] == '100.00'
+        assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': foto % (pid, 'CN-PAGO-T')}).status_code == 409
+        r = auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-T', 'desde': 'transito', 'hacia': 'proveedor'})
+        assert r.json['pestanas'] == ['sustentar', 'proveedor']
+        # Caja chica: a Proveedor (pide factura antes de pagar) y de vuelta a Caja chica.
+        assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'proveedor'}).json['pestanas'] == ['proveedor']
+        assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-C', 'foto': foto % (pid, 'CN-PAGO-C')}).status_code == 409
+        assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'transito', 'hacia': 'proveedor'}).status_code == 409
+        assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'proveedor', 'hacia': 'cajachica'}).json['pestanas'] == ['cajachica']
+        r = auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-C', 'foto': foto % (pid, 'CN-PAGO-C')})
+        assert r.json['pestanas'] == ['sustentar']
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.key_value.in_(['CN-PAGO-T', 'CN-PAGO-C'])).delete(); db.session.commit()

@@ -9,6 +9,7 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, abort, jsonify, render_template, request, send_file, session
 
+from db import db
 from models import NucleusData, Proyecto
 from services import get_menu_proyectos, login_required
 from services.utilidades import puede_cotizaciones
@@ -19,10 +20,11 @@ bp = Blueprint('cot_new', __name__)
 PESTANAS = (
     ('registro', 'Registro', 'fa-pen-to-square', '#64748b'),
     ('cliente', 'Cliente', 'fa-user-check', '#f08a1c'),
-    ('sustentar', 'Sustentar', 'fa-camera', '#2563eb'),
-    ('atendido', 'Atendido', 'fa-circle-check', '#16a34a'),
+    ('cajachica', 'Caja chica', 'fa-wallet', '#16a34a'),
     ('proveedor', 'Proveedor', 'fa-file-invoice', '#7c3aed'),
     ('transito', 'Tránsito', 'fa-shoe-prints', '#0891b2'),
+    ('sustentar', 'Operaciones', 'fa-screwdriver-wrench', '#2563eb'),
+    ('atendido', 'Atendido', 'fa-circle-check', '#16a34a'),
     ('cancelado', 'Anulado', 'fa-ban', '#94a3b8'),
 )
 ESTADO_PESTANA = {
@@ -41,7 +43,8 @@ CAMPOS = ('N° ORDEN', 'N° COTIZACION', 'FECHA', 'CLIENTE', 'NOMBRE CLIENTE', '
           'CODIGO INTERNO', 'COMENTARIO APROBACION', 'ITEMS_JSON', 'ADJUNTO CORREO CLIENTE', 'NOMBRE CORREO CLIENTE',
           'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR', '_PROVEEDOR_REGISTROS', '_SUSTENTO_APROBADO',
           'OBSERVACION SUSTENTO', 'FECHA ATENCION', 'GENERADA', 'TIPO DE CONCEPTO', 'PROYECTO FLM', 'CODIGO SITE',
-          'DISTRITO', 'PROVINCIA', 'REGION', 'COTIZADOR', 'COTIZADOR USUARIO')
+          'DISTRITO', 'PROVINCIA', 'REGION', 'COTIZADOR', 'COTIZADOR USUARIO', 'FECHA PAGO', 'FOTO PAGO', 'PAGADO POR',
+          'MONTO PAGADO', '_PAGO_PENDIENTE', '_TRANSITO_A_PROVEEDOR')
 
 
 def _proyecto():
@@ -57,19 +60,50 @@ def pestana_de(datos):
     return ESTADO_PESTANA.get(str(datos.get('ESTADO COTIZACION') or '').strip().lower(), 'registro')
 
 
-def en_proveedor(datos):
-    """Aprobada para proveedor y aún sin sus documentos completos (misma regla que Cotizaciones)."""
-    if str(datos.get('TIPO GASTO APROBACION') or '').strip().casefold() != 'proveedor':
-        return False
-    if pestana_de(datos) not in ('sustentar', 'atendido'):
-        return False
+def tipo_atencion(datos):
+    """Caja Chica, Proveedor o Tránsito (cómo se atiende la cotización aprobada)."""
+    t = str(datos.get('TIPO GASTO APROBACION') or '').strip().casefold()
+    return {'caja chica': 'Caja Chica', 'proveedor': 'Proveedor', 'transito': 'Tránsito', 'tránsito': 'Tránsito'}.get(t, '')
+
+
+def documentos_proveedor(datos):
+    """Factura, OC, subtotal y archivo de la factura completos."""
     try:
         subtotal_ok = Decimal(str(datos.get('SUBTOTAL FACTURA PROVEEDOR') or '').strip()) >= 0
     except InvalidOperation:
         subtotal_ok = False
-    documentos = all(str(datos.get(c) or '').strip() for c in
-                     ('NUMERO FACTURA PROVEEDOR', 'NUMERO OC PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR'))
-    return not (documentos and subtotal_ok)
+    return subtotal_ok and all(str(datos.get(c) or '').strip() for c in
+                               ('NUMERO FACTURA PROVEEDOR', 'NUMERO OC PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR'))
+
+
+def por_pagar(datos):
+    """Aprobada con el flujo de pago y aún sin pagar (las aprobadas antes del flujo se toman como pagadas)."""
+    return pestana_de(datos) == 'sustentar' and bool(datos.get('_PAGO_PENDIENTE'))
+
+
+def en_proveedor(datos):
+    """Pestaña Proveedor: por pagar al proveedor, o pagada (tránsito o anterior) y sin sus documentos completos."""
+    if pestana_de(datos) not in ('sustentar', 'atendido'):
+        return False
+    tipo = tipo_atencion(datos)
+    if tipo == 'Proveedor':
+        return por_pagar(datos) or not documentos_proveedor(datos)
+    return (tipo == 'Tránsito' and not por_pagar(datos) and bool(datos.get('_TRANSITO_A_PROVEEDOR'))
+            and not documentos_proveedor(datos))
+
+
+def pestanas_de(datos):
+    """Caja chica o Proveedor hasta pagar; luego Operaciones (con Tránsito o Proveedor en paralelo)."""
+    base = pestana_de(datos)
+    if por_pagar(datos):
+        return ['proveedor'] if tipo_atencion(datos) == 'Proveedor' else ['cajachica']
+    pestanas = [base]
+    if (base in ('sustentar', 'atendido') and tipo_atencion(datos) == 'Tránsito'
+            and not datos.get('_TRANSITO_A_PROVEEDOR') and datos.get('FECHA PAGO')):
+        pestanas.append('transito')
+    if en_proveedor(datos):
+        pestanas.append('proveedor')
+    return pestanas
 
 
 def _monto(datos):
@@ -96,11 +130,7 @@ def _filas():
         except (TypeError, ValueError):
             fila['items'] = []
         fila.pop('ITEMS_JSON', None)
-        pestanas = [pestana_de(datos)]
-        if en_proveedor(datos):
-            pestanas.append('proveedor')
-        if transito.get(key):
-            pestanas.append('transito')
+        pestanas = pestanas_de(datos)
         fila.update(id=rid, key=key, pestanas=pestanas, monto=_monto(datos) or '0.00',
                     familia=familia_cotizacion(datos) or str(datos.get('CLIENTE') or '').strip().upper(),
                     transito=transito.get(key))
@@ -200,6 +230,92 @@ def guardar():
     datos = request.get_json(silent=True) or {}
     permitidos = ('MOTIVO', 'OBJETIVO', 'SUPERVISOR', 'NUMERO WO', 'NOMBRE SITE', 'ITEMS_JSON', 'SUB TOTAL + FEE')
     return api_rows_bulk_update({'key': datos.get('key'), 'data': {k: v for k, v in (datos.get('data') or {}).items() if k in permitidos}})
+
+
+def _fila_cotizacion(key):
+    modulo = _proyecto()
+    fila = (NucleusData.query.filter_by(proyecto_id=modulo.id, key_value=str(key or '').strip())
+            .with_for_update().first())
+    if not fila:
+        abort(404)
+    return modulo, fila, json.loads(fila.data_json or '{}')
+
+
+def _guardar(fila, datos, accion, usuario, detalle=''):
+    """Guarda con historial y anota el movimiento; devuelve la fecha y hora de Perú."""
+    from datetime import datetime, timedelta
+    from models import NucleusHistory
+    db.session.add(NucleusHistory(proyecto_id=fila.proyecto_id, key_value=fila.key_value, data_json=fila.data_json))
+    ahora = (datetime.utcnow() - timedelta(hours=5)).strftime('%Y-%m-%d %H:%M:%S')
+    datos.setdefault('_MOVIMIENTOS_PAGO', []).append({'accion': accion, 'por': usuario, 'fecha': ahora, 'detalle': detalle})
+    if accion == 'pagar':
+        datos['FECHA PAGO'] = ahora
+    fila.data_json = json.dumps(datos, ensure_ascii=False)
+    db.session.commit()
+    return ahora
+
+
+def _puede_mover():
+    return str(session.get('rol') or '').strip().lower() not in ('demo', 'contrata')
+
+
+def _usuario():
+    from services.utilidades import audit_user
+    return audit_user() or 'Desconocido'
+
+
+@bp.post('/api/cot-new/pagar')
+@login_required
+def pagar():
+    """Registra el pago (foto; fecha y hora automáticas) y la cotización pasa a Operaciones."""
+    if not _puede_mover():
+        return jsonify(error='No tienes permisos para registrar pagos.'), 403
+    entrada = request.get_json(silent=True) or {}
+    modulo, fila, datos = _fila_cotizacion(entrada.get('key'))
+    if not por_pagar(datos):
+        return jsonify(error='Esta cotización no está pendiente de pago.'), 409
+    from werkzeug.utils import secure_filename
+    foto = str(entrada.get('foto') or '').strip()
+    prefijo = '/api/cotizacion/correo/%d/%s/pago_' % (modulo.id, secure_filename(fila.key_value))
+    if not foto.startswith(prefijo) or any(c in foto for c in '<>"\'\\'):
+        return jsonify(error='Adjunta la foto del pago.'), 400
+    if tipo_atencion(datos) == 'Proveedor' and not documentos_proveedor(datos):
+        return jsonify(error='Carga primero la factura y la OC del proveedor.'), 409
+    usuario = _usuario()
+    datos.pop('_PAGO_PENDIENTE', None)
+    datos.update({'FOTO PAGO': foto, 'PAGADO POR': usuario, 'MONTO PAGADO': _monto(datos) or ''})
+    _guardar(fila, datos, 'pagar', usuario, foto)
+    return jsonify(success=True, pestanas=pestanas_de(datos))
+
+
+# Cambios permitidos entre bandejas: (desde, hacia).
+MOVIMIENTOS = {('cajachica', 'transito'), ('cajachica', 'proveedor'), ('proveedor', 'cajachica'), ('transito', 'proveedor')}
+
+
+@bp.post('/api/cot-new/mover')
+@login_required
+def mover():
+    """Pasa la cotización entre Caja chica, Proveedor y Tránsito."""
+    if not _puede_mover():
+        return jsonify(error='No tienes permisos para mover cotizaciones.'), 403
+    entrada = request.get_json(silent=True) or {}
+    _, fila, datos = _fila_cotizacion(entrada.get('key'))
+    desde, hacia = str(entrada.get('desde') or ''), str(entrada.get('hacia') or '')
+    if (desde, hacia) not in MOVIMIENTOS or desde not in pestanas_de(datos):
+        return jsonify(error='Ese cambio no aplica a esta cotización.'), 409
+    if desde == 'transito':
+        datos['_TRANSITO_A_PROVEEDOR'] = '1'
+        datos['_PROVEEDOR_PARALELO'] = True
+    elif desde == 'proveedor' and not por_pagar(datos):
+        return jsonify(error='Ya está pagada: no se puede pasar a Caja chica.'), 409
+    else:
+        nuevo = {'transito': 'Tránsito', 'proveedor': 'Proveedor', 'cajachica': 'Caja Chica'}[hacia]
+        if nuevo == tipo_atencion(datos):
+            return jsonify(error='Ya está como ' + nuevo + '.'), 409
+        datos['TIPO GASTO APROBACION'] = nuevo
+        datos['_PROVEEDOR_PARALELO'] = nuevo == 'Proveedor'
+    _guardar(fila, datos, 'mover', _usuario(), desde + ' -> ' + hacia)
+    return jsonify(success=True, pestanas=pestanas_de(datos))
 
 
 @bp.post('/api/cot-new/generar')

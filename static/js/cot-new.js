@@ -12,7 +12,7 @@
   const clasico = '/switch_project/' + proyectoId + '?next=/';
   const dialogo = $('cc-solicitud-dialogo');
   const NOMBRE_TAB = Object.fromEntries([...document.querySelectorAll('.cn-tab')].map(b => [b.dataset.tab, b.textContent.trim().replace(/\s+\d+\s+S\/.*$/s, '').trim()]));
-  const COLOR_ESTADO = {registro: 'cn-e-registro', cliente: 'cn-e-cliente', sustentar: 'cn-e-sustentar', atendido: 'cn-e-atendido', cancelado: 'cn-e-cancelado'};
+  const COLOR_ESTADO = {registro: 'cn-e-registro', cliente: 'cn-e-cliente', cajachica: 'cn-e-atendido', proveedor: 'cn-e-proveedor', sustentar: 'cn-e-sustentar', atendido: 'cn-e-atendido', cancelado: 'cn-e-cancelado'};
   const CLIENTES = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
 
   let usuarios = {};
@@ -30,6 +30,9 @@
     m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     return m ? new Date(+m[3], m[2] - 1, +m[1]).getTime() : 0;
   }
+  // Cómo se atiende la cotización aprobada: Caja chica, Proveedor o Tránsito.
+  const atencion = c => ({'caja chica': 'Caja chica', proveedor: 'Proveedor', transito: 'Tránsito', 'tránsito': 'Tránsito'})[String(c['TIPO GASTO APROBACION'] || '').trim().toLowerCase()] || '';
+  const CHIP_ATENCION = {'Caja chica': 'cn-a-caja', Proveedor: 'cn-a-proveedor', 'Tránsito': 'cn-a-transito'};
   const fechaTexto = t => { const v = fechaValor(t); return v ? new Date(v).toLocaleDateString('es-PE') : (t || '—'); };
 
   // ── Columnas ──
@@ -50,12 +53,19 @@
     supervisor: {titulo: 'Supervisor', ancho: 'minmax(140px, 1fr)', texto: c => c.SUPERVISOR || '—'},
     gestor: {titulo: 'Solicitado por', ancho: 'minmax(120px, .9fr)', texto: c => nombreDe(c['SOLICITADO POR'] || c.GESTOR) || '—'},
     cotizador: {titulo: 'Cotizador', ancho: 'minmax(130px, .9fr)', texto: c => nombreDe(c.COTIZADOR || c['COTIZADO POR']) || '—'},
-    estado: {titulo: 'Estado', ancho: 'minmax(130px, .9fr)', texto: c => c['ESTADO COTIZACION'] || 'Pdt. Cotización',
-             celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), c['ESTADO COTIZACION'] || 'Pdt. Cotización')},
+    estado: {titulo: 'Estado', ancho: 'minmax(130px, .9fr)', texto: c => estadoTexto(c),
+             celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), estadoTexto(c))},
+    atencion: {titulo: 'Se atiende con', ancho: 'minmax(110px, .8fr)', texto: c => atencion(c) || '—',
+               celda: c => atencion(c) ? el('span', 'cc-chip ' + CHIP_ATENCION[atencion(c)], atencion(c)) : el('span', null, '—')},
     monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
             celda: c => el('strong', 'cc-num', dinero(c.monto))},
   };
-  let columnas = Object.keys(COLUMNAS);
+  // "Se atiende con" va junto al cliente para verlo sin desplazar la tabla.
+  let columnas = Object.keys(COLUMNAS).filter(k => k !== 'atencion'); columnas.splice(3, 0, 'atencion');
+  function estadoTexto(c) {
+    if (c._PAGO_PENDIENTE && ['cajachica', 'proveedor'].includes(c.pestanas[0])) return 'Por pagar';
+    return c.pestanas[0] === 'sustentar' ? 'En operaciones' : (c['ESTADO COTIZACION'] || 'Pdt. Cotización');
+  }
   try {
     const guardadas = JSON.parse(localStorage.getItem('cn-columnas') || 'null');
     if (Array.isArray(guardadas) && guardadas.length === columnas.length && columnas.every(c => guardadas.includes(c))) columnas = guardadas;
@@ -609,6 +619,39 @@
       ['Generar: PDF y pasa a Cliente', 'cn-verde', 'fa-paper-plane', conErrorEn(error, generar)]]);
     $('cc-solicitud-contenido').firstChild.classList.add('cn-editor');
   }
+  // ── Pago: foto del pago; la fecha y hora se graban solas. Pasa a Operaciones (y Tránsito si corresponde) ──
+  function pagar(c) {
+    const izquierda = fichasDetalle(c);
+    const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
+    const caja = el('section', 'cc-ficha cn-aprobacion');
+    const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-money-bill-wave'), el('span', null, 'Pago')); caja.append(h);
+    const monto = el('div', 'cn-total'); monto.append(el('span', null, 'Monto a pagar · ' + (atencion(c) || '')), el('strong', null, dinero(c.monto)));
+    const foto = zonaArchivo('Foto del pago', 'Toca para adjuntar la captura o voucher', 'image/*,.pdf');
+    const tras = atencion(c) === 'Tránsito' ? ' y queda en Tránsito hasta encontrar proveedor' : '';
+    caja.append(monto, foto, el('p', 'cc-nota', 'La fecha y hora del pago se registran solas al confirmar. Pasa a Operaciones' + tras + '.'));
+    const error = errorCaja(); caja.append(error);
+    derecha.append(fichaItems(c), caja);
+    ventana('Registrar pago · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Confirmar pago', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
+      if (!foto.input.files.length) throw Error('Adjunta la foto del pago.');
+      const subido = await subir('/api/cotizacion/subir_pago', c.key, foto.input.files[0]);
+      const r = await fetch('/api/cot-new/pagar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, foto: subido.url})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(j.error || 'No se pudo registrar el pago.');
+      dialogo.close(); await cargar();
+      avisar('Pago registrado: ' + (c['N° COTIZACION'] || c.key) + ' pasó a Operaciones' + (atencion(c) === 'Tránsito' ? ' y a Tránsito.' : '.'));
+    })]]);
+  }
+  async function moverA(c, desde, hacia, nombre) {
+    const ok = await (window.nucleusConfirm ? window.nucleusConfirm((c['N° COTIZACION'] || c.key) + ' pasará a ' + nombre + '.', 'Pasar a ' + nombre, {okText: 'Pasar', circular: true})
+      : confirm('¿Pasar a ' + nombre + '?'));
+    if (!ok) return;
+    const r = await fetch('/api/cot-new/mover', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, desde, hacia})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { avisar(j.error || 'No se pudo mover la cotización.'); return; }
+    if (dialogo.open) dialogo.close();
+    await cargar();
+    avisar((c['N° COTIZACION'] || c.key) + ' pasó a ' + nombre + '.');
+  }
   // ── Flujo dentro de Cot_New: aprobar, proveedor, sustento y atención (mismos servicios de Cotizaciones) ──
   async function subir(ruta, key, archivo) {
     const datos = new FormData(); datos.append('key', key); datos.append('adjunto', archivo);
@@ -650,9 +693,9 @@
     form.append(correo);
     // La fecha de aprobación no se escribe: se registra sola con la hora de Perú al aprobar.
     // Se atiende con: dos botones (mismo diseño que Gasto Cobra / Refacturable).
-    const tipo = Object.assign(el('input'), {type: 'hidden', value: /prov/i.test(c['TIPO GASTO APROBACION'] || '') ? 'Proveedor' : 'Caja Chica'});
+    const tipo = Object.assign(el('input'), {type: 'hidden', value: {Proveedor: 'Proveedor', 'Tránsito': 'Tránsito'}[atencion(c)] || 'Caja Chica'});
     const segmento = el('div', 'cn-segmento');
-    [['Caja Chica', 'Caja chica'], ['Proveedor', 'Proveedor']].forEach(([v, t]) => {
+    [['Caja Chica', 'Caja chica'], ['Proveedor', 'Proveedor'], ['Tránsito', 'Tránsito']].forEach(([v, t]) => {
       const b = el('button', v === tipo.value ? 'activo' : '', t); b.type = 'button';
       b.addEventListener('click', () => { tipo.value = v; segmento.querySelectorAll('button').forEach(x => x.classList.toggle('activo', x === b)); tipo.dispatchEvent(new Event('change')); });
       segmento.append(b);
@@ -773,7 +816,15 @@
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
     else if (p === 'sustentar') lista.push(['Sustento del WO y pasar a Atendido', 'cn-azul', 'fa-camera', () => sustento(c)]);
     else if (p === 'atendido') lista.push(['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
-    else if (p === 'proveedor') lista.push(['Facturas del proveedor', 'cn-morado', 'fa-file-invoice', () => proveedor(c)]);
+    else if (p === 'cajachica') {
+      lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)]);
+      if (atencion(c) !== 'Tránsito') lista.push(['Pasar a Tránsito', 'cn-cian', 'fa-shoe-prints', () => moverA(c, 'cajachica', 'transito', 'Tránsito')]);
+      lista.push(['Pasar a Proveedor', 'cn-morado', 'fa-file-invoice', () => moverA(c, 'cajachica', 'proveedor', 'Proveedor')]);
+    } else if (p === 'proveedor') {
+      lista.push(['Factura y OC del proveedor', 'cn-morado', 'fa-file-arrow-up', () => proveedor(c)]);
+      if (c._PAGO_PENDIENTE) lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)],
+        ['Pasar a Caja chica', 'cn-naranja', 'fa-wallet', () => moverA(c, 'proveedor', 'cajachica', 'Caja chica')]);
+    } else if (p === 'transito') lista.push(['Pasar a Proveedor (se encontró proveedor)', 'cn-morado', 'fa-file-invoice', () => moverA(c, 'transito', 'proveedor', 'Proveedor')]);
     return lista;
   }
   function botonRedondo([titulo, clase, simbolo, fn], tamano) {
@@ -803,7 +854,8 @@
         ['Fecha cotizado', c['FECHA COTIZADO']], ['Enviado al cliente', c['FECHA ENVIO CLIENTE']], ['Aprobado', c['FECHA APROBACION']]]));
     const estado = [['Estado', c['ESTADO COTIZACION'] || 'Pdt. Cotización'], ['Rechazo', c['MOTIVO RECHAZO'] && (c['MOTIVO RECHAZO'] + ' · ' + (c['FECHA RECHAZO'] || ''))],
       ['Anulación', c['MOTIVO CANCELACION'] && (c['MOTIVO CANCELACION'] + ' · ' + (c['FECHA CANCELACION'] || ''))],
-      ['Comentario', c['COMENTARIO APROBACION']], ['Gasto', c['TIPO GASTO APROBACION']], ['Proveedor', c['NOMBRE DE PROVEEDOR']],
+      ['Comentario', c['COMENTARIO APROBACION']], ['Se atiende con', atencion(c)],
+      ['Pago', c['FECHA PAGO'] ? c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']) : (c._PAGO_PENDIENTE ? 'Por pagar' : '')], ['Proveedor', c['NOMBRE DE PROVEEDOR']],
       ['Factura', c['NUMERO FACTURA PROVEEDOR']], ['OC', c['NUMERO OC PROVEEDOR']],
       ['Tránsito', c.transito && ('Enviada ' + (c.transito.fecha || '') + ' · ' + (c.transito.usuario || ''))]];
     izquierda.append(ficha('fa-flag', 'Estado', estado));

@@ -149,3 +149,10 @@ body #cc-solicitud-dialogo .cn-segmento button.activo { background: #173E76 !imp
 .cc-validacion-derecha.cn-columna-archivos { display: grid; gap: 12px; align-content: start; }
 .cn-aprobacion .cc-validacion-zona { min-height: 0; padding: 16px 12px; }
 body #cc-solicitud-dialogo .cn-aprobacion .cc-validacion-zona { min-height: 110px !important; height: auto !important; flex: none !important; }
+/* Flujo de pago: Caja chica, Proveedor y Tránsito */
+.cn-cian { background: #0e7490 !important; }
+.cc-gestion .cc-acciones-rapidas .cc-rapida.cn-cian, #cc-solicitud-dialogo .cc-dialogo-icono.cn-cian, body .cn-gestion .cn-redondo.cn-cian { background: #0e7490 !important; }
+.cc-chip.cn-a-caja { background: rgba(22, 163, 74, .18); color: #16a34a; }
+.cc-chip.cn-a-proveedor { background: rgba(124, 58, 237, .18); color: #a78bfa; }
+.cc-chip.cn-a-transito { background: rgba(8, 145, 178, .18); color: #22b8d6; }
+.cc-chip.cn-e-proveedor { background: rgba(124, 58, 237, .18); color: #a78bfa; }

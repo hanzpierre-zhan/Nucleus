@@ -989,12 +989,15 @@ def api_cotizacion_accion():
         if pestania != 'cliente':
             return jsonify({'error': 'La aprobación solo aplica a una cotización "En Aprobación" (pestaña Cliente).'}), 409
         tipo_gasto = str(data.get('tipo_gasto_aprobacion', row.get('TIPO GASTO APROBACION')) or '').strip()
-        tipo_gasto = {'caja chica': 'Caja Chica', 'proveedor': 'Proveedor'}.get(tipo_gasto.casefold(), tipo_gasto)
-        if tipo_gasto and tipo_gasto not in ('Caja Chica', 'Proveedor'):
-            return jsonify({'error': 'El tipo de gasto debe ser Caja Chica o Proveedor.'}), 400
+        tipo_gasto = {'caja chica': 'Caja Chica', 'proveedor': 'Proveedor', 'transito': 'Tránsito',
+                      'tránsito': 'Tránsito'}.get(tipo_gasto.casefold(), tipo_gasto)
+        if tipo_gasto and tipo_gasto not in ('Caja Chica', 'Proveedor', 'Tránsito'):
+            return jsonify({'error': 'El tipo de gasto debe ser Caja Chica, Proveedor o Tránsito.'}), 400
         row['TIPO GASTO APROBACION'] = tipo_gasto
         row['ESTADO COTIZACION'] = ESTADO_SUSTENTO
         row['_PROVEEDOR_PARALELO'] = tipo_gasto == 'Proveedor'
+        # Flujo de pago: queda en Caja chica o Proveedor hasta registrar el pago; luego va a Operaciones.
+        row['_PAGO_PENDIENTE'] = '1'
         row['FECHA APROBACION'] = str(data.get('fecha_aprobacion') or '').strip() or ahora
         row['APROBADO POR'] = usuario
         row['COMENTARIO APROBACION'] = str(data.get('comentario') or '').strip()
@@ -1272,6 +1275,7 @@ def _nombre_adjunto_original(datos, url):
 @bp.route('/api/cotizacion/subir_cotizacion_proveedor', methods=['POST'])
 @bp.route('/api/cotizacion/subir_factura_proveedor', methods=['POST'])
 @bp.route('/api/cotizacion/subir_oc_proveedor', methods=['POST'])
+@bp.route('/api/cotizacion/subir_pago', methods=['POST'])
 @login_required
 def api_cotizacion_subir_correo():
     """Sube la evidencia del correo del cliente (.msg/.pdf/captura) y devuelve su URL."""
@@ -1294,6 +1298,9 @@ def api_cotizacion_subir_correo():
     es_factura = request.path.endswith('/subir_factura_proveedor')
     es_oc = request.path.endswith('/subir_oc_proveedor')
     es_proveedor = es_factura or es_oc or request.path.endswith('/subir_cotizacion_proveedor')
+    es_pago = request.path.endswith('/subir_pago')
+    if es_pago and ext not in ('.jpg', '.jpeg', '.png', '.webp', '.pdf'):
+        return jsonify({'error': 'Adjunta la foto del pago (JPG, PNG, WEBP o PDF).'}), 400
     if es_proveedor and ext not in ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'):
         return jsonify({'error': 'Adjunta un PDF, documento Word, Excel o imagen.'}), 400
     if ext in EXT_CORREO_BLOQUEADAS:
@@ -1304,7 +1311,7 @@ def api_cotizacion_subir_correo():
         return jsonify({'error': 'La cotización no existe.'}), 404
     key = secure_filename(key)
     import uuid
-    nombre = '%s_%s%s' % ('factura_proveedor' if es_factura else 'oc_proveedor' if es_oc else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
+    nombre = '%s_%s%s' % ('pago' if es_pago else 'factura_proveedor' if es_factura else 'oc_proveedor' if es_oc else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
     os.close(fd)
     try:
