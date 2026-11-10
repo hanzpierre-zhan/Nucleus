@@ -92,6 +92,45 @@ def en_proveedor(datos):
             and not documentos_proveedor(datos))
 
 
+def aprobada(datos):
+    """Ya la aprobó el cliente (desde ahí corren el estado de pago y el operativo)."""
+    return pestana_de(datos) in ('sustentar', 'atendido')
+
+
+def estado_pago(datos):
+    """Pendiente Depósito, Depositado Caja Chica, Depositado sin proveedor o Facturado Proveedor."""
+    if not aprobada(datos):
+        return ''
+    tipo = tipo_atencion(datos)
+    if tipo in ('Proveedor', 'Tránsito') and documentos_proveedor(datos):
+        return 'Facturado Proveedor'
+    if por_pagar(datos) or tipo == 'Proveedor':
+        return 'Pendiente Depósito'
+    return 'Depositado sin proveedor' if tipo == 'Tránsito' else 'Depositado Caja Chica'
+
+
+def estado_operativo(datos):
+    """Pdt. ejecutar, En ejecución, Ejecutado en campo (fechas de la ficha) o Sustentado (pasó a Atendido)."""
+    if not aprobada(datos):
+        return ''
+    if pestana_de(datos) == 'atendido':
+        return 'Sustentado'
+    import re
+    wos = [w.strip().casefold() for w in re.split(r'[,;|\n]+', str(datos.get('NUMERO WO') or '')) if w.strip()]
+    ejecucion = datos.get('_EJECUCION_WO') if isinstance(datos.get('_EJECUCION_WO'), dict) else {}
+    if len(wos) <= 1:
+        unica = ejecucion.get(wos[0], {}) if wos else {}
+        fechas = [{'inicio': str(datos.get('INICIO EJECUCION') or unica.get('inicio') or '').strip(),
+                   'fin': str(datos.get('FIN EJECUCION') or unica.get('fin') or '').strip()}]
+    else:
+        fechas = [ejecucion.get(w, {}) for w in wos]
+    if all(f.get('fin') for f in fechas):
+        return 'Ejecutado en campo'
+    if any(f.get('inicio') or f.get('fin') for f in fechas):
+        return 'En ejecución'
+    return 'Pdt. ejecutar'
+
+
 def pestanas_de(datos):
     """Caja chica o Proveedor hasta pagar; luego Operaciones (con Tránsito o Proveedor en paralelo)."""
     base = pestana_de(datos)
@@ -131,6 +170,7 @@ def _filas():
             fila['items'] = []
         fila.pop('ITEMS_JSON', None)
         pestanas = pestanas_de(datos)
+        fila.update(estado_pago=estado_pago(datos), estado_operativo=estado_operativo(datos))
         fila.update(id=rid, key=key, pestanas=pestanas, monto=_monto(datos) or '0.00',
                     familia=familia_cotizacion(datos) or str(datos.get('CLIENTE') or '').strip().upper(),
                     transito=transito.get(key))
@@ -285,7 +325,7 @@ def pagar():
     datos.pop('_PAGO_PENDIENTE', None)
     datos.update({'FOTO PAGO': foto, 'PAGADO POR': usuario, 'MONTO PAGADO': _monto(datos) or ''})
     if tipo_atencion(datos) == 'Tránsito':
-        # Se paga lo definido para Tránsito; la provisión (+20 %) es lo que luego pasa a proveedor.
+        # Se paga lo definido para Tránsito; la provisión (20 % de ese monto) pasa luego a proveedor.
         from services.cotizacion_transito import monto_transito, provision
         monto = monto_transito(datos.get('MONTO TRANSITO'))
         if monto is None:

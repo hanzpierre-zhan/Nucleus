@@ -1733,6 +1733,11 @@ def _guardar_sustento(datos, finalizar=False):
             d[nombre]=valor[:10]
     wo_definida = guardar_ficha(d, wo, claves, manual) if manual is not None else wo
     if manual is not None: nuevo['_SUSTENTO_MANUAL'] = manual
+    if wo_definida:
+        ejecucion = d.setdefault('_EJECUCION_WO', {})
+        if wo_definida.casefold() != wo.casefold(): ejecucion.pop(wo.casefold(), None)
+        ejecucion[wo_definida.casefold()] = {'inicio': str(nuevo.get('INICIO EJECUCION') or '').strip(),
+                                             'fin': str(nuevo.get('FIN EJECUCION') or '').strip()}
     if finalizar:
         d['ESTADO COTIZACION']='Atendido'
         d['_SUSTENTO_VALIDADO']=datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')

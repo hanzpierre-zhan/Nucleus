@@ -26,6 +26,18 @@ def test_lista_editar_y_exportar_dataper(app, auth_client, persona):
     datos = auth_client.get('/api/vista/dataper/lista').json
     fila = next(f for f in datos['filas'] if f['id'] == persona)
     assert fila['pestana'] == 'CLARO' and fila['datos']['TECNICO'] == 'Prueba Vista'
+    # DOCUMENTO siempre es la primera columna, aunque el diseño guardado la oculte.
+    with app.app_context():
+        from models import AppConfig
+        pid = Proyecto.query.filter_by(nombre='Dataper').one().id
+        layout = AppConfig(proyecto_id=pid, clave='column_layout', valor=json.dumps([{'field': 'TECNICO'}, {'field': 'DOCUMENTO', 'visible': False}]))
+        db.session.add(layout); db.session.commit()
+        lid = layout.id
+    try:
+        assert auth_client.get('/api/vista/dataper/lista').json['columnas'][0] == 'DOCUMENTO'
+    finally:
+        with app.app_context():
+            AppConfig.query.filter_by(id=lid).delete(); db.session.commit()
     # Otra vista abierta cambia el módulo de la sesión: guardar igual va a Dataper.
     auth_client.get('/vista/material/')
     r = auth_client.post('/api/vista/dataper/actualizar', json={'key': 'VN-71234567', 'field': 'CELULAR', 'value': '911111111'})

@@ -119,9 +119,16 @@ def lista(slug):
         pestana = _clave_pestana(slug, datos)
         if permitidas is not None and pestana not in permitidas:
             continue
-        filas.append({'id': rid, 'key': key, 'pestana': pestana,
-                      'datos': {k: v for k, v in datos.items() if not str(k).startswith('_') and not isinstance(v, (dict, list))}})
-    return jsonify(columnas=_columnas(proyecto, filas), filas=filas)
+        visibles = {k: v for k, v in datos.items() if not str(k).startswith('_') and not isinstance(v, (dict, list))}
+        clave = MODULOS[slug][5]
+        if not str(visibles.get(clave) or '').strip():
+            visibles[clave] = key  # la clave del registro (p. ej. DOCUMENTO en Dataper) siempre se ve
+        filas.append({'id': rid, 'key': key, 'pestana': pestana, 'datos': visibles})
+    columnas = _columnas(proyecto, filas)
+    clave = MODULOS[slug][5]
+    # La columna clave va siempre primero, aunque el diseño guardado del módulo la tenga oculta.
+    columnas = [clave] + [c for c in columnas if c != clave]
+    return jsonify(columnas=columnas, filas=filas)
 
 
 def _fijar_modulo(slug):

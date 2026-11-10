@@ -59,6 +59,6 @@ def monto_transito(valor):
 
 
 def provision(monto):
-    """Provisión para pasar a proveedor: lo depositado por Tránsito + 20 %."""
+    """Provisión para pasar a proveedor: el 20 % de lo depositado por Tránsito."""
     from decimal import Decimal
-    return str((Decimal(monto) * Decimal('1.20')).quantize(Decimal('0.01')))
+    return str((Decimal(monto) * Decimal('0.20')).quantize(Decimal('0.01')))

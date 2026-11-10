@@ -103,9 +103,9 @@ def test_flujo_pago_caja_chica_proveedor_transito(app, auth_client):
         r = auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': foto % (pid, 'CN-PAGO-T')})
         assert r.status_code == 200 and r.json['pestanas'] == ['sustentar', 'transito'], r.json
         fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == 'CN-PAGO-T')
-        # Tránsito paga el monto definido y deja la provisión (+20 %) para el proveedor.
+        # Tránsito paga el monto definido y deja la provisión (20 % de ese monto) para el proveedor.
         assert fila['FECHA PAGO'] and fila['FOTO PAGO'].endswith('pago_abc.jpg') and fila['MONTO PAGADO'] == '80.00'
-        assert fila['PROVISION'] == '96.00'
+        assert fila['PROVISION'] == '16.00'
         assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': foto % (pid, 'CN-PAGO-T')}).status_code == 409
         r = auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-T', 'desde': 'transito', 'hacia': 'proveedor'})
         assert r.json['pestanas'] == ['sustentar', 'proveedor']
@@ -128,3 +128,24 @@ def test_flujo_pago_caja_chica_proveedor_transito(app, auth_client):
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.key_value.in_(['CN-PAGO-T', 'CN-PAGO-C'])).delete(); db.session.commit()
+
+
+def test_estado_de_pago_y_operativo():
+    from blueprints.cot_new import estado_operativo, estado_pago
+    base = {'ESTADO COTIZACION': 'Aprobado'}
+    assert estado_pago({'ESTADO COTIZACION': 'En Aprobación'}) == '' and estado_operativo({'ESTADO COTIZACION': 'En Aprobación'}) == ''
+    assert estado_pago({**base, '_PAGO_PENDIENTE': '1', 'TIPO GASTO APROBACION': 'Caja Chica'}) == 'Pendiente Depósito'
+    assert estado_pago({**base, 'TIPO GASTO APROBACION': 'Caja Chica', 'FECHA PAGO': 'x'}) == 'Depositado Caja Chica'
+    assert estado_pago({**base, 'TIPO GASTO APROBACION': 'Tránsito', 'FECHA PAGO': 'x'}) == 'Depositado sin proveedor'
+    factura = {'NUMERO FACTURA PROVEEDOR': 'F1', 'NUMERO OC PROVEEDOR': 'OC1', 'ADJUNTO FACTURA PROVEEDOR': '/f.pdf', 'SUBTOTAL FACTURA PROVEEDOR': '10'}
+    assert estado_pago({**base, 'TIPO GASTO APROBACION': 'Tránsito', 'FECHA PAGO': 'x', **factura}) == 'Facturado Proveedor'
+    assert estado_pago({**base, 'TIPO GASTO APROBACION': 'Proveedor', '_PAGO_PENDIENTE': '1'}) == 'Pendiente Depósito'
+    # Operativo: por las fechas de la ficha (todas las WO) y Sustentado al pasar a Atendido.
+    assert estado_operativo({**base, 'NUMERO WO': 'CM-1'}) == 'Pdt. ejecutar'
+    assert estado_operativo({**base, 'NUMERO WO': 'CM-1', 'INICIO EJECUCION': '2026-11-10 08:00:00'}) == 'En ejecución'
+    assert estado_operativo({**base, 'NUMERO WO': 'CM-1', 'INICIO EJECUCION': 'a', 'FIN EJECUCION': 'b'}) == 'Ejecutado en campo'
+    dos = {**base, 'NUMERO WO': 'CM-1, CM-2', '_EJECUCION_WO': {'cm-1': {'inicio': 'a', 'fin': 'b'}}}
+    assert estado_operativo(dos) == 'En ejecución'
+    dos['_EJECUCION_WO']['cm-2'] = {'inicio': 'a', 'fin': 'b'}
+    assert estado_operativo(dos) == 'Ejecutado en campo'
+    assert estado_operativo({'ESTADO COTIZACION': 'Atendido'}) == 'Sustentado'

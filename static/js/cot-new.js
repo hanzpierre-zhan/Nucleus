@@ -32,6 +32,9 @@
   }
   // Cómo se atiende la cotización aprobada: Caja chica, Proveedor o Tránsito.
   const atencion = c => ({'caja chica': 'Caja chica', proveedor: 'Proveedor', transito: 'Tránsito', 'tránsito': 'Tránsito'})[String(c['TIPO GASTO APROBACION'] || '').trim().toLowerCase()] || '';
+  // Estados independientes de la pestaña: corren desde que el cliente aprueba.
+  const CHIP_PAGO = {'Pendiente Depósito': 'cn-p-pendiente', 'Depositado Caja Chica': 'cn-a-caja', 'Depositado sin proveedor': 'cn-a-transito', 'Facturado Proveedor': 'cn-a-proveedor'};
+  const CHIP_OPERATIVO = {'Pdt. ejecutar': 'cn-o-pendiente', 'En ejecución': 'cn-o-ejecucion', 'Ejecutado en campo': 'cn-o-ejecutado', 'Sustentado': 'cn-o-sustentado'};
   const CHIP_ATENCION = {'Caja chica': 'cn-a-caja', Proveedor: 'cn-a-proveedor', 'Tránsito': 'cn-a-transito'};
   const fechaTexto = t => { const v = fechaValor(t); return v ? new Date(v).toLocaleDateString('es-PE') : (t || '—'); };
 
@@ -57,13 +60,17 @@
              celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), estadoTexto(c))},
     atencion: {titulo: 'Se atiende con', ancho: 'minmax(110px, .8fr)', texto: c => atencion(c) || '—',
                celda: c => atencion(c) ? el('span', 'cc-chip ' + CHIP_ATENCION[atencion(c)], atencion(c)) : el('span', null, '—')},
+    pago: {titulo: 'Estado de pago', ancho: 'minmax(150px, 1fr)', texto: c => c.estado_pago || '—',
+           celda: c => c.estado_pago ? el('span', 'cc-chip ' + (CHIP_PAGO[c.estado_pago] || ''), c.estado_pago) : el('span', null, '—')},
+    operativo: {titulo: 'Estado operativo', ancho: 'minmax(140px, .9fr)', texto: c => c.estado_operativo || '—',
+                celda: c => c.estado_operativo ? el('span', 'cc-chip ' + (CHIP_OPERATIVO[c.estado_operativo] || ''), c.estado_operativo) : el('span', null, '—')},
     provision: {titulo: 'Provisión', ancho: 'minmax(110px, .7fr)', num: true, texto: c => c.PROVISION ? dinero(c.PROVISION) : '—', orden: c => Number(c.PROVISION) || 0,
                 celda: c => c.PROVISION ? el('strong', 'cc-num cn-provision-texto', dinero(c.PROVISION)) : el('span', null, '—')},
     monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
             celda: c => el('strong', 'cc-num', dinero(c.monto))},
   };
   // "Se atiende con" y la provisión van junto al cliente para verlos sin desplazar la tabla.
-  let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'provision');
+  let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'pago', 'operativo', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'pago', 'operativo', 'provision');
   function estadoTexto(c) {
     if (c._PAGO_PENDIENTE && ['cajachica', 'proveedor'].includes(c.pestanas[0])) return 'Por pagar';
     return c.pestanas[0] === 'sustentar' ? 'En operaciones' : (c['ESTADO COTIZACION'] || 'Pdt. Cotización');
@@ -632,7 +639,7 @@
     const foto = zonaArchivo('Foto del pago', 'Toca para adjuntar la captura o voucher', 'image/*,.pdf');
     const tras = atencion(c) === 'Tránsito' ? ' y queda en Tránsito hasta encontrar proveedor' : '';
     caja.append(monto);
-    if (esTransito) { const prov = el('div', 'cn-total cn-provision'); prov.append(el('span', null, 'Provisión para proveedor (+20 %)'), el('strong', null, dinero(Math.round(aPagar * 120) / 100))); caja.append(prov); }
+    if (esTransito) { const prov = el('div', 'cn-total cn-provision'); prov.append(el('span', null, 'Provisión para proveedor (20 %)'), el('strong', null, dinero(Math.round(aPagar * 20) / 100))); caja.append(prov); }
     caja.append(foto, el('p', 'cc-nota', 'La fecha y hora del pago se registran solas al confirmar. Pasa a Operaciones' + tras + '.'));
     const error = errorCaja(); caja.append(error);
     derecha.append(fichaItems(c), caja);
@@ -657,7 +664,7 @@
       const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit'; ok.value = 'ok'; ok.append(icono('fa-shoe-prints'), el('span', null, 'Pasar'));
       pie.append(cancelar, ok);
       form.append(cabeza, el('span', 'cc-motivo-etiqueta', 'Monto a depositar para Tránsito (S/)'), monto,
-        el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será este monto + 20 %.'), pie); d.append(form);
+        el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será el 20 % de este monto.'), pie); d.append(form);
       const validar = () => { ok.disabled = !(num(monto.value) > 0); }; monto.addEventListener('input', validar); validar();
       cancelar.addEventListener('click', () => d.close(''));
       d.addEventListener('close', () => { resolve(d.returnValue === 'ok' ? monto.value : null); d.remove(); });
@@ -730,7 +737,7 @@
     // Tránsito: cuánto se deposita por Caja chica mientras se busca proveedor (por defecto, el total de la cotización).
     const montoTransito = Object.assign(el('input'), {type: 'text', inputMode: 'decimal', placeholder: '0.00', value: c['MONTO TRANSITO'] || Number(c.monto || 0).toFixed(2)});
     const lMonto = el('label', 'cc-pendiente-campo'); lMonto.append(el('span', null, 'Monto a depositar para Tránsito (S/)'), montoTransito,
-      el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será este monto + 20 %.'));
+      el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será el 20 % de este monto.'));
     lTipo.after(lMonto);
     const verMonto = () => { lMonto.hidden = tipo.value !== 'Tránsito'; };
     tipo.addEventListener('change', verMonto); verMonto();
@@ -753,41 +760,62 @@
 
   // Proveedor: una fila por factura (N.º, OC, subtotal y su archivo).
   function proveedor(c) {
-    const izquierda = el('div'); izquierda.append(resumenCot(c));
-    const derecha = el('section', 'cc-ficha cn-items');
-    const t = el('h4', 'cc-ficha-titulo'); t.append(icono('fa-file-invoice'), el('span', null, 'Facturas del proveedor')); derecha.append(t);
-    const tabla = el('table', 'cn-items-tabla cn-items-editar');
-    const cab = el('tr'); ['N.º factura', 'N.º OC', 'Subtotal', 'Archivo', ''].forEach(x => cab.append(el('th', null, x)));
-    const cuerpo = el('tbody'); tabla.append(cab, cuerpo);
+    const izquierda = fichasDetalle(c);
+    const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
+    const caja = el('section', 'cc-ficha');
+    const t = el('h4', 'cc-ficha-titulo'); t.append(icono('fa-file-invoice'), el('span', null, 'Facturas del proveedor')); caja.append(t);
+    const lista = el('div', 'cn-facturas');
     const total = el('strong');
-    const recalcular = () => { total.textContent = dinero([...cuerpo.children].reduce((s, tr) => s + num(tr.subtotal.value), 0)); };
+    const recalcular = () => {
+      total.textContent = dinero([...lista.children].reduce((s, f) => s + num(f.subtotal.value), 0));
+      [...lista.children].forEach((f, n) => { f.numero.textContent = 'Factura ' + (n + 1); });
+    };
     const fila = (r = {}) => {
-      const tr = el('tr');
-      const entrada = (v, cls, modo) => Object.assign(el('input', cls), {value: v ?? '', inputMode: modo || 'text'});
-      tr.factura = entrada(r.factura, 'cn-item-texto'); tr.oc = entrada(r.oc, 'cn-item-und'); tr.subtotal = entrada(r.subtotal, 'cn-item-num', 'decimal');
-      tr.url = r.url || '';
-      const archivo = Object.assign(el('input'), {type: 'file', accept: '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp'});
-      const estado = el('small', 'cc-nota', r.url ? 'Cargada' : '');
-      archivo.addEventListener('change', () => { estado.textContent = archivo.files[0] ? archivo.files[0].name : (tr.url ? 'Cargada' : ''); });
-      tr.archivo = archivo;
-      const quitar = el('button', 'cn-item-quitar', '×'); quitar.type = 'button'; quitar.addEventListener('click', () => { tr.remove(); recalcular(); });
-      tr.subtotal.addEventListener('input', recalcular);
-      const td = (...n) => { const x = el('td'); x.append(...n); return x; };
-      tr.append(td(tr.factura), td(tr.oc), td(tr.subtotal), td(archivo, estado), td(quitar));
-      cuerpo.append(tr); recalcular();
+      const f = el('div', 'cn-factura');
+      const cabeza = el('div', 'cn-factura-cabeza'); f.numero = el('strong');
+      const quitar = el('button', 'cn-factura-quitar'); quitar.type = 'button'; quitar.title = 'Quitar factura'; quitar.setAttribute('aria-label', 'Quitar factura'); quitar.append(icono('fa-trash-can'));
+      quitar.addEventListener('click', () => { f.remove(); recalcular(); });
+      cabeza.append(f.numero, quitar);
+      const datos = el('div', 'cn-factura-datos');
+      const entrada = (v, modo, ph) => Object.assign(el('input'), {type: 'text', value: v ?? '', inputMode: modo || 'text', placeholder: ph || ''});
+      f.factura = campo(datos, 'N.º factura', entrada(r.factura, 'text', 'F001-000123'));
+      f.oc = campo(datos, 'N.º OC', entrada(r.oc, 'text', 'OC-0001'));
+      f.subtotal = campo(datos, 'Subtotal (S/)', entrada(r.subtotal, 'decimal', '0.00'));
+      f.subtotal.addEventListener('input', recalcular);
+      // Adjuntar: botón claro con el nombre del archivo elegido o enlace a la factura ya cargada.
+      f.url = r.url || '';
+      const adjuntar = el('label', 'cn-factura-adjunto');
+      f.archivo = Object.assign(el('input'), {type: 'file', accept: '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp', hidden: true});
+      const texto = el('span'), detalle = el('small');
+      const pintar = () => {
+        const elegido = f.archivo.files[0];
+        adjuntar.classList.toggle('lleno', !!(elegido || f.url));
+        texto.textContent = elegido ? elegido.name : f.url ? 'Factura cargada · toca para cambiarla' : 'Adjuntar factura';
+        detalle.textContent = elegido ? 'Se sube al guardar' : f.url ? '' : 'PDF, Word, Excel o imagen';
+      };
+      f.archivo.addEventListener('change', pintar);
+      adjuntar.append(f.archivo, icono('fa-paperclip'), texto, detalle);
+      const pie = el('div', 'cn-factura-pie'); pie.append(adjuntar);
+      if (f.url) { const ver = el('a', 'cn-factura-ver'); ver.href = f.url; ver.target = '_blank'; ver.rel = 'noopener'; ver.title = 'Ver factura'; ver.append(icono('fa-eye')); pie.append(ver); }
+      pintar();
+      f.append(cabeza, datos, pie);
+      lista.append(f); recalcular();
     };
     (Array.isArray(c._PROVEEDOR_REGISTROS) && c._PROVEEDOR_REGISTROS.length ? c._PROVEEDOR_REGISTROS : [{}]).forEach(fila);
-    const agregar = el('button', 'cc-btn cn-agregar-item', '+ Agregar factura'); agregar.type = 'button'; agregar.addEventListener('click', () => fila());
-    const pie = el('div', 'cn-total'); pie.append(el('span', null, 'Total facturado'), total);
+    const agregar = el('button', 'cc-btn cn-agregar-item'); agregar.type = 'button'; agregar.append(icono('fa-plus'), el('span', null, ' Agregar factura'));
+    agregar.addEventListener('click', () => fila());
+    const pieTotal = el('div', 'cn-total'); pieTotal.append(el('span', null, 'Total facturado'), total);
     const error = errorCaja();
-    const envoltura = el('div', 'cn-items-scroll'); envoltura.append(tabla);
-    derecha.append(envoltura, agregar, pie, error);
+    caja.append(lista, agregar, pieTotal);
+    if (c.PROVISION) { const prov = el('div', 'cn-total cn-provision'); prov.append(el('span', null, 'Provisión de Tránsito (20 %)'), el('strong', null, dinero(c.PROVISION))); caja.append(prov); }
+    caja.append(error);
+    derecha.append(fichaItems(c), caja);
     ventana('Proveedor · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Guardar facturas', 'cn-verde', 'fa-floppy-disk', conErrorEn(error, async () => {
       const registros = [];
-      for (const tr of cuerpo.children) {
-        let url = tr.url;
-        if (tr.archivo.files.length) url = (await subir('/api/cotizacion/subir_factura_proveedor', c.key, tr.archivo.files[0])).url;
-        registros.push({factura: tr.factura.value.trim(), oc: tr.oc.value.trim(), subtotal: tr.subtotal.value.trim(), url});
+      for (const f of lista.children) {
+        let url = f.url;
+        if (f.archivo.files.length) url = (await subir('/api/cotizacion/subir_factura_proveedor', c.key, f.archivo.files[0])).url;
+        registros.push({factura: f.factura.value.trim(), oc: f.oc.value.trim(), subtotal: f.subtotal.value.trim(), url});
       }
       const r = await fetch('/api/cotizacion/proveedor', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, registros})});
       const j = await r.json().catch(() => ({}));
@@ -1089,9 +1117,10 @@
     const estado = [['Estado', c['ESTADO COTIZACION'] || 'Pdt. Cotización'], ['Rechazo', c['MOTIVO RECHAZO'] && (c['MOTIVO RECHAZO'] + ' · ' + (c['FECHA RECHAZO'] || ''))],
       ['Anulación', c['MOTIVO CANCELACION'] && (c['MOTIVO CANCELACION'] + ' · ' + (c['FECHA CANCELACION'] || ''))],
       ['Comentario', c['COMENTARIO APROBACION']], ['Se atiende con', atencion(c)],
+      ['Estado de pago', c.estado_pago], ['Estado operativo', c.estado_operativo],
       ['Pago', c['FECHA PAGO'] ? c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']) : (c._PAGO_PENDIENTE ? 'Por pagar' : '')],
       ['Monto a depositar (Tránsito)', c['MONTO TRANSITO'] && dinero(c['MONTO TRANSITO'])], ['Monto pagado', c['MONTO PAGADO'] && c['FECHA PAGO'] && dinero(c['MONTO PAGADO'])],
-      ['Provisión (+20 %)', c.PROVISION && dinero(c.PROVISION)], ['Proveedor', c['NOMBRE DE PROVEEDOR']],
+      ['Provisión (20 %)', c.PROVISION && dinero(c.PROVISION)], ['Proveedor', c['NOMBRE DE PROVEEDOR']],
       ['Factura', c['NUMERO FACTURA PROVEEDOR']], ['OC', c['NUMERO OC PROVEEDOR']],
       ['Tránsito', c.transito && ('Enviada ' + (c.transito.fecha || '') + ' · ' + (c.transito.usuario || ''))]];
     izquierda.append(ficha('fa-flag', 'Estado', estado));

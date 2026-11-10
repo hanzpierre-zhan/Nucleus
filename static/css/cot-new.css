@@ -184,3 +184,24 @@ body .cn-op-quitar { position: absolute; top: 6px; right: 6px; width: 24px !impo
 @media (max-width: 760px) { #cc-solicitud-dialogo .cn-operaciones, .cn-op-rejilla, .cn-op-fases { grid-template-columns: 1fr; } }
 .cn-provision { background: rgba(8, 145, 178, .14); }
 .cn-provision strong, .cn-provision-texto { color: #22b8d6; }
+/* Proveedor: una tarjeta por factura */
+.cn-facturas { display: grid; gap: 10px; }
+.cn-factura { border: 1px solid var(--ios-hairline); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+.cn-factura-cabeza { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+body .cn-factura-quitar { width: 28px !important; height: 28px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: rgba(220, 38, 38, .14) !important; color: #ef4444 !important; display: grid; place-items: center; font-size: 12px; box-shadow: none !important; }
+.cn-factura-datos { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.cn-factura-datos input { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font-size: 12.5px; }
+.cn-factura-pie { display: flex; gap: 8px; align-items: stretch; }
+.cn-factura-adjunto { flex: 1; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; padding: 9px 12px; border: 1.5px dashed #3b82f6; border-radius: 10px; color: #3b82f6; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.cn-factura-adjunto i { grid-row: 1 / 3; font-size: 16px; }
+.cn-factura-adjunto small { color: var(--ios-secondary); font-weight: 500; font-size: 11px; }
+.cn-factura-adjunto:hover { background: rgba(59, 130, 246, .08); }
+.cn-factura-adjunto.lleno { border-style: solid; border-color: #16a34a; color: #16a34a; background: rgba(22, 163, 74, .08); }
+.cn-factura-ver { display: grid; place-items: center; width: 40px; border-radius: 10px; background: var(--ios-fill); color: #3b82f6; text-decoration: none; }
+@media (max-width: 560px) { .cn-factura-datos { grid-template-columns: 1fr; } }
+/* Estado de pago y estado operativo */
+.cc-chip.cn-p-pendiente { background: rgba(240, 138, 28, .18); color: #f08a1c; }
+.cc-chip.cn-o-pendiente { background: rgba(100, 116, 139, .2); color: #94a3b8; }
+.cc-chip.cn-o-ejecucion { background: rgba(234, 179, 8, .18); color: #eab308; }
+.cc-chip.cn-o-ejecutado { background: rgba(37, 99, 235, .18); color: #3b82f6; }
+.cc-chip.cn-o-sustentado { background: rgba(22, 163, 74, .18); color: #16a34a; }
