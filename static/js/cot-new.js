@@ -15,6 +15,9 @@
   const COLOR_ESTADO = {registro: 'cn-e-registro', cliente: 'cn-e-cliente', sustentar: 'cn-e-sustentar', atendido: 'cn-e-atendido', cancelado: 'cn-e-cancelado'};
   const CLIENTES = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
 
+  let usuarios = {};
+  // Muestra el nombre completo del usuario de Nucleus (rhuaman → Ricardo Huaman).
+  const nombreDe = u => usuarios[String(u || '').trim().toLowerCase()] || u;
   let cotizaciones = [], tab = 'registro', cliente = '', orden = null, filtros = {}, busquedas = {};
   try { tab = localStorage.getItem('cn-tab') || tab; } catch (_) {}
   if (!document.querySelector('.cn-tab[data-tab="' + tab + '"]')) tab = 'registro';
@@ -45,8 +48,8 @@
     wo: {titulo: 'N.º WO', ancho: 'minmax(130px, .9fr)', texto: c => c['NUMERO WO'] || '—'},
     motivo: {titulo: 'Motivo', ancho: 'minmax(200px, 1.8fr)', texto: c => c.MOTIVO || c.OBJETIVO || '—', clase: 'cn-motivo'},
     supervisor: {titulo: 'Supervisor', ancho: 'minmax(140px, 1fr)', texto: c => c.SUPERVISOR || '—'},
-    gestor: {titulo: 'Solicitado por', ancho: 'minmax(120px, .9fr)', texto: c => c['SOLICITADO POR'] || c.GESTOR || '—'},
-    cotizador: {titulo: 'Cotizador', ancho: 'minmax(130px, .9fr)', texto: c => c.COTIZADOR || c['COTIZADO POR'] || '—'},
+    gestor: {titulo: 'Solicitado por', ancho: 'minmax(120px, .9fr)', texto: c => nombreDe(c['SOLICITADO POR'] || c.GESTOR) || '—'},
+    cotizador: {titulo: 'Cotizador', ancho: 'minmax(130px, .9fr)', texto: c => nombreDe(c.COTIZADOR || c['COTIZADO POR']) || '—'},
     estado: {titulo: 'Estado', ancho: 'minmax(130px, .9fr)', texto: c => c['ESTADO COTIZACION'] || 'Pdt. Cotización',
              celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), c['ESTADO COTIZACION'] || 'Pdt. Cotización')},
     monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
@@ -500,7 +503,7 @@
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(ficha('fa-file-lines', 'Detalle', [['Fecha', fechaTexto(c.FECHA)], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
       ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Tipo de concepto', c['TIPO DE CONCEPTO'] || c['TIPO DE COTIZACION']],
-      ['Tipo de gasto', c['TIPO DE GASTO']], ['Cotizador', c.COTIZADOR], ['Solicitado por', c['SOLICITADO POR'] || c.GESTOR]]));
+      ['Tipo de gasto', c['TIPO DE GASTO']], ['Cotizador', nombreDe(c.COTIZADOR)], ['Solicitado por', nombreDe(c['SOLICITADO POR'] || c.GESTOR)]]));
     const textos = el('form', 'cc-ficha cn-editor-textos'); textos.noValidate = true;
     const ht = el('h4', 'cc-ficha-titulo'); ht.append(icono('fa-pen-to-square'), el('span', null, 'Datos de la cotización')); textos.append(ht);
     const proyectoFlm = c['PROYECTO FLM'] || (c.familia ? 'FLM - ' + c.familia : '');
@@ -640,24 +643,32 @@
 
   // Aprobar: conformidad del cliente (correo), fecha y si se atiende con Caja chica o Proveedor.
   function aprobar(c) {
-    const izquierda = el('div'); izquierda.append(resumenCot(c));
-    const form = el('form', 'cc-ficha vn-form'); form.noValidate = true;
+    const izquierda = fichasDetalle(c);
+    const form = el('form', 'cc-ficha cn-aprobacion'); form.noValidate = true;
     const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-check'), el('span', null, 'Conformidad del cliente')); form.append(h);
+    const correo = zonaArchivo('Correo de aprobación', 'Toca para adjuntar .msg, PDF o imagen', '.msg,.eml,.pdf,.jpg,.jpeg,.png,.webp');
+    form.append(correo);
     const ahora = new Date(); ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
     const fecha = campo(form, 'Fecha de aprobación', Object.assign(el('input'), {type: 'datetime-local', value: ahora.toISOString().slice(0, 16)}));
-    const tipo = el('select'); [['Caja Chica', 'Caja chica'], ['Proveedor', 'Proveedor']].forEach(([v, t]) => tipo.add(new Option(t, v)));
-    if (c['TIPO GASTO APROBACION']) tipo.value = /prov/i.test(c['TIPO GASTO APROBACION']) ? 'Proveedor' : 'Caja Chica';
-    campo(form, 'Se atiende con', tipo);
+    // Se atiende con: dos botones (mismo diseño que Gasto Cobra / Refacturable).
+    const tipo = Object.assign(el('input'), {type: 'hidden', value: /prov/i.test(c['TIPO GASTO APROBACION'] || '') ? 'Proveedor' : 'Caja Chica'});
+    const segmento = el('div', 'cn-segmento');
+    [['Caja Chica', 'Caja chica'], ['Proveedor', 'Proveedor']].forEach(([v, t]) => {
+      const b = el('button', v === tipo.value ? 'activo' : '', t); b.type = 'button';
+      b.addEventListener('click', () => { tipo.value = v; segmento.querySelectorAll('button').forEach(x => x.classList.toggle('activo', x === b)); tipo.dispatchEvent(new Event('change')); });
+      segmento.append(b);
+    });
+    segmento.append(tipo);
+    const lTipo = el('div', 'cc-pendiente-campo'); lTipo.append(el('span', null, 'Se atiende con'), segmento); correo.after(lTipo);
     const proveedor = campo(form, 'Nombre del proveedor', Object.assign(el('input'), {maxLength: 200, value: c['NOMBRE DE PROVEEDOR'] || ''}));
     const comentario = campo(form, 'Comentario', Object.assign(el('input'), {maxLength: 500}));
-    izquierda.append(form);
-    const derecha = el('div', 'cn-columna-archivos');
-    const correo = zonaArchivo('Correo de aprobación', 'Toca para adjuntar .msg, PDF o imagen', '.msg,.eml,.pdf,.jpg,.jpeg,.png,.webp');
+    const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
     const cotProv = zonaArchivo('Cotización del proveedor', 'Opcional · PDF, Word, Excel o imagen', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp');
     const verProveedor = () => { const p = tipo.value === 'Proveedor'; proveedor.closest('label').hidden = !p; cotProv.hidden = !p; };
     tipo.addEventListener('change', verProveedor); verProveedor();
     const error = errorCaja();
-    derecha.append(correo, cotProv, error);
+    form.append(cotProv, error);
+    derecha.append(fichaItems(c), form);
     ventana('Aprobar · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Aprobar', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
       if (!correo.input.files.length) throw Error('Adjunta el correo de aprobación del cliente.');
       if (tipo.value === 'Proveedor' && !proveedor.value.trim()) throw Error('Escribe el nombre del proveedor.');
@@ -781,17 +792,14 @@
     for (const [k, v] of filas) { if (!v) continue; const f = el('div', 'cc-ficha-fila'); f.append(el('dt', null, k), el('dd', null, v)); lista.append(f); }
     caja.append(cabeza, lista); return caja;
   }
-  function verDetalle(c) {
-    $('cc-solicitud-titulo').textContent = [c['N° COTIZACION'] || c.key, CLIENTES[c.familia] || c.CLIENTE].filter(Boolean).join(' · ');
-    const acciones = $('cn-dialogo-acciones');
-    acciones.querySelectorAll('.cn-redondo').forEach(b => b.remove());
-    acciones.prepend(...accionesDe(c).map(a => botonRedondo(a, 'cn-grande')));
+  // Detalle (izquierda) e ítems (derecha): los usan la vista de detalle y la de aprobar.
+  function fichasDetalle(c) {
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(
       ficha('fa-file-lines', 'Detalle de la cotización', [['Fecha', fechaTexto(c.FECHA)], ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']],
         ['Motivo', c.MOTIVO], ['Objetivo', c.OBJETIVO !== c.MOTIVO ? c.OBJETIVO : ''], ['Supervisor', c.SUPERVISOR],
         ['Departamento', c.DEPARTAMENTO], ['Tipo de gasto', c['TIPO DE GASTO']], ['Tipo', c['TIPO DE COTIZACION']], ['Código interno', c['CODIGO INTERNO']]]),
-      ficha('fa-users', 'Responsables', [['Solicitado por', c['SOLICITADO POR']], ['Gestor', c.GESTOR], ['Cotizador asignado', c.COTIZADOR], ['Cotizado por', c['COTIZADO POR']],
+      ficha('fa-users', 'Responsables', [['Solicitado por', nombreDe(c['SOLICITADO POR'])], ['Gestor', nombreDe(c.GESTOR)], ['Cotizador asignado', nombreDe(c.COTIZADOR)], ['Cotizado por', nombreDe(c['COTIZADO POR'])],
         ['Fecha cotizado', c['FECHA COTIZADO']], ['Enviado al cliente', c['FECHA ENVIO CLIENTE']], ['Aprobado', c['FECHA APROBACION']]]));
     const estado = [['Estado', c['ESTADO COTIZACION'] || 'Pdt. Cotización'], ['Rechazo', c['MOTIVO RECHAZO'] && (c['MOTIVO RECHAZO'] + ' · ' + (c['FECHA RECHAZO'] || ''))],
       ['Anulación', c['MOTIVO CANCELACION'] && (c['MOTIVO CANCELACION'] + ' · ' + (c['FECHA CANCELACION'] || ''))],
@@ -799,7 +807,9 @@
       ['Factura', c['NUMERO FACTURA PROVEEDOR']], ['OC', c['NUMERO OC PROVEEDOR']],
       ['Tránsito', c.transito && ('Enviada ' + (c.transito.fecha || '') + ' · ' + (c.transito.usuario || ''))]];
     izquierda.append(ficha('fa-flag', 'Estado', estado));
-    const derecha = el('div', 'cc-validacion-derecha');
+    return izquierda;
+  }
+  function fichaItems(c) {
     const items = el('section', 'cc-ficha cn-items');
     const t = el('h4', 'cc-ficha-titulo'); t.append(icono('fa-list-check'), el('span', null, 'Ítems de la cotización (' + c.items.length + ')'));
     const tabla = el('table', 'cn-items-tabla');
@@ -814,7 +824,14 @@
     if (!c.items.length) { const tr = el('tr'); const td = el('td', 'cc-nota', 'Sin ítems registrados.'); td.colSpan = 5; tr.append(td); tabla.append(tr); }
     const total = el('div', 'cn-total'); total.append(el('span', null, 'Sub total + FEE'), el('strong', null, dinero(c.monto)));
     items.append(t, tabla, total);
-    derecha.append(items);
+    return items;
+  }
+  function verDetalle(c) {
+    $('cc-solicitud-titulo').textContent = [c['N° COTIZACION'] || c.key, CLIENTES[c.familia] || c.CLIENTE].filter(Boolean).join(' · ');
+    const acciones = $('cn-dialogo-acciones');
+    acciones.querySelectorAll('.cn-redondo').forEach(b => b.remove());
+    acciones.prepend(...accionesDe(c).map(a => botonRedondo(a, 'cn-grande')));
+    const izquierda = fichasDetalle(c), derecha = el('div', 'cc-validacion-derecha'); derecha.append(fichaItems(c));
     const columnasDetalle = el('div', 'cc-validacion-columnas'); columnasDetalle.append(izquierda, derecha);
     $('cc-solicitud-contenido').replaceChildren(columnasDetalle);
     if (!dialogo.open) dialogo.showModal();
@@ -948,7 +965,7 @@
   async function cargar() {
     const r = await fetch('/api/cot-new/lista'); const j = await r.json().catch(() => ({}));
     if (!r.ok) { $('cn-lista').replaceChildren(el('p', 'cc-alerta', j.error || 'No se pudieron cargar las cotizaciones.')); return; }
-    cotizaciones = j.cotizaciones; pintar();
+    cotizaciones = j.cotizaciones; usuarios = j.usuarios || {}; pintar();
   }
   pintarEncabezado();
   cargar();

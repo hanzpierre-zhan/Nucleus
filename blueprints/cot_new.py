@@ -125,7 +125,13 @@ def pagina():
 @login_required
 def lista():
     _, filas = _filas()
-    return jsonify(cotizaciones=filas)
+    return jsonify(cotizaciones=filas, usuarios=_nombres_usuarios())
+
+
+def _nombres_usuarios():
+    """Usuario de Nucleus → nombre completo, para mostrar nombres legibles en vez del usuario."""
+    from models import Usuario
+    return {u.lower(): n.strip() for u, n in Usuario.query.with_entities(Usuario.username, Usuario.nombre) if u and (n or '').strip()}
 
 
 @bp.post('/api/cot-new/exportar')

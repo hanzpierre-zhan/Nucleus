@@ -143,3 +143,9 @@ body .cn-opciones .cn-opcion { margin: 0 !important; min-height: 0 !important; b
 body .cn-opciones .cn-opcion:last-child { border-bottom: 0 !important; }
 .cn-opciones { padding: 4px 0; }
 .cn-opciones.cn-arriba { top: auto; bottom: 100%; margin: 0 0 4px; }
+body #cc-solicitud-dialogo .cn-segmento button { margin: 0 !important; min-height: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; color: var(--ios-label) !important; }
+body #cc-solicitud-dialogo .cn-segmento button.activo { background: #173E76 !important; color: #fff !important; }
+.cn-aprobacion { display: grid; gap: 10px; align-content: start; }
+.cc-validacion-derecha.cn-columna-archivos { display: grid; gap: 12px; align-content: start; }
+.cn-aprobacion .cc-validacion-zona { min-height: 0; padding: 16px 12px; }
+body #cc-solicitud-dialogo .cn-aprobacion .cc-validacion-zona { min-height: 110px !important; height: auto !important; flex: none !important; }
