@@ -1057,7 +1057,20 @@
       if (!elegido) { avisar('Elige el tiempo de respuesta antes de validar.'); return; }
       if (!await confirmar('La solicitud ' + sol.codigo + ' por ' + dinero(sol.total) + ' pasará a Por depositar.', 'Validar solicitud', {okText: 'Validar', circular: true})) return;
       validar.disabled = true;
-      try { await accion(sol, 'validar', {tiempo: elegido}); }
+      try {
+        // Lo cargado en la ventana (correo, cotización, tiempo) se guarda primero; si no, el servidor no lo ve al validar.
+        const docs = document.getElementById('cc-solicitud-documentos');
+        let actual = sol;
+        if (docs) {
+          const correoNuevo = docs.querySelector('input[name="correo"]')?.files?.length;
+          const cot = docs.querySelector('[name="cotizacion"]')?.value.trim() || '';
+          if (correoNuevo || cot !== (sol.revision?.cotizacion || '') || elegido !== (sol.revision?.tiempo || '')) {
+            await accion(sol, 'documentos', new FormData(docs));
+            actual = solicitudes.find(x => x.id === sol.id) || sol;
+          }
+        }
+        await accion(actual, 'validar', {tiempo: elegido});
+      }
       finally { validar.disabled = false; }
     });
     anular.onclick = intentar(async () => {
