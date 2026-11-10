@@ -128,3 +128,18 @@ body .cn-segmento button.activo { background: #173E76 !important; color: #fff !i
 .cn-editor .cn-items-editar select { min-width: 0; width: 120px; padding-right: 2px; }
 .cn-editor .cn-item-num { width: 66px; }
 #cc-solicitud-dialogo:has(.cn-editor) { width: min(1180px, calc(100% - 32px)); }
+/* Selector de varios (WO / site): chips y buscador en una sola caja */
+.cn-multi { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 38px; padding: 4px 30px 4px 6px; position: relative;
+  border: 1px solid var(--ios-hairline); border-radius: 10px; background: var(--ios-fill); cursor: text; }
+.cn-multi:focus-within { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.25); }
+body .cn-multi input[type="text"] { flex: 1; min-width: 130px; border: 0 !important; outline: 0; background: transparent !important; box-shadow: none !important; padding: 4px 2px !important; color: var(--ios-label); font-size: 13px; }
+.cn-multi-flecha { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--ios-secondary); pointer-events: none; }
+.cn-multi .cn-chip { background: #1d4ed8; color: #fff; }
+.cn-editor-textos select { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); }
+.cn-items-editar tfoot td { padding-top: 8px; border-bottom: 0; font-weight: 700; }
+.cn-pie-etiqueta { text-align: right; color: var(--ios-secondary); font-weight: 600 !important; font-size: 11.5px; }
+.cn-pie-total { color: #3b82f6; }
+body .cn-opciones .cn-opcion { margin: 0 !important; min-height: 0 !important; box-shadow: none !important; outline: 0; font-size: 13px; }
+body .cn-opciones .cn-opcion:last-child { border-bottom: 0 !important; }
+.cn-opciones { padding: 4px 0; }
+.cn-opciones.cn-arriba { top: auto; bottom: 100%; margin: 0 0 4px; }

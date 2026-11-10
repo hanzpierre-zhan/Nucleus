@@ -115,7 +115,7 @@ def pagina():
     rol = str(session.get('rol') or '').strip().lower()
     return render_template('cot_new.html', pestanas=PESTANAS, proyecto_id=modulo.id, tipos_concepto=TIPOS_CONCEPTO,
                            cotizadores=[{'nombre': n, 'usuario': u} for n, u in COTIZADORES],
-                           nombres_cliente=NOMBRES_CLIENTE,
+                           nombres_cliente=NOMBRES_CLIENTE, supervisores=SUPERVISORES,
                            proyectos_flm=PROYECTOS_FLM,
                            puede_gestionar=rol not in ('demo', 'contrata'),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
@@ -192,7 +192,7 @@ def guardar():
     _fijar_cotizaciones()
     from blueprints.rows import api_rows_bulk_update
     datos = request.get_json(silent=True) or {}
-    permitidos = ('MOTIVO', 'OBJETIVO', 'ITEMS_JSON', 'SUB TOTAL + FEE')
+    permitidos = ('MOTIVO', 'OBJETIVO', 'SUPERVISOR', 'NUMERO WO', 'NOMBRE SITE', 'ITEMS_JSON', 'SUB TOTAL + FEE')
     return api_rows_bulk_update({'key': datos.get('key'), 'data': {k: v for k, v in (datos.get('data') or {}).items() if k in permitidos}})
 
 
@@ -212,6 +212,8 @@ SITES_DE = {'FLM - PEXT': 'FLM - ENTEL'}
 CAMPOS_SITE_WO = ('Site Name', 'Site ID', 'Nombre de Site', 'Código Site', 'Site Id', 'Site Id Name', 'Site')
 # Cotizadores que se asignan al registrar (nombre y usuario de Nucleus, como figuran en Usuarios).
 COTIZADORES = (('Luciano Aracca', 'laracca'), ('Diego Rodriguez', 'drodriguez'), ('Ricardo Huaman', 'rhuaman'), ('Edwin Lopez', 'elopez'))
+# Supervisores (lista de Cotizaciones, con el nombre homologado: Nombre Apellido).
+SUPERVISORES = ('Jordan Gonzales', 'Dennis Quispe', 'Jesus Sotelo', 'Roberto Encarnacion', 'Eloy Huancapaza', 'Dennis Unton', 'Edwin Lopez')
 # Contactos del cliente que se eligen al registrar la cotización, según el proyecto.
 NOMBRES_CLIENTE = {
     'ENTEL': ('George McCloun', 'Sergio Huaman', 'Even Junior Vivar'),

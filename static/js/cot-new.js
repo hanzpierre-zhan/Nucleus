@@ -285,6 +285,74 @@
   }
   // ── Nuevo registro (solicitud): proyecto FLM, site registrado, WO, tipo de gasto y de concepto ──
   const CN_CFG = JSON.parse(document.getElementById('cn-config')?.textContent || '{}');
+  // Selector de varios valores (WO o site): chips y buscador en una sola caja, con lista desplegable.
+  // buscar(texto) devuelve [{valor, detalle}] o un texto de aviso; Enter agrega lo escrito.
+  function selectorChips({valores = [], buscar, placeholder, mayusculas = true, vacio}) {
+    const env = el('div', 'cn-buscador'), caja = el('div', 'cn-multi'), lista = el('div', 'cn-opciones'); lista.hidden = true;
+    const input = Object.assign(el('input'), {type: 'text', placeholder, autocomplete: 'off'});
+    const flecha = icono('fa-chevron-down'); flecha.classList.add('cn-multi-flecha');
+    const elegidos = new Set(valores.map(v => String(v).trim()).filter(Boolean));
+    caja.append(input, flecha); env.append(caja, lista);
+    const normal = v => { v = String(v || '').trim().replace(/[,;]+$/, ''); return mayusculas ? v.toUpperCase() : v; };
+    function pintar() {
+      caja.querySelectorAll('.cn-chip').forEach(c => c.remove());
+      for (const v of elegidos) {
+        const c = el('span', 'cn-chip', v), x = el('button', null, '×'); x.type = 'button'; x.title = 'Quitar';
+        x.addEventListener('click', e => { e.stopPropagation(); elegidos.delete(v); pintar(); env.dispatchEvent(new Event('cambio')); });
+        c.append(x); caja.insertBefore(c, input);
+      }
+    }
+    const agregar = v => { v = normal(v); if (v) elegidos.add(v); input.value = ''; pintar(); env.dispatchEvent(new Event('cambio')); abrir(); };
+    let turno = 0;
+    async function abrir() {
+      const t = ++turno, texto = input.value.trim();
+      const r = await buscar(texto);
+      if (t !== turno) return;
+      if (typeof r === 'string') { lista.replaceChildren(el('p', 'cc-nota', r)); lista.hidden = false; return; }
+      const libres = r.filter(o => !elegidos.has(o.valor));
+      lista.replaceChildren(...libres.slice(0, 20).map(o => {
+        const b = el('button', 'cn-opcion'); b.type = 'button'; b.append(el('strong', null, o.valor));
+        if (o.detalle) b.append(el('small', null, o.detalle));
+        b.addEventListener('click', () => { agregar(o.valor); input.focus(); }); return b;
+      }));
+      if (!libres.length) lista.append(el('p', 'cc-nota', vacio ? vacio(texto) : 'Sin coincidencias. Escribe y presiona Enter para agregarlo.'));
+      lista.hidden = false;
+      // Si no hay espacio abajo dentro de la ventana, la lista se abre hacia arriba.
+      const marco = (env.closest('#cc-solicitud-contenido') || document.body).getBoundingClientRect(), pos = caja.getBoundingClientRect();
+      lista.classList.toggle('cn-arriba', pos.bottom + lista.offsetHeight + 8 > marco.bottom && pos.top - lista.offsetHeight > marco.top);
+    }
+    caja.addEventListener('click', () => input.focus());
+    input.addEventListener('focus', abrir);
+    input.addEventListener('input', () => { clearTimeout(input._t); input._t = setTimeout(abrir, input.value.trim() ? 250 : 0); });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); agregar(input.value); }
+      else if (e.key === 'Backspace' && !input.value && elegidos.size) { elegidos.delete([...elegidos].pop()); pintar(); }
+      else if (e.key === 'Escape') { e.stopPropagation(); lista.hidden = true; }
+    });
+    const cerrar = e => { if (!env.isConnected) return document.removeEventListener('click', cerrar); if (!env.contains(e.target)) lista.hidden = true; };
+    document.addEventListener('click', cerrar);
+    pintar();
+    env.valores = () => { if (input.value.trim()) agregar(input.value); return [...elegidos]; };
+    env.limpiar = () => { elegidos.clear(); input.value = ''; pintar(); lista.hidden = true; };
+    env.abrir = abrir; env.input = input;
+    return env;
+  }
+  // WO registrados en un proyecto FLM (los del site primero; sin texto, los más recientes).
+  async function buscarWosDe(proyecto, texto, delSite = []) {
+    if (!proyecto) return 'Elige primero el proyecto.';
+    let encontrados = [];
+    if (texto.length !== 1) {
+      const r = await fetch('/api/cot-new/wos?' + new URLSearchParams({proyecto, q: texto}));
+      encontrados = (await r.json().catch(() => ({}))).wos || [];
+    }
+    const t = texto.toUpperCase();
+    return [...new Set([...delSite, ...encontrados])].filter(w => !t || w.toUpperCase().includes(t)).map(w => ({valor: w}));
+  }
+  async function buscarSitesDe(proyecto, texto) {
+    if (!proyecto) return 'Elige primero el proyecto.';
+    const r = await fetch('/api/cot-new/sites?' + new URLSearchParams({proyecto, q: texto}));
+    return ((await r.json().catch(() => ({}))).sites || []).map(s => ({valor: s.site, detalle: [s.codigo, s.distrito, s.provincia].filter(Boolean).join(' · '), site: s}));
+  }
   function nuevoRegistro() {
     $('cc-solicitud-titulo').textContent = 'Nuevo registro · cotización';
     const acciones = $('cn-dialogo-acciones');
@@ -312,17 +380,10 @@
     const dato = t => { const d = el('div'); const v = el('strong', null, '—'); d.append(el('small', null, t), v); auto.append(d); return v; };
     const vCodigo = dato('Código'), vDistrito = dato('Distrito'), vProvincia = dato('Provincia'), vRegion = dato('Región');
     izq.append(auto, el('p', 'cc-nota', 'Código, distrito, provincia y región se llenan solos al elegir el site.'));
-    const wos = new Set();
-    const chips = el('div', 'cn-chips');
-    const otroWo = Object.assign(el('input'), {type: 'text', placeholder: 'Escribe parte del WO para buscarlo, o el WO completo y Enter', autocomplete: 'off'});
-    // Agregar el WO escrito (con Enter o coma; al enviar también se toma lo que quedó escrito).
-    const agregarEscrito = () => {
-      const w = otroWo.value.trim().toUpperCase().replace(/[,;]+$/, '');
-      if (w) { wos.add(w); otroWo.value = ''; pintarChips(); mostrarWos(); }
-    };
-    const listaWo = el('div', 'cn-opciones'); listaWo.hidden = true;
-    const envWo = el('div', 'cn-buscador'); envWo.append(chips, otroWo, listaWo);
-    campo(izq, 'N.º WO (puedes elegir varios)', envWo, 'cn-ancho');
+    let sitesWo = [];
+    const selWo = selectorChips({placeholder: 'Agregar WO…', buscar: texto => buscarWosDe(proyecto.value, texto, sitesWo),
+      vacio: t => t.length >= 2 ? 'No hay WO con "' + t.toUpperCase() + '" en ' + proyecto.value + '. Si es correcto, presiona Enter.' : 'Escribe el WO y presiona Enter.'});
+    campo(izq, 'N.º WO (puedes elegir varios)', selWo, 'cn-ancho');
     // Derecha: clasificación y justificación.
     const der = el('section', 'cc-ficha');
     const h2 = el('h4', 'cc-ficha-titulo'); h2.append(icono('fa-tag'), el('span', null, 'Clasificación')); der.append(h2);
@@ -343,13 +404,13 @@
     der.append(el('p', 'cc-nota', 'Explica brevemente qué se necesita cotizar. Al enviar queda en Registro como "Pdt. Cotización".'));
     const error = el('p', 'cc-alerta'); error.hidden = true; der.append(error);
 
-    let siteElegido = null, buscaSite = 0, sitesWo = [];
+    let siteElegido = null, buscaSite = 0;
     const limpiarSite = () => {
       siteElegido = null; vCodigo.textContent = vDistrito.textContent = vProvincia.textContent = vRegion.textContent = '—';
       sitesWo = [];
     };
     proyecto.addEventListener('change', () => {
-      buscarSite.value = ''; limpiarSite(); wos.clear(); pintarChips(); listaSites.hidden = listaWo.hidden = true; encontradosWo = [];
+      buscarSite.value = ''; limpiarSite(); selWo.limpiar(); listaSites.hidden = true;
       pintarNombresCliente();
     });
     // La lista de sites sale al tocar el campo (sin escribir) y se filtra al escribir.
@@ -379,53 +440,12 @@
       vCodigo.textContent = s.codigo || '—'; vDistrito.textContent = s.distrito || '—'; vProvincia.textContent = s.provincia || '—'; vRegion.textContent = s.region || '—';
       const r = await fetch('/api/cot-new/wos?' + new URLSearchParams({proyecto: proyecto.value, codigo: s.codigo, nombre: s.nombre}));
       sitesWo = (await r.json().catch(() => ({}))).wos || [];
-      mostrarWos();
+      selWo.input.focus();
     }
-    // Mientras escribes: WO del site elegido y, además, los WO del proyecto que contienen lo escrito.
-    let buscaWo = 0, encontradosWo = [];
-    function buscarWos() {
-      if (!proyecto.value) { avisoProyecto(listaWo); return; }
-      const texto = otroWo.value.trim();
-      const turno = ++buscaWo;
-      clearTimeout(otroWo._t);
-      if (texto.length === 1) { mostrarWos(); return; }
-      otroWo._t = setTimeout(async () => {
-        const r = await fetch('/api/cot-new/wos?' + new URLSearchParams({proyecto: proyecto.value, q: texto}));  // sin texto: los más recientes
-        const j = await r.json().catch(() => ({}));
-        if (turno !== buscaWo) return;
-        encontradosWo = j.wos || []; mostrarWos();
-      }, texto ? 250 : 0);
-    }
-    function mostrarWos() {
-      const texto = otroWo.value.trim().toUpperCase();
-      const libres = [...new Set([...sitesWo, ...encontradosWo])].filter(w => !wos.has(w) && (!texto || w.toUpperCase().includes(texto)));
-      listaWo.replaceChildren(...libres.slice(0, 20).map(w => {
-        const b = el('button', 'cn-opcion', w); b.type = 'button';
-        b.addEventListener('click', () => { wos.add(w); otroWo.value = ''; pintarChips(); mostrarWos(); });
-        return b;
-      }));
-      if (!libres.length) listaWo.append(el('p', 'cc-nota', texto.length >= 2 ? 'No hay WO registrados con "' + texto + '" en ' + proyecto.value + '. Si es correcto, presiona Enter para agregarlo.'
-        : 'No hay WO registrados en ' + proyecto.value + '. Escribe el WO y presiona Enter.'));
-      listaWo.hidden = false;
-    }
-    function pintarChips() {
-      chips.replaceChildren(...[...wos].map(w => {
-        const c = el('span', 'cn-chip', w); const x = el('button', null, '×'); x.type = 'button'; x.title = 'Quitar';
-        x.addEventListener('click', () => { wos.delete(w); pintarChips(); mostrarWos(); }); c.append(x); return c;
-      }));
-    }
-    // Al tocar el campo: los WO del site elegido o, si no hay, los más recientes del proyecto.
-    otroWo.addEventListener('focus', () => { if (!proyecto.value) return avisoProyecto(listaWo); if (!sitesWo.length && !encontradosWo.length) buscarWos(); else mostrarWos(); });
-    otroWo.addEventListener('input', buscarWos);
-    otroWo.addEventListener('keydown', e => {
-      if (e.key !== 'Enter' && e.key !== ',') return;
-      e.preventDefault(); agregarEscrito();
-    });
-
     acciones.prepend(botonRedondo(['Enviar registro', 'cn-verde', 'fa-paper-plane', async () => {
       error.hidden = true;
       try {
-        agregarEscrito();
+        const wos = selWo.valores();
         if (!proyecto.value) throw Error('Elige el proyecto.');
         if (!nombreCliente.value) throw Error('Elige el nombre del cliente.');
         if (!siteElegido) throw Error('Elige el site de la lista.');
@@ -437,7 +457,7 @@
         const datos = {CLIENTE: familia, 'PROYECTO FLM': proyecto.value, FECHA: ahora.toISOString().slice(0, 16).replace('T', ' '),
           'NOMBRE CLIENTE': nombreCliente.value,
           'NOMBRE SITE': siteElegido.site, 'CODIGO SITE': siteElegido.codigo, DISTRITO: siteElegido.distrito, PROVINCIA: siteElegido.provincia,
-          REGION: siteElegido.region, DEPARTAMENTO: siteElegido.region, 'NUMERO WO': [...wos].join(', '),
+          REGION: siteElegido.region, DEPARTAMENTO: siteElegido.region, 'NUMERO WO': wos.join(', '),
           'TIPO DE GASTO': tipoGasto, 'TIPO DE CONCEPTO': concepto.value, 'TIPO DE COTIZACION': concepto.value,
           COTIZADOR: cotizador.value, 'COTIZADOR USUARIO': (CN_CFG.cotizadores || []).find(c => c.nombre === cotizador.value)?.usuario || '',
           MOTIVO: justificacion.value.trim(), OBJETIVO: justificacion.value.trim(), 'ESTADO COTIZACION': 'Pdt. Cotización',
@@ -453,7 +473,6 @@
     // Las listas de sugerencias se cierran al hacer clic fuera de su buscador.
     izq.addEventListener('click', e => {
       if (!envSite.contains(e.target)) listaSites.hidden = true;
-      if (!envWo.contains(e.target)) listaWo.hidden = true;
     });
     const cols = el('div', 'cc-validacion-columnas cn-registro-cols'); cols.append(izq, der);
     $('cc-solicitud-contenido').replaceChildren(cols);
@@ -480,14 +499,29 @@
   function editorCotizacion(c) {
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(ficha('fa-file-lines', 'Detalle', [['Fecha', fechaTexto(c.FECHA)], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
-      ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']], ['Supervisor', c.SUPERVISOR],
-      ['Tipo de concepto', c['TIPO DE CONCEPTO'] || c['TIPO DE COTIZACION']], ['Tipo de gasto', c['TIPO DE GASTO']], ['Cotizador', c.COTIZADOR]]));
+      ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Tipo de concepto', c['TIPO DE CONCEPTO'] || c['TIPO DE COTIZACION']],
+      ['Tipo de gasto', c['TIPO DE GASTO']], ['Cotizador', c.COTIZADOR], ['Solicitado por', c['SOLICITADO POR'] || c.GESTOR]]));
     const textos = el('form', 'cc-ficha cn-editor-textos'); textos.noValidate = true;
-    const ht = el('h4', 'cc-ficha-titulo'); ht.append(icono('fa-bullseye'), el('span', null, 'Motivo y objetivo')); textos.append(ht);
+    const ht = el('h4', 'cc-ficha-titulo'); ht.append(icono('fa-pen-to-square'), el('span', null, 'Datos de la cotización')); textos.append(ht);
+    const proyectoFlm = c['PROYECTO FLM'] || (c.familia ? 'FLM - ' + c.familia : '');
+    const partes = v => String(v || '').split(/\s*[,;]\s*/).filter(Boolean);
+    // Supervisor: lista homologada; si el registro trae otro nombre parecido, se elige el homologado.
+    const supervisor = el('select'); supervisor.add(new Option('Selecciona el supervisor', ''));
+    const lista = CN_CFG.supervisores || [];
+    lista.forEach(n => supervisor.add(new Option(n, n)));
+    const actual = String(c.SUPERVISOR || '').trim();
+    const parecido = lista.find(n => plano(n) === plano(actual)) || lista.find(n => plano(n).split(' ').every(p => plano(actual).includes(p)));
+    if (actual && !parecido) supervisor.add(new Option(actual, actual));
+    supervisor.value = parecido || actual;
+    campo(textos, 'Supervisor', supervisor);
+    const selWo = selectorChips({valores: partes(c['NUMERO WO']), placeholder: 'Agregar otro WO…', buscar: t => buscarWosDe(proyectoFlm, t)});
+    campo(textos, 'N.º WO', selWo);
+    const selSite = selectorChips({valores: c['NOMBRE SITE'] ? [c['NOMBRE SITE']] : [], placeholder: 'Agregar otro site…', mayusculas: false,
+      buscar: t => buscarSitesDe(proyectoFlm, t)});
+    campo(textos, 'Nombre del site', selSite);
     const area = (v, filas) => Object.assign(el('textarea'), {value: v || '', rows: filas, maxLength: 300});
+    const objetivo = campo(textos, 'Objetivo (título de la cotización)', area(c.OBJETIVO || c.MOTIVO, 2));
     const motivo = campo(textos, 'Motivo', area(c.MOTIVO, 3));
-    const objetivo = campo(textos, 'Objetivo', area(c.OBJETIVO && c.OBJETIVO !== c.MOTIVO ? c.OBJETIVO : '', 2));
-    objetivo.placeholder = 'Si lo dejas vacío, se usa el motivo';
     izquierda.append(textos);
 
     const derecha = el('section', 'cc-ficha cn-items');
@@ -498,7 +532,11 @@
     cabeza.append(t, feeCaja);
     const tabla = el('table', 'cn-items-tabla cn-items-editar');
     const cab = el('tr'); ['#', 'Tipo', 'Descripción', 'Und', 'Cant.', 'V. unit.', 'Total', ''].forEach(x => cab.append(el('th', null, x)));
-    const cuerpo = el('tbody'); tabla.append(cab, cuerpo);
+    const cuerpo = el('tbody'), pieTabla = el('tfoot'), filaPie = el('tr');
+    const totVu = el('td', 'cc-num cn-pie-vu'), totFee = el('td', 'cc-num cn-pie-total');
+    const etiquetaPie = el('td', 'cn-pie-etiqueta', 'Total valor unitario · Sub total + FEE'); etiquetaPie.colSpan = 5;
+    filaPie.append(etiquetaPie, totVu, totFee, el('td')); pieTabla.append(filaPie);
+    tabla.append(cab, cuerpo, pieTabla);
     const sub = el('span'), feeMonto = el('span'), feeTexto = el('span', 'cc-nota'), total = el('strong');
     function fila(item = {}) {
       const tr = el('tr'), n = el('td', 'cn-item-n');
@@ -523,6 +561,7 @@
     function recalcular() {
       let s = 0; [...cuerpo.children].forEach((tr, i) => { tr.pintar(i); s += tr.leer().base; });
       const f = num(fee.value), m = Math.round(s * f) / 100;
+      totVu.textContent = dinero(s); totFee.textContent = dinero(s + m);
       sub.textContent = dinero(s); feeTexto.textContent = 'FEE ' + f + '%'; feeMonto.textContent = dinero(m); total.textContent = dinero(s + m);
       t.lastChild.textContent = 'Ítems (' + cuerpo.children.length + ')';
     }
@@ -544,9 +583,11 @@
       if (leidos.some(i => !i.texto || !(num(i.valor_unitario) > 0) || !(num(i.cantidad) > 0))) throw Error('Cada ítem necesita descripción, cantidad y valor unitario.');
       if (!leidos.length) throw Error('Agrega al menos un ítem.');
       if (!motivo.value.trim()) throw Error('Escribe el motivo.');
+      if (!objetivo.value.trim()) throw Error('Escribe el objetivo (título de la cotización).');
       const s = leidos.reduce((a, i) => a + num(i.valor_total), 0);
       const r = await fetch('/api/cot-new/guardar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key,
-        data: {MOTIVO: motivo.value.trim(), OBJETIVO: objetivo.value.trim() || motivo.value.trim(), ITEMS_JSON: JSON.stringify(leidos), 'SUB TOTAL + FEE': s.toFixed(2)}})});
+        data: {MOTIVO: motivo.value.trim(), OBJETIVO: objetivo.value.trim() || motivo.value.trim(), SUPERVISOR: supervisor.value,
+          'NUMERO WO': selWo.valores().join(', '), 'NOMBRE SITE': selSite.valores().join(', '), ITEMS_JSON: JSON.stringify(leidos), 'SUB TOTAL + FEE': s.toFixed(2)}})});
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error || j.success === false) throw Error(j.error || 'No se pudo guardar la cotización.');
       return s;
