@@ -107,6 +107,9 @@ def test_flujo_pago_caja_chica_proveedor_transito(app, auth_client):
         assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': foto % (pid, 'CN-PAGO-T')}).status_code == 409
         r = auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-T', 'desde': 'transito', 'hacia': 'proveedor'})
         assert r.json['pestanas'] == ['sustentar', 'proveedor']
+        # En Proveedor (ya pagada): derivar a Caja chica la saca de Proveedor y sigue en Operaciones.
+        r = auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-T', 'desde': 'proveedor', 'hacia': 'cajachica'})
+        assert r.json['pestanas'] == ['sustentar']
         # Caja chica: a Proveedor (pide factura antes de pagar) y de vuelta a Caja chica.
         assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'proveedor'}).json['pestanas'] == ['proveedor']
         assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-C', 'foto': foto % (pid, 'CN-PAGO-C')}).status_code == 409

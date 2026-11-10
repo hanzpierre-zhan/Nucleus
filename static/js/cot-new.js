@@ -820,8 +820,8 @@
       lista.push(['Pasar a Proveedor', 'cn-morado', 'fa-file-invoice', () => moverA(c, 'cajachica', 'proveedor', 'Proveedor')]);
     } else if (p === 'proveedor') {
       lista.push(['Factura y OC del proveedor', 'cn-morado', 'fa-file-arrow-up', () => proveedor(c)]);
-      if (c._PAGO_PENDIENTE) lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)],
-        ['Pasar a Caja chica', 'cn-naranja', 'fa-wallet', () => moverA(c, 'proveedor', 'cajachica', 'Caja chica')]);
+      if (c._PAGO_PENDIENTE) lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)]);
+      lista.push(['Derivar a Caja chica', 'cn-naranja', 'fa-wallet', () => moverA(c, 'proveedor', 'cajachica', 'Caja chica')]);
     } else if (p === 'transito') lista.push(['Pasar a Proveedor (se encontró proveedor)', 'cn-morado', 'fa-file-invoice', () => moverA(c, 'transito', 'proveedor', 'Proveedor')]);
     return lista;
   }

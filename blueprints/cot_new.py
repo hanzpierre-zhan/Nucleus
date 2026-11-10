@@ -307,7 +307,10 @@ def mover():
         datos['_TRANSITO_A_PROVEEDOR'] = '1'
         datos['_PROVEEDOR_PARALELO'] = True
     elif desde == 'proveedor' and not por_pagar(datos):
-        return jsonify(error='Ya está pagada: no se puede pasar a Caja chica.'), 409
+        # Ya pagada (viene de Tránsito): no se encontró proveedor y queda como Caja chica; sigue en Operaciones.
+        datos['TIPO GASTO APROBACION'] = 'Caja Chica'
+        datos['_PROVEEDOR_PARALELO'] = False
+        datos.pop('_TRANSITO_A_PROVEEDOR', None)
     else:
         nuevo = {'transito': 'Tránsito', 'proveedor': 'Proveedor', 'cajachica': 'Caja Chica'}[hacia]
         if nuevo == tipo_atencion(datos):
