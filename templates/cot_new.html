@@ -2,8 +2,8 @@
 {% block title %}Cot_New — Nucleus{% endblock %}
 {% block content %}
 {# Mismo diseño que Caja Chica: reutiliza su hoja de estilos y sus clases cc-*. #}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=97">
-<link rel="stylesheet" href="/static/css/cot-new.css?v=14">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=98">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=17">
 <section class="cc-gestion cn-gestion" aria-label="Cotizaciones" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-proyecto="{{ proyecto_id }}">
   <div class="cc-barra">
@@ -86,5 +86,5 @@
   </dialog>
 </section>
 <script id="cn-config" type="application/json">{{ {'tipos_concepto': tipos_concepto, 'proyectos': proyectos_flm, 'cotizadores': cotizadores, 'nombres_cliente': nombres_cliente} | tojson }}</script>
-<script src="/static/js/cot-new.js?v=13" defer></script>
+<script src="/static/js/cot-new.js?v=15" defer></script>
 {% endblock %}

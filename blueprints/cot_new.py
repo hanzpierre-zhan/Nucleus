@@ -185,6 +185,17 @@ def agregar():
     return api_rows_add()
 
 
+@bp.post('/api/cot-new/guardar')
+@login_required
+def guardar():
+    """Editor: guarda motivo, objetivo, FEE e ítems de una cotización ya registrada."""
+    _fijar_cotizaciones()
+    from blueprints.rows import api_rows_bulk_update
+    datos = request.get_json(silent=True) or {}
+    permitidos = ('MOTIVO', 'OBJETIVO', 'ITEMS_JSON', 'SUB TOTAL + FEE')
+    return api_rows_bulk_update({'key': datos.get('key'), 'data': {k: v for k, v in (datos.get('data') or {}).items() if k in permitidos}})
+
+
 @bp.post('/api/cot-new/generar')
 @login_required
 def generar():

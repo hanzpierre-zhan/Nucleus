@@ -76,7 +76,8 @@
 .cc-gestion .cc-acciones-rapidas .cc-rapida.cc-no { background: #b91c1c !important; }
 .cc-gestion .cc-acciones-rapidas .cc-rapida.cc-rechazar { background: #a14a08 !important; }
 .cc-tabla .cc-fila-solicitud { cursor: default; }
-.cc-codigo-link { color: var(--ios-blue); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.cc-codigo-link { color: var(--ios-blue); font-weight: 700; text-decoration: none; }
+.cc-codigo-link:hover { text-decoration: none; opacity: .8; }
 #cc-solicitud-dialogo { width: min(1000px, calc(100% - 32px)); max-height: 85dvh; overflow: hidden; border: 1px solid var(--ios-hairline); border-radius: 16px; padding: 0; background: var(--ios-card-bg, #222); color: var(--ios-label); }
 #cc-solicitud-dialogo[open] { display: flex; flex-direction: column; }
 #cc-solicitud-dialogo::backdrop { background: rgba(0, 0, 0, .55); }

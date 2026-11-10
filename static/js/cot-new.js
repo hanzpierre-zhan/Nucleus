@@ -476,6 +476,95 @@
     if (!ok) return;
     try { await generarClave(c.key); if (dialogo.open) dialogo.close(); await cargar(); } catch (e) { avisar(e.message); }
   }
+  // ── Generar cotización: detalle a la izquierda; ítems, FEE único y total a la derecha ──
+  function editorCotizacion(c) {
+    const izquierda = el('div', 'cc-validacion-izquierda');
+    izquierda.append(ficha('fa-file-lines', 'Detalle', [['Fecha', fechaTexto(c.FECHA)], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
+      ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']], ['Supervisor', c.SUPERVISOR],
+      ['Tipo de concepto', c['TIPO DE CONCEPTO'] || c['TIPO DE COTIZACION']], ['Tipo de gasto', c['TIPO DE GASTO']], ['Cotizador', c.COTIZADOR]]));
+    const textos = el('form', 'cc-ficha cn-editor-textos'); textos.noValidate = true;
+    const ht = el('h4', 'cc-ficha-titulo'); ht.append(icono('fa-bullseye'), el('span', null, 'Motivo y objetivo')); textos.append(ht);
+    const area = (v, filas) => Object.assign(el('textarea'), {value: v || '', rows: filas, maxLength: 300});
+    const motivo = campo(textos, 'Motivo', area(c.MOTIVO, 3));
+    const objetivo = campo(textos, 'Objetivo', area(c.OBJETIVO && c.OBJETIVO !== c.MOTIVO ? c.OBJETIVO : '', 2));
+    objetivo.placeholder = 'Si lo dejas vacío, se usa el motivo';
+    izquierda.append(textos);
+
+    const derecha = el('section', 'cc-ficha cn-items');
+    const cabeza = el('div', 'cn-editor-cabeza'), t = el('h4', 'cc-ficha-titulo'); t.append(icono('fa-list-check'), el('span', null, 'Ítems'));
+    const feeInicial = (c.items || []).map(i => i.fee).find(f => f !== undefined && f !== '') ?? '5';
+    const fee = Object.assign(el('input', 'cn-item-num'), {value: String(feeInicial).replace('%', ''), inputMode: 'decimal'});
+    const feeCaja = el('label', 'cn-editor-fee'); feeCaja.append(el('span', null, 'FEE %'), fee);
+    cabeza.append(t, feeCaja);
+    const tabla = el('table', 'cn-items-tabla cn-items-editar');
+    const cab = el('tr'); ['#', 'Tipo', 'Descripción', 'Und', 'Cant.', 'V. unit.', 'Total', ''].forEach(x => cab.append(el('th', null, x)));
+    const cuerpo = el('tbody'); tabla.append(cab, cuerpo);
+    const sub = el('span'), feeMonto = el('span'), feeTexto = el('span', 'cc-nota'), total = el('strong');
+    function fila(item = {}) {
+      const tr = el('tr'), n = el('td', 'cn-item-n');
+      const tipo = el('select'); TIPOS_ITEM.forEach(x => tipo.add(new Option(x, x))); tipo.value = TIPOS_ITEM.includes(item.tipo) ? item.tipo : 'REEMBOLSABLE';
+      const entrada = (v, cls, modo) => Object.assign(el('input', cls), {value: v ?? '', inputMode: modo || 'text'});
+      const texto = entrada(item.texto || item.descripcion, 'cn-item-texto'), und = entrada(item.und || 'UND', 'cn-item-und');
+      const cant = entrada(item.cantidad || '1', 'cn-item-num', 'decimal'), vu = entrada(item.valor_unitario, 'cn-item-num', 'decimal');
+      const tot = el('td', 'cc-num cn-item-total');
+      const quitar = el('button', 'cn-item-quitar'); quitar.type = 'button'; quitar.title = 'Quitar ítem'; quitar.append(icono('fa-trash-can'));
+      quitar.addEventListener('click', () => { tr.remove(); recalcular(); });
+      [cant, vu].forEach(i => i.addEventListener('input', recalcular));
+      const td = x => { const d = el('td'); d.append(x); return d; };
+      tr.append(n, td(tipo), td(texto), td(und), td(cant), td(vu), tot, td(quitar));
+      tr.leer = () => {
+        const base = Math.round(num(cant.value) * num(vu.value) * 100) / 100, f = num(fee.value);
+        return {base, item: {tipo: tipo.value, texto: texto.value.trim(), und: und.value.trim(), cantidad: cant.value.trim(), valor_unitario: vu.value.trim(),
+          fee: String(f), valor_total: (Math.round(base * (1 + f / 100) * 100) / 100).toFixed(2), comentarios: item.comentarios || ''}};
+      };
+      tr.pintar = i => { n.textContent = i + 1; tot.textContent = dinero(tr.leer().base); };
+      cuerpo.append(tr); return tr;
+    }
+    function recalcular() {
+      let s = 0; [...cuerpo.children].forEach((tr, i) => { tr.pintar(i); s += tr.leer().base; });
+      const f = num(fee.value), m = Math.round(s * f) / 100;
+      sub.textContent = dinero(s); feeTexto.textContent = 'FEE ' + f + '%'; feeMonto.textContent = dinero(m); total.textContent = dinero(s + m);
+      t.lastChild.textContent = 'Ítems (' + cuerpo.children.length + ')';
+    }
+    fee.addEventListener('input', recalcular);
+    (c.items || []).forEach(i => fila(i)); if (!cuerpo.children.length) fila();
+    const agregar = el('button', 'cc-btn cn-agregar-item'); agregar.type = 'button'; agregar.append(icono('fa-plus'), el('span', null, ' Agregar ítem'));
+    agregar.addEventListener('click', () => { fila().querySelector('.cn-item-texto').focus(); recalcular(); });
+    const resumen = el('div', 'cn-resumen');
+    const linea = (a, b) => { const d = el('div'); d.append(a, b); return d; };
+    resumen.append(linea(el('span', 'cc-nota', 'Sub total'), sub), linea(feeTexto, feeMonto));
+    const pie = el('div', 'cn-total'); pie.append(el('span', null, 'Sub total + FEE'), total);
+    const envoltura = el('div', 'cn-items-scroll'); envoltura.append(tabla);
+    const error = errorCaja();
+    derecha.append(cabeza, envoltura, agregar, resumen, pie, error);
+    recalcular();
+
+    async function guardar() {
+      const leidos = [...cuerpo.children].map(tr => tr.leer().item).filter(i => i.texto || num(i.valor_unitario));
+      if (leidos.some(i => !i.texto || !(num(i.valor_unitario) > 0) || !(num(i.cantidad) > 0))) throw Error('Cada ítem necesita descripción, cantidad y valor unitario.');
+      if (!leidos.length) throw Error('Agrega al menos un ítem.');
+      if (!motivo.value.trim()) throw Error('Escribe el motivo.');
+      const s = leidos.reduce((a, i) => a + num(i.valor_total), 0);
+      const r = await fetch('/api/cot-new/guardar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key,
+        data: {MOTIVO: motivo.value.trim(), OBJETIVO: objetivo.value.trim() || motivo.value.trim(), ITEMS_JSON: JSON.stringify(leidos), 'SUB TOTAL + FEE': s.toFixed(2)}})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error || j.success === false) throw Error(j.error || 'No se pudo guardar la cotización.');
+      return s;
+    }
+    const guardarSolo = async () => { await guardar(); await cargar(); avisar('Cotización guardada.'); };
+    const generar = async () => {
+      const s = await guardar();
+      const ok = await (window.nucleusConfirm ? window.nucleusConfirm('Se descargará el PDF de ' + (c['N° COTIZACION'] || c.key) + ' por ' + dinero(s) + ' y pasará a Cliente.',
+        'Generar cotización', {okText: 'Generar', circular: true}) : confirm('¿Generar la cotización?'));
+      if (!ok) { await cargar(); return; }
+      await generarClave(c.key); dialogo.close(); await cargar();
+    };
+    ventana((c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), izquierda, derecha, [
+      ['Plantilla de ítems (en Cotizaciones)', 'cn-azul', 'fa-file-excel', abrirClasico],
+      ['Guardar', 'cn-neutro', 'fa-floppy-disk', conErrorEn(error, guardarSolo)],
+      ['Generar: PDF y pasa a Cliente', 'cn-verde', 'fa-paper-plane', conErrorEn(error, generar)]]);
+    $('cc-solicitud-contenido').firstChild.classList.add('cn-editor');
+  }
   // ── Flujo dentro de Cot_New: aprobar, proveedor, sustento y atención (mismos servicios de Cotizaciones) ──
   async function subir(ruta, key, archivo) {
     const datos = new FormData(); datos.append('key', key); datos.append('adjunto', archivo);
@@ -626,11 +715,9 @@
     const p = tab;
     const lista = [];
     if (!puedeGestionar) return lista;
-    if (p === 'registro') lista.push(['Generar cotización (PDF y pasa a Cliente)', 'cn-verde', 'fa-paper-plane', () => generarCotizacion(c)],
-      ['Rechazar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar', 'Rechazar cotización', 'Rechazar', 'fa-rotate-left')],
+    if (p === 'registro') lista.push(['Generar cotización', 'cn-verde', 'fa-file-invoice-dollar', () => editorCotizacion(c)],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
     else if (p === 'cliente') lista.push(['Aprobar (conformidad del cliente)', 'cn-verde', 'fa-check', () => aprobar(c)],
-      ['Rechazar: vuelve a Registro', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar', 'Rechazar cotización', 'Rechazar', 'fa-rotate-left')],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
     else if (p === 'sustentar') lista.push(['Sustento del WO y pasar a Atendido', 'cn-azul', 'fa-camera', () => sustento(c)]);
     else if (p === 'atendido') lista.push(['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
