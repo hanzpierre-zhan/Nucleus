@@ -705,11 +705,10 @@
     const proveedor = campo(form, 'Nombre del proveedor', Object.assign(el('input'), {maxLength: 200, value: c['NOMBRE DE PROVEEDOR'] || ''}));
     const comentario = campo(form, 'Comentario', Object.assign(el('input'), {maxLength: 500}));
     const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
-    const cotProv = zonaArchivo('Cotización del proveedor', 'Opcional · PDF, Word, Excel o imagen', '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp');
-    const verProveedor = () => { const p = tipo.value === 'Proveedor'; proveedor.closest('label').hidden = !p; cotProv.hidden = !p; };
+    const verProveedor = () => { proveedor.closest('label').hidden = tipo.value !== 'Proveedor'; };
     tipo.addEventListener('change', verProveedor); verProveedor();
     const error = errorCaja();
-    form.append(cotProv, error);
+    form.append(error);
     derecha.append(fichaItems(c), form);
     ventana('Aprobar · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Aprobar', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
       if (!correo.input.files.length) throw Error('Adjunta el correo de aprobación del cliente.');
@@ -718,7 +717,6 @@
       const hoy = new Date(); hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset());
       const extra = {tipo_gasto_aprobacion: tipo.value, fecha_aprobacion: hoy.toISOString().slice(0, 19).replace('T', ' '), comentario: comentario.value.trim(),
                      nombre_proveedor: tipo.value === 'Proveedor' ? proveedor.value.trim() : '', adjunto_correo: subido.url, nombre_correo: subido.nombre};
-      if (tipo.value === 'Proveedor' && cotProv.input.files.length) extra.adjunto_cotizacion_proveedor = (await subir('/api/cotizacion/subir_cotizacion_proveedor', c.key, cotProv.input.files[0])).url;
       await accion(c, 'conformar_aprobacion', extra);
       dialogo.close();
     })]]);
