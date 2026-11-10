@@ -702,21 +702,17 @@
     });
     segmento.append(tipo);
     const lTipo = el('div', 'cc-pendiente-campo'); lTipo.append(el('span', null, 'Se atiende con'), segmento); correo.after(lTipo);
-    const proveedor = campo(form, 'Nombre del proveedor', Object.assign(el('input'), {maxLength: 200, value: c['NOMBRE DE PROVEEDOR'] || ''}));
     const comentario = campo(form, 'Comentario', Object.assign(el('input'), {maxLength: 500}));
     const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
-    const verProveedor = () => { proveedor.closest('label').hidden = tipo.value !== 'Proveedor'; };
-    tipo.addEventListener('change', verProveedor); verProveedor();
     const error = errorCaja();
     form.append(error);
     derecha.append(fichaItems(c), form);
     ventana('Aprobar · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Aprobar', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
       if (!correo.input.files.length) throw Error('Adjunta el correo de aprobación del cliente.');
-      if (tipo.value === 'Proveedor' && !proveedor.value.trim()) throw Error('Escribe el nombre del proveedor.');
       const subido = await subir('/api/cotizacion/subir_correo', c.key, correo.input.files[0]);
       const hoy = new Date(); hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset());
       const extra = {tipo_gasto_aprobacion: tipo.value, fecha_aprobacion: hoy.toISOString().slice(0, 19).replace('T', ' '), comentario: comentario.value.trim(),
-                     nombre_proveedor: tipo.value === 'Proveedor' ? proveedor.value.trim() : '', adjunto_correo: subido.url, nombre_correo: subido.nombre};
+                     adjunto_correo: subido.url, nombre_correo: subido.nombre};
       await accion(c, 'conformar_aprobacion', extra);
       dialogo.close();
     })]]);
@@ -802,6 +798,213 @@
     botones.push(['Cargar o editar fotos (en Cotizaciones)', 'cn-azul', 'fa-images', abrirClasico]);
     ventana('Sustento · ' + (c['N° COTIZACION'] || c.key) + (j.sustento_aprobado ? ' · aprobado' : ''), izquierda, derecha, botones);
   }
+  // ── Operaciones: ficha de sustento (mismos datos que Cotizaciones) con el diseño nuevo ──
+  // Un sustento por WO. Izquierda: datos del trabajo y descripción. Derecha: foto de ubicación, evidencia por ítem y pago.
+  const OP_CAMPOS = [['ajb_ejb', 'AJB / EJB'], ['expense', 'Expense'], ['site_name', 'Nombre del sitio'], ['site_id', 'Código del sitio'],
+    ['site_type', 'Tipo de site'], ['region', 'Región'], ['site_address', 'Ubicación del sitio', true], ['district', 'Distrito'], ['province', 'Provincia']];
+  const OP_RESPALDO = {site_name: ['NOMBRE SITE'], site_id: ['CODIGO SITE'], site_address: ['DIRECCION'], site_type: ['TIPO SITE'],
+    district: ['DISTRITO'], province: ['PROVINCIA'], region: ['REGION', 'DEPARTAMENTO']};
+  const OP_FASES = [['before', 'Antes'], ['during', 'Durante'], ['after', 'Después']];
+  const aLocal = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/); return m ? m[1] + '-' + m[2] + '-' + m[3] + 'T' + m[4] + ':' + m[5] : ''; };
+  const deLocal = s => s ? s.replace('T', ' ') + ':00' : '';
+  async function leerJson(r) { return r.json().catch(() => ({})); }
+
+  async function operaciones(c, indice) {
+    const r = await fetch('/api/cotizacion/sustento?key=' + encodeURIComponent(c.key));
+    const j = await leerJson(r);
+    if (!r.ok || !j.success) { avisar(j.error || 'No se pudo cargar el sustento.'); return; }
+    // FLM - PEXT conserva el formulario anterior.
+    if ([c.CLIENTE, c.familia, ...j.wos.map(w => w.proyecto_nombre)].some(v => String(v || '').toUpperCase().includes('PEXT'))) { sustento(c); return; }
+    const lista = j.wos.length ? j.wos : [{wo: '', encontrado: true, wo_data: j.cotizacion_data, bloqueado: j.sustento_aprobado}];
+    const i = indice ?? lista.findIndex(w => w.encontrado);
+    if (i < 0) { avisar('Primero registra los WO en el FLM correspondiente.'); return; }
+    const entry = lista[i], datos = entry.wo_data || {}, manual = datos._SUSTENTO_MANUAL || {};
+    const editable = puedeGestionar && tab === 'sustentar' && !j.sustento_aprobado && !entry.bloqueado;
+    const ctx = {subiendo: 0};
+    const entrada = (valor, tipo) => { const x = Object.assign(el('input'), {type: tipo || 'text', value: valor || '', disabled: !editable}); return x; };
+
+    // Izquierda: datos del trabajo y del sitio.
+    const izquierda = el('div', 'cc-validacion-izquierda');
+    const datosForm = el('form', 'cc-ficha cn-op-form'); datosForm.noValidate = true;
+    const h1 = el('h4', 'cc-ficha-titulo'); h1.append(icono('fa-location-dot'), el('span', null, 'Datos del trabajo y del sitio')); datosForm.append(h1);
+    const rejilla = el('div', 'cn-op-rejilla'); datosForm.append(rejilla);
+    campo(rejilla, 'N.º presupuesto', Object.assign(entrada(c['N° COTIZACION'] || c.key), {disabled: true}));
+    const campoWo = campo(rejilla, 'N.º WO', Object.assign(entrada(manual.wo ?? entry.wo), {maxLength: 100}));
+    const valores = {};
+    for (const [k, t, ancho] of OP_CAMPOS) {
+      const inicial = manual[k] ?? (OP_RESPALDO[k] || [k.toUpperCase()]).map(x => datos[x] || j.cotizacion_data?.[x]).find(Boolean) ?? '';
+      valores[k] = campo(rejilla, t, Object.assign(entrada(inicial), {maxLength: k === 'site_address' ? 2000 : 300}), ancho ? 'cn-ancho' : '');
+    }
+    const responsable = campo(rejilla, 'Responsable del trabajo', Object.assign(entrada(manual.work_responsible), {maxLength: 300}), 'cn-ancho');
+    const listaResp = el('datalist'); listaResp.id = 'cn-op-responsables'; responsable.setAttribute('list', listaResp.id); rejilla.append(listaResp);
+    fetch('/api/cotizacion/sustento/responsables').then(leerJson).then(x => (x.opciones || []).forEach(o => listaResp.append(new Option(o)))).catch(() => {});
+    const inicio = campo(rejilla, 'Fecha de inicio', entrada(aLocal(datos['INICIO EJECUCION']), 'datetime-local'));
+    const fin = campo(rejilla, 'Fecha de fin', entrada(aLocal(datos['FIN EJECUCION']), 'datetime-local'));
+    valores.work_responsible = responsable;
+    const desc = el('form', 'cc-ficha cn-op-form'); desc.noValidate = true;
+    const h2 = el('h4', 'cc-ficha-titulo'); h2.append(icono('fa-align-left'), el('span', null, 'Descripción del trabajo')); desc.append(h2);
+    const bitacora = {};
+    [['INICIO', 'Antecedentes'], ['PROCESO', 'Objetivos'], ['CIERRE', 'Detalles del trabajo realizado']].forEach(([fase, t]) => {
+      bitacora[fase] = campo(desc, t, Object.assign(el('textarea'), {rows: 3, value: datos['_BITACORA_' + fase] || '', disabled: !editable}));
+    });
+    izquierda.append(datosForm, desc);
+    if (c['OBSERVACION SUSTENTO']) izquierda.append(ficha('fa-triangle-exclamation', 'Observación anterior', [['Motivo', c['OBSERVACION SUSTENTO']]]));
+
+    // Derecha: foto de ubicación, evidencia por ítem y pago.
+    const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
+    const estado = el('p', 'cc-nota'); estado.setAttribute('role', 'status');
+    const ubic = el('section', 'cc-ficha');
+    const h3 = el('h4', 'cc-ficha-titulo'); h3.append(icono('fa-image'), el('span', null, 'Foto de la ubicación del sitio')); ubic.append(h3);
+    const zonaUbic = el('label', 'cc-validacion-zona cn-op-ubicacion');
+    const archivoUbic = Object.assign(el('input'), {type: 'file', accept: 'image/jpeg,image/png,image/webp,image/heic,image/heif', hidden: true, disabled: !editable});
+    let fotoUbic = manual.location_picture || '';
+    function pintarUbic() {
+      zonaUbic.replaceChildren(archivoUbic);
+      if (fotoUbic) {
+        const img = el('img'); img.src = fotoUbic; img.alt = 'Ubicación del sitio'; zonaUbic.append(img);
+        if (editable) {
+          const quitar = el('button', 'cn-op-quitar'); quitar.type = 'button'; quitar.title = 'Eliminar foto de ubicación'; quitar.append(icono('fa-xmark'));
+          quitar.addEventListener('click', async e => {
+            e.preventDefault(); e.stopPropagation();
+            if (!await (window.nucleusConfirm ? window.nucleusConfirm('¿Eliminar la foto de ubicación?') : confirm('¿Eliminar la foto?'))) return;
+            const x = await fetch('/api/cotizacion/sustento/foto/eliminar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, wo: entry.wo, url: fotoUbic})});
+            const y = await leerJson(x); if (!x.ok || !y.success) { estado.textContent = y.error || 'No se pudo eliminar.'; return; }
+            fotoUbic = ''; pintarUbic();
+          });
+          zonaUbic.append(quitar);
+        }
+      } else zonaUbic.append(icono('fa-camera'), el('strong', null, editable ? 'Seleccionar foto de ubicación' : 'Sin foto de ubicación'), el('small', null, 'JPG, PNG o WebP · máximo 20 MB'));
+    }
+    archivoUbic.addEventListener('change', async () => {
+      const f = archivoUbic.files[0]; if (!f) return;
+      ctx.subiendo++; estado.textContent = 'Guardando foto de ubicación…';
+      try {
+        const cuerpo = new FormData(); cuerpo.append('key', c.key); cuerpo.append('wo', entry.wo); cuerpo.append('foto', f);
+        const x = await fetch('/api/cotizacion/sustento/ubicacion', {method: 'POST', body: cuerpo}); const y = await leerJson(x);
+        if (!x.ok || !y.success) throw Error(y.error || 'No se pudo subir la foto.');
+        fotoUbic = y.url; pintarUbic(); estado.textContent = 'Foto de ubicación guardada.';
+      } catch (e) { estado.textContent = e.message; } finally { ctx.subiendo--; archivoUbic.value = ''; }
+    });
+    pintarUbic(); ubic.append(zonaUbic);
+
+    const evid = el('section', 'cc-ficha');
+    const h4 = el('h4', 'cc-ficha-titulo'); h4.append(icono('fa-list-check'), el('span', null, 'Evidencia de los ítems (' + (j.items || []).length + ')')); evid.append(h4);
+    if (!(j.items || []).length) evid.append(el('p', 'cc-nota', 'La cotización no tiene ítems. Agrégalos al generar la cotización.'));
+    const fotosItems = manual.item_photos || {}, detalles = manual.item_details || {}, lecturas = [];
+    for (const item of (j.items || [])) {
+      const caja = el('details', 'cn-op-item'); const previo = detalles[item.key] || {};
+      caja.open = !!(fotosItems[item.key] || []).length;
+      const cabeza = el('summary'); const cuenta = el('small');
+      cabeza.append(el('span', null, 'Ítem ' + item.numero + ' · ' + item.texto), cuenta); caja.append(cabeza);
+      const codigo = previo.unique_code || item.unique_code || '8828126757', fila = (j.lpu || []).find(x => x.code === codigo);
+      const campos = el('div', 'cn-op-rejilla');
+      const sel = el('select'); sel.disabled = !editable;
+      (j.lpu || []).forEach(x => sel.add(new Option(x.code, x.code))); if (!(j.lpu || []).some(x => x.code === codigo)) sel.add(new Option(codigo, codigo)); sel.value = codigo;
+      campo(campos, 'Código único', sel);
+      const v = (k, def) => (previo.unique_code ? previo[k] : undefined) ?? def;
+      const unidad = campo(campos, 'Unidad', entrada(v('unit', fila?.unit ?? item.und ?? '')));
+      const esp = campo(campos, 'Descripción de la partida (Esp)', Object.assign(el('textarea'), {rows: 2, value: v('description_es', fila?.description_es ?? item.texto ?? ''), disabled: !editable}), 'cn-ancho');
+      const eng = campo(campos, 'LPU description (Eng)', Object.assign(el('textarea'), {rows: 2, value: v('description_en', fila?.description_en ?? ''), disabled: !editable}), 'cn-ancho');
+      const act = campo(campos, 'Descripción de la actividad', Object.assign(el('textarea'), {rows: 2, value: v('activity', fila?.activity || fila?.description_es || ''), disabled: !editable}), 'cn-ancho');
+      const obs = campo(campos, 'Comentario', entrada(previo.remarks === item.texto ? '' : (previo.remarks || '')), 'cn-ancho');
+      sel.addEventListener('change', () => { const x = (j.lpu || []).find(y => y.code === sel.value); if (!x) return; unidad.value = x.unit || ''; esp.value = x.description_es || ''; eng.value = x.description_en || ''; act.value = x.activity || x.description_es || ''; });
+      caja.append(campos);
+      lecturas.push(() => [item.key, {unique_code: sel.value, unit: unidad.value, description_es: esp.value, description_en: eng.value, activity: act.value, remarks: obs.value}]);
+      const fases = el('div', 'cn-op-fases'); caja.append(fases);
+      const pintarFotos = () => {
+        const fotos = fotosItems[item.key] || [];
+        cuenta.textContent = fotos.length + ' foto' + (fotos.length === 1 ? '' : 's');
+        fases.replaceChildren(...OP_FASES.map(([fase, t]) => {
+          const s = el('div', 'cn-op-fase'); s.append(el('span', 'cc-nota', t));
+          const tira = el('div', 'cn-op-tira');
+          fotos.forEach((f, n) => {
+            if ((f.phase || 'before') !== fase) return;
+            const fig = el('figure'), a = el('a'), img = el('img'); a.href = f.url; a.target = '_blank'; a.rel = 'noopener'; img.src = f.url; img.loading = 'lazy'; img.alt = t + ' · ítem ' + item.numero; a.append(img); fig.append(a);
+            if (editable) {
+              const q = el('button', 'cn-op-quitar'); q.type = 'button'; q.title = 'Eliminar foto'; q.append(icono('fa-xmark'));
+              q.addEventListener('click', async () => {
+                if (!await (window.nucleusConfirm ? window.nucleusConfirm('¿Eliminar esta foto?') : confirm('¿Eliminar esta foto?'))) return;
+                const x = await fetch('/api/cotizacion/sustento/foto/eliminar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, wo: entry.wo, item_key: item.key, url: f.url})});
+                const y = await leerJson(x); if (!x.ok || !y.success) { estado.textContent = y.error || 'No se pudo eliminar.'; return; }
+                fotosItems[item.key] = y.photos || []; pintarFotos();
+              });
+              fig.append(q);
+            }
+            tira.append(fig);
+          });
+          if (editable) {
+            const add = el('label', 'cn-op-agregar'); const inp = Object.assign(el('input'), {type: 'file', accept: 'image/*', multiple: true, hidden: true});
+            add.append(icono('fa-plus'), inp);
+            inp.addEventListener('change', async () => {
+              ctx.subiendo++; estado.textContent = 'Guardando fotos…';
+              try {
+                for (const f of inp.files) {
+                  const cuerpo = new FormData(); cuerpo.append('key', c.key); cuerpo.append('wo', entry.wo); cuerpo.append('item_key', item.key); cuerpo.append('phase', fase); cuerpo.append('foto', f);
+                  const x = await fetch('/api/cotizacion/sustento/item-foto', {method: 'POST', body: cuerpo}); const y = await leerJson(x);
+                  if (!x.ok || !y.success) throw Error(y.error || 'No se pudo guardar la foto.');
+                  fotosItems[item.key] = y.photos;
+                }
+                estado.textContent = 'Fotos guardadas.';
+              } catch (e) { estado.textContent = e.message; } finally { ctx.subiendo--; pintarFotos(); }
+            });
+            tira.append(add);
+          }
+          s.append(tira); return s;
+        }));
+      };
+      pintarFotos(); evid.append(caja);
+    }
+    const pago = ficha('fa-money-bill-wave', 'Pago', [['Se atiende con', atencion(c)], ['Pagado', c['FECHA PAGO'] && (c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']))]]);
+    if (c['FOTO PAGO']) { const a = el('a', 'cc-codigo-link', 'Ver foto del pago'); a.href = c['FOTO PAGO']; a.target = '_blank'; a.rel = 'noopener'; pago.append(a); }
+    derecha.append(ubic, evid, pago, estado);
+
+    // Guardado: igual que Cotizaciones (solo envía lo cambiado y avisa si otra persona lo modificó).
+    const leerManual = () => ({wo: campoWo.value.trim(), ...Object.fromEntries(Object.entries(valores).map(([k, x]) => [k, x.value])), item_details: Object.fromEntries(lecturas.map(f => f()))});
+    const leerEvidencia = () => ({_BITACORA_INICIO: bitacora.INICIO.value, _BITACORA_PROCESO: bitacora.PROCESO.value, _BITACORA_CIERRE: bitacora.CIERRE.value,
+      'INICIO EJECUCION': deLocal(inicio.value), 'FIN EJECUCION': deLocal(fin.value)});
+    const baseManual = leerManual(), vista = leerEvidencia();
+    const baseEvidencia = Object.fromEntries(Object.keys(vista).map(k => [k, datos[k] || '']));
+    async function guardar(finalizar) {
+      if (!editable) return;
+      if (ctx.subiendo) throw Error('Espera a que termine la carga de fotos.');
+      if ([inicio, fin].some(x => x.validity.badInput)) throw Error('Completa la fecha y la hora de inicio y de fin.');
+      const ahora = leerEvidencia(), evidencia = Object.fromEntries(Object.entries(ahora).filter(([k, x]) => x !== vista[k]));
+      const x = await fetch(finalizar ? '/api/cotizacion/sustento/guardar' : '/api/cotizacion/sustento/wo', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({key: c.key, wo: entry.wo, evidencia, base_evidencia: baseEvidencia, manual: leerManual(), base_manual: baseManual})});
+      const y = await leerJson(x);
+      if (!x.ok || !y.success) throw Error(y.error || 'No se pudo guardar el sustento.');
+      Object.assign(vista, ahora); Object.assign(baseManual, leerManual());
+      Object.keys(evidencia).forEach(k => { baseEvidencia[k] = y.wo_data?.[k] || ''; });
+      if (y.wo !== undefined) entry.wo = y.wo;
+    }
+    const error = errorCaja(); derecha.append(error);
+    const botones = [];
+    if ((j.items || []).length) botones.push(['Generar expediente (Excel)', 'cn-azul', 'fa-file-excel', conErrorEn(error, async () => {
+      await guardar(false);
+      const x = await fetch('/api/cotizacion/sustento/expediente?' + new URLSearchParams({key: c.key, wo: entry.wo}));
+      if (!x.ok) throw Error((await leerJson(x)).error || 'No se pudo generar el expediente.');
+      const nombre = (x.headers.get('Content-Disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i)?.[1];
+      descargar(await x.blob(), nombre ? decodeURIComponent(nombre) : 'Expediente_' + (c['N° COTIZACION'] || c.key) + '.xlsx');
+    })]);
+    if (editable) botones.push(['Guardar', 'cn-neutro', 'fa-floppy-disk', conErrorEn(error, async () => { await guardar(false); estado.textContent = 'Sustento guardado.'; })],
+      ['Enviar a Atendido', 'cn-verde', 'fa-paper-plane', conErrorEn(error, async () => {
+        if (!await (window.nucleusConfirm ? window.nucleusConfirm('Se guardará el sustento y la cotización pasará a Atendido.', 'Enviar a Atendido', {okText: 'Enviar', circular: true}) : confirm('¿Enviar a Atendido?'))) return;
+        await guardar(true); dialogo.close(); await cargar(); avisar((c['N° COTIZACION'] || c.key) + ' pasó a Atendido.');
+      })]);
+    ventana('Operaciones · ' + (c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), izquierda, derecha, botones);
+    $('cc-solicitud-contenido').firstChild.classList.add('cn-operaciones');
+    // Un sustento por WO: botones arriba para cambiar de WO (guarda antes de cambiar).
+    if (lista.length > 1) {
+      const wos = el('nav', 'cn-op-wos');
+      lista.forEach((w, n) => {
+        const b = el('button', n === i ? 'activo' : '', w.wo || 'Sin WO'); b.type = 'button'; b.disabled = !w.encontrado;
+        if (!w.encontrado) b.title = 'WO no registrado en su FLM';
+        b.addEventListener('click', async () => { if (n === i) return; try { await guardar(false); operaciones(c, n); } catch (e) { error.textContent = e.message; error.hidden = false; } });
+        wos.append(b);
+      });
+      $('cc-solicitud-contenido').prepend(wos);
+    }
+  }
   // Solo la carga de fotos del sustento se hace todavía en Cotizaciones.
   const abrirClasico = () => location.assign(clasico);
   function accionesDe(c) {
@@ -812,7 +1015,7 @@
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
     else if (p === 'cliente') lista.push(['Aprobar (conformidad del cliente)', 'cn-verde', 'fa-check', () => aprobar(c)],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
-    else if (p === 'sustentar') lista.push(['Sustento del WO y pasar a Atendido', 'cn-azul', 'fa-camera', () => sustento(c)]);
+    else if (p === 'sustentar') lista.push(['Ficha de sustento y pasar a Atendido', 'cn-azul', 'fa-screwdriver-wrench', () => operaciones(c)]);
     else if (p === 'atendido') lista.push(['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
     else if (p === 'cajachica') {
       lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)]);

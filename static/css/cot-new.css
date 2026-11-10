@@ -156,3 +156,29 @@ body #cc-solicitud-dialogo .cn-aprobacion .cc-validacion-zona { min-height: 110p
 .cc-chip.cn-a-proveedor { background: rgba(124, 58, 237, .18); color: #a78bfa; }
 .cc-chip.cn-a-transito { background: rgba(8, 145, 178, .18); color: #22b8d6; }
 .cc-chip.cn-e-proveedor { background: rgba(124, 58, 237, .18); color: #a78bfa; }
+/* Operaciones: ficha de sustento */
+#cc-solicitud-dialogo:has(.cn-operaciones) { width: min(1240px, calc(100% - 32px)); }
+#cc-solicitud-dialogo .cn-operaciones { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.cn-op-form { display: grid; gap: 8px; align-content: start; }
+.cn-op-rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
+.cn-op-rejilla > .cn-ancho { grid-column: 1 / -1; }
+.cn-op-form input, .cn-op-form textarea, .cn-op-item input, .cn-op-item textarea, .cn-op-item select {
+  width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font: inherit; font-size: 12.5px; }
+.cn-op-form textarea, .cn-op-item textarea { resize: vertical; }
+.cn-op-wos { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+body .cn-op-wos button { padding: 5px 12px !important; border-radius: 999px !important; border: 1px solid var(--ios-hairline) !important; background: transparent !important; color: var(--ios-secondary) !important; font-size: 12px; font-weight: 600; min-height: 0 !important; box-shadow: none !important; }
+body .cn-op-wos button.activo { background: #1d4ed8 !important; border-color: #1d4ed8 !important; color: #fff !important; }
+body #cc-solicitud-dialogo .cn-op-ubicacion { position: relative; min-height: 150px !important; flex: none !important; overflow: hidden; }
+.cn-op-ubicacion img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+body .cn-op-quitar { position: absolute; top: 6px; right: 6px; width: 24px !important; height: 24px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important; background: rgba(0,0,0,.6) !important; color: #fff !important; display: grid; place-items: center; font-size: 12px; z-index: 1; }
+.cn-op-item { border: 1px solid var(--ios-hairline); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; }
+.cn-op-item summary { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; font-size: 12.5px; font-weight: 600; }
+.cn-op-item summary small { color: var(--ios-secondary); font-weight: 500; white-space: nowrap; }
+.cn-op-item[open] summary { margin-bottom: 8px; }
+.cn-op-fases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.cn-op-tira { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.cn-op-tira figure { position: relative; margin: 0; width: 64px; height: 64px; }
+.cn-op-tira img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+.cn-op-tira .cn-op-quitar { top: 2px; right: 2px; width: 20px !important; height: 20px !important; font-size: 10px; }
+.cn-op-agregar { width: 64px; height: 64px; display: grid; place-items: center; border: 1.5px dashed var(--ios-hairline); border-radius: 8px; color: #3b82f6; cursor: pointer; }
+@media (max-width: 760px) { #cc-solicitud-dialogo .cn-operaciones, .cn-op-rejilla, .cn-op-fases { grid-template-columns: 1fr; } }
