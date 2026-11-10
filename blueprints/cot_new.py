@@ -44,7 +44,7 @@ CAMPOS = ('N° ORDEN', 'N° COTIZACION', 'FECHA', 'CLIENTE', 'NOMBRE CLIENTE', '
           'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR', '_PROVEEDOR_REGISTROS', '_SUSTENTO_APROBADO',
           'OBSERVACION SUSTENTO', 'FECHA ATENCION', 'GENERADA', 'TIPO DE CONCEPTO', 'PROYECTO FLM', 'CODIGO SITE',
           'DISTRITO', 'PROVINCIA', 'REGION', 'COTIZADOR', 'COTIZADOR USUARIO', 'FECHA PAGO', 'FOTO PAGO', 'PAGADO POR',
-          'MONTO PAGADO', '_PAGO_PENDIENTE', '_TRANSITO_A_PROVEEDOR')
+          'MONTO PAGADO', '_PAGO_PENDIENTE', '_TRANSITO_A_PROVEEDOR', 'MONTO TRANSITO', 'PROVISION')
 
 
 def _proyecto():
@@ -284,6 +284,13 @@ def pagar():
     usuario = _usuario()
     datos.pop('_PAGO_PENDIENTE', None)
     datos.update({'FOTO PAGO': foto, 'PAGADO POR': usuario, 'MONTO PAGADO': _monto(datos) or ''})
+    if tipo_atencion(datos) == 'Tránsito':
+        # Se paga lo definido para Tránsito; la provisión (+20 %) es lo que luego pasa a proveedor.
+        from services.cotizacion_transito import monto_transito, provision
+        monto = monto_transito(datos.get('MONTO TRANSITO'))
+        if monto is None:
+            return jsonify(error='Falta el monto a depositar para Tránsito.'), 409
+        datos.update({'MONTO PAGADO': monto, 'PROVISION': provision(monto)})
     _guardar(fila, datos, 'pagar', usuario, foto)
     return jsonify(success=True, pestanas=pestanas_de(datos))
 
@@ -315,6 +322,14 @@ def mover():
         nuevo = {'transito': 'Tránsito', 'proveedor': 'Proveedor', 'cajachica': 'Caja Chica'}[hacia]
         if nuevo == tipo_atencion(datos):
             return jsonify(error='Ya está como ' + nuevo + '.'), 409
+        if nuevo == 'Tránsito':
+            from services.cotizacion_transito import monto_transito
+            monto = monto_transito(entrada.get('monto_transito'))
+            if monto is None:
+                return jsonify(error='Escribe el monto a depositar para Tránsito (mayor a 0).'), 400
+            datos['MONTO TRANSITO'] = monto
+        else:
+            datos.pop('MONTO TRANSITO', None)
         datos['TIPO GASTO APROBACION'] = nuevo
         datos['_PROVEEDOR_PARALELO'] = nuevo == 'Proveedor'
     _guardar(fila, datos, 'mover', _usuario(), desde + ' -> ' + hacia)

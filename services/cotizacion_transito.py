@@ -46,3 +46,19 @@ def enviar(fuente, datos, usuario, fecha):
     # Repetir el envío nunca reinicia el estado de una rendición ya existente.
     datos['_RENDICION_TRANSITO'] = {'proyecto_id': destino.id, 'key': clave}
     return fila
+
+
+def monto_transito(valor):
+    """Monto a depositar por Tránsito ('1234.50'), o None si no es un número mayor a 0."""
+    from decimal import Decimal, InvalidOperation
+    try:
+        monto = Decimal(str(valor or '').replace(',', '').strip()).quantize(Decimal('0.01'))
+    except InvalidOperation:
+        return None
+    return str(monto) if monto.is_finite() and monto > 0 else None
+
+
+def provision(monto):
+    """Provisión para pasar a proveedor: lo depositado por Tránsito + 20 %."""
+    from decimal import Decimal
+    return str((Decimal(monto) * Decimal('1.20')).quantize(Decimal('0.01')))

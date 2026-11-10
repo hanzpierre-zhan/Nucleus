@@ -26,7 +26,7 @@ def tecnico(app, monkeypatch, tmp_path):
         pid = Proyecto.query.filter_by(nombre='Dataper').one().id
         fila = NucleusData(proyecto_id=pid, key_value=DOC, data_json=json.dumps(
             {'DOCUMENTO': DOC, 'TECNICO': 'Técnico Caja', 'ESTADO': 'ACTIVO', 'PROYECTO': 'FLM - CLARO',
-             'SUPERVISOR': 'Supervisor Caja'}))
+             'SUPERVISOR': 'Supervisor Caja', 'DEPARTAMENTO': 'Junín'}))
         db.session.add_all([fila, ClaveTecnico(documento=DOC, clave_hash=generate_password_hash('Clave-123'))])
         db.session.commit()
         rid = fila.id
@@ -141,6 +141,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     assert [fila['Solicitado'], fila['Depositado'], fila['Estado de rendición'], fila['Estado de solicitud']] == [50, 0, 'Sin depósito', 'Validación']
     assert fila['Tipo de gasto'] == sol['items'][0].get('tipo_presupuesto', fila['Tipo de gasto'])
     assert fila['Supervisor'] == 'Supervisor Caja' and fila['Registrado en Dataper'] == 'Registrado'
+    assert fila['Departamento (Dataper)'] == 'Junín'
     assert fila['Justificación'] == 'Correctivo LA2859'
     listado = next(x for x in auth_client.get('/api/caja-chica/solicitudes').json['solicitudes'] if x['id'] == sid)
     assert listado['dataper'] is True and listado['supervisor'] == 'Supervisor Caja'

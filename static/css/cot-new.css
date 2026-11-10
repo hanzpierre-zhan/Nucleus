@@ -182,3 +182,5 @@ body .cn-op-quitar { position: absolute; top: 6px; right: 6px; width: 24px !impo
 .cn-op-tira .cn-op-quitar { top: 2px; right: 2px; width: 20px !important; height: 20px !important; font-size: 10px; }
 .cn-op-agregar { width: 64px; height: 64px; display: grid; place-items: center; border: 1.5px dashed var(--ios-hairline); border-radius: 8px; color: #3b82f6; cursor: pointer; }
 @media (max-width: 760px) { #cc-solicitud-dialogo .cn-operaciones, .cn-op-rejilla, .cn-op-fases { grid-template-columns: 1fr; } }
+.cn-provision { background: rgba(8, 145, 178, .14); }
+.cn-provision strong, .cn-provision-texto { color: #22b8d6; }

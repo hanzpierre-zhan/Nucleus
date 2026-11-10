@@ -57,11 +57,13 @@
              celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), estadoTexto(c))},
     atencion: {titulo: 'Se atiende con', ancho: 'minmax(110px, .8fr)', texto: c => atencion(c) || '—',
                celda: c => atencion(c) ? el('span', 'cc-chip ' + CHIP_ATENCION[atencion(c)], atencion(c)) : el('span', null, '—')},
+    provision: {titulo: 'Provisión', ancho: 'minmax(110px, .7fr)', num: true, texto: c => c.PROVISION ? dinero(c.PROVISION) : '—', orden: c => Number(c.PROVISION) || 0,
+                celda: c => c.PROVISION ? el('strong', 'cc-num cn-provision-texto', dinero(c.PROVISION)) : el('span', null, '—')},
     monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
             celda: c => el('strong', 'cc-num', dinero(c.monto))},
   };
-  // "Se atiende con" va junto al cliente para verlo sin desplazar la tabla.
-  let columnas = Object.keys(COLUMNAS).filter(k => k !== 'atencion'); columnas.splice(3, 0, 'atencion');
+  // "Se atiende con" y la provisión van junto al cliente para verlos sin desplazar la tabla.
+  let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'provision');
   function estadoTexto(c) {
     if (c._PAGO_PENDIENTE && ['cajachica', 'proveedor'].includes(c.pestanas[0])) return 'Por pagar';
     return c.pestanas[0] === 'sustentar' ? 'En operaciones' : (c['ESTADO COTIZACION'] || 'Pdt. Cotización');
@@ -625,10 +627,13 @@
     const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
     const caja = el('section', 'cc-ficha cn-aprobacion');
     const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-money-bill-wave'), el('span', null, 'Pago')); caja.append(h);
-    const monto = el('div', 'cn-total'); monto.append(el('span', null, 'Monto a pagar · ' + (atencion(c) || '')), el('strong', null, dinero(c.monto)));
+    const esTransito = atencion(c) === 'Tránsito', aPagar = esTransito ? num(c['MONTO TRANSITO']) : num(c.monto);
+    const monto = el('div', 'cn-total'); monto.append(el('span', null, 'Monto a pagar · ' + (atencion(c) || '')), el('strong', null, dinero(aPagar)));
     const foto = zonaArchivo('Foto del pago', 'Toca para adjuntar la captura o voucher', 'image/*,.pdf');
     const tras = atencion(c) === 'Tránsito' ? ' y queda en Tránsito hasta encontrar proveedor' : '';
-    caja.append(monto, foto, el('p', 'cc-nota', 'La fecha y hora del pago se registran solas al confirmar. Pasa a Operaciones' + tras + '.'));
+    caja.append(monto);
+    if (esTransito) { const prov = el('div', 'cn-total cn-provision'); prov.append(el('span', null, 'Provisión para proveedor (+20 %)'), el('strong', null, dinero(Math.round(aPagar * 120) / 100))); caja.append(prov); }
+    caja.append(foto, el('p', 'cc-nota', 'La fecha y hora del pago se registran solas al confirmar. Pasa a Operaciones' + tras + '.'));
     const error = errorCaja(); caja.append(error);
     derecha.append(fichaItems(c), caja);
     ventana('Registrar pago · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Confirmar pago', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
@@ -641,11 +646,31 @@
       avisar('Pago registrado: ' + (c['N° COTIZACION'] || c.key) + ' pasó a Operaciones' + (atencion(c) === 'Tránsito' ? ' y a Tránsito.' : '.'));
     })]]);
   }
+  function pedirMonto(c) {
+    return new Promise(resolve => {
+      const d = el('dialog', 'cc-motivo'), form = el('form', 'cc-motivo-form'); form.method = 'dialog';
+      const cabeza = el('header', 'cc-motivo-cabeza'), marca = el('span', 'cc-motivo-icono'); marca.append(icono('fa-shoe-prints'));
+      const textos = el('div'); textos.append(el('h3', null, 'Pasar a Tránsito'), el('p', null, (c['N° COTIZACION'] || c.key) + ' · Sub total + FEE ' + dinero(c.monto))); cabeza.append(marca, textos);
+      const monto = Object.assign(el('input'), {type: 'text', inputMode: 'decimal', value: Number(c.monto || 0).toFixed(2)});
+      const pie = el('nav', 'cc-motivo-pie');
+      const cancelar = el('button', 'cc-motivo-cancelar', 'Cancelar'); cancelar.type = 'button';
+      const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit'; ok.value = 'ok'; ok.append(icono('fa-shoe-prints'), el('span', null, 'Pasar'));
+      pie.append(cancelar, ok);
+      form.append(cabeza, el('span', 'cc-motivo-etiqueta', 'Monto a depositar para Tránsito (S/)'), monto,
+        el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será este monto + 20 %.'), pie); d.append(form);
+      const validar = () => { ok.disabled = !(num(monto.value) > 0); }; monto.addEventListener('input', validar); validar();
+      cancelar.addEventListener('click', () => d.close(''));
+      d.addEventListener('close', () => { resolve(d.returnValue === 'ok' ? monto.value : null); d.remove(); });
+      document.body.append(d); d.showModal(); monto.select();
+    });
+  }
   async function moverA(c, desde, hacia, nombre) {
-    const ok = await (window.nucleusConfirm ? window.nucleusConfirm((c['N° COTIZACION'] || c.key) + ' pasará a ' + nombre + '.', 'Pasar a ' + nombre, {okText: 'Pasar', circular: true})
+    let monto = '';
+    if (hacia === 'transito') { monto = await pedirMonto(c); if (monto === null) return; }
+    const ok = hacia === 'transito' || await (window.nucleusConfirm ? window.nucleusConfirm((c['N° COTIZACION'] || c.key) + ' pasará a ' + nombre + '.', 'Pasar a ' + nombre, {okText: 'Pasar', circular: true})
       : confirm('¿Pasar a ' + nombre + '?'));
     if (!ok) return;
-    const r = await fetch('/api/cot-new/mover', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, desde, hacia})});
+    const r = await fetch('/api/cot-new/mover', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, desde, hacia, monto_transito: monto})});
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { avisar(j.error || 'No se pudo mover la cotización.'); return; }
     if (dialogo.open) dialogo.close();
@@ -702,6 +727,13 @@
     });
     segmento.append(tipo);
     const lTipo = el('div', 'cc-pendiente-campo'); lTipo.append(el('span', null, 'Se atiende con'), segmento); correo.after(lTipo);
+    // Tránsito: cuánto se deposita por Caja chica mientras se busca proveedor (por defecto, el total de la cotización).
+    const montoTransito = Object.assign(el('input'), {type: 'text', inputMode: 'decimal', placeholder: '0.00', value: c['MONTO TRANSITO'] || Number(c.monto || 0).toFixed(2)});
+    const lMonto = el('label', 'cc-pendiente-campo'); lMonto.append(el('span', null, 'Monto a depositar para Tránsito (S/)'), montoTransito,
+      el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será este monto + 20 %.'));
+    lTipo.after(lMonto);
+    const verMonto = () => { lMonto.hidden = tipo.value !== 'Tránsito'; };
+    tipo.addEventListener('change', verMonto); verMonto();
     const comentario = campo(form, 'Comentario', Object.assign(el('input'), {maxLength: 500}));
     const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
     const error = errorCaja();
@@ -709,10 +741,11 @@
     derecha.append(fichaItems(c), form);
     ventana('Aprobar · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Aprobar', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
       if (!correo.input.files.length) throw Error('Adjunta el correo de aprobación del cliente.');
+      if (tipo.value === 'Tránsito' && !(num(montoTransito.value) > 0)) throw Error('Escribe el monto a depositar para Tránsito.');
       const subido = await subir('/api/cotizacion/subir_correo', c.key, correo.input.files[0]);
       const hoy = new Date(); hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset());
       const extra = {tipo_gasto_aprobacion: tipo.value, fecha_aprobacion: hoy.toISOString().slice(0, 19).replace('T', ' '), comentario: comentario.value.trim(),
-                     adjunto_correo: subido.url, nombre_correo: subido.nombre};
+                     adjunto_correo: subido.url, nombre_correo: subido.nombre, monto_transito: tipo.value === 'Tránsito' ? montoTransito.value : ''};
       await accion(c, 'conformar_aprobacion', extra);
       dialogo.close();
     })]]);
@@ -1056,7 +1089,9 @@
     const estado = [['Estado', c['ESTADO COTIZACION'] || 'Pdt. Cotización'], ['Rechazo', c['MOTIVO RECHAZO'] && (c['MOTIVO RECHAZO'] + ' · ' + (c['FECHA RECHAZO'] || ''))],
       ['Anulación', c['MOTIVO CANCELACION'] && (c['MOTIVO CANCELACION'] + ' · ' + (c['FECHA CANCELACION'] || ''))],
       ['Comentario', c['COMENTARIO APROBACION']], ['Se atiende con', atencion(c)],
-      ['Pago', c['FECHA PAGO'] ? c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']) : (c._PAGO_PENDIENTE ? 'Por pagar' : '')], ['Proveedor', c['NOMBRE DE PROVEEDOR']],
+      ['Pago', c['FECHA PAGO'] ? c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']) : (c._PAGO_PENDIENTE ? 'Por pagar' : '')],
+      ['Monto a depositar (Tránsito)', c['MONTO TRANSITO'] && dinero(c['MONTO TRANSITO'])], ['Monto pagado', c['MONTO PAGADO'] && c['FECHA PAGO'] && dinero(c['MONTO PAGADO'])],
+      ['Provisión (+20 %)', c.PROVISION && dinero(c.PROVISION)], ['Proveedor', c['NOMBRE DE PROVEEDOR']],
       ['Factura', c['NUMERO FACTURA PROVEEDOR']], ['OC', c['NUMERO OC PROVEEDOR']],
       ['Tránsito', c.transito && ('Enviada ' + (c.transito.fecha || '') + ' · ' + (c.transito.usuario || ''))]];
     izquierda.append(ficha('fa-flag', 'Estado', estado));

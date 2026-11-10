@@ -998,6 +998,14 @@ def api_cotizacion_accion():
         row['_PROVEEDOR_PARALELO'] = tipo_gasto == 'Proveedor'
         # Flujo de pago: queda en Caja chica o Proveedor hasta registrar el pago; luego va a Operaciones.
         row['_PAGO_PENDIENTE'] = '1'
+        if tipo_gasto == 'Tránsito':
+            from services.cotizacion_transito import monto_transito
+            monto = monto_transito(data.get('monto_transito'))
+            if monto is None:
+                return jsonify({'error': 'Escribe el monto a depositar para Tránsito (mayor a 0).'}), 400
+            row['MONTO TRANSITO'] = monto
+        else:
+            row.pop('MONTO TRANSITO', None)
         row['FECHA APROBACION'] = str(data.get('fecha_aprobacion') or '').strip() or ahora
         row['APROBADO POR'] = usuario
         row['COMENTARIO APROBACION'] = str(data.get('comentario') or '').strip()
