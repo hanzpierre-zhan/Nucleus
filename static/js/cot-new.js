@@ -648,8 +648,7 @@
     const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-check'), el('span', null, 'Conformidad del cliente')); form.append(h);
     const correo = zonaArchivo('Correo de aprobación', 'Toca para adjuntar .msg, PDF o imagen', '.msg,.eml,.pdf,.jpg,.jpeg,.png,.webp');
     form.append(correo);
-    const ahora = new Date(); ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
-    const fecha = campo(form, 'Fecha de aprobación', Object.assign(el('input'), {type: 'datetime-local', value: ahora.toISOString().slice(0, 16)}));
+    // La fecha de aprobación no se escribe: se registra sola con la hora de Perú al aprobar.
     // Se atiende con: dos botones (mismo diseño que Gasto Cobra / Refacturable).
     const tipo = Object.assign(el('input'), {type: 'hidden', value: /prov/i.test(c['TIPO GASTO APROBACION'] || '') ? 'Proveedor' : 'Caja Chica'});
     const segmento = el('div', 'cn-segmento');
@@ -673,7 +672,8 @@
       if (!correo.input.files.length) throw Error('Adjunta el correo de aprobación del cliente.');
       if (tipo.value === 'Proveedor' && !proveedor.value.trim()) throw Error('Escribe el nombre del proveedor.');
       const subido = await subir('/api/cotizacion/subir_correo', c.key, correo.input.files[0]);
-      const extra = {tipo_gasto_aprobacion: tipo.value, fecha_aprobacion: fecha.value.replace('T', ' '), comentario: comentario.value.trim(),
+      const hoy = new Date(); hoy.setMinutes(hoy.getMinutes() - hoy.getTimezoneOffset());
+      const extra = {tipo_gasto_aprobacion: tipo.value, fecha_aprobacion: hoy.toISOString().slice(0, 19).replace('T', ' '), comentario: comentario.value.trim(),
                      nombre_proveedor: tipo.value === 'Proveedor' ? proveedor.value.trim() : '', adjunto_correo: subido.url, nombre_correo: subido.nombre};
       if (tipo.value === 'Proveedor' && cotProv.input.files.length) extra.adjunto_cotizacion_proveedor = (await subir('/api/cotizacion/subir_cotizacion_proveedor', c.key, cotProv.input.files[0])).url;
       await accion(c, 'conformar_aprobacion', extra);
