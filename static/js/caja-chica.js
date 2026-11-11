@@ -1632,6 +1632,10 @@
     const r = await fetch('/api/caja-chica/solicitudes'); const j = await r.json().catch(() => ({}));
     if (!r.ok) { $('cc-lista').replaceChildren(el('p', 'cc-alerta', j.error || 'No se pudo cargar Caja Chica.')); return; }
     solicitudes = j.solicitudes; pintar();
+    // Enlace directo (p. ej. desde Cot_New): #solicitud-<id> abre su detalle.
+    const pedida = /^#solicitud-(\d+)$/.exec(location.hash);
+    const sol = pedida && solicitudes.find(s => String(s.id) === pedida[1]);
+    if (sol) verDetalle(sol);
   }
   // Los filtros de columna se aplican a la etapa elegida: al cambiar de etapa se limpian.
   document.querySelectorAll('.cc-tab').forEach(b => b.addEventListener('click', () => { tab = b.dataset.tab; filtros = {}; busquedas = {}; seleccionadas.clear(); try { localStorage.setItem('cc-tab', tab); } catch (_) {} pintar(); }));

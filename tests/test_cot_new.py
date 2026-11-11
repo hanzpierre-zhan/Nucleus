@@ -186,7 +186,9 @@ def test_depositos_de_caja_chica_por_cotizacion(app, auth_client):
         db.session.commit()
     try:
         fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == 'CN-DEP-1')
-        assert fila['depositos_cc'] == [{'codigo': 'COB-90001', 'monto': '50.00'}, {'codigo': 'COB-90002', 'monto': '30.00'}]
+        assert [(d['codigo'], d['monto'], d['estado'], d['tecnico']) for d in fila['depositos_cc']] == [
+            ('COB-90001', '50.00', 'Depositada', 'Técnico'), ('COB-90002', '30.00', 'Validada', 'Técnico')]
+        assert all(isinstance(d['id'], int) for d in fila['depositos_cc'])
     finally:
         with app.app_context():
             NucleusData.query.filter_by(key_value='CN-DEP-1').delete()

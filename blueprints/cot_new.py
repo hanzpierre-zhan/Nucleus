@@ -154,19 +154,21 @@ def _monto(datos):
 def _depositos_caja_chica():
     """Solicitudes de Caja Chica vigentes por N.º de cotización: código de depósito y monto."""
     from models import CajaChicaSolicitud
-    from services.caja_chica import revision_guardada
+    from services.caja_chica import ESTADO_SOLICITUD, revision_guardada
     indice = {}
     vigentes = (CajaChicaSolicitud.query
                 .filter(CajaChicaSolicitud.estado.notin_(('ANULADO', 'ELIMINADO', 'RECHAZADO')))
-                .with_entities(CajaChicaSolicitud.codigo, CajaChicaSolicitud.total, CajaChicaSolicitud.historial)
+                .with_entities(CajaChicaSolicitud.id, CajaChicaSolicitud.codigo, CajaChicaSolicitud.total,
+                               CajaChicaSolicitud.tecnico, CajaChicaSolicitud.estado, CajaChicaSolicitud.historial)
                 .order_by(CajaChicaSolicitud.id))
-    for codigo, total, historial in vigentes:
+    for sid, codigo, total, tecnico, estado, historial in vigentes:
         try:
             cotizacion = str(revision_guardada(json.loads(historial or '[]')).get('cotizacion') or '').strip().upper()
         except (TypeError, ValueError):
             continue
         if cotizacion and codigo:
-            indice.setdefault(cotizacion, []).append({'codigo': codigo, 'monto': '%.2f' % (total or 0)})
+            indice.setdefault(cotizacion, []).append({'id': sid, 'codigo': codigo, 'monto': '%.2f' % (total or 0),
+                                                      'tecnico': tecnico or '', 'estado': ESTADO_SOLICITUD.get(estado, estado)})
     return indice
 
 

@@ -74,17 +74,19 @@
                 celda: c => c.PROVISION ? el('strong', 'cc-num cn-provision-texto', dinero(c.PROVISION)) : el('span', null, '—')},
     monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
             celda: c => el('strong', 'cc-num', dinero(c.monto))},
-    // Depósitos de Caja Chica que citan esta cotización, con su monto y el acumulado.
+    // Depósitos de Caja Chica que citan esta cotización: uno se ve tal cual; varios, cantidad y acumulado (clic: lista).
     depositos: {titulo: 'Depósitos Caja Chica', ancho: 'minmax(170px, 1.1fr)', num: true,
                 texto: c => (c.depositos_cc || []).map(d => d.codigo + ' ' + dinero(d.monto)).join(' · ') || '—',
                 orden: c => acumuladoCC(c),
                 celda: c => {
                   const lista = c.depositos_cc || [];
                   if (!lista.length) return el('span', null, '—');
-                  const caja = el('div', 'cn-depositos');
-                  lista.forEach(d => { const f = el('span', 'cn-deposito'); f.append(el('span', null, d.codigo), el('span', 'cc-num', dinero(d.monto))); caja.append(f); });
-                  if (lista.length > 1) { const t = el('span', 'cn-deposito cn-deposito-total'); t.append(el('span', null, 'Acumulado'), el('strong', 'cc-num', dinero(acumuladoCC(c)))); caja.append(t); }
-                  return caja;
+                  const b = el('button', 'cn-depositos-resumen'); b.type = 'button';
+                  b.title = 'Ver depósitos de Caja Chica'; b.setAttribute('aria-label', 'Ver ' + lista.length + ' depósitos de Caja Chica');
+                  b.append(el('span', null, lista.length === 1 ? lista[0].codigo : lista.length + ' depósitos'),
+                    el('strong', 'cc-num', dinero(acumuladoCC(c))), icono('fa-chevron-right'));
+                  b.addEventListener('click', e => { e.stopPropagation(); verDepositos(c); });
+                  return b;
                 }},
   };
   // "Interacción" y la provisión van junto al cliente para verlos sin desplazar la tabla.
@@ -764,6 +766,26 @@
   const resumenCot = c => ficha('fa-file-lines', 'Cotización', [['N.º', c['N° COTIZACION'] || c.key], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
     ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']], ['Motivo', c.MOTIVO], ['Enviada', c['FECHA ENVIO CLIENTE']],
     ['Aprobada', c['FECHA APROBACION']], ['Interacción', c['TIPO GASTO APROBACION']], ['Sub total + FEE', dinero(c.monto)]]);
+  // Lista de depósitos de Caja Chica asociados; cada código abre su solicitud en Caja Chica.
+  function verDepositos(c) {
+    const lista = c.depositos_cc || [];
+    const tabla = el('table', 'cn-depositos-tabla');
+    const cab = el('tr'); ['Código', 'Técnico', 'Estado', 'Monto'].forEach(t => cab.append(el('th', null, t)));
+    tabla.append(cab);
+    lista.forEach(d => {
+      const f = el('tr'), a = el('a', 'cc-codigo-link', d.codigo);
+      a.href = '/caja-chica/#solicitud-' + d.id; a.target = '_blank'; a.rel = 'noopener';
+      const td = el('td'); td.append(a);
+      f.append(td, el('td', null, d.tecnico || '—'), el('td', null, d.estado || '—'), el('td', 'cc-num', dinero(d.monto)));
+      tabla.append(f);
+    });
+    const pie = el('tr', 'cn-depositos-pie');
+    pie.append(el('td', null, 'Acumulado (' + lista.length + ')'), el('td'), el('td'), el('td', 'cc-num', dinero(acumuladoCC(c))));
+    tabla.append(pie);
+    const caja = el('section', 'cc-ficha'); const h = el('h4', 'cc-ficha-titulo');
+    h.append(icono('fa-wallet'), el('span', null, 'Depósitos de Caja Chica')); caja.append(h, tabla);
+    ventana('Depósitos · ' + (c['N° COTIZACION'] || c.key), caja, null, []);
+  }
   function zonaArchivo(texto, ayuda, acepta) {
     const zona = el('label', 'cc-validacion-zona');
     const input = Object.assign(el('input'), {type: 'file', accept: acepta});

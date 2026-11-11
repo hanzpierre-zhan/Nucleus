@@ -212,7 +212,13 @@ body .cn-factura-quitar { width: 28px !important; height: 28px !important; min-h
 .cn-total-final { border: 1px solid rgba(8, 145, 178, .45); }
 .cn-total-final strong { font-size: 20px; }
 
-/* Depósitos de Caja Chica asociados a la cotización. */
-.cn-depositos { display: flex; flex-direction: column; gap: 2px; width: 100%; font-size: 12px; }
-.cn-deposito { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
-.cn-deposito-total { border-top: 1px solid var(--cc-borde, rgba(100, 116, 139, .3)); padding-top: 2px; margin-top: 1px; }
+/* Depósitos de Caja Chica asociados: resumen en la celda y lista en la ventana. */
+.cn-depositos-resumen { display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.cn-depositos-resumen span { flex: 1; text-align: left; }
+.cn-depositos-resumen i { font-size: 10px; opacity: .55; }
+.cn-depositos-resumen:hover, .cn-depositos-resumen:focus-visible { border-color: currentColor; }
+.cn-depositos-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cn-depositos-tabla th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .4px; opacity: .7; padding: 6px 8px; }
+.cn-depositos-tabla td { padding: 7px 8px; border-top: 1px solid rgba(100, 116, 139, .25); }
+.cn-depositos-tabla th:last-child, .cn-depositos-tabla td:last-child { text-align: right; }
+.cn-depositos-pie td { font-weight: 700; border-top-width: 2px; }
