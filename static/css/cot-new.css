@@ -211,3 +211,8 @@ body .cn-factura-quitar { width: 28px !important; height: 28px !important; min-h
 .cn-captura-pago:not(:has(img)) { padding: 12px; text-decoration: none; }
 .cn-total-final { border: 1px solid rgba(8, 145, 178, .45); }
 .cn-total-final strong { font-size: 20px; }
+
+/* Depósitos de Caja Chica asociados a la cotización. */
+.cn-depositos { display: flex; flex-direction: column; gap: 2px; width: 100%; font-size: 12px; }
+.cn-deposito { display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; }
+.cn-deposito-total { border-top: 1px solid var(--cc-borde, rgba(100, 116, 139, .3)); padding-top: 2px; margin-top: 1px; }

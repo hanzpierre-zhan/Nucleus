@@ -170,3 +170,25 @@ def test_eliminar_cotizaciones_marcadas(app, auth_client, cambiar_rol):
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.key_value.in_(['CN-DEL-1', 'CN-DEL-2'])).delete(); db.session.commit()
+
+
+def test_depositos_de_caja_chica_por_cotizacion(app, auth_client):
+    from models import CajaChicaSolicitud
+    base = {'documento': '70000000', 'tecnico': 'Técnico', 'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '123456'}
+    revision = lambda cot: json.dumps([{'revision': {'cotizacion': cot}}])
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Cotizaciones').one().id
+        db.session.add_all([
+            NucleusData(proyecto_id=pid, key_value='CN-DEP-1', data_json=json.dumps({'N° COTIZACION': 'COT-DEP-1', 'CLIENTE': 'CLARO'})),
+            CajaChicaSolicitud(codigo='COB-90001', total=50, estado='DEPOSITADO', historial=revision('cot-dep-1'), **base),
+            CajaChicaSolicitud(codigo='COB-90002', total=30, estado='VALIDADO', historial=revision('COT-DEP-1'), **base),
+            CajaChicaSolicitud(codigo='COB-90003', total=99, estado='ANULADO', historial=revision('COT-DEP-1'), **base)])
+        db.session.commit()
+    try:
+        fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == 'CN-DEP-1')
+        assert fila['depositos_cc'] == [{'codigo': 'COB-90001', 'monto': '50.00'}, {'codigo': 'COB-90002', 'monto': '30.00'}]
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(key_value='CN-DEP-1').delete()
+            CajaChicaSolicitud.query.filter(CajaChicaSolicitud.codigo.like('COB-9000%')).delete(synchronize_session=False)
+            db.session.commit()

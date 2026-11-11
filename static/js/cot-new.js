@@ -43,6 +43,7 @@
   const CHIP_ATENCION = {'Caja chica': 'cn-a-caja', Proveedor: 'cn-a-proveedor', 'Tránsito': 'cn-a-transito'};
   const fechaTexto = t => { const v = fechaValor(t); return v ? new Date(v).toLocaleDateString('es-PE') : (t || '—'); };
 
+  const acumuladoCC = c => (c.depositos_cc || []).reduce((t, d) => t + Number(d.monto || 0), 0);
   // ── Columnas ──
   const COLUMNAS = {
     numero: {titulo: 'N.º cotización', ancho: 'minmax(150px, 1fr)', texto: c => c['N° COTIZACION'] || c.key, celda: c => {
@@ -73,6 +74,18 @@
                 celda: c => c.PROVISION ? el('strong', 'cc-num cn-provision-texto', dinero(c.PROVISION)) : el('span', null, '—')},
     monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
             celda: c => el('strong', 'cc-num', dinero(c.monto))},
+    // Depósitos de Caja Chica que citan esta cotización, con su monto y el acumulado.
+    depositos: {titulo: 'Depósitos Caja Chica', ancho: 'minmax(170px, 1.1fr)', num: true,
+                texto: c => (c.depositos_cc || []).map(d => d.codigo + ' ' + dinero(d.monto)).join(' · ') || '—',
+                orden: c => acumuladoCC(c),
+                celda: c => {
+                  const lista = c.depositos_cc || [];
+                  if (!lista.length) return el('span', null, '—');
+                  const caja = el('div', 'cn-depositos');
+                  lista.forEach(d => { const f = el('span', 'cn-deposito'); f.append(el('span', null, d.codigo), el('span', 'cc-num', dinero(d.monto))); caja.append(f); });
+                  if (lista.length > 1) { const t = el('span', 'cn-deposito cn-deposito-total'); t.append(el('span', null, 'Acumulado'), el('strong', 'cc-num', dinero(acumuladoCC(c)))); caja.append(t); }
+                  return caja;
+                }},
   };
   // "Se atiende con" y la provisión van junto al cliente para verlos sin desplazar la tabla.
   let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'pago', 'operativo', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'pago', 'operativo', 'provision');

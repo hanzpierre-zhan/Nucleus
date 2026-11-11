@@ -151,8 +151,28 @@ def _monto(datos):
     return monto_cotizacion(datos.get('SUB TOTAL + FEE'), datos.get('ITEMS_JSON'))
 
 
+def _depositos_caja_chica():
+    """Solicitudes de Caja Chica vigentes por N.º de cotización: código de depósito y monto."""
+    from models import CajaChicaSolicitud
+    from services.caja_chica import revision_guardada
+    indice = {}
+    vigentes = (CajaChicaSolicitud.query
+                .filter(CajaChicaSolicitud.estado.notin_(('ANULADO', 'ELIMINADO', 'RECHAZADO')))
+                .with_entities(CajaChicaSolicitud.codigo, CajaChicaSolicitud.total, CajaChicaSolicitud.historial)
+                .order_by(CajaChicaSolicitud.id))
+    for codigo, total, historial in vigentes:
+        try:
+            cotizacion = str(revision_guardada(json.loads(historial or '[]')).get('cotizacion') or '').strip().upper()
+        except (TypeError, ValueError):
+            continue
+        if cotizacion and codigo:
+            indice.setdefault(cotizacion, []).append({'codigo': codigo, 'monto': '%.2f' % (total or 0)})
+    return indice
+
+
 def _filas():
     modulo = _proyecto()
+    depositos = _depositos_caja_chica()
     from services.cotizacion_transito import indice_transito
     from services.rendicion_presupuesto_cotizacion import proyecto as familia_cotizacion
     transito = indice_transito()
@@ -174,7 +194,8 @@ def _filas():
         fila.update(estado_pago=estado_pago(datos), estado_operativo=estado_operativo(datos))
         fila.update(id=rid, key=key, pestanas=pestanas, monto=_monto(datos) or '0.00',
                     familia=familia_cotizacion(datos) or str(datos.get('CLIENTE') or '').strip().upper(),
-                    transito=transito.get(key))
+                    transito=transito.get(key),
+                    depositos_cc=depositos.get(str(datos.get('N° COTIZACION') or key or '').strip().upper(), []))
         filas.append(fila)
     return modulo, filas
 
