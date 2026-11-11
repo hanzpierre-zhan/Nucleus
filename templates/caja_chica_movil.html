@@ -1,18 +1,29 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Depósitos · Caja Chica</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=11) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-movil.css',v=2) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Depósitos · Caja Chica</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=11) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-movil.css',v=5) }}"></head>
 <body>
 <header class="top"><a href="/caja-chica/movil" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>CAJA CHICA</span></a>
-  <div class="top-actions"><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button>
+  <div class="top-actions">
+  <div class="cm-menu">
+    <button class="theme-toggle" id="cm-menu-btn" type="button" aria-label="Cambiar vista" title="Cambiar vista" aria-haspopup="menu" aria-expanded="false" aria-controls="cm-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <nav id="cm-menu" class="cm-menu-lista card" role="menu" aria-label="Vistas" hidden>
+      {# Íconos de línea, mismo trazo que los botones del encabezado. #}
+      <button type="button" role="menuitemradio" data-etapa="deposito"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>Por depositar</button>
+      <button type="button" role="menuitemradio" data-etapa="revision"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>Revisión</button>
+      <button type="button" role="menuitemradio" data-etapa="sustento"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m9 13 2 2 4-4"/></svg>Sustentado</button>
+      <button type="button" role="menuitemradio" data-etapa="archivado"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 12h4"/></svg>Archivado</button>
+    </nav>
+  </div>
+  <button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button>
   <a class="theme-toggle" href="/logout" aria-label="Salir" title="Salir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5m-1-8h12m-4-4 4 4-4 4"/></svg></a></div></header>
 <main class="shell">
   <section id="cm-lista-vista" class="view">
-    <div class="eyebrow">{{ usuario }} · DEPOSITANTE</div><h1>Por depositar</h1>
-    <div class="balance compact"><span class="balance-label">TOTAL POR DEPOSITAR</span><div id="cm-total" class="big-money">S/ 0.00</div><small id="cm-cantidad" class="cm-cantidad"></small></div>
+    <div class="eyebrow">{{ usuario }} · DEPOSITANTE</div><h1 id="cm-titulo">Por depositar</h1>
+    <div class="balance compact"><span class="balance-label" id="cm-total-titulo">TOTAL POR DEPOSITAR</span><div id="cm-total" class="big-money">S/ 0.00</div><small id="cm-cantidad" class="cm-cantidad"></small></div>
     <input type="search" id="cm-buscar" class="cm-buscar" placeholder="Buscar código, técnico o DNI" aria-label="Buscar solicitud">
     <div id="cm-lista" aria-live="polite"><p class="hint">Cargando…</p></div>
   </section>
   <section id="cm-detalle-vista" class="view" hidden>
-    <button class="back" type="button" id="cm-volver"><span class="back-icon" aria-hidden="true">←</span>Por depositar</button>
+    <button class="back" type="button" id="cm-volver"><span class="back-icon" aria-hidden="true">←</span><span id="cm-volver-texto">Por depositar</span></button>
     <h1 id="cm-codigo" tabindex="-1"></h1>
     <div id="cm-detalle"></div>
     <form id="cm-form" class="card" novalidate>
@@ -30,5 +41,5 @@
     <button type="button" class="primary wide" id="cm-exito-volver">Seguir depositando</button>
   </section>
 </main>
-<script src="{{ url_for('static',filename='js/caja-chica-movil.js',v=2) }}" defer></script>
+<script src="{{ url_for('static',filename='js/caja-chica-movil.js',v=5) }}" defer></script>
 </body></html>

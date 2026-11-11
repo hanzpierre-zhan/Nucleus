@@ -30,3 +30,42 @@
 .cm-captura.lleno .cm-captura-texto small { color: #e2e8f0; }
 .cm-depositar { margin-top: 14px; background: #166534 !important; }
 .cm-fecha { font-size: 12px; }
+/* Menú para cambiar de vista: Por depositar, Revisión, Sustentado y Archivado. */
+.cm-menu { position: relative; }
+.cm-menu-lista { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; display: flex; flex-direction: column; min-width: 190px; padding: 6px; margin: 0; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.cm-menu-lista[hidden] { display: none; }
+.cm-menu-lista button { padding: 11px 12px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.cm-menu-lista button:hover { background: var(--fill); }
+.cm-menu-lista button[aria-checked="true"] { background: var(--accent); color: var(--blue); }
+.balance.cm-b-revision { background: #b45309; }
+.balance.cm-b-sustento { background: #7c3aed; }
+.balance.cm-b-archivado { background: #475569; }
+/* Evidencias por gasto y acciones (Revisión, Sustentado, Archivado). */
+.cm-concepto-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cm-concepto-cab .cm-subtitulo { margin: 0; }
+.cm-estado { flex: none; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: rgba(100, 116, 139, .16); color: var(--muted); }
+.cm-e-en_revision { background: rgba(217, 119, 6, .16); color: #b45309; }
+.cm-e-aprobado { background: rgba(22, 163, 74, .16); color: #15803d; }
+.cm-e-devuelto { background: rgba(124, 58, 237, .14); color: #7c3aed; }
+.cm-fotos { margin-top: 10px; }
+.cm-fotos-titulo { display: block; margin-bottom: 6px; color: var(--muted); font-weight: 600; }
+.cm-fotos-tira { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.cm-fotos-tira a { flex: none; display: block; width: 46%; max-width: 180px; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; border: 1px solid var(--input-border); background: var(--field); }
+.cm-fotos-tira a:only-child { width: 100%; max-width: none; aspect-ratio: 4 / 3; }
+.cm-fotos-tira img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cm-fotos-enlaces { display: flex; flex-wrap: wrap; gap: 6px; }
+.cm-fotos-enlaces a { text-decoration: none; }
+.cm-sin-foto { display: block; padding: 14px; border: 1.5px dashed var(--input-border); border-radius: 12px; text-align: center; color: var(--muted); font-size: 13px; }
+.cm-acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.cm-accion { padding: 12px; border: 0; border-radius: 12px; font: inherit; font-weight: 700; color: #fff; cursor: pointer; }
+.cm-accion:disabled { opacity: .6; }
+.cm-ok { background: #166534; }
+.cm-no { background: #b91c1c; }
+.cm-archivar { margin: 4px 0 16px; background: #475569 !important; }
+/* Íconos de línea del menú y de los botones (mismo trazo que el encabezado). */
+.cm-menu-lista button, .cm-accion { display: flex; align-items: center; gap: 10px; }
+.cm-accion { justify-content: center; gap: 8px; }
+.cm-menu-lista svg, .cm-accion svg { flex: none; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.cm-menu-lista svg { color: var(--muted); }
+.cm-menu-lista button[aria-checked="true"] svg { color: inherit; }
+.cm-accion svg { stroke-width: 2.2; }
