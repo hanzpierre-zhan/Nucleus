@@ -3,7 +3,8 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=98">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
-         data-eliminar="{{ 'si' if puede_eliminar else 'no' }}" data-admin="{{ 'si' if administra_catalogo else 'no' }}">
+         data-eliminar="{{ 'si' if puede_eliminar else 'no' }}" data-admin="{{ 'si' if administra_catalogo else 'no' }}"
+         data-columnas="{{ orden_columnas|tojson|forceescape }}" data-csrf="{{ csrf }}">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar código, técnico o documento" aria-label="Buscar solicitud">
     <nav class="cc-tabs" role="tablist" aria-label="Etapas">
@@ -98,5 +99,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=95" defer></script>
+<script src="/static/js/caja-chica.js?v=96" defer></script>
 {% endblock %}

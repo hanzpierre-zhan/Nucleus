@@ -682,3 +682,16 @@ def test_cotizado_en_caja_chica_es_cantidad_por_valor_unitario_sin_fee():
                         {'cantidad': '70', 'valor_unitario': '33.21', 'valor_total': '2440.94'}])
     assert suma_valores_unitarios(items) == '2684.70'  # 1 × 360 + 70 × 33.21 (2,324.70), sin FEE
     assert suma_valores_unitarios('[]') is None
+
+
+def test_orden_de_columnas_es_el_mismo_para_todos(auth_client, cambiar_rol):
+    assert auth_client.get('/caja-chica/').status_code == 200
+    with auth_client.session_transaction() as sesion:
+        csrf = {'X-CSRF-Token': sesion['form_csrf']}
+    ruta = '/api/caja-chica/columnas'
+    cambiar_rol(auth_client, 'zeno')
+    assert auth_client.post(ruta, headers=csrf, json={'columnas': ['<x>']}).status_code == 400
+    assert auth_client.post(ruta, headers=csrf, json={'columnas': ['total', 'codigo']}).status_code == 200
+    assert 'data-columnas="[&#34;total&#34;, &#34;codigo&#34;]"' in auth_client.get('/caja-chica/').get_data(as_text=True)
+    cambiar_rol(auth_client, 'demo')
+    assert auth_client.post(ruta, headers=csrf, json={'columnas': ['codigo']}).status_code == 403

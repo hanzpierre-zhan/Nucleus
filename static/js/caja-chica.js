@@ -1324,18 +1324,29 @@
     total:    {titulo: 'Importe de etapa', ancho: 'minmax(110px, .8fr)', num: true, orden: s => Number(importeEtapa(s)) || 0, texto: s => dinero(importeEtapa(s)),
                celda: s => el('strong', 'cc-num', dinero(importeEtapa(s)))},
   };
-  // El orden y ancho de las columnas se recuerdan en este navegador.
+  // El orden de las columnas lo fija el administrador y es igual para todos (se guarda en el servidor).
+  // El ancho de cada columna se recuerda solo en este navegador.
   let columnas = Object.keys(COLUMNAS), filtros = {}, busquedas = {}, anchos = {};
   // Orden de la tabla: columna y sentido (1 = menor a mayor, -1 = mayor a menor).
   let orden = null;
   // Búsqueda sin distinguir mayúsculas ni tildes ("peru" encuentra "Perú").
   const plano = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   try {
+    // Columnas guardadas que siguen existiendo, y al final las nuevas que aún no estaban en el orden.
+    const compartido = JSON.parse(permisos.columnas || '[]').filter(c => COLUMNAS[c]);
+    if (compartido.length) columnas = [...new Set([...compartido, ...columnas])];
+  } catch (_) {}
+  try {
     const p = JSON.parse(localStorage.getItem('cc-tabla') || '{}');
-    if (Array.isArray(p.columnas) && p.columnas.length === columnas.length && columnas.every(c => p.columnas.includes(c))) columnas = p.columnas;
     if (p.anchos && typeof p.anchos === 'object') for (const [c, w] of Object.entries(p.anchos)) if (COLUMNAS[c] && w >= 60) anchos[c] = w;
   } catch (_) {}
-  const guardar = () => { try { localStorage.setItem('cc-tabla', JSON.stringify({columnas, anchos})); } catch (_) {} };
+  const guardar = () => { try { localStorage.setItem('cc-tabla', JSON.stringify({anchos})); } catch (_) {} };
+  const guardarOrden = () => fetch('/api/caja-chica/columnas', {
+    method: 'POST', credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': permisos.csrf},
+    body: JSON.stringify({columnas}),
+  }).then(r => { if (!r.ok) avisar('No se pudo guardar el orden de columnas.'); })
+    .catch(() => avisar('No se pudo guardar el orden de columnas.'));
   // Ancho de cada columna: el que el usuario fijó arrastrando o, si no, el automático.
   const plantilla = () => {
     // Ancho mínimo de la tabla = suma de columnas + espacios; si no cabe, se desplaza a lo ancho.
@@ -1385,7 +1396,8 @@
     for (const id of columnas) {
       const col = COLUMNAS[id], th = el('div', 'cc-th' + (col.num ? ' cc-th-num' : ''));
       th.dataset.col = id;
-      const fila = el('div', 'cc-th-fila'); fila.draggable = true; fila.title = 'Arrastra para mover la columna';
+      const fila = el('div', 'cc-th-fila'); fila.draggable = esAdmin;
+      if (esAdmin) fila.title = 'Arrastra para mover la columna (se aplica a todos los usuarios)';
       const buscar = el('input', 'cc-th-buscar'); buscar.dataset.buscar = id;
       Object.assign(buscar, {type: 'search', value: busquedas[id] || '', placeholder: 'Buscar…', ariaLabel: 'Buscar en ' + col.titulo});
       buscar.addEventListener('input', () => { if (buscar.value.trim()) busquedas[id] = buscar.value; else delete busquedas[id]; pintar(); });
@@ -1420,7 +1432,7 @@
         const antes = th.classList.contains('soltar-antes');
         columnas = columnas.filter(c => c !== origen);
         columnas.splice(columnas.indexOf(id) + (antes ? 0 : 1), 0, origen);
-        guardar(); pintar();
+        guardarOrden(); pintar();
       });
       cab.append(th);
     }

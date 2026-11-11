@@ -25,11 +25,26 @@ bp = Blueprint('caja_chica', __name__)
 ROLES_TODO = ('zeno', 'suport', 'admin')
 ROLES_ELIMINAR = ('zeno', 'admin')
 CLAVE_CATALOGO = 'catalogo_gastos'
+CLAVE_COLUMNAS = 'orden_columnas'  # orden de columnas de la tabla, igual para todos
 
 
 def _config_catalogo():
     modulo = Proyecto.query.filter_by(nombre=cc.MODULO).first()
     return modulo, AppConfig.query.filter_by(proyecto_id=modulo.id, clave=CLAVE_CATALOGO).first() if modulo else None
+
+
+def _config_columnas():
+    modulo = Proyecto.query.filter_by(nombre=cc.MODULO).first()
+    return modulo, AppConfig.query.filter_by(proyecto_id=modulo.id, clave=CLAVE_COLUMNAS).first() if modulo else None
+
+
+def _orden_columnas():
+    try:
+        config = _config_columnas()[1]
+        orden = json.loads(config.valor) if config else []
+    except (ValueError, TypeError):
+        orden = []
+    return [str(c) for c in orden if isinstance(c, str)] if isinstance(orden, list) else []
 
 
 def _catalogo(config):
@@ -311,7 +326,29 @@ def gestion():
                            puede_gestionar=str(session.get('rol') or '').lower() not in ('demo', 'contrata'),
                            puede_eliminar=str(session.get('rol') or '').lower() in ROLES_ELIMINAR,
                            administra_catalogo=session.get('rol', '').lower() in ROLES_TODO,
+                           orden_columnas=_orden_columnas(),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
+
+
+@bp.post('/api/caja-chica/columnas')
+@login_required
+def gestion_columnas():
+    """Guarda el orden de columnas de la tabla; lo ven todos los usuarios."""
+    if str(session.get('rol') or '').strip().lower() not in ROLES_TODO:
+        abort(403)
+    comprobar_csrf()
+    columnas = (request.get_json(silent=True) or {}).get('columnas')
+    if not isinstance(columnas, list) or not all(isinstance(c, str) and re.fullmatch(r'[a-z_]{1,40}', c) for c in columnas):
+        return _error(ValueError('Orden de columnas no válido.'))
+    modulo, config = _config_columnas()
+    if not modulo:
+        return _error(ValueError('No existe el módulo de Caja Chica.'))
+    if not config:
+        config = AppConfig(proyecto_id=modulo.id, clave=CLAVE_COLUMNAS)
+        db.session.add(config)
+    config.valor = json.dumps(list(dict.fromkeys(columnas)))
+    db.session.commit()
+    return jsonify(success=True)
 
 
 @bp.get('/caja-chica/movil')
