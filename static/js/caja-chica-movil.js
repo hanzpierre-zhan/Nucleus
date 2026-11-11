@@ -19,6 +19,116 @@
   try { etapa = ETAPAS[localStorage.getItem('cm-etapa')] ? localStorage.getItem('cm-etapa') : etapa; } catch (_) {}
   const importe = s => etapa === 'deposito' ? s.total : (s.montos_etapa?.[etapa] ?? s.total);
 
+  // ── Gasto Cobra / Refacturable: etiqueta clara en cada concepto ──
+  const tipoDe = t => !t ? '' : /refact/i.test(t) ? 'Refacturable' : 'Gasto Cobra';
+  const etiquetaTipo = t => el('span', 'cm-tipo ' + (t === 'Refacturable' ? 'cm-tipo-rf' : 'cm-tipo-gc'), t);
+  const tiposDe = s => [...new Set(s.items.map(i => tipoDe(i.tipo_presupuesto)).filter(Boolean))];
+  const conceptosDe = s => [...new Set(s.items.map(i => i.tipo_gasto).filter(Boolean))];
+
+  // ── Filtros: atajos de un toque y hoja de "Filtros" ──
+  const filtroVacio = () => ({tipos: new Set(), conceptos: new Set(), proyectos: new Set(), fecha: '', desde: '', hasta: '', orden: ''});
+  let filtro = filtroVacio();
+  // Fecha en hora de Perú como 'AAAA-MM-DD' (se compara como texto).
+  const diaLima = d => d.toLocaleDateString('en-CA', {timeZone: 'America/Lima'});
+  function rangoFecha(f) {
+    const hoy = new Date(), dia = diaLima(hoy);
+    if (f.fecha === 'hoy') return [dia, dia];
+    if (f.fecha === 'ayer') { const a = diaLima(new Date(hoy - 864e5)); return [a, a]; }
+    if (f.fecha === 'semana') {  // desde el lunes
+      const n = (new Date(dia + 'T12:00:00').getDay() + 6) % 7;
+      return [diaLima(new Date(hoy - n * 864e5)), dia];
+    }
+    if (f.fecha === 'mes') return [dia.slice(0, 8) + '01', dia];
+    if (f.fecha === 'rango') return [f.desde || '0000-00-00', f.hasta || '9999-99-99'];
+    return null;
+  }
+  function cumple(s, f) {
+    if (f.tipos.size && !tiposDe(s).some(t => f.tipos.has(t))) return false;
+    if (f.conceptos.size && !conceptosDe(s).some(c => f.conceptos.has(c))) return false;
+    if (f.proyectos.size && !f.proyectos.has(s.proyecto)) return false;
+    const rango = rangoFecha(f);
+    if (rango) { const d = diaLima(new Date(s.creado + 'Z')); if (d < rango[0] || d > rango[1]) return false; }
+    return true;
+  }
+  const activos = f => [f.tipos.size, f.conceptos.size, f.proyectos.size, f.fecha, f.orden].filter(Boolean).length;
+  function ordenar(lista, f) {
+    if (f.orden === 'reciente') return lista.sort((a, b) => b.id - a.id);
+    if (f.orden === 'antiguo') return lista.sort((a, b) => a.id - b.id);
+    if (f.orden === 'monto') return lista.sort((a, b) => Number(importe(b)) - Number(importe(a)) || a.id - b.id);
+    return lista;
+  }
+  const visibles = (f = filtro) => {
+    const texto = plano($('cm-buscar').value.trim());
+    return ordenar(solicitudes.filter(s => cumple(s, f)
+      && (!texto || plano([s.codigo, s.tecnico, s.documento, s.proyecto, ...conceptosDe(s)].join(' ')).includes(texto))), f);
+  };
+  function chip(texto, activo, alTocar) {
+    const b = el('button', 'cm-atajo', texto); b.type = 'button'; b.setAttribute('aria-pressed', String(!!activo));
+    b.addEventListener('click', alTocar); return b;
+  }
+  function pintarAtajos() {
+    const alternar = (conjunto, valor) => { conjunto.has(valor) ? conjunto.delete(valor) : conjunto.add(valor); pintarLista(); };
+    const fecha = valor => { filtro.fecha = filtro.fecha === valor ? '' : valor; filtro.desde = filtro.hasta = ''; pintarLista(); };
+    $('cm-atajos').replaceChildren(
+      chip('Todos', !activos(filtro), () => { filtro = filtroVacio(); pintarLista(); }),
+      chip('Gasto Cobra', filtro.tipos.has('Gasto Cobra'), () => alternar(filtro.tipos, 'Gasto Cobra')),
+      chip('Refacturable', filtro.tipos.has('Refacturable'), () => alternar(filtro.tipos, 'Refacturable')),
+      chip('Hoy', filtro.fecha === 'hoy', () => fecha('hoy')),
+      chip('Esta semana', filtro.fecha === 'semana', () => fecha('semana')));
+    const n = activos(filtro);
+    $('cm-filtros-cuenta').hidden = !n; $('cm-filtros-cuenta').textContent = n;
+    $('cm-filtros-btn').classList.toggle('activo', !!n);
+  }
+
+  // Hoja de filtros: se edita una copia y se aplica con "Ver resultados".
+  let borrador = null;
+  const copia = f => ({...f, tipos: new Set(f.tipos), conceptos: new Set(f.conceptos), proyectos: new Set(f.proyectos)});
+  function grupo(titulo, opciones, activo, alTocar) {
+    const g = el('div', 'cm-hoja-grupo'); g.append(el('h4', null, titulo));
+    const fila = el('div', 'cm-hoja-chips');
+    for (const [valor, texto] of opciones) fila.append(chip(texto, activo(valor), () => { alTocar(valor); pintarHoja(); }));
+    g.append(fila); return g;
+  }
+  function pintarHoja() {
+    const f = borrador;
+    const alternar = conjunto => valor => { conjunto.has(valor) ? conjunto.delete(valor) : conjunto.add(valor); };
+    // Conceptos de esta vista, del más usado al menos usado.
+    const cuenta = new Map();
+    solicitudes.forEach(s => conceptosDe(s).forEach(c => cuenta.set(c, (cuenta.get(c) || 0) + 1)));
+    const conceptos = [...cuenta.keys()].sort((a, b) => cuenta.get(b) - cuenta.get(a) || a.localeCompare(b, 'es'));
+    const proyectos = [...new Set(solicitudes.map(s => s.proyecto))].sort();
+    const fechas = el('div', 'cm-hoja-fechas');
+    for (const [campo, texto] of [['desde', 'Desde'], ['hasta', 'Hasta']]) {
+      const l = el('label'); const i = Object.assign(el('input'), {type: 'date', value: f[campo]});
+      i.addEventListener('change', () => { f[campo] = i.value; f.fecha = f.desde || f.hasta ? 'rango' : ''; pintarHoja(); });
+      l.append(el('span', null, texto), i); fechas.append(l);
+    }
+    const fecha = grupo('Fecha', [['hoy', 'Hoy'], ['ayer', 'Ayer'], ['semana', 'Esta semana'], ['mes', 'Este mes']], v => f.fecha === v,
+      v => { f.fecha = f.fecha === v ? '' : v; f.desde = f.hasta = ''; });
+    fecha.append(fechas);
+    $('cm-hoja-cuerpo').replaceChildren(
+      grupo('Tipo', [['Gasto Cobra', 'Gasto Cobra'], ['Refacturable', 'Refacturable']], v => f.tipos.has(v), alternar(f.tipos)),
+      ...(conceptos.length ? [grupo('Concepto', conceptos.map(c => [c, c]), v => f.conceptos.has(v), alternar(f.conceptos))] : []),
+      fecha,
+      ...(proyectos.length > 1 ? [grupo('Proyecto', proyectos.map(p => [p, PROYECTOS[p] || p]), v => f.proyectos.has(v), alternar(f.proyectos))] : []),
+      grupo('Ordenar', [['antiguo', 'Más antiguo'], ['reciente', 'Más reciente'], ['monto', 'Mayor monto']], v => f.orden === v,
+        v => { f.orden = f.orden === v ? '' : v; }));
+    const n = visibles(f).length;
+    $('cm-hoja-ver').textContent = n === 1 ? 'Ver 1 resultado' : 'Ver ' + n + ' resultados';
+  }
+  function abrirHoja() {
+    borrador = copia(filtro); pintarHoja();
+    $('cm-hoja').hidden = $('cm-hoja-velo').hidden = false;
+    document.body.classList.add('cm-sin-scroll');
+    $('cm-hoja-ver').focus();
+  }
+  function cerrarHoja(aplicar) {
+    if (aplicar) { filtro = borrador; pintarLista(); }
+    $('cm-hoja').hidden = $('cm-hoja-velo').hidden = true;
+    document.body.classList.remove('cm-sin-scroll');
+    $('cm-filtros-btn').focus();
+  }
+
   function ver(id) { ['cm-lista-vista', 'cm-detalle-vista', 'cm-exito'].forEach(v => { $(v).hidden = v !== id; }); window.scrollTo({top: 0}); }
 
   async function cargar() {
@@ -39,18 +149,25 @@
     $('cm-total-titulo').textContent = datos.total;
     $('cm-total').closest('.balance').className = 'balance compact cm-b-' + etapa;
     menu.querySelectorAll('[data-etapa]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.etapa === etapa)));
-    const total = solicitudes.reduce((t, s) => t + Number(importe(s)), 0);
-    $('cm-total').textContent = dinero(total);
-    $('cm-cantidad').textContent = solicitudes.length === 1 ? '1 solicitud' : solicitudes.length + ' solicitudes';
-    const texto = plano($('cm-buscar').value.trim());
-    const lista = solicitudes.filter(s => !texto || plano([s.codigo, s.tecnico, s.documento, s.proyecto].join(' ')).includes(texto));
+    pintarAtajos();
+    // El total y la cantidad siguen a lo filtrado.
+    const lista = visibles();
+    $('cm-total').textContent = dinero(lista.reduce((t, s) => t + Number(importe(s)), 0));
+    const filtrando = lista.length !== solicitudes.length;
+    $('cm-cantidad').textContent = (filtrando ? lista.length + ' de ' : '') + solicitudes.length + (solicitudes.length === 1 ? ' solicitud' : ' solicitudes');
     const cont = $('cm-lista'); cont.replaceChildren();
     if (!lista.length) { cont.append(el('p', 'hint cm-vacio', solicitudes.length ? 'Ninguna solicitud coincide.' : datos.vacio)); return; }
     for (const s of lista) {
       const b = el('button', 'card cm-item'); b.type = 'button';
       const izq = el('span', 'cm-item-izq');
       const linea = el('span', 'cm-item-codigo'); linea.append(el('strong', null, s.codigo), el('span', 'cm-chip cm-' + s.proyecto.toLowerCase(), PROYECTOS[s.proyecto] || s.proyecto));
-      izq.append(linea, el('small', null, s.tecnico + ' · ' + (s.formulario?.tipo_billetera && s.formulario.tipo_billetera !== 'No aplica' ? s.formulario.tipo_billetera : s.banco)),
+      izq.append(linea);
+      // Conceptos de gasto y si son Gasto Cobra o Refacturable.
+      const conceptos = conceptosDe(s);
+      if (conceptos.length) { const c = el('span', 'cm-conceptos'); conceptos.forEach(n => c.append(el('span', null, n))); izq.append(c); }
+      const tipos = tiposDe(s);
+      if (tipos.length) { const t = el('span', 'cm-tipos'); tipos.forEach(n => t.append(etiquetaTipo(n))); izq.append(t); }
+      izq.append(el('small', null, s.tecnico + ' · ' + (s.formulario?.tipo_billetera && s.formulario.tipo_billetera !== 'No aplica' ? s.formulario.tipo_billetera : s.banco)),
         el('small', 'cm-fecha', '🕒 ' + new Date(s.creado + 'Z').toLocaleString('es-PE', {dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima'})));
       b.append(izq, el('strong', 'cm-item-monto', dinero(importe(s))));
       b.addEventListener('click', () => abrir(s));
@@ -144,6 +261,7 @@
       const cab = el('div', 'cm-concepto-cab');
       cab.append(el('h2', 'cm-subtitulo', (i.numero ? i.numero + ' · ' : '') + i.tipo_gasto), el('span', 'cm-estado cm-e-' + i.estado.toLowerCase(), ESTADO_ITEM[i.estado] || i.estado));
       c.append(cab);
+      if (tipoDe(i.tipo_presupuesto)) { const t = el('div', 'cm-tipos'); t.append(etiquetaTipo(tipoDe(i.tipo_presupuesto))); c.append(t); }
       const dl = el('dl', 'cm-datos');
       const comps = i.comprobantes || [];
       if (comps.length > 1) comps.forEach((x, n) => fila(dl, 'Comprobante ' + (n + 1), [x.comprobante, dinero(x.monto), x.ruc && 'RUC ' + x.ruc].filter(Boolean).join(' · ')));
@@ -233,7 +351,7 @@
         fila(dl, 'Responsable', f.responsable_validacion);
         fila(dl, 'Validado por', s.validado_por);
         if (!depositar) { fila(dl, 'Depositado', dinero(s.total)); fila(dl, 'Depositado por', s.depositado_por); }
-        if (depositar) for (const i of s.items) fila(dl, i.tipo_gasto + (i.tipo_presupuesto ? ' · ' + i.tipo_presupuesto : ''), dinero(i.monto));
+        if (depositar) for (const i of s.items) fila(dl, i.tipo_gasto + (tipoDe(i.tipo_presupuesto) ? ' · ' + tipoDe(i.tipo_presupuesto) : ''), dinero(i.monto));
       }),
       // Revisión, Sustentado y Archivado: cada gasto con su boleta y evidencia.
       ...(depositar ? [] : conceptos(s)),
@@ -285,11 +403,18 @@
   menu.addEventListener('click', e => {
     const b = e.target.closest('[data-etapa]'); if (!b) return;
     etapa = b.dataset.etapa; cerrarMenu();
+    filtro.conceptos.clear(); filtro.proyectos.clear();  // los conceptos cambian según la vista
     try { localStorage.setItem('cm-etapa', etapa); } catch (_) {}
     $('cm-buscar').value = ''; pintarLista(); ver('cm-lista-vista');
   });
   $('cm-volver').addEventListener('click', () => ver('cm-lista-vista'));
   $('cm-exito-volver').addEventListener('click', () => ver('cm-lista-vista'));
   $('cm-buscar').addEventListener('input', pintarLista);
+  $('cm-filtros-btn').addEventListener('click', abrirHoja);
+  $('cm-hoja-velo').addEventListener('click', () => cerrarHoja(false));
+  $('cm-hoja-cancelar').addEventListener('click', () => cerrarHoja(false));
+  $('cm-hoja-ver').addEventListener('click', () => cerrarHoja(true));
+  $('cm-hoja-limpiar').addEventListener('click', () => { borrador = filtroVacio(); pintarHoja(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('cm-hoja').hidden) cerrarHoja(false); });
   cargar();
 })();

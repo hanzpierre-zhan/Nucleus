@@ -149,3 +149,11 @@ a.back{text-decoration:none;display:inline-block}
 .cc-evidencias { margin-top: 8px; grid-template-columns: repeat(2, 1fr); }
 .cc-slot-agregar { color: #2563eb; border-color: #2563eb; font-weight: 700; font: inherit; }
 .cc-slot-quitar { position: absolute; top: 6px; right: 6px; z-index: 2; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .6); color: #fff; font-size: 16px; line-height: 1; }
+/* Gasto Cobra (azul Nucleus) / Refacturable (naranja): la misma etiqueta en todo Nucleus. */
+.cc-tipos { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.cc-tipo { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .2px; padding: 2px 8px; border-radius: 999px; }
+.cc-tipo-gc { background: rgba(23, 62, 118, .12); color: #173e76; }
+.cc-tipo-rf { background: rgba(234, 88, 12, .14); color: #c2410c; }
+:root[data-theme="dark"] .cc-tipo-gc { background: rgba(142, 185, 245, .16); color: #8eb9f5; }
+:root[data-theme="dark"] .cc-tipo-rf { background: rgba(251, 146, 60, .16); color: #fdba74; }
+.expense-classification .cc-tipo { margin-top: 3px; }

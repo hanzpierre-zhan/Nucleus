@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Depósitos · Caja Chica</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=11) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-movil.css',v=5) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Depósitos · Caja Chica</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=11) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-movil.css',v=6) }}"></head>
 <body>
 <header class="top"><a href="/caja-chica/movil" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>CAJA CHICA</span></a>
   <div class="top-actions">
@@ -19,7 +19,12 @@
   <section id="cm-lista-vista" class="view">
     <div class="eyebrow">{{ usuario }} · DEPOSITANTE</div><h1 id="cm-titulo">Por depositar</h1>
     <div class="balance compact"><span class="balance-label" id="cm-total-titulo">TOTAL POR DEPOSITAR</span><div id="cm-total" class="big-money">S/ 0.00</div><small id="cm-cantidad" class="cm-cantidad"></small></div>
-    <input type="search" id="cm-buscar" class="cm-buscar" placeholder="Buscar código, técnico o DNI" aria-label="Buscar solicitud">
+    <div class="cm-busca">
+      <input type="search" id="cm-buscar" class="cm-buscar" placeholder="Buscar código, técnico o DNI" aria-label="Buscar solicitud">
+      <button type="button" id="cm-filtros-btn" class="cm-filtros-btn" aria-haspopup="dialog" aria-controls="cm-hoja"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtros<span id="cm-filtros-cuenta" class="cm-filtros-cuenta" hidden></span></button>
+    </div>
+    {# Atajos de un toque; el resto de filtros va en la hoja de "Filtros". #}
+    <nav id="cm-atajos" class="cm-atajos" aria-label="Filtros rápidos"></nav>
     <div id="cm-lista" aria-live="polite"><p class="hint">Cargando…</p></div>
   </section>
   <section id="cm-detalle-vista" class="view" hidden>
@@ -41,5 +46,13 @@
     <button type="button" class="primary wide" id="cm-exito-volver">Seguir depositando</button>
   </section>
 </main>
-<script src="{{ url_for('static',filename='js/caja-chica-movil.js',v=5) }}" defer></script>
+{# Hoja de filtros: sube desde abajo (cómoda con el pulgar). caja-chica-movil.js arma su contenido. #}
+<div id="cm-hoja-velo" class="cm-hoja-velo" hidden></div>
+<section id="cm-hoja" class="cm-hoja" role="dialog" aria-modal="true" aria-labelledby="cm-hoja-titulo" hidden>
+  <div class="cm-hoja-asa" aria-hidden="true"></div>
+  <div class="cm-hoja-cabeza"><strong id="cm-hoja-titulo">Filtros</strong><button type="button" id="cm-hoja-limpiar" class="cm-hoja-limpiar">Limpiar</button></div>
+  <div id="cm-hoja-cuerpo" class="cm-hoja-cuerpo"></div>
+  <div class="cm-hoja-pie"><button type="button" id="cm-hoja-cancelar" class="cm-hoja-cancelar">Cancelar</button><button type="button" id="cm-hoja-ver" class="cm-hoja-ver">Ver resultados</button></div>
+</section>
+<script src="{{ url_for('static',filename='js/caja-chica-movil.js',v=6) }}" defer></script>
 </body></html>

@@ -69,3 +69,43 @@
 .cm-menu-lista svg { color: var(--muted); }
 .cm-menu-lista button[aria-checked="true"] svg { color: inherit; }
 .cm-accion svg { stroke-width: 2.2; }
+/* Gasto Cobra (azul Nucleus) / Refacturable (naranja), y conceptos en la tarjeta. */
+.cm-tipos { display: flex; flex-wrap: wrap; gap: 4px; }
+.cm-concepto .cm-tipos { margin: 2px 0 6px; }
+.cm-tipo { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .2px; padding: 2px 8px; border-radius: 999px; }
+.cm-tipo-gc { background: rgba(23, 62, 118, .12); color: #173e76; }
+.cm-tipo-rf { background: rgba(234, 88, 12, .14); color: #c2410c; }
+:root[data-theme="dark"] .cm-tipo-gc { background: rgba(142, 185, 245, .16); color: #8eb9f5; }
+:root[data-theme="dark"] .cm-tipo-rf { background: rgba(251, 146, 60, .16); color: #fdba74; }
+.cm-conceptos { display: flex; flex-wrap: wrap; gap: 4px; }
+.cm-conceptos span { font-size: 11.5px; background: var(--fill); padding: 1px 7px; border-radius: 6px; }
+/* Buscador + botón Filtros, y atajos de un toque. */
+.cm-busca { display: flex; gap: 8px; align-items: center; margin: 12px 0 8px; }
+.cm-busca .cm-buscar { flex: 1; min-width: 0; margin: 0; }
+.cm-filtros-btn { position: relative; flex: none; display: flex; align-items: center; gap: 6px; padding: 11px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-weight: 600; font-size: 14px; }
+.cm-filtros-btn.activo { border-color: var(--blue); color: var(--blue); }
+.cm-filtros-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.cm-filtros-cuenta { position: absolute; top: -6px; right: -4px; min-width: 18px; padding: 1px 5px; border-radius: 999px; background: var(--balance); color: #fff; font-size: 11px; font-weight: 700; text-align: center; }
+.cm-atajos { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 12px; padding: 2px; }
+.cm-atajos::-webkit-scrollbar { display: none; }
+.cm-atajo { flex: none; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 13px; font-weight: 600; }
+.cm-atajo[aria-pressed="true"] { background: var(--balance); border-color: var(--balance); color: #fff; }
+/* Hoja de filtros que sube desde abajo. */
+.cm-sin-scroll { overflow: hidden; }
+.cm-hoja-velo { position: fixed; inset: 0; z-index: 40; background: rgba(15, 23, 42, .45); }
+.cm-hoja { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-width: 760px; margin: 0 auto; max-height: 85vh; display: flex; flex-direction: column; background: var(--card); color: var(--ink); border-radius: 22px 22px 0 0; padding: 10px 18px calc(14px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 30px rgba(0, 0, 0, .2); }
+.cm-hoja[hidden], .cm-hoja-velo[hidden] { display: none; }
+.cm-hoja-asa { width: 40px; height: 5px; border-radius: 9px; background: var(--line); margin: 0 auto 8px; }
+.cm-hoja-cabeza { display: flex; justify-content: space-between; align-items: center; }
+.cm-hoja-cabeza strong { font-size: 17px; }
+.cm-hoja-limpiar { border: 0; background: none; color: var(--blue); font-weight: 600; padding: 6px 0; }
+.cm-hoja-cuerpo { overflow-y: auto; padding-bottom: 4px; }
+.cm-hoja-grupo h4 { margin: 14px 0 6px; font-size: 11.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.cm-hoja-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cm-hoja-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; align-items: start; }
+.cm-hoja-fechas label { display: block; margin: 0 !important; }
+.cm-hoja-fechas span { display: block; font-size: 11px; color: var(--muted); }
+.cm-hoja-fechas input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--input-border); background: var(--field); color: inherit; }
+.cm-hoja-pie { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 12px; }
+.cm-hoja-pie button { padding: 13px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-weight: 700; }
+.cm-hoja-pie .cm-hoja-ver { background: var(--balance); border-color: var(--balance); color: #fff; }

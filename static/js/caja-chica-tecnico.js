@@ -10,6 +10,14 @@
   const dinero = v => 'S/ ' + Number(v || 0).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const numero = v => { const t = String(v || '').replace(/\s/g, '').replace(/,(?=\d{3}(\D|$))/g, '').replace(',', '.'); return /^\d+(\.\d{1,2})?$/.test(t) ? Number(t) : NaN; };
   let datos = null, corrigiendo = null;  // corrigiendo = solicitud rechazada que se está reenviando
+  // Gasto Cobra (azul) o Refacturable (naranja): la misma etiqueta en todo Nucleus.
+  const tipoDe = t => !t ? '' : /refact/i.test(t) ? 'Refacturable' : 'Gasto Cobra';
+  const etiquetaTipo = t => el('span', 'cc-tipo ' + (t === 'Refacturable' ? 'cc-tipo-rf' : 'cc-tipo-gc'), t);
+  function etiquetasTipo(items) {
+    const tipos = [...new Set(items.map(i => tipoDe(i.tipo_presupuesto)).filter(Boolean))];
+    if (!tipos.length) return null;
+    const caja = el('span', 'cc-tipos'); tipos.forEach(t => caja.append(etiquetaTipo(t))); return caja;
+  }
 
   async function api(ruta, opciones = {}, prefijo = base) {
     const r = await fetch(prefijo + ruta, {credentials: 'same-origin', ...opciones, headers: {'X-CSRF-Token': $('csrf').value, ...(opciones.headers || {})}});
@@ -274,6 +282,8 @@
         : sol.devolucion_foto && ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado) ? 'Devolución en revisión'
         : sol.puede_devolver && sol.estado === 'DEPOSITADO' ? ESTADOS.POR_DEVOLVER : ESTADOS[sol.estado]),
       el('small', null, 'Motivo: ' + (sol.motivo || 'Sin motivo registrado')));
+    const tipos = etiquetasTipo(sol.items || []);
+    if (tipos) descripcion.append(tipos);
     const ultimo = sol.historial?.at(-1);
     const rechazo = sol.motivo_rechazo || sol.items.find(item => item.estado === 'RECHAZADO')?.motivo_rechazo
       || (ultimo?.accion === 'rechazar devolución' ? ultimo.motivo : '');
@@ -355,7 +365,9 @@
       const fila = el('section', 'card cc-item-fila cc-item-' + item.estado.toLowerCase());
       const cab = el('div', 'cc-item-cabecera');
       cab.append(el('strong', null, item.numero + ' · ' + item.tipo_gasto), el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
-      fila.append(cab, el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + 'Solicitado ' + dinero(item.monto)));
+      fila.append(cab);
+      if (tipoDe(item.tipo_presupuesto)) { const t = el('div', 'cc-tipos'); t.append(etiquetaTipo(tipoDe(item.tipo_presupuesto))); fila.append(t); }
+      fila.append(el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + 'Solicitado ' + dinero(item.monto)));
       if (item.estado === 'APROBADO' || item.estado === 'EN_REVISION') {
         fila.append(el('p', 'cc-item-ok', (item.estado === 'APROBADO' ? '✓ Rendiste ' : 'Enviado · ') + dinero(item.monto_gastado)
           + ((item.comprobantes || []).length > 1 ? ' · ' + item.comprobantes.length + ' comprobantes' : item.comprobante ? ' · ' + item.comprobante : '')));
@@ -511,7 +523,10 @@
       card.dataset.descripcion = valores?.descripcion || '';
       card.querySelector('[data-nombre]').textContent = concepto.nombre;
       card.querySelector('.expense-criterion').textContent = concepto.descripcion || '';
-      card.querySelector('.expense-classification').textContent = concepto.proyectos[proyecto] || valores?.tipo_presupuesto || '';
+      // Etiqueta de color: Gasto Cobra o Refacturable.
+      const clasificacion = card.querySelector('.expense-classification');
+      const tipo = tipoDe(concepto.proyectos[proyecto] || valores?.tipo_presupuesto);
+      clasificacion.replaceChildren(...(tipo ? [etiquetaTipo(tipo)] : []));
       checkbox.value = concepto.nombre;
       checkbox.checked = Boolean(valores);
       detalle.querySelectorAll('[data-campo]').forEach(control => {
