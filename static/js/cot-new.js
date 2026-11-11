@@ -651,14 +651,15 @@
     const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-money-bill-wave'), el('span', null, 'Pago')); caja.append(h);
     const esTransito = atencion(c) === 'Tránsito', aPagar = esTransito ? num(c['MONTO TRANSITO']) : num(c.monto);
     const monto = el('div', 'cn-total'); monto.append(el('span', null, 'Monto a pagar · ' + (atencion(c) || '')), el('strong', null, dinero(aPagar)));
-    const foto = zonaArchivo('Foto del pago', 'Toca para adjuntar la captura o voucher', 'image/*,.pdf');
+    // Solo la captura (imagen) del depósito; no se acepta PDF.
+    const foto = zonaArchivo('Captura del depósito', 'Toca para adjuntar la foto o captura del depósito', 'image/*');
     const tras = atencion(c) === 'Tránsito' ? ' y queda en Tránsito hasta encontrar proveedor' : '';
     caja.append(monto);
     caja.append(foto, el('p', 'cc-nota', 'La fecha y hora del pago se registran solas al confirmar. Pasa a Operaciones' + tras + '.'));
     const error = errorCaja(); caja.append(error);
     derecha.append(fichaItems(c), caja);
     ventana('Registrar pago · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Confirmar pago', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
-      if (!foto.input.files.length) throw Error('Adjunta la foto del pago.');
+      if (!foto.input.files.length) throw Error('Adjunta la captura del depósito.');
       const subido = await subir('/api/cotizacion/subir_pago', c.key, foto.input.files[0]);
       const r = await fetch('/api/cot-new/pagar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, foto: subido.url})});
       const j = await r.json().catch(() => ({}));
@@ -698,8 +699,7 @@
     const url = c['FOTO PAGO'];
     if (url) {
       const a = el('a', 'cn-captura-pago'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = 'Abrir captura del depósito';
-      if (/\.pdf($|\?)/i.test(url)) a.append(icono('fa-file-pdf'), el('span', null, ' Ver captura del depósito (PDF)'));
-      else { const img = el('img'); img.src = url; img.alt = 'Captura del depósito'; img.loading = 'lazy'; a.append(img); }
+      const img = el('img'); img.src = url; img.alt = 'Captura del depósito'; img.loading = 'lazy'; a.append(img);
       caja.append(el('span', 'cc-motivo-etiqueta', 'Captura del depósito'), a);
     } else caja.append(el('p', 'cc-nota', 'Sin captura del depósito.'));
     const fila = (texto, valor, clase) => { const d = el('div', 'cn-total' + (clase ? ' ' + clase : '')); d.append(el('span', null, texto), el('strong', null, dinero(valor))); return d; };

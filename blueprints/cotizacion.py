@@ -1307,8 +1307,8 @@ def api_cotizacion_subir_correo():
     es_oc = request.path.endswith('/subir_oc_proveedor')
     es_proveedor = es_factura or es_oc or request.path.endswith('/subir_cotizacion_proveedor')
     es_pago = request.path.endswith('/subir_pago')
-    if es_pago and ext not in ('.jpg', '.jpeg', '.png', '.webp', '.pdf'):
-        return jsonify({'error': 'Adjunta la foto del pago (JPG, PNG, WEBP o PDF).'}), 400
+    if es_pago and ext not in ('.jpg', '.jpeg', '.png', '.webp'):
+        return jsonify({'error': 'Adjunta la captura del depósito (JPG, PNG o WEBP).'}), 400
     if es_proveedor and ext not in ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'):
         return jsonify({'error': 'Adjunta un PDF, documento Word, Excel o imagen.'}), 400
     if ext in EXT_CORREO_BLOQUEADAS:
