@@ -4,6 +4,8 @@
   const filas = document.getElementById('cc-catalogo-filas');
   const mensaje = document.getElementById('cc-catalogo-mensaje');
   const agregar = document.getElementById('cc-catalogo-agregar');
+  // Solo lectura: lo ven todos; solo el supervisor (y zeno) edita.
+  const editable = form.dataset.editar === 'si';
   const dialogo = document.getElementById('cc-comentario-dialogo');
   const editor = dialogo.querySelector('textarea');
   let comentarioActivo;
@@ -50,16 +52,18 @@
       pintarCelda(campo);
       campo.addEventListener('change', () => pintarCelda(campo));
     });
-    fila.querySelector('[data-quitar]').addEventListener('click', () => {
+    fila.querySelector('[data-quitar]')?.addEventListener('click', () => {
       fila.remove();
       mensaje.textContent = 'Concepto retirado del editor. Guarda para aplicar el cambio.';
       agregar.focus();
     });
+    if (!editable) fila.querySelectorAll('input, select, button').forEach(c => { c.disabled = true; });
     filas.append(fila);
     if (!concepto) nombre.focus();
   }
 
   JSON.parse(document.getElementById('cc-catalogo-datos').textContent).forEach(agregarFila);
+  if (!editable) return;
   agregar.addEventListener('click', () => agregarFila());
   form.addEventListener('submit', async event => {
     event.preventDefault();

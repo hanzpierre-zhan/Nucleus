@@ -66,7 +66,7 @@
       </button>
       {# Menú de opciones: agrega aquí nuevas acciones (un <button role="menuitem" data-accion="…">) y su caso en caja-chica.js. #}
       <div id="cc-ajustes-menu" class="cc-ajustes-menu" role="menu" hidden>
-        {% if administra_catalogo %}
+        {% if ve_catalogo %}
         <button type="button" role="menuitem" data-accion="catalogo" data-url="{{ url_for('caja_chica.gestion_catalogo') }}"><i class="fa-solid fa-list-check" aria-hidden="true"></i> Conceptos de gasto</button>
         {% endif %}
         <button type="button" role="menuitem" data-accion="limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros y búsquedas</button>

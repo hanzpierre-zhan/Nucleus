@@ -2,19 +2,24 @@
 {% block title %}Conceptos de gasto · Caja Chica{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/caja-chica.css', v=26) }}">
+<style>.cc-solo-lectura{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--cc-fondo-suave,rgba(100,116,139,.12));color:var(--cc-texto-suave,#64748b);font-size:13px;font-weight:600}</style>
 <section class="cc-gestion cc-catalogo">
-  <form id="cc-catalogo" data-csrf="{{ csrf }}">
+  <form id="cc-catalogo" data-csrf="{{ csrf }}" data-editar="{{ 'si' if puede_editar else 'no' }}">
     <div class="cc-barra cc-catalogo-acciones">
       <a class="cc-concepto-boton" href="{{ url_for('caja_chica.gestion') }}" title="Volver a Caja Chica" aria-label="Volver a Caja Chica">
         <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
       </a>
       <h1>Conceptos de gasto</h1>
+      {% if puede_editar %}
       <button class="cc-concepto-boton" type="button" id="cc-catalogo-agregar" title="Agregar concepto" aria-label="Agregar concepto">
         <i class="fa-solid fa-plus" aria-hidden="true"></i>
       </button>
       <button class="cc-concepto-boton" type="submit" title="Guardar cambios" aria-label="Guardar cambios">
         <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
       </button>
+      {% else %}
+      <span class="cc-solo-lectura"><i class="fa-solid fa-eye" aria-hidden="true"></i> Solo lectura · edita el supervisor</span>
+      {% endif %}
     </div>
     <div class="cc-tabla">
       <table aria-label="Conceptos de gasto">
@@ -22,7 +27,7 @@
           <th scope="col">Opción</th>
           <th scope="col">Comentario</th>
           {% for p in proyectos %}<th scope="col">{{ p if p == 'PEXT' else p.title() }}</th>{% endfor %}
-          <th scope="col">Eliminar</th>
+          {% if puede_editar %}<th scope="col">Eliminar</th>{% endif %}
         </tr></thead>
         <tbody id="cc-catalogo-filas"></tbody>
       </table>
@@ -58,9 +63,9 @@
         </label>
       </div></td>
       {% endfor %}
-      <td><button class="cc-concepto-boton" type="button" data-quitar title="Eliminar concepto" aria-label="Eliminar concepto">
+      {% if puede_editar %}<td><button class="cc-concepto-boton" type="button" data-quitar title="Eliminar concepto" aria-label="Eliminar concepto">
         <i class="fa-solid fa-trash" aria-hidden="true"></i>
-      </button></td>
+      </button></td>{% endif %}
     </tr>
   </template>
   <dialog id="cc-comentario-dialogo" aria-labelledby="cc-comentario-titulo">
@@ -75,5 +80,5 @@
   </dialog>
   <script id="cc-catalogo-datos" type="application/json">{{ catalogo | tojson }}</script>
 </section>
-<script src="{{ url_for('static', filename='js/caja-chica-catalogo.js', v=6) }}" defer></script>
+<script src="{{ url_for('static', filename='js/caja-chica-catalogo.js', v=7) }}" defer></script>
 {% endblock %}

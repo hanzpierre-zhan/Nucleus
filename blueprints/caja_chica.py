@@ -24,6 +24,8 @@ from blueprints.formularios_prueba import (BANCOS, CATALOGO_GASTOS, PROYECTOS, c
 bp = Blueprint('caja_chica', __name__)
 ROLES_TODO = ('zeno', 'suport', 'admin')
 ROLES_ELIMINAR = ('zeno', 'admin')
+# Conceptos de gasto: todos los ven; solo el supervisor (y zeno) los edita.
+ROLES_EDITAR_CATALOGO = ('zeno', 'supervisor')
 CLAVE_CATALOGO = 'catalogo_gastos'
 CLAVE_COLUMNAS = 'orden_columnas'  # orden de columnas de la tabla, igual para todos
 
@@ -326,6 +328,7 @@ def gestion():
                            puede_gestionar=str(session.get('rol') or '').lower() not in ('demo', 'contrata'),
                            puede_eliminar=str(session.get('rol') or '').lower() in ROLES_ELIMINAR,
                            administra_catalogo=session.get('rol', '').lower() in ROLES_TODO,
+                           ve_catalogo=str(session.get('rol') or '').lower() not in ('demo', 'contrata'),
                            orden_columnas=_orden_columnas(),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
@@ -366,10 +369,14 @@ def gestion_movil():
 @login_required
 def gestion_catalogo():
     _alcance()
-    if str(session.get('rol') or '').strip().lower() not in ROLES_TODO:
+    rol = str(session.get('rol') or '').strip().lower()
+    if rol in ('demo', 'contrata'):
         abort(403)
+    puede_editar = rol in ROLES_EDITAR_CATALOGO
     modulo, config = _config_catalogo()
     if request.method == 'POST':
+        if not puede_editar:
+            abort(403)
         comprobar_csrf()
         try:
             catalogo = cc.normalizar_catalogo(request.get_json(silent=True), PROYECTOS)
@@ -381,7 +388,7 @@ def gestion_catalogo():
         config.valor = json.dumps(catalogo, ensure_ascii=False)
         db.session.commit()
         return jsonify(success=True)
-    return render_template('caja_chica_catalogo.html', catalogo=_catalogo(config), csrf=csrf(),
+    return render_template('caja_chica_catalogo.html', catalogo=_catalogo(config), csrf=csrf(), puede_editar=puede_editar,
                            proyectos=('ENTEL', 'CLARO', 'PEXT', 'INTEGRATEL'),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 

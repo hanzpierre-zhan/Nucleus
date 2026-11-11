@@ -695,3 +695,26 @@ def test_orden_de_columnas_es_el_mismo_para_todos(auth_client, cambiar_rol):
     assert 'data-columnas="[&#34;total&#34;, &#34;codigo&#34;]"' in auth_client.get('/caja-chica/').get_data(as_text=True)
     cambiar_rol(auth_client, 'demo')
     assert auth_client.post(ruta, headers=csrf, json={'columnas': ['codigo']}).status_code == 403
+
+
+def test_conceptos_los_ven_todos_y_solo_edita_el_supervisor(auth_client, cambiar_rol, monkeypatch):
+    import blueprints.caja_chica as modulo
+    original = modulo.get_menu_proyectos
+    # Cualquier rol con el módulo Caja Chica asignado.
+    monkeypatch.setattr(modulo, 'get_menu_proyectos', lambda uid, rol: original(uid, 'zeno'))
+    ruta = '/caja-chica/catalogo'
+    token = re.search(rb'data-csrf="([^"]+)"', auth_client.get(ruta).data).group(1).decode()
+    catalogo = [{'nombre': 'Peajes', 'descripcion': '', 'proyectos': {'ENTEL': 'Gasto Cobra'}}]
+    cambiar_rol(auth_client, 'gestor')
+    pagina = auth_client.get(ruta).get_data(as_text=True)
+    assert 'Solo lectura' in pagina and 'cc-catalogo-agregar' not in pagina
+    assert 'Conceptos de gasto' in auth_client.get('/caja-chica/').get_data(as_text=True)
+    assert auth_client.post(ruta, json=catalogo, headers={'X-CSRF-Token': token}).status_code == 403
+    cambiar_rol(auth_client, 'admin')
+    assert auth_client.post(ruta, json=catalogo, headers={'X-CSRF-Token': token}).status_code == 403
+    cambiar_rol(auth_client, 'supervisor')
+    pagina = auth_client.get(ruta).get_data(as_text=True)
+    assert 'cc-catalogo-agregar' in pagina and 'Solo lectura' not in pagina
+    cambiar_rol(auth_client, 'demo')
+    assert auth_client.get(ruta).status_code == 403
+    cambiar_rol(auth_client, 'zeno')
