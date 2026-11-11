@@ -43,6 +43,7 @@
   const CHIP_ATENCION = {'Caja chica': 'cn-a-caja', Proveedor: 'cn-a-proveedor', 'Tránsito': 'cn-a-transito'};
   const fechaTexto = t => { const v = fechaValor(t); return v ? new Date(v).toLocaleDateString('es-PE') : (t || '—'); };
 
+  const listaWo = v => String(v || '').split(/\s*[,;|\n]\s*/).map(t => t.trim()).filter(Boolean);
   const acumuladoCC = c => (c.depositos_cc || []).reduce((t, d) => t + Number(d.monto || 0), 0);
   // ── Columnas ──
   const COLUMNAS = {
@@ -57,7 +58,16 @@
     }},
     nombreCliente: {titulo: 'Nombre de cliente', ancho: 'minmax(150px, 1.1fr)', texto: c => c['NOMBRE CLIENTE'] || '—'},
     site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1.1fr)', texto: c => c['NOMBRE SITE'] || '—'},
-    wo: {titulo: 'N.º WO', ancho: 'minmax(130px, .9fr)', texto: c => c['NUMERO WO'] || '—'},
+    // Varios WO: una línea con la cantidad (clic: lista); uno solo se ve tal cual.
+    wo: {titulo: 'N.º WO', ancho: 'minmax(130px, .9fr)', texto: c => c['NUMERO WO'] || '—', celda: c => {
+      const lista = listaWo(c['NUMERO WO']);
+      if (lista.length < 2) return el('span', null, lista[0] || '—');
+      const b = el('button', 'cn-depositos-resumen'); b.type = 'button';
+      b.title = lista.join(', '); b.setAttribute('aria-label', 'Ver ' + lista.length + ' WO');
+      b.append(el('span', null, lista.length + ' WO'), icono('fa-chevron-right'));
+      b.addEventListener('click', e => { e.stopPropagation(); verWos(c, lista); });
+      return b;
+    }},
     motivo: {titulo: 'Motivo', ancho: 'minmax(200px, 1.8fr)', texto: c => c.MOTIVO || c.OBJETIVO || '—', clase: 'cn-motivo'},
     supervisor: {titulo: 'Supervisor', ancho: 'minmax(140px, 1fr)', texto: c => c.SUPERVISOR || '—'},
     gestor: {titulo: 'Solicitante', ancho: 'minmax(120px, .9fr)', texto: c => nombreDe(c['SOLICITADO POR'] || c.GESTOR) || '—'},
@@ -766,6 +776,14 @@
   const resumenCot = c => ficha('fa-file-lines', 'Cotización', [['N.º', c['N° COTIZACION'] || c.key], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
     ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']], ['Motivo', c.MOTIVO], ['Enviada', c['FECHA ENVIO CLIENTE']],
     ['Aprobada', c['FECHA APROBACION']], ['Interacción', c['TIPO GASTO APROBACION']], ['Sub total + FEE', dinero(c.monto)]]);
+  function verWos(c, lista) {
+    const tabla = el('table', 'cn-depositos-tabla');
+    const cab = el('tr'); ['#', 'N.º WO'].forEach(t => cab.append(el('th', null, t))); tabla.append(cab);
+    lista.forEach((w, n) => { const f = el('tr'); f.append(el('td', null, String(n + 1)), el('td', null, w)); tabla.append(f); });
+    const caja = el('section', 'cc-ficha'); const h = el('h4', 'cc-ficha-titulo');
+    h.append(icono('fa-list-ol'), el('span', null, lista.length + ' WO · ' + (c['NOMBRE SITE'] || ''))); caja.append(h, tabla);
+    ventana('WO · ' + (c['N° COTIZACION'] || c.key), caja, null, []);
+  }
   // Lista de depósitos de Caja Chica asociados; cada código abre su solicitud en Caja Chica.
   function verDepositos(c) {
     const lista = c.depositos_cc || [];

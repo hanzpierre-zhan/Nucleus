@@ -222,3 +222,5 @@ body .cn-factura-quitar { width: 28px !important; height: 28px !important; min-h
 .cn-depositos-tabla td { padding: 7px 8px; border-top: 1px solid rgba(100, 116, 139, .25); }
 .cn-depositos-tabla th:last-child, .cn-depositos-tabla td:last-child { text-align: right; }
 .cn-depositos-pie td { font-weight: 700; border-top-width: 2px; }
+.cn-depositos-tabla td:first-child:not(:only-child) { width: 1%; }
+.cn-depositos-tabla tr:has(td:nth-child(2):last-child) td:last-child { text-align: left; }
