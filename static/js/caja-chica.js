@@ -1300,6 +1300,9 @@
            celda: s => el('span', s.faltan?.includes('Site') ? 'cc-falta' : null, s.formulario?.site || '—')},
     wo: {titulo: 'N.º CM / PM / PLM', ancho: 'minmax(145px, 1fr)', texto: s => s.formulario?.wo || '—',
          celda: s => el('span', s.faltan?.includes('CM') ? 'cc-falta' : null, s.formulario?.wo || '—')},
+    // N.º de cotización asociada (la registra la gestora en validación).
+    cotizacion: {titulo: 'N.º cotización', ancho: 'minmax(130px, .9fr)', texto: s => s.revision?.cotizacion || '—',
+                 celda: s => el('span', s.revision?.cotizacion ? 'cc-num' : null, s.revision?.cotizacion || '—')},
     // Gasto Cobra / Refacturable según los conceptos de la solicitud (pueden ser ambos).
     presupuesto: {titulo: 'Gasto Cobra / Refacturable', ancho: 'minmax(150px, 1fr)',
                   texto: s => [...new Set(itemsEtapa(s).map(i => i.tipo_presupuesto).filter(Boolean))].join(' · ') || '—',
@@ -1334,7 +1337,11 @@
   try {
     // Columnas guardadas que siguen existiendo, y al final las nuevas que aún no estaban en el orden.
     const compartido = JSON.parse(permisos.columnas || '[]').filter(c => COLUMNAS[c]);
-    if (compartido.length) columnas = [...new Set([...compartido, ...columnas])];
+    // Columna nueva: se ubica después de la que la precede en el orden por defecto.
+    if (compartido.length) columnas = columnas.reduce((orden, c, n) => {
+      if (!orden.includes(c)) orden.splice(n ? orden.indexOf(columnas[n - 1]) + 1 : 0, 0, c);
+      return orden;
+    }, compartido);
   } catch (_) {}
   try {
     const p = JSON.parse(localStorage.getItem('cc-tabla') || '{}');
