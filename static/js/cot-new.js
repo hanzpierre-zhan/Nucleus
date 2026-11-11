@@ -60,11 +60,11 @@
     wo: {titulo: 'N.º WO', ancho: 'minmax(130px, .9fr)', texto: c => c['NUMERO WO'] || '—'},
     motivo: {titulo: 'Motivo', ancho: 'minmax(200px, 1.8fr)', texto: c => c.MOTIVO || c.OBJETIVO || '—', clase: 'cn-motivo'},
     supervisor: {titulo: 'Supervisor', ancho: 'minmax(140px, 1fr)', texto: c => c.SUPERVISOR || '—'},
-    gestor: {titulo: 'Solicitado por', ancho: 'minmax(120px, .9fr)', texto: c => nombreDe(c['SOLICITADO POR'] || c.GESTOR) || '—'},
+    gestor: {titulo: 'Solicitante', ancho: 'minmax(120px, .9fr)', texto: c => nombreDe(c['SOLICITADO POR'] || c.GESTOR) || '—'},
     cotizador: {titulo: 'Cotizador', ancho: 'minmax(130px, .9fr)', texto: c => nombreDe(c.COTIZADOR || c['COTIZADO POR']) || '—'},
     estado: {titulo: 'Estado', ancho: 'minmax(130px, .9fr)', texto: c => estadoTexto(c),
              celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), estadoTexto(c))},
-    atencion: {titulo: 'Se atiende con', ancho: 'minmax(110px, .8fr)', texto: c => atencion(c) || '—',
+    atencion: {titulo: 'Interacción', ancho: 'minmax(110px, .8fr)', texto: c => atencion(c) || '—',
                celda: c => atencion(c) ? el('span', 'cc-chip ' + CHIP_ATENCION[atencion(c)], atencion(c)) : el('span', null, '—')},
     pago: {titulo: 'Estado de pago', ancho: 'minmax(150px, 1fr)', texto: c => c.estado_pago || '—',
            celda: c => c.estado_pago ? el('span', 'cc-chip ' + (CHIP_PAGO[c.estado_pago] || ''), c.estado_pago) : el('span', null, '—')},
@@ -87,7 +87,7 @@
                   return caja;
                 }},
   };
-  // "Se atiende con" y la provisión van junto al cliente para verlos sin desplazar la tabla.
+  // "Interacción" y la provisión van junto al cliente para verlos sin desplazar la tabla.
   let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'pago', 'operativo', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'pago', 'operativo', 'provision');
   function estadoTexto(c) {
     if (c._PAGO_PENDIENTE && c.pestanas.some(p => ['cajachica', 'proveedor'].includes(p))) return 'Por pagar';
@@ -550,7 +550,7 @@
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(ficha('fa-file-lines', 'Detalle', [['Fecha', fechaTexto(c.FECHA)], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
       ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Tipo de concepto', c['TIPO DE CONCEPTO'] || c['TIPO DE COTIZACION']],
-      ['Tipo de gasto', c['TIPO DE GASTO']], ['Cotizador', nombreDe(c.COTIZADOR)], ['Solicitado por', nombreDe(c['SOLICITADO POR'] || c.GESTOR)]]));
+      ['Tipo de gasto', c['TIPO DE GASTO']], ['Cotizador', nombreDe(c.COTIZADOR)], ['Solicitante', nombreDe(c['SOLICITADO POR'] || c.GESTOR)]]));
     const textos = el('form', 'cc-ficha cn-editor-textos'); textos.noValidate = true;
     const ht = el('h4', 'cc-ficha-titulo'); ht.append(icono('fa-pen-to-square'), el('span', null, 'Datos de la cotización')); textos.append(ht);
     const proyectoFlm = c['PROYECTO FLM'] || (c.familia ? 'FLM - ' + c.familia : '');
@@ -763,7 +763,7 @@
   }
   const resumenCot = c => ficha('fa-file-lines', 'Cotización', [['N.º', c['N° COTIZACION'] || c.key], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
     ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']], ['Motivo', c.MOTIVO], ['Enviada', c['FECHA ENVIO CLIENTE']],
-    ['Aprobada', c['FECHA APROBACION']], ['Se atiende con', c['TIPO GASTO APROBACION']], ['Sub total + FEE', dinero(c.monto)]]);
+    ['Aprobada', c['FECHA APROBACION']], ['Interacción', c['TIPO GASTO APROBACION']], ['Sub total + FEE', dinero(c.monto)]]);
   function zonaArchivo(texto, ayuda, acepta) {
     const zona = el('label', 'cc-validacion-zona');
     const input = Object.assign(el('input'), {type: 'file', accept: acepta});
@@ -783,7 +783,7 @@
     const correo = zonaArchivo('Correo de aprobación', 'Toca para adjuntar .msg, PDF o imagen', '.msg,.eml,.pdf,.jpg,.jpeg,.png,.webp');
     form.append(correo);
     // La fecha de aprobación no se escribe: se registra sola con la hora de Perú al aprobar.
-    // Se atiende con: dos botones (mismo diseño que Gasto Cobra / Refacturable).
+    // Interacción: dos botones (mismo diseño que Gasto Cobra / Refacturable).
     const tipo = Object.assign(el('input'), {type: 'hidden', value: {Proveedor: 'Proveedor', 'Tránsito': 'Tránsito'}[atencion(c)] || 'Caja Chica'});
     const segmento = el('div', 'cn-segmento');
     [['Caja Chica', 'Caja chica'], ['Proveedor', 'Proveedor'], ['Tránsito', 'Tránsito']].forEach(([v, t]) => {
@@ -792,7 +792,7 @@
       segmento.append(b);
     });
     segmento.append(tipo);
-    const lTipo = el('div', 'cc-pendiente-campo'); lTipo.append(el('span', null, 'Se atiende con'), segmento); correo.after(lTipo);
+    const lTipo = el('div', 'cc-pendiente-campo'); lTipo.append(el('span', null, 'Interacción'), segmento); correo.after(lTipo);
     // Tránsito: cuánto se deposita por Caja chica mientras se busca proveedor (por defecto, el total de la cotización).
     const montoTransito = Object.assign(el('input'), {type: 'text', inputMode: 'decimal', placeholder: '0.00', value: c['MONTO TRANSITO'] || Number(c.monto || 0).toFixed(2)});
     const lMonto = el('label', 'cc-pendiente-campo'); lMonto.append(el('span', null, 'Monto a depositar para Tránsito (S/)'), montoTransito,
@@ -1074,7 +1074,7 @@
       };
       pintarFotos(); evid.append(caja);
     }
-    const pago = ficha('fa-money-bill-wave', 'Pago', [['Se atiende con', atencion(c)], ['Pagado', c['FECHA PAGO'] && (c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']))]]);
+    const pago = ficha('fa-money-bill-wave', 'Pago', [['Interacción', atencion(c)], ['Pagado', c['FECHA PAGO'] && (c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']))]]);
     if (c['FOTO PAGO']) { const a = el('a', 'cc-codigo-link', 'Ver foto del pago'); a.href = c['FOTO PAGO']; a.target = '_blank'; a.rel = 'noopener'; pago.append(a); }
     derecha.append(ubic, evid, pago, estado);
 
@@ -1168,11 +1168,11 @@
       ficha('fa-file-lines', 'Detalle de la cotización', [['Fecha', fechaTexto(c.FECHA)], ['Nombre de cliente', c['NOMBRE CLIENTE']], ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']],
         ['Motivo', c.MOTIVO], ['Objetivo', c.OBJETIVO !== c.MOTIVO ? c.OBJETIVO : ''], ['Supervisor', c.SUPERVISOR],
         ['Departamento', c.DEPARTAMENTO], ['Tipo de gasto', c['TIPO DE GASTO']], ['Tipo', c['TIPO DE COTIZACION']], ['Código interno', c['CODIGO INTERNO']]]),
-      ficha('fa-users', 'Responsables', [['Solicitado por', nombreDe(c['SOLICITADO POR'])], ['Gestor', nombreDe(c.GESTOR)], ['Cotizador asignado', nombreDe(c.COTIZADOR)], ['Cotizado por', nombreDe(c['COTIZADO POR'])],
+      ficha('fa-users', 'Responsables', [['Solicitante', nombreDe(c['SOLICITADO POR'])], ['Gestor', nombreDe(c.GESTOR)], ['Cotizador asignado', nombreDe(c.COTIZADOR)], ['Cotizado por', nombreDe(c['COTIZADO POR'])],
         ['Fecha cotizado', c['FECHA COTIZADO']], ['Enviado al cliente', c['FECHA ENVIO CLIENTE']], ['Aprobado', c['FECHA APROBACION']]]));
     const estado = [['Estado', c['ESTADO COTIZACION'] || 'Pdt. Cotización'], ['Rechazo', c['MOTIVO RECHAZO'] && (c['MOTIVO RECHAZO'] + ' · ' + (c['FECHA RECHAZO'] || ''))],
       ['Anulación', c['MOTIVO CANCELACION'] && (c['MOTIVO CANCELACION'] + ' · ' + (c['FECHA CANCELACION'] || ''))],
-      ['Comentario', c['COMENTARIO APROBACION']], ['Se atiende con', atencion(c)],
+      ['Comentario', c['COMENTARIO APROBACION']], ['Interacción', atencion(c)],
       ['Estado de pago', c.estado_pago], ['Estado operativo', c.estado_operativo],
       ['Pago', c['FECHA PAGO'] ? c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']) : (c._PAGO_PENDIENTE ? 'Por pagar' : '')],
       ['Monto a depositar (Tránsito)', c['MONTO TRANSITO'] && dinero(c['MONTO TRANSITO'])], ['Monto pagado', c['MONTO PAGADO'] && c['FECHA PAGO'] && dinero(c['MONTO PAGADO'])],
