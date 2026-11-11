@@ -118,8 +118,8 @@ def test_flujo_pago_caja_chica_proveedor_transito(app, auth_client):
         assert r.status_code == 200 and r.json['pestanas'] == ['cajachica']
         fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == 'CN-PAGO-C')
         assert fila['MONTO TRANSITO'] == '50.00'
-        # Caja chica: a Proveedor (pide factura antes de pagar) y de vuelta a Caja chica.
-        assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'proveedor'}).json['pestanas'] == ['proveedor']
+        # Caja chica: a Proveedor (pide factura antes de pagar; en paralelo ya está en Operaciones) y de vuelta a Caja chica.
+        assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'proveedor'}).json['pestanas'] == ['sustentar', 'proveedor']
         assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-C', 'foto': foto % (pid, 'CN-PAGO-C')}).status_code == 409
         assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'transito', 'hacia': 'proveedor'}).status_code == 409
         assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'proveedor', 'hacia': 'cajachica'}).json['pestanas'] == ['cajachica']

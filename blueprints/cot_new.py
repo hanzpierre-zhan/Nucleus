@@ -132,10 +132,11 @@ def estado_operativo(datos):
 
 
 def pestanas_de(datos):
-    """Caja chica o Proveedor hasta pagar; luego Operaciones (con Tránsito o Proveedor en paralelo)."""
+    """Caja chica hasta pagar; Proveedor va a Operaciones en paralelo desde que se aprueba.
+    Luego Operaciones (con Tránsito o Proveedor en paralelo)."""
     base = pestana_de(datos)
     if por_pagar(datos):
-        return ['proveedor'] if tipo_atencion(datos) == 'Proveedor' else ['cajachica']
+        return [base, 'proveedor'] if tipo_atencion(datos) == 'Proveedor' else ['cajachica']
     pestanas = [base]
     if (base in ('sustentar', 'atendido') and tipo_atencion(datos) == 'Tránsito'
             and not datos.get('_TRANSITO_A_PROVEEDOR') and datos.get('FECHA PAGO')):

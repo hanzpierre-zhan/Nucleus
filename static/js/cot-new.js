@@ -77,7 +77,7 @@
   // "Se atiende con" y la provisión van junto al cliente para verlos sin desplazar la tabla.
   let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'pago', 'operativo', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'pago', 'operativo', 'provision');
   function estadoTexto(c) {
-    if (c._PAGO_PENDIENTE && ['cajachica', 'proveedor'].includes(c.pestanas[0])) return 'Por pagar';
+    if (c._PAGO_PENDIENTE && c.pestanas.some(p => ['cajachica', 'proveedor'].includes(p))) return 'Por pagar';
     return c.pestanas[0] === 'sustentar' ? 'En operaciones' : (c['ESTADO COTIZACION'] || 'Pdt. Cotización');
   }
   try {
