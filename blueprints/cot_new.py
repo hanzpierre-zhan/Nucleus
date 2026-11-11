@@ -188,6 +188,7 @@ def pagina():
                            nombres_cliente=NOMBRES_CLIENTE, supervisores=SUPERVISORES,
                            proyectos_flm=PROYECTOS_FLM,
                            puede_gestionar=rol not in ('demo', 'contrata'),
+                           puede_eliminar=rol in ROLES_ELIMINAR,
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
 
@@ -259,6 +260,20 @@ def agregar():
     _fijar_cotizaciones()
     from blueprints.rows import api_rows_add
     return api_rows_add()
+
+
+ROLES_ELIMINAR = ('zeno', 'suport', 'supervisor')  # los mismos que en Cotizaciones (clásico)
+
+
+@bp.post('/api/cot-new/eliminar')
+@login_required
+def eliminar():
+    """Elimina las cotizaciones marcadas: mismo borrado de Cotizaciones (con respaldo en el historial)."""
+    if str(session.get('rol') or '').strip().lower() not in ROLES_ELIMINAR:
+        return jsonify(error='Solo administradores y supervisores pueden eliminar cotizaciones.'), 403
+    _fijar_cotizaciones()
+    from blueprints.rows import api_rows_delete
+    return api_rows_delete()
 
 
 @bp.post('/api/cot-new/guardar')

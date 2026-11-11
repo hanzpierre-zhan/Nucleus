@@ -149,3 +149,24 @@ def test_estado_de_pago_y_operativo():
     dos['_EJECUCION_WO']['cm-2'] = {'inicio': 'a', 'fin': 'b'}
     assert estado_operativo(dos) == 'Ejecutado en campo'
     assert estado_operativo({'ESTADO COTIZACION': 'Atendido'}) == 'Sustentado'
+
+
+def test_eliminar_cotizaciones_marcadas(app, auth_client, cambiar_rol):
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Cotizaciones').one().id
+        db.session.add_all([NucleusData(proyecto_id=pid, key_value=k, data_json=json.dumps({'CLIENTE': 'CLARO'}))
+                            for k in ('CN-DEL-1', 'CN-DEL-2')])
+        db.session.commit()
+    try:
+        cambiar_rol(auth_client, 'zeno')
+        assert 'id="cc-eliminar"' in auth_client.get('/cot-new/').get_data(as_text=True)
+        cambiar_rol(auth_client, 'admin')
+        assert 'id="cc-eliminar"' not in auth_client.get('/cot-new/').get_data(as_text=True)
+        assert auth_client.post('/api/cot-new/eliminar', json={'keys': ['CN-DEL-1']}).status_code == 403
+        cambiar_rol(auth_client, 'zeno')
+        assert auth_client.post('/api/cot-new/eliminar', json={'keys': ['CN-DEL-1', 'CN-DEL-2']}).json == {'success': True}
+        with app.app_context():
+            assert not NucleusData.query.filter(NucleusData.key_value.in_(['CN-DEL-1', 'CN-DEL-2'])).count()
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.key_value.in_(['CN-DEL-1', 'CN-DEL-2'])).delete(); db.session.commit()

@@ -8,6 +8,11 @@
   const avisar = m => (window.nucleusAlert || alert)(m);
   const seccion = document.querySelector('.cn-gestion');
   const puedeGestionar = seccion.dataset.gestionar === 'si';
+  // Casillas para marcar una o varias cotizaciones y eliminarlas (solo administradores y supervisores).
+  const puedeEliminar = seccion.dataset.eliminar === 'si';
+  const seleccionadas = new Set();
+  const botonEliminar = $('cc-eliminar');
+  let eliminando = false;
   const proyectoId = seccion.dataset.proyecto;
   const clasico = '/switch_project/' + proyectoId + '?next=/';
   const dialogo = $('cc-solicitud-dialogo');
@@ -83,9 +88,9 @@
   const plano = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   function plantilla() {
-    const minimo = columnas.reduce((s, c) => s + parseInt(COLUMNAS[c].ancho.slice(7), 10), 0) + 12 * columnas.length + 140;
+    const minimo = columnas.reduce((s, c) => s + parseInt(COLUMNAS[c].ancho.slice(7), 10), 0) + 12 * columnas.length + 140 + (puedeEliminar ? 52 : 0);
     $('cn-tabla').style.setProperty('--cc-min', minimo + 'px');
-    return ['112px', ...columnas.map(c => COLUMNAS[c].ancho)].join(' ');
+    return [...(puedeEliminar ? ['40px'] : []), '112px', ...columnas.map(c => COLUMNAS[c].ancho)].join(' ');
   }
 
   function pintarEncabezado() {
@@ -93,7 +98,17 @@
     const cab = $('cn-encabezado');
     const activo = document.activeElement, foco = activo && cab.contains(activo) && activo.dataset.buscar
       ? {col: activo.dataset.buscar, ini: activo.selectionStart, fin: activo.selectionEnd} : null;
-    cab.replaceChildren(el('div', 'cc-th cc-th-nombre cc-acciones-cab', 'Acciones'));
+    cab.replaceChildren();
+    if (puedeEliminar) {
+      const celdaTodas = el('div', 'cc-th cc-th-nombre cc-acciones-cab cc-seleccion');
+      const todas = Object.assign(el('input'), {type: 'checkbox', title: 'Seleccionar todas las visibles'});
+      const visibles = base().map(c => c.key);
+      todas.checked = visibles.length > 0 && visibles.every(k => seleccionadas.has(k));
+      todas.addEventListener('change', () => { visibles.forEach(k => todas.checked ? seleccionadas.add(k) : seleccionadas.delete(k)); pintar(); });
+      celdaTodas.append(todas);
+      cab.append(celdaTodas);
+    }
+    cab.append(el('div', 'cc-th cc-th-nombre cc-acciones-cab cc-col-acciones', 'Acciones'));
     for (const id of columnas) {
       const col = COLUMNAS[id], th = el('div', 'cc-th' + (col.num ? ' cc-th-num' : ''));
       const fila = el('div', 'cc-th-fila'); fila.draggable = true; fila.title = 'Arrastra para mover la columna';
@@ -639,7 +654,6 @@
     const foto = zonaArchivo('Foto del pago', 'Toca para adjuntar la captura o voucher', 'image/*,.pdf');
     const tras = atencion(c) === 'Tránsito' ? ' y queda en Tránsito hasta encontrar proveedor' : '';
     caja.append(monto);
-    if (esTransito) { const prov = el('div', 'cn-total cn-provision'); prov.append(el('span', null, 'Provisión para proveedor (20 %)'), el('strong', null, dinero(Math.round(aPagar * 20) / 100))); caja.append(prov); }
     caja.append(foto, el('p', 'cc-nota', 'La fecha y hora del pago se registran solas al confirmar. Pasa a Operaciones' + tras + '.'));
     const error = errorCaja(); caja.append(error);
     derecha.append(fichaItems(c), caja);
@@ -664,12 +678,44 @@
       const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit'; ok.value = 'ok'; ok.append(icono('fa-shoe-prints'), el('span', null, 'Pasar'));
       pie.append(cancelar, ok);
       form.append(cabeza, el('span', 'cc-motivo-etiqueta', 'Monto a depositar para Tránsito (S/)'), monto,
-        el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será el 20 % de este monto.'), pie); d.append(form);
+        el('small', 'cc-nota', 'La provisión del 20 % se verá como sugerencia al pasar a Proveedor.'), pie); d.append(form);
       const validar = () => { ok.disabled = !(num(monto.value) > 0); }; monto.addEventListener('input', validar); validar();
       cancelar.addEventListener('click', () => d.close(''));
       d.addEventListener('close', () => { resolve(d.returnValue === 'ok' ? monto.value : null); d.remove(); });
       document.body.append(d); d.showModal(); monto.select();
     });
+  }
+  // Tránsito → Proveedor: muestra lo pagado, la captura del depósito y el 20 % sugerido antes de pasar.
+  function transitoAProveedor(c) {
+    const izquierda = fichasDetalle(c);
+    const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
+    const caja = el('section', 'cc-ficha cn-aprobacion');
+    const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-shoe-prints'), el('span', null, 'Pago en Tránsito')); caja.append(h);
+    const pagado = num(c['MONTO PAGADO'] || c['MONTO TRANSITO']);
+    const provision = Math.round(pagado * 20) / 100;
+    caja.append(ficha('fa-clock', '', [['Pagado el', c['FECHA PAGO']], ['Pagado por', c['PAGADO POR'] && nombreDe(c['PAGADO POR'])]]).querySelector('dl'));
+    // Captura del depósito: imagen (o enlace si es PDF).
+    const url = c['FOTO PAGO'];
+    if (url) {
+      const a = el('a', 'cn-captura-pago'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = 'Abrir captura del depósito';
+      if (/\.pdf($|\?)/i.test(url)) a.append(icono('fa-file-pdf'), el('span', null, ' Ver captura del depósito (PDF)'));
+      else { const img = el('img'); img.src = url; img.alt = 'Captura del depósito'; img.loading = 'lazy'; a.append(img); }
+      caja.append(el('span', 'cc-motivo-etiqueta', 'Captura del depósito'), a);
+    } else caja.append(el('p', 'cc-nota', 'Sin captura del depósito.'));
+    const fila = (texto, valor, clase) => { const d = el('div', 'cn-total' + (clase ? ' ' + clase : '')); d.append(el('span', null, texto), el('strong', null, dinero(valor))); return d; };
+    caja.append(fila('Monto pagado (Tránsito)', pagado),
+      fila('Provisión sugerida (20 %)', provision, 'cn-provision'),
+      fila('Total con el 20 %', pagado + provision, 'cn-total-final'),
+      el('p', 'cc-nota', 'El 20 % es una sugerencia para negociar con el proveedor.'));
+    const error = errorCaja(); caja.append(error);
+    derecha.append(fichaItems(c), caja);
+    ventana('Pasar a Proveedor · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Pasar a Proveedor', 'cn-morado', 'fa-file-invoice', conErrorEn(error, async () => {
+      const r = await fetch('/api/cot-new/mover', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, desde: 'transito', hacia: 'proveedor'})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(j.error || 'No se pudo mover la cotización.');
+      dialogo.close(); await cargar();
+      avisar((c['N° COTIZACION'] || c.key) + ' pasó a Proveedor.');
+    })]]);
   }
   async function moverA(c, desde, hacia, nombre) {
     let monto = '';
@@ -737,7 +783,7 @@
     // Tránsito: cuánto se deposita por Caja chica mientras se busca proveedor (por defecto, el total de la cotización).
     const montoTransito = Object.assign(el('input'), {type: 'text', inputMode: 'decimal', placeholder: '0.00', value: c['MONTO TRANSITO'] || Number(c.monto || 0).toFixed(2)});
     const lMonto = el('label', 'cc-pendiente-campo'); lMonto.append(el('span', null, 'Monto a depositar para Tránsito (S/)'), montoTransito,
-      el('small', 'cc-nota', 'Al pagarse, la provisión para el proveedor será el 20 % de este monto.'));
+      el('small', 'cc-nota', 'La provisión del 20 % se verá como sugerencia al pasar a Proveedor.'));
     lTipo.after(lMonto);
     const verMonto = () => { lMonto.hidden = tipo.value !== 'Tránsito'; };
     tipo.addEventListener('change', verMonto); verMonto();
@@ -1080,13 +1126,10 @@
     else if (p === 'atendido') lista.push(['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
     else if (p === 'cajachica') {
       lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)]);
-      if (atencion(c) !== 'Tránsito') lista.push(['Pasar a Tránsito', 'cn-cian', 'fa-shoe-prints', () => moverA(c, 'cajachica', 'transito', 'Tránsito')]);
-      lista.push(['Pasar a Proveedor', 'cn-morado', 'fa-file-invoice', () => moverA(c, 'cajachica', 'proveedor', 'Proveedor')]);
     } else if (p === 'proveedor') {
       lista.push(['Factura y OC del proveedor', 'cn-morado', 'fa-file-arrow-up', () => proveedor(c)]);
-      if (c._PAGO_PENDIENTE) lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)]);
       lista.push(['Derivar a Caja chica', 'cn-naranja', 'fa-wallet', () => moverA(c, 'proveedor', 'cajachica', 'Caja chica')]);
-    } else if (p === 'transito') lista.push(['Pasar a Proveedor (se encontró proveedor)', 'cn-morado', 'fa-file-invoice', () => moverA(c, 'transito', 'proveedor', 'Proveedor')]);
+    } else if (p === 'transito') lista.push(['Pasar a Proveedor (se encontró proveedor)', 'cn-morado', 'fa-file-invoice', () => transitoAProveedor(c)]);
     return lista;
   }
   function botonRedondo([titulo, clase, simbolo, fn], tamano) {
@@ -1167,6 +1210,10 @@
     pintarEncabezado();
     const lista = $('cn-lista'); lista.replaceChildren();
     const visibles = base();
+    // Lo marcado que ya no se ve (otra pestaña, filtro o búsqueda) se desmarca.
+    const clavesVisibles = new Set(visibles.map(c => c.key));
+    for (const k of seleccionadas) if (!clavesVisibles.has(k)) seleccionadas.delete(k);
+    if (botonEliminar) botonEliminar.disabled = eliminando || !seleccionadas.size;
     $('cc-excel').disabled = !cotizaciones.length;
     if (!visibles.length) {
       const hay = Object.keys(filtros).length || Object.keys(busquedas).length || $('cc-buscar').value.trim();
@@ -1179,6 +1226,14 @@
       const botones = accionesDe(c).map(a => botonRedondo(a));
       if (!botones.length) botones.push(botonRedondo(['Ver detalle', 'cn-neutro', 'fa-eye', () => verDetalle(c)]));
       controles.append(...botones);
+      if (puedeEliminar) {
+        const celda = el('span', 'cc-seleccion');
+        const check = Object.assign(el('input'), {type: 'checkbox', checked: seleccionadas.has(c.key)});
+        check.setAttribute('aria-label', 'Seleccionar ' + (c['N° COTIZACION'] || c.key));
+        check.addEventListener('change', () => { if (check.checked) seleccionadas.add(c.key); else seleccionadas.delete(c.key); pintar(); });
+        celda.append(check);
+        fila.append(celda);
+      }
       fila.append(controles);
       for (const id of columnas) { const col = COLUMNAS[id]; fila.append(col.celda ? col.celda(c) : el('span', col.clase || null, col.texto(c))); }
       lista.append(fila);
@@ -1278,6 +1333,22 @@
   $('cc-buscar').addEventListener('input', pintar);
   $('cn-nueva')?.addEventListener('click', nuevoRegistro);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { $('cn-filtro').hidden = true; cerrarMenu(); cerrarExportar(); cerrarCliente(); } });
+
+  botonEliminar?.addEventListener('click', async () => {
+    const keys = [...seleccionadas];
+    if (!keys.length || eliminando) return;
+    const texto = keys.length === 1 ? '¿Eliminar la cotización seleccionada?' : '¿Eliminar las ' + keys.length + ' cotizaciones seleccionadas?';
+    if (!await (window.nucleusConfirm ? window.nucleusConfirm(texto) : confirm(texto))) return;
+    eliminando = true; botonEliminar.disabled = true;
+    try {
+      const r = await fetch('/api/cot-new/eliminar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) throw Error(j.error || 'No se pudieron eliminar las cotizaciones.');
+      const borradas = new Set(keys);
+      cotizaciones = cotizaciones.filter(c => !borradas.has(c.key));
+      seleccionadas.clear();
+    } catch (e) { avisar(e.message); } finally { eliminando = false; pintar(); }
+  });
 
   async function cargar() {
     const r = await fetch('/api/cot-new/lista'); const j = await r.json().catch(() => ({}));
