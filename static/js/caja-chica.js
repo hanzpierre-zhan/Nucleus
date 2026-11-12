@@ -128,6 +128,9 @@
       await accion(sol, nombre, {...extra, motivo});
     });
   }
+  // Ítems aprobados en Sustentado mientras la solicitud espera la devolución u otros ítems.
+  const rechazableEnSustento = sol => ['POR_DEVOLVER', 'DEPOSITADO'].includes(sol.estado)
+    && (sol.items || []).some(i => i.estado === 'APROBADO');
   const MOTIVO_DEVOLUCION = sol => ({titulo: 'Rechazar devolución', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
     datos: [['Monto', dinero(sol.devolucion_monto || sol.diferencia)]],
     sugerencias: ['La transferencia no llegó', 'El monto no coincide', 'La captura no se lee', 'No se ve la operación'],
@@ -285,6 +288,13 @@
     // En "Por rendir" no hay acciones: solo el tiempo transcurrido desde el depósito.
     if (tab === 'por_rendir') { caja.append(sla(sol)); return caja; }
     if (tab === 'sustento') {
+      if (rechazableEnSustento(sol)) {
+        // Lo aprobado está en Sustentado, pero la solicitud espera la devolución u otros ítems.
+        if (sol.estado === 'POR_DEVOLVER' && Number(sol.diferencia) > 0) caja.append(el('span', 'cc-nota', 'Falta devolución ' + dinero(sol.diferencia)));
+        if (puedeGestionar) caja.append(botonRapido(sol, 'Rechazar: vuelve a Por rendir', 'cc-rechazar', 'fa-rotate-left', conMotivo(sol, 'rechazar_sustentada', {
+          titulo: 'Rechazar sustentada', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), sugerencias: SUGERENCIAS.item,
+          ayuda: 'Los ítems aprobados vuelven al técnico en Por rendir para que corrija.', okText: 'Rechazar'})));
+      }
       if (sol.estado === 'SUSTENTO') {
         caja.append(slaArchivo(sol));
         if (puedeGestionar) caja.append(botonRapido(sol, 'Archivar', 'cc-ok', 'fa-box-archive', () => pasarEtapa(sol, 'archivar')),
@@ -1100,7 +1110,7 @@
     // Sustentado: rechazar devuelve los ítems al técnico (Por rendir) con el motivo.
     const botonRechazarSustento = $('cc-solicitud-rechazar-sustento');
     // Sustentado y Archivado: rechazar devuelve los ítems al técnico (Por rendir).
-    botonRechazarSustento.hidden = !(puedeGestionar && ((tab === 'sustento' && sol.estado === 'SUSTENTO') || (tab === 'archivado' && sol.estado === 'ARCHIVADO')));
+    botonRechazarSustento.hidden = !(puedeGestionar && ((tab === 'sustento' && (sol.estado === 'SUSTENTO' || rechazableEnSustento(sol))) || (tab === 'archivado' && sol.estado === 'ARCHIVADO')));
     botonRechazarSustento.onclick = conMotivo(sol, 'rechazar_sustentada', {titulo: sol.estado === 'ARCHIVADO' ? 'Rechazar archivada' : 'Rechazar sustentada', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
       datos: [['Gasto aprobado', dinero(importeEtapa(sol, 'sustento'))]], sugerencias: SUGERENCIAS.item,
       ayuda: 'Los ítems vuelven al técnico en Por rendir para que corrija.', okText: 'Rechazar'});

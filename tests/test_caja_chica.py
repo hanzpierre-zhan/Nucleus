@@ -277,6 +277,11 @@ def test_saldo_no_gastado_de_un_item_se_suma_a_la_devolucion(app, auth_client, t
     assert auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': items[0]['id'], 'aprobar': True}).status_code == 200
     s = cli.post('/form-pruebas/caja-chica/%d/item/%d/devolver' % (sid, items[1]['id']), headers=h).json['solicitud']
     assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '60.00'  # 10 de saldo + 50 del ítem devuelto
+    # Lo aprobado espera en Sustentado la devolución: igual se puede rechazar y vuelve a Por rendir.
+    r = auth_client.post('/api/caja-chica/%d/rechazar_sustentada' % sid, json={'motivo': 'Boleta no corresponde'})
+    assert r.status_code == 200, r.json
+    s = r.json['solicitud']
+    assert s['estado'] == 'DEPOSITADO' and s['items'][0]['estado'] == 'RECHAZADO'
 
 
 
