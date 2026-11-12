@@ -32,7 +32,6 @@ MODULO = 'Caja Chica'
 MAX_ITEMS = 20
 MAX_FOTOS = 5
 MAX_COMPROBANTES = 10
-MAX_EVIDENCIAS = 3
 # SUSTENTO: todo resuelto, la gestión lo revisa y lo archiva. Para el técnico ya terminó.
 ESTADOS_FINALES = ('SUSTENTO', 'ARCHIVADO', 'ANULADO')
 
@@ -365,7 +364,7 @@ def rendir_item(sol, item, documento, comprobantes, evidencias, importe=None):
     """comprobantes: salida de preparar_rendicion con 'fotos' (lista) en cada uno; evidencias: nombres de foto."""
     _exigir(all(1 <= len(c.get('fotos') or []) <= MAX_FOTOS for c in comprobantes),
             'Adjunta la foto de cada boleta o factura.')
-    _exigir(1 <= len(evidencias) <= MAX_EVIDENCIAS, 'Adjunta la foto de la evidencia del gasto (máximo %d).' % MAX_EVIDENCIAS)
+    _exigir(evidencias, 'Adjunta la foto de la evidencia del gasto.')
     primero = comprobantes[0]
     item.ruc, item.comprobante = primero['ruc'], primero['comprobante']
     item.razon_social = primero['razon_social'] or None

@@ -55,7 +55,7 @@
     });
     return {casilla, input};
   }
-  const MAX_COMPROBANTES = 10, MAX_EVIDENCIAS = 3;
+  const MAX_COMPROBANTES = 10;
   const aNumero = t => { const v = Number(String(t || '').replace(',', '.').trim()); return Number.isFinite(v) ? v : NaN; };
   // Rendir un ítem: uno o más comprobantes (RUC, N.º, monto y su foto) y de 1 a 3 fotos de evidencia.
   function formRendir(sol, item) {
@@ -146,11 +146,11 @@
       comprobante(ultimo?.querySelector('[data-campo=ruc]')).querySelector('[data-campo=numero]').focus();
     });
 
-    // Evidencia: una foto obligatoria y hasta dos adicionales.
+    // Evidencia: una foto obligatoria y las adicionales que haga falta (sin tope).
     const evidencias = el('div', 'cc-slots cc-evidencias');
     const otraEvidencia = el('button', 'cc-slot cc-slot-agregar'); otraEvidencia.type = 'button';
     otraEvidencia.append(el('span', 'cc-slot-texto', '+ Foto adicional'));
-    const estadoEvidencias = () => { otraEvidencia.hidden = evidencias.querySelectorAll('.cc-evidencia').length >= MAX_EVIDENCIAS; };
+    const estadoEvidencias = () => {};
     const slotEvidencia = opcional => {
       const f = casillaFoto('', opcional ? 'Evidencia adicional' : 'Evidencia del gasto', opcional ? 'Opcional' : 'Foto del uso');
       f.casilla.classList.add('cc-evidencia');
@@ -172,7 +172,7 @@
     const error = el('div', 'error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
     const boton = el('button', 'primary wide', item.tipo_gasto ? 'Rendir ' + item.tipo_gasto : 'Rendir'); boton.type = 'submit';
     form.append(lista, agregar, totales, el('p', 'cc-subtitulo-evidencia', 'Evidencia del gasto'), evidencias,
-      el('p', 'hint', 'Obligatorio: de 1 a ' + MAX_EVIDENCIAS + ' fotos de evidencia.'), error, boton);
+      el('p', 'hint', 'Obligatorio: al menos 1 foto de evidencia; puedes agregar las que necesites.'), error, boton);
     form.addEventListener('submit', e => { e.preventDefault(); enviando(boton, error, async () => {
       const cajas = [...lista.children], datos = new FormData();
       cajas.forEach((c, i) => {

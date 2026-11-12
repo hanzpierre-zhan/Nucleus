@@ -321,14 +321,14 @@ def test_rendir_varios_comprobantes_con_su_foto_y_evidencias(app, auth_client, t
     assert repetida.status_code == 400 and 'ya está' in repetida.json['error']
     sin_foto = cli.post(url, headers=h, data=datos(fotos=False))
     assert sin_foto.status_code == 400 and 'foto' in sin_foto.json['error']
-    assert cli.post(url, headers=h, data=datos(evidencias=4)).status_code == 400  # máximo 3 evidencias
-    r = cli.post(url, headers=h, data=datos())
+    assert cli.post(url, headers=h, data=datos(evidencias=0)).status_code == 400  # al menos 1 evidencia
+    r = cli.post(url, headers=h, data=datos(evidencias=6))  # sin tope de evidencias
     assert r.status_code == 200, r.json
     rendido = r.json['solicitud']['items'][0]
     assert rendido['monto_gastado'] == '85.00' and rendido['estado'] == 'EN_REVISION'
     assert [c['comprobante'] for c in rendido['comprobantes']] == ['B001-452', 'B001-453']
     assert [c['monto'] for c in rendido['comprobantes']] == ['45.00', '40.00']
-    assert len(rendido['fotos']) == 2 and len(rendido['evidencias']) == 2
+    assert len(rendido['fotos']) == 2 and len(rendido['evidencias']) == 6
     for nombre in rendido['fotos'] + rendido['evidencias']:
         assert cli.get('/form-pruebas/caja-chica/foto/%d/%s' % (sid, nombre)).status_code == 200
     assert auth_client.get('/caja-chica/').status_code == 200

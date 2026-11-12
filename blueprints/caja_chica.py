@@ -158,7 +158,7 @@ def portal_rendir(sid, iid):
             crudos = [{'ruc': forma.get('ruc'), 'comprobante': forma.get('comprobante'),
                        'monto': forma.get('monto_gastado'), 'razon_social': forma.get('razon_social')}]
             fotos_comp = [validos(archivos.getlist('fotos'))[:cc.MAX_FOTOS + 1]]
-        evidencias = validos(archivos.getlist('evidencia'))[:cc.MAX_EVIDENCIAS + 1]
+        evidencias = validos(archivos.getlist('evidencia'))
         comprobantes = cc.preparar_rendicion(sol, item, g.tecnico['documento'], crudos, importe)
         for n, fotos in enumerate(fotos_comp, 1):
             pre = 'Comprobante %d: ' % n if len(fotos_comp) > 1 else ''
@@ -168,8 +168,6 @@ def portal_rendir(sid, iid):
                 raise ValueError(pre + 'adjunta como máximo %d fotos.' % cc.MAX_FOTOS)
         if not evidencias:
             raise ValueError('Adjunta la foto de la evidencia del gasto.')
-        if len(evidencias) > cc.MAX_EVIDENCIAS:
-            raise ValueError('Adjunta como máximo %d fotos de evidencia.' % cc.MAX_EVIDENCIAS)
         for comprobante, fotos in zip(comprobantes, fotos_comp):
             comprobante['fotos'] = [cc.guardar_foto(sol, a) for a in fotos]
         cc.rendir_item(sol, item, g.tecnico['documento'], comprobantes, [cc.guardar_foto(sol, a) for a in evidencias])
