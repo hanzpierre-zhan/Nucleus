@@ -2460,6 +2460,9 @@ let _rendCambiandoVista = false;
             const isContrata = "{{ session.get('rol') }}" === "contrata";
 
             const isCombustible = currentProjectNombre.trim().toLowerCase() === 'combustible';
+            // Dataper: nada se escribe en la celda; todo se edita con el botón (lápiz) del registro.
+            const isDataper = currentProjectNombre.trim().toLowerCase() === 'dataper';
+            if (isDataper) colDef.title = fieldName;
 
 
 
@@ -2467,7 +2470,7 @@ let _rendCambiandoVista = false;
 
             const canEditCombustible = !isCombustible || isAdminUser;
 
-            if (!isContrata && canEditCombustible) {
+            if (!isContrata && canEditCombustible && !isDataper) {
 
                 if (manualDef.tipo === 'texto') {
 
