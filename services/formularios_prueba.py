@@ -115,9 +115,9 @@ def buscar_personal(doc):
     table = NucleusData.__table__
     # La clave en Dataper puede tener espacios, puntos o guiones (p. ej. "CEX 002141327").
     clave = func.upper(func.replace(func.replace(func.replace(table.c.key_value, ' ', ''), '.', ''), '-', ''))
-    rows = db.session.execute(select(table.c.id, table.c.data_json).join(
+    rows = db.session.execute(select(table.c.id, table.c.key_value, table.c.data_json).join(
         Proyecto.__table__, table.c.proyecto_id == Proyecto.id).where(
-            Proyecto.nombre == 'Dataper', (table.c.key_value == doc) | (clave == doc))).all()
+            Proyecto.nombre == 'Dataper', (table.c.key_value == doc) | (clave == doc) | table.c.data_json.contains(doc))).all()
     candidates = []
     for row in rows:
         data = json.loads(row.data_json or '{}')
@@ -127,14 +127,18 @@ def buscar_personal(doc):
             continue
         name = str(valor(data, 'TECNICO')).strip()
         if name:
-            candidates.append({'id': row.id, 'documento': doc, 'nombre': name,
+            candidates.append({'_por_clave': documento(row.key_value) == doc, 'id': row.id, 'documento': doc, 'nombre': name,
                                'proyecto': str(valor(data, 'PROYECTO')).strip(),
                                'departamento': str(valor(data, 'DEPARTAMENTO')).strip(),
                                'supervisor': str(valor(data, 'SUPERVISOR')).strip()})
+    # La clave manda; si la clave quedó mal escrita, vale el campo DOCUMENTO.
     # Un documento compartido por personas distintas no puede dar acceso.
-    if len(candidates) != 1:
+    por_clave = [c for c in candidates if c['_por_clave']]
+    elegidos = por_clave or candidates
+    if len(elegidos) != 1:
         return None
-    return candidates[0]
+    elegido = dict(elegidos[0]); elegido.pop('_por_clave')
+    return elegido
 
 
 def importe(value, *, permitir_cero=False):

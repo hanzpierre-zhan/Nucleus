@@ -79,6 +79,50 @@ def _error_fechas_ejecucion(datos):
 
 
 
+def _documento_dataper_ocupado(pid, doc, excluir_id=None):
+    """Nombre de otra persona de Dataper con ese documento (clave o campo DOCUMENTO), o None."""
+    from services.formularios_prueba import documento, valor
+    doc = documento(doc)
+    if not doc:
+        return None
+    candidatos = NucleusData.query.filter(NucleusData.proyecto_id == pid,
+                                          (NucleusData.key_value.contains(doc)) | (NucleusData.data_json.contains(doc)))
+    for otro in candidatos:
+        if otro.id == excluir_id:
+            continue
+        try:
+            datos = json.loads(otro.data_json or '{}')
+        except ValueError:
+            datos = {}
+        if doc in (documento(otro.key_value), documento(valor(datos, 'DOCUMENTO'))):
+            return str(valor(datos, 'TECNICO') or otro.key_value).strip()
+    return None
+
+
+def _cambiar_documento_dataper(dataper, record, fila, key, nuevo):
+    """Cambia el documento y la clave juntos (la clave es la que usa el ingreso del técnico)."""
+    ocupado = _documento_dataper_ocupado(dataper.id, nuevo, excluir_id=record.id)
+    if ocupado:
+        return jsonify({'error': 'Ya existe otra persona con el documento %s (%s).' % (nuevo, ocupado)}), 400
+    if NucleusData.query.filter(NucleusData.proyecto_id == dataper.id, NucleusData.key_value == nuevo,
+                                NucleusData.id != record.id).first():
+        return jsonify({'error': 'Ya existe otra persona con el documento %s.' % nuevo}), 400
+    pk = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='primary_key').first()
+    campo = pk.valor if pk and pk.valor else 'DOCUMENTO'
+    fila[campo] = nuevo
+    record.key_value, record.data_json = nuevo, json.dumps(fila, ensure_ascii=False)
+    # La clave del portal era del documento mal escrito: con el nuevo vuelve a ser el documento.
+    from services import claves_tecnico
+    from services.formularios_prueba import documento
+    claves_tecnico.restablecer(documento(key))
+    NucleusHistory.query.filter_by(proyecto_id=dataper.id, key_value=key).update({'key_value': nuevo})
+    db.session.add(HistorialCambios(proyecto_id=dataper.id, usuario_id=session.get('user_id'),
+                                    username=audit_user(), key_value=nuevo, campo_modificado=campo,
+                                    valor_anterior=key, valor_nuevo=nuevo))
+    db.session.commit()
+    return jsonify({'success': True, 'key': nuevo})
+
+
 @bp.route('/api/dataper/documento', methods=['POST'])
 @login_required
 def api_dataper_cambiar_documento():
@@ -103,21 +147,7 @@ def api_dataper_cambiar_documento():
         return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
     if nuevo == key:
         return jsonify({'success': True, 'key': key})
-    if NucleusData.query.filter_by(proyecto_id=dataper.id, key_value=nuevo).first():
-        return jsonify({'error': 'Ya existe otra persona con el documento %s.' % nuevo}), 400
-    pk = AppConfig.query.filter_by(proyecto_id=dataper.id, clave='primary_key').first()
-    campo = pk.valor if pk and pk.valor else 'DOCUMENTO'
-    fila[campo] = nuevo
-    record.key_value, record.data_json = nuevo, json.dumps(fila, ensure_ascii=False)
-    # La clave del portal era del documento mal escrito: con el nuevo vuelve a ser el documento.
-    from services import claves_tecnico
-    from services.formularios_prueba import documento
-    claves_tecnico.restablecer(documento(key))
-    db.session.add(HistorialCambios(proyecto_id=dataper.id, usuario_id=session.get('user_id'),
-                                    username=audit_user(), key_value=nuevo, campo_modificado=campo,
-                                    valor_anterior=key, valor_nuevo=nuevo))
-    db.session.commit()
-    return jsonify({'success': True, 'key': nuevo})
+    return _cambiar_documento_dataper(dataper, record, fila, key, nuevo)
 
 
 @bp.route('/api/dataper/clave/restablecer', methods=['POST'])
@@ -177,6 +207,23 @@ def api_rows_update():
             from services.personal import validar as validar_personal
             try: value = validar_personal({field:value}).get(field,value)
             except ValueError as error: return jsonify(error=str(error)),400
+            # El documento es la clave del ingreso del técnico: cambia junto con la clave.
+            pk_dp = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+            if field == (pk_dp.valor if pk_dp and pk_dp.valor else 'DOCUMENTO'):
+                nuevo_doc = str(value or '').strip().upper()
+                if not re.fullmatch(r'[0-9A-Z]{6,15}', nuevo_doc):
+                    return jsonify({'error': 'El documento debe tener de 6 a 15 letras o números, sin espacios.'}), 400
+                if contexto and not validar_fila_catalogo(row_dict):
+                    return jsonify({'error': 'El registro pertenece a otro FLM.'}), 403
+                if nuevo_doc == record.key_value:
+                    row_dict[field] = nuevo_doc
+                    record.data_json = json.dumps(row_dict, ensure_ascii=False)
+                    db.session.commit()
+                    return jsonify({'success': True, 'newData': row_dict, 'key': nuevo_doc})
+                respuesta = _cambiar_documento_dataper(db.session.get(Proyecto, pid), record, row_dict, record.key_value, nuevo_doc)
+                if isinstance(respuesta, tuple):
+                    return respuesta
+                return jsonify({'success': True, 'newData': row_dict, 'key': nuevo_doc, 'nueva_clave': True})
 
         from services.rendicion_validadores import error_edicion
         error = error_edicion(pid, row_dict, {field: value}, session.get('rol'))
@@ -527,6 +574,11 @@ def api_rows_add():
             from services.personal import validar as validar_personal
             try: row_data = validar_personal(row_data, nuevo=True)
             except ValueError as error: return jsonify(error=str(error)),400
+            from services.formularios_prueba import documento as _doc_dp
+            doc_nuevo = _doc_dp(row_data.get('DOCUMENTO') or key_val)
+            ocupado = _documento_dataper_ocupado(pid, doc_nuevo)
+            if ocupado:
+                return jsonify({'error': 'Ya existe otra persona con el documento %s (%s).' % (doc_nuevo, ocupado)}), 400
 
         if proy_nombre_chk in ('Material','SITE','Generadores'):
             from services.proyectos_catalogo import validar as validar_proyecto

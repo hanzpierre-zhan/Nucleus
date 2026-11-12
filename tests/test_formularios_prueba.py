@@ -611,3 +611,13 @@ def test_documento_con_espacios_en_dataper_puede_ingresar(portal):
         db.session.commit()
     with portal.test_client() as client:
         assert entrar(client, 'CEX 002141327', 'Clave-123').status_code == 200
+
+
+def test_clave_mal_escrita_en_dataper_igual_ingresa_con_su_documento(portal):
+    with portal.app_context():
+        dataper = Proyecto.query.filter_by(nombre='Dataper').one()
+        db.session.add(NucleusData(proyecto_id=dataper.id, key_value='74282499', data_json=json.dumps(
+            dict(DOCUMENTO='74283499', TECNICO='Clave Errada', ESTADO='ACTIVO', PROYECTO='FLM - INTEGRATEL'))))
+        db.session.commit()
+    with portal.test_client() as client:
+        assert entrar(client, '74283499', '74283499').status_code == 200

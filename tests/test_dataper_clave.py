@@ -72,3 +72,27 @@ def test_corregir_documento_en_dataper(app, auth_client):
             NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(['7777888', '77778889', '66665555'])).delete()
             HistorialCambios.query.filter(HistorialCambios.key_value.in_(['77778889'])).delete()
             db.session.commit()
+
+
+def test_documento_editado_en_la_celda_cambia_la_clave_y_no_se_repite(app, auth_client):
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Dataper').one().id
+        for clave in ('55556666', '55557777'):
+            db.session.add(NucleusData(proyecto_id=pid, key_value=clave,
+                                       data_json=json.dumps({'DOCUMENTO': clave, 'TECNICO': 'Técnico ' + clave, 'ESTADO': 'ACTIVO'})))
+        db.session.commit()
+    try:
+        auth_client.get('/switch_project/%s' % pid)
+        assert auth_client.post('/api/rows/update', json={'key': '55556666', 'field': 'DOCUMENTO', 'value': '55557777'}).status_code == 400
+        r = auth_client.post('/api/rows/update', json={'key': '55556666', 'field': 'DOCUMENTO', 'value': '55556667'})
+        assert r.status_code == 200 and r.json['key'] == '55556667', r.json
+        with app.app_context():
+            fila = NucleusData.query.filter_by(proyecto_id=pid, key_value='55556667').one()
+            assert json.loads(fila.data_json)['DOCUMENTO'] == '55556667'
+        r = auth_client.post('/api/rows/add', json={'key': '55558888', 'data': {'DOCUMENTO': '5555-7777', 'TECNICO': 'Otro', 'ESTADO': 'ACTIVO', 'PROYECTO': 'FLM - CLARO'}})
+        assert r.status_code == 400 and 'Ya existe' in r.json['error'], r.json
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(['55556666', '55556667', '55557777', '55558888'])).delete()
+            HistorialCambios.query.filter(HistorialCambios.key_value.in_(['55556667'])).delete()
+            db.session.commit()

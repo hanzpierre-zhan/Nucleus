@@ -789,7 +789,7 @@ def exportar_excel(solicitudes, dataper=None):
     hoja.title = 'Historial'
     hoja.append(['Código', 'Fecha solicitud', 'Proyecto', 'Site', 'N.º CM/PM/PLM', 'N.º cotización',
                  'Técnico', 'DNI', 'Supervisor', 'Registrado en Dataper', 'Departamento (Dataper)', 'Estado de solicitud', 'Concepto', 'Tipo de gasto', 'Justificación', 'Solicitado', 'Depositado',
-                 'Fecha depósito', 'Gastado', 'Devuelto', 'Estado de rendición', 'Fecha rendición',
+                 'Fecha depósito', 'Gastado', 'Devuelto', 'Estado de rendición', 'Motivo de rechazo', 'Fecha rendición',
                  'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta'])
     cero = Decimal('0')
     peru = lambda f: (f - timedelta(hours=5)).replace(second=0, microsecond=0) if f else None  # las fechas se guardan en UTC
@@ -845,7 +845,7 @@ def exportar_excel(solicitudes, dataper=None):
                     formulario.get('site') or '', formulario.get('wo') or '', cotizacion, solicitud.tecnico, solicitud.documento,
                     supervisor, registrado, info.get('departamento') or '', pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''), solicitud.motivo or '',
                     item.monto, por_item[item.id], peru(solicitud.depositado_en), gastado, devuelto,
-                    estado_rendicion, peru(rendicion), total, plazo,
+                    estado_rendicion, item.motivo_rechazo or solicitud.motivo_rechazo or '', peru(rendicion), total, plazo,
                     *(' / '.join(dict.fromkeys(str(c.get(k) or '') for c in comps if c.get(k))) for k in ('ruc', 'razon_social', 'comprobante'))]
             hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in fila])
             for celda in hoja[hoja.max_row]:

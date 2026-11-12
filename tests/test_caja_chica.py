@@ -211,7 +211,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     filas = list(libro_final['Historial'].values)
     columnas = filas[0]
     items_excel = [dict(zip(columnas, fila)) for fila in filas[1:]]
-    assert len(items_excel) == 2 and {'Fecha solicitud', 'Site', 'N.º CM/PM/PLM'} <= set(columnas)
+    assert len(items_excel) == 2 and {'Fecha solicitud', 'Site', 'N.º CM/PM/PLM', 'Motivo de rechazo'} <= set(columnas)
     assert sum(i['Gastado'] for i in items_excel) == 90 and sum(i['Devuelto'] for i in items_excel) == 10
     assert all(i['Solicitado'] == i['Gastado'] + i['Devuelto'] for i in items_excel)
     assert sorted(i['Estado de rendición'] for i in items_excel) == ['Rendido', 'Rendido con saldo']
