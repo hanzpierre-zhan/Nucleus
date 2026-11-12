@@ -172,7 +172,7 @@
     const error = el('div', 'error'); error.setAttribute('role', 'alert'); error.tabIndex = -1; error.hidden = true;
     const boton = el('button', 'primary wide', item.tipo_gasto ? 'Rendir ' + item.tipo_gasto : 'Rendir'); boton.type = 'submit';
     form.append(lista, agregar, totales, el('p', 'cc-subtitulo-evidencia', 'Evidencia del gasto'), evidencias,
-      el('p', 'hint', 'Opcional: hasta ' + MAX_EVIDENCIAS + ' fotos de evidencia.'), error, boton);
+      el('p', 'hint', 'Obligatorio: de 1 a ' + MAX_EVIDENCIAS + ' fotos de evidencia.'), error, boton);
     form.addEventListener('submit', e => { e.preventDefault(); enviando(boton, error, async () => {
       const cajas = [...lista.children], datos = new FormData();
       cajas.forEach((c, i) => {
@@ -438,34 +438,16 @@
     ver('cc-detalle-rendicion');
     $('cc-titulo-rendir').focus({preventScroll: true});
   }
-  let filtro = 'rendir';
   function pintar() {
     const total = datos.solicitudes.reduce((suma, sol) => suma + montoPendiente(sol), 0);
     $('cc-pendiente').textContent = dinero(total / 100);
     const lista = $('cc-lista');
     lista.replaceChildren();
-    const grupos = [
-      ['validar', 'Por validar', datos.solicitudes.filter(sol => ['PENDIENTE', 'RECHAZADO'].includes(sol.estado))],
-      ['depositar', 'Por depositar', datos.solicitudes.filter(sol => sol.estado === 'VALIDADO')],
-      ['rendir', 'Por rendir', datos.solicitudes.filter(sol => ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado))],
-    ];
-    const filtros = $('cc-filtros');
-    filtros.replaceChildren();
-    for (const [clave, etiqueta, registros] of grupos) {
-      const boton = el('button', 'filtro-rendicion', etiqueta);
-      boton.type = 'button';
-      boton.dataset.filtro = clave;
-      boton.setAttribute('aria-pressed', String(filtro === clave));
-      boton.append(el('span', null, String(registros.length)));
-      boton.onclick = () => {
-        filtro = clave;
-        pintar();
-        filtros.querySelector('[aria-pressed="true"]').focus();
-      };
-      filtros.append(boton);
-    }
-    const solicitudes = grupos.find(([clave]) => clave === filtro)[2];
-    if (!solicitudes.length) lista.append(el('p', 'empty', 'No tienes solicitudes en esta etapa.'));
+    // Sin pestañas: el técnico solo ve lo que tiene por rendir.
+    $('cc-filtros').replaceChildren();
+    $('cc-filtros').hidden = true;
+    const solicitudes = datos.solicitudes.filter(sol => ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado));
+    if (!solicitudes.length) lista.append(el('p', 'empty', 'No tienes depósitos por rendir.'));
     for (const sol of solicitudes) {
       const ficha = el('button', 'deposit');
       ficha.type = 'button';
@@ -633,7 +615,7 @@
       }, 250);
     });
   }
-  $('cc-exito-volver').addEventListener('click', () => { filtro = 'validar'; pintar(); ver('cc-inicio'); });
+  $('cc-exito-volver').addEventListener('click', () => { pintar(); ver('cc-inicio'); });
   document.querySelectorAll('[data-cc-volver]').forEach(b => b.addEventListener('click', () => ver('cc-inicio')));
   $('cc-form').addEventListener('submit', e => {
     e.preventDefault(); const form = e.currentTarget, error = form.querySelector('.error');
