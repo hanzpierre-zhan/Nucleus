@@ -605,9 +605,16 @@ def _cerrar_o_pedir_devolucion(sol, usuario):
 
 
 def archivar(sol, usuario):
-    _exigir(sol.estado == 'SUSTENTO', 'Solo se archiva una solicitud sustentada.')
+    # También se archiva lo aprobado que espera la devolución u otros ítems (lo demás queda cerrado).
+    pendiente = sol.estado in ('POR_DEVOLVER', 'DEPOSITADO') and any(i.estado == 'APROBADO' for i in sol.items)
+    _exigir(sol.estado == 'SUSTENTO' or pendiente, 'Solo se archiva una solicitud sustentada.')
+    nota = ''
+    if sol.estado == 'POR_DEVOLVER' and diferencia(sol) > 0:
+        nota = 'Sin la devolución de S/ %s.' % dinero(diferencia(sol))
+    elif sol.estado == 'DEPOSITADO':
+        nota = 'Con ítems sin aprobar.'
     sol.estado, sol.archivado_en = 'ARCHIVADO', datetime.utcnow()
-    _historial(sol, 'archivar', usuario)
+    _historial(sol, 'archivar', usuario, nota)
     db.session.commit()
 
 
@@ -643,6 +650,8 @@ def montos_etapa(sol):
         return {'anuladas': sol.total}
     montos = {}
     for item in sol.items:
+        if sol.estado == 'ARCHIVADO' and item.estado != 'APROBADO':
+            continue  # archivada: solo cuenta lo aprobado
         if item.estado in ('POR_RENDIR', 'RECHAZADO'):
             vista, monto = 'por_rendir', item.monto
         elif item.estado == 'EN_REVISION':

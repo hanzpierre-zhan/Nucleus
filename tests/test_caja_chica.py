@@ -283,6 +283,21 @@ def test_saldo_no_gastado_de_un_item_se_suma_a_la_devolucion(app, auth_client, t
     s = r.json['solicitud']
     assert s['estado'] == 'DEPOSITADO' and s['items'][0]['estado'] == 'RECHAZADO'
 
+    # Y también se puede archivar lo aprobado aunque falte la devolución.
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}]}).json['solicitud']['id']
+    assert auth_client.post('/api/caja-chica/%d/validar' % sid).status_code == 200
+    item = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '50', 'foto': foto()}).json['solicitud']['items'][0]
+    assert cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id']), headers=h, data={
+        'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': '40',
+        'fotos': [foto()], 'evidencia': foto('uso.png')}).status_code == 200
+    s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': item['id'], 'aprobar': True}).json['solicitud']
+    assert s['estado'] == 'POR_DEVOLVER'
+    r = auth_client.post('/api/caja-chica/%d/archivar' % sid)
+    assert r.status_code == 200, r.json
+    assert r.json['solicitud']['estado'] == 'ARCHIVADO'
+
 
 
 def test_rendir_varios_comprobantes_con_su_foto_y_evidencias(app, auth_client, tecnico):
