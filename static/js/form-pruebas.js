@@ -416,12 +416,10 @@
         tipo.addEventListener('change', () => { ruc.required = tipo.value === 'Factura'; });
         quitar.addEventListener('click', () => {
           fila.remove();
-          agregar.disabled = false;
           actualizarCuadre();
           agregar.focus();
         });
         filas.append(fila);
-        agregar.disabled = filas.children.length >= 8;
         tipo.focus();
       });
       bloque.append(el('h3', concepto.etiqueta));
