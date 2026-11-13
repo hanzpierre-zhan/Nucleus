@@ -153,7 +153,29 @@ a.back{text-decoration:none;display:inline-block}
 .cc-tipos { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 .cc-tipo { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .2px; padding: 2px 8px; border-radius: 999px; }
 .cc-tipo-gc { background: rgba(23, 62, 118, .12); color: #173e76; }
-.cc-tipo-rf { background: rgba(234, 88, 12, .14); color: #c2410c; }
+.cc-tipo-rf { background: #6d28d9; color: #fff; box-shadow: 0 0 0 3px rgba(109, 40, 217, .18); }
 :root[data-theme="dark"] .cc-tipo-gc { background: rgba(142, 185, 245, .16); color: #8eb9f5; }
-:root[data-theme="dark"] .cc-tipo-rf { background: rgba(251, 146, 60, .16); color: #fdba74; }
+:root[data-theme="dark"] .cc-tipo-rf { background: #7c3aed; color: #fff; box-shadow: 0 0 0 3px rgba(167, 139, 250, .22); }
 .expense-classification .cc-tipo { margin-top: 3px; }
+
+/* Mobile: refacturables resaltados y restricciones para solicitar. */
+.deposit.cc-con-refacturable, #cc-detalle-contenido .cc-item-fila.cc-con-refacturable { border: 2px solid #7c3aed; background: rgba(124, 58, 237, .07); }
+:root[data-theme="dark"] .deposit.cc-con-refacturable, :root[data-theme="dark"] #cc-detalle-contenido .cc-item-fila.cc-con-refacturable { border-color: #a78bfa; background: rgba(167, 139, 250, .10); }
+.cc-restricciones { display: grid; gap: 8px; margin: 0 0 16px; }
+.cc-restricciones:empty { display: none; }
+.cc-restriccion { margin: 0; padding: 11px 14px; border-radius: 14px; font-size: 13px; line-height: 1.45; }
+.cc-restriccion.bloqueo { background: #fde8e8; color: #9b1c1c; font-weight: 600; }
+.cc-restriccion.aviso { background: #fef3c7; color: #92400e; font-weight: 600; }
+.cc-restriccion.refact { background: rgba(124, 58, 237, .10); color: #5b21b6; }
+.cc-restriccion.refact.lleno { background: #6d28d9; color: #fff; font-weight: 600; }
+:root[data-theme="dark"] .cc-restriccion.bloqueo { background: rgba(239, 68, 68, .18); color: #fca5a5; }
+:root[data-theme="dark"] .cc-restriccion.aviso { background: rgba(234, 179, 8, .18); color: #fde68a; }
+:root[data-theme="dark"] .cc-restriccion.refact { background: rgba(167, 139, 250, .16); color: #ddd6fe; }
+.cc-tope { padding: 10px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); }
+.cc-tope-fila { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); margin-bottom: 6px; }
+.cc-tope-fila strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.cc-tope-pista { height: 8px; border-radius: 99px; background: var(--fill); overflow: hidden; }
+.cc-tope-lleno { height: 100%; border-radius: 99px; background: #22c55e; }
+.cc-tope-lleno[data-nivel="ambar"] { background: #f59e0b; }
+.cc-tope-lleno[data-nivel="rojo"] { background: #ef4444; }
+#cc-form.cc-bloqueado { opacity: .6; }

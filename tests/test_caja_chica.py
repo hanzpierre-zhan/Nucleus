@@ -755,10 +755,96 @@ def test_corregir_monto_segun_boleta_y_comentario_del_deposito(app, auth_client,
         'ruc': '20123456789', 'comprobante': 'F001-568', 'monto_gastado': '77', 'fotos': [foto()], 'evidencia': foto('uso.png')}).status_code == 200
     url = '/api/caja-chica/%d/corregir_monto' % sid
     assert auth_client.post(url, json={'item': item['id'], 'montos': ['80']}).status_code == 400  # más que lo solicitado
-    r = auth_client.post(url, json={'item': item['id'], 'montos': ['76']})
+    assert auth_client.post(url, json={'item': item['id'], 'montos': ['76']}).status_code == 400  # falta el comentario
+    r = auth_client.post(url, json={'item': item['id'], 'montos': ['76'], 'motivo': 'La boleta es por S/ 76'})
     assert r.status_code == 200
     s = r.json['solicitud']
     assert s['items'][0]['monto_gastado'] == '76.00' and s['items'][0]['comprobantes'][0]['monto'] == '76.00'
-    assert s['historial'][-1]['motivo'] == 'S/ 77.00 → S/ 76.00 según la boleta.'
+    assert s['historial'][-1]['motivo'] == 'S/ 77.00 → S/ 76.00: La boleta es por S/ 76'
+    tec = cli.get('/form-pruebas/caja-chica/datos', headers=h).json['solicitudes'][0]['items'][0]
+    assert tec['correccion'] == 'S/ 77.00 → S/ 76.00: La boleta es por S/ 76'
     s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': item['id'], 'aprobar': True}).json['solicitud']
     assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '1.00'  # el técnico devuelve S/ 1
+
+
+def _solicitar(cli, h, tipo='Peajes', monto='50'):
+    return cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': tipo, 'monto': monto}]})
+
+
+def _reglas(app, **cambios):
+    from services import caja_chica_reglas as reglas
+    with app.app_context():
+        actual = {n: {'activa': r['activa'], 'valor': str(r['valor']), 'proyectos': r['proyectos']} for n, r in reglas.leer().items()}
+        for nombre, valores in cambios.items():
+            actual[nombre].update(valores)
+        reglas.guardar(actual, 'prueba')
+
+
+def test_mobile_enlace_corto_lleva_al_portal(app):
+    r = app.test_client().get('/mobile/')
+    assert r.status_code == 302 and r.headers['Location'].endswith('/form-pruebas/')
+
+
+def test_mobile_tope_por_rendir_y_proyectos(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = _solicitar(cli, h, monto='550').json['solicitud']['id']
+    assert auth_client.post('/api/caja-chica/%d/validar' % sid).status_code == 200
+    assert auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '550', 'foto': foto()}).status_code == 200
+    r = cli.get('/form-pruebas/caja-chica/datos', headers=h).json['restricciones']
+    assert r['por_rendir'] == '550.00' and 'S/ 550.00 por rendir' in r['aviso'] and not r['bloqueos']
+    assert _solicitar(cli, h).status_code == 200  # con aviso sí puede solicitar
+    _reglas(app, tope={'valor': '540'}, aviso={'valor': '400'})
+    r = _solicitar(cli, h)
+    assert r.status_code == 400 and 'tope es S/ 540.00' in r.json['error']
+    # Si la regla no aplica a su proyecto (Claro), no se bloquea.
+    _reglas(app, tope={'proyectos': ['ENTEL', 'PEXT']})
+    assert _solicitar(cli, h).status_code == 200
+    _reglas(app, tope={'activa': True, 'valor': '600', 'proyectos': ['ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT']}, aviso={'valor': '500'})
+
+
+def test_mobile_plazo_de_48_horas(app, auth_client, tecnico):
+    from datetime import datetime, timedelta
+    cli, h = tecnico
+    sid = _solicitar(cli, h).json['solicitud']['id']
+    auth_client.post('/api/caja-chica/%d/validar' % sid)
+    auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '50', 'foto': foto()})
+    assert _solicitar(cli, h).status_code == 200
+    with app.app_context():
+        sol = db.session.get(CajaChicaSolicitud, sid)
+        sol.depositado_en = datetime.utcnow() - timedelta(hours=49)
+        codigo = sol.codigo
+        db.session.commit()
+    r = _solicitar(cli, h)
+    assert r.status_code == 400 and '48 h' in r.json['error'] and codigo in r.json['error']
+
+
+def test_mobile_maximo_de_refacturables(app, tecnico):
+    cli, h = tecnico
+    refact = 'Alquiler de vehículos - Refacturable'
+    assert _solicitar(cli, h, refact).status_code == 200
+    assert _solicitar(cli, h, refact).status_code == 200
+    r = _solicitar(cli, h, refact)
+    assert r.status_code == 400 and 'máximo 2' in r.json['error']
+    assert _solicitar(cli, h).status_code == 200  # un gasto Cobra sí pasa
+    assert cli.get('/form-pruebas/caja-chica/datos', headers=h).json['restricciones']['refacturables'] == {'pendientes': 2, 'maximo': 2}
+
+
+def test_mobile_admin_guarda_restricciones(app, auth_client):
+    pagina = auth_client.get('/form-pruebas/administrar')
+    assert pagina.status_code == 200 and b'Restricciones' in pagina.data and b'/mobile/' in pagina.data
+    with auth_client.session_transaction() as s:
+        token = s.get('form_csrf')
+    datos = {'csrf': token, 'accion': 'reglas'}
+    for n, v in (('aviso', '300'), ('tope', '400'), ('plazo', '24'), ('refacturables', '1')):
+        datos.update({n + '_activa': '1', n + '_valor': v, n + '_proyectos': ['ENTEL', 'CLARO']})
+    r = auth_client.post('/form-pruebas/administrar', data=datos)
+    assert r.status_code == 302 and 'guardado=1' in r.headers['Location']
+    from services import caja_chica_reglas as reglas
+    with app.app_context():
+        assert reglas.leer()['plazo']['valor'] == 24 and reglas.leer()['tope']['proyectos'] == ['ENTEL', 'CLARO']
+    datos['aviso_valor'] = '500'  # el aviso no puede ser mayor que el tope
+    assert 'error=' in auth_client.post('/form-pruebas/administrar', data=datos).headers['Location']
+    _reglas(app, aviso={'valor': '500', 'proyectos': list(reglas.PROYECTOS)}, tope={'valor': '600', 'proyectos': list(reglas.PROYECTOS)},
+            plazo={'valor': '48', 'proyectos': list(reglas.PROYECTOS)}, refacturables={'valor': '2', 'proyectos': list(reglas.PROYECTOS)})

@@ -12,7 +12,28 @@
   let datos = null, corrigiendo = null;  // corrigiendo = solicitud rechazada que se está reenviando
   // Gasto Cobra (azul) o Refacturable (naranja): la misma etiqueta en todo Nucleus.
   const tipoDe = t => !t ? '' : /refact/i.test(t) ? 'Refacturable' : 'Gasto Cobra';
-  const etiquetaTipo = t => el('span', 'cc-tipo ' + (t === 'Refacturable' ? 'cc-tipo-rf' : 'cc-tipo-gc'), t);
+  const etiquetaTipo = t => el('span', 'cc-tipo ' + (t === 'Refacturable' ? 'cc-tipo-rf' : 'cc-tipo-gc'), t === 'Refacturable' ? '◆ Refacturable' : t);
+  const conRefacturable = items => (items || []).some(i => tipoDe(i.tipo_presupuesto) === 'Refacturable');
+  // Restricciones de Mobile: aviso por monto, bloqueos y refacturables pendientes.
+  function restricciones(nuevo = true) {
+    const r = datos.restricciones || {}, caja = el('div', 'cc-restricciones');
+    for (const b of r.bloqueos || []) caja.append(el('p', 'cc-restriccion bloqueo', '🔒 ' + b));
+    if (r.aviso) caja.append(el('p', 'cc-restriccion aviso', '⚠️ ' + r.aviso));
+    if (r.tope) {
+      const avance = Math.min(100, Number(r.por_rendir) / Number(r.tope) * 100);
+      const barra = el('div', 'cc-tope'), fila = el('div', 'cc-tope-fila');
+      fila.append(el('span', null, 'Por rendir'), el('strong', null, dinero(r.por_rendir) + ' / ' + dinero(r.tope)));
+      const pista = el('div', 'cc-tope-pista'), lleno = el('div', 'cc-tope-lleno');
+      lleno.style.width = avance + '%'; lleno.dataset.nivel = avance >= 100 ? 'rojo' : r.aviso || avance >= 80 ? 'ambar' : 'verde';
+      pista.append(lleno); barra.append(fila, pista); caja.append(barra);
+    }
+    if (r.refacturables) {
+      const {pendientes, maximo} = r.refacturables, lleno = pendientes >= maximo;
+      caja.append(el('p', 'cc-restriccion refact' + (lleno ? ' lleno' : ''), '◆ Refacturables sin rendir: ' + pendientes + ' de ' + maximo
+        + (lleno && nuevo ? ' · rinde uno para pedir otro refacturable' : '')));
+    }
+    return caja;
+  }
   function etiquetasTipo(items) {
     const tipos = [...new Set(items.map(i => tipoDe(i.tipo_presupuesto)).filter(Boolean))];
     if (!tipos.length) return null;
@@ -363,7 +384,7 @@
       detalle.append(resumen);
     }
     for (const item of sol.items) {
-      const fila = el('section', 'card cc-item-fila cc-item-' + item.estado.toLowerCase());
+      const fila = el('section', 'card cc-item-fila cc-item-' + item.estado.toLowerCase() + (conRefacturable([item]) ? ' cc-con-refacturable' : ''));
       const cab = el('div', 'cc-item-cabecera');
       cab.append(el('strong', null, item.numero + ' · ' + item.tipo_gasto), el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
       fila.append(cab);
@@ -373,6 +394,7 @@
         fila.append(el('p', 'cc-item-ok', (item.estado === 'APROBADO' ? '✓ Rendiste ' : 'Enviado · ') + dinero(item.monto_gastado)
           + ((item.comprobantes || []).length > 1 ? ' · ' + item.comprobantes.length + ' comprobantes' : item.comprobante ? ' · ' + item.comprobante : '')));
       }
+      if (item.correccion) { const aviso = el('p', 'cc-item-motivo'); aviso.append(el('strong', null, 'Monto corregido: '), item.correccion); fila.append(aviso); }
       const saldo = saldoItem(item);
       if (saldo > 0 && item.estado !== 'DEVUELTO') fila.append(el('p', 'cc-item-saldo', '↩ ' + dinero(saldo) + ' pasa a tu devolución'));
       if (item.estado === 'DEVUELTO') {
@@ -442,6 +464,7 @@
   function pintar() {
     const total = datos.solicitudes.reduce((suma, sol) => suma + montoPendiente(sol), 0);
     $('cc-pendiente').textContent = dinero(total / 100);
+    $('cc-restricciones').replaceChildren(restricciones());
     const lista = $('cc-lista');
     lista.replaceChildren();
     // Sin pestañas: el técnico solo ve lo que tiene por rendir.
@@ -450,7 +473,7 @@
     const solicitudes = datos.solicitudes.filter(sol => ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado));
     if (!solicitudes.length) lista.append(el('p', 'empty', 'No tienes depósitos por rendir.'));
     for (const sol of solicitudes) {
-      const ficha = el('button', 'deposit');
+      const ficha = el('button', 'deposit' + (conRefacturable(sol.items) ? ' cc-con-refacturable' : ''));
       ficha.type = 'button';
       ficha.append(...fichaDeposito(sol));
       ficha.addEventListener('click', () => abrirRendicion(sol));
@@ -550,6 +573,10 @@
     $('cc-volver-solicitud').hidden = !sol;
     $('cc-volver-portal').hidden = Boolean(sol);
     form.querySelector('[type=submit]').textContent = sol ? 'Reenviar solicitud' : 'Enviar solicitud';
+    const bloqueado = !sol && (datos.restricciones?.bloqueos || []).length > 0;
+    form.querySelector('[type=submit]').disabled = bloqueado;
+    form.classList.toggle('cc-bloqueado', bloqueado);
+    $('cc-restricciones-form').replaceChildren(...(sol ? [] : [restricciones()]));
     $('cc-dni').value = datos.personal.documento || '';
     $('cc-tecnico').value = datos.personal.nombre || '';
     $('cc-supervisor').value = datos.personal.supervisor || '';
@@ -632,6 +659,7 @@
       $('codigo-exito').textContent = r.solicitud.codigo;
       $('total-exito').textContent = dinero(r.solicitud.total);
       datos.solicitudes = [r.solicitud, ...datos.solicitudes.filter(sol => sol.id !== r.solicitud.id)];
+      try { datos.restricciones = (await api('/datos')).restricciones; } catch (_) {}
       pintar();
       corrigiendo = null;
       ver('cc-exito');

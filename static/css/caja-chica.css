@@ -740,3 +740,8 @@ body.dark-mode .cc-chip.cc-refacturable { color: #c4b5fd; }
 .cc-deposito-comentario { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; font-size: 13px; color: var(--ios-secondary); }
 .cc-deposito-comentario textarea { width: 100%; resize: vertical; font: inherit; color: var(--ios-label); background: var(--ios-fill); border: 1px solid var(--cc-borde, var(--ios-hairline)); border-radius: 10px; padding: 8px 10px; }
 @media (max-width: 760px) { .cc-rev-detalle-cuerpo { grid-template-columns: 1fr; } }
+
+/* Refacturables: franja morada en la fila y chip más visible. */
+.cc-fila-solicitud.cc-fila-refacturable { box-shadow: inset 4px 0 0 #7c3aed; background: rgba(124, 58, 237, .05); }
+.cc-chip.cc-refacturable { background: #6d28d9 !important; color: #fff !important; font-weight: 700; }
+body.dark-mode .cc-chip.cc-refacturable { background: #7c3aed !important; color: #fff !important; }

@@ -1,5 +1,5 @@
 ﻿<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Caja Chica · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-tecnico.css',v=20) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Caja Chica · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-tecnico.css',v=21) }}"></head>
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Caja Chica</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
 <main class="shell">
@@ -9,6 +9,7 @@
   <a class="back" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Inicio</a>
   <div class="eyebrow">02 / RENDICIÓN</div><h1>Tus depósitos</h1>
   <div class="balance compact"><span class="balance-label">TE QUEDA POR RENDIR</span><div id="cc-pendiente" class="big-money" aria-live="polite"></div></div>
+  <div id="cc-restricciones" aria-live="polite"></div>
   <div id="cc-filtros" hidden class="filtros-rendicion" role="group" aria-label="Filtrar solicitudes"></div>
   <div id="cc-lista"></div>
   <a class="back" href="{{ url_for('form_pruebas.inicio') }}#rendicion">Ver depósitos del flujo anterior</a>
@@ -23,6 +24,7 @@
   <button class="back" id="cc-volver-solicitud" type="button" data-cc-volver><span class="back-icon" aria-hidden="true">←</span>Volver a depósitos</button>
   <a class="back" id="cc-volver-portal" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Volver al inicio</a>
   <div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1>
+  <div id="cc-restricciones-form" aria-live="polite"></div>
   <form id="cc-form" class="card" novalidate>
     <p id="cc-rechazo" class="notice" hidden></p>
     <fieldset><legend>Datos del técnico</legend>
@@ -95,4 +97,4 @@
 <input id="csrf" type="hidden" value="{{ csrf }}">
 </main>
 <footer>NUCLEUS · Caja Chica</footer>
-<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=32) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=35) }}" defer></script></body></html>

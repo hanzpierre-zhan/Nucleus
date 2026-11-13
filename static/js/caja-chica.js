@@ -884,7 +884,8 @@
     cuerpo.append(ficha('fa-receipt', '', [
       ...filasComp,
       ['Solicitado', dinero(item.monto)], ['Gastó', item.monto_gastado && dinero(item.monto_gastado)],
-      ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) + ' · va a devolución' : '', 'cc-rev-sobrante']]).querySelector('dl'));
+      ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) + ' · va a devolución' : '', 'cc-rev-sobrante'],
+      ['Monto corregido', item.correccion, 'cc-rev-sobrante']]).querySelector('dl'));
     const evidencias = item.evidencias?.length ? item.evidencias : [item.evidencia].filter(Boolean);
     if (!item.fotos.length && !evidencias.length) {
       // Solicitud migrada desde Rendición: las fotos quedaron en el registro original.
@@ -935,6 +936,8 @@
         return entrada;
       });
       const resumen = el('dl', 'cc-motivo-datos'); form.append(resumen);
+      const motivo = Object.assign(el('textarea'), {rows: 2, maxLength: 300, placeholder: 'Ej.: la boleta F001-568 es por S/ 76.00'});
+      form.append(el('span', 'cc-motivo-etiqueta', 'Comentario para el técnico (por qué se corrige)'), motivo);
       const error = el('p', 'cc-alerta'); error.hidden = true; form.append(error);
       const pie = el('nav', 'cc-motivo-pie');
       const cancelar = el('button', 'cc-motivo-cancelar', 'Cancelar'); cancelar.type = 'button';
@@ -948,14 +951,14 @@
           ['Pasa al técnico (rendir o devolver)', dinero(Math.max(0, Number(item.monto) - nuevo)), 'naranja']]) {
           const fila = el('div', clase || null); fila.append(el('dt', null, k), el('dd', null, v)); resumen.append(fila);
         }
-        ok.disabled = !(nuevo > 0) || nuevo > Number(item.monto) || nuevo === antes;
+        ok.disabled = !(nuevo > 0) || nuevo > Number(item.monto) || nuevo === antes || !motivo.value.trim();
       };
-      entradas.forEach(e => e.addEventListener('input', pintar)); pintar();
+      entradas.forEach(e => e.addEventListener('input', pintar)); motivo.addEventListener('input', pintar); pintar();
       cancelar.addEventListener('click', () => d.close(''));
       form.addEventListener('submit', async e => {
         e.preventDefault();
         ok.disabled = true; error.hidden = true;
-        try { await accion(sol, 'corregir_monto', {item: item.id, montos: entradas.map(x => x.value)}); d.close('ok'); }
+        try { await accion(sol, 'corregir_monto', {item: item.id, montos: entradas.map(x => x.value), motivo: motivo.value.trim()}); d.close('ok'); }
         catch (err) { error.textContent = err.message; error.hidden = false; ok.disabled = false; }
       });
       d.addEventListener('close', () => { resolve(); d.remove(); });
@@ -1667,7 +1670,7 @@
       return;
     }
     for (const sol of visibles) {
-      const s = el('div', 'cc-card cc-resumen cc-fila-solicitud');
+      const s = el('div', 'cc-card cc-resumen cc-fila-solicitud' + (sol.items.some(i => /refact/i.test(i.tipo_presupuesto || '')) ? ' cc-fila-refacturable' : ''));
       {
         const celda = el('span', 'cc-seleccion');
         const check = Object.assign(el('input'), {type: 'checkbox', checked: seleccionadas.has(sol.id)});

@@ -677,13 +677,16 @@
     const esTransito = atencion(c) === 'Tránsito', aPagar = esTransito ? num(c['MONTO TRANSITO']) : num(c.monto);
     const monto = el('div', 'cn-total'); monto.append(el('span', null, 'Monto a pagar · ' + (atencion(c) || '')), el('strong', null, dinero(aPagar)));
     // Solo la captura (imagen) del depósito; no se acepta PDF.
-    const foto = zonaArchivo('Captura del depósito', 'Toca para adjuntar la foto o captura del depósito', 'image/*');
+    const foto = zonaArchivo('Captura del depósito', 'Toca para elegirla, arrástrala aquí o pégala con Ctrl+V', 'image/png,image/jpeg,image/webp', true);
+    const pegar = e => { if (dialogo.open && foto.isConnected) foto.usar(e.clipboardData?.files); };
+    document.addEventListener('paste', pegar);
+    dialogo.addEventListener('close', () => document.removeEventListener('paste', pegar), {once: true});
     const tras = atencion(c) === 'Tránsito' ? ' y queda en Tránsito hasta encontrar proveedor' : '';
     caja.append(monto);
     caja.append(foto, el('p', 'cc-nota', 'La fecha y hora del pago se registran solas al confirmar. Pasa a Operaciones' + tras + '.'));
     const error = errorCaja(); caja.append(error);
     derecha.append(fichaItems(c), caja);
-    ventana('Registrar pago · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Confirmar pago', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
+    ventana('Registrar pago · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [...botonCorreo(c), ['Confirmar pago', 'cn-verde', 'fa-check', conErrorEn(error, async () => {
       if (!foto.input.files.length) throw Error('Adjunta la captura del depósito.');
       const subido = await subir('/api/cotizacion/subir_pago', c.key, foto.input.files[0]);
       const r = await fetch('/api/cot-new/pagar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, foto: subido.url})});
@@ -720,13 +723,7 @@
     const pagado = num(c['MONTO PAGADO'] || c['MONTO TRANSITO']);
     const provision = Math.round(pagado * 20) / 100;
     caja.append(ficha('fa-clock', '', [['Pagado el', c['FECHA PAGO']], ['Pagado por', c['PAGADO POR'] && nombreDe(c['PAGADO POR'])]]).querySelector('dl'));
-    // Captura del depósito: imagen (o enlace si es PDF).
-    const url = c['FOTO PAGO'];
-    if (url) {
-      const a = el('a', 'cn-captura-pago'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = 'Abrir captura del depósito';
-      const img = el('img'); img.src = url; img.alt = 'Captura del depósito'; img.loading = 'lazy'; a.append(img);
-      caja.append(el('span', 'cc-motivo-etiqueta', 'Captura del depósito'), a);
-    } else caja.append(el('p', 'cc-nota', 'Sin captura del depósito.'));
+    caja.append(capturaDeposito(c['FOTO PAGO']));
     const fila = (texto, valor, clase) => { const d = el('div', 'cn-total' + (clase ? ' ' + clase : '')); d.append(el('span', null, texto), el('strong', null, dinero(valor))); return d; };
     caja.append(fila('Monto pagado (Tránsito)', pagado),
       fila('Provisión sugerida (20 %)', provision, 'cn-provision'),
@@ -734,7 +731,7 @@
       el('p', 'cc-nota', 'El 20 % es una sugerencia para negociar con el proveedor.'));
     const error = errorCaja(); caja.append(error);
     derecha.append(fichaItems(c), caja);
-    ventana('Pasar a Proveedor · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Pasar a Proveedor', 'cn-morado', 'fa-file-invoice', conErrorEn(error, async () => {
+    ventana('Pasar a Proveedor · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [...botonCorreo(c), ['Pasar a Proveedor', 'cn-morado', 'fa-file-invoice', conErrorEn(error, async () => {
       const r = await fetch('/api/cot-new/mover', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, desde: 'transito', hacia: 'proveedor'})});
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(j.error || 'No se pudo mover la cotización.');
@@ -804,13 +801,41 @@
     h.append(icono('fa-wallet'), el('span', null, 'Depósitos de Caja Chica')); caja.append(h, tabla);
     ventana('Depósitos · ' + (c['N° COTIZACION'] || c.key), caja, null, []);
   }
-  function zonaArchivo(texto, ayuda, acepta) {
-    const zona = el('label', 'cc-validacion-zona');
+  function zonaArchivo(texto, ayuda, acepta, previa = false) {
+    const zona = el('label', 'cc-validacion-zona' + (previa ? ' cn-zona-previa' : ''));
     const input = Object.assign(el('input'), {type: 'file', accept: acepta});
-    const pie = el('small', null, ayuda);
-    zona.append(input, icono('fa-paperclip'), el('strong', null, texto), pie);
-    input.addEventListener('change', () => { const f = input.files[0]; pie.textContent = f ? f.name + ' · toca para cambiarlo' : ayuda; zona.classList.toggle('con-archivo', !!f); });
+    const pie = el('small', null, ayuda), img = el('img'); img.hidden = true; img.alt = texto;
+    zona.append(input, img, icono('fa-paperclip'), el('strong', null, texto), pie);
+    let url = '';
+    const pintar = () => {
+      const f = input.files[0];
+      pie.textContent = f ? f.name + ' · toca para cambiarlo' : ayuda; zona.classList.toggle('con-archivo', !!f);
+      if (previa) { if (url) URL.revokeObjectURL(url); url = f && f.type.startsWith('image/') ? URL.createObjectURL(f) : ''; img.src = url; img.hidden = !url; }
+    };
+    input.addEventListener('change', pintar);
+    // Arrastrar o pegar (Ctrl+V) una captura.
+    zona.usar = lista => { const f = [...(lista || [])].find(x => !previa || x.type.startsWith('image/')); if (!f) return; const t = new DataTransfer(); t.items.add(f); input.files = t.files; pintar(); };
+    zona.addEventListener('dragover', e => { e.preventDefault(); zona.classList.add('arrastrando'); });
+    zona.addEventListener('dragleave', () => zona.classList.remove('arrastrando'));
+    zona.addEventListener('drop', e => { e.preventDefault(); zona.classList.remove('arrastrando'); zona.usar(e.dataTransfer.files); });
     zona.input = input; return zona;
+  }
+  // Botón redondo para ver el correo de aprobación del cliente (si se adjuntó).
+  const botonCorreo = c => c['ADJUNTO CORREO CLIENTE'] ? [['Ver correo de aprobación del cliente', 'cn-azul', 'fa-envelope-open-text', () => window.open(c['ADJUNTO CORREO CLIENTE'], '_blank', 'noopener')]] : [];
+  // Captura del depósito: se ve en grande; si no carga, dice por qué y deja abrirla aparte.
+  function capturaDeposito(url) {
+    const caja = el('div', 'cn-captura');
+    if (!url) { caja.append(el('p', 'cc-nota', 'Sin captura del depósito.')); return caja; }
+    const a = el('a', 'cn-captura-pago'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = 'Abrir captura del depósito';
+    const img = el('img'); img.src = url; img.alt = 'Captura del depósito'; a.append(img);
+    img.addEventListener('error', async () => {
+      let motivo = '';
+      try { const r = await fetch(url, {method: 'GET'}); motivo = r.ok ? '' : ' (' + r.status + ' · ' + (((await r.json().catch(() => ({}))).error) || 'sin respuesta') + ')'; } catch (_) {}
+      a.replaceChildren(icono('fa-image'), el('span', null, 'No se pudo mostrar la captura' + motivo + ' · abrir aparte'));
+      a.classList.add('cn-captura-error');
+    });
+    caja.append(el('span', 'cc-motivo-etiqueta', 'Captura del depósito'), a);
+    return caja;
   }
   const errorCaja = () => { const e = el('p', 'cc-alerta'); e.hidden = true; return e; };
   const conErrorEn = (caja, fn) => async () => { caja.hidden = true; try { await fn(); } catch (e) { caja.textContent = e.message; caja.hidden = false; } };
@@ -960,8 +985,9 @@
   }
   // ── Operaciones: ficha de sustento (mismos datos que Cotizaciones) con el diseño nuevo ──
   // Un sustento por WO. Izquierda: datos del trabajo y descripción. Derecha: foto de ubicación, evidencia por ítem y pago.
-  const OP_CAMPOS = [['ajb_ejb', 'AJB / EJB'], ['expense', 'Expense'], ['site_name', 'Nombre del sitio'], ['site_id', 'Código del sitio'],
-    ['site_type', 'Tipo de site'], ['region', 'Región'], ['site_address', 'Ubicación del sitio', true], ['district', 'Distrito'], ['province', 'Provincia']];
+  // Mismo orden que la ficha de sustento clásica (rejilla de 4 columnas; true = ocupa 2).
+  const OP_CAMPOS = [['ajb_ejb', 'AJB / EJB'], ['expense', 'Expense'], ['site_name', 'Nombre del sitio', true], ['site_id', 'Código del sitio'],
+    ['site_type', 'Tipo de site'], ['site_address', 'Ubicación del sitio', true], ['district', 'Distrito'], ['province', 'Provincia'], ['region', 'Región']];
   const OP_RESPALDO = {site_name: ['NOMBRE SITE'], site_id: ['CODIGO SITE'], site_address: ['DIRECCION'], site_type: ['TIPO SITE'],
     district: ['DISTRITO'], province: ['PROVINCIA'], region: ['REGION', 'DEPARTAMENTO']};
   const OP_FASES = [['before', 'Antes'], ['during', 'Durante'], ['after', 'Después']];
@@ -987,7 +1013,7 @@
     const izquierda = el('div', 'cc-validacion-izquierda');
     const datosForm = el('form', 'cc-ficha cn-op-form'); datosForm.noValidate = true;
     const h1 = el('h4', 'cc-ficha-titulo'); h1.append(icono('fa-location-dot'), el('span', null, 'Datos del trabajo y del sitio')); datosForm.append(h1);
-    const rejilla = el('div', 'cn-op-rejilla'); datosForm.append(rejilla);
+    const rejilla = el('div', 'cn-op-rejilla cn-op-4'); datosForm.append(rejilla);
     campo(rejilla, 'N.º presupuesto', Object.assign(entrada(c['N° COTIZACION'] || c.key), {disabled: true}));
     const campoWo = campo(rejilla, 'N.º WO', Object.assign(entrada(manual.wo ?? entry.wo), {maxLength: 100}));
     const valores = {};
@@ -995,7 +1021,7 @@
       const inicial = manual[k] ?? (OP_RESPALDO[k] || [k.toUpperCase()]).map(x => datos[x] || j.cotizacion_data?.[x]).find(Boolean) ?? '';
       valores[k] = campo(rejilla, t, Object.assign(entrada(inicial), {maxLength: k === 'site_address' ? 2000 : 300}), ancho ? 'cn-ancho' : '');
     }
-    const responsable = campo(rejilla, 'Responsable del trabajo', Object.assign(entrada(manual.work_responsible), {maxLength: 300}), 'cn-ancho');
+    const responsable = campo(rejilla, 'Responsable del trabajo', Object.assign(entrada(manual.work_responsible), {maxLength: 300}));
     const listaResp = el('datalist'); listaResp.id = 'cn-op-responsables'; responsable.setAttribute('list', listaResp.id); rejilla.append(listaResp);
     fetch('/api/cotizacion/sustento/responsables').then(leerJson).then(x => (x.opciones || []).forEach(o => listaResp.append(new Option(o)))).catch(() => {});
     const inicio = campo(rejilla, 'Fecha de inicio', entrada(aLocal(datos['INICIO EJECUCION']), 'datetime-local'));
@@ -1003,12 +1029,10 @@
     valores.work_responsible = responsable;
     const desc = el('form', 'cc-ficha cn-op-form'); desc.noValidate = true;
     const h2 = el('h4', 'cc-ficha-titulo'); h2.append(icono('fa-align-left'), el('span', null, 'Descripción del trabajo')); desc.append(h2);
-    const bitacora = {};
+    const bitacora = {}, rejillaDesc = el('div', 'cn-op-rejilla cn-op-3'); desc.append(rejillaDesc);
     [['INICIO', 'Antecedentes'], ['PROCESO', 'Objetivos'], ['CIERRE', 'Detalles del trabajo realizado']].forEach(([fase, t]) => {
-      bitacora[fase] = campo(desc, t, Object.assign(el('textarea'), {rows: 3, value: datos['_BITACORA_' + fase] || '', disabled: !editable}));
+      bitacora[fase] = campo(rejillaDesc, t, Object.assign(el('textarea'), {rows: 3, value: datos['_BITACORA_' + fase] || '', placeholder: t, disabled: !editable}));
     });
-    izquierda.append(datosForm, desc);
-    if (c['OBSERVACION SUSTENTO']) izquierda.append(ficha('fa-triangle-exclamation', 'Observación anterior', [['Motivo', c['OBSERVACION SUSTENTO']]]));
 
     // Derecha: foto de ubicación, evidencia por ítem y pago.
     const derecha = el('div', 'cc-validacion-derecha cn-columna-archivos');
@@ -1053,20 +1077,20 @@
     const fotosItems = manual.item_photos || {}, detalles = manual.item_details || {}, lecturas = [];
     for (const item of (j.items || [])) {
       const caja = el('details', 'cn-op-item'); const previo = detalles[item.key] || {};
-      caja.open = !!(fotosItems[item.key] || []).length;
+      caja.open = true;
       const cabeza = el('summary'); const cuenta = el('small');
       cabeza.append(el('span', null, 'Ítem ' + item.numero + ' · ' + item.texto), cuenta); caja.append(cabeza);
       const codigo = previo.unique_code || item.unique_code || '8828126757', fila = (j.lpu || []).find(x => x.code === codigo);
-      const campos = el('div', 'cn-op-rejilla');
+      const campos = el('div', 'cn-op-rejilla cn-op-3');
       const sel = el('select'); sel.disabled = !editable;
       (j.lpu || []).forEach(x => sel.add(new Option(x.code, x.code))); if (!(j.lpu || []).some(x => x.code === codigo)) sel.add(new Option(codigo, codigo)); sel.value = codigo;
       campo(campos, 'Código único', sel);
       const v = (k, def) => (previo.unique_code ? previo[k] : undefined) ?? def;
       const unidad = campo(campos, 'Unidad', entrada(v('unit', fila?.unit ?? item.und ?? '')));
-      const esp = campo(campos, 'Descripción de la partida (Esp)', Object.assign(el('textarea'), {rows: 2, value: v('description_es', fila?.description_es ?? item.texto ?? ''), disabled: !editable}), 'cn-ancho');
-      const eng = campo(campos, 'LPU description (Eng)', Object.assign(el('textarea'), {rows: 2, value: v('description_en', fila?.description_en ?? ''), disabled: !editable}), 'cn-ancho');
-      const act = campo(campos, 'Descripción de la actividad', Object.assign(el('textarea'), {rows: 2, value: v('activity', fila?.activity || fila?.description_es || ''), disabled: !editable}), 'cn-ancho');
-      const obs = campo(campos, 'Comentario', entrada(previo.remarks === item.texto ? '' : (previo.remarks || '')), 'cn-ancho');
+      const obs = campo(campos, 'Comentario', entrada(previo.remarks === item.texto ? '' : (previo.remarks || '')));
+      const esp = campo(campos, 'Descripción de la partida (Esp)', Object.assign(el('textarea'), {rows: 2, value: v('description_es', fila?.description_es ?? item.texto ?? ''), disabled: !editable}));
+      const eng = campo(campos, 'LPU description (Eng)', Object.assign(el('textarea'), {rows: 2, value: v('description_en', fila?.description_en ?? ''), disabled: !editable}));
+      const act = campo(campos, 'Descripción de la actividad', Object.assign(el('textarea'), {rows: 2, value: v('activity', fila?.activity || fila?.description_es || ''), disabled: !editable}));
       sel.addEventListener('change', () => { const x = (j.lpu || []).find(y => y.code === sel.value); if (!x) return; unidad.value = x.unit || ''; esp.value = x.description_es || ''; eng.value = x.description_en || ''; act.value = x.activity || x.description_es || ''; });
       caja.append(campos);
       lecturas.push(() => [item.key, {unique_code: sel.value, unit: unidad.value, description_es: esp.value, description_en: eng.value, activity: act.value, remarks: obs.value}]);
@@ -1075,7 +1099,7 @@
         const fotos = fotosItems[item.key] || [];
         cuenta.textContent = fotos.length + ' foto' + (fotos.length === 1 ? '' : 's');
         fases.replaceChildren(...OP_FASES.map(([fase, t]) => {
-          const s = el('div', 'cn-op-fase'); s.append(el('span', 'cc-nota', t));
+          const s = el('div', 'cn-op-fase'); s.append(el('strong', 'cn-op-fase-titulo', t));
           const tira = el('div', 'cn-op-tira');
           fotos.forEach((f, n) => {
             if ((f.phase || 'before') !== fase) return;
@@ -1093,8 +1117,8 @@
             tira.append(fig);
           });
           if (editable) {
-            const add = el('label', 'cn-op-agregar'); const inp = Object.assign(el('input'), {type: 'file', accept: 'image/*', multiple: true, hidden: true});
-            add.append(icono('fa-plus'), inp);
+            const add = el('label', 'cn-op-agregar' + (tira.children.length ? '' : ' vacio')); const inp = Object.assign(el('input'), {type: 'file', accept: 'image/*', multiple: true, hidden: true});
+            add.append(icono('fa-plus'), el('span', null, 'Subir foto'), inp);
             inp.addEventListener('change', async () => {
               ctx.subiendo++; estado.textContent = 'Guardando fotos…';
               try {
@@ -1116,7 +1140,11 @@
     }
     const pago = ficha('fa-money-bill-wave', 'Pago', [['Interacción', atencion(c)], ['Pagado', c['FECHA PAGO'] && (c['FECHA PAGO'] + ' · ' + nombreDe(c['PAGADO POR']))]]);
     if (c['FOTO PAGO']) { const a = el('a', 'cc-codigo-link', 'Ver foto del pago'); a.href = c['FOTO PAGO']; a.target = '_blank'; a.rel = 'noopener'; pago.append(a); }
-    derecha.append(ubic, evid, pago, estado);
+    // Una sola columna, en el orden de la ficha clásica: datos, ubicación, descripción, evidencia.
+    const columna = el('div', 'cn-op-columna');
+    columna.append(datosForm, ubic, desc, evid, pago);
+    if (c['OBSERVACION SUSTENTO']) columna.append(ficha('fa-triangle-exclamation', 'Observación anterior', [['Motivo', c['OBSERVACION SUSTENTO']]]));
+    columna.append(estado);
 
     // Guardado: igual que Cotizaciones (solo envía lo cambiado y avisa si otra persona lo modificó).
     const leerManual = () => ({wo: campoWo.value.trim(), ...Object.fromEntries(Object.entries(valores).map(([k, x]) => [k, x.value])), item_details: Object.fromEntries(lecturas.map(f => f()))});
@@ -1137,7 +1165,7 @@
       Object.keys(evidencia).forEach(k => { baseEvidencia[k] = y.wo_data?.[k] || ''; });
       if (y.wo !== undefined) entry.wo = y.wo;
     }
-    const error = errorCaja(); derecha.append(error);
+    const error = errorCaja(); columna.append(error);
     const botones = [];
     if ((j.items || []).length) botones.push(['Generar expediente (Excel)', 'cn-azul', 'fa-file-excel', conErrorEn(error, async () => {
       await guardar(false);
@@ -1151,7 +1179,7 @@
         if (!await (window.nucleusConfirm ? window.nucleusConfirm('Se guardará el sustento y la cotización pasará a Atendido.', 'Enviar a Atendido', {okText: 'Enviar', circular: true}) : confirm('¿Enviar a Atendido?'))) return;
         await guardar(true); dialogo.close(); await cargar(); avisar((c['N° COTIZACION'] || c.key) + ' pasó a Atendido.');
       })]);
-    ventana('Operaciones · ' + (c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), izquierda, derecha, botones);
+    ventana('Operaciones · ' + (c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), columna, null, botones);
     $('cc-solicitud-contenido').firstChild.classList.add('cn-operaciones');
     // Un sustento por WO: botones arriba para cambiar de WO (guarda antes de cambiar).
     if (lista.length > 1) {

@@ -304,9 +304,12 @@ def datos_formulario(datos, supervisor, responsables):
                 responsable_validacion=responsable, responsable_validacion_id=responsable_id)
 
 
-def crear(tecnico, datos, catalogo, proyectos, bancos, importe, formulario=None):
+def crear(tecnico, datos, catalogo, proyectos, bancos, importe, formulario=None, revisar=None):
+    """revisar(conceptos): opcional, valida las restricciones de Mobile antes de guardar."""
     sol = CajaChicaSolicitud(documento=tecnico['documento'], tecnico=tecnico['nombre'], estado='PENDIENTE')
     conceptos = _llenar(sol, datos, catalogo, proyectos, bancos, importe)
+    if revisar:
+        revisar(conceptos)
     _historial(sol, 'solicitar', tecnico['nombre'], conceptos=conceptos, formulario=formulario)
     proyecto_id = Proyecto.query.filter_by(nombre=MODULO).with_entities(Proyecto.id).scalar()
     insert = pg_insert if db.engine.dialect.name == 'postgresql' else sqlite_insert
@@ -555,7 +558,7 @@ def revisar_item(sol, item, usuario, aprobar, motivo=''):
     db.session.commit()
 
 
-def corregir_monto(sol, item, usuario, montos, importe):
+def corregir_monto(sol, item, usuario, montos, importe, comentario=''):
     """Al revisar: corrige lo gastado según la boleta (p. ej. 77 → 76).
 
     montos: uno por comprobante, en el mismo orden. Lo que deja de contar como gastado
@@ -575,12 +578,14 @@ def corregir_monto(sol, item, usuario, montos, importe):
     _exigir(total <= item.monto, 'El monto (S/ %s) no puede superar lo solicitado (S/ %s).' % (dinero(total), dinero(item.monto)))
     antes = item.monto_gastado or Decimal('0')
     _exigir(total != antes, 'El monto es el mismo.')
+    comentario = str(comentario or '').strip()[:300]
+    _exigir(comentario, 'Escribe por qué corriges el monto (le llega al técnico).')
     for c, m in zip(comps, nuevos):
         c['monto'] = dinero(m)
     item.comprobantes = json.dumps(comps, ensure_ascii=False)
     item.monto_gastado = total
     _historial(sol, 'corregir monto ítem %d' % item.numero, usuario,
-               'S/ %s → S/ %s según la boleta.' % (dinero(antes), dinero(total)))
+               'S/ %s → S/ %s: %s' % (dinero(antes), dinero(total), comentario))
     db.session.commit()
 
 
@@ -782,6 +787,9 @@ def a_dict(sol, gestion=False):
                    'rendido_en': i.rendido_en.isoformat(timespec='minutes') if i.rendido_en else '',
                    'revisado_en': i.revisado_en.isoformat(timespec='minutes') if i.revisado_en else '',
                    'revisado_por': i.revisado_por or '',
+                   # Última corrección de monto hecha al revisar (el técnico ve el porqué).
+                   'correccion': next((e.get('motivo') or '' for e in reversed(historial)
+                                       if e.get('accion') == 'corregir monto ítem %d' % i.numero), ''),
                    **conceptos.get(str(i.numero), {})}
                   for i in sol.items],
         'formulario': formulario,

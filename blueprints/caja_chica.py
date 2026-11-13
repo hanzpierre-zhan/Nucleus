@@ -14,6 +14,7 @@ from db import db
 from models import AppConfig, CajaChicaItem, CajaChicaSolicitud, NucleusData, Proyecto
 from services import audit_user, get_menu_proyectos, login_required
 from services import caja_chica as cc
+from services import caja_chica_reglas as reglas
 from services.formularios_prueba import importe
 from services.recursos_flm import familia
 from services.alcance_proyectos import _valor
@@ -66,6 +67,14 @@ def _error(exc):
 
 # ── Portal del técnico ─────────────────────────────────────────────────────
 
+# Enlace corto para compartir con los técnicos (Mobile). /form-pruebas/ sigue funcionando igual.
+@bp.get('/mobile')
+@bp.get('/mobile/')
+@bp.get('/mobile/<path:resto>')
+def mobile(resto=''):
+    return redirect('/form-pruebas/' + resto)
+
+
 @bp.get('/form-pruebas/caja-chica')
 def portal():
     if not session.get('form_documento') or session.get('form_debe_cambiar'):
@@ -82,6 +91,7 @@ def portal_datos():
                    .order_by(CajaChicaSolicitud.id.desc()).all())
     return jsonify(personal=g.tecnico, proyecto=familia(g.tecnico['proyecto']), catalogo=_catalogo(_config_catalogo()[1]),
                    responsables=responsables_por_proyecto(), cuenta_devolucion=cc.CUENTA_DEVOLUCION,
+                   restricciones=reglas.estado(g.tecnico['documento'], familia(g.tecnico['proyecto'])),
                    solicitudes=[cc.a_dict(s) for s in solicitudes])
 
 
@@ -91,7 +101,8 @@ def portal_solicitar():
     comprobar_csrf()
     try:
         datos, formulario = _datos_portal()
-        sol = cc.crear(g.tecnico, datos, _catalogo(_config_catalogo()[1]), PROYECTOS, BANCOS, importe, formulario)
+        sol = cc.crear(g.tecnico, datos, _catalogo(_config_catalogo()[1]), PROYECTOS, BANCOS, importe, formulario,
+                       revisar=lambda conceptos: reglas.exigir_para_solicitar(g.tecnico['documento'], datos['proyecto'], conceptos))
     except ValueError as exc:
         db.session.rollback()
         return _error(exc)
@@ -538,7 +549,7 @@ def gestion_accion(sid, accion):
             item = db.session.get(CajaChicaItem, int(datos.get('item') or 0))
             if not item or item.solicitud_id != sol.id:
                 abort(404)
-            cc.corregir_monto(sol, item, usuario, datos.get('montos'), importe)
+            cc.corregir_monto(sol, item, usuario, datos.get('montos'), importe, datos.get('motivo'))
         elif accion == 'tecnico':
             cc.corregir_tecnico(sol, usuario, datos.get('documento'))
         elif accion == 'archivar':

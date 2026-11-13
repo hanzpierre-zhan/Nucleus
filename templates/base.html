@@ -135,7 +135,7 @@
                         <i class="fa-solid fa-gear"></i><span class="sb-texto">Configuración</span><i class="fa-solid fa-chevron-down sb-flecha" aria-hidden="true"></i>
                     </button>
                     <div class="sb-grupo-items">
-                    <a href="{{ url_for('form_pruebas.administrar') }}" class="sidebar-link {% if request.path.startswith('/form-pruebas') %}active{% endif %}" title="Portal de técnicos"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Portal de técnicos</span></a>
+                    <a href="{{ url_for('form_pruebas.administrar') }}" class="sidebar-link {% if request.path.startswith('/form-pruebas') %}active{% endif %}" title="Mobile"><i class="fa-solid fa-mobile-screen-button"></i><span class="sidebar-link-text">Mobile</span></a>
                     <a href="/vista/usuarios/" class="sidebar-link {% if request.path.startswith('/vista/usuarios') or request.path == '/usuarios' or (request.path == '/espacios' and request.args.get('administrar') == '1') %}active{% endif %}" data-nav="/vista/usuarios/" title="Usuarios">
                         <i class="fa-solid fa-users-gear"></i> <span class="sidebar-link-text">Usuarios</span>
                     </a>

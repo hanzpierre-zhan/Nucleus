@@ -823,6 +823,16 @@ def administrar():
             (folder / 'habilitado').touch()
         elif accion == 'deshabilitar':
             (folder / 'habilitado').unlink(missing_ok=True)
+        elif accion == 'reglas':
+            from services import caja_chica_reglas as reglas
+            datos = {n: {'activa': request.form.get(n + '_activa') == '1', 'valor': request.form.get(n + '_valor', ''),
+                         'proyectos': request.form.getlist(n + '_proyectos')} for n in reglas.REGLAS}
+            from services import audit_user
+            try:
+                reglas.guardar(datos, audit_user() or 'admin')
+            except ValueError as error:
+                return redirect(url_for('form_pruebas.administrar', error=str(error)) + '#restricciones')
+            return redirect(url_for('form_pruebas.administrar', guardado=1) + '#restricciones')
         elif accion in ACCIONES_SOLICITUD:
             try:
                 resolver_solicitud(accion, None)
@@ -835,4 +845,6 @@ def administrar():
     with piloto.almacen() as con:
         rows = con.execute('SELECT id,tipo,creado,documento,datos FROM envios ORDER BY creado DESC LIMIT 100').fetchall()
     entries = [{**dict(r), 'datos': json.loads(r['datos'])} for r in rows]
-    return render_template('form_pruebas_admin.html', envios=entries, habilitado=habilitado())
+    from services import caja_chica_reglas as reglas
+    return render_template('form_pruebas_admin.html', envios=entries, habilitado=habilitado(),
+                           reglas=reglas.leer(), definicion=reglas.REGLAS, proyectos_reglas=reglas.PROYECTOS)

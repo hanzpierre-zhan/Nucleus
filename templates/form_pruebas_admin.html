@@ -1,7 +1,88 @@
 {% extends 'base.html' %}
 {% block content %}
-<section style="max-width:1100px;margin:24px auto;padding:16px">
-<h1>Portal de técnicos</h1><p>Portal móvil donde los técnicos solicitan y rinden. Todo lo que registran llega a <a href="/caja-chica/">Caja Chica</a>, donde se valida, deposita y revisa.</p>
-{% if habilitado %}<p><a class="mar-btn-primary" href="{{ url_for('form_pruebas.inicio') }}" target="_blank" rel="noopener">Abrir portal de técnicos</a></p><p>Enlace para compartir: <code>{{ url_for('form_pruebas.inicio', _external=True) }}</code>. Ingresan con su documento de Personal ACTIVO; la clave inicial es el mismo documento y se les pide cambiarla. Usa una ventana privada para conservar tu sesión administrativa.</p>{% else %}<p>El portal está deshabilitado. Al habilitarlo, los técnicos ingresan con su documento y una clave inicial igual al documento.</p><form method="post"><input type="hidden" name="csrf" value="{{ session.get('form_csrf','') }}"><input type="hidden" name="accion" value="habilitar"><button class="mar-btn-primary" type="submit">Habilitar portal de técnicos</button></form>{% endif %}
+{% set enlace = url_for('caja_chica.mobile', _external=True) %}
+<style>
+.mb { max-width: 980px; margin: 24px auto; padding: 16px; }
+.mb h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
+.mb-sub { color: var(--text-secondary, #94a3b8); margin: 0 0 18px; }
+.mb-card { border: 1px solid rgba(148, 163, 184, .25); border-radius: 14px; padding: 16px 18px; margin-bottom: 16px; background: rgba(148, 163, 184, .05); }
+.mb-card h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+.mb-enlace { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mb-enlace code { flex: 1; min-width: 220px; padding: 9px 12px; border-radius: 10px; background: rgba(148, 163, 184, .12); font-size: 13px; }
+.mb-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 0; cursor: pointer; font: inherit; font-size: 13px; color: #fff; background: #1d4ed8; text-decoration: none; }
+.mb-btn.verde { background: #217346; }
+.mb-btn.gris { background: #475569; }
+.mb-nota { font-size: 12.5px; color: var(--text-secondary, #94a3b8); margin: 10px 0 0; }
+.mb-regla { border: 1px solid rgba(148, 163, 184, .22); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.mb-regla.apagada { opacity: .55; }
+.mb-fila { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mb-fila i.ic { font-size: 17px; width: 20px; text-align: center; }
+.mb-texto { flex: 1; min-width: 220px; }
+.mb-valor { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary, #94a3b8); }
+.mb-valor input { width: 84px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(148, 163, 184, .35); background: transparent; color: inherit; font: inherit; text-align: right; }
+.mb-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.mb-switch input { width: 18px; height: 18px; accent-color: #22c55e; }
+.mb-proy { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 10px 0 0 32px; font-size: 12px; color: var(--text-secondary, #94a3b8); }
+.mb-chip { position: relative; }
+.mb-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.mb-chip span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, .35); cursor: pointer; color: var(--text-secondary, #94a3b8); }
+.mb-chip input:checked + span { color: #fff; border-color: transparent; background: var(--c); }
+.mb-chip input:checked + span::before { content: '✓'; font-size: 11px; }
+.mb-chip input:focus-visible + span { outline: 2px solid #60a5fa; outline-offset: 2px; }
+.mb-alerta { padding: 9px 12px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; }
+.mb-alerta.ok { background: rgba(34, 197, 94, .14); color: #22c55e; }
+.mb-alerta.error { background: rgba(239, 68, 68, .14); color: #ef4444; }
+.mb-pie { display: flex; justify-content: flex-end; margin-top: 6px; }
+</style>
+<section class="mb">
+  <h1><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i> Mobile</h1>
+  <p class="mb-sub">App donde los técnicos solicitan y rinden. Todo lo que registran llega a <a href="/caja-chica/">Caja Chica</a>, donde se valida, deposita y revisa.</p>
+
+  <div class="mb-card">
+    <h2><i class="fa-solid fa-link" aria-hidden="true"></i> Enlace para técnicos</h2>
+    {% if habilitado %}
+    <div class="mb-enlace">
+      <code id="mb-enlace">{{ enlace }}</code>
+      <button type="button" class="mb-btn gris" id="mb-copiar"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copiar</button>
+      <a class="mb-btn" href="{{ enlace }}" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Abrir</a>
+    </div>
+    <p class="mb-nota">Ingresan con su documento de Personal ACTIVO; la clave inicial es el mismo documento y se les pide cambiarla. Los enlaces anteriores siguen funcionando. Usa una ventana privada para conservar tu sesión administrativa.</p>
+    {% else %}
+    <p>Mobile está deshabilitado. Al habilitarlo, los técnicos ingresan con su documento y una clave inicial igual al documento.</p>
+    <form method="post"><input type="hidden" name="csrf" value="{{ session.get('form_csrf','') }}"><input type="hidden" name="accion" value="habilitar"><button class="mb-btn verde" type="submit">Habilitar Mobile</button></form>
+    {% endif %}
+  </div>
+
+  <form class="mb-card" id="restricciones" method="post">
+    <h2><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Restricciones</h2>
+    {% if request.args.get('guardado') %}<p class="mb-alerta ok" role="status">Restricciones guardadas.</p>{% endif %}
+    {% if request.args.get('error') %}<p class="mb-alerta error" role="alert">{{ request.args.get('error') }}</p>{% endif %}
+    <input type="hidden" name="csrf" value="{{ session.get('form_csrf','') }}"><input type="hidden" name="accion" value="reglas">
+    {% set iconos = {'aviso': ('fa-triangle-exclamation', '#eab308'), 'tope': ('fa-lock', '#ef4444'), 'plazo': ('fa-clock', '#f97316'), 'refacturables': ('fa-file-invoice-dollar', '#8b5cf6')} %}
+    {% set colores = {'ENTEL': '#1d4ed8', 'CLARO': '#b91c1c', 'INTEGRATEL': '#15803d', 'PEXT': '#c2410c'} %}
+    {% for nombre, d in definicion.items() %}{% set texto, unidad, r = d[0], d[1], reglas[nombre] %}
+    <div class="mb-regla{% if not r.activa %} apagada{% endif %}">
+      <div class="mb-fila">
+        <i class="fa-solid {{ iconos[nombre][0] }} ic" style="color: {{ iconos[nombre][1] }}" aria-hidden="true"></i>
+        <span class="mb-texto">{{ texto }}</span>
+        <label class="mb-valor">{% if unidad == 'S/' %}S/{% endif %}<input name="{{ nombre }}_valor" inputmode="decimal" value="{{ '%g' % r.valor }}" aria-label="{{ texto }}">{% if unidad != 'S/' %}{{ unidad }}{% endif %}</label>
+        <label class="mb-switch"><input type="checkbox" name="{{ nombre }}_activa" value="1" {% if r.activa %}checked{% endif %}> Activa</label>
+      </div>
+      <div class="mb-proy">Aplica a:
+        {% for p in proyectos_reglas %}
+        <label class="mb-chip" style="--c: {{ colores[p] }}"><input type="checkbox" name="{{ nombre }}_proyectos" value="{{ p }}" {% if p in r.proyectos %}checked{% endif %}><span>{{ p if p == 'PEXT' else p.title() }}</span></label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    <p class="mb-nota">Las reglas miran el proyecto del técnico en Dataper y solo cuentan sus solicitudes de los proyectos marcados. Corregir y reenviar una solicitud rechazada no se bloquea.</p>
+    <div class="mb-pie"><button type="submit" class="mb-btn verde"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar restricciones</button></div>
+  </form>
 </section>
+<script>
+document.getElementById('mb-copiar')?.addEventListener('click', async e => {
+  try { await navigator.clipboard.writeText(document.getElementById('mb-enlace').textContent.trim()); e.currentTarget.lastChild.textContent = ' Copiado'; } catch (_) {}
+});
+document.querySelectorAll('.mb-regla .mb-switch input').forEach(c => c.addEventListener('change', () => c.closest('.mb-regla').classList.toggle('apagada', !c.checked)));
+</script>
 {% endblock %}

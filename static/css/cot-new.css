@@ -158,10 +158,10 @@ body #cc-solicitud-dialogo .cn-aprobacion .cc-validacion-zona { min-height: 110p
 .cc-chip.cn-e-proveedor { background: rgba(124, 58, 237, .18); color: #a78bfa; }
 /* Operaciones: ficha de sustento */
 #cc-solicitud-dialogo:has(.cn-operaciones) { width: min(1240px, calc(100% - 32px)); }
-#cc-solicitud-dialogo .cn-operaciones { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+#cc-solicitud-dialogo .cn-operaciones { grid-template-columns: minmax(0, 1fr); }
 .cn-op-form { display: grid; gap: 8px; align-content: start; }
 .cn-op-rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; }
-.cn-op-rejilla > .cn-ancho { grid-column: 1 / -1; }
+.cn-op-rejilla > .cn-ancho { grid-column: span 2; }
 .cn-op-form input, .cn-op-form textarea, .cn-op-item input, .cn-op-item textarea, .cn-op-item select {
   width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font: inherit; font-size: 12.5px; }
 .cn-op-form textarea, .cn-op-item textarea { resize: vertical; }
@@ -224,3 +224,24 @@ body .cn-factura-quitar { width: 28px !important; height: 28px !important; min-h
 .cn-depositos-pie td { font-weight: 700; border-top-width: 2px; }
 .cn-depositos-tabla td:first-child:not(:only-child) { width: 1%; }
 .cn-depositos-tabla tr:has(td:nth-child(2):last-child) td:last-child { text-align: left; }
+
+/* Operaciones: una columna en el orden de la ficha clásica. */
+.cn-op-columna { display: grid; gap: 12px; }
+.cn-op-rejilla.cn-op-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cn-op-rejilla.cn-op-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+body #cc-solicitud-dialogo .cn-op-columna .cn-op-ubicacion { min-height: 230px !important; max-width: 720px; width: 100%; margin: 0 auto; }
+.cn-op-fase { border: 1.5px dashed var(--ios-hairline); border-radius: 10px; padding: 8px; min-height: 140px; display: flex; flex-direction: column; }
+.cn-op-fase-titulo { font-size: 12.5px; margin-bottom: 4px; }
+.cn-op-fase .cn-op-tira { flex: 1; align-content: flex-start; }
+.cn-op-agregar { flex-direction: column; gap: 2px; font-size: 11px; }
+.cn-op-agregar.vacio { width: 100%; height: auto; min-height: 96px; border: 0; font-size: 12.5px; }
+.cn-op-item { padding: 10px 12px; }
+/* Pago: vista previa de la captura y foto del depósito en Tránsito. */
+.cn-zona-previa { position: relative; overflow: hidden; }
+.cn-zona-previa img { max-width: 100%; max-height: 220px; object-fit: contain; border-radius: 8px; }
+.cn-zona-previa.arrastrando, .cc-validacion-zona.arrastrando { border-color: #3b82f6 !important; background: rgba(59, 130, 246, .08); }
+.cn-captura { display: grid; gap: 4px; margin: 8px 0; }
+.cn-captura-pago { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--ios-hairline); background: var(--ios-fill); }
+.cn-captura-pago img { display: block; width: 100%; max-height: 320px; object-fit: contain; }
+.cn-captura-pago.cn-captura-error { display: flex; align-items: center; gap: 8px; padding: 12px; color: #f59e0b; text-decoration: none; font-size: 13px; }
+@media (max-width: 900px) { .cn-op-rejilla.cn-op-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cn-op-rejilla.cn-op-3 { grid-template-columns: 1fr; } }
