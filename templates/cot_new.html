@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Cot_New — Nucleus{% endblock %}
+{% block title %}Cotizaciones — Nucleus{% endblock %}
 {% block content %}
 {# Mismo diseño que Caja Chica: reutiliza su hoja de estilos y sus clases cc-*. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=100">
@@ -91,5 +91,5 @@
   </dialog>
 </section>
 <script id="cn-config" type="application/json">{{ {'tipos_concepto': tipos_concepto, 'proyectos': proyectos_flm, 'cotizadores': cotizadores, 'nombres_cliente': nombres_cliente, 'supervisores': supervisores} | tojson }}</script>
-<script src="/static/js/cot-new.js?v=45" defer></script>
+<script src="/static/js/cot-new.js?v=46" defer></script>
 {% endblock %}

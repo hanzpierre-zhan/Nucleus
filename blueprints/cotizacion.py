@@ -877,6 +877,58 @@ def _cot_proyecto():
     return Proyecto.query.filter_by(nombre='Cotizaciones').first()
 
 
+# Cotizaciones old: un switch la deja en solo lectura (nadie agrega ni cambia estados).
+# La vista nueva (Cot_New) usa los mismos servicios y se identifica con X-Nucleus-Vista.
+CLAVE_BLOQUEO_OLD = 'modulo_old_bloqueado'
+ROLES_BLOQUEO_OLD = ('zeno', 'suport', 'admin')
+
+
+def cotizaciones_old_bloqueado():
+    proy = _cot_proyecto()
+    if not proy:
+        return False
+    fila = AppConfig.query.filter_by(proyecto_id=proy.id, clave=CLAVE_BLOQUEO_OLD).first()
+    return bool(fila and fila.valor == '1')
+
+
+@bp.app_context_processor
+def _contexto_bloqueo_old():
+    return {'cotizaciones_old_bloqueado': cotizaciones_old_bloqueado}
+
+
+@bp.before_app_request
+def _bloquear_cotizaciones_old():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return None
+    if request.headers.get('X-Nucleus-Vista') == 'cot-new' or request.path == '/api/cotizacion/modulo-old':
+        return None
+    ruta = request.path
+    del_old = ruta.startswith('/api/cotizacion/') or ruta.startswith('/api/cotizaciones/') or (
+        ruta.startswith('/api/rows/') and (session.get('current_proyecto_nombre') or '').strip().lower() == 'cotizaciones')
+    if del_old and session.get('user_id') and cotizaciones_old_bloqueado():
+        return jsonify(error='Cotizaciones old está desactivado (solo lectura). Trabaja desde Cotizaciones.'), 423
+    return None
+
+
+@bp.route('/api/cotizacion/modulo-old', methods=['POST'])
+@login_required
+def api_cotizacion_modulo_old():
+    if str(session.get('rol') or '').lower() not in ROLES_BLOQUEO_OLD:
+        return jsonify(error='Solo un administrador activa o desactiva el módulo.'), 403
+    proy = _cot_proyecto()
+    if not proy:
+        return jsonify(error='Módulo Cotizaciones no existe.'), 404
+    bloquear = bool((request.get_json(silent=True) or {}).get('bloquear'))
+    fila = AppConfig.query.filter_by(proyecto_id=proy.id, clave=CLAVE_BLOQUEO_OLD).first()
+    if not fila:
+        fila = AppConfig(proyecto_id=proy.id, clave=CLAVE_BLOQUEO_OLD, valor='0')
+        db.session.add(fila)
+    fila.valor = '1' if bloquear else '0'
+    db.session.commit()
+    current_app.logger.info('Cotizaciones old %s por %s', 'desactivado' if bloquear else 'activado', session.get('username'))
+    return jsonify(success=True, bloqueado=bloquear)
+
+
 def _cot_en_proveedor(row):
     return (str(row.get('TIPO GASTO APROBACION') or '').strip().casefold() == 'proveedor'
             and _cot_pestania(row) in ('sustentar', 'atendido'))

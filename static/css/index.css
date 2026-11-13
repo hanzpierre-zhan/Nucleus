@@ -6036,3 +6036,10 @@ body.theme-vercel .mar-modal.ev-modal { width:min(1680px,calc(100vw - 48px)); ma
 #rend-cotizacion-status{font-size:12px;line-height:1.5}
 #rend-cotizacion-status[data-estado=dentro]{color:#30a46c}
 #rend-cotizacion-status[data-estado=excede],#rend-cotizacion-status[data-estado=revisar]{color:#d97706}
+
+/* Switch de Cotizaciones old: se ve con su nombre y color (verde activo, rojo desactivado). */
+.topbar-row-coti #btn-coti-modulo .pill-txt { display: inline; margin-left: 6px; }
+#btn-coti-modulo.pill-green { background: #16a34a !important; color: #fff !important; border-color: #16a34a !important; }
+#btn-coti-modulo.pill-red { background: #dc2626 !important; color: #fff !important; border-color: #dc2626 !important; }
+/* Con el módulo desactivado no se ofrece "Nuevo registro". */
+.topbar-row-coti:has(.coti-old-aviso) .coti-new-record { display: none !important; }

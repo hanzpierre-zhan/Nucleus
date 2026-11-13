@@ -19,6 +19,7 @@ from werkzeug.utils import secure_filename
 
 from models import AccesoProyecto, Proyecto, Usuario
 from services import login_required
+from services.utilidades import get_menu_proyectos
 from services import formularios_prueba as piloto
 from services import claves_tecnico as claves
 from services.recursos_flm import FLM_NOMBRES, familia
@@ -847,4 +848,6 @@ def administrar():
     entries = [{**dict(r), 'datos': json.loads(r['datos'])} for r in rows]
     from services import caja_chica_reglas as reglas
     return render_template('form_pruebas_admin.html', envios=entries, habilitado=habilitado(),
-                           reglas=reglas.leer(), definicion=reglas.REGLAS, proyectos_reglas=reglas.PROYECTOS)
+                           reglas=reglas.leer(), definicion=reglas.REGLAS, proyectos_reglas=reglas.PROYECTOS,
+                           # El menú lateral necesita los módulos del usuario (si no, se ve recortado).
+                           proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))

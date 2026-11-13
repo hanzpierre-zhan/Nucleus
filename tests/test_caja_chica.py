@@ -848,3 +848,8 @@ def test_mobile_admin_guarda_restricciones(app, auth_client):
     assert 'error=' in auth_client.post('/form-pruebas/administrar', data=datos).headers['Location']
     _reglas(app, aviso={'valor': '500', 'proyectos': list(reglas.PROYECTOS)}, tope={'valor': '600', 'proyectos': list(reglas.PROYECTOS)},
             plazo={'valor': '48', 'proyectos': list(reglas.PROYECTOS)}, refacturables={'valor': '2', 'proyectos': list(reglas.PROYECTOS)})
+
+
+def test_mobile_admin_muestra_el_menu_completo(app, auth_client):
+    pagina = auth_client.get('/form-pruebas/administrar').data.decode()
+    assert 'Caja Chica' in pagina and 'Dataper' in pagina and '>Backup<' in pagina

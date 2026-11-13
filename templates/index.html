@@ -259,6 +259,19 @@
 
     {% set proy_nombre = (session.get('current_proyecto_nombre') or '') | trim | lower %}
 
+    {% if proy_nombre == 'cotizaciones' and (session.get('rol') or '')|lower in ['zeno', 'suport', 'admin'] %}
+    {% set _old_off = cotizaciones_old_bloqueado() %}
+    <button type="button" id="btn-coti-modulo" class="action-pill {{ 'pill-red' if _old_off else 'pill-green' }}" role="switch" aria-checked="{{ 'false' if _old_off else 'true' }}"
+        title="{{ 'Módulo desactivado: nadie agrega ni cambia estados. Clic para activarlo.' if _old_off else 'Módulo activo. Clic para desactivarlo (solo lectura).' }}"
+        onclick="(async b=>{const off=b.getAttribute('aria-checked')==='true';const ok=window.nucleusConfirm?await window.nucleusConfirm(off?'Nadie podrá agregar registros ni cambiar estados en Cotizaciones old. Cotizaciones (nuevo) sigue funcionando.':'Cotizaciones old vuelve a permitir cambios.', off?'Desactivar módulo':'Activar módulo',{okText:off?'Desactivar':'Activar',circular:true}):confirm('¿Continuar?');if(!ok)return;const r=await fetch('/api/cotizacion/modulo-old',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bloquear:off})});if(r.ok)location.reload();else alert((await r.json().catch(()=>({}))).error||'No se pudo cambiar.');})(this)">
+        <i class="fa-solid {{ 'fa-toggle-off' if _old_off else 'fa-toggle-on' }}"></i><span class="pill-txt"> {{ 'Módulo desactivado' if _old_off else 'Módulo activo' }}</span>
+    </button>
+    {% endif %}
+    {% if proy_nombre == 'cotizaciones' and cotizaciones_old_bloqueado() %}
+    <div class="coti-old-aviso" role="status" style="flex-basis:100%;order:99;margin:6px 0 0;padding:8px 12px;border-radius:10px;background:rgba(239,68,68,.12);color:#ef4444;font-size:13px;font-weight:600">
+        <i class="fa-solid fa-lock"></i> Cotizaciones old está en solo lectura. Para agregar o cambiar estados usa <a href="/cot-new/" style="color:inherit">Cotizaciones</a>.
+    </div>
+    {% endif %}
     {% if proy_nombre == 'cotizaciones' %}
 
     <button type="button" id="btn-coti-pdf" class="action-pill pill-teal" onclick="cotiLoteAbrir()"
@@ -598,7 +611,7 @@
 
 
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css', v=5) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/index.css', v=6) }}">
 
 
 

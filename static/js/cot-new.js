@@ -1,6 +1,14 @@
 /* Cot_New · Cotizaciones con el diseño de Caja Chica: pestañas, tuerca, tabla con filtros y detalle. */
 (() => {
   'use strict';
+  // Identifica las llamadas de esta vista: el switch de Cotizaciones old no la bloquea.
+  const fetchOriginal = window.fetch.bind(window);
+  window.fetch = (url, opciones = {}) => {
+    if (typeof url === 'string' && url.startsWith('/')) {
+      const h = new Headers(opciones.headers || {}); h.set('X-Nucleus-Vista', 'cot-new'); opciones = {...opciones, headers: h};
+    }
+    return fetchOriginal(url, opciones);
+  };
   const $ = id => document.getElementById(id);
   const el = (tag, cls, texto) => { const n = document.createElement(tag); if (cls) n.className = cls; if (texto !== undefined) n.textContent = texto; return n; };
   const icono = nombre => { const i = el('i', 'fa-solid ' + nombre); i.setAttribute('aria-hidden', 'true'); return i; };

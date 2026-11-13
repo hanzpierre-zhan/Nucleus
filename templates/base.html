@@ -100,15 +100,15 @@
                    propia quien NO puede ver Combustible (p. ej. Gestor/Contrata), para no
                    dejarlo sin acceso a sus generadores. #}
                 {% set _ve_combustible = (proyectos_list | selectattr('nombre', 'equalto', 'Combustible') | list) | length > 0 %}
-                {% for nombre, etiqueta, icono in [('Dataper','Dataper','fa-users'),('Material','Material','fa-boxes-stacked'),('SITE','Sites','fa-location-dot'),('Generadores','Generadores','fa-bolt'),('Combustible','Combustible','fa-gas-pump'),('Cotizaciones','Cotizaciones','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet')] %}
+                {% for nombre, etiqueta, icono in [('Dataper','Dataper','fa-users'),('Material','Material','fa-boxes-stacked'),('SITE','Sites','fa-location-dot'),('Generadores','Generadores','fa-bolt'),('Combustible','Combustible','fa-gas-pump'),('Cotizaciones','Cotizaciones','fa-file-invoice-dollar')] %}
                 {% if nombre != 'Generadores' or not _ve_combustible %}
                 {% for p in proyectos_list %}{% if p.nombre == nombre %}
                 {% set _submodulo = (nombre == 'Combustible' and not flm_resource_context and (session.get('current_proyecto_nombre') or '') == 'Generadores') or (nombre == 'SITE' and request.path in ['/mapa', '/mapa-site']) %}
                 {# Dataper, Material, Sites y Combustible abren la vista nueva (diseño de Caja Chica);
                    la vista clásica sigue disponible desde su tuerca. #}
-                {% set _vista = {'Dataper': '/vista/dataper/', 'Material': '/vista/material/', 'SITE': '/vista/sites/', 'Combustible': '/vista/combustible/'}.get(nombre) %}
+                {% set _vista = {'Dataper': '/vista/dataper/', 'Material': '/vista/material/', 'SITE': '/vista/sites/', 'Combustible': '/vista/combustible/', 'Cotizaciones': '/cot-new/'}.get(nombre) %}
                 {% if _vista %}
-                <a href="{{ _vista }}" class="sidebar-link {% if request.path.startswith(_vista) or (request.path == '/' and p.id == session.get('current_proyecto_id')) or _submodulo %}active{% endif %}" data-nav="{{ _vista }}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                <a href="{{ _vista }}" class="sidebar-link {% if request.path.startswith(_vista) or (request.path == '/' and p.id == session.get('current_proyecto_id') and nombre != 'Cotizaciones') or _submodulo %}active{% endif %}" data-nav="{{ _vista }}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
                 {% else %}
                 <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if (request.path == '/' and p.id == session.get('current_proyecto_id')) or _submodulo %}active{% endif %}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
                 {% endif %}
@@ -122,11 +122,22 @@
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/" title="Liquidaciones">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
-                {# Vista nueva en prueba: Cotizaciones con el diseño de Caja Chica. #}
-                {% for p in proyectos_list %}{% if p.nombre == 'Cotizaciones' %}
-                <div class="sidebar-section-label">Vistas nuevas (prueba)</div>
-                <a href="/cot-new/" class="sidebar-link {% if request.path.startswith('/cot-new') %}active{% endif %}" data-nav="/cot-new/" title="Cot_New"><i class="fa-solid fa-file-signature"></i><span class="sidebar-link-text">Cot_New</span></a>
-                {% endif %}{% endfor %}
+                {# Backup: módulos anteriores (Cotizaciones old y Rendición). #}
+                {% set _backup = [] %}
+                {% for nombre, etiqueta, icono in [('Cotizaciones','Cotizaciones old','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet')] %}{% for p in proyectos_list %}{% if p.nombre == nombre %}{% set _ = _backup.append((p, etiqueta, icono)) %}{% endif %}{% endfor %}{% endfor %}
+                {% if _backup %}
+                <div class="sidebar-section-label">Backup</div>
+                <div class="sb-grupo" data-grupo="backup">
+                    <button type="button" class="sb-grupo-btn" aria-expanded="false">
+                        <i class="fa-solid fa-box-archive"></i><span class="sb-texto">Backup</span><i class="fa-solid fa-chevron-down sb-flecha" aria-hidden="true"></i>
+                    </button>
+                    <div class="sb-grupo-items">
+                    {% for p, etiqueta, icono in _backup %}
+                    <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" title="{{ etiqueta }}"><i class="fa-solid {{ icono }}"></i><span class="sidebar-link-text">{{ etiqueta }}</span></a>
+                    {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
                 {% endif %}
                 {% if (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 <div class="sidebar-section-label">Configuración</div>
