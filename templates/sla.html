@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}SLA — Nucleus{% endblock %}
+{% block content %}
+{# SLA con el diseño de Caja Chica: pestañas por proyecto, indicadores, casos abiertos por urgencia y cumplimiento por técnico. #}
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
+<link rel="stylesheet" href="/static/css/sla.css?v=1">
+<section class="cc-gestion sla-gestion" aria-label="SLA">
+  <div class="cc-barra">
+    <input type="search" id="cc-buscar" placeholder="Buscar ticket, site o técnico" aria-label="Buscar">
+    <nav class="cc-tabs" role="tablist" aria-label="Proyecto">
+      {% for clave, nombre_modulo, nombre, color in proyectos %}
+      <button type="button" role="tab" class="cc-tab sla-proyecto" data-proyecto="{{ clave }}" style="--cc-color: {{ color }}">
+        <span class="cc-tab-fila"><i class="fa-solid fa-tower-cell" aria-hidden="true"></i> {{ nombre }} <span class="cc-cuenta" data-cuenta="{{ clave }}">…</span></span>
+        <span class="cc-plata" data-cumple="{{ clave }}">&nbsp;</span>
+      </button>
+      {% endfor %}
+    </nav>
+    <nav class="sla-tipos" aria-label="Tipo de ticket">
+      {% for t in ['Todos', 'CM', 'PM', 'PLM'] %}<button type="button" class="sla-tipo" data-tipo="{{ '' if t == 'Todos' else t }}">{{ t }}</button>{% endfor %}
+    </nav>
+    <select id="sla-periodo" class="sla-periodo" aria-label="Periodo de los cerrados">
+      <option value="">Todo el periodo</option>
+      <option value="mes">Este mes</option>
+      <option value="anterior">Mes anterior</option>
+      <option value="7">Últimos 7 días</option>
+    </select>
+    <button type="button" id="cc-excel" class="cc-excel" title="Exportar a Excel lo que ves" aria-label="Exportar a Excel">
+      <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <div class="sla-kpis" id="sla-kpis"></div>
+
+  <div class="sla-cuerpo">
+    <section class="sla-panel">
+      <header class="sla-panel-cabeza">
+        <h3><i class="fa-solid fa-heart-pulse" aria-hidden="true"></i> Casos abiertos · más urgentes primero</h3>
+        <nav class="sla-filtros" id="sla-filtros" aria-label="Filtrar casos abiertos"></nav>
+        <small id="sla-reloj" class="sla-reloj" aria-live="polite"></small>
+      </header>
+      <div class="sla-tabla" role="table" aria-label="Casos abiertos">
+        <div class="sla-fila sla-encabezado" role="row">
+          <span role="columnheader">Ticket / site</span><span role="columnheader">Tipo</span><span role="columnheader">Técnico</span>
+          <span role="columnheader">Tiempo SLA</span><span role="columnheader">Estado</span>
+        </div>
+        <div id="sla-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
+      </div>
+    </section>
+    <section class="sla-panel">
+      <header class="sla-panel-cabeza"><h3><i class="fa-solid fa-users" aria-hidden="true"></i> Cumplimiento por técnico</h3><small>cerrados del periodo</small></header>
+      <div id="sla-tecnicos" class="sla-tecnicos"></div>
+    </section>
+  </div>
+</section>
+<script id="sla-config" type="application/json">{{ por_vencer | tojson }}</script>
+<script src="/static/js/sla.js?v=1" defer></script>
+{% endblock %}

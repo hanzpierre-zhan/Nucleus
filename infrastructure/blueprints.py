@@ -23,6 +23,7 @@ def _register_blueprints(app):
     from blueprints.caja_chica import bp as caja_chica_bp
     from blueprints.cot_new import bp as cot_new_bp
     from blueprints.vistas_nuevas import bp as vistas_nuevas_bp
+    from blueprints.sla import bp as sla_bp
 
     for _bp in (
         auth_bp,
@@ -44,6 +45,7 @@ def _register_blueprints(app):
         caja_chica_bp,
         cot_new_bp,
         vistas_nuevas_bp,
+        sla_bp,
     ):
         app.register_blueprint(_bp)
     app.register_blueprint(

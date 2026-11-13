@@ -123,6 +123,12 @@
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/" title="Liquidaciones">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
+                {# SLA: cumplimiento de los tickets FLM (solo para quien ve algún proyecto FLM). #}
+                {% if _proyectos_flm %}
+                <a href="/sla/" class="sidebar-link {% if request.path.startswith('/sla') %}active{% endif %}" data-nav="/sla/" title="SLA">
+                    <i class="fa-solid fa-stopwatch"></i> <span class="sidebar-link-text">SLA</span>
+                </a>
+                {% endif %}
                 {# Backup: módulos anteriores (Cotizaciones old y Rendición). #}
                 {% set _backup = [] %}
                 {% for nombre, etiqueta, icono in [('Cotizaciones','Cotizaciones old','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet')] %}{% for p in proyectos_list %}{% if p.nombre == nombre %}{% set _ = _backup.append((p, etiqueta, icono)) %}{% endif %}{% endfor %}{% endfor %}
