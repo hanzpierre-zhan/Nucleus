@@ -189,6 +189,10 @@
 
         <div class="app-main" data-flm-resource="{{ flm_resource_context.flm_nombre if flm_resource_context and flm_resource_context.recurso in ['personal','material'] else '' }}" data-proyecto-id="{{ session.get('current_proyecto_id', '') }}" data-flm-origin="{{ flm_resource_context.flm_id if flm_resource_context else (session.get('current_proyecto_id') if session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'] else '') }}">
             <!-- Main Content Grid -->
+            {# Alertas de SLA (casos por vencer) en todas las pantallas, para quien ve algún proyecto FLM. #}
+            {% if proyectos_list and proyectos_list | selectattr('nombre', 'in', ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT']) | list %}
+            <link rel="stylesheet" href="/static/css/sla-alertas.css?v=1"><script src="/static/js/sla-alertas.js?v=1" defer></script>
+            {% endif %}
             {# FLM: la tabla usa el diseño de Caja Chica (solo visual, ver flm-tabla.css). #}
             {% set _vista_flm = request.path == '/' and session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'] and not flm_resource_context %}
             <main class="excel-main{% if _vista_flm %} vista-flm{% endif %}">

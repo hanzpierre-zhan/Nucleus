@@ -9,10 +9,11 @@
   const ESTADOS = {
     vencido: ['Vencido', 'fa-alarm-clock', 'sla-rojo'], por_vencer: ['Por vencer', 'fa-hourglass-half', 'sla-ambar'],
     en_plazo: ['En plazo', 'fa-circle-check', 'sla-verde'], sin_objetivo: ['Sin objetivo', 'fa-circle-question', 'sla-gris'],
+    cumple: ['Cerrado · cumplió', 'fa-circle-check', 'sla-verde'], no_cumple: ['Cerrado · no cumplió', 'fa-circle-xmark', 'sla-rojo'],
   };
 
   // Al abrir, siempre se ven primero los casos por vencer.
-  let proyecto = '', tipo = '', filtro = 'por_vencer', periodo = '';
+  let proyecto = '', tipo = '', filtro = 'por_vencer', periodo = '', categoria = '';
   try { proyecto = localStorage.getItem('sla-proyecto') || ''; } catch (_) {}
   const cache = {};
 
@@ -50,8 +51,25 @@
     document.querySelectorAll('.sla-proyecto').forEach(b => { b.classList.toggle('activa', b.dataset.proyecto === proyecto); b.setAttribute('aria-selected', String(b.dataset.proyecto === proyecto)); });
     document.querySelectorAll('.sla-tipo').forEach(b => b.classList.toggle('activo', b.dataset.tipo === tipo));
     if (!lista) { $('sla-lista').replaceChildren(el('p', 'cc-vacio', 'Cargando…')); return; }
+    // Proyecto sin criterios aún: se avisa en vez de calcular con reglas que no le corresponden.
+    const pendiente = !(CFG.con_criterios || []).includes(proyecto);
+    document.querySelector('.sla-gestion').classList.toggle('sla-sin-criterios', pendiente);
+    if (pendiente) {
+      const nombre = document.querySelector('.sla-proyecto[data-proyecto="' + proyecto + '"]')?.textContent.trim().split(/\s/)[0] || proyecto;
+      const aviso = el('div', 'sla-pendiente'); aviso.append(icono('fa-screwdriver-wrench'), el('strong', null, 'Criterios de SLA de ' + nombre + ' por definir'),
+        el('span', null, 'Cuando estén definidos (desde qué fecha cuenta, objetivo y cumplimiento) se activa esta pestaña.'));
+      $('sla-kpis').replaceChildren(aviso); $('sla-filtros').replaceChildren(); $('sla-tecnicos').replaceChildren();
+      $('sla-lista').replaceChildren(el('p', 'cc-vacio', 'Sin criterios definidos para este proyecto.'));
+      return;
+    }
     const ahora = new Date(), q = plano($('cc-buscar').value.trim());
-    const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre).includes(q)));
+    // Categorías del proyecto (Task Category) para el filtro.
+    const sel = $('sla-categoria'), cats = [...new Set(lista.map(c => c.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+    if (sel.dataset.proyecto !== proyecto) {
+      sel.replaceChildren(new Option('Todas las categorías', ''), ...cats.map(c => new Option(c, c)));
+      sel.dataset.proyecto = proyecto; if (!cats.includes(categoria)) categoria = ''; sel.value = categoria;
+    }
+    const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre).includes(q)));
     const abiertos = delTipo.filter(c => !c.fin).map(c => ({...c, ...medir(c, ahora)}));
     const cerrados = delTipo.filter(c => c.fin && enPeriodo(c));
     const cumplidos = cerrados.filter(cumple).length;
@@ -79,25 +97,37 @@
 
     // Filtros rápidos de la lista
     const filtros = $('sla-filtros'); filtros.replaceChildren();
-    for (const [clave, texto] of [['', 'Todos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_objetivo', 'Sin objetivo']]) {
+    for (const [clave, texto] of [['', 'Abiertos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_objetivo', 'Sin objetivo'], ['cerrados', 'Cerrados']]) {
       const b = el('button', 'sla-chip' + (filtro === clave ? ' activo' : '')); b.type = 'button';
-      b.append(el('span', null, texto), el('strong', null, String(clave ? cuenta(clave) : abiertos.length)));
+      b.append(el('span', null, texto), el('strong', null, String(clave === 'cerrados' ? cerrados.length : clave ? cuenta(clave) : abiertos.length)));
       b.addEventListener('click', () => { filtro = clave; pintar(); }); filtros.append(b);
     }
 
     // Casos abiertos, más urgentes primero: por vencer y en plazo según lo que les queda; luego vencidos (los más recientes arriba).
     const orden = {por_vencer: 0, vencido: 1, en_plazo: 2, sin_objetivo: 3};
-    const visibles = abiertos.filter(c => !filtro || c.estado === filtro)
-      .sort((a, b) => orden[a.estado] - orden[b.estado] || (a.estado === 'vencido' ? b.resto - a.resto : (a.resto ?? 1e9) - (b.resto ?? 1e9)));
+    // "Cerrados": los del periodo, del más reciente al más antiguo, con su resultado según SLA Status.
+    const usoCerrado = c => { const i = fecha(c.inicio), f = fecha(c.fin); return i && f && c.objetivo ? (f - i) / 60000 / c.objetivo * 100 : 0; };
+    const visibles = filtro === 'cerrados'
+      ? cerrados.map(c => ({...c, estado: cumple(c) ? 'cumple' : 'no_cumple', uso: usoCerrado(c)})).sort((a, b) => String(b.fin).localeCompare(String(a.fin)))
+      : abiertos.filter(c => !filtro || c.estado === filtro)
+        .sort((a, b) => orden[a.estado] - orden[b.estado] || (a.estado === 'vencido' ? b.resto - a.resto : (a.resto ?? 1e9) - (b.resto ?? 1e9)));
     const cuerpo = $('sla-lista'); cuerpo.replaceChildren();
-    if (!visibles.length) cuerpo.append(el('p', 'cc-vacio', abiertos.length ? 'No hay casos con este filtro.' : 'No hay casos abiertos. 🎉'));
+    if (!visibles.length) cuerpo.append(el('p', 'cc-vacio', filtro === 'cerrados' ? 'No hay casos cerrados en el periodo.' : abiertos.length ? 'No hay casos con este filtro.' : 'No hay casos abiertos. 🎉'));
     for (const c of visibles.slice(0, 400)) {
       const [nombre, simbolo, cls] = ESTADOS[c.estado];
       const fila = el('div', 'sla-fila ' + cls); fila.setAttribute('role', 'row');
       const t = el('span', 'sla-dos'); t.append(el('strong', 'sla-ticket', c.ticket), el('small', null, c.site || '—'));
       const tec = el('span', 'sla-dos'); tec.append(el('span', null, c.tecnico || '—'), el('small', null, c.tecnico_nombre || ''));
+      // Columnas reales; la fecha con la que empieza el SLA va resaltada (CM: Dispatch; PM/PLM: Arrive).
+      const celdaFecha = (valor, usada) => { const s = el('span', 'sla-fecha' + (usada ? ' sla-fecha-inicio' : ''), valor || '—'); if (usada) s.title = 'Desde aquí cuenta el SLA'; return s; };
+      const reales = [celdaFecha(c.dispatch, c.tipo === 'CM'), celdaFecha(c.arrive, c.tipo !== 'CM'), celdaFecha(c.fin, false),
+        el('span', 'sla-num', c.sla_hour ? c.sla_hour + ' min' : '—'),
+        el('span', 'sla-status sla-status-' + (c.sla_status || 'vacio').replace(/[^a-z_]/g, ''), c.sla_status_original || '—')];
       const tiempo = el('span', 'sla-tiempo');
-      if (c.estado === 'sin_objetivo') tiempo.append(el('small', null, c.objetivo ? 'Sin hora de inicio' : 'Sin SLA Hour'));
+      if (c.estado === 'cumple' || c.estado === 'no_cumple') {
+        const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, c.uso ? 'Usó ' + Math.round(c.uso) + ' % del objetivo' : '—'));
+        const p = el('span', 'sla-pista'), f = el('span'); f.style.width = Math.min(100, c.uso) + '%'; p.append(f); tiempo.append(cab, p);
+      } else if (c.estado === 'sin_objetivo') tiempo.append(el('small', null, c.objetivo ? 'Sin hora de inicio' : 'Sin SLA Hour'));
       else {
         const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, 'Objetivo ' + c.objetivo + ' min'), el('small', null, Math.round(c.uso) + ' %'));
         const p = el('span', 'sla-pista'), f = el('span'); f.style.width = Math.min(100, c.uso) + '%'; p.append(f);
@@ -105,8 +135,8 @@
       }
       const estado = el('span', 'sla-estado');
       estado.append(icono(simbolo), el('span', null, c.estado === 'vencido' ? 'Vencido · hace ' + duracion(-c.resto)
-        : c.estado === 'sin_objetivo' ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
-      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), tec, tiempo, estado);
+        : ['sin_objetivo', 'cumple', 'no_cumple'].includes(c.estado) ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
+      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), tec, ...reales, tiempo, estado);
       cuerpo.append(fila);
     }
     if (visibles.length > 400) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 400 de ' + visibles.length + '. Usa la búsqueda o los filtros.'));
@@ -132,6 +162,11 @@
     if (cache[clave]) return;
     const r = await fetch('/api/sla/' + clave); const j = await r.json().catch(() => ({}));
     cache[clave] = r.ok ? j.casos || [] : [];
+    if (j.pendiente) {
+      document.querySelector('[data-cuenta="' + clave + '"]').textContent = '—';
+      document.querySelector('[data-cumple="' + clave + '"]').textContent = 'Por definir';
+      return;
+    }
     const lista = cache[clave], cerrados = lista.filter(c => c.fin), ok = cerrados.filter(cumple).length;
     document.querySelector('[data-cuenta="' + clave + '"]').textContent = lista.filter(c => !c.fin).length.toLocaleString('es-PE');
     document.querySelector('[data-cumple="' + clave + '"]').textContent = cerrados.length ? (ok / cerrados.length * 100).toFixed(1) + ' % cumple' : 'Sin cerrados';
@@ -142,15 +177,17 @@
   }));
   document.querySelectorAll('.sla-tipo').forEach(b => b.addEventListener('click', () => { tipo = b.dataset.tipo; pintar(); }));
   $('sla-periodo').addEventListener('change', e => { periodo = e.target.value; pintar(); });
+  $('sla-categoria').addEventListener('change', e => { categoria = e.target.value; pintar(); });
   $('cc-buscar').addEventListener('input', pintar);
   $('cc-excel').addEventListener('click', () => {
     if (typeof XLSX === 'undefined' || !cache[proyecto]) return;
     const ahora = new Date();
-    const filas = cache[proyecto].filter(c => !tipo || c.tipo === tipo).map(c => {
+    const filas = cache[proyecto].filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria)).map(c => {
       const m = c.fin ? null : medir(c, ahora);
-      return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Site': c.site, 'Técnico': c.tecnico, 'Nombre': c.tecnico_nombre, 'Inicio SLA': c.inicio, 'Fin (Complete Time)': c.fin,
-        'Objetivo (min)': c.objetivo || '', 'Estado': c.fin ? (cumple(c) ? 'Cerrado · cumple' : 'Cerrado · no cumple') : ESTADOS[m.estado][0],
-        'SLA Status': c.sla_status, 'Minutos restantes': m && m.resto !== null ? Math.round(m.resto) : ''};
+      return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Task Category': c.categoria, 'Site': c.site, 'Schedule Operator': c.tecnico, 'Nombre': c.tecnico_nombre,
+        'Dispatch Time': c.dispatch, 'Arrive Time': c.arrive, 'Complete Time': c.fin, 'SLA Hour': c.sla_hour, 'SLA Status': c.sla_status_original,
+        'Inicio SLA usado': c.inicio, 'Objetivo (min)': c.objetivo || '', 'Estado': c.fin ? (cumple(c) ? 'Cerrado · cumple' : 'Cerrado · no cumple') : ESTADOS[m.estado][0],
+        'Minutos restantes': m && m.resto !== null ? Math.round(m.resto) : ''};
     });
     const libro = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(filas), 'SLA ' + proyecto);
     XLSX.writeFile(libro, 'SLA_' + proyecto + '.xlsx');

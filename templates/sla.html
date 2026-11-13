@@ -3,7 +3,7 @@
 {% block content %}
 {# SLA con el diseño de Caja Chica: pestañas por proyecto, indicadores, casos abiertos por urgencia y cumplimiento por técnico. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
-<link rel="stylesheet" href="/static/css/sla.css?v=1">
+<link rel="stylesheet" href="/static/css/sla.css?v=4">
 <section class="cc-gestion sla-gestion" aria-label="SLA">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar ticket, site o técnico" aria-label="Buscar">
@@ -18,6 +18,7 @@
     <nav class="sla-tipos" aria-label="Tipo de ticket">
       {% for t in ['Todos', 'CM', 'PM', 'PLM'] %}<button type="button" class="sla-tipo" data-tipo="{{ '' if t == 'Todos' else t }}">{{ t }}</button>{% endfor %}
     </nav>
+    <select id="sla-categoria" class="sla-periodo" aria-label="Task Category"><option value="">Todas las categorías</option></select>
     <select id="sla-periodo" class="sla-periodo" aria-label="Periodo de los cerrados">
       <option value="">Todo el periodo</option>
       <option value="mes">Este mes</option>
@@ -40,7 +41,9 @@
       </header>
       <div class="sla-tabla" role="table" aria-label="Casos abiertos">
         <div class="sla-fila sla-encabezado" role="row">
-          <span role="columnheader">Ticket / site</span><span role="columnheader">Tipo</span><span role="columnheader">Técnico</span>
+          <span role="columnheader">Ticket / site</span><span role="columnheader">Tipo</span><span role="columnheader">Task Category</span><span role="columnheader">Schedule Operator</span>
+          <span role="columnheader">Dispatch Time</span><span role="columnheader">Arrive Time</span><span role="columnheader">Complete Time</span>
+          <span role="columnheader">SLA Hour</span><span role="columnheader">SLA Status</span>
           <span role="columnheader">Tiempo SLA</span><span role="columnheader">Estado</span>
         </div>
         <div id="sla-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
@@ -52,6 +55,6 @@
     </section>
   </div>
 </section>
-<script id="sla-config" type="application/json">{{ por_vencer | tojson }}</script>
-<script src="/static/js/sla.js?v=2" defer></script>
+<script id="sla-config" type="application/json">{{ dict(por_vencer, con_criterios=con_criterios) | tojson }}</script>
+<script src="/static/js/sla.js?v=5" defer></script>
 {% endblock %}

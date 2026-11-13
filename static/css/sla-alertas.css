@@ -1,0 +1,23 @@
+/* Alerta flotante de SLA (casos por vencer), visible en todas las pantallas. */
+.sla-alerta { position: fixed; right: 18px; bottom: 18px; z-index: 9999; width: min(360px, calc(100vw - 36px)); border-radius: 16px; overflow: hidden;
+  background: var(--ios-card-bg, #fff); color: var(--ios-label, #111); border: 2px solid #f59e0b; box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
+  animation: sla-alerta-entra .35s ease-out, sla-alerta-pulso 2.2s ease-in-out .4s infinite; font-size: 13px; }
+body.dark-mode .sla-alerta { background: #1f2937; color: #f3f4f6; }
+.sla-alerta-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; background: #f59e0b; color: #1f1300; }
+.sla-alerta-cab strong { font-size: 14px; }
+body .sla-alerta-x { width: 26px !important; height: 26px !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 50% !important;
+  background: rgba(0, 0, 0, .15) !important; color: #1f1300 !important; display: grid; place-items: center; cursor: pointer; box-shadow: none !important; }
+.sla-alerta-lista { list-style: none; margin: 0; padding: 6px 12px; display: grid; gap: 6px; }
+.sla-alerta-lista li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(148, 163, 184, .25); }
+.sla-alerta-lista li:last-child { border-bottom: 0; }
+.sla-alerta-lista span { display: flex; flex-direction: column; min-width: 0; }
+.sla-alerta-lista b { color: #1d4ed8; } body.dark-mode .sla-alerta-lista b { color: #93c5fd; }
+.sla-alerta-lista small { color: #64748b; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sla-alerta-lista em { font-style: normal; font-weight: 700; color: #b45309; white-space: nowrap; }
+.sla-alerta-lista li.critico em { color: #dc2626; }
+.sla-alerta-ver { display: block; padding: 9px 12px; text-align: center; font-weight: 700; text-decoration: none; background: #1d4ed8; color: #fff !important; }
+.sla-alerta-ver:hover { background: #1e40af; }
+@keyframes sla-alerta-entra { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes sla-alerta-pulso { 0%, 100% { box-shadow: 0 12px 32px rgba(0, 0, 0, .28), 0 0 0 0 rgba(245, 158, 11, .5); } 50% { box-shadow: 0 12px 32px rgba(0, 0, 0, .28), 0 0 0 8px rgba(245, 158, 11, 0); } }
+@media (prefers-reduced-motion: reduce) { .sla-alerta { animation: none; } }
+@media (max-width: 760px) { .sla-alerta { bottom: 84px; } }
