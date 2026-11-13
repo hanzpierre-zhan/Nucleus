@@ -37,12 +37,20 @@
   }
   function enPeriodo(c) {
     if (!periodo) return true;
-    const fin = fecha(c.fin); if (!fin) return false;
+    const fin = fecha(c.fin || c.inicio); if (!fin) return false;
     const hoy = new Date();
     if (periodo === '7') return hoy - fin <= 7 * 864e5;
     const mes = periodo === 'mes' ? new Date(hoy.getFullYear(), hoy.getMonth(), 1) : new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
     const hasta = new Date(mes.getFullYear(), mes.getMonth() + 1, 1);
     return fin >= mes && fin < hasta;
+  }
+  // SLA Status: "normal" = Cumplimiento; "sla_violation" (u otro valor) = Incumplimiento. El valor original queda en el tooltip.
+  const resultadoSla = c => !c.sla_status ? '' : c.sla_status === 'normal' ? 'Cumplimiento' : 'Incumplimiento';
+  function estadoSla(c) {
+    const texto = resultadoSla(c);
+    const s = el('span', 'sla-status ' + (!texto ? '' : texto === 'Cumplimiento' ? 'sla-status-normal' : 'sla-status-sla_violation'), texto || '—');
+    if (c.sla_status_original) s.title = 'SLA Status: ' + c.sla_status_original;
+    return s;
   }
   const nombreTec = c => c.tecnico ? c.tecnico + (c.tecnico_nombre ? ' · ' + c.tecnico_nombre : '') : 'Sin técnico';
 
@@ -70,8 +78,8 @@
       sel.dataset.proyecto = proyecto; if (!cats.includes(categoria)) categoria = ''; sel.value = categoria;
     }
     const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre).includes(q)));
-    const abiertos = delTipo.filter(c => !c.fin).map(c => ({...c, ...medir(c, ahora)}));
-    const cerrados = delTipo.filter(c => c.fin && enPeriodo(c));
+    const abiertos = delTipo.filter(c => !c.cerrado).map(c => ({...c, ...medir(c, ahora)}));
+    const cerrados = delTipo.filter(c => c.cerrado && enPeriodo(c));
     const cumplidos = cerrados.filter(cumple).length;
     const porcentaje = cerrados.length ? cumplidos / cerrados.length * 100 : null;
     const cuenta = e => abiertos.filter(c => c.estado === e).length;
@@ -88,7 +96,7 @@
     barra.append(el('small', null, 'Cumplimiento (cerrados)'), el('strong', null, porcentaje === null ? '—' : porcentaje.toFixed(1) + ' %'));
     const pista = el('div', 'sla-pista'), lleno = el('span'); lleno.style.width = (porcentaje || 0) + '%';
     lleno.dataset.nivel = porcentaje === null ? '' : porcentaje >= 90 ? 'ok' : porcentaje >= 80 ? 'medio' : 'bajo';
-    pista.append(lleno); barra.append(pista, el('span', null, cumplidos.toLocaleString('es-PE') + ' cumplidos · ' + (cerrados.length - cumplidos).toLocaleString('es-PE') + ' vencidos'));
+    pista.append(lleno); barra.append(pista, el('span', null, cumplidos.toLocaleString('es-PE') + ' cumplidos · ' + (cerrados.length - cumplidos).toLocaleString('es-PE') + ' incumplidos'));
     kpis.append(barra);
     tarjeta('sla-rojo', 'fa-alarm-clock', 'Vencidos abiertos', cuenta('vencido'), 'pasaron su SLA Hour', 'vencido');
     tarjeta('sla-ambar', 'fa-hourglass-half', 'Por vencer', cuenta('por_vencer'), 'queda ≤ ' + Math.round(CFG.porcentaje * 100) + ' % o ≤ ' + CFG.minutos + ' min', 'por_vencer');
@@ -118,11 +126,11 @@
       const fila = el('div', 'sla-fila ' + cls); fila.setAttribute('role', 'row');
       const t = el('span', 'sla-dos'); t.append(el('strong', 'sla-ticket', c.ticket), el('small', null, c.site || '—'));
       const tec = el('span', 'sla-dos'); tec.append(el('span', null, c.tecnico || '—'), el('small', null, c.tecnico_nombre || ''));
-      // Columnas reales; la fecha con la que empieza el SLA va resaltada (CM: Dispatch; PM/PLM: Arrive).
+      // Columnas reales; el SLA empieza en Dispatch Time (va resaltada).
       const celdaFecha = (valor, usada) => { const s = el('span', 'sla-fecha' + (usada ? ' sla-fecha-inicio' : ''), valor || '—'); if (usada) s.title = 'Desde aquí cuenta el SLA'; return s; };
-      const reales = [celdaFecha(c.dispatch, c.tipo === 'CM'), celdaFecha(c.arrive, c.tipo !== 'CM'), celdaFecha(c.fin, false),
+      const reales = [celdaFecha(c.dispatch, true), celdaFecha(c.arrive, false), celdaFecha(c.fin, false),
         el('span', 'sla-num', c.sla_hour ? c.sla_hour + ' min' : '—'),
-        el('span', 'sla-status sla-status-' + (c.sla_status || 'vacio').replace(/[^a-z_]/g, ''), c.sla_status_original || '—')];
+        estadoSla(c)];
       const tiempo = el('span', 'sla-tiempo');
       if (c.estado === 'cumple' || c.estado === 'no_cumple') {
         const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, c.uso ? 'Usó ' + Math.round(c.uso) + ' % del objetivo' : '—'));
@@ -167,8 +175,8 @@
       document.querySelector('[data-cumple="' + clave + '"]').textContent = 'Por definir';
       return;
     }
-    const lista = cache[clave], cerrados = lista.filter(c => c.fin), ok = cerrados.filter(cumple).length;
-    document.querySelector('[data-cuenta="' + clave + '"]').textContent = lista.filter(c => !c.fin).length.toLocaleString('es-PE');
+    const lista = cache[clave], cerrados = lista.filter(c => c.cerrado), ok = cerrados.filter(cumple).length;
+    document.querySelector('[data-cuenta="' + clave + '"]').textContent = lista.filter(c => !c.cerrado).length.toLocaleString('es-PE');
     document.querySelector('[data-cumple="' + clave + '"]').textContent = cerrados.length ? (ok / cerrados.length * 100).toFixed(1) + ' % cumple' : 'Sin cerrados';
   }
 
@@ -183,10 +191,10 @@
     if (typeof XLSX === 'undefined' || !cache[proyecto]) return;
     const ahora = new Date();
     const filas = cache[proyecto].filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria)).map(c => {
-      const m = c.fin ? null : medir(c, ahora);
+      const m = c.cerrado ? null : medir(c, ahora);
       return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Task Category': c.categoria, 'Site': c.site, 'Schedule Operator': c.tecnico, 'Nombre': c.tecnico_nombre,
-        'Dispatch Time': c.dispatch, 'Arrive Time': c.arrive, 'Complete Time': c.fin, 'SLA Hour': c.sla_hour, 'SLA Status': c.sla_status_original,
-        'Inicio SLA usado': c.inicio, 'Objetivo (min)': c.objetivo || '', 'Estado': c.fin ? (cumple(c) ? 'Cerrado · cumple' : 'Cerrado · no cumple') : ESTADOS[m.estado][0],
+        'Dispatch Time': c.dispatch, 'Arrive Time': c.arrive, 'Complete Time': c.fin, 'SLA Hour': c.sla_hour, 'SLA Status': c.sla_status_original, 'Resultado SLA': resultadoSla(c),
+        'Inicio SLA usado': c.inicio, 'Objetivo (min)': c.objetivo || '', 'Task Status': c.estado_ticket, 'Estado': c.cerrado ? (cumple(c) ? 'Cerrado · cumple' : 'Cerrado · no cumple') : ESTADOS[m.estado][0],
         'Minutos restantes': m && m.resto !== null ? Math.round(m.resto) : ''};
     });
     const libro = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(filas), 'SLA ' + proyecto);

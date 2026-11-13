@@ -1,7 +1,8 @@
 """SLA: cumplimiento de los tickets FLM (CM, PM y PLM) por proyecto.
 
 Reglas:
-- CM: cuenta desde Dispatch Time; PM y PLM: desde Arrive Time. Termina en Complete Time.
+- Cuenta desde Dispatch Time hasta que el ticket pasa a completed (Task Status completed o closed).
+- Canceled no se mide.
 - Objetivo: SLA Hour (minutos). Resultado de un cerrado: SLA Status ("normal" cumple; "sla_violation" no).
 - Abiertos: vencido, por vencer (queda ≤ 25 % del objetivo o ≤ 60 min) o en plazo.
 - Técnico: Schedule Operator.
@@ -67,11 +68,14 @@ def casos(proyecto):
         tipo = _tipo(d, clave)
         if not tipo:
             continue
-        inicio = str((d.get('Dispatch Time') if tipo == 'CM' else d.get('Arrive Time')) or '').strip()
+        inicio = str(d.get('Dispatch Time') or '').strip()
+        estado_ticket = str(d.get('Task Status') or '').strip().lower()
         salida.append({
             'ticket': str(d.get('Ticket Id') or clave), 'tipo': tipo, 'site': str(d.get('Site Name') or ''),
             'tecnico': str(d.get('Schedule Operator') or '').strip(), 'estado_ticket': str(d.get('Task Status') or ''),
             'inicio': inicio[:19], 'fin': str(d.get('Complete Time') or '').strip()[:19],
+            # Cerrado = el ticket ya está completed (o closed); ahí se usa SLA Status y SLA Hour.
+            'cerrado': estado_ticket in ('completed', 'closed'),
             # Columnas reales, para verlas tal cual en la tabla.
             'dispatch': str(d.get('Dispatch Time') or '').strip()[:19], 'arrive': str(d.get('Arrive Time') or '').strip()[:19],
             'sla_hour': str(d.get('SLA Hour') or '').strip(), 'categoria': str(d.get('Task Category') or '').strip(), 'sla_status_original': str(d.get('SLA Status') or '').strip(),
@@ -118,7 +122,7 @@ def por_vencer(modulo, ahora=None):
     ahora = ahora or (datetime.utcnow() - timedelta(hours=5))  # hora de Perú, como vienen las fechas
     salida = []
     for c in casos(modulo):
-        if c['fin'] or not c['objetivo'] or not c['inicio']:
+        if c['cerrado'] or not c['objetivo'] or not c['inicio']:
             continue
         try:
             inicio = datetime.strptime(c['inicio'][:19], '%Y-%m-%d %H:%M:%S')

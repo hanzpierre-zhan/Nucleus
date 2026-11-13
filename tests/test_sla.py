@@ -5,11 +5,11 @@ from db import db
 from models import NucleusData, Proyecto
 
 
-def test_sla_claro_calcula_inicio_por_tipo(app, auth_client):
+def test_sla_claro_inicio_dispatch_y_cierre_por_task_status(app, auth_client):
     with app.app_context():
         pid = Proyecto.query.filter_by(nombre='FLM - CLARO').one().id
         filas = [NucleusData(proyecto_id=pid, key_value=k, data_json=json.dumps(d)) for k, d in (
-            ('CM-T-1', {'Ticket Id': 'CM-T-1', 'Task Type': 'CM', 'Dispatch Time': '2026-11-10 08:00:00', 'Arrive Time': '2026-11-10 09:00:00',
+            ('CM-T-1', {'Ticket Id': 'CM-T-1', 'Task Type': 'CM', 'Task Status': 'completed', 'Dispatch Time': '2026-11-10 08:00:00', 'Arrive Time': '2026-11-10 09:00:00',
                         'Complete Time': '2026-11-10 11:00:00', 'SLA Hour': '240', 'SLA Status': 'normal', 'Schedule Operator': 'E1234567', 'Task Category': 'Caida',
                         'Create Operator ID': 'E1234567', 'Create Operator': 'JUAN PEREZ'}),
             ('PM-T-2', {'Ticket Id': 'PM-T-2', 'Task Type': 'PM', 'Dispatch Time': '2026-11-10 08:00:00', 'Arrive Time': '2026-11-10 09:30:00',
@@ -23,7 +23,9 @@ def test_sla_claro_calcula_inicio_por_tipo(app, auth_client):
         assert casos['CM-T-1']['inicio'] == '2026-11-10 08:00:00' and casos['CM-T-1']['objetivo'] == 240  # CM: Dispatch Time
         assert casos['CM-T-1']['tecnico_nombre'] == 'Juan Perez' and casos['CM-T-1']['categoria'] == 'Caida'
         assert casos['CM-T-1']['dispatch'] == '2026-11-10 08:00:00' and casos['CM-T-1']['sla_hour'] == '240' and casos['CM-T-1']['sla_status_original'] == 'normal'
-        assert casos['PM-T-2']['inicio'] == '2026-11-10 09:30:00' and casos['PM-T-2']['fin'] == ''  # PM: Arrive Time, abierto
+        assert casos['CM-T-1']['cerrado'] is True
+        # Todos cuentan desde Dispatch Time mientras siguen abiertos (no completed).
+        assert casos['PM-T-2']['inicio'] == '2026-11-10 08:00:00' and casos['PM-T-2']['cerrado'] is False
         assert 'PLM-T-3' not in casos  # cancelados fuera
         assert auth_client.get('/api/sla/otro').status_code == 404
         # Integratel aún no tiene criterios: no se calcula.
