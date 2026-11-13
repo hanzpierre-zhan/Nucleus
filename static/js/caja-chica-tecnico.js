@@ -288,6 +288,7 @@
     const rechazo = sol.motivo_rechazo || sol.items.find(item => item.estado === 'RECHAZADO')?.motivo_rechazo
       || (ultimo?.accion === 'rechazar devolución' ? ultimo.motivo : '');
     if (rechazo) descripcion.append(el('small', null, 'Motivo del rechazo: ' + rechazo));
+    if (sol.deposito_comentario) descripcion.append(el('small', null, 'Comentario del depósito: ' + sol.deposito_comentario));
     const fecha = sol.creado ? sol.creado + 'Z' : '';
     if (Number.isFinite(Date.parse(fecha))) {
       const momento = el('time', 'solicitud-fecha', 'Solicitado el ' + fechaLima.format(new Date(fecha)));

@@ -528,12 +528,17 @@ def gestion_accion(sid, accion):
                 raise ValueError('Adjunta la foto del depósito.')
             if sol.estado != 'VALIDADO':
                 raise ValueError('Solo se deposita una solicitud validada.')
-            cc.depositar(sol, usuario, datos.get('monto'), cc.guardar_foto(sol, archivo), importe)
+            cc.depositar(sol, usuario, datos.get('monto'), cc.guardar_foto(sol, archivo), importe, datos.get('comentario'))
         elif accion == 'revisar_item':
             item = db.session.get(CajaChicaItem, int(datos.get('item') or 0))
             if not item or item.solicitud_id != sol.id:
                 abort(404)
             cc.revisar_item(sol, item, usuario, datos.get('aprobar') is True, datos.get('motivo') or '')
+        elif accion == 'corregir_monto':
+            item = db.session.get(CajaChicaItem, int(datos.get('item') or 0))
+            if not item or item.solicitud_id != sol.id:
+                abort(404)
+            cc.corregir_monto(sol, item, usuario, datos.get('montos'), importe)
         elif accion == 'tecnico':
             cc.corregir_tecnico(sol, usuario, datos.get('documento'))
         elif accion == 'archivar':

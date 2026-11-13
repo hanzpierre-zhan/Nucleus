@@ -779,8 +779,10 @@
     error.setAttribute('role', 'alert');
     error.hidden = true;
     const montoOculto = Object.assign(el('input'), {type: 'hidden', name: 'monto', value: sol.total});
+    const comentario = Object.assign(el('textarea'), {name: 'comentario', rows: 2, maxLength: 300, placeholder: 'Opcional: p. ej. se depositó desde otra cuenta'});
+    const lComentario = el('label', 'cc-deposito-comentario'); lComentario.append(el('span', null, 'Comentario (opcional)'), comentario);
     const derecha = el('div', 'cc-deposito-derecha');
-    derecha.append(monto, zona);
+    derecha.append(monto, zona, lComentario);
     form.append(error, izquierda, derecha, montoOculto);
 
     const enviar = $('cc-solicitud-depositar');
@@ -862,7 +864,9 @@
       const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar',
         conMotivo(sol, 'revisar_item', motivoItem(sol, item), {item: item.id, aprobar: false}));
       rechazar.title = 'Rechazar ' + item.tipo_gasto; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
-      acciones.append(validar, rechazar);
+      const corregir = boton('', 'cc-dialogo-icono cc-dialogo-editar', intentar(() => corregirMonto(sol, item)));
+      corregir.title = 'Corregir monto según la boleta'; corregir.setAttribute('aria-label', corregir.title); corregir.append(icono('fa-pen'));
+      acciones.append(corregir, validar, rechazar);
       cabeza.append(acciones);
     }
     caja.append(cabeza);
@@ -917,14 +921,60 @@
     }
     return caja;
   }
+  // Corrige lo gastado según la boleta: la diferencia queda al técnico para rendir o devolver.
+  function corregirMonto(sol, item) {
+    return new Promise(resolve => {
+      const comps = (item.comprobantes || []).length ? item.comprobantes : [{comprobante: item.comprobante, monto: item.monto_gastado}];
+      const d = el('dialog', 'cc-motivo'), form = el('form', 'cc-motivo-form'); form.method = 'dialog';
+      const cabeza = el('header', 'cc-motivo-cabeza'), marca = el('span', 'cc-motivo-icono'); marca.append(icono('fa-pen'));
+      const textos = el('div'); textos.append(el('h3', null, 'Corregir monto · ' + item.tipo_gasto), el('p', null, sol.codigo + ' · ' + (sol.tecnico || ''))); cabeza.append(marca, textos);
+      form.append(cabeza);
+      const entradas = comps.map((c, n) => {
+        const entrada = Object.assign(el('input'), {type: 'text', inputMode: 'decimal', value: Number(c.monto || 0).toFixed(2)});
+        form.append(el('span', 'cc-motivo-etiqueta', (c.comprobante || 'Comprobante ' + (n + 1)) + ' · monto según la boleta (S/)'), entrada);
+        return entrada;
+      });
+      const resumen = el('dl', 'cc-motivo-datos'); form.append(resumen);
+      const error = el('p', 'cc-alerta'); error.hidden = true; form.append(error);
+      const pie = el('nav', 'cc-motivo-pie');
+      const cancelar = el('button', 'cc-motivo-cancelar', 'Cancelar'); cancelar.type = 'button';
+      const ok = el('button', 'cc-motivo-ok'); ok.type = 'submit'; ok.value = 'ok'; ok.append(icono('fa-check'), el('span', null, 'Guardar monto'));
+      pie.append(cancelar, ok); form.append(pie); d.append(form);
+      const total = () => entradas.reduce((t, e) => t + Number(String(e.value).replace(',', '.') || 0), 0);
+      const pintar = () => {
+        const nuevo = Math.round(total() * 100) / 100, antes = Number(item.monto_gastado || 0);
+        resumen.replaceChildren();
+        for (const [k, v, clase] of [['Solicitado', dinero(item.monto)], ['Rindió', dinero(antes)], ['Queda gastado', dinero(nuevo)],
+          ['Pasa al técnico (rendir o devolver)', dinero(Math.max(0, Number(item.monto) - nuevo)), 'naranja']]) {
+          const fila = el('div', clase || null); fila.append(el('dt', null, k), el('dd', null, v)); resumen.append(fila);
+        }
+        ok.disabled = !(nuevo > 0) || nuevo > Number(item.monto) || nuevo === antes;
+      };
+      entradas.forEach(e => e.addEventListener('input', pintar)); pintar();
+      cancelar.addEventListener('click', () => d.close(''));
+      form.addEventListener('submit', async e => {
+        e.preventDefault();
+        ok.disabled = true; error.hidden = true;
+        try { await accion(sol, 'corregir_monto', {item: item.id, montos: entradas.map(x => x.value)}); d.close('ok'); }
+        catch (err) { error.textContent = err.message; error.hidden = false; ok.disabled = false; }
+      });
+      d.addEventListener('close', () => { resolve(); d.remove(); });
+      document.body.append(d); d.showModal(); entradas[0].select();
+    });
+  }
   function panelRevision(sol) {
     const f = sol.formulario || {};
     const columna = el('div', 'cc-rev');
     const detalleFicha = ficha('fa-file-lines', 'Detalle de la solicitud', [
       ['Técnico', [sol.tecnico, sol.documento].filter(Boolean).join(' · ')], ['Supervisor', f.supervisor], ['Site', f.site],
       ['CM / PM / PLM', f.wo], ['Cotización', sol.revision?.cotizacion],
-      ['Banco', sol.banco], ['Depositado', sol.depositado_en ? fechaDeposito(sol) : sol.deposito_fecha], ['Por', sol.depositado_por]]);
+      ['Banco', sol.banco], ['Depositado', sol.depositado_en ? fechaDeposito(sol) : sol.deposito_fecha], ['Por', sol.depositado_por],
+      ['Comentario del depósito', sol.deposito_comentario]]);
     detalleFicha.classList.add('cc-rev-detalle');
+    // Foto del depósito a la derecha de los datos.
+    const datosDetalle = detalleFicha.querySelector('dl'), cuerpoDetalle = el('div', 'cc-rev-detalle-cuerpo');
+    datosDetalle.replaceWith(cuerpoDetalle);
+    cuerpoDetalle.append(datosDetalle, fotoRevision(sol, sol.deposito_foto, 'Foto del depósito'));
     // Totales: depositado, aprobado, en revisión, rechazado y la devolución estimada.
     const suma = (estados, campo) => sol.items.filter(i => estados.includes(i.estado)).reduce((t, i) => t + Number(i[campo] || 0), 0);
     const depositado = Number(sol.deposito_monto || sol.total);
@@ -1005,6 +1055,7 @@
     if (sol.estado === 'POR_DEVOLVER') {
       izquierda.append(ficha('fa-hand-holding-dollar', 'Devolución pendiente', [['Por devolver', dinero(sol.diferencia)]]));
     }
+    if (sol.deposito_comentario) izquierda.append(ficha('fa-comment', 'Comentario del depósito', [['Comentario', sol.deposito_comentario]]));
     const fichas = resumenSolicitud({...sol, items: pendientes, total: sol.pendiente});
     izquierda.append(...(pendientes.length ? fichas : fichas.slice(1)));
     for (const item of pendientes.filter(i => i.estado === 'RECHAZADO')) {

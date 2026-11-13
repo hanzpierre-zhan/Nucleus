@@ -738,3 +738,27 @@ def test_conceptos_los_ven_todos_y_solo_edita_el_supervisor(auth_client, cambiar
     cambiar_rol(auth_client, 'demo')
     assert auth_client.get(ruta).status_code == 403
     cambiar_rol(auth_client, 'zeno')
+
+
+def test_corregir_monto_segun_boleta_y_comentario_del_deposito(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '77'}]}).json['solicitud']['id']
+    assert auth_client.post('/api/caja-chica/%d/validar' % sid).status_code == 200
+    s = auth_client.post('/api/caja-chica/%d/depositar' % sid,
+                         data={'monto': '77', 'foto': foto(), 'comentario': 'Desde la cuenta BBVA'}).json['solicitud']
+    assert s['deposito_comentario'] == 'Desde la cuenta BBVA'
+    assert cli.get('/form-pruebas/caja-chica/datos', headers=h).json['solicitudes'][0]['deposito_comentario'] == 'Desde la cuenta BBVA'
+    item = s['items'][0]
+    assert cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id']), headers=h, data={
+        'ruc': '20123456789', 'comprobante': 'F001-568', 'monto_gastado': '77', 'fotos': [foto()], 'evidencia': foto('uso.png')}).status_code == 200
+    url = '/api/caja-chica/%d/corregir_monto' % sid
+    assert auth_client.post(url, json={'item': item['id'], 'montos': ['80']}).status_code == 400  # más que lo solicitado
+    r = auth_client.post(url, json={'item': item['id'], 'montos': ['76']})
+    assert r.status_code == 200
+    s = r.json['solicitud']
+    assert s['items'][0]['monto_gastado'] == '76.00' and s['items'][0]['comprobantes'][0]['monto'] == '76.00'
+    assert s['historial'][-1]['motivo'] == 'S/ 77.00 → S/ 76.00 según la boleta.'
+    s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': item['id'], 'aprobar': True}).json['solicitud']
+    assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '1.00'  # el técnico devuelve S/ 1

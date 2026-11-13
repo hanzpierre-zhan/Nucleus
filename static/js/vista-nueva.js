@@ -345,7 +345,6 @@
     const opcion = e.target.closest('[data-accion]'); if (!opcion) return;
     e.stopPropagation(); cerrarMenu();
     const a = opcion.dataset.accion;
-    if (a === 'clasico') return location.assign(esUsuarios ? '/usuarios' : '/switch_project/' + cfg.proyecto + '?next=/');
     if (a === 'copiar') return copiar(base());
     if (a === 'limpiar') { filtros = {}; busquedas = {}; orden = null; $('cc-buscar').value = ''; }
     if (a === 'restablecer') { columnas = [...columnasBase]; try { localStorage.removeItem(memoria + '-columnas'); } catch (_) {} }

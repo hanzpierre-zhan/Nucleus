@@ -529,8 +529,8 @@ def eliminar(solicitudes, usuario):
     db.session.commit()
 
 
-def depositar(sol, usuario, monto, foto, importe):
-    """La fecha y hora se registran solas al confirmar (no las escribe el usuario)."""
+def depositar(sol, usuario, monto, foto, importe, comentario=''):
+    """La fecha y hora se registran solas al confirmar (no las escribe el usuario). El comentario es opcional."""
     _exigir(sol.estado == 'VALIDADO', 'Solo se deposita una solicitud validada.')
     _exigir(importe(monto) == sol.total, 'El depósito debe ser el total solicitado (S/ %s).' % dinero(sol.total))
     _exigir(foto, 'Adjunta la foto del depósito.')
@@ -538,7 +538,7 @@ def depositar(sol, usuario, monto, foto, importe):
     sol.estado, sol.deposito_monto, sol.depositado_en = 'DEPOSITADO', sol.total, ahora
     sol.deposito_fecha = (ahora - timedelta(hours=5)).strftime('%Y-%m-%d')  # día en Lima (UTC-5)
     sol.deposito_foto, sol.depositado_por = foto, usuario
-    _historial(sol, 'depositar', usuario)
+    _historial(sol, 'depositar', usuario, str(comentario or '').strip()[:300])
     db.session.commit()
 
 
@@ -552,6 +552,35 @@ def revisar_item(sol, item, usuario, aprobar, motivo=''):
     item.revisado_por, item.revisado_en = usuario, datetime.utcnow()
     _historial(sol, ('aprobar' if aprobar else 'rechazar') + ' ítem %d' % item.numero, usuario, motivo or '')
     _cerrar_si_resuelto(sol, usuario)
+    db.session.commit()
+
+
+def corregir_monto(sol, item, usuario, montos, importe):
+    """Al revisar: corrige lo gastado según la boleta (p. ej. 77 → 76).
+
+    montos: uno por comprobante, en el mismo orden. Lo que deja de contar como gastado
+    pasa al saldo del técnico (rendir o devolver), igual que un sobrante."""
+    _exigir(sol.estado == 'DEPOSITADO' and item.estado == 'EN_REVISION', 'Este ítem no está en revisión.')
+    comps = json.loads(item.comprobantes) if item.comprobantes else [
+        {'ruc': item.ruc or '', 'razon_social': item.razon_social or '', 'comprobante': item.comprobante or '',
+         'monto': dinero(item.monto_gastado or 0), 'fotos': json.loads(item.fotos or '[]')}]
+    _exigir(isinstance(montos, list) and len(montos) == len(comps), 'Escribe el monto de cada comprobante.')
+    nuevos = []
+    for n, valor in enumerate(montos, 1):
+        try:
+            nuevos.append(importe(valor))
+        except ValueError as exc:
+            raise ValueError(('Comprobante %d: ' % n if len(comps) > 1 else '') + str(exc)) from None
+    total = sum(nuevos, Decimal('0'))
+    _exigir(total <= item.monto, 'El monto (S/ %s) no puede superar lo solicitado (S/ %s).' % (dinero(total), dinero(item.monto)))
+    antes = item.monto_gastado or Decimal('0')
+    _exigir(total != antes, 'El monto es el mismo.')
+    for c, m in zip(comps, nuevos):
+        c['monto'] = dinero(m)
+    item.comprobantes = json.dumps(comps, ensure_ascii=False)
+    item.monto_gastado = total
+    _historial(sol, 'corregir monto ítem %d' % item.numero, usuario,
+               'S/ %s → S/ %s según la boleta.' % (dinero(antes), dinero(total)))
     db.session.commit()
 
 
@@ -730,6 +759,7 @@ def a_dict(sol, gestion=False):
         'montos_etapa': {vista: dinero(monto) for vista, monto in montos.items()},
         'creado': sol.creado.isoformat(timespec='minutes'), 'motivo_rechazo': sol.motivo_rechazo or '',
         'deposito_fecha': sol.deposito_fecha or '', 'deposito_foto': sol.deposito_foto or '',
+        'deposito_comentario': next((e.get('motivo') or '' for e in reversed(historial) if e.get('accion') == 'depositar'), ''),
         'depositado_en': sol.depositado_en.isoformat(timespec='minutes') if sol.depositado_en else '',
         'archivado_en': sol.archivado_en.isoformat(timespec='minutes') if sol.archivado_en else '',
         'validado_por': sol.validado_por or '',
