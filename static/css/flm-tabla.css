@@ -106,36 +106,56 @@ body .excel-main.vista-flm #data-grid .tabulator-footer .tabulator-page.active {
   color: #fff !important;
 }
 
-/* ── Barra estilo Caja Chica: buscador, pestañas por estado y botones redondos ── */
-body .excel-main.vista-flm .topbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px !important;
-  border: 1px solid var(--ios-hairline); border-radius: 14px; background: var(--excel-bg); margin-bottom: 10px; }
-.vista-flm .fv-barra { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; flex: 1 1 640px; min-width: 0; }
-.vista-flm .fv-buscar { flex: 0 1 280px; min-width: 160px; height: 34px; padding: 0 14px; border-radius: 999px;
-  border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--excel-text); font: inherit; font-size: 13px; }
-.vista-flm .fv-buscar:focus { outline: none; border-color: var(--ios-blue); }
-.vista-flm .fv-tabs { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
-body .vista-flm .fv-tab { white-space: nowrap; flex: none; }
-body .vista-flm .fv-tab { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px !important; min-height: 0 !important; border-radius: 10px !important;
-  border: 1px solid var(--ios-hairline) !important; background: transparent !important; color: var(--excel-text) !important; font-size: 12.5px; box-shadow: none !important; cursor: pointer; }
-body .vista-flm .fv-tab strong { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: var(--ios-fill); }
-body .vista-flm .fv-tab.activa { background: var(--fv-color) !important; border-color: var(--fv-color) !important; color: #fff !important; }
-body .vista-flm .fv-tab.activa strong { background: rgba(255, 255, 255, .22); color: #fff; }
-/* Contador y paginación como píldoras suaves. */
-body .vista-flm #status-record-count, body .vista-flm #pagination-container .action-pill,
-body .vista-flm #pagination-container button, body .vista-flm #pagination-container select {
-  border-radius: 999px !important; border: 1px solid var(--ios-hairline) !important; background: var(--ios-fill) !important; color: var(--excel-text) !important; box-shadow: none !important; }
-/* Nuevo WO y Menú: botones redondos como en Caja Chica. */
-body .vista-flm .topbar-row .coti-new-record, body .vista-flm #btn-module-settings {
-  width: 38px !important; height: 38px !important; min-width: 38px !important; padding: 0 !important; border-radius: 50% !important;
-  display: inline-grid !important; place-items: center; font-size: 0 !important; border: 0 !important; box-shadow: none !important; color: #fff !important; }
-body .vista-flm .topbar-row .coti-new-record { background: #166534 !important; }
-body .vista-flm #btn-module-settings { background: #2563eb !important; }
-body .vista-flm .topbar-row .coti-new-record i, body .vista-flm #btn-module-settings i { font-size: 15px !important; margin: 0 !important; }
-body .vista-flm .topbar-row .coti-new-record .pill-txt, body .vista-flm #btn-module-settings .pill-txt { display: none !important; }
+/* ── Barra: usa las clases de Caja Chica (cc-barra, cc-tabs, cc-tab, #cc-buscar, cc-excel, cc-ajustes) ── */
+.vista-flm .topbar-row.fv-oculta { display: none !important; }
+.vista-flm .fv-gestion { flex: none; padding: 0; margin: 0 0 12px; }
+.vista-flm .fv-gestion { margin-top: 6px; }
+.vista-flm .fv-gestion .cc-barra { margin-bottom: 0; background: var(--excel-bg) !important; border: 1px solid var(--ios-hairline) !important; }
+.vista-flm .fv-acciones { display: flex; align-items: center; gap: 6px; flex: none; }
+/* Nuevo WO: círculo verde como el "+" de Cotizaciones. */
+body .vista-flm .fv-acciones .coti-new-record { box-sizing: border-box !important; width: 38px !important; height: 38px !important; min-width: 38px !important; min-height: 0 !important;
+  padding: 0 !important; border: 0 !important; border-radius: 50% !important; clip-path: circle(50%); display: grid !important; place-items: center !important;
+  background: #217346 !important; color: #fff !important; font-size: 0 !important; line-height: 0 !important; box-shadow: none !important; }
+body .vista-flm .fv-acciones .coti-new-record i { font-size: 16px !important; line-height: 1 !important; margin: 0 !important; color: #fff !important; }
+body .vista-flm .fv-acciones .coti-new-record .pill-txt { display: none !important; }
+/* Excel y Menú: mismos círculos que Caja Chica. */
+body .vista-flm .fv-acciones #cc-excel { flex: none; display: grid; place-items: center; box-sizing: border-box; width: 38px !important; height: 38px !important; min-height: 0 !important;
+  padding: 0 !important; border: 1px solid #217346 !important; border-radius: 50% !important; background: #217346 !important; color: #fff !important; box-shadow: none !important; font-size: 16px; cursor: pointer; }
+body .vista-flm .fv-acciones #cc-excel:hover { background: #185a37 !important; }
+.vista-flm .fv-acciones .cc-ajustes { position: relative; }
+body .vista-flm .fv-acciones #btn-module-settings { display: grid !important; place-items: center !important; box-sizing: border-box !important; width: 38px !important; height: 38px !important;
+  min-width: 38px !important; min-height: 0 !important; padding: 0 !important; border-radius: 50% !important; border: 1px solid rgba(59, 130, 246, .45) !important;
+  background: rgba(59, 130, 246, .16) !important; color: #3b82f6 !important; font-size: 0 !important; line-height: 0 !important; box-shadow: none !important; cursor: pointer; transition: background .15s, color .15s, transform .3s; }
+body .vista-flm .fv-acciones #btn-module-settings i { font-size: 16px !important; line-height: 1 !important; margin: 0 !important; color: inherit !important; }
+body .vista-flm .fv-acciones #btn-module-settings:hover, body .vista-flm .fv-acciones #btn-module-settings[aria-expanded="true"] { background: #3b82f6 !important; border-color: #3b82f6 !important; color: #fff !important; transform: rotate(45deg); }
+body .vista-flm .fv-acciones #module-settings-menu { right: 0; left: auto; }
+/* Contador y paginación debajo de la tabla. */
+.vista-flm .fv-pie { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 8px 2px 0; }
+body .vista-flm .fv-pie #status-record-count { height: 30px; display: inline-flex !important; align-items: center; padding: 0 12px !important; border-radius: 999px !important;
+  border: 1px solid var(--ios-hairline) !important; background: var(--ios-fill) !important; color: var(--excel-text) !important; box-shadow: none !important; font-size: 12px; }
+body .vista-flm .fv-pie #pagination-container { display: inline-flex !important; align-items: center; gap: 4px; }
+body .vista-flm .fv-pie #pagination-container button, body .vista-flm .fv-pie #pagination-container select, body .vista-flm .fv-pie #pagination-container .action-pill {
+  height: 30px !important; min-width: 30px !important; padding: 0 8px !important; border-radius: 999px !important; border: 1px solid var(--ios-hairline) !important;
+  background: var(--ios-fill) !important; color: var(--excel-text) !important; box-shadow: none !important; font-size: 12px !important; }
 
-/* ── Tabla: acciones redondas, estado en chip y ticket como enlace ── */
-body .vista-flm .fv-accion { width: 30px !important; height: 30px !important; min-height: 0 !important; padding: 0 !important; border-radius: 50% !important; border: 0 !important;
-  display: inline-grid; place-items: center; background: #2563eb !important; color: #fff !important; font-size: 12px; box-shadow: none !important; cursor: pointer; }
+/* ── Encabezado igual a Caja Chica: TÍTULO, ordenar y filtrar en una línea; "Buscar…" debajo ── */
+body .excel-main.vista-flm #data-grid .tabulator-col { height: auto !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-title-holder { display: flex !important; align-items: center !important; gap: 4px !important; padding-right: 0 !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-title { flex: 1 1 auto; min-width: 0; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; padding-right: 0 !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-title i.fa-key { display: none !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-sorter { position: static !important; display: inline-flex !important; align-items: center; width: auto !important; flex: none; }
+body .excel-main.vista-flm #data-grid .tabulator-col-sorter .tabulator-arrow { border: 0 !important; width: auto !important; height: auto !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-sorter .tabulator-arrow::before { content: '\f0dc'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 11px; color: var(--ios-secondary); }
+body .excel-main.vista-flm #data-grid .tabulator-col[aria-sort="ascending"] .tabulator-arrow::before { content: '\f0de'; color: var(--ios-blue); }
+body .excel-main.vista-flm #data-grid .tabulator-col[aria-sort="descending"] .tabulator-arrow::before { content: '\f0dd'; color: var(--ios-blue); }
+body .excel-main.vista-flm #data-grid .tabulator-col-title-holder > .tabulator-header-popup-button { flex: none; margin: 0 !important; display: inline-flex; align-items: center; }
+body .excel-main.vista-flm #data-grid .tabulator-col-title-holder > .tabulator-header-popup-button i { color: var(--ios-secondary) !important; opacity: 1 !important; font-size: 11px !important; }
+body .excel-main.vista-flm #data-grid .tabulator-header-filter input::placeholder { color: var(--ios-secondary); opacity: .8; }
+
+/* ── Tabla: acciones redondas, estado en chip y ticket legible ── */
+body .vista-flm .fv-accion { box-sizing: border-box; width: 30px !important; height: 30px !important; min-width: 30px !important; min-height: 0 !important; padding: 0 !important;
+  border-radius: 50% !important; clip-path: circle(50%); border: 0 !important; display: inline-flex !important; align-items: center; justify-content: center;
+  background: #2563eb !important; color: #fff !important; font-size: 12px; line-height: 1; box-shadow: none !important; cursor: pointer; }
 body .vista-flm .fv-accion:hover { background: #1d4ed8 !important; }
 .vista-flm .fv-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; text-transform: capitalize; }
 .vista-flm .fv-chip-pendiente { background: rgba(245, 158, 11, .18); color: #b45309; }
@@ -144,5 +164,13 @@ body .vista-flm .fv-accion:hover { background: #1d4ed8 !important; }
 .vista-flm .fv-chip-cancelado { background: var(--ios-fill); color: var(--ios-secondary); }
 body.dark-mode .vista-flm .fv-chip-pendiente { color: #fcd34d; } body.dark-mode .vista-flm .fv-chip-proceso { color: #93c5fd; }
 body.dark-mode .vista-flm .fv-chip-completado { color: #86efac; }
-body .excel-main.vista-flm #data-grid .wo-link { color: var(--ios-blue) !important; font-weight: 600; text-decoration: none !important; }
+/* Ticket: azul oscuro en claro y azul claro en noche, siempre legible. */
+body .excel-main.vista-flm #data-grid .wo-link { color: #1e40af !important; font-weight: 700; text-decoration: none !important; }
+body.dark-mode .excel-main.vista-flm #data-grid .wo-link { color: #93c5fd !important; }
 body .excel-main.vista-flm #data-grid .wo-link:hover { text-decoration: underline !important; }
+/* Títulos arriba y a la izquierda (también en columnas sin buscador, como Acciones). */
+body .excel-main.vista-flm #data-grid .tabulator-headers { align-items: stretch; }
+body .excel-main.vista-flm #data-grid .tabulator-col { vertical-align: top !important; display: inline-flex !important; flex-direction: column; justify-content: flex-start !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col .tabulator-col-content { width: 100%; }
+body .excel-main.vista-flm #data-grid .tabulator-col-title { text-align: left !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-title { text-align: center !important; overflow: visible !important; }
