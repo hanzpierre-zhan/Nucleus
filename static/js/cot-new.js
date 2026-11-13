@@ -67,8 +67,8 @@
     return chip;
   }
   // Fotos del depósito: pago registrado aquí y depósitos de Caja Chica ya hechos.
-  const fotosDeposito = c => [...(c['FOTO PAGO'] ? [{url: c['FOTO PAGO'], titulo: 'Pago · ' + (c['FECHA PAGO'] || '')}] : []),
-    ...(c.depositos_cc || []).filter(d => d.foto).map(d => ({url: d.foto, titulo: 'Caja Chica ' + d.codigo + ' · ' + dinero(d.monto)}))];
+  // En la tabla, solo la captura del pago registrado aquí; las fotos de Caja Chica van junto a cada depósito (ventana Depósitos).
+  const fotosDeposito = c => c['FOTO PAGO'] ? [{url: c['FOTO PAGO'], titulo: 'Pago · ' + (c['FECHA PAGO'] || '')}] : [];
   const listaWo = v => String(v || '').split(/\s*[,;|\n]\s*/).map(t => t.trim()).filter(Boolean);
   const acumuladoCC = c => (c.depositos_cc || []).reduce((t, d) => t + Number(d.monto || 0), 0);
   // ── Columnas ──
@@ -822,17 +822,21 @@
   function verDepositos(c) {
     const lista = c.depositos_cc || [];
     const tabla = el('table', 'cn-depositos-tabla');
-    const cab = el('tr'); ['Código', 'Técnico', 'Estado', 'Monto'].forEach(t => cab.append(el('th', null, t)));
+    const cab = el('tr'); ['Código', 'Técnico', 'Estado', 'Monto', 'Foto'].forEach(t => cab.append(el('th', null, t)));
     tabla.append(cab);
     lista.forEach(d => {
       const f = el('tr'), a = el('a', 'cc-codigo-link', d.codigo);
       a.href = '/caja-chica/#solicitud-' + d.id; a.target = '_blank'; a.rel = 'noopener';
       const td = el('td'); td.append(a);
-      f.append(td, el('td', null, d.tecnico || '—'), el('td', null, d.estado || '—'), el('td', 'cc-num', dinero(d.monto)));
+      // Foto del depósito al lado de cada registro (si ya se depositó).
+      const foto = el('td', 'cn-depositos-foto');
+      if (d.foto) { const v = el('a', 'cn-foto-deposito'); v.href = d.foto; v.target = '_blank'; v.rel = 'noopener'; v.title = 'Ver foto del depósito ' + d.codigo; v.setAttribute('aria-label', v.title); v.append(icono('fa-camera')); foto.append(v); }
+      else foto.append(el('span', 'cc-nota', '—'));
+      f.append(td, el('td', null, d.tecnico || '—'), el('td', null, d.estado || '—'), el('td', 'cc-num', dinero(d.monto)), foto);
       tabla.append(f);
     });
     const pie = el('tr', 'cn-depositos-pie');
-    pie.append(el('td', null, 'Acumulado (' + lista.length + ')'), el('td'), el('td'), el('td', 'cc-num', dinero(acumuladoCC(c))));
+    pie.append(el('td', null, 'Acumulado (' + lista.length + ')'), el('td'), el('td'), el('td', 'cc-num', dinero(acumuladoCC(c))), el('td'));
     tabla.append(pie);
     const caja = el('section', 'cc-ficha'); const h = el('h4', 'cc-ficha-titulo');
     h.append(icono('fa-wallet'), el('span', null, 'Depósitos de Caja Chica')); caja.append(h, tabla);
@@ -1358,7 +1362,8 @@
     // Lo marcado que ya no se ve (otra pestaña, filtro o búsqueda) se desmarca.
     const clavesVisibles = new Set(visibles.map(c => c.key));
     for (const k of seleccionadas) if (!clavesVisibles.has(k)) seleccionadas.delete(k);
-    if (botonEliminar) botonEliminar.disabled = eliminando || !seleccionadas.size;
+    // El botón de eliminar solo aparece cuando hay cotizaciones marcadas.
+    if (botonEliminar) { botonEliminar.disabled = eliminando || !seleccionadas.size; botonEliminar.hidden = !seleccionadas.size; }
     $('cc-excel').disabled = !cotizaciones.length;
     if (!visibles.length) {
       const hay = Object.keys(filtros).length || Object.keys(busquedas).length || $('cc-buscar').value.trim();

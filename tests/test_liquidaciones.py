@@ -60,7 +60,18 @@ def test_fechas_en_sustento_validacion_y_persistencia(app,auth_client,liquidacio
 def test_nombre_liquidaciones_y_compatibilidad(auth_client):
     for ruta in ('/liquidaciones/','/refacturable/'):
         r=auth_client.get(ruta);assert r.status_code==200
-        assert b'Liquidaciones' in r.data and b'name="codigo_ajb_ejb"' in r.data
+        assert b'Liquidaciones' in r.data and b'liquidaciones.js' in r.data
+    # La vista anterior sigue disponible como respaldo.
+    r=auth_client.get('/liquidaciones/clasico');assert r.status_code==200 and b'name="codigo_ajb_ejb"' in r.data
+
+
+def test_v2_cotizaciones_y_caja_chica(auth_client, liquidacion):
+    r=auth_client.get('/liquidaciones/api/v2/cotizaciones');assert r.status_code==200
+    fila=next((c for c in r.json['cotizaciones'] if c['id']==liquidacion),None)
+    assert fila and set(fila['evidencias'])=={'cotizacion','correo','factura','sustento','deposito'}
+    assert fila['evidencias']['cotizacion']=='Completo' and fila['correlativo'].startswith('C-')
+    r=auth_client.get('/liquidaciones/api/v2/caja-chica');assert r.status_code==200 and isinstance(r.json['solicitudes'],list)
+    assert auth_client.post('/liquidaciones/api/v2/caja-chica/expedientes',json={'ids':'x'}).status_code==400
 
 
 def test_descarga_cotizacion_generada(auth_client, liquidacion):

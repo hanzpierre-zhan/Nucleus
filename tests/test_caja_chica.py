@@ -860,3 +860,23 @@ def test_mobile_admin_guarda_restricciones(app, auth_client):
 def test_mobile_admin_muestra_el_menu_completo(app, auth_client):
     pagina = auth_client.get('/form-pruebas/administrar').data.decode()
     assert 'Caja Chica' in pagina and 'Dataper' in pagina and '>Backup<' in pagina
+
+
+def test_mobile_regla_por_tipo_de_gasto(app, auth_client, tecnico):
+    cli, h = tecnico
+    refact = 'Alquiler de vehículos - Refacturable'
+    sid = _solicitar(cli, h, refact, '550').json['solicitud']['id']
+    auth_client.post('/api/caja-chica/%d/validar' % sid)
+    assert auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '550', 'foto': foto()}).status_code == 200
+    _reglas(app, tope={'valor': '540', 'gasto': 'cobra'}, aviso={'valor': '400', 'gasto': 'cobra'})
+    try:
+        # Solo cuenta Gasto Cobra: lo refacturable por rendir no bloquea.
+        assert _solicitar(cli, h).status_code == 200
+        _reglas(app, tope={'gasto': 'refacturable'}, aviso={'gasto': 'refacturable'})
+        r = cli.get('/form-pruebas/caja-chica/datos', headers=h).json['restricciones']
+        assert not r['bloqueos'] and r['bloqueos_tipo'][0]['gasto'] == 'refacturable' and r['por_rendir_tope'] == '550.00'
+        bloqueada = _solicitar(cli, h, refact)
+        assert bloqueada.status_code == 400 and 'Refacturable' in bloqueada.json['error']
+        assert _solicitar(cli, h).status_code == 200  # Gasto Cobra sí puede pedir
+    finally:
+        _reglas(app, tope={'valor': '600', 'gasto': 'ambos'}, aviso={'valor': '500', 'gasto': 'ambos'})

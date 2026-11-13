@@ -261,7 +261,15 @@ def _registros(origen_ids=None, resumen=False):
 def index():
     _autorizar()
     proyectos_list = get_menu_proyectos(session.get('user_id'), session.get('rol'))
-    return render_template('refacturable.html', proyectos_list=proyectos_list)
+    return render_template('liquidaciones.html', proyectos_list=proyectos_list)
+
+
+@bp.route('/clasico')
+@login_required
+def clasico():
+    """Vista anterior de Liquidaciones (respaldo mientras se valida la nueva)."""
+    _autorizar()
+    return render_template('refacturable.html', proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
 
 @bp.route('/api/registros')
@@ -589,6 +597,37 @@ def _expediente_sustento(zf, row, prefijo, estado, limite):
         temporal.close()
 
 
+def _expediente_depositos(zf, datos, prefijo, estado, limite):
+    """06: captura del pago registrado en Cotizaciones; 07: fotos de los depósitos de Caja Chica vinculados."""
+    from models import CajaChicaSolicitud
+    from blueprints.cot_new import _depositos_caja_chica
+    from services import caja_chica as cc
+    escritos = 0
+    if datos.get('FOTO PAGO'):
+        try:
+            fuente = _expediente_fuente(datos['FOTO PAGO'], 'cotizacion/correo', Proyecto.query.filter_by(nombre='Cotizaciones').first())
+            _expediente_copiar(zf, fuente, f'{prefijo}06_Captura_del_pago{_expediente_extension(datos["FOTO PAGO"], ".jpg")}', estado, limite)
+            escritos += 1
+        except OverflowError:
+            raise
+        except Exception:
+            pass
+    for d in _depositos_caja_chica().get(str(datos.get('N° COTIZACION') or '').strip().upper(), []):
+        sol = db.session.get(CajaChicaSolicitud, d['id'])
+        if not sol or not sol.deposito_foto or sol.deposito_foto.startswith('ren~'):
+            continue
+        try:
+            contenido = cc.leer_foto(sol, sol.deposito_foto)
+        except Exception:
+            continue
+        estado[0] += len(contenido)
+        if estado[0] > limite:
+            raise OverflowError('El expediente supera el tamaño máximo')
+        zf.writestr(f'{prefijo}07_Deposito_Caja_Chica_{secure_filename(sol.codigo or str(sol.id))}{os.path.splitext(sol.deposito_foto)[1].lower()}', contenido)
+        escritos += 1
+    return escritos
+
+
 def _expediente_escribir(zf, row, datos, origen, prefijo, estado, limite):
     """Escribe los 4 documentos del caso, sin subcarpetas."""
     from blueprints.cotizacion import _cotizacion_registro_pdf_response
@@ -623,6 +662,7 @@ def _expediente_escribir(zf, row, datos, origen, prefijo, estado, limite):
             raise
         except Exception:
             pass
+    documentos += _expediente_depositos(zf, datos, prefijo, estado, limite)
     if str(datos.get('GENERADA') or '') == '1':
         pdf = _cotizacion_registro_pdf_response(origen)
         if pdf.status_code != 200:
@@ -727,6 +767,195 @@ def descargar_expedientes():
         archivo.close()
         current_app.logger.exception('No se pudieron preparar los expedientes seleccionados')
         return jsonify({'error': 'No se pudieron preparar los expedientes seleccionados.'}), 500
+
+
+# ── Liquidaciones (vista nueva): casos con todas sus evidencias, ordenadas y descargables ──
+
+def _generada(datos):
+    """Entra desde que se genera la cotización (o ya pasó al cliente o después)."""
+    from blueprints.cot_new import pestana_de
+    return str(datos.get('GENERADA') or '') == '1' or pestana_de(datos) in ('cliente', 'sustentar', 'atendido')
+
+
+@bp.route('/api/v2/cotizaciones')
+@login_required
+def v2_cotizaciones():
+    """Una fila por cotización generada: estados, fechas y evidencias (con su enlace de descarga)."""
+    _autorizar()
+    from blueprints import cot_new
+    from services.rendicion_presupuesto_cotizacion import monto_cotizacion, proyecto as familia_cot
+    proyecto = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not proyecto:
+        return jsonify(cotizaciones=[])
+    datos_por_id = {}
+    for rid, crudo in (NucleusData.query.filter_by(proyecto_id=proyecto.id)
+                       .with_entities(NucleusData.id, NucleusData.data_json)):
+        try:
+            datos = json.loads(crudo or '{}')
+        except ValueError:
+            continue
+        if _ingresada(datos) and _generada(datos):
+            datos_por_id[rid] = datos
+    depositos = cot_new._depositos_caja_chica()
+    nombres = {p[0]: p[1] for p in cot_new.PESTANAS}
+    filas = []
+    for r in _registros(origen_ids=list(datos_por_id), resumen=True):
+        datos = datos_por_id.get(r['id'])
+        if datos is None:
+            continue
+        pestanas = cot_new.pestanas_de(datos)
+        deps = depositos.get(str(datos.get('N° COTIZACION') or '').strip().upper(), [])
+        fotos_deposito = ([{'url': datos['FOTO PAGO'], 'titulo': 'Pago registrado · ' + str(datos.get('FECHA PAGO') or '')}]
+                          if datos.get('FOTO PAGO') else []) + \
+                         [{'url': d['foto'], 'titulo': 'Caja Chica ' + d['codigo'] + ' · S/ ' + d['monto']} for d in deps if d.get('foto')]
+        evidencias = {
+            'cotizacion': r['documentos'].get('cotizacion'), 'correo': r['documentos'].get('correo'),
+            # Facturas: solo aplican si se atiende con Proveedor o Tránsito (o si ya se cargaron).
+            'factura': r['documentos'].get('factura') if (cot_new.tipo_atencion(datos) in ('Proveedor', 'Tránsito') or r['documentos'].get('factura') == 'Completo') else 'No aplica',
+            'sustento': r['documentos'].get('sustento'),
+            'deposito': 'Completo' if fotos_deposito else ('Pendiente' if cot_new.aprobada(datos) and cot_new.tipo_atencion(datos) != 'Proveedor' else 'No aplica'),
+        }
+        filas.append({
+            'id': r['id'], 'correlativo': r['correlativo'], 'cotizacion': r['cotizacion'],
+            'cliente': familia_cot(datos) or str(datos.get('CLIENTE') or '').strip().upper(),
+            'site': datos.get('NOMBRE SITE') or '', 'wo': datos.get('NUMERO WO') or '',
+            'objetivo': datos.get('OBJETIVO') or datos.get('MOTIVO') or '', 'supervisor': datos.get('SUPERVISOR') or '',
+            'pestana': nombres.get(pestanas[0], pestanas[0]), 'pestana_clave': pestanas[0],
+            'interaccion': cot_new.tipo_atencion(datos), 'estado_pago': cot_new.estado_pago(datos),
+            'estado_operativo': cot_new.estado_operativo(datos), 'estatus': r.get('estatus') or '',
+            'monto': monto_cotizacion(datos.get('SUB TOTAL + FEE'), datos.get('ITEMS_JSON')) or '0.00',
+            'fechas': {'cotizada': datos.get('FECHA COTIZADO') or datos.get('FECHA') or '', 'enviada': datos.get('FECHA ENVIO CLIENTE') or '',
+                       'aprobada': datos.get('FECHA APROBACION') or '', 'pagada': datos.get('FECHA PAGO') or '',
+                       'facturas': datos.get('FECHA FACTURA PROVEEDOR') or '', 'atendida': datos.get('FECHA ATENCION') or ''},
+            'correo_cliente': r.get('correo_cliente') or '', 'nombre_correo': r.get('nombre_correo') or '',
+            'facturas': r.get('facturas_proveedor') or ([r['factura_proveedor']] if r.get('factura_proveedor') else []),
+            'ocs': r.get('ocs_proveedor') or [], 'generada': bool(r.get('cotizacion_generada')),
+            'fotos_deposito': fotos_deposito, 'depositos_cc': deps, 'tiene_sustento': bool(r.get('tiene_sustento')),
+            'evidencias': evidencias, 'avance': r.get('avance', 0),
+            'seguimiento': {k: r.get(k) or '' for k in ('codigo_ajb_ejb', 'numero_expense', 'estado_liquidacion', 'mes_cierre', 'numero_po', 'observacion')},
+        })
+    return jsonify(cotizaciones=filas)
+
+
+def _cc_url(sol, nombre):
+    return '/form-pruebas/caja-chica/foto/%d/%s' % (sol.id, nombre) if nombre else ''
+
+
+def _cc_caso(sol):
+    """Solicitud de Caja Chica con sus montos y evidencias (enlaces de descarga)."""
+    from services import caja_chica as cc
+    datos = cc.a_dict(sol, gestion=True)
+    rendidos = [i for i in sol.items if i.estado in ('APROBADO', 'EN_REVISION')]
+    gastado = sum((i.monto_gastado or Decimal('0') for i in rendidos), Decimal('0'))
+    boletas, evidencias = [], []
+    for item in datos['items']:
+        for n, nombre in enumerate(item.get('fotos') or [], 1):
+            boletas.append({'url': _cc_url(sol, nombre), 'titulo': '%s · boleta %d' % (item['tipo_gasto'], n)})
+        for n, nombre in enumerate(item.get('evidencias') or [], 1):
+            evidencias.append({'url': _cc_url(sol, nombre), 'titulo': '%s · evidencia %d' % (item['tipo_gasto'], n)})
+    tipos = sorted({('Refacturable' if 'refact' in str(i.get('tipo_presupuesto') or '').lower() else 'Gasto Cobra') for i in datos['items']})
+    correo = (datos.get('revision') or {}).get('archivo')
+    return {
+        'id': sol.id, 'codigo': sol.codigo, 'tecnico': sol.tecnico, 'documento': sol.documento, 'proyecto': sol.proyecto,
+        'cotizacion': (datos.get('revision') or {}).get('cotizacion') or '', 'site': datos['formulario'].get('site') or '',
+        'wo': datos['formulario'].get('wo') or '', 'motivo': sol.motivo or '', 'tipos': tipos,
+        'estado': cc.ESTADO_SOLICITUD.get(sol.estado, sol.estado), 'estado_clave': sol.estado,
+        'creado': datos['creado'], 'depositado_en': datos['depositado_en'], 'total': datos['total'],
+        'depositado': datos['deposito_monto'], 'gastado': cc.dinero(gastado),
+        'devuelto': datos['devolucion_monto'] or '', 'por_rendir': cc.dinero(cc.montos_etapa(sol).get('por_rendir', Decimal('0'))) if sol.estado in ('DEPOSITADO', 'POR_DEVOLVER') else '0.00',
+        'deposito': {'url': _cc_url(sol, sol.deposito_foto), 'titulo': 'Depósito ' + (sol.codigo or '')} if sol.deposito_foto else None,
+        'devolucion': {'url': _cc_url(sol, sol.devolucion_foto), 'titulo': 'Devolución ' + (sol.codigo or '')} if sol.devolucion_foto else None,
+        'correo': {'url': '/api/caja-chica/%d/correo-validacion' % sol.id, 'titulo': 'Correo de validación'} if correo else None,
+        'boletas': boletas, 'evidencias': evidencias, 'comentario_deposito': datos.get('deposito_comentario') or '',
+        'items': [{'concepto': i['tipo_gasto'], 'tipo': i.get('tipo_presupuesto') or '', 'monto': i['monto'], 'gastado': i['monto_gastado'],
+                   'estado': cc.ESTADO_RENDICION.get(i['estado'], i['estado']), 'comprobante': i.get('comprobante') or ''} for i in datos['items']],
+    }
+
+
+@bp.route('/api/v2/caja-chica')
+@login_required
+def v2_caja_chica():
+    """Una fila por solicitud de Caja Chica (sin anuladas ni eliminadas) con todas sus evidencias."""
+    _autorizar()
+    from sqlalchemy.orm import selectinload
+    from models import CajaChicaSolicitud
+    solicitudes = (CajaChicaSolicitud.query.filter(CajaChicaSolicitud.estado.notin_(('ANULADO', 'ELIMINADO')))
+                   .options(selectinload(CajaChicaSolicitud.items)).order_by(CajaChicaSolicitud.id.desc()).all())
+    return jsonify(solicitudes=[_cc_caso(s) for s in solicitudes])
+
+
+def _cc_expediente_escribir(zf, sol, prefijo, estado, limite):
+    """Expediente de una solicitud de Caja Chica: depósito, boletas, evidencias, devolución, correo y resumen."""
+    from services import caja_chica as cc
+    caso = _cc_caso(sol)
+    escritos = 0
+
+    def agregar(nombre_archivo, destino):
+        nonlocal escritos
+        if not nombre_archivo or nombre_archivo.startswith('ren~'):
+            return
+        try:
+            contenido = cc.leer_foto(sol, nombre_archivo)
+        except Exception:
+            return
+        estado[0] += len(contenido)
+        if estado[0] > limite:
+            raise OverflowError('El expediente supera el tamaño máximo')
+        zf.writestr(prefijo + destino + os.path.splitext(nombre_archivo)[1].lower(), contenido)
+        escritos += 1
+
+    agregar(sol.deposito_foto, '01_Deposito')
+    for item in sol.items:
+        base = _expediente_nombre('%02d_%s' % (item.numero, item.tipo_gasto), 'item')
+        for n, nombre in enumerate(json.loads(item.fotos or '[]'), 1):
+            agregar(nombre, '02_Boletas/%s_boleta_%d' % (base, n))
+        for n, nombre in enumerate(json.loads(item.evidencias or 'null') or ([item.evidencia] if item.evidencia else []), 1):
+            agregar(nombre, '03_Evidencias/%s_evidencia_%d' % (base, n))
+    agregar(sol.devolucion_foto, '04_Devolucion')
+    correo = (cc.a_dict(sol, gestion=True).get('revision') or {}).get('archivo')
+    agregar(correo, '05_Correo_de_validacion')
+    lineas = ['Solicitud: %s' % caso['codigo'], 'Técnico: %s (%s)' % (caso['tecnico'], caso['documento']),
+              'Proyecto: %s · Cotización: %s' % (caso['proyecto'], caso['cotizacion'] or '—'),
+              'Site: %s · CM/PM/PLM: %s' % (caso['site'] or '—', caso['wo'] or '—'), 'Estado: %s' % caso['estado'],
+              'Solicitado: S/ %s · Depositado: S/ %s · Gastado: S/ %s · Devuelto: S/ %s' % (caso['total'], caso['depositado'] or '0.00', caso['gastado'], caso['devuelto'] or '0.00'),
+              'Comentario del depósito: %s' % (caso['comentario_deposito'] or '—'), '', 'Conceptos:']
+    lineas += ['- %s (%s): solicitado S/ %s · gastado S/ %s · %s · %s' % (i['concepto'], i['tipo'] or '—', i['monto'], i['gastado'] or '0.00', i['estado'], i['comprobante'] or 'sin comprobante')
+               for i in caso['items']]
+    zf.writestr(prefijo + '00_Resumen.txt', '\n'.join(lineas).encode('utf-8'))
+    return escritos
+
+
+@bp.route('/api/v2/caja-chica/expedientes', methods=['POST'])
+@login_required
+def v2_caja_chica_expedientes():
+    """ZIP con una carpeta por solicitud de Caja Chica elegida."""
+    _autorizar()
+    from models import CajaChicaSolicitud
+    ids = (request.get_json(silent=True) or {}).get('ids')
+    if not isinstance(ids, list) or not ids or len(ids) > 500 or any(type(i) is not int for i in ids):
+        return jsonify(error='Selecciona solicitudes válidas.'), 400
+    archivo = tempfile.TemporaryFile()
+    estado, escritas = [0], 0
+    try:
+        with zipfile.ZipFile(archivo, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for sid in dict.fromkeys(ids):
+                sol = db.session.get(CajaChicaSolicitud, sid)
+                if not sol or sol.estado == 'ELIMINADO':
+                    continue
+                _cc_expediente_escribir(zf, sol, (secure_filename(sol.codigo or '') or 'solicitud_%d' % sid) + ('/' if len(ids) > 1 else '/'), estado, 500 * 1024 * 1024)
+                escritas += 1
+        if not escritas:
+            raise ValueError('Sin solicitudes')
+        archivo.seek(0)
+        nombre = 'Expediente_%s.zip' % (secure_filename(db.session.get(CajaChicaSolicitud, ids[0]).codigo) if escritas == 1 else '%d_solicitudes' % escritas)
+        return send_file(archivo, mimetype='application/zip', as_attachment=True, download_name=nombre, max_age=0)
+    except OverflowError:
+        archivo.close()
+        return jsonify(error='La descarga supera 500 MiB. Elige menos solicitudes.'), 413
+    except Exception:
+        archivo.close()
+        current_app.logger.exception('No se pudo preparar el expediente de Caja Chica')
+        return jsonify(error='No se pudo preparar el expediente.'), 500
 
 
 # Catálogo LPU: gestión disponible a quienes tienen acceso al módulo.

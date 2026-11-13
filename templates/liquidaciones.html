@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Liquidaciones — Nucleus{% endblock %}
+{% block content %}
+{# Liquidaciones con el diseño de Caja Chica: todas las evidencias de cada caso, ordenadas y descargables. #}
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=101">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=36">
+<link rel="stylesheet" href="/static/css/liquidaciones.css?v=2">
+<section class="cc-gestion cn-gestion lq-gestion" aria-label="Liquidaciones">
+  <div class="cc-barra">
+    <input type="search" id="cc-buscar" placeholder="Buscar N.º, código, técnico, site o WO" aria-label="Buscar">
+    <nav class="cc-tabs" role="tablist" aria-label="Origen">
+      <button type="button" role="tab" class="cc-tab lq-tab" data-tab="cotizaciones" style="--cc-color: #1d4ed8">
+        <span class="cc-tab-fila"><i class="fa-solid fa-file-invoice-dollar" aria-hidden="true"></i> Cotizaciones <span class="cc-cuenta" data-cuenta="cotizaciones">0</span></span>
+        <span class="cc-plata" data-plata="cotizaciones">S/ 0</span>
+      </button>
+      <button type="button" role="tab" class="cc-tab lq-tab" data-tab="cajachica" style="--cc-color: #16a34a">
+        <span class="cc-tab-fila"><i class="fa-solid fa-cash-register" aria-hidden="true"></i> Caja Chica <span class="cc-cuenta" data-cuenta="cajachica">0</span></span>
+        <span class="cc-plata" data-plata="cajachica">S/ 0</span>
+      </button>
+    </nav>
+    <button type="button" id="lq-zip" class="cn-redondo cn-morado" hidden title="Descargar expedientes seleccionados (ZIP)" aria-label="Descargar expedientes seleccionados (ZIP)">
+      <i class="fa-solid fa-file-zipper" aria-hidden="true"></i>
+    </button>
+    <button type="button" id="lq-excel" class="cc-excel" title="Exportar a Excel lo que ves" aria-label="Exportar a Excel">
+      <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
+    </button>
+    <div class="cc-ajustes">
+      <button type="button" id="lq-ajustes-btn" class="cc-ajustes-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="lq-ajustes-menu" title="Opciones">
+        <i class="fa-solid fa-gear" aria-hidden="true"></i><span class="sr-only">Opciones</span>
+      </button>
+      <div id="lq-ajustes-menu" class="cc-ajustes-menu" role="menu" hidden>
+        <a role="menuitem" class="vn-enlace" href="/liquidaciones/lpu"><i class="fa-solid fa-list" aria-hidden="true"></i> LPU (lista de precios)</a>
+        <button type="button" role="menuitem" data-accion="limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros y búsqueda</button>
+      </div>
+    </div>
+  </div>
+  <nav id="lq-chips" class="lq-chips" aria-label="Filtros rápidos"></nav>
+  <div class="cc-tabla" id="lq-tabla" tabindex="0" role="region" aria-label="Tabla de liquidaciones">
+    <div class="cc-encabezado" id="lq-encabezado"></div>
+    <div id="lq-lista" class="cc-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
+  </div>
+  <dialog id="cc-solicitud-dialogo" class="cn-dialogo lq-dialogo" aria-labelledby="cc-solicitud-titulo">
+    <header>
+      <h2 id="cc-solicitud-titulo"></h2>
+      <div class="cc-dialogo-acciones" id="lq-dialogo-acciones">
+        <form method="dialog"><button type="submit" class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
+      </div>
+    </header>
+    <div id="cc-solicitud-contenido"></div>
+  </dialog>
+</section>
+<script src="/static/js/liquidaciones.js?v=2" defer></script>
+{% endblock %}

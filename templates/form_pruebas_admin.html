@@ -73,9 +73,18 @@
         <label class="mb-chip" style="--c: {{ colores[p] }}"><input type="checkbox" name="{{ nombre }}_proyectos" value="{{ p }}" {% if p in r.proyectos %}checked{% endif %}><span>{{ p if p == 'PEXT' else p.title() }}</span></label>
         {% endfor %}
       </div>
+      {% if nombre in con_gasto %}
+      <div class="mb-proy">Tipo de gasto:
+        {% for clave, texto in gastos_reglas.items() %}
+        <label class="mb-chip" style="--c: {{ {'ambos': '#475569', 'cobra': '#1d4ed8', 'refacturable': '#6d28d9'}[clave] }}"><input type="radio" name="{{ nombre }}_gasto" value="{{ clave }}" {% if r.gasto == clave %}checked{% endif %}><span>{{ texto }}</span></label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="mb-proy">Tipo de gasto: <span class="mb-chip"><span style="background:#6d28d9;color:#fff;border-color:transparent">Solo Refacturable</span></span></div>
+      {% endif %}
     </div>
     {% endfor %}
-    <p class="mb-nota">Las reglas miran el proyecto del técnico en Dataper y solo cuentan sus solicitudes de los proyectos marcados. Corregir y reenviar una solicitud rechazada no se bloquea.</p>
+    <p class="mb-nota">Las reglas miran el proyecto del técnico en Dataper y solo cuentan sus solicitudes de los proyectos marcados. Con "Solo Gasto Cobra" o "Solo Refacturable", la regla cuenta solo lo pendiente de ese tipo y solo impide pedir conceptos de ese tipo. Corregir y reenviar una solicitud rechazada no se bloquea.</p>
     <div class="mb-pie"><button type="submit" class="mb-btn verde"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar restricciones</button></div>
   </form>
 </section>

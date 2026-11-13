@@ -832,7 +832,8 @@ def administrar():
         elif accion == 'reglas':
             from services import caja_chica_reglas as reglas
             datos = {n: {'activa': request.form.get(n + '_activa') == '1', 'valor': request.form.get(n + '_valor', ''),
-                         'proyectos': request.form.getlist(n + '_proyectos')} for n in reglas.REGLAS}
+                         'proyectos': request.form.getlist(n + '_proyectos'),
+                         'gasto': request.form.get(n + '_gasto') or 'ambos'} for n in reglas.REGLAS}
             from services import audit_user
             try:
                 reglas.guardar(datos, audit_user() or 'admin')
@@ -854,5 +855,6 @@ def administrar():
     from services import caja_chica_reglas as reglas
     return render_template('form_pruebas_admin.html', envios=entries, habilitado=habilitado(),
                            reglas=reglas.leer(), definicion=reglas.REGLAS, proyectos_reglas=reglas.PROYECTOS,
+                           gastos_reglas=reglas.GASTOS, con_gasto=reglas.CON_GASTO,
                            # El menú lateral necesita los módulos del usuario (si no, se ve recortado).
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))

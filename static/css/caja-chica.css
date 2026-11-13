@@ -150,6 +150,7 @@
   background: #b91c1c !important; color: #fff !important; cursor: pointer;
 }
 .cc-gestion #cc-eliminar:disabled { opacity: .5; cursor: default; }
+.cc-gestion #cc-eliminar[hidden] { display: none !important; }
 #cc-catalogo-mensaje:not(:empty) { padding-top: 6px; }
 /* Barra de etapas (mismo estilo que el selector de dashboards) con el buscador a la derecha. */
 .cc-barra { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 6px 8px; border: 1px solid var(--ios-hairline); border-radius: 999px; background: var(--ios-card-bg, var(--ios-fill)); }

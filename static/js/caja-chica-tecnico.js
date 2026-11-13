@@ -18,11 +18,14 @@
   function restricciones(nuevo = true) {
     const r = datos.restricciones || {}, caja = el('div', 'cc-restricciones');
     for (const b of r.bloqueos || []) caja.append(el('p', 'cc-restriccion bloqueo', '🔒 ' + b));
+    // Bloqueos de un solo tipo: puede seguir pidiendo el otro tipo de gasto.
+    for (const b of r.bloqueos_tipo || []) caja.append(el('p', 'cc-restriccion bloqueo', '🔒 ' + b.mensaje + ' Puedes pedir ' + (b.gasto === 'refacturable' ? 'Gasto Cobra' : 'Refacturable') + '.'));
     if (r.aviso) caja.append(el('p', 'cc-restriccion aviso', '⚠️ ' + r.aviso));
     if (r.tope) {
-      const avance = Math.min(100, Number(r.por_rendir) / Number(r.tope) * 100);
+      const avance = Math.min(100, Number(r.por_rendir_tope ?? r.por_rendir) / Number(r.tope) * 100);
       const barra = el('div', 'cc-tope'), fila = el('div', 'cc-tope-fila');
-      fila.append(el('span', null, 'Por rendir'), el('strong', null, dinero(r.por_rendir) + ' / ' + dinero(r.tope)));
+      fila.append(el('span', null, 'Por rendir' + (r.tope_gasto === 'cobra' ? ' (Gasto Cobra)' : r.tope_gasto === 'refacturable' ? ' (Refacturable)' : '')),
+        el('strong', null, dinero(r.por_rendir_tope ?? r.por_rendir) + ' / ' + dinero(r.tope)));
       const pista = el('div', 'cc-tope-pista'), lleno = el('div', 'cc-tope-lleno');
       lleno.style.width = avance + '%'; lleno.dataset.nivel = avance >= 100 ? 'rojo' : r.aviso || avance >= 80 ? 'ambar' : 'verde';
       pista.append(lleno); barra.append(fila, pista); caja.append(barra);

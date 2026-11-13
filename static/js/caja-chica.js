@@ -1567,7 +1567,8 @@
   }
   const excel = $('cc-excel');
   function estadoEliminar() {
-    if (eliminar) eliminar.disabled = eliminando || !seleccionadas.size;
+    // El botón de eliminar solo aparece cuando hay solicitudes marcadas.
+    if (eliminar) { eliminar.disabled = eliminando || !seleccionadas.size; eliminar.hidden = !seleccionadas.size; }
   }
   eliminar?.addEventListener('click', intentar(async () => {
     const ids = [...seleccionadas];

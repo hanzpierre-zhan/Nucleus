@@ -258,3 +258,7 @@ body.dark-mode .cn-sla-rojo { color: #fca5a5; } body.dark-mode .cn-sla-ok { colo
 .cn-fotos-deposito { display: inline-flex; gap: 6px; }
 .cn-foto-deposito { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #0891b2; color: #fff !important; text-decoration: none; font-size: 12px; }
 .cn-foto-deposito:hover { background: #0e7490; }
+
+/* Depósitos de Caja Chica: código en una línea y foto al lado de cada registro. */
+.cn-depositos-tabla td:first-child, .cn-depositos-tabla th:first-child { white-space: nowrap; }
+.cn-depositos-tabla th:last-child, .cn-depositos-foto { text-align: center; width: 56px; }

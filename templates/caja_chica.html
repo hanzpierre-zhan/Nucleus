@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Caja Chica — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/caja-chica.css?v=100">
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=101">
 <section class="cc-gestion" aria-label="Caja Chica" data-gestionar="{{ 'si' if puede_gestionar else 'no' }}"
          data-eliminar="{{ 'si' if puede_eliminar else 'no' }}" data-admin="{{ 'si' if administra_catalogo else 'no' }}"
          data-columnas="{{ orden_columnas|tojson|forceescape }}" data-csrf="{{ csrf }}">
@@ -34,7 +34,7 @@
       <select id="cc-proyecto" hidden><option value="">Todos los proyectos</option></select>
     </nav>
     {% if puede_eliminar %}
-    <button type="button" id="cc-eliminar" disabled data-url="{{ url_for('caja_chica.gestion_eliminar') }}"
+    <button type="button" id="cc-eliminar" disabled hidden data-url="{{ url_for('caja_chica.gestion_eliminar') }}"
             title="Eliminar solicitudes seleccionadas" aria-label="Eliminar solicitudes seleccionadas">
       <i class="fa-solid fa-trash" aria-hidden="true"></i>
     </button>
@@ -99,5 +99,5 @@
   </dialog>
   <script id="cc-revision-config" type="application/json">{{ {'catalogo': catalogo, 'bancos': bancos, 'proyectos': proyectos} | tojson }}</script>
 </section>
-<script src="/static/js/caja-chica.js?v=103" defer></script>
+<script src="/static/js/caja-chica.js?v=104" defer></script>
 {% endblock %}
