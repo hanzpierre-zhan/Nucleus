@@ -32,6 +32,7 @@
     <script src="/static/js/rendicion-estados-labels.js?v=1"></script>
     <link rel="stylesheet" href="/static/css/toast.css?v=1">
     <link rel="stylesheet" href="/static/css/sidebar.css?v=4">
+    <link rel="stylesheet" href="/static/css/flm-tabla.css?v=2">
 </head>
 <body data-options-role="{{ session.get('rol', '') }}" data-options-user="{{ session.get('user_id', '') }}">
     <script>
@@ -182,7 +183,9 @@
 
         <div class="app-main" data-flm-resource="{{ flm_resource_context.flm_nombre if flm_resource_context and flm_resource_context.recurso in ['personal','material'] else '' }}" data-proyecto-id="{{ session.get('current_proyecto_id', '') }}" data-flm-origin="{{ flm_resource_context.flm_id if flm_resource_context else (session.get('current_proyecto_id') if session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'] else '') }}">
             <!-- Main Content Grid -->
-            <main class="excel-main">
+            {# FLM: la tabla usa el diseño de Caja Chica (solo visual, ver flm-tabla.css). #}
+            {% set _vista_flm = request.path == '/' and session.get('current_proyecto_nombre') in ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT'] and not flm_resource_context %}
+            <main class="excel-main{% if _vista_flm %} vista-flm{% endif %}">
                 {% if request.path != '/' and request.path != '/salud' and not request.path.startswith('/analytics') %}{% include '_flm_recursos.html' %}{% endif %}
                 {% block content %}{% endblock %}
             </main>

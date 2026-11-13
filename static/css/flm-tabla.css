@@ -1,0 +1,107 @@
+/* FLM: la tabla (Tabulator) con el mismo aspecto de Caja Chica / Cotizaciones.
+   Solo diseño: no cambia columnas, filtros, edición ni acciones. Se aplica cuando <main> tiene .vista-flm. */
+body .excel-main.vista-flm #data-grid.tabulator {
+  border: 1px solid var(--ios-hairline) !important;
+  border-radius: 12px !important;
+  background: var(--excel-bg) !important;
+  overflow: hidden !important;
+  font-size: 13px !important;
+  box-shadow: none !important;
+}
+
+/* Encabezado: fondo suave, títulos chicos en mayúscula y búsqueda redondeada. */
+body .excel-main.vista-flm #data-grid .tabulator-header {
+  background: var(--ios-fill) !important;
+  border-bottom: 1px solid var(--ios-hairline) !important;
+  min-height: 0 !important;
+  backdrop-filter: blur(8px);
+}
+body .excel-main.vista-flm #data-grid .tabulator-col {
+  background: transparent !important;
+  border-right: 0 !important;
+  border-left: 0 !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-col .tabulator-col-content { padding: 7px 10px 4px !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-title {
+  color: var(--ios-secondary) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: .04em !important;
+  text-transform: uppercase !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-header-filter { padding: 2px 0 8px !important; }
+body .excel-main.vista-flm #data-grid .tabulator-header-filter input,
+body .excel-main.vista-flm #data-grid .tabulator-header-filter select {
+  height: 26px !important;
+  padding: 4px 8px !important;
+  border-radius: 7px !important;
+  border: 1px solid var(--ios-hairline) !important;
+  background: var(--excel-bg) !important;
+  color: var(--excel-text) !important;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  box-shadow: none !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-header-filter input:focus { outline: none !important; border-color: var(--ios-blue) !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-sorter .tabulator-arrow { opacity: .55; }
+body .excel-main.vista-flm #data-grid .tabulator-col:hover .tabulator-col-sorter .tabulator-arrow { opacity: 1; }
+
+/* Filas: más aire, sin cuadrícula vertical, separador fino y resalte al pasar. */
+body .excel-main.vista-flm #data-grid .tabulator-tableholder,
+body .excel-main.vista-flm #data-grid .tabulator-table { background: var(--excel-bg) !important; }
+body .excel-main.vista-flm #data-grid .tabulator-row,
+body .excel-main.vista-flm #data-grid .tabulator-row.tabulator-row-even {
+  background: var(--excel-bg) !important;
+  border-bottom: 1px solid var(--ios-hairline) !important;
+  min-height: 46px !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-cell {
+  background: transparent !important;
+  border-right: 0 !important;
+  border-left: 0 !important;
+  padding: 11px 10px !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  color: var(--excel-text) !important;
+  vertical-align: middle;
+}
+body .excel-main.vista-flm #data-grid .tabulator-row:hover,
+body .excel-main.vista-flm #data-grid .tabulator-row:hover .tabulator-cell {
+  background: color-mix(in srgb, var(--ios-fill) 70%, transparent) !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-row.tabulator-selected,
+body .excel-main.vista-flm #data-grid .tabulator-row.tabulator-selected .tabulator-cell {
+  background: color-mix(in srgb, var(--ios-blue) 12%, transparent) !important;
+}
+/* Columnas fijas (acciones / N.º): mismo fondo que la tarjeta para que no se mezclen al desplazar. */
+body .excel-main.vista-flm #data-grid .tabulator-frozen {
+  background: var(--excel-bg) !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-header .tabulator-frozen { background: var(--ios-fill) !important; }
+body .excel-main.vista-flm #data-grid .tabulator-row:hover .tabulator-frozen { background: color-mix(in srgb, var(--ios-fill) 70%, var(--excel-bg)) !important; }
+
+/* Botones de la columna de acciones: redondos como en Caja Chica. */
+body .excel-main.vista-flm #data-grid .tabulator-cell button,
+body .excel-main.vista-flm #data-grid .tabulator-cell .action-btn-circle {
+  border-radius: 50% !important;
+  box-shadow: none !important;
+}
+
+/* Pie y paginación. */
+body .excel-main.vista-flm #data-grid .tabulator-footer {
+  background: var(--ios-fill) !important;
+  border-top: 1px solid var(--ios-hairline) !important;
+  color: var(--ios-secondary) !important;
+  font-size: 12px !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-footer .tabulator-page {
+  border-radius: 999px !important;
+  border: 1px solid var(--ios-hairline) !important;
+  background: var(--excel-bg) !important;
+  padding: 3px 10px !important;
+}
+body .excel-main.vista-flm #data-grid .tabulator-footer .tabulator-page.active {
+  background: var(--ios-blue) !important;
+  border-color: var(--ios-blue) !important;
+  color: #fff !important;
+}
