@@ -1,7 +1,9 @@
 """SLA: cumplimiento de los tickets FLM (CM, PM y PLM) por proyecto.
 
 Reglas:
-- Cuenta desde Dispatch Time hasta que el ticket pasa a completed (Task Status completed o closed).
+- CM cuenta desde Dispatch Time; PM y PLM desde Arrive Time.
+- Abierto: se calcula contra la hora actual. Cerrado (Task Status completed o closed): termina en la fecha y
+  hora en que cambió a completed (Complete Time; si falta, FECHA CAMBIO ESTADO).
 - Canceled no se mide.
 - Objetivo: SLA Hour (minutos). Resultado de un cerrado: SLA Status ("normal" cumple; "sla_violation" no).
 - Abiertos: vencido, por vencer (queda ≤ 25 % del objetivo o ≤ 60 min) o en plazo.
@@ -68,12 +70,12 @@ def casos(proyecto):
         tipo = _tipo(d, clave)
         if not tipo:
             continue
-        inicio = str(d.get('Dispatch Time') or '').strip()
+        inicio = str((d.get('Dispatch Time') if tipo == 'CM' else d.get('Arrive Time')) or '').strip()
         estado_ticket = str(d.get('Task Status') or '').strip().lower()
         salida.append({
             'ticket': str(d.get('Ticket Id') or clave), 'tipo': tipo, 'site': str(d.get('Site Name') or ''),
             'tecnico': str(d.get('Schedule Operator') or '').strip(), 'estado_ticket': str(d.get('Task Status') or ''),
-            'inicio': inicio[:19], 'fin': str(d.get('Complete Time') or '').strip()[:19],
+            'inicio': inicio[:19], 'fin': str(d.get('Complete Time') or (d.get('FECHA CAMBIO ESTADO') if estado_ticket in ('completed', 'closed') else '') or '').strip()[:19],
             # Cerrado = el ticket ya está completed (o closed); ahí se usa SLA Status y SLA Hour.
             'cerrado': estado_ticket in ('completed', 'closed'),
             # Columnas reales, para verlas tal cual en la tabla.

@@ -126,9 +126,9 @@
       const fila = el('div', 'sla-fila ' + cls); fila.setAttribute('role', 'row');
       const t = el('span', 'sla-dos'); t.append(el('strong', 'sla-ticket', c.ticket), el('small', null, c.site || '—'));
       const tec = el('span', 'sla-dos'); tec.append(el('span', null, c.tecnico || '—'), el('small', null, c.tecnico_nombre || ''));
-      // Columnas reales; el SLA empieza en Dispatch Time (va resaltada).
+      // Columnas reales; la fecha con la que empieza el SLA va resaltada (CM: Dispatch; PM/PLM: Arrive).
       const celdaFecha = (valor, usada) => { const s = el('span', 'sla-fecha' + (usada ? ' sla-fecha-inicio' : ''), valor || '—'); if (usada) s.title = 'Desde aquí cuenta el SLA'; return s; };
-      const reales = [celdaFecha(c.dispatch, true), celdaFecha(c.arrive, false), celdaFecha(c.fin, false),
+      const reales = [celdaFecha(c.dispatch, c.tipo === 'CM'), celdaFecha(c.arrive, c.tipo !== 'CM'), celdaFecha(c.fin, false),
         el('span', 'sla-num', c.sla_hour ? c.sla_hour + ' min' : '—'),
         estadoSla(c)];
       const tiempo = el('span', 'sla-tiempo');

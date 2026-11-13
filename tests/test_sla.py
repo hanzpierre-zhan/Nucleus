@@ -24,8 +24,8 @@ def test_sla_claro_inicio_dispatch_y_cierre_por_task_status(app, auth_client):
         assert casos['CM-T-1']['tecnico_nombre'] == 'Juan Perez' and casos['CM-T-1']['categoria'] == 'Caida'
         assert casos['CM-T-1']['dispatch'] == '2026-11-10 08:00:00' and casos['CM-T-1']['sla_hour'] == '240' and casos['CM-T-1']['sla_status_original'] == 'normal'
         assert casos['CM-T-1']['cerrado'] is True
-        # Todos cuentan desde Dispatch Time mientras siguen abiertos (no completed).
-        assert casos['PM-T-2']['inicio'] == '2026-11-10 08:00:00' and casos['PM-T-2']['cerrado'] is False
+        # PM/PLM cuentan desde Arrive Time; abierto mientras no esté completed.
+        assert casos['PM-T-2']['inicio'] == '2026-11-10 09:30:00' and casos['PM-T-2']['cerrado'] is False
         assert 'PLM-T-3' not in casos  # cancelados fuera
         assert auth_client.get('/api/sla/otro').status_code == 404
         # Integratel aún no tiene criterios: no se calcula.
