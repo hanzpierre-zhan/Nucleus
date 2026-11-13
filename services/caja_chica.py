@@ -844,7 +844,7 @@ def exportar_excel(solicitudes, dataper=None):
                  'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta'])
     cero = Decimal('0')
     peru = lambda f: (f - timedelta(hours=5)).replace(second=0, microsecond=0) if f else None  # las fechas se guardan en UTC
-    pendientes = []
+    pendientes, resumen = [], []
     for solicitud in solicitudes:
         datos = a_dict(solicitud, gestion=True)
         formulario = datos['formulario']
@@ -859,6 +859,10 @@ def exportar_excel(solicitudes, dataper=None):
         registrado = 'Registrado' if info.get('registrado') else 'No registrado'
         tipos = {i['id']: i.get('tipo_presupuesto') or '' for i in datos['items']}
         fecha = peru(solicitud.creado)
+        resumen.append({'sol': solicitud, 'faltan': datos['faltan'], 'registrado': bool(info.get('registrado')),
+                        'responsable': formulario.get('responsable_validacion') or solicitud.validado_por or 'Sin responsable',
+                        'por_rendir': montos_etapa(solicitud).get('por_rendir', cero) if solicitud.estado in ('DEPOSITADO', 'POR_DEVOLVER') else cero,
+                        'items': []})
         depositada = solicitud.deposito_monto is not None
         # El depósito se reparte por ítem según lo solicitado; el último ítem absorbe el redondeo.
         repartido, por_item = cero, {}
@@ -892,6 +896,9 @@ def exportar_excel(solicitudes, dataper=None):
                 horas_total = int((rendicion - solicitud.depositado_en).total_seconds() // 3600)
                 total = ('%d d %d h' % divmod(horas_total, 24)) if horas_total >= 24 else '%d h' % horas_total
             comps = comprobantes_de(item)
+            resumen[-1]['items'].append({'concepto': item.tipo_gasto, 'tipo': 'Refacturable' if 'refact' in (tipos.get(item.id) or '').lower() else 'Gasto Cobra',
+                                         'solicitado': item.monto, 'depositado': por_item[item.id], 'gastado': gastado,
+                                         'devuelto': devuelto, 'plazo': plazo})
             fila = [solicitud.codigo, fecha, solicitud.proyecto,
                     formulario.get('site') or '', formulario.get('wo') or '', cotizacion, solicitud.tecnico, solicitud.documento,
                     supervisor, registrado, info.get('departamento') or '', pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''), solicitud.motivo or '',
@@ -921,10 +928,145 @@ def exportar_excel(solicitudes, dataper=None):
             titulo.font = Font(bold=True, color='FFFFFF')
             titulo.fill = PatternFill('solid', fgColor='B45309' if h is otra else '166534')
             h.column_dimensions[get_column_letter(titulo.column)].width = min(40, max(8, *(len(str(c.value or '')) + 2 for c in columna)))
+    _resumen_ejecutivo(libro, resumen)
     archivo = io.BytesIO()
     libro.save(archivo)
     archivo.seek(0)
     return archivo
+
+
+def _resumen_ejecutivo(libro, registros):
+    """Hoja 'Resumen ejecutivo': indicadores y tablas resumen (quién debe más, validadores, Dataper, faltantes, conceptos)."""
+    from collections import defaultdict
+    from openpyxl.styles import Alignment, Font, PatternFill
+    cero = Decimal('0')
+    hoja = libro.create_sheet('Resumen ejecutivo', 0)
+    hoja.sheet_view.showGridLines = False
+    azul = PatternFill('solid', fgColor='1E3A8A')
+    vigentes = [r for r in registros if r['sol'].estado not in ('ANULADO', 'ELIMINADO')]
+    items = [i for r in vigentes for i in r['items']]
+    ahora = datetime.utcnow()
+    suma = lambda lista, k: sum((x[k] for x in lista), cero)
+
+    def titulo(texto):
+        hoja.append([])
+        hoja.append([texto])
+        hoja.cell(hoja.max_row, 1).font = Font(bold=True, size=13, color='1E3A8A')
+
+    def tabla(cabecera, filas, monedas=()):
+        hoja.append(cabecera)
+        for celda in hoja[hoja.max_row]:
+            celda.font, celda.fill = Font(bold=True, color='FFFFFF'), azul
+            celda.alignment = Alignment(wrap_text=True, vertical='center')
+        if not filas:
+            hoja.append(['Sin datos'])
+            hoja.cell(hoja.max_row, 1).font = Font(italic=True, color='6B7280')
+        for fila in filas:
+            hoja.append(fila)
+            for n in range(1, len(fila) + 1):
+                if n in monedas or isinstance(fila[n - 1], Decimal):
+                    hoja.cell(hoja.max_row, n).number_format = '"S/" #,##0.00'
+
+    hoja.append(['Resumen ejecutivo · Caja Chica'])
+    hoja.cell(1, 1).font = Font(bold=True, size=16, color='111827')
+    hoja.append(['Generado el %s · %d solicitudes vigentes (sin anuladas)' % ((ahora - timedelta(hours=5)).strftime('%d/%m/%Y %H:%M'), len(vigentes))])
+    hoja.cell(2, 1).font = Font(color='6B7280')
+
+    con_plazo = [i for i in items if i['plazo']]
+    titulo('Indicadores')
+    tabla(['Indicador', 'Valor'], [
+        ['Solicitudes vigentes', len(vigentes)],
+        ['Técnicos con solicitudes', len({r['sol'].documento for r in vigentes})],
+        ['Total solicitado', suma(items, 'solicitado')], ['Total depositado', suma(items, 'depositado')],
+        ['Total gastado (rendido)', suma(items, 'gastado')], ['Total devuelto', suma(items, 'devuelto')],
+        ['Total por rendir', sum((r['por_rendir'] for r in vigentes), cero)],
+        ['Rendiciones dentro de 24 h', '%d de %d' % (sum(i['plazo'] == 'Dentro de plazo' for i in con_plazo), len(con_plazo))],
+        ['Solicitudes con site o CM/PM/PLM pendiente', sum(bool(r['faltan']) for r in vigentes)],
+        ['Solicitudes de técnicos no registrados en Dataper', sum(not r['registrado'] for r in vigentes)],
+    ])
+
+    titulo('Técnicos que más deben por rendir')
+    tecnicos = defaultdict(lambda: {'monto': cero, 'n': 0, 'proyecto': set(), 'desde': None, 'nombre': '', 'resp': set()})
+    for r in vigentes:
+        if r['por_rendir'] > 0:
+            t = tecnicos[r['sol'].documento]
+            t['monto'] += r['por_rendir']
+            t['n'] += 1
+            t['nombre'] = r['sol'].tecnico
+            t['proyecto'].add(r['sol'].proyecto)
+            t['resp'].add(r['responsable'])
+            if r['sol'].depositado_en and (t['desde'] is None or r['sol'].depositado_en < t['desde']):
+                t['desde'] = r['sol'].depositado_en
+    tabla(['Técnico', 'DNI', 'Proyecto', 'Responsable(s)', 'Solicitudes con saldo', 'Por rendir', 'Días desde el depósito más antiguo'],
+          [[t['nombre'], doc, ', '.join(sorted(t['proyecto'])), ', '.join(sorted(t['resp'])), t['n'], t['monto'],
+            (ahora - t['desde']).days if t['desde'] else '']
+           for doc, t in sorted(tecnicos.items(), key=lambda x: -x[1]['monto'])])
+
+    titulo('Responsables de validación: técnicos por rendir')
+    resp = defaultdict(lambda: {'sol': 0, 'tec': set(), 'tec_saldo': set(), 'monto': cero, 'depositado': cero})
+    for r in vigentes:
+        x = resp[r['responsable']]
+        x['sol'] += 1
+        x['tec'].add(r['sol'].documento)
+        x['depositado'] += suma(r['items'], 'depositado')
+        if r['por_rendir'] > 0:
+            x['tec_saldo'].add(r['sol'].documento)
+            x['monto'] += r['por_rendir']
+    tabla(['Responsable', 'Solicitudes', 'Técnicos', 'Técnicos con saldo por rendir', 'Depositado', 'Por rendir'],
+          [[k, v['sol'], len(v['tec']), len(v['tec_saldo']), v['depositado'], v['monto']]
+           for k, v in sorted(resp.items(), key=lambda x: (-len(x[1]['tec_saldo']), -x[1]['monto']))])
+
+    titulo('Técnicos que no están en Dataper, por proyecto')
+    fuera = defaultdict(lambda: {'tec': set(), 'sol': 0, 'monto': cero})
+    for r in vigentes:
+        if not r['registrado']:
+            x = fuera[r['sol'].proyecto]
+            x['tec'].add(r['sol'].documento)
+            x['sol'] += 1
+            x['monto'] += r['sol'].total or cero
+    tabla(['Proyecto', 'Técnicos', 'Solicitudes', 'Monto solicitado'],
+          [[k, len(v['tec']), v['sol'], v['monto']] for k, v in sorted(fuera.items())])
+
+    titulo('Datos faltantes por proyecto (site y CM/PM/PLM)')
+    falta = defaultdict(lambda: {'site': 0, 'cm': 0, 'ambos': 0, 'monto': cero})
+    for r in vigentes:
+        if r['faltan']:
+            x = falta[r['sol'].proyecto]
+            x['site'] += 'Site' in r['faltan']
+            x['cm'] += 'CM' in r['faltan']
+            x['ambos'] += len(r['faltan']) == 2
+            x['monto'] += r['sol'].total or cero
+    tabla(['Proyecto', 'Falta site', 'Falta CM/PM/PLM', 'Faltan ambos', 'Monto de esas solicitudes'],
+          [[k, v['site'], v['cm'], v['ambos'], v['monto']] for k, v in sorted(falta.items())])
+
+    titulo('Gasto Cobra vs Refacturable')
+    tipos = defaultdict(list)
+    for i in items:
+        tipos[i['tipo']].append(i)
+    total_dep = suma(items, 'depositado') or Decimal('1')
+    tabla(['Tipo', 'Ítems', 'Solicitado', 'Depositado', 'Gastado', 'Devuelto', '% del depositado'],
+          [[k, len(v), suma(v, 'solicitado'), suma(v, 'depositado'), suma(v, 'gastado'), suma(v, 'devuelto'),
+            '%.1f %%' % (suma(v, 'depositado') * 100 / total_dep)] for k, v in sorted(tipos.items())])
+
+    titulo('Conceptos de gasto')
+    conceptos = defaultdict(list)
+    for i in items:
+        conceptos[(i['concepto'], i['tipo'])].append(i)
+    tabla(['Concepto', 'Tipo', 'Ítems', 'Solicitado', 'Depositado', 'Gastado'],
+          [[c, t, len(v), suma(v, 'solicitado'), suma(v, 'depositado'), suma(v, 'gastado')]
+           for (c, t), v in sorted(conceptos.items(), key=lambda x: -suma(x[1], 'depositado'))])
+
+    titulo('Por proyecto')
+    proyectos = defaultdict(list)
+    for r in vigentes:
+        proyectos[r['sol'].proyecto].append(r)
+    tabla(['Proyecto', 'Solicitudes', 'Técnicos', 'Depositado', 'Gastado', 'Por rendir'],
+          [[k, len(v), len({r['sol'].documento for r in v}), sum((suma(r['items'], 'depositado') for r in v), cero),
+            sum((suma(r['items'], 'gastado') for r in v), cero), sum((r['por_rendir'] for r in v), cero)]
+           for k, v in sorted(proyectos.items())])
+
+    for col, ancho in zip('ABCDEFG', (40, 16, 18, 28, 18, 16, 20)):
+        hoja.column_dimensions[col].width = ancho
 
 
 # ── Fotos: B2 si está configurado; si no, disco local (desarrollo) ─────────

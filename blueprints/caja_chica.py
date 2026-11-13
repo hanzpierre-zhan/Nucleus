@@ -381,7 +381,8 @@ def gestion_catalogo():
     rol = str(session.get('rol') or '').strip().lower()
     if rol in ('demo', 'contrata'):
         abort(403)
-    puede_editar = rol in ROLES_EDITAR_CATALOGO
+    # Conceptos de gasto: también los edita el usuario de Caja Chica (depositante).
+    puede_editar = rol in ROLES_EDITAR_CATALOGO or session.get('user_id') in cc.depositantes()
     modulo, config = _config_catalogo()
     if request.method == 'POST':
         if not puede_editar:

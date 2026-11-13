@@ -813,10 +813,15 @@ def gestion(bandeja):
 @bp.route('/administrar', methods=['GET', 'POST'])
 @login_required
 def administrar():
-    if str(session.get('rol') or '').lower() not in ROLES_ADMIN_PILOTO:
+    from services import caja_chica as cc
+    es_admin = str(session.get('rol') or '').lower() in ROLES_ADMIN_PILOTO
+    # Los usuarios de Caja Chica (depositantes) también ven y ajustan las restricciones.
+    if not es_admin and session.get('user_id') not in cc.depositantes():
         abort(403)
     if request.method == 'POST':
         comprobar_csrf()
+        if not es_admin and request.form.get('accion') != 'reglas':
+            abort(403)
         folder = piloto.raiz()
         folder.mkdir(parents=True, exist_ok=True)
         accion = request.form.get('accion')

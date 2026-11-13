@@ -26,7 +26,11 @@ PESTANAS = (
     ('sustentar', 'Operaciones', 'fa-screwdriver-wrench', '#2563eb'),
     ('atendido', 'Atendido', 'fa-circle-check', '#16a34a'),
     ('cancelado', 'Anulado', 'fa-ban', '#94a3b8'),
+    # Pestaña extra (se suma a la normal): falta el N.º WO o el site.
+    ('pendientes', 'WO / Site pendiente', 'fa-triangle-exclamation', '#d97706'),
 )
+SIN_DATO = {'', '-', '--', '—', 'NO TIENE', 'NO APLICA', 'N/A', 'NA', 'PENDIENTE', 'SIN WO', 'SIN SITE',
+            'CM PENDIENTE', 'SITE PENDIENTE', 'POR DEFINIR'}
 ESTADO_PESTANA = {
     'pdt. cotización': 'registro', 'pdt. cotizacion': 'registro',
     'en aprobación': 'cliente', 'en aprobacion': 'cliente', 'cotizado': 'cliente',
@@ -44,7 +48,8 @@ CAMPOS = ('N° ORDEN', 'N° COTIZACION', 'FECHA', 'CLIENTE', 'NOMBRE CLIENTE', '
           'ADJUNTO COTIZACION PROVEEDOR', 'ADJUNTO FACTURA PROVEEDOR', '_PROVEEDOR_REGISTROS', '_SUSTENTO_APROBADO',
           'OBSERVACION SUSTENTO', 'FECHA ATENCION', 'GENERADA', 'TIPO DE CONCEPTO', 'PROYECTO FLM', 'CODIGO SITE',
           'DISTRITO', 'PROVINCIA', 'REGION', 'COTIZADOR', 'COTIZADOR USUARIO', 'FECHA PAGO', 'FOTO PAGO', 'PAGADO POR',
-          'MONTO PAGADO', '_PAGO_PENDIENTE', '_TRANSITO_A_PROVEEDOR', 'MONTO TRANSITO', 'PROVISION')
+          'MONTO PAGADO', '_PAGO_PENDIENTE', '_TRANSITO_A_PROVEEDOR', 'MONTO TRANSITO', 'PROVISION',
+          'FECHA FACTURA PROVEEDOR')
 
 
 def _proyecto():
@@ -131,18 +136,26 @@ def estado_operativo(datos):
     return 'Pdt. ejecutar'
 
 
+def falta_wo_site(datos):
+    """Falta el N.º WO o el nombre del site (vacío o 'NO TIENE', 'PENDIENTE', etc.)."""
+    vacio = lambda campo: str(datos.get(campo) or '').strip().upper() in SIN_DATO
+    return pestana_de(datos) != 'cancelado' and (vacio('NUMERO WO') or vacio('NOMBRE SITE'))
+
+
 def pestanas_de(datos):
     """Caja chica hasta pagar; Proveedor va a Operaciones en paralelo desde que se aprueba.
     Luego Operaciones (con Tránsito o Proveedor en paralelo)."""
     base = pestana_de(datos)
     if por_pagar(datos):
-        return [base, 'proveedor'] if tipo_atencion(datos) == 'Proveedor' else ['cajachica']
+        return ([base, 'proveedor'] if tipo_atencion(datos) == 'Proveedor' else ['cajachica']) + (['pendientes'] if falta_wo_site(datos) else [])
     pestanas = [base]
     if (base in ('sustentar', 'atendido') and tipo_atencion(datos) == 'Tránsito'
             and not datos.get('_TRANSITO_A_PROVEEDOR') and datos.get('FECHA PAGO')):
         pestanas.append('transito')
     if en_proveedor(datos):
         pestanas.append('proveedor')
+    if falta_wo_site(datos):
+        pestanas.append('pendientes')
     return pestanas
 
 
@@ -159,16 +172,19 @@ def _depositos_caja_chica():
     vigentes = (CajaChicaSolicitud.query
                 .filter(CajaChicaSolicitud.estado.notin_(('ANULADO', 'ELIMINADO', 'RECHAZADO')))
                 .with_entities(CajaChicaSolicitud.id, CajaChicaSolicitud.codigo, CajaChicaSolicitud.total,
-                               CajaChicaSolicitud.tecnico, CajaChicaSolicitud.estado, CajaChicaSolicitud.historial)
+                               CajaChicaSolicitud.tecnico, CajaChicaSolicitud.estado, CajaChicaSolicitud.historial,
+                               CajaChicaSolicitud.deposito_foto)
                 .order_by(CajaChicaSolicitud.id))
-    for sid, codigo, total, tecnico, estado, historial in vigentes:
+    for sid, codigo, total, tecnico, estado, historial, foto in vigentes:
         try:
             cotizacion = str(revision_guardada(json.loads(historial or '[]')).get('cotizacion') or '').strip().upper()
         except (TypeError, ValueError):
             continue
         if cotizacion and codigo:
             indice.setdefault(cotizacion, []).append({'id': sid, 'codigo': codigo, 'monto': '%.2f' % (total or 0),
-                                                      'tecnico': tecnico or '', 'estado': ESTADO_SOLICITUD.get(estado, estado)})
+                                                      'tecnico': tecnico or '', 'estado': ESTADO_SOLICITUD.get(estado, estado),
+                                                              # Foto del depósito de Caja Chica (cuando ya se depositó).
+                                                              'foto': '/form-pruebas/caja-chica/foto/%d/%s' % (sid, foto) if foto else ''})
     return indice
 
 

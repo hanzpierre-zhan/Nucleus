@@ -51,6 +51,24 @@
   const CHIP_ATENCION = {'Caja chica': 'cn-a-caja', Proveedor: 'cn-a-proveedor', 'Tránsito': 'cn-a-transito'};
   const fechaTexto = t => { const v = fechaValor(t); return v ? new Date(v).toLocaleDateString('es-PE') : (t || '—'); };
 
+  // SLA de Proveedor: desde la aprobación del cliente hasta que se guardan las facturas.
+  // Semáforo: verde < 2 días, ámbar < 5 días, rojo desde 5 días; con facturas queda fijo (✓).
+  function slaProveedor(c) {
+    if (!(c.pestanas.includes('proveedor') || c['FECHA FACTURA PROVEEDOR'])) return null;
+    const inicio = fechaValor(c['FECHA APROBACION']); if (!inicio) return null;
+    const fin = fechaValor(c['FECHA FACTURA PROVEEDOR']), ms = Math.max(0, (fin || Date.now()) - inicio);
+    const h = Math.floor(ms / 3600000), texto = h >= 24 ? Math.floor(h / 24) + ' d ' + (h % 24) + ' h' : h + ' h';
+    return {ms, texto, cerrado: !!fin, nivel: fin ? 'ok' : h < 48 ? 'verde' : h < 120 ? 'ambar' : 'rojo'};
+  }
+  function chipSla(c) {
+    const s = slaProveedor(c); if (!s) return el('span', null, '—');
+    const chip = el('span', 'cc-chip cn-sla cn-sla-' + s.nivel); chip.append(icono(s.cerrado ? 'fa-check' : 'fa-clock'), el('span', null, ' ' + s.texto));
+    chip.title = 'Aprobado: ' + (c['FECHA APROBACION'] || '—') + (s.cerrado ? ' · Facturas guardadas: ' + c['FECHA FACTURA PROVEEDOR'] : ' · Facturas aún no guardadas');
+    return chip;
+  }
+  // Fotos del depósito: pago registrado aquí y depósitos de Caja Chica ya hechos.
+  const fotosDeposito = c => [...(c['FOTO PAGO'] ? [{url: c['FOTO PAGO'], titulo: 'Pago · ' + (c['FECHA PAGO'] || '')}] : []),
+    ...(c.depositos_cc || []).filter(d => d.foto).map(d => ({url: d.foto, titulo: 'Caja Chica ' + d.codigo + ' · ' + dinero(d.monto)}))];
   const listaWo = v => String(v || '').split(/\s*[,;|\n]\s*/).map(t => t.trim()).filter(Boolean);
   const acumuladoCC = c => (c.depositos_cc || []).reduce((t, d) => t + Number(d.monto || 0), 0);
   // ── Columnas ──
@@ -88,6 +106,14 @@
            celda: c => c.estado_pago ? el('span', 'cc-chip ' + (CHIP_PAGO[c.estado_pago] || ''), c.estado_pago) : el('span', null, '—')},
     operativo: {titulo: 'Estado operativo', ancho: 'minmax(140px, .9fr)', texto: c => c.estado_operativo || '—',
                 celda: c => c.estado_operativo ? el('span', 'cc-chip ' + (CHIP_OPERATIVO[c.estado_operativo] || ''), c.estado_operativo) : el('span', null, '—')},
+    sla: {titulo: 'SLA proveedor', ancho: 'minmax(120px, .8fr)', texto: c => slaProveedor(c)?.texto || '—', orden: c => slaProveedor(c)?.ms ?? -1, celda: chipSla},
+    fotoDeposito: {titulo: 'Foto depósito', ancho: 'minmax(110px, .7fr)', texto: c => fotosDeposito(c).length ? fotosDeposito(c).length + ' foto(s)' : '—',
+                   celda: c => {
+                     const fotos = fotosDeposito(c); if (!fotos.length) return el('span', null, '—');
+                     const caja = el('span', 'cn-fotos-deposito');
+                     fotos.forEach(f => { const a = el('a', 'cn-foto-deposito'); a.href = f.url; a.target = '_blank'; a.rel = 'noopener'; a.title = f.titulo; a.setAttribute('aria-label', 'Ver foto del depósito: ' + f.titulo); a.append(icono('fa-camera')); a.addEventListener('click', e => e.stopPropagation()); caja.append(a); });
+                     return caja;
+                   }},
     provision: {titulo: 'Provisión', ancho: 'minmax(110px, .7fr)', num: true, texto: c => c.PROVISION ? dinero(c.PROVISION) : '—', orden: c => Number(c.PROVISION) || 0,
                 celda: c => c.PROVISION ? el('strong', 'cc-num cn-provision-texto', dinero(c.PROVISION)) : el('span', null, '—')},
     monto: {titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
@@ -108,7 +134,7 @@
                 }},
   };
   // "Interacción" y la provisión van junto al cliente para verlos sin desplazar la tabla.
-  let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'pago', 'operativo', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'pago', 'operativo', 'provision');
+  let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'pago', 'operativo', 'sla', 'fotoDeposito', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'pago', 'operativo', 'sla', 'fotoDeposito', 'provision');
   function estadoTexto(c) {
     if (c._PAGO_PENDIENTE && c.pestanas.some(p => ['cajachica', 'proveedor'].includes(p))) return 'Por pagar';
     return c.pestanas[0] === 'sustentar' ? 'En operaciones' : (c['ESTADO COTIZACION'] || 'Pdt. Cotización');
@@ -732,6 +758,9 @@
     const provision = Math.round(pagado * 20) / 100;
     caja.append(ficha('fa-clock', '', [['Pagado el', c['FECHA PAGO']], ['Pagado por', c['PAGADO POR'] && nombreDe(c['PAGADO POR'])]]).querySelector('dl'));
     caja.append(capturaDeposito(c['FOTO PAGO']));
+    for (const d of (c.depositos_cc || []).filter(x => x.foto)) {
+      const foto = capturaDeposito(d.foto); foto.querySelector('.cc-motivo-etiqueta').textContent = 'Depósito de Caja Chica · ' + d.codigo + ' · ' + dinero(d.monto); caja.append(foto);
+    }
     const fila = (texto, valor, clase) => { const d = el('div', 'cn-total' + (clase ? ' ' + clase : '')); d.append(el('span', null, texto), el('strong', null, dinero(valor))); return d; };
     caja.append(fila('Monto pagado (Tránsito)', pagado),
       fila('Provisión sugerida (20 %)', provision, 'cn-provision'),
@@ -941,6 +970,7 @@
     caja.append(lista, agregar, pieTotal);
     if (c.PROVISION) { const prov = el('div', 'cn-total cn-provision'); prov.append(el('span', null, 'Provisión de Tránsito (20 %)'), el('strong', null, dinero(c.PROVISION))); caja.append(prov); }
     caja.append(error);
+    { const sla = slaProveedor(c); if (sla) { const f = el('div', 'cn-total cn-sla-fila'); f.append(el('span', null, 'SLA proveedor (desde la aprobación del cliente)'), chipSla(c)); caja.querySelector('.cc-ficha-titulo').after(f); } }
     derecha.append(fichaItems(c), caja);
     ventana('Proveedor · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [['Guardar facturas', 'cn-verde', 'fa-floppy-disk', conErrorEn(error, async () => {
       const registros = [];
@@ -1219,7 +1249,33 @@
       lista.push(['Factura y OC del proveedor', 'cn-morado', 'fa-file-arrow-up', () => proveedor(c)]);
       lista.push(['Derivar a Caja chica', 'cn-naranja', 'fa-wallet', () => moverA(c, 'proveedor', 'cajachica', 'Caja chica')]);
     } else if (p === 'transito') lista.push(['Pasar a Proveedor (se encontró proveedor)', 'cn-morado', 'fa-file-invoice', () => transitoAProveedor(c)]);
+    else if (p === 'pendientes') lista.push(['Completar WO y site', 'cn-naranja', 'fa-location-dot', () => completarWoSite(c)]);
     return lista;
+  }
+  // WO / Site pendiente: se completan el N.º WO y el site; al tener ambos sale de la pestaña.
+  function completarWoSite(c) {
+    const proyectoFlm = c['PROYECTO FLM'] || (c.familia ? 'FLM - ' + c.familia : '');
+    const sinDato = v => ['', '-', '--', '—', 'NO TIENE', 'NO APLICA', 'N/A', 'NA', 'PENDIENTE', 'SIN WO', 'SIN SITE', 'CM PENDIENTE', 'SITE PENDIENTE', 'POR DEFINIR'].includes(String(v || '').trim().toUpperCase());
+    const partes = v => sinDato(v) ? [] : String(v || '').split(/\s*[,;]\s*/).filter(Boolean);
+    const caja = el('section', 'cc-ficha cn-aprobacion');
+    const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-location-dot'), el('span', null, 'N.º WO y site')); caja.append(h);
+    const faltan = [sinDato(c['NUMERO WO']) && 'N.º WO', sinDato(c['NOMBRE SITE']) && 'site'].filter(Boolean);
+    caja.append(el('p', 'cc-nota', 'Falta: ' + faltan.join(' y ') + (c['NUMERO WO'] && sinDato(c['NUMERO WO']) ? ' (dice "' + c['NUMERO WO'] + '")' : '') + '.'));
+    const selWo = selectorChips({valores: partes(c['NUMERO WO']), placeholder: 'Agregar WO…', buscar: t => buscarWosDe(proyectoFlm, t)});
+    campo(caja, 'N.º WO (puedes elegir varios)', selWo);
+    const selSite = selectorChips({valores: partes(c['NOMBRE SITE']), placeholder: 'Agregar site…', mayusculas: false, buscar: t => buscarSitesDe(proyectoFlm, t)});
+    campo(caja, 'Nombre del site', selSite);
+    const error = errorCaja(); caja.append(error);
+    ventana('WO / Site pendiente · ' + (c['N° COTIZACION'] || c.key), fichasDetalle(c), caja, [['Guardar WO y site', 'cn-verde', 'fa-floppy-disk', conErrorEn(error, async () => {
+      const wo = selWo.valores().join(', '), site = selSite.valores().join(', ');
+      if (!wo && !site) throw Error('Agrega el N.º WO o el site.');
+      const r = await fetch('/api/cot-new/guardar', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({key: c.key, data: {...(wo ? {'NUMERO WO': wo} : {}), ...(site ? {'NOMBRE SITE': site} : {})}})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.error) throw Error(j.error || 'No se pudo guardar.');
+      dialogo.close(); await cargar();
+      avisar((c['N° COTIZACION'] || c.key) + ': WO y site guardados.');
+    })]]);
   }
   function botonRedondo([titulo, clase, simbolo, fn], tamano) {
     // Fila: mismo botón redondo de Caja Chica (cc-rapida); ventana: botón grande junto a la X.

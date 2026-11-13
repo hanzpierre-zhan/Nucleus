@@ -1224,6 +1224,7 @@ def api_cotizacion_proveedor():
         error = _guardar_registros_proveedor(proy, key, row, data.get('registros'))
         if error:
             return jsonify({'error': error}), 400
+        _marcar_fecha_factura(row)
         db.session.add(NucleusHistory(proyecto_id=proy.id, key_value=key, data_json=fila.data_json))
         fila.data_json = safe_json_dumps(row)
         db.session.commit()
@@ -1262,10 +1263,18 @@ def api_cotizacion_proveedor():
     row['_PROVEEDOR_FACTURAS']=facturas
     row['_PROVEEDOR_OCS']=ocs
     if ocs:row['ADJUNTO OC PROVEEDOR']=ocs[0]
+    _marcar_fecha_factura(row)
     db.session.add(NucleusHistory(proyecto_id=proy.id,key_value=key,data_json=fila.data_json))
     fila.data_json = safe_json_dumps(row)
     db.session.commit()
     return jsonify({'success': True, 'newData': row})
+
+
+def _marcar_fecha_factura(row):
+    """SLA de Proveedor: la primera vez que quedan completas las facturas se guarda la fecha y hora (Perú)."""
+    from blueprints.cot_new import documentos_proveedor
+    if documentos_proveedor(row) and not row.get('FECHA FACTURA PROVEEDOR'):
+        row['FECHA FACTURA PROVEEDOR'] = (datetime.utcnow() - timedelta(hours=5)).strftime('%Y-%m-%d %H:%M:%S')
 
 
 def _guardar_registros_proveedor(proy, key, row, registros):

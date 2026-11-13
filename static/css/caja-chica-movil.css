@@ -109,3 +109,9 @@
 .cm-hoja-pie { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 12px; }
 .cm-hoja-pie button { padding: 13px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-weight: 700; }
 .cm-hoja-pie .cm-hoja-ver { background: var(--balance); border-color: var(--balance); color: #fff; }
+
+/* Menú: opciones del usuario de Caja Chica (restricciones de Mobile y conceptos). */
+.cm-menu-separador { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
+.cm-menu-enlace { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: var(--ink); text-decoration: none; font-size: 14px; }
+.cm-menu-enlace:hover, .cm-menu-enlace:focus-visible { background: var(--fill); }
+.cm-menu-enlace svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

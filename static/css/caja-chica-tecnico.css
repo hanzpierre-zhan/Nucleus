@@ -179,3 +179,10 @@ a.back{text-decoration:none;display:inline-block}
 .cc-tope-lleno[data-nivel="ambar"] { background: #f59e0b; }
 .cc-tope-lleno[data-nivel="rojo"] { background: #ef4444; }
 #cc-form.cc-bloqueado { opacity: .6; }
+
+/* CCI: contador de dígitos (exactamente 20). */
+.cc-cuenta-ayuda { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.cc-cuenta-ayuda[data-estado="falta"] { color: #b45309; font-weight: 600; }
+.cc-cuenta-ayuda[data-estado="ok"] { color: #15803d; font-weight: 600; }
+:root[data-theme="dark"] .cc-cuenta-ayuda[data-estado="falta"] { color: #fcd34d; }
+:root[data-theme="dark"] .cc-cuenta-ayuda[data-estado="ok"] { color: #86efac; }

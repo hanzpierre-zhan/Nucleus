@@ -88,3 +88,6 @@ clean_sla.py
 # Dependencias y material local de revisión del expediente (no se despliegan).
 node_modules/
 /scratch/expediente/
+
+# Excel de revisión con datos de producción (no se versiona)
+revision/

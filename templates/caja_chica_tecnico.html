@@ -1,5 +1,5 @@
 ﻿<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Caja Chica · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-tecnico.css',v=21) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Caja Chica · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=10) }}"><link rel="stylesheet" href="{{ url_for('static',filename='css/caja-chica-tecnico.css',v=22) }}"></head>
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Caja Chica</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
 <main class="shell">
@@ -49,7 +49,8 @@
     </fieldset>
     <fieldset><legend>Datos del depósito</legend>
     <label for="cc-cuenta">CCI (20 dígitos)</label>
-    <input id="cc-cuenta" name="cuenta" inputmode="numeric" maxlength="20" pattern="[0-9]{20}" required>
+    <input id="cc-cuenta" name="cuenta" inputmode="numeric" minlength="20" maxlength="20" pattern="[0-9]{20}" required aria-describedby="cc-cuenta-ayuda">
+    <small id="cc-cuenta-ayuda" class="cc-cuenta-ayuda" aria-live="polite">Debe tener exactamente 20 dígitos.</small>
     <label for="cc-banco">Banco</label>
     <select id="cc-banco" name="banco" required><option value="">Selecciona un banco</option>{% for b in bancos %}<option>{{ b }}</option>{% endfor %}</select>
     <label for="cc-titular">Titular de la cuenta</label><input id="cc-titular" name="titular" maxlength="150">
@@ -97,4 +98,4 @@
 <input id="csrf" type="hidden" value="{{ csrf }}">
 </main>
 <footer>NUCLEUS · Caja Chica</footer>
-<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=35) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=36) }}" defer></script></body></html>

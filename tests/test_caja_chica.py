@@ -137,6 +137,13 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     libro = load_workbook(io.BytesIO(exportacion.data))
     hoja = libro['Historial']
     assert hoja['A2'].value == sol['codigo'] and hoja.max_row == 3  # una fila por ítem
+    # Resumen ejecutivo: primera hoja, con las tablas de seguimiento.
+    assert libro.sheetnames[0] == 'Resumen ejecutivo'
+    textos = {c.value for f in libro['Resumen ejecutivo'].iter_rows() for c in f if isinstance(c.value, str)}
+    for seccion in ('Indicadores', 'Técnicos que más deben por rendir', 'Responsables de validación: técnicos por rendir',
+                    'Técnicos que no están en Dataper, por proyecto', 'Datos faltantes por proyecto (site y CM/PM/PLM)',
+                    'Gasto Cobra vs Refacturable', 'Conceptos de gasto', 'Por proyecto'):
+        assert seccion in textos, seccion
     fila = dict(zip([c.value for c in hoja[1]], [c.value for c in hoja[2]]))
     assert [fila['Solicitado'], fila['Depositado'], fila['Estado de rendición'], fila['Estado de solicitud']] == [50, 0, 'Sin depósito', 'Validación']
     assert fila['Tipo de gasto'] == sol['items'][0].get('tipo_presupuesto', fila['Tipo de gasto'])

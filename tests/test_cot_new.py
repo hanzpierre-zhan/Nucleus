@@ -8,6 +8,11 @@ from models import NucleusData, Proyecto
 from blueprints.cot_new import en_proveedor, pestana_de
 
 
+def _sin_pendientes(lista):
+    """Estas pruebas no completan WO/site: se ignora la pestaña extra 'WO / Site pendiente'."""
+    return [p for p in lista if p != 'pendientes']
+
+
 def test_pestanas_segun_estado():
     assert pestana_de({'ESTADO COTIZACION': 'Pdt. Cotización'}) == 'registro'
     assert pestana_de({'ESTADO COTIZACION': 'En Aprobación'}) == 'cliente'
@@ -35,7 +40,7 @@ def test_lista_y_exportar(app, auth_client):
     try:
         assert auth_client.get('/cot-new/').status_code == 200
         datos = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['id'] == fid)
-        assert datos['pestanas'] == ['sustentar', 'proveedor'] and datos['monto'] == '2440.94'
+        assert _sin_pendientes(datos['pestanas']) == ['sustentar', 'proveedor'] and datos['monto'] == '2440.94'
         assert datos['familia'] == 'CLARO' and datos['items'][0]['texto'] == 'Cable'
         r = auth_client.post('/api/cot-new/exportar', json=[fid])
         hoja = load_workbook(io.BytesIO(r.data)).active
@@ -55,7 +60,7 @@ def test_nueva_cotizacion_desde_cot_new(app, auth_client):
     assert r.status_code == 200 and r.json['key'].startswith('CL-'), r.json
     try:
         fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == r.json['key'])
-        assert fila['pestanas'] == ['registro'] and fila['monto'] == '348.71' and fila['GESTOR']
+        assert _sin_pendientes(fila['pestanas']) == ['registro'] and fila['monto'] == '348.71' and fila['GESTOR']
     finally:
         with app.app_context():
             NucleusData.query.filter_by(key_value=r.json['key']).delete(); db.session.commit()
@@ -96,35 +101,35 @@ def test_flujo_pago_caja_chica_proveedor_transito(app, auth_client):
     foto = '/api/cotizacion/correo/%d/%s/pago_abc.jpg'
     try:
         # Aprobadas antes del flujo de pago: van directo a Operaciones.
-        assert pestanas_de({'ESTADO COTIZACION': 'Aprobado', 'TIPO GASTO APROBACION': 'Caja Chica'}) == ['sustentar']
+        assert _sin_pendientes(pestanas_de({'ESTADO COTIZACION': 'Aprobado', 'TIPO GASTO APROBACION': 'Caja Chica'})) == ['sustentar']
         # Tránsito: cae en Caja chica; al pagar va a Operaciones y queda en Tránsito.
-        assert pestanas('CN-PAGO-T') == ['cajachica']
+        assert _sin_pendientes(pestanas('CN-PAGO-T')) == ['cajachica']
         assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': '/otra/foto.jpg'}).status_code == 400
         r = auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': foto % (pid, 'CN-PAGO-T')})
-        assert r.status_code == 200 and r.json['pestanas'] == ['sustentar', 'transito'], r.json
+        assert r.status_code == 200 and _sin_pendientes(r.json['pestanas']) == ['sustentar', 'transito'], r.json
         fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == 'CN-PAGO-T')
         # Tránsito paga el monto definido y deja la provisión (20 % de ese monto) para el proveedor.
         assert fila['FECHA PAGO'] and fila['FOTO PAGO'].endswith('pago_abc.jpg') and fila['MONTO PAGADO'] == '80.00'
         assert fila['PROVISION'] == '16.00'
         assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-T', 'foto': foto % (pid, 'CN-PAGO-T')}).status_code == 409
         r = auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-T', 'desde': 'transito', 'hacia': 'proveedor'})
-        assert r.json['pestanas'] == ['sustentar', 'proveedor']
+        assert _sin_pendientes(r.json['pestanas']) == ['sustentar', 'proveedor']
         # En Proveedor (ya pagada): derivar a Caja chica la saca de Proveedor y sigue en Operaciones.
         r = auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-T', 'desde': 'proveedor', 'hacia': 'cajachica'})
-        assert r.json['pestanas'] == ['sustentar']
+        assert _sin_pendientes(r.json['pestanas']) == ['sustentar']
         # Pasar a Tránsito exige el monto a depositar.
         assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'transito'}).status_code == 400
         r = auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'transito', 'monto_transito': '50'})
-        assert r.status_code == 200 and r.json['pestanas'] == ['cajachica']
+        assert r.status_code == 200 and _sin_pendientes(r.json['pestanas']) == ['cajachica']
         fila = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['key'] == 'CN-PAGO-C')
         assert fila['MONTO TRANSITO'] == '50.00'
         # Caja chica: a Proveedor (pide factura antes de pagar; en paralelo ya está en Operaciones) y de vuelta a Caja chica.
-        assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'proveedor'}).json['pestanas'] == ['sustentar', 'proveedor']
+        assert _sin_pendientes(auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'cajachica', 'hacia': 'proveedor'}).json['pestanas']) == ['sustentar', 'proveedor']
         assert auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-C', 'foto': foto % (pid, 'CN-PAGO-C')}).status_code == 409
         assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'transito', 'hacia': 'proveedor'}).status_code == 409
-        assert auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'proveedor', 'hacia': 'cajachica'}).json['pestanas'] == ['cajachica']
+        assert _sin_pendientes(auth_client.post('/api/cot-new/mover', json={'key': 'CN-PAGO-C', 'desde': 'proveedor', 'hacia': 'cajachica'}).json['pestanas']) == ['cajachica']
         r = auth_client.post('/api/cot-new/pagar', json={'key': 'CN-PAGO-C', 'foto': foto % (pid, 'CN-PAGO-C')})
-        assert r.json['pestanas'] == ['sustentar']
+        assert _sin_pendientes(r.json['pestanas']) == ['sustentar']
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.key_value.in_(['CN-PAGO-T', 'CN-PAGO-C'])).delete(); db.session.commit()
@@ -194,3 +199,26 @@ def test_depositos_de_caja_chica_por_cotizacion(app, auth_client):
             NucleusData.query.filter_by(key_value='CN-DEP-1').delete()
             CajaChicaSolicitud.query.filter(CajaChicaSolicitud.codigo.like('COB-9000%')).delete(synchronize_session=False)
             db.session.commit()
+
+
+def test_pestana_wo_site_pendiente():
+    from blueprints.cot_new import falta_wo_site, pestanas_de
+    base = {'ESTADO COTIZACION': 'Aprobado', 'NUMERO WO': 'CM-20261109-00000002', 'NOMBRE SITE': 'LIMA_CENTRO'}
+    assert not falta_wo_site(base) and 'pendientes' not in pestanas_de(base)
+    for cambio in ({'NUMERO WO': ''}, {'NUMERO WO': 'NO TIENE'}, {'NOMBRE SITE': ' '}, {'NOMBRE SITE': 'site pendiente'}):
+        datos = {**base, **cambio}
+        assert pestanas_de(datos)[-1] == 'pendientes' and pestanas_de(datos)[0] == 'sustentar'  # se suma a la normal
+    assert 'pendientes' not in pestanas_de({**base, 'NUMERO WO': '', 'ESTADO COTIZACION': 'Anulado'})
+    assert pestanas_de({**base, 'NOMBRE SITE': '', '_PAGO_PENDIENTE': '1', 'TIPO GASTO APROBACION': 'Caja Chica'}) == ['cajachica', 'pendientes']
+
+
+def test_sla_proveedor_guarda_fecha_al_completar_facturas(app):
+    from blueprints.cotizacion import _marcar_fecha_factura
+    row = {'NUMERO FACTURA PROVEEDOR': 'F001-1', 'NUMERO OC PROVEEDOR': 'OC-1', 'SUBTOTAL FACTURA PROVEEDOR': '100.00'}
+    _marcar_fecha_factura(row)
+    assert 'FECHA FACTURA PROVEEDOR' not in row  # falta el archivo de la factura
+    row['ADJUNTO FACTURA PROVEEDOR'] = '/api/cotizacion/correo/1/X/factura_proveedor_a.pdf'
+    _marcar_fecha_factura(row)
+    primera = row['FECHA FACTURA PROVEEDOR']
+    _marcar_fecha_factura(row)
+    assert row['FECHA FACTURA PROVEEDOR'] == primera  # el SLA se cierra una sola vez
