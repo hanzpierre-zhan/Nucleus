@@ -626,14 +626,20 @@
     cotizacion.append(entrada, opciones, estado);
     const control = el('div', 'cc-cotizacion-control cc-campo-ancho');
     control.hidden = true;
+    let todas = [];
     const actualizar = lista => {
       const numero = entrada.value.trim().toUpperCase();
       const seleccion = lista.find(c => c.numero.toUpperCase() === numero);
       control.hidden = !seleccion;
       if (!seleccion) {
-        estado.textContent = numero ? 'Selecciona una cotización de la lista.' : '';
+        const otra = todas.find(c => c.numero.toUpperCase() === numero);
+        estado.textContent = !numero ? '' : !otra ? 'Selecciona una cotización de la lista.'
+          : !otra.aprobada ? 'La cotización ' + otra.numero + ' aún no está aprobada por el cliente (' + (otra.estado || 'sin estado') + ').'
+            : 'La cotización ' + otra.numero + ' no tiene adjunto el correo de aprobación del cliente.';
+        estado.classList.toggle('cc-cotizacion-no', !!otra);
         return;
       }
+      estado.classList.remove('cc-cotizacion-no');
       estado.textContent = [seleccion.estado || 'Sin estado', seleccion.proyecto].filter(Boolean).join(' · ');
       const actual = Number(entrada.dataset.totalCentimos ?? Math.round(Number(sol.total) * 100));
       const otras = Math.round(Number(seleccion.otras_solicitudes) * 100);
@@ -656,8 +662,11 @@
     fetch('/api/caja-chica/cotizaciones?' + new URLSearchParams({solicitud: sol.id})).then(async respuesta => {
       if (!respuesta.ok) throw Error('No se pudieron cargar las cotizaciones.');
       const {cotizaciones} = await respuesta.json();
-      const lista = [...cotizaciones.filter(c => c.proyecto === sol.proyecto),
-        ...cotizaciones.filter(c => c.proyecto !== sol.proyecto)];
+      todas = cotizaciones;
+      // Solo se pueden elegir las aprobadas por el cliente y con su correo adjunto.
+      const usables = cotizaciones.filter(c => c.aprobada && c.correo);
+      const lista = [...usables.filter(c => c.proyecto === sol.proyecto),
+        ...usables.filter(c => c.proyecto !== sol.proyecto)];
       const sugerencias = document.createDocumentFragment();
       for (const c of lista) {
         sugerencias.append(new Option([c.estado || 'Sin estado', c.proyecto].filter(Boolean).join(' · '), c.numero));
@@ -981,17 +990,39 @@
     // Totales: depositado, aprobado, en revisión, rechazado y la devolución estimada.
     const suma = (estados, campo) => sol.items.filter(i => estados.includes(i.estado)).reduce((t, i) => t + Number(i[campo] || 0), 0);
     const depositado = Number(sol.deposito_monto || sol.total);
-    const aprobado = suma(['APROBADO'], 'monto_gastado');
+    // Refacturable: se cierra al depositar (no se rinde); va aparte del aprobado.
+    const refacturable = sol.items.filter(i => i.refacturable_auto).reduce((t, i) => t + Number(i.monto || 0), 0);
+    const aprobado = suma(['APROBADO'], 'monto_gastado') - refacturable;
     const enRevision = suma(['EN_REVISION'], 'monto_gastado');
     const porDevolver = sol.estado === 'POR_DEVOLVER' ? Number(sol.diferencia)
-      : depositado - aprobado - enRevision - suma(['RECHAZADO', 'POR_RENDIR'], 'monto');
+      : depositado - refacturable - aprobado - enRevision - suma(['RECHAZADO', 'POR_RENDIR'], 'monto');
     const totales = el('div', 'cc-rev-totales');
-    for (const [titulo, valor, clase] of [['Depositado', depositado], ['Aprobado', aprobado, 'ok'], ['En revisión', enRevision, 'rev'],
+    for (const [titulo, valor, clase] of [['Depositado', depositado], ...(refacturable ? [['Refacturable', refacturable, 'rf']] : []), ['Aprobado', aprobado, 'ok'], ['En revisión', enRevision, 'rev'],
       ['Rechazado', suma(['RECHAZADO'], 'monto'), 'no'], [sol.estado === 'POR_DEVOLVER' ? 'Por devolver' : 'Por devolver (estimado)', Math.max(0, porDevolver), 'dev']]) {
       const caja = el('div', clase ? 'cc-rev-' + clase : null); caja.append(el('small', null, titulo), el('strong', null, dinero(valor))); totales.append(caja);
     }
     detalleFicha.append(totales);
     columna.append(detalleFicha);
+    const refacturables = sol.items.filter(i => i.refacturable_auto);
+    if (refacturables.length) {
+      const caja = el('section', 'cc-ficha cc-rev-refacturable');
+      const cab = el('h4', 'cc-ficha-titulo'); cab.append(icono('fa-file-invoice-dollar'), el('span', 'cc-rev-nombre', 'Refacturable · ' + refacturables.length + (refacturables.length === 1 ? ' concepto' : ' conceptos')));
+      caja.append(cab);
+      const lista = el('dl', 'cc-ficha-datos');
+      for (const i of refacturables) { const f = el('div', 'cc-ficha-fila'); f.append(el('dt', null, i.numero + ' · ' + i.tipo_gasto), el('dd', 'cc-num', dinero(i.monto))); lista.append(f); }
+      caja.append(lista);
+      const correo = el('p', 'cc-nota', sol.revision?.cotizacion ? 'Buscando el correo de aprobación del cliente…' : 'Sin cotización vinculada.');
+      caja.append(correo);
+      if (sol.revision?.cotizacion) {
+        fetch('/api/caja-chica/cotizacion-cliente?' + new URLSearchParams({numero: sol.revision.cotizacion})).then(r => r.json()).then(({cotizacion: c}) => {
+          if (!c?.correo) { correo.textContent = 'La cotización ' + sol.revision.cotizacion + ' no tiene el correo de aprobación del cliente.'; return; }
+          const a = el('a', 'cc-rev-correo'); a.href = c.correo; a.target = '_blank'; a.rel = 'noopener';
+          a.append(icono('fa-envelope'), el('span', null, 'Correo de aprobación del cliente · ' + c.numero + (c.nombre_correo ? ' · ' + c.nombre_correo : '')));
+          correo.replaceWith(a);
+        }).catch(() => { correo.textContent = 'No se pudo cargar el correo de aprobación.'; });
+      }
+      columna.append(caja);
+    }
     const porRevisar = itemsEtapa(sol, 'revision');
     if (porRevisar.length) {
       columna.append(el('h5', 'cc-rev-seccion', 'Por revisar · ' + porRevisar.length),

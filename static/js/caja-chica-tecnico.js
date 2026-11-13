@@ -12,7 +12,7 @@
   let datos = null, corrigiendo = null;  // corrigiendo = solicitud rechazada que se está reenviando
   // Gasto Cobra (azul) o Refacturable (naranja): la misma etiqueta en todo Nucleus.
   const tipoDe = t => !t ? '' : /refact/i.test(t) ? 'Refacturable' : 'Gasto Cobra';
-  const etiquetaTipo = t => el('span', 'cc-tipo ' + (t === 'Refacturable' ? 'cc-tipo-rf' : 'cc-tipo-gc'), t === 'Refacturable' ? '◆ Refacturable' : t);
+  const etiquetaTipo = t => el('span', 'cc-tipo ' + (t === 'Refacturable' ? 'cc-tipo-rf' : 'cc-tipo-gc'), t);
   const conRefacturable = items => (items || []).some(i => tipoDe(i.tipo_presupuesto) === 'Refacturable');
   // Restricciones de Mobile: aviso por monto, bloqueos y refacturables pendientes.
   function restricciones(nuevo = true) {
@@ -32,7 +32,7 @@
     }
     if (r.refacturables) {
       const {pendientes, maximo} = r.refacturables, lleno = pendientes >= maximo;
-      caja.append(el('p', 'cc-restriccion refact' + (lleno ? ' lleno' : ''), '◆ Refacturables sin rendir: ' + pendientes + ' de ' + maximo
+      caja.append(el('p', 'cc-restriccion refact' + (lleno ? ' lleno' : ''), 'Refacturables sin rendir: ' + pendientes + ' de ' + maximo
         + (lleno && nuevo ? ' · rinde uno para pedir otro refacturable' : '')));
     }
     return caja;
@@ -374,20 +374,27 @@
     detalle.replaceChildren(resumen);
     $('cc-titulo-rendir').textContent = sol.estado === 'RECHAZADO' ? 'Solicitud rechazada' : 'Rendir depósito';
     if (['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado)) {
-      // Resumen: depositado, aprobado y lo que falta sustentar.
-      const aprobado = sol.items.filter(i => i.estado === 'APROBADO').reduce((t, i) => t + Number(i.monto_gastado || 0), 0);
+      // Resumen: Gasto Cobra a rendir y lo Refacturable aparte (no se rinde).
+      const refact = sol.items.filter(i => i.refacturable_auto).reduce((t, i) => t + Number(i.monto || 0), 0);
       const porSustentar = sol.items.filter(i => ['POR_RENDIR', 'RECHAZADO', 'EN_REVISION'].includes(i.estado))
         .reduce((t, i) => t + Number(i.monto || 0), 0);
       const aDevolver = sol.items.reduce((t, i) => t + saldoItem(i), 0);
       const resumen = el('div', 'cc-resumen-rendir');
-      for (const [titulo, valor, clase] of [['Depositado', sol.deposito_monto || sol.total], ['Aprobado', aprobado, 'ok'],
-        ['Por sustentar', porSustentar, 'pend'], ['A devolver', aDevolver, 'dev']]) {
+      for (const [titulo, valor, clase] of [['Depositado', sol.deposito_monto || sol.total], ['Gasto Cobra a rendir', porSustentar, 'pend'],
+        ...(refact ? [['Refacturable', refact, 'rf']] : []), ['A devolver', aDevolver, 'dev']]) {
         const caja = el('div', clase || null); caja.append(el('small', null, titulo), el('strong', null, dinero(valor))); resumen.append(caja);
       }
       detalle.append(resumen);
     }
     for (const item of sol.items) {
       const fila = el('section', 'card cc-item-fila cc-item-' + item.estado.toLowerCase() + (conRefacturable([item]) ? ' cc-con-refacturable' : ''));
+      if (item.refacturable_auto) {
+        // Refacturable: solo se muestra (no se rinde ni se devuelve).
+        const cabRf = el('div', 'cc-item-cabecera'); cabRf.append(el('strong', null, item.numero + ' · ' + item.tipo_gasto), etiquetaTipo('Refacturable'));
+        fila.append(cabRf, el('small', null, (item.descripcion ? item.descripcion + ' · ' : '') + dinero(item.monto)));
+        detalle.append(fila);
+        continue;
+      }
       const cab = el('div', 'cc-item-cabecera');
       cab.append(el('strong', null, item.numero + ' · ' + item.tipo_gasto), el('span', 'cc-chip cc-' + item.estado.toLowerCase(), ITEM[item.estado]));
       fila.append(cab);
@@ -467,6 +474,10 @@
   function pintar() {
     const total = datos.solicitudes.reduce((suma, sol) => suma + montoPendiente(sol), 0);
     $('cc-pendiente').textContent = dinero(total / 100);
+    const refact = datos.solicitudes.filter(sol => ['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado))
+      .flatMap(sol => sol.items).filter(i => i.refacturable_auto).reduce((t, i) => t + Number(i.monto || 0), 0);
+    $('cc-refacturable').hidden = !refact;
+    $('cc-refacturable').replaceChildren(el('span', null, 'Refacturable'), el('strong', null, dinero(refact)));
     $('cc-restricciones').replaceChildren(restricciones());
     const lista = $('cc-lista');
     lista.replaceChildren();

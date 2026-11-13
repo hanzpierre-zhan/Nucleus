@@ -186,3 +186,10 @@ a.back{text-decoration:none;display:inline-block}
 .cc-cuenta-ayuda[data-estado="ok"] { color: #15803d; font-weight: 600; }
 :root[data-theme="dark"] .cc-cuenta-ayuda[data-estado="falta"] { color: #fcd34d; }
 :root[data-theme="dark"] .cc-cuenta-ayuda[data-estado="ok"] { color: #86efac; }
+
+/* Refacturable: aparte del Gasto Cobra por rendir (no se rinde). */
+.cc-balance-rf { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .18); font-size: 13px; color: var(--balance-muted); }
+.cc-balance-rf strong { color: #fff; }
+.cc-resumen-rendir .rf { background: rgba(124, 58, 237, .12); }
+.cc-resumen-rendir .rf small, .cc-resumen-rendir .rf strong { color: #6d28d9; }
+:root[data-theme="dark"] .cc-resumen-rendir .rf small, :root[data-theme="dark"] .cc-resumen-rendir .rf strong { color: #c4b5fd; }

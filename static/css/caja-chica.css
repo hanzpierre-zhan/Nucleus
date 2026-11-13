@@ -746,3 +746,15 @@ body.dark-mode .cc-chip.cc-refacturable { color: #c4b5fd; }
 .cc-fila-solicitud.cc-fila-refacturable { box-shadow: inset 4px 0 0 #7c3aed; background: rgba(124, 58, 237, .05); }
 .cc-chip.cc-refacturable { background: #6d28d9 !important; color: #fff !important; font-weight: 700; }
 body.dark-mode .cc-chip.cc-refacturable { background: #7c3aed !important; color: #fff !important; }
+
+/* Revisión: total Refacturable (no se rinde) aparte. */
+.cc-rev-totales:has(.cc-rev-rf) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.cc-rev-totales .cc-rev-rf { background: rgba(124, 58, 237, .12); }
+.cc-rev-totales .cc-rev-rf small, .cc-rev-totales .cc-rev-rf strong { color: #7c3aed; }
+
+/* Revisión: conceptos refacturables (no se aprueban) con el correo de aprobación del cliente. */
+.cc-rev-refacturable { border-color: rgba(124, 58, 237, .45) !important; background: rgba(124, 58, 237, .06); }
+.cc-rev-refacturable .cc-ficha-titulo { color: #7c3aed; }
+.cc-rev-correo { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; padding: 6px 12px; border-radius: 999px; background: rgba(124, 58, 237, .14); color: #6d28d9 !important; text-decoration: none; font-weight: 600; font-size: 12.5px; }
+body.dark-mode .cc-rev-correo { color: #c4b5fd !important; }
+.cc-cotizacion-no { color: #dc2626 !important; font-weight: 600; }

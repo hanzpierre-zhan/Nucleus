@@ -440,6 +440,8 @@ def validar(sol, usuario, tiempo=None):
             'Abre el código de la solicitud y adjunta el correo de validación.')
     _exigir(not any(i.get('requiere_cotizacion') for i in datos['items']) or revision.get('cotizacion'),
             'Abre el código de la solicitud e ingresa el número de cotización.')
+    if revision.get('cotizacion'):
+        exigir_cotizacion_aprobada(revision['cotizacion'])
     tiempo = _tiempo_respuesta(tiempo)
     sol.estado, sol.validado_por, sol.validado_en = 'VALIDADO', usuario, datetime.utcnow()
     sol.motivo_rechazo = None
@@ -450,9 +452,42 @@ def validar(sol, usuario, tiempo=None):
     db.session.commit()
 
 
+def cotizacion_cliente(numero):
+    """Datos de la cotización para Caja Chica: si el cliente ya la aprobó y su correo de aprobación."""
+    from models import NucleusData
+    numero = str(numero or '').strip()
+    modulo = Proyecto.query.filter_by(nombre='Cotizaciones').first()
+    if not numero or not modulo:
+        return None
+    for (crudo,) in (NucleusData.query.filter(NucleusData.proyecto_id == modulo.id, NucleusData.data_json.contains(numero))
+                     .with_entities(NucleusData.data_json).limit(20)):
+        try:
+            datos = json.loads(crudo or '{}')
+        except ValueError:
+            continue
+        if str(datos.get('N° COTIZACION') or '').strip().upper() != numero.upper():
+            continue
+        estado = str(datos.get('ESTADO COTIZACION') or '').strip().lower()
+        return {'numero': numero, 'estado': datos.get('ESTADO COTIZACION') or '',
+                'aprobada': estado in ('aprobado', 'sustentar', 'atendido', 'validado'),
+                'correo': str(datos.get('ADJUNTO CORREO CLIENTE') or '').strip(),
+                'nombre_correo': str(datos.get('NOMBRE CORREO CLIENTE') or '').strip()}
+    return None
+
+
+def exigir_cotizacion_aprobada(numero):
+    """Solo se usa una cotización ya aprobada por el cliente y con su correo de aprobación adjunto."""
+    datos = cotizacion_cliente(numero)
+    _exigir(datos, 'La cotización %s no existe en Cotizaciones.' % numero)
+    _exigir(datos['aprobada'], 'La cotización %s aún no está aprobada por el cliente (está en "%s").' % (numero, datos['estado'] or 'sin estado'))
+    _exigir(datos['correo'], 'La cotización %s no tiene adjunto el correo de aprobación del cliente.' % numero)
+
+
 def _documentos_revision(sol, cotizacion, archivo, revision, tiempo=None):
     cotizacion = str(cotizacion or '').strip()
     _exigir(len(cotizacion) <= 80, 'El número de cotización admite hasta 80 caracteres.')
+    if cotizacion and cotizacion.upper() != str(revision.get('cotizacion') or '').strip().upper():
+        exigir_cotizacion_aprobada(cotizacion)
     adjunto = revision.get('archivo', '')
     if archivo and archivo.filename:
         adjunto = guardar_correo(sol, archivo)
@@ -542,7 +577,30 @@ def depositar(sol, usuario, monto, foto, importe, comentario=''):
     sol.deposito_fecha = (ahora - timedelta(hours=5)).strftime('%Y-%m-%d')  # día en Lima (UTC-5)
     sol.deposito_foto, sol.depositado_por = foto, usuario
     _historial(sol, 'depositar', usuario, str(comentario or '').strip()[:300])
+    cerrar_refacturables(sol, ahora)
+    _cerrar_si_resuelto(sol, usuario)
     db.session.commit()
+
+
+REFACTURABLE_AUTO = 'Refacturable · no se rinde'
+
+
+def es_refacturable(sol, item):
+    """El concepto del ítem es Refacturable (según los conceptos guardados al solicitar)."""
+    historial = json.loads(sol.historial or '[]')
+    conceptos = next((e['conceptos'] for e in reversed(historial) if 'conceptos' in e), {})
+    return 'refact' in str((conceptos.get(str(item.numero)) or {}).get('tipo_presupuesto') or '').lower()
+
+
+def cerrar_refacturables(sol, ahora=None):
+    """Los conceptos Refacturables no se rinden: al depositar quedan cerrados como gastados por lo solicitado.
+
+    El técnico solo rinde Gasto Cobra; la devolución sale solo de lo que sobre de esos conceptos."""
+    ahora = ahora or datetime.utcnow()
+    for item in sol.items:
+        if item.estado in ('POR_RENDIR', 'RECHAZADO') and es_refacturable(sol, item):
+            item.estado, item.monto_gastado = 'APROBADO', item.monto
+            item.revisado_por, item.revisado_en, item.motivo_rechazo = REFACTURABLE_AUTO, ahora, None
 
 
 def revisar_item(sol, item, usuario, aprobar, motivo=''):
@@ -787,6 +845,7 @@ def a_dict(sol, gestion=False):
                    'rendido_en': i.rendido_en.isoformat(timespec='minutes') if i.rendido_en else '',
                    'revisado_en': i.revisado_en.isoformat(timespec='minutes') if i.revisado_en else '',
                    'revisado_por': i.revisado_por or '',
+                   'refacturable_auto': i.revisado_por == REFACTURABLE_AUTO,
                    # Última corrección de monto hecha al revisar (el técnico ve el porqué).
                    'correccion': next((e.get('motivo') or '' for e in reversed(historial)
                                        if e.get('accion') == 'corregir monto ítem %d' % i.numero), ''),
@@ -880,6 +939,8 @@ def exportar_excel(solicitudes, dataper=None):
             devuelto = item.monto if item.estado == 'DEVUELTO' else (item.monto - gastado if rendido else cero)
             if not depositada:
                 estado_rendicion = 'Sin depósito'
+            elif item.estado == 'APROBADO' and item.revisado_por == REFACTURABLE_AUTO:
+                estado_rendicion = 'Refacturable (no se rinde)'
             elif item.estado == 'APROBADO':
                 estado_rendicion = 'Rendido con saldo' if devuelto > 0 else 'Rendido'
             else:

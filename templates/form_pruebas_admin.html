@@ -2,6 +2,8 @@
 {% block content %}
 {% set enlace = url_for('caja_chica.mobile', _external=True) %}
 <style>
+/* El contenedor de la app no desplaza: esta pantalla tiene su propio scroll. */
+.mb-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .mb { max-width: 980px; margin: 24px auto; padding: 16px; }
 .mb h1 { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
 .mb-sub { color: var(--text-secondary, #94a3b8); margin: 0 0 18px; }
@@ -32,9 +34,9 @@
 .mb-alerta { padding: 9px 12px; border-radius: 10px; margin-bottom: 12px; font-size: 13px; }
 .mb-alerta.ok { background: rgba(34, 197, 94, .14); color: #22c55e; }
 .mb-alerta.error { background: rgba(239, 68, 68, .14); color: #ef4444; }
-.mb-pie { display: flex; justify-content: flex-end; margin-top: 6px; }
+.mb-pie { display: flex; justify-content: flex-end; margin-top: 6px; position: sticky; bottom: 0; padding: 10px 0; background: linear-gradient(transparent, var(--ios-bg, #111) 40%); }
 </style>
-<section class="mb">
+<div class="mb-scroll"><section class="mb">
   <h1><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i> Mobile</h1>
   <p class="mb-sub">App donde los técnicos solicitan y rinden. Todo lo que registran llega a <a href="/caja-chica/">Caja Chica</a>, donde se valida, deposita y revisa.</p>
 
@@ -87,7 +89,7 @@
     <p class="mb-nota">Las reglas miran el proyecto del técnico en Dataper y solo cuentan sus solicitudes de los proyectos marcados. Con "Solo Gasto Cobra" o "Solo Refacturable", la regla cuenta solo lo pendiente de ese tipo y solo impide pedir conceptos de ese tipo. Corregir y reenviar una solicitud rechazada no se bloquea.</p>
     <div class="mb-pie"><button type="submit" class="mb-btn verde"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Guardar restricciones</button></div>
   </form>
-</section>
+</section></div>
 <script>
 document.getElementById('mb-copiar')?.addEventListener('click', async e => {
   try { await navigator.clipboard.writeText(document.getElementById('mb-enlace').textContent.trim()); e.currentTarget.lastChild.textContent = ' Copiado'; } catch (_) {}

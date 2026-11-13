@@ -46,6 +46,42 @@ def tecnico(app, monkeypatch, tmp_path):
         db.session.commit()
 
 
+@pytest.fixture(autouse=True)
+def cotizaciones_de_prueba(app):
+    """COT-001/COT-002 aprobadas con correo del cliente; COT-003 aún en el cliente; COT-004 aprobada sin correo."""
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Cotizaciones').one().id
+        filas = [NucleusData(proyecto_id=pid, key_value=n, data_json=json.dumps(d)) for n, d in (
+            ('COT-001', {'N° COTIZACION': 'COT-001', 'ESTADO COTIZACION': 'Aprobado', 'ADJUNTO CORREO CLIENTE': '/api/cotizacion/correo/1/COT-001/c.msg'}),
+            ('COT-002', {'N° COTIZACION': 'COT-002', 'ESTADO COTIZACION': 'Atendido', 'ADJUNTO CORREO CLIENTE': '/api/cotizacion/correo/1/COT-002/c.msg'}),
+            ('COT-003', {'N° COTIZACION': 'COT-003', 'ESTADO COTIZACION': 'En aprobación'}),
+            ('COT-004', {'N° COTIZACION': 'COT-004', 'ESTADO COTIZACION': 'Aprobado'}))]
+        db.session.add_all(filas)
+        db.session.commit()
+        ids = [f.id for f in filas]
+    yield
+    with app.app_context():
+        NucleusData.query.filter(NucleusData.id.in_(ids)).delete(synchronize_session=False)
+        db.session.commit()
+
+
+def test_solo_cotizaciones_aprobadas_con_correo_del_cliente(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '50'}]}).json['solicitud']['id']
+    token = re.search(rb'data-csrf="([^"]+)"', auth_client.get('/caja-chica/').data).group(1).decode()
+    guardar = lambda numero: auth_client.post('/api/caja-chica/%d/documentos' % sid, headers={'X-CSRF-Token': token}, data={'cotizacion': numero})
+    r = guardar('COT-003')
+    assert r.status_code == 400 and 'aún no está aprobada' in r.json['error']
+    r = guardar('COT-004')
+    assert r.status_code == 400 and 'correo de aprobación' in r.json['error']
+    assert guardar('COT-001').status_code == 200
+    lista = {c['numero']: c for c in auth_client.get('/api/caja-chica/cotizaciones?solicitud=%d' % sid).json['cotizaciones']}
+    assert lista['COT-001']['aprobada'] and lista['COT-001']['correo'] and not lista['COT-003']['aprobada'] and not lista['COT-004']['correo']
+    assert auth_client.get('/api/caja-chica/cotizacion-cliente?numero=COT-001').json['cotizacion']['correo'].endswith('c.msg')
+
+
 def foto(nombre='f.png'):
     b = io.BytesIO(); Image.new('RGB', (20, 20), 'blue').save(b, 'PNG'); b.seek(0)
     return (b, nombre)
@@ -865,18 +901,40 @@ def test_mobile_admin_muestra_el_menu_completo(app, auth_client):
 def test_mobile_regla_por_tipo_de_gasto(app, auth_client, tecnico):
     cli, h = tecnico
     refact = 'Alquiler de vehículos - Refacturable'
-    sid = _solicitar(cli, h, refact, '550').json['solicitud']['id']
+    sid = _solicitar(cli, h, 'Peajes', '550').json['solicitud']['id']
     auth_client.post('/api/caja-chica/%d/validar' % sid)
     assert auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '550', 'foto': foto()}).status_code == 200
-    _reglas(app, tope={'valor': '540', 'gasto': 'cobra'}, aviso={'valor': '400', 'gasto': 'cobra'})
+    _reglas(app, tope={'valor': '540', 'gasto': 'refacturable'}, aviso={'valor': '400', 'gasto': 'refacturable'})
     try:
-        # Solo cuenta Gasto Cobra: lo refacturable por rendir no bloquea.
+        # Solo cuenta Refacturable: lo de Gasto Cobra por rendir no bloquea.
         assert _solicitar(cli, h).status_code == 200
-        _reglas(app, tope={'gasto': 'refacturable'}, aviso={'gasto': 'refacturable'})
+        _reglas(app, tope={'gasto': 'cobra'}, aviso={'gasto': 'cobra'})
         r = cli.get('/form-pruebas/caja-chica/datos', headers=h).json['restricciones']
-        assert not r['bloqueos'] and r['bloqueos_tipo'][0]['gasto'] == 'refacturable' and r['por_rendir_tope'] == '550.00'
-        bloqueada = _solicitar(cli, h, refact)
-        assert bloqueada.status_code == 400 and 'Refacturable' in bloqueada.json['error']
-        assert _solicitar(cli, h).status_code == 200  # Gasto Cobra sí puede pedir
+        assert not r['bloqueos'] and r['bloqueos_tipo'][0]['gasto'] == 'cobra' and r['por_rendir_tope'] == '550.00'
+        bloqueada = _solicitar(cli, h)
+        assert bloqueada.status_code == 400 and 'Gasto Cobra' in bloqueada.json['error']
+        assert _solicitar(cli, h, refact).status_code == 200  # Refacturable sí puede pedir
     finally:
         _reglas(app, tope={'valor': '600', 'gasto': 'ambos'}, aviso={'valor': '500', 'gasto': 'ambos'})
+
+
+def test_refacturable_no_se_rinde_y_solo_gasto_cobra_va_a_devolucion(app, auth_client, tecnico):
+    cli, h = tecnico
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Peajes', 'monto': '25'}, {'tipo_gasto': 'Alquiler de vehículos - Refacturable', 'monto': '120'}]}).json['solicitud']['id']
+    auth_client.post('/api/caja-chica/%d/validar' % sid)
+    s = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '145', 'foto': foto()}).json['solicitud']
+    peaje, alquiler = s['items']
+    assert alquiler['estado'] == 'APROBADO' and alquiler['refacturable_auto'] and alquiler['monto_gastado'] == '120.00'
+    assert peaje['estado'] == 'POR_RENDIR' and s['estado'] == 'DEPOSITADO' and s['pendiente'] == '25.00'
+    assert cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, peaje['id']), headers=h, data={
+        'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': '22', 'fotos': [foto()], 'evidencia': foto('uso.png')}).status_code == 200
+    s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': peaje['id'], 'aprobar': True}).json['solicitud']
+    assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '3.00'  # solo el sobrante del Gasto Cobra
+    # Solo refacturables: se sustenta al depositar.
+    sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
+        'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
+        'items': [{'tipo_gasto': 'Alquiler de vehículos - Refacturable', 'monto': '80'}]}).json['solicitud']['id']
+    auth_client.post('/api/caja-chica/%d/validar' % sid)
+    assert auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '80', 'foto': foto()}).json['solicitud']['estado'] == 'SUSTENTO'

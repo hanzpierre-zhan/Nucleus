@@ -312,10 +312,10 @@ def gestion_cotizaciones():
     filas = NucleusData.query.filter_by(proyecto_id=modulo.id).with_entities(
         NucleusData.key_value, _valor(raw, 'N° COTIZACION'), _valor(raw, 'ESTADO COTIZACION'),
         _valor(raw, 'ITEMS_JSON'), _valor(raw, 'CLIENTE'), _valor(raw, 'Nombre del proyecto'), _valor(raw, 'PROYECTO'),
-        _valor(raw, 'SUB TOTAL + FEE'),
+        _valor(raw, 'SUB TOTAL + FEE'), _valor(raw, 'ADJUNTO CORREO CLIENTE'),
     ).order_by(NucleusData.id.desc())
     cotizaciones = []
-    for clave, numero, estado, items, cliente, nombre, proyecto, subtotal in filas:
+    for clave, numero, estado, items, cliente, nombre, proyecto, subtotal, correo in filas:
         familia_cot = proyecto_cotizacion({'CLIENTE': cliente, 'Nombre del proyecto': nombre, 'PROYECTO': proyecto})
         if alcance is not None and familia_cot not in alcance:
             continue
@@ -323,8 +323,20 @@ def gestion_cotizaciones():
         if codigo:
             cotizaciones.append({'numero': codigo, 'estado': str(estado or '').strip(), 'proyecto': familia_cot,
                                  'monto': suma_valores_unitarios(items), 'items': cantidad_items(items),
-                                 'otras_solicitudes': str(acumulados[codigo.upper()])})
+                                 'otras_solicitudes': str(acumulados[codigo.upper()]),
+                                 # Solo se acepta si el cliente ya la aprobó y tiene su correo adjunto.
+                                 'aprobada': str(estado or '').strip().lower() in ('aprobado', 'sustentar', 'atendido', 'validado'),
+                                 'correo': bool(str(correo or '').strip())})
     return jsonify(cotizaciones=cotizaciones)
+
+
+@bp.get('/api/caja-chica/cotizacion-cliente')
+@login_required
+def gestion_cotizacion_cliente():
+    """Correo de aprobación del cliente de una cotización (lo ve la revisión en los conceptos refacturables)."""
+    _alcance()
+    datos = cc.cotizacion_cliente(request.args.get('numero'))
+    return jsonify(cotizacion=datos)
 
 
 @bp.get('/caja-chica/')
