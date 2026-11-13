@@ -72,6 +72,12 @@
                 <a href="/analytics" class="sidebar-link {% if request.path.startswith('/analytics') or request.path == '/dashboard' %}active{% endif %}" data-nav="/analytics">
                     <i class="fa-solid fa-chart-pie"></i> <span class="sidebar-link-text">Dashboard</span>
                 </a>
+                {# SLA: cumplimiento de los tickets FLM (solo para quien ve algún proyecto FLM). #}
+                {% if proyectos_list | selectattr('nombre', 'in', ['FLM - ENTEL','FLM - INTEGRATEL','FLM - CLARO','FLM - PEXT']) | list %}
+                <a href="/sla/" class="sidebar-link {% if request.path.startswith('/sla') %}active{% endif %}" data-nav="/sla/" title="SLA">
+                    <i class="fa-solid fa-stopwatch"></i> <span class="sidebar-link-text">SLA</span>
+                </a>
+                {% endif %}
                 {% endif %}
 
                 {# Proyectos FLM: un grupo que se abre y cierra (en el menú cerrado se ven solo los logos). #}
@@ -123,12 +129,6 @@
                 <a href="/liquidaciones/" class="sidebar-link {% if (request.path.startswith('/refacturable') or request.path.startswith('/liquidaciones')) %}active{% endif %}" data-nav="/liquidaciones/" title="Liquidaciones">
                     <i class="fa-solid fa-file-invoice"></i> <span class="sidebar-link-text">Liquidaciones</span>
                 </a>
-                {# SLA: cumplimiento de los tickets FLM (solo para quien ve algún proyecto FLM). #}
-                {% if _proyectos_flm %}
-                <a href="/sla/" class="sidebar-link {% if request.path.startswith('/sla') %}active{% endif %}" data-nav="/sla/" title="SLA">
-                    <i class="fa-solid fa-stopwatch"></i> <span class="sidebar-link-text">SLA</span>
-                </a>
-                {% endif %}
                 {# Backup: módulos anteriores (Cotizaciones old y Rendición). #}
                 {% set _backup = [] %}
                 {% for nombre, etiqueta, icono in [('Cotizaciones','Cotizaciones old','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet')] %}{% for p in proyectos_list %}{% if p.nombre == nombre %}{% set _ = _backup.append((p, etiqueta, icono)) %}{% endif %}{% endfor %}{% endfor %}
