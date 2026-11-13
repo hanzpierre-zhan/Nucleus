@@ -249,41 +249,176 @@ def _nombres_usuarios():
 @login_required
 def exportar():
     """Excel de las cotizaciones elegidas (la pestaña o todo), con los filtros que se ven."""
-    from openpyxl import Workbook
-    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
-    from openpyxl.styles import Font, PatternFill
-    from openpyxl.utils import get_column_letter
     ids = request.get_json(silent=True)
     if not isinstance(ids, list) or not 1 <= len(ids) <= 10000 or any(type(i) is not int for i in ids):
         return jsonify(error='Selecciona cotizaciones válidas para exportar.'), 400
     _, filas = _filas()
     por_id = {f['id']: f for f in filas}
+    archivo = armar_excel([por_id[i] for i in dict.fromkeys(ids) if i in por_id], _nombres_usuarios())
+    return send_file(archivo, as_attachment=True, download_name='Cotizaciones.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def _horas_sla(fila):
+    """Horas del SLA de Proveedor (aprobación del cliente → facturas guardadas, o hasta ahora) y si ya se cerró."""
+    from datetime import datetime, timedelta
+    if not ('proveedor' in fila['pestanas'] or fila.get('FECHA FACTURA PROVEEDOR')):
+        return None, False
+
+    def fecha(texto):
+        texto = str(texto or '').strip()
+        for formato in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d', '%d/%m/%Y %H:%M', '%d/%m/%Y'):
+            try:
+                return datetime.strptime(texto[:len(datetime.now().strftime(formato))], formato)
+            except ValueError:
+                continue
+        return None
+    inicio = fecha(fila.get('FECHA APROBACION'))
+    if not inicio:
+        return None, False
+    fin = fecha(fila.get('FECHA FACTURA PROVEEDOR'))
+    ahora = datetime.utcnow() - timedelta(hours=5)
+    return max(0, int(((fin or ahora) - inicio).total_seconds() // 3600)), bool(fin)
+
+
+def armar_excel(filas, usuarios=None):
+    """Hoja 'Resumen ejecutivo' + 'Cotizaciones' (una fila por cotización, lista para tablas dinámicas)."""
+    from collections import Counter, defaultdict
+    from openpyxl import Workbook
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    usuarios = usuarios or {}
+    nombre = lambda u: usuarios.get(str(u or '').strip().lower(), str(u or '').strip())
     nombres = {p[0]: p[1] for p in PESTANAS}
+    cero = Decimal('0')
+    def dinero(v):
+        try:
+            return Decimal(str(v or '0').replace(',', '').replace('S/', '').strip() or '0').quantize(Decimal('0.01'))
+        except (InvalidOperation, ValueError):
+            return cero
     libro = Workbook()
     hoja = libro.active
     hoja.title = 'Cotizaciones'
-    columnas = ('N° COTIZACION', 'FECHA', 'CLIENTE', 'NOMBRE CLIENTE', 'SUPERVISOR', 'NOMBRE SITE', 'NUMERO WO', 'MOTIVO',
-                'ESTADO COTIZACION', 'GESTOR', 'SOLICITADO POR', 'COTIZADO POR', 'TIPO DE GASTO', 'TIPO GASTO APROBACION')
-    hoja.append(['Pestaña', *columnas, 'Sub total + FEE'])
-    for i in ids:
-        fila = por_id.get(i)
-        if not fila:
-            continue
-        valores = [nombres[fila['pestanas'][0]], *(str(fila.get(c) or '') for c in columnas), Decimal(fila['monto'])]
-        hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in valores])
-        hoja.cell(hoja.max_row, len(valores)).number_format = '#,##0.00'
-    hoja.freeze_panes = 'A2'
+    cabecera = ['N.º cotización', 'Fecha', 'Cliente', 'Nombre de cliente', 'Supervisor', 'Site', 'N.º WO', 'Objetivo / motivo',
+                'Pestaña', 'Otras pestañas', 'Estado guardado', 'Interacción', 'Estado de pago', 'Estado operativo',
+                'Falta WO / site', 'Solicitante', 'Cotizado por', 'Tipo de gasto', 'Fecha aprobación', 'Fecha pago', 'Pagado por',
+                'Monto pagado', 'Monto Tránsito', 'Provisión (20 %)', 'Fecha facturas proveedor', 'SLA proveedor (horas)',
+                'SLA proveedor', 'Depósitos Caja Chica', 'Acumulado Caja Chica', 'Sub total + FEE']
+    hoja.append(cabecera)
+    resumen = []
+    for fila in filas:
+        horas, cerrado = _horas_sla(fila)
+        depositos = fila.get('depositos_cc') or []
+        acumulado = sum((dinero(d.get('monto')) for d in depositos), cero)
+        principal = fila['pestanas'][0]
+        valores = [fila.get('N° COTIZACION') or fila.get('key'), fila.get('FECHA'), fila.get('familia') or fila.get('CLIENTE'),
+                   fila.get('NOMBRE CLIENTE'), fila.get('SUPERVISOR'), fila.get('NOMBRE SITE'), fila.get('NUMERO WO'),
+                   fila.get('OBJETIVO') or fila.get('MOTIVO'), nombres.get(principal, principal),
+                   ', '.join(nombres.get(p, p) for p in fila['pestanas'][1:]), fila.get('ESTADO COTIZACION'),
+                   tipo_atencion(fila), fila.get('estado_pago'), fila.get('estado_operativo'),
+                   'Sí' if 'pendientes' in fila['pestanas'] else 'No',
+                   nombre(fila.get('SOLICITADO POR') or fila.get('GESTOR')), nombre(fila.get('COTIZADOR') or fila.get('COTIZADO POR')),
+                   fila.get('TIPO DE GASTO'), fila.get('FECHA APROBACION'), fila.get('FECHA PAGO'), nombre(fila.get('PAGADO POR')),
+                   dinero(fila.get('MONTO PAGADO')) if fila.get('MONTO PAGADO') else None,
+                   dinero(fila.get('MONTO TRANSITO')) if fila.get('MONTO TRANSITO') else None,
+                   dinero(fila.get('PROVISION')) if fila.get('PROVISION') else None,
+                   fila.get('FECHA FACTURA PROVEEDOR'), horas,
+                   '' if horas is None else ('%d d %d h' % divmod(horas, 24)) + (' (cerrado)' if cerrado else ' (en curso)'),
+                   ', '.join(d.get('codigo', '') for d in depositos), acumulado if depositos else None, dinero(fila.get('monto'))]
+        hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else ('' if v is None else v) for v in valores])
+        for n, v in enumerate(valores, 1):
+            if isinstance(v, Decimal):
+                hoja.cell(hoja.max_row, n).number_format = '"S/" #,##0.00'
+        resumen.append({'fila': fila, 'monto': dinero(fila.get('monto')), 'principal': nombres.get(principal, principal),
+                        'horas': horas, 'cerrado': cerrado, 'cliente': fila.get('familia') or fila.get('CLIENTE') or 'Sin cliente'})
+    hoja.freeze_panes = 'B2'
     hoja.auto_filter.ref = hoja.dimensions
     for columna in hoja.columns:
         titulo = columna[0]
         titulo.font = Font(bold=True, color='FFFFFF')
         titulo.fill = PatternFill('solid', fgColor='166534')
         hoja.column_dimensions[get_column_letter(titulo.column)].width = min(40, max(10, *(len(str(c.value or '')) + 2 for c in columna)))
+
+    # ── Resumen ejecutivo ──
+    rh = libro.create_sheet('Resumen ejecutivo', 0)
+    rh.sheet_view.showGridLines = False
+    azul = PatternFill('solid', fgColor='1E3A8A')
+
+    def titulo(texto):
+        rh.append([])
+        rh.append([texto])
+        rh.cell(rh.max_row, 1).font = Font(bold=True, size=13, color='1E3A8A')
+
+    def tabla(cab, filas_tabla):
+        rh.append(cab)
+        for celda in rh[rh.max_row]:
+            celda.font, celda.fill = Font(bold=True, color='FFFFFF'), azul
+            celda.alignment = Alignment(wrap_text=True, vertical='center')
+        if not filas_tabla:
+            rh.append(['Sin datos'])
+        for f in filas_tabla:
+            rh.append(f)
+            for n, v in enumerate(f, 1):
+                if isinstance(v, Decimal):
+                    rh.cell(rh.max_row, n).number_format = '"S/" #,##0.00'
+
+    vigentes = [r for r in resumen if r['principal'] != 'Anulado']
+    suma = lambda lista: sum((r['monto'] for r in lista), cero)
+    rh.append(['Resumen ejecutivo · Cotizaciones'])
+    rh.cell(1, 1).font = Font(bold=True, size=16, color='111827')
+    rh.append(['%d cotizaciones exportadas · %d vigentes (sin anuladas)' % (len(resumen), len(vigentes))])
+    rh.cell(2, 1).font = Font(color='6B7280')
+
+    sla = [r for r in vigentes if r['horas'] is not None]
+    abiertos = [r for r in sla if not r['cerrado']]
+    titulo('Indicadores')
+    tabla(['Indicador', 'Valor'], [
+        ['Cotizaciones vigentes', len(vigentes)], ['Monto vigente (Sub total + FEE)', suma(vigentes)],
+        ['Aprobadas por el cliente', sum(bool(r['fila'].get('estado_pago')) for r in vigentes)],
+        ['Pendiente de depósito', sum(r['fila'].get('estado_pago') == 'Pendiente Depósito' for r in vigentes)],
+        ['Sin WO o sin site', sum('pendientes' in r['fila']['pestanas'] for r in vigentes)],
+        ['Proveedor sin facturas (SLA en curso)', len(abiertos)],
+        ['SLA proveedor promedio (cerrados)', ('%.1f días' % (sum(r['horas'] for r in sla if r['cerrado']) / 24 / sum(r['cerrado'] for r in sla)))
+         if any(r['cerrado'] for r in sla) else 'Aún sin facturas guardadas con fecha'],
+    ])
+
+    def agrupar(clave, filas_base):
+        grupos = defaultdict(list)
+        for r in filas_base:
+            grupos[clave(r) or 'Sin dato'].append(r)
+        return sorted(grupos.items(), key=lambda x: -suma(x[1]))
+
+    titulo('Por pestaña')
+    tabla(['Pestaña', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: r['principal'], resumen)])
+    titulo('Por interacción (cómo se atiende)')
+    tabla(['Interacción', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: tipo_atencion(r['fila']), [r for r in vigentes if r['fila'].get('estado_pago')])])
+    titulo('Estado de pago')
+    tabla(['Estado de pago', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: r['fila'].get('estado_pago'), [r for r in vigentes if r['fila'].get('estado_pago')])])
+    titulo('Estado operativo')
+    tabla(['Estado operativo', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: r['fila'].get('estado_operativo'), [r for r in vigentes if r['fila'].get('estado_operativo')])])
+    titulo('Por cliente')
+    tabla(['Cliente', 'Cotizaciones', 'En cliente', 'En operaciones', 'Atendidas', 'Sin WO / site', 'Monto'],
+          [[k, len(v), sum(r['principal'] == 'Cliente' for r in v), sum(r['principal'] == 'Operaciones' for r in v),
+            sum(r['principal'] == 'Atendido' for r in v), sum('pendientes' in r['fila']['pestanas'] for r in v), suma(v)]
+           for k, v in agrupar(lambda r: r['cliente'], vigentes)])
+    titulo('Proveedor: SLA en curso (más antiguos primero)')
+    tabla(['N.º cotización', 'Cliente', 'Aprobada', 'Días sin facturas', 'Monto'],
+          [[r['fila'].get('N° COTIZACION') or r['fila'].get('key'), r['cliente'], r['fila'].get('FECHA APROBACION'),
+            round(r['horas'] / 24, 1), r['monto']] for r in sorted(abiertos, key=lambda r: -r['horas'])])
+    titulo('Sin WO o sin site, por cliente')
+    tabla(['Cliente', 'Sin WO', 'Sin site', 'Monto'],
+          [[k, sum(str(r['fila'].get('NUMERO WO') or '').strip().upper() in SIN_DATO for r in v),
+            sum(str(r['fila'].get('NOMBRE SITE') or '').strip().upper() in SIN_DATO for r in v), suma(v)]
+           for k, v in agrupar(lambda r: r['cliente'], [r for r in vigentes if 'pendientes' in r['fila']['pestanas']])])
+    titulo('Por supervisor')
+    tabla(['Supervisor', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: r['fila'].get('SUPERVISOR'), vigentes)][:25])
+    for col, ancho in zip('ABCDEFG', (40, 16, 16, 18, 16, 16, 18)):
+        rh.column_dimensions[col].width = ancho
     archivo = io.BytesIO()
     libro.save(archivo)
     archivo.seek(0)
-    return send_file(archivo, as_attachment=True, download_name='Cotizaciones.xlsx',
-                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    return archivo
 
 
 def _fijar_cotizaciones():

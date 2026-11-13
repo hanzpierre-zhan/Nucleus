@@ -43,9 +43,12 @@ def test_lista_y_exportar(app, auth_client):
         assert _sin_pendientes(datos['pestanas']) == ['sustentar', 'proveedor'] and datos['monto'] == '2440.94'
         assert datos['familia'] == 'CLARO' and datos['items'][0]['texto'] == 'Cable'
         r = auth_client.post('/api/cot-new/exportar', json=[fid])
-        hoja = load_workbook(io.BytesIO(r.data)).active
+        libro = load_workbook(io.BytesIO(r.data))
+        assert libro.sheetnames[0] == 'Resumen ejecutivo'
+        hoja = libro['Cotizaciones']
         fila_excel = dict(zip([c.value for c in hoja[1]], [c.value for c in hoja[2]]))
-        assert fila_excel['N° COTIZACION'] == 'CL-2026-11-999001' and fila_excel['Sub total + FEE'] == 2440.94
+        assert fila_excel['N.º cotización'] == 'CL-2026-11-999001' and fila_excel['Sub total + FEE'] == 2440.94
+        assert fila_excel['Interacción'] == 'Proveedor' and fila_excel['Falta WO / site'] == 'Sí'
         assert auth_client.post('/api/cot-new/exportar', json='x').status_code == 400
     finally:
         with app.app_context():
