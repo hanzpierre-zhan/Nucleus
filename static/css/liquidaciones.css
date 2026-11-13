@@ -55,3 +55,6 @@ body.dark-mode .lq-descarga { color: #93c5fd !important; }
 .lq-totales { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .lq-seguimiento textarea, .lq-seguimiento input, .lq-seguimiento select { width: 100%; }
 @media (max-width: 760px) { .lq-totales { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Botón de la versión antigua (respaldo). */
+body .cn-gestion .cc-barra > .lq-clasico { background: #475569 !important; color: #fff !important; }
