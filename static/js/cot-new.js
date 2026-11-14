@@ -383,7 +383,7 @@
   const CN_CFG = JSON.parse(document.getElementById('cn-config')?.textContent || '{}');
   // Selector de varios valores (WO o site): chips y buscador en una sola caja, con lista desplegable.
   // buscar(texto) devuelve [{valor, detalle}] o un texto de aviso; Enter agrega lo escrito.
-  function selectorChips({valores = [], buscar, placeholder, mayusculas = true, vacio}) {
+  function selectorChips({valores = [], buscar, placeholder, mayusculas = true, vacio, libre}) {
     const env = el('div', 'cn-buscador'), caja = el('div', 'cn-multi'), lista = el('div', 'cn-opciones'); lista.hidden = true;
     const input = Object.assign(el('input'), {type: 'text', placeholder, autocomplete: 'off'});
     const flecha = icono('fa-chevron-down'); flecha.classList.add('cn-multi-flecha');
@@ -406,12 +406,21 @@
       if (t !== turno) return;
       if (typeof r === 'string') { lista.replaceChildren(el('p', 'cc-nota', r)); lista.hidden = false; return; }
       const libres = r.filter(o => !elegidos.has(o.valor));
+      // Valor escrito que no está en la lista: se ofrece agregarlo tal cual (p. ej. un WO que no está en Nucleus).
+      const escrito = normal(texto);
+      const nuevo = libre && escrito.length >= 2 && !elegidos.has(escrito) && !r.some(o => normal(o.valor) === escrito);
       lista.replaceChildren(...libres.slice(0, 20).map(o => {
         const b = el('button', 'cn-opcion'); b.type = 'button'; b.append(el('strong', null, o.valor));
         if (o.detalle) b.append(el('small', null, o.detalle));
         b.addEventListener('click', () => { agregar(o.valor); input.focus(); }); return b;
       }));
-      if (!libres.length) lista.append(el('p', 'cc-nota', vacio ? vacio(texto) : 'Sin coincidencias. Escribe y presiona Enter para agregarlo.'));
+      if (nuevo) {
+        const b = el('button', 'cn-opcion cn-opcion-nueva'); b.type = 'button';
+        b.append(el('strong', null, '＋ Agregar ' + escrito), el('small', null, libre));
+        b.addEventListener('click', () => { agregar(escrito); input.focus(); });
+        lista.prepend(b);
+      }
+      if (!libres.length && !nuevo) lista.append(el('p', 'cc-nota', vacio ? vacio(texto) : 'Sin coincidencias. Escribe y presiona Enter para agregarlo.'));
       lista.hidden = false;
       // Si no hay espacio abajo dentro de la ventana, la lista se abre hacia arriba.
       const marco = (env.closest('#cc-solicitud-contenido') || document.body).getBoundingClientRect(), pos = caja.getBoundingClientRect();
@@ -477,7 +486,7 @@
     const vCodigo = dato('Código'), vDistrito = dato('Distrito'), vProvincia = dato('Provincia'), vRegion = dato('Región');
     izq.append(auto, el('p', 'cc-nota', 'Código, distrito, provincia y región se llenan solos al elegir el site.'));
     let sitesWo = [];
-    const selWo = selectorChips({placeholder: 'Agregar WO…', buscar: texto => buscarWosDe(proyecto.value, texto, sitesWo),
+    const selWo = selectorChips({placeholder: 'Agregar WO…', buscar: texto => buscarWosDe(proyecto.value, texto, sitesWo), libre: 'No está en Nucleus: se agrega igual',
       vacio: t => t.length >= 2 ? 'No hay WO con "' + t.toUpperCase() + '" en ' + proyecto.value + '. Si es correcto, presiona Enter.' : 'Escribe el WO y presiona Enter.'});
     campo(izq, 'N.º WO (puedes elegir varios)', selWo, 'cn-ancho');
     // Derecha: clasificación y justificación.
@@ -610,7 +619,7 @@
     if (actual && !parecido) supervisor.add(new Option(actual, actual));
     supervisor.value = parecido || actual;
     campo(textos, 'Supervisor', supervisor);
-    const selWo = selectorChips({valores: partes(c['NUMERO WO']), placeholder: 'Agregar otro WO…', buscar: t => buscarWosDe(proyectoFlm, t)});
+    const selWo = selectorChips({valores: partes(c['NUMERO WO']), placeholder: 'Agregar otro WO…', buscar: t => buscarWosDe(proyectoFlm, t), libre: 'No está en Nucleus: se agrega igual'});
     campo(textos, 'N.º WO', selWo);
     const selSite = selectorChips({valores: c['NOMBRE SITE'] ? [c['NOMBRE SITE']] : [], placeholder: 'Agregar otro site…', mayusculas: false,
       buscar: t => buscarSitesDe(proyectoFlm, t)});

@@ -102,6 +102,7 @@ body #cc-solicitud-dialogo .cn-item-quitar { width: 26px !important; height: 26p
 body .cn-opcion { display: flex !important; flex-direction: column; align-items: flex-start; width: 100%; padding: 7px 10px !important; border: 0 !important; border-bottom: 1px solid var(--ios-hairline) !important; border-radius: 0 !important; background: transparent !important; color: var(--ios-label) !important; text-align: left; cursor: pointer; }
 .cn-opcion small { color: var(--ios-secondary); }
 body .cn-opcion:hover { background: var(--ios-fill) !important; }
+body .cn-opcion-nueva strong { color: var(--ios-blue, #0a84ff); }
 .cn-auto { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .cn-auto div { padding: 6px 8px; border-radius: 8px; background: var(--ios-fill); display: grid; }
 .cn-auto small { font-size: 10.5px; color: var(--ios-secondary); }
