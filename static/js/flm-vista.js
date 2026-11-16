@@ -112,9 +112,8 @@
     }
     ajustarEncabezado();
     // El N.º de ticket completo, sin cortarse.
-    // (se repite un momento después porque la tabla restaura su diseño guardado al terminar de cargar).
-    const anchoTicket = () => { const ticket = tabla.getColumn('_key'); if (ticket && ticket.getWidth() < 200) ticket.setWidth(200); };
-    [0, 600, 1500].forEach(ms => setTimeout(anchoTicket, ms));
+    // Ancho mínimo fijo: así ni el diseño guardado ni el redibujo lo vuelven a cortar.
+    if (tabla.getColumn('_key')) tabla.updateColumnDefinition('_key', {minWidth: 200, width: Math.max(200, tabla.getColumn('_key').getWidth())});
     const cab = document.querySelector('#data-grid .tabulator-header');
     if (cab) new MutationObserver(() => { clearTimeout(ajustarEncabezado.t); ajustarEncabezado.t = setTimeout(ajustarEncabezado, 50); }).observe(cab, {childList: true, subtree: true});
     // Estado como chip de color (solo cómo se ve).
