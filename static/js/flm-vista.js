@@ -248,7 +248,12 @@
         }});
       // SLA Cobra: nuestro cálculo con los mismos estados que SLA Status, para contrastar. ⚠ si no coinciden.
       const tras = indice('SLA Status');
-      defs.splice(tras >= 0 ? tras + 1 : indice('_key') + 1, 0, {title: 'SLA Cobra', field: '_fv_sla_cobra', headerSort: true, headerFilter: false, width: 150, minWidth: 140, hozAlign: 'left', download: false,
+      // Se guarda el cálculo en la fila (mutator) para poder filtrar y buscar como cualquier columna, con el mismo embudo que SLA Status.
+      const filtroDe = col('SLA Status') || {};
+      defs.splice(tras >= 0 ? tras + 1 : indice('_key') + 1, 0, {title: 'SLA Cobra', field: '_fv_sla_cobra', headerSort: true, width: 150, minWidth: 140, hozAlign: 'left', download: true,
+        mutator: (valor, fila) => slaCobra(fila),
+        headerFilter: filtroDe.headerFilter ?? 'input', headerFilterFunc: filtroDe.headerFilterFunc ?? 'like', headerFilterParams: filtroDe.headerFilterParams,
+        headerFilterPlaceholder: filtroDe.headerFilterPlaceholder, headerPopup: filtroDe.headerPopup, headerPopupIcon: filtroDe.headerPopupIcon,
         cssClass: 'fv-col-sla', headerTooltip: 'Cálculo Cobra: dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo por Fault Level',
         sorter: (a, b, filaA, filaB) => slaCobra(filaA.getData()).localeCompare(slaCobra(filaB.getData())),
         formatter: celda => {
