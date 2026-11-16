@@ -111,6 +111,8 @@
       fila.classList.add('fv-oculta');
     }
     ajustarEncabezado();
+    // Con la cabecera ya ordenada, la tabla recalcula su alto para no tapar los buscadores.
+    setTimeout(() => tabla.redraw(), 0);
     // El N.º de ticket completo, sin cortarse.
     // Ancho mínimo fijo: así ni el diseño guardado ni el redibujo lo vuelven a cortar.
     if (tabla.getColumn('_key')) tabla.updateColumnDefinition('_key', {minWidth: 200, width: Math.max(200, tabla.getColumn('_key').getWidth())});

@@ -195,3 +195,16 @@ body .excel-main.vista-flm #data-grid .tabulator-header-filter select { width: 1
 .excel-main.vista-flm:not(.fv-lista) #data-grid,
 .excel-main.vista-flm:not(.fv-lista) #pagination-container,
 .excel-main.vista-flm:not(.fv-lista) #status-record-count { visibility: hidden !important; }
+/* Cabecera como Caja Chica: título arriba, "Buscar…" completo abajo y el mismo aire arriba y abajo.
+   La altura sigue al contenido (la tabla la fija al dibujarse y a veces cortaba los buscadores). */
+body .excel-main.vista-flm #data-grid .tabulator-headers,
+body .excel-main.vista-flm #data-grid .tabulator-header .tabulator-col { height: auto !important; min-height: 0 !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col .tabulator-col-content { padding: 9px 10px 0 !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col-title-holder { padding: 0 0 6px !important; min-height: 18px; }
+body .excel-main.vista-flm #data-grid .tabulator-header-filter { padding: 0 0 9px !important; margin: 0 !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-content,
+body .excel-main.vista-flm #data-grid .tabulator-col.tabulator-row-handle .tabulator-col-content { display: flex; align-items: center; justify-content: center; height: 100%; padding: 0 !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-title-holder { padding: 0 !important; }
+/* Todas las columnas del mismo alto, para que "Acciones" y la casilla queden al centro. */
+body .excel-main.vista-flm #data-grid .tabulator-headers { display: inline-flex !important; align-items: stretch !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-content { flex: 1; }
