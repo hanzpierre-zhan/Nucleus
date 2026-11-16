@@ -12,8 +12,8 @@
     cumple: ['Cerrado · cumplió', 'fa-circle-check', 'sla-verde'], no_cumple: ['Cerrado · no cumplió', 'fa-circle-xmark', 'sla-rojo'],
   };
 
-  // Al abrir, siempre se ven primero los casos por vencer.
-  let proyecto = '', tipo = '', filtro = 'por_vencer', periodo = '', categoria = '';
+  // Al abrir, se ve por defecto la pestaña Abiertos (filtro vacío).
+  let proyecto = '', tipo = '', filtro = '', periodo = '', categoria = '';
   try { proyecto = localStorage.getItem('sla-proyecto') || ''; } catch (_) {}
   const cache = {};
 
@@ -186,7 +186,7 @@
   }
 
   document.querySelectorAll('.sla-proyecto').forEach(b => b.addEventListener('click', async () => {
-    proyecto = b.dataset.proyecto; filtro = 'por_vencer'; try { localStorage.setItem('sla-proyecto', proyecto); } catch (_) {} pintar(); await cargar(proyecto); pintar();
+    proyecto = b.dataset.proyecto; filtro = ''; try { localStorage.setItem('sla-proyecto', proyecto); } catch (_) {} pintar(); await cargar(proyecto); pintar();
   }));
   document.querySelectorAll('.sla-tipo').forEach(b => b.addEventListener('click', () => { tipo = b.dataset.tipo; pintar(); }));
   $('sla-periodo').addEventListener('change', e => { periodo = e.target.value; pintar(); });
