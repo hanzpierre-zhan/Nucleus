@@ -243,3 +243,4 @@ body.dark-mode .excel-main.vista-flm #data-grid .tabulator-col.fv-col-sla .tabul
 .vista-flm .fv-nivel-media { background: #ffc107; color: #212529; }
 .vista-flm .fv-nivel-baja { background: #28a745; color: #fff; }
 .vista-flm .fv-nivel-otro { background: rgba(142, 142, 147, .2); color: inherit; }
+.vista-flm .fv-nivel-calidad { background: #6f42c1; color: #fff; }

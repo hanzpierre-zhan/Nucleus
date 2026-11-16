@@ -503,7 +503,7 @@ let _rendCambiandoVista = false;
     // Fault Level → color y objetivo de SLA. Entel: KPI OM Sitios. PEXT (y el resto): KPI PEXT.
     // Llaves en minúscula y sin tilde; Major = Alta, Minor = Baja.
     const _FAULT_BASE = { critica: { bg: '#dc3545', fg: '#fff' }, alta: { bg: '#fd7e14', fg: '#fff' }, media: { bg: '#ffc107', fg: '#212529' }, baja: { bg: '#28a745', fg: '#fff' }, calidad: { bg: '#6f42c1', fg: '#fff' } };
-    const _FAULT_HRS = IS_FLM ? { critica: '4 h', alta: '4 h', media: '6 h', baja: '48 h' }
+    const _FAULT_HRS = IS_FLM ? { critica: '4 h', alta: '4 h', media: '6 h', baja: '48 h', calidad: '30 días' }
                               : { critica: '6 h', alta: '8 h', media: '48 h', baja: '72 h', calidad: '30 días' };
     const _FAULT_ALIAS = { critical: 'critica', major: 'alta', minor: 'baja' };
     function faultColor(val) {

@@ -74,7 +74,7 @@
     return abierto((Date.now() - inicio) / 60000, objetivo);
   }
 
-  const OBJETIVO_ENTEL = {critica: 4, critical: 4, alta: 4, major: 4, media: 6, baja: 48, minor: 48};
+  const OBJETIVO_ENTEL = {critica: 4, critical: 4, alta: 4, major: 4, media: 6, baja: 48, minor: 48, calidad: 720};  // calidad = 30 días
   const nivelEntel = f => String(f['Fault Level(create)'] || f['Fault Level'] || '').trim();
   const objetivoEntel = f => OBJETIVO_ENTEL[plano(nivelEntel(f))] ?? null;
   const pausaEntel = f => { const s = Number(String(f['Total SLA Pause Duration'] ?? '').trim()); return s > 0 ? s / 60 : 0; };  // segundos → minutos
@@ -251,10 +251,10 @@
         formatter: celda => {
           const f = celda.getRow().getData(), nivel = nivelEntel(f), horas = objetivoEntel(f);
           if (!nivel) return '';
-          const clase = {critica: 'critica', critical: 'critica', alta: 'alta', major: 'alta', media: 'media', baja: 'baja', minor: 'baja'}[plano(nivel)];
+          const clase = {critica: 'critica', critical: 'critica', alta: 'alta', major: 'alta', media: 'media', baja: 'baja', minor: 'baja', calidad: 'calidad'}[plano(nivel)];
           const chip = el('span', 'fv-nivel ' + (clase ? 'fv-nivel-' + clase : 'fv-nivel-otro'));
           chip.title = horas === null ? nivel + ': sin objetivo de SLA' : nivel + ': SLA ' + horas + ' horas';
-          chip.append(el('span', null, nivel), el('span', 'fv-nivel-horas', horas === null ? '· sin regla' : '· ' + horas + ' h'));
+          chip.append(el('span', null, nivel), el('span', 'fv-nivel-horas', horas === null ? '· sin regla' : horas >= 720 ? '· ' + horas / 24 + ' días' : '· ' + horas + ' h'));
           return chip;
         }});
     }
