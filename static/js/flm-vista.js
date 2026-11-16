@@ -26,15 +26,38 @@
   };
   const CHIP = {pendiente: 'fv-chip-pendiente', proceso: 'fv-chip-proceso', completado: 'fv-chip-completado', cancelado: 'fv-chip-cancelado'};
 
-  // ── SLA (solo FLM - CLARO, mismas reglas que la página SLA) ──
-  // CM cuenta desde Dispatch Time; PM y PLM desde Arrive Time. Objetivo: SLA Hour (min).
-  // Cerrado (completed/closed): termina en Complete Time y cumple según SLA Status.
-  const conSla = main.dataset.proyecto === 'FLM - CLARO';
-  const COLUMNAS_SLA = ['Task Type', 'Task Status', 'Dispatch Time', 'Arrive Time', 'SLA Hour', 'Complete Time', 'SLA Status', 'Schedule Operator'];
+  // ── SLA por proyecto ──
+  // Claro (mismas reglas que la página SLA): CM desde Dispatch Time; PM y PLM desde Arrive Time. Objetivo: SLA Hour (min).
+  //   Cerrado (completed/closed): termina en Complete Time y cumple según SLA Status.
+  // Entel: desde dispatch_time hasta SubmitTime(complete), menos Total SLA Pause Duration (segundos).
+  //   Objetivo según Fault Level (KPI OM Sitios): Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h.
+  //   "SLA Cobra" es nuestro cálculo, para contrastarlo con el SLA Status que trae la data.
+  const esClaro = main.dataset.proyecto === 'FLM - CLARO';
+  const esEntel = main.dataset.proyecto === 'FLM - ENTEL';
+  const conSla = esClaro || esEntel;
+  const COLUMNAS_SLA = esEntel
+    ? ['Ticket Status', 'Fault Level(create)', 'dispatch_time', 'SubmitTime(complete)', 'Total SLA Pause Duration', 'SLA Status']
+    : ['Task Type', 'Task Status', 'Dispatch Time', 'Arrive Time', 'SLA Hour', 'Complete Time', 'SLA Status', 'Schedule Operator'];
+  const estadoDe = f => f['Task Status'] ?? f['Ticket Status'];
   const POR_VENCER = [0.25, 60];
   const fecha = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/); return m ? new Date(m[1], m[2] - 1, m[3], m[4], m[5], m[6] || 0) : null; };
   const duracion = min => { min = Math.max(0, Math.round(min)); const d = Math.floor(min / 1440), h = Math.floor(min % 1440 / 60), m = min % 60; return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + m + 'm' : m + 'm'; };
-  function sla(f) {
+  // Abierto: azul en plazo, ámbar por vencer, rojo vencido.
+  function abierto(pasado, objetivo, extra = '') {
+    if (!objetivo) return {clase: 'fv-sla-gris', icono: 'fa-clock', texto: duracion(pasado), ayuda: 'Abierto hace ' + duracion(pasado) + ' · sin objetivo' + extra};
+    const meta = ' · objetivo ' + duracion(objetivo) + extra;
+    const resto = objetivo - pasado;
+    if (resto < 0) return {clase: 'fv-sla-rojo', icono: 'fa-triangle-exclamation', texto: '+' + duracion(-resto), ayuda: 'Vencido hace ' + duracion(-resto) + meta};
+    const urgente = resto <= objetivo * POR_VENCER[0] || resto <= POR_VENCER[1];
+    return {clase: urgente ? 'fv-sla-ambar' : 'fv-sla-azul', icono: 'fa-hourglass-half', texto: duracion(resto),
+      ayuda: (urgente ? 'Por vencer: quedan ' : 'En plazo: quedan ') + duracion(resto) + meta};
+  }
+  function cerrado(cumple, falla, usado, ayudaExtra) {
+    return {clase: cumple ? 'fv-sla-verde' : falla ? 'fv-sla-rojo' : 'fv-sla-gris', icono: cumple ? 'fa-circle-check' : falla ? 'fa-circle-xmark' : 'fa-stopwatch',
+      texto: usado === null ? (cumple ? 'Cumplió' : falla ? 'No cumplió' : 'Cerrado') : duracion(usado),
+      ayuda: (cumple ? 'Cumplió el SLA' : falla ? 'No cumplió el SLA' : 'Cerrado') + (usado === null ? '' : ' en ' + duracion(usado)) + ayudaExtra};
+  }
+  function slaClaro(f) {
     const estado = plano(f['Task Status']);
     if (/cancel/.test(estado)) return null;
     let tipo = String(f['Task Type'] || '').trim().toUpperCase();
@@ -43,24 +66,44 @@
     const inicio = fecha(tipo === 'CM' ? f['Dispatch Time'] : f['Arrive Time']);
     const objetivo = Number(f['SLA Hour']) > 0 ? Number(f['SLA Hour']) : null;
     if (!inicio) return {clase: 'fv-sla-gris', icono: 'fa-hourglass-start', texto: 'Sin inicio', ayuda: (tipo === 'CM' ? 'Falta Dispatch Time' : 'Falta Arrive Time')};
-    const meta = objetivo ? ' · objetivo ' + duracion(objetivo) : '';
     if (/complet|closed/.test(estado)) {
       const fin = fecha(f['Complete Time'] || f['FECHA CAMBIO ESTADO']);
-      const usado = fin ? (fin - inicio) / 60000 : null;
       const st = plano(f['SLA Status']);
-      const cumple = st === 'normal', falla = st.includes('violation');
-      return {clase: cumple ? 'fv-sla-verde' : falla ? 'fv-sla-rojo' : 'fv-sla-gris', icono: cumple ? 'fa-circle-check' : falla ? 'fa-circle-xmark' : 'fa-stopwatch',
-        texto: usado === null ? (cumple ? 'Cumplió' : falla ? 'No cumplió' : 'Cerrado') : duracion(usado),
-        ayuda: (cumple ? 'Cumplió el SLA' : falla ? 'No cumplió el SLA' : 'Cerrado') + (usado === null ? '' : ' en ' + duracion(usado)) + meta};
+      return cerrado(st === 'normal', st.includes('violation'), fin ? (fin - inicio) / 60000 : null, objetivo ? ' · objetivo ' + duracion(objetivo) : '');
     }
-    const pasado = (Date.now() - inicio) / 60000;
-    if (!objetivo) return {clase: 'fv-sla-gris', icono: 'fa-clock', texto: duracion(pasado), ayuda: 'Abierto hace ' + duracion(pasado) + ' · sin SLA Hour'};
-    const resto = objetivo - pasado;
-    if (resto < 0) return {clase: 'fv-sla-rojo', icono: 'fa-triangle-exclamation', texto: '+' + duracion(-resto), ayuda: 'Vencido hace ' + duracion(-resto) + meta};
-    const urgente = resto <= objetivo * POR_VENCER[0] || resto <= POR_VENCER[1];
-    return {clase: urgente ? 'fv-sla-ambar' : 'fv-sla-azul', icono: 'fa-hourglass-half', texto: duracion(resto),
-      ayuda: (urgente ? 'Por vencer: quedan ' : 'En plazo: quedan ') + duracion(resto) + meta};
+    return abierto((Date.now() - inicio) / 60000, objetivo);
   }
+
+  const OBJETIVO_ENTEL = {critica: 4, critical: 4, alta: 4, major: 4, media: 6, baja: 48, minor: 48};
+  const nivelEntel = f => String(f['Fault Level(create)'] || f['Fault Level'] || '').trim();
+  const objetivoEntel = f => OBJETIVO_ENTEL[plano(nivelEntel(f))] ?? null;
+  const pausaEntel = f => { const s = Number(String(f['Total SLA Pause Duration'] ?? '').trim()); return s > 0 ? s / 60 : 0; };  // segundos → minutos
+  // Minutos netos de SLA (sin la parada de reloj); fin = null si sigue abierto.
+  function medidaEntel(f) {
+    const inicio = fecha(f['dispatch_time']);
+    if (!inicio) return null;
+    const fin = fecha(f['SubmitTime(complete)'] || f['complete_time']);
+    return {fin, neto: Math.max(0, ((fin || Date.now()) - inicio) / 60000 - pausaEntel(f))};
+  }
+  // SLA Cobra: "normal" si el tiempo neto no pasó el objetivo; "sla_violation" si lo pasó.
+  function slaCobra(f) {
+    const m = medidaEntel(f), horas = objetivoEntel(f);
+    if (!m || horas === null) return '';
+    if (m.neto > horas * 60) return 'sla_violation';
+    return m.fin ? 'normal' : '';
+  }
+  function slaEntel(f) {
+    if (/cancel/.test(plano(estadoDe(f)))) return null;
+    const m = medidaEntel(f), horas = objetivoEntel(f);
+    if (!m) return {clase: 'fv-sla-gris', icono: 'fa-hourglass-start', texto: 'Sin inicio', ayuda: 'Falta dispatch_time'};
+    const pausa = pausaEntel(f) ? ' · parada de reloj ' + duracion(pausaEntel(f)) : '';
+    if (!m.fin) return abierto(m.neto, horas === null ? null : horas * 60, pausa);
+    const cobra = slaCobra(f), data = plano(f['SLA Status']);
+    const contraste = data && cobra && data !== cobra ? ' · ⚠ la data dice ' + f['SLA Status'] : '';
+    return cerrado(cobra === 'normal', cobra === 'sla_violation', m.neto,
+      (horas === null ? ' · sin objetivo (Fault Level ' + (nivelEntel(f) || 'vacío') + ')' : ' · objetivo ' + horas + ' h') + pausa + contraste);
+  }
+  const sla = f => (esEntel ? slaEntel(f) : slaClaro(f));
   function chipSla(f) {
     const s = sla(f);
     if (!s) return el('span', 'fv-sla fv-sla-vacio', '—');
@@ -69,13 +112,6 @@
     chip.append(icono(s.icono), el('span', null, s.texto));
     return chip;
   }
-
-  // ── Entel: objetivo del SLA según Fault Level (KPI OM Sitios) ──
-  // Crítica 4 h · Alta 4 h · Media 6 h · Baja 48 h. Equivalencias: Critical = Crítica, Major = Alta, Minor = Baja.
-  const esEntel = main.dataset.proyecto === 'FLM - ENTEL';
-  const OBJETIVO_ENTEL = {critica: 4, critical: 4, alta: 4, major: 4, media: 6, baja: 48, minor: 48};
-  const nivelEntel = f => String(f['Fault Level(create)'] || f['Fault Level'] || '').trim();
-  const objetivoEntel = f => OBJETIVO_ENTEL[plano(nivelEntel(f))] ?? null;
 
   let tabla = null, grupo = '', texto = '', filtro = null;
   try { grupo = localStorage.getItem('fv-grupo') || ''; } catch (_) {}
@@ -96,14 +132,14 @@
     if (filtro) tabla.removeFilter(filtro);
     const campos = tabla.getColumns().filter(c => c.isVisible() && c.getField()).map(c => c.getField());
     const q = plano(texto.trim());
-    filtro = fila => (!grupo || grupoDe(fila['Task Status']) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
+    filtro = fila => (!grupo || grupoDe(estadoDe(fila)) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
     tabla.addFilter(filtro);
     pintarPestanas();
   }
 
   function pintarPestanas() {
     const datos = tabla.getData(), cuenta = {};
-    datos.forEach(f => { const g = grupoDe(f['Task Status']); cuenta[g] = (cuenta[g] || 0) + 1; });
+    datos.forEach(f => { const g = grupoDe(estadoDe(f)); cuenta[g] = (cuenta[g] || 0) + 1; });
     pestanas.replaceChildren(...GRUPOS.map(([clave, nombre, color, simbolo]) => {
       const b = el('button', 'cc-tab' + (grupo === clave ? ' activa' : '')); b.type = 'button'; b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(grupo === clave)); b.style.setProperty('--cc-color', color);
@@ -170,11 +206,11 @@
     const cab = document.querySelector('#data-grid .tabulator-header');
     if (cab) new MutationObserver(() => { clearTimeout(ajustarEncabezado.t); ajustarEncabezado.t = setTimeout(ajustarEncabezado, 50); }).observe(cab, {childList: true, subtree: true});
     // Estado como chip de color (solo cómo se ve).
-    if (tabla.getColumn('Task Status')) {
-      tabla.updateColumnDefinition('Task Status', {formatter: celda => {
+    ['Task Status', 'Ticket Status'].filter(c => tabla.getColumn(c)).forEach(c => {
+      tabla.updateColumnDefinition(c, {formatter: celda => {
         const v = celda.getValue(); return v ? el('span', 'fv-chip ' + (CHIP[grupoDe(v)] || ''), v) : '';
       }});
-    }
+    });
     // SLA Status: normal en verde, sla_violation en rojo.
     if (tabla.getColumn('SLA Status')) {
       tabla.updateColumnDefinition('SLA Status', {formatter: celda => {
@@ -216,10 +252,33 @@
           chip.append(icono('fa-stopwatch'), el('span', null, horas + ' h'));
           return chip;
         }}, false, junto || '_key');
-      if (junto) {
-        const col = tabla.getColumn(junto);
-        tabla.updateColumnDefinition(junto, {cssClass: [...new Set(String(col.getDefinition().cssClass || '').split(' ').filter(Boolean)).add('fv-col-sla')].join(' ')});
-      }
+    }
+    if (esEntel && !tabla.getColumn('_fv_sla_cobra')) {
+      // SLA Cobra: nuestro cálculo con los mismos estados que SLA Status, para contrastar. ⚠ si no coinciden.
+      const pos = tabla.getColumn('SLA Status') ? 'SLA Status' : '_key';
+      tabla.addColumn({title: 'SLA Cobra', field: '_fv_sla_cobra', headerSort: true, headerFilter: false, width: 150, minWidth: 140, hozAlign: 'left', download: false,
+        cssClass: 'fv-col-sla', headerTooltip: 'Cálculo Cobra: dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo por Fault Level',
+        sorter: (a, b, filaA, filaB) => slaCobra(filaA.getData()).localeCompare(slaCobra(filaB.getData())),
+        formatter: celda => {
+          const f = celda.getRow().getData(), v = slaCobra(f);
+          if (!v) return '';
+          const chip = el('span', 'fv-chip ' + (v === 'normal' ? 'fv-chip-sla-ok' : 'fv-chip-sla-mal'), v);
+          const data = plano(f['SLA Status']);
+          if (!data || data === v) return chip;
+          const caja = el('span', 'fv-sla-contraste');
+          const aviso = icono('fa-triangle-exclamation');
+          caja.title = 'No coincide: la data dice ' + f['SLA Status'] + ' y el cálculo Cobra dice ' + v;
+          caja.append(chip, aviso);
+          return caja;
+        }}, false, pos);
+    }
+    if (esEntel && tabla.getColumn('Total SLA Pause Duration')) {
+      // Viene en segundos: se muestra en horas y minutos (el número original queda al pasar el mouse).
+      tabla.updateColumnDefinition('Total SLA Pause Duration', {formatter: celda => {
+        const s = Number(String(celda.getValue() ?? '').trim());
+        if (!(s > 0)) return '';
+        const t = el('span', null, duracion(s / 60)); t.title = s + ' segundos'; return t;
+      }});
     }
     if (conSla) {
       // Columnas que usa el SLA: cabecera y celdas con color, y el cronómetro se actualiza cada minuto.

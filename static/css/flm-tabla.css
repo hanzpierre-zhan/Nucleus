@@ -231,3 +231,6 @@ body .excel-main.vista-flm #data-grid .tabulator-col.fv-col-sla .tabulator-col-t
 body .excel-main.vista-flm #data-grid .tabulator-row .tabulator-cell.fv-col-sla { background-color: color-mix(in srgb, #7c3aed 7%, var(--ios-card-bg, #fff)) !important; }
 body .excel-main.vista-flm #data-grid .tabulator-row:hover .tabulator-cell.fv-col-sla { background-color: color-mix(in srgb, #7c3aed 13%, var(--ios-card-bg, #fff)) !important; }
 body.dark-mode .excel-main.vista-flm #data-grid .tabulator-col.fv-col-sla .tabulator-col-title { color: #c4b5fd !important; }
+/* SLA Cobra distinto de SLA Status: aviso para revisar. */
+.excel-main.vista-flm .fv-sla-contraste { display: inline-flex; align-items: center; gap: 6px; }
+.excel-main.vista-flm .fv-sla-contraste > i { color: #ea8a0c; font-size: 13px; }
