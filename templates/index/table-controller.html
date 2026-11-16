@@ -500,27 +500,17 @@ let _rendCambiandoVista = false;
 
 
 
-    const FAULT_COLORS = IS_FLM ? {
-
-        'Critical': { bg: '#dc3545', fg: '#fff', hrs: '4hrs' },
-
-        'Alta': { bg: '#fd7e14', fg: '#fff', hrs: '5hrs' },
-
-        'Media': { bg: '#ffc107', fg: '#212529', hrs: '12hrs' },
-
-        'Baja': { bg: '#28a745', fg: '#fff', hrs: '48hrs' }
-
-    } : {
-
-        'Critical': { bg: '#dc3545', fg: '#fff', hrs: '8hrs' },
-
-        'Alta': { bg: '#fd7e14', fg: '#fff', hrs: '10hrs' },
-
-        'Media': { bg: '#ffc107', fg: '#212529', hrs: '48hrs' },
-
-        'Baja': { bg: '#28a745', fg: '#fff', hrs: '72hrs' }
-
-    };
+    // Fault Level → color y objetivo de SLA. Entel: KPI OM Sitios. PEXT (y el resto): KPI PEXT.
+    // Llaves en minúscula y sin tilde; Major = Alta, Minor = Baja.
+    const _FAULT_BASE = { critica: { bg: '#dc3545', fg: '#fff' }, alta: { bg: '#fd7e14', fg: '#fff' }, media: { bg: '#ffc107', fg: '#212529' }, baja: { bg: '#28a745', fg: '#fff' }, calidad: { bg: '#6f42c1', fg: '#fff' } };
+    const _FAULT_HRS = IS_FLM ? { critica: '4 h', alta: '4 h', media: '6 h', baja: '48 h' }
+                              : { critica: '6 h', alta: '8 h', media: '48 h', baja: '72 h', calidad: '30 días' };
+    const _FAULT_ALIAS = { critical: 'critica', major: 'alta', minor: 'baja' };
+    function faultColor(val) {
+        let k = String(val || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        k = _FAULT_ALIAS[k] || k;
+        return _FAULT_HRS[k] ? { ..._FAULT_BASE[k], hrs: _FAULT_HRS[k] } : null;
+    }
 
 
 
@@ -3199,7 +3189,7 @@ let _rendCambiandoVista = false;
 
                 if (val === null || val === undefined || String(val).trim() === "") return "";
 
-                const color = FAULT_COLORS[String(val).trim()];
+                const color = faultColor(val);
 
                 if (!color) return val;
 
