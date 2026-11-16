@@ -3,7 +3,7 @@
 {% block content %}
 {# SLA con el diseño de Caja Chica: pestañas por proyecto, indicadores, casos abiertos por urgencia y cumplimiento por técnico. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
-<link rel="stylesheet" href="/static/css/sla.css?v=5">
+<link rel="stylesheet" href="/static/css/sla.css?v=6">
 <section class="cc-gestion sla-gestion" aria-label="SLA">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar ticket, site o técnico" aria-label="Buscar">
@@ -41,9 +41,9 @@
       </header>
       <div class="sla-tabla" role="table" aria-label="Casos abiertos">
         <div class="sla-fila sla-encabezado" role="row">
-          <span role="columnheader">Ticket / site</span><span role="columnheader">Tipo</span><span role="columnheader">Task Category</span><span role="columnheader">Schedule Operator</span>
-          <span role="columnheader">Dispatch Time</span><span role="columnheader">Arrive Time</span><span role="columnheader">Complete Time</span>
-          <span role="columnheader">SLA Hour</span><span role="columnheader">SLA Status</span>
+          <span role="columnheader">Ticket / site</span><span role="columnheader">Tipo</span><span role="columnheader" data-cabecera="categoria">Task Category</span><span role="columnheader" data-cabecera="tecnico">Schedule Operator</span>
+          <span role="columnheader" data-cabecera="dispatch">Dispatch Time</span><span role="columnheader" data-cabecera="arrive">Arrive Time</span><span role="columnheader" data-cabecera="fin">Complete Time</span>
+          <span role="columnheader" data-cabecera="objetivo">SLA Hour</span><span role="columnheader">SLA Status</span>
           <span role="columnheader">Tiempo SLA</span><span role="columnheader">Estado</span>
         </div>
         <div id="sla-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
@@ -54,5 +54,5 @@
   </div>
 </section>
 <script id="sla-config" type="application/json">{{ dict(por_vencer, con_criterios=con_criterios) | tojson }}</script>
-<script src="/static/js/sla.js?v=11" defer></script>
+<script src="/static/js/sla.js?v=12" defer></script>
 {% endblock %}

@@ -8,6 +8,12 @@ Reglas:
 - Objetivo: SLA Hour (minutos). Resultado de un cerrado: SLA Status ("normal" cumple; "sla_violation" no).
 - Abiertos: vencido, por vencer (queda ≤ 25 % del objetivo o ≤ 60 min) o en plazo.
 - Técnico: Schedule Operator.
+
+Entel (KPI OM Sitios):
+- Desde dispatch_time hasta SubmitTime(complete) (o complete_time), menos Total SLA Pause Duration (segundos).
+- Objetivo según Fault Level: Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h · Calidad 30 días.
+- Cumplimiento según SLA Status; "SLA Cobra" es el cálculo propio para contrastarlo.
+- Técnico: assign_to_fme.
 """
 import json
 import re
@@ -22,7 +28,7 @@ bp = Blueprint('sla', __name__)
 PROYECTOS = (('CLARO', 'FLM - CLARO', 'Claro', '#dc2626'), ('ENTEL', 'FLM - ENTEL', 'Entel', '#1d4ed8'),
              ('INTEGRATEL', 'FLM - INTEGRATEL', 'Integratel', '#16a34a'), ('PEXT', 'FLM - PEXT', 'PEXT', '#ea580c'))
 # Proyectos con criterios de SLA definidos (los demás se muestran como "por definir").
-CON_CRITERIOS = {'CLARO'}
+CON_CRITERIOS = {'CLARO', 'ENTEL'}
 POR_VENCER_PORCENTAJE = 0.25
 POR_VENCER_MINUTOS = 60
 
@@ -49,15 +55,72 @@ def _minutos(valor):
     return int(n) if n > 0 else None
 
 
+# Objetivo de Entel en horas según Fault Level (llaves en minúscula y sin tilde).
+OBJETIVO_ENTEL = {'critica': 4, 'critical': 4, 'alta': 4, 'major': 4, 'media': 6, 'baja': 48, 'minor': 48, 'calidad': 720}
+
+
+def _plano(texto):
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', str(texto or '')) if unicodedata.category(c) != 'Mn').strip().lower()
+
+
+def _fecha(texto):
+    from datetime import datetime
+    try:
+        return datetime.strptime(str(texto or '').strip()[:19].replace('T', ' '), '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        return None
+
+
+def _caso_entel(d, clave):
+    """Un ticket de Entel con los mismos campos que usa la página para Claro."""
+    estado = str(d.get('Ticket Status') or '').strip()
+    if 'cancel' in estado.lower():
+        return None
+    nivel = str(d.get('Fault Level(create)') or d.get('Fault Level') or '').strip()
+    horas = OBJETIVO_ENTEL.get(_plano(nivel))
+    inicio = str(d.get('dispatch_time') or '').strip()[:19]
+    fin = str(d.get('SubmitTime(complete)') or d.get('complete_time') or '').strip()[:19]
+    try:
+        pausa = max(0.0, float(str(d.get('Total SLA Pause Duration') or '0').strip() or 0)) / 60
+    except ValueError:
+        pausa = 0.0
+    cerrado = bool(re.search(r'complet|close', estado.lower()))
+    objetivo = horas * 60 if horas else None
+    # SLA Cobra: tiempo neto (sin parada de reloj) contra el objetivo del Fault Level.
+    cobra = ''
+    ini_d, fin_d = _fecha(inicio), _fecha(fin)
+    if cerrado and ini_d and fin_d and objetivo:
+        neto = (fin_d - ini_d).total_seconds() / 60 - pausa
+        cobra = 'sla_violation' if neto > objetivo else 'normal'
+    tecnico = str(d.get('assign_to_fme') or '').strip()
+    return {
+        'ticket': str(d.get('Ticket ID') or clave), 'tipo': _tipo(d, clave) or 'CM', 'site': str(d.get('Site Name(create)') or ''),
+        'tecnico': tecnico, 'tecnico_nombre': '', 'estado_ticket': estado,
+        'inicio': inicio, 'fin': fin if cerrado else '', 'cerrado': cerrado,
+        'dispatch': inicio, 'arrive': str(d.get('arrive_time') or '').strip()[:19],
+        'sla_hour': (nivel + ' · ' + (f'{horas // 24} días' if horas and horas >= 720 else f'{horas} h')) if horas else (nivel or ''),
+        'categoria': str(d.get('Task Category(create)') or '').strip(), 'sla_status_original': str(d.get('SLA Status') or '').strip(),
+        'objetivo': objetivo, 'sla_status': str(d.get('SLA Status') or '').strip().lower(),
+        'prioridad': nivel, 'pausa': round(pausa, 1), 'sla_cobra': cobra,
+    }
+
+
 def casos(proyecto):
     """Casos del proyecto con lo necesario para el SLA (sin cancelados)."""
     filas = (NucleusData.query.filter_by(proyecto_id=proyecto.id)
              .with_entities(NucleusData.key_value, NucleusData.data_json))
     nombres, salida = {}, []
+    es_entel = proyecto.nombre == 'FLM - ENTEL'
     for clave, crudo in filas:
         try:
             d = json.loads(crudo or '{}')
         except ValueError:
+            continue
+        if es_entel:
+            caso = _caso_entel(d, clave)
+            if caso:
+                salida.append(caso)
             continue
         # Nombre de cada código de técnico, tomado de las columnas que traen ambos.
         for codigo, nombre in ((d.get('Create Operator ID'), d.get('Create Operator')),
@@ -130,7 +193,7 @@ def por_vencer(modulo, ahora=None):
             inicio = datetime.strptime(c['inicio'][:19], '%Y-%m-%d %H:%M:%S')
         except ValueError:
             continue
-        resto = c['objetivo'] - (ahora - inicio).total_seconds() / 60
+        resto = c['objetivo'] - ((ahora - inicio).total_seconds() / 60 - c.get('pausa', 0))
         if 0 <= resto and (resto <= c['objetivo'] * POR_VENCER_PORCENTAJE or resto <= POR_VENCER_MINUTOS):
             salida.append({'ticket': c['ticket'], 'tipo': c['tipo'], 'site': c['site'], 'categoria': c.get('categoria', ''),
                            'tecnico': c['tecnico'], 'tecnico_nombre': c['tecnico_nombre'], 'resto': round(resto)})

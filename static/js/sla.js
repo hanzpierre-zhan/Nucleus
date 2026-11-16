@@ -25,7 +25,7 @@
   function medir(c, ahora) {
     const ini = fecha(c.inicio);
     if (!c.objetivo || !ini) return {estado: 'sin_objetivo', resto: null, uso: 0};
-    const transcurrido = (ahora - ini) / 60000, resto = c.objetivo - transcurrido, uso = Math.max(0, transcurrido / c.objetivo * 100);
+    const transcurrido = (ahora - ini) / 60000 - (c.pausa || 0), resto = c.objetivo - transcurrido, uso = Math.max(0, transcurrido / c.objetivo * 100);
     const estado = resto < 0 ? 'vencido' : (resto <= c.objetivo * CFG.porcentaje || resto <= CFG.minutos) ? 'por_vencer' : 'en_plazo';
     return {estado, resto, uso};
   }
@@ -33,7 +33,7 @@
   function cumple(c) {
     if (c.sla_status) return c.sla_status === 'normal';
     const ini = fecha(c.inicio), fin = fecha(c.fin);
-    return !(ini && fin && c.objetivo) || (fin - ini) / 60000 <= c.objetivo;
+    return !(ini && fin && c.objetivo) || (fin - ini) / 60000 - (c.pausa || 0) <= c.objetivo;
   }
   function enPeriodo(c) {
     if (!periodo) return true;
@@ -50,6 +50,11 @@
     const texto = resultadoSla(c);
     const s = el('span', 'sla-status ' + (!texto ? '' : texto === 'Cumplimiento' ? 'sla-status-normal' : 'sla-status-sla_violation'), texto || '—');
     if (c.sla_status_original) s.title = 'SLA Status: ' + c.sla_status_original;
+    // Entel: contraste con el cálculo Cobra (⚠ si no coinciden).
+    if (c.sla_cobra && c.sla_status && c.sla_cobra !== c.sla_status) {
+      const caja = el('span', 'sla-contraste'); caja.title = 'La data dice ' + c.sla_status_original + ' y el cálculo Cobra dice ' + c.sla_cobra;
+      caja.append(s, icono('fa-triangle-exclamation')); return caja;
+    }
     return s;
   }
   const nombreTec = c => c.tecnico ? c.tecnico + (c.tecnico_nombre ? ' · ' + c.tecnico_nombre : '') : 'Sin técnico';
@@ -71,6 +76,12 @@
       return;
     }
     const ahora = new Date(), q = plano($('cc-buscar').value.trim());
+    // Nombres de las columnas según el proyecto (Entel trae otras columnas).
+    const entel = proyecto === 'ENTEL';
+    const CABECERAS = entel
+      ? {tecnico: 'assign_to_fme', dispatch: 'dispatch_time', arrive: 'arrive_time', fin: 'SubmitTime(complete)', objetivo: 'Fault Level · objetivo', categoria: 'Task Category'}
+      : {tecnico: 'Schedule Operator', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'Complete Time', objetivo: 'SLA Hour', categoria: 'Task Category'};
+    document.querySelectorAll('[data-cabecera]').forEach(h => { h.textContent = CABECERAS[h.dataset.cabecera] || h.textContent; });
     // Categorías del proyecto (Task Category) para el filtro.
     const sel = $('sla-categoria'), cats = [...new Set(lista.map(c => c.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
     if (sel.dataset.proyecto !== proyecto) {
@@ -97,11 +108,19 @@
     const pista = el('div', 'sla-pista'), lleno = el('span'); lleno.style.width = (porcentaje || 0) + '%';
     lleno.dataset.nivel = porcentaje === null ? '' : porcentaje >= 90 ? 'ok' : porcentaje >= 80 ? 'medio' : 'bajo';
     pista.append(lleno); barra.append(pista, el('span', null, cumplidos.toLocaleString('es-PE') + ' cumplidos · ' + (cerrados.length - cumplidos).toLocaleString('es-PE') + ' incumplidos'));
+    // Entel: el mismo cumplimiento con el cálculo Cobra, para contrastar con SLA Status.
+    const conCobra = cerrados.filter(c => c.sla_cobra);
+    if (conCobra.length) {
+      const okCobra = conCobra.filter(c => c.sla_cobra === 'normal').length, distintos = conCobra.filter(c => c.sla_status && c.sla_cobra !== c.sla_status).length;
+      const nota = el('span', 'sla-cobra-nota', 'Cálculo Cobra: ' + (okCobra / conCobra.length * 100).toFixed(1) + ' % · ' + distintos + ' no coinciden con SLA Status');
+      nota.title = 'dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo del Fault Level';
+      barra.append(nota);
+    }
     kpis.append(barra);
-    tarjeta('sla-rojo', 'fa-alarm-clock', 'Vencidos abiertos', cuenta('vencido'), 'pasaron su SLA Hour', 'vencido');
+    tarjeta('sla-rojo', 'fa-alarm-clock', 'Vencidos abiertos', cuenta('vencido'), entel ? 'pasaron su objetivo' : 'pasaron su SLA Hour', 'vencido');
     tarjeta('sla-ambar', 'fa-hourglass-half', 'Por vencer', cuenta('por_vencer'), 'queda ≤ ' + Math.round(CFG.porcentaje * 100) + ' % o ≤ ' + CFG.minutos + ' min', 'por_vencer');
     tarjeta('sla-verde', 'fa-circle-check', 'En plazo', cuenta('en_plazo'), 'con tiempo de sobra', 'en_plazo');
-    tarjeta('sla-gris', 'fa-circle-question', 'Sin objetivo', cuenta('sin_objetivo'), 'sin SLA Hour o sin inicio', 'sin_objetivo');
+    tarjeta('sla-gris', 'fa-circle-question', 'Sin objetivo', cuenta('sin_objetivo'), entel ? 'sin regla de Fault Level o sin inicio' : 'sin SLA Hour o sin inicio', 'sin_objetivo');
 
     // Cumplimiento por técnico (cerrados del periodo), de menor a mayor para ver primero a quién apoyar.
     const porTec = {};
@@ -123,7 +142,7 @@
     // Casos abiertos, más urgentes primero: por vencer y en plazo según lo que les queda; luego vencidos (los más recientes arriba).
     const orden = {por_vencer: 0, vencido: 1, en_plazo: 2, sin_objetivo: 3};
     // "Cerrados": los del periodo, del más reciente al más antiguo, con su resultado según SLA Status.
-    const usoCerrado = c => { const i = fecha(c.inicio), f = fecha(c.fin); return i && f && c.objetivo ? (f - i) / 60000 / c.objetivo * 100 : 0; };
+    const usoCerrado = c => { const i = fecha(c.inicio), f = fecha(c.fin); return i && f && c.objetivo ? Math.max(0, (f - i) / 60000 - (c.pausa || 0)) / c.objetivo * 100 : 0; };
     const visibles = verTecnicos ? [] : filtro === 'cerrados'
       ? cerrados.map(c => ({...c, estado: cumple(c) ? 'cumple' : 'no_cumple', uso: usoCerrado(c)})).sort((a, b) => String(b.fin).localeCompare(String(a.fin)))
       : abiertos.filter(c => !filtro || c.estado === filtro)
@@ -138,15 +157,15 @@
       // Columnas reales; la fecha con la que empieza el SLA va resaltada (CM: Dispatch; PM/PLM: Arrive).
       const celdaFecha = (valor, usada) => { const s = el('span', 'sla-fecha' + (usada ? ' sla-fecha-inicio' : ''), valor || '—'); if (usada) s.title = 'Desde aquí cuenta el SLA'; return s; };
       const reales = [celdaFecha(c.dispatch, c.tipo === 'CM'), celdaFecha(c.arrive, c.tipo !== 'CM'), celdaFecha(c.fin, false),
-        el('span', 'sla-num', c.sla_hour ? c.sla_hour + ' min' : '—'),
+        el('span', 'sla-num', c.sla_hour ? (/^\d+(\.\d+)?$/.test(c.sla_hour) ? c.sla_hour + ' min' : c.sla_hour) : '—'),
         estadoSla(c)];
       const tiempo = el('span', 'sla-tiempo');
       if (c.estado === 'cumple' || c.estado === 'no_cumple') {
-        const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, c.uso ? 'Usó ' + Math.round(c.uso) + ' % del objetivo' : '—'));
+        const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, c.uso ? 'Usó ' + Math.round(c.uso) + ' % del objetivo' + (c.pausa ? ' · pausa ' + duracion(c.pausa) : '') : '—'));
         const p = el('span', 'sla-pista'), f = el('span'); f.style.width = Math.min(100, c.uso) + '%'; p.append(f); tiempo.append(cab, p);
-      } else if (c.estado === 'sin_objetivo') tiempo.append(el('small', null, c.objetivo ? 'Sin hora de inicio' : 'Sin SLA Hour'));
+      } else if (c.estado === 'sin_objetivo') tiempo.append(el('small', null, c.objetivo ? 'Sin hora de inicio' : entel ? 'Sin regla de Fault Level' : 'Sin SLA Hour'));
       else {
-        const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, 'Objetivo ' + c.objetivo + ' min'), el('small', null, Math.round(c.uso) + ' %'));
+        const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, 'Objetivo ' + duracion(c.objetivo) + (c.pausa ? ' · pausa ' + duracion(c.pausa) : '')), el('small', null, Math.round(c.uso) + ' %'));
         const p = el('span', 'sla-pista'), f = el('span'); f.style.width = Math.min(100, c.uso) + '%'; p.append(f);
         tiempo.append(cab, p);
       }
@@ -200,7 +219,8 @@
       return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Task Category': c.categoria, 'Site': c.site, 'Schedule Operator': c.tecnico, 'Nombre': c.tecnico_nombre,
         'Dispatch Time': c.dispatch, 'Arrive Time': c.arrive, 'Complete Time': c.fin, 'SLA Hour': c.sla_hour, 'SLA Status': c.sla_status_original, 'Resultado SLA': resultadoSla(c),
         'Inicio SLA usado': c.inicio, 'Objetivo (min)': c.objetivo || '', 'Task Status': c.estado_ticket, 'Estado': c.cerrado ? (cumple(c) ? 'Cerrado · cumple' : 'Cerrado · no cumple') : ESTADOS[m.estado][0],
-        'Minutos restantes': m && m.resto !== null ? Math.round(m.resto) : ''};
+        'Minutos restantes': m && m.resto !== null ? Math.round(m.resto) : '',
+        'Pausa SLA (min)': c.pausa || '', 'SLA Cobra': c.sla_cobra || ''};
     });
     const libro = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(filas), 'SLA ' + proyecto);
     XLSX.writeFile(libro, 'SLA_' + proyecto + '.xlsx');

@@ -90,3 +90,7 @@ body.dark-mode .sla-status-normal { color: #86efac; } body.dark-mode .sla-status
 /* Por técnico dentro del panel de casos: aprovecha el ancho con varias columnas. */
 .sla-tecnicos { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); column-gap: 24px; }
 .sla-tecnicos[hidden], .sla-tabla[hidden] { display: none !important; }
+/* Entel: contraste del SLA Status con el cálculo Cobra */
+.sla-contraste { display: inline-flex; align-items: center; gap: 4px; justify-self: start; }
+.sla-contraste > .fa-triangle-exclamation { color: #f59e0b; font-size: 12px; }
+.sla-cobra-nota { display: block; margin-top: 4px; font-size: 11px; color: var(--ios-secondary); }
