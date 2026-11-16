@@ -26,6 +26,50 @@
   };
   const CHIP = {pendiente: 'fv-chip-pendiente', proceso: 'fv-chip-proceso', completado: 'fv-chip-completado', cancelado: 'fv-chip-cancelado'};
 
+  // ── SLA (solo FLM - CLARO, mismas reglas que la página SLA) ──
+  // CM cuenta desde Dispatch Time; PM y PLM desde Arrive Time. Objetivo: SLA Hour (min).
+  // Cerrado (completed/closed): termina en Complete Time y cumple según SLA Status.
+  const conSla = main.dataset.proyecto === 'FLM - CLARO';
+  const COLUMNAS_SLA = ['Task Type', 'Task Status', 'Dispatch Time', 'Arrive Time', 'SLA Hour', 'Complete Time', 'SLA Status', 'Schedule Operator'];
+  const POR_VENCER = [0.25, 60];
+  const fecha = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/); return m ? new Date(m[1], m[2] - 1, m[3], m[4], m[5], m[6] || 0) : null; };
+  const duracion = min => { min = Math.max(0, Math.round(min)); const d = Math.floor(min / 1440), h = Math.floor(min % 1440 / 60), m = min % 60; return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + m + 'm' : m + 'm'; };
+  function sla(f) {
+    const estado = plano(f['Task Status']);
+    if (/cancel/.test(estado)) return null;
+    let tipo = String(f['Task Type'] || '').trim().toUpperCase();
+    if (!['CM', 'PM', 'PLM'].includes(tipo)) tipo = (String(f._key || '').toUpperCase().match(/^(CM|PLM|PM)\b/) || [])[1] || '';
+    if (!tipo) return null;
+    const inicio = fecha(tipo === 'CM' ? f['Dispatch Time'] : f['Arrive Time']);
+    const objetivo = Number(f['SLA Hour']) > 0 ? Number(f['SLA Hour']) : null;
+    if (!inicio) return {clase: 'fv-sla-gris', icono: 'fa-hourglass-start', texto: 'Sin inicio', ayuda: (tipo === 'CM' ? 'Falta Dispatch Time' : 'Falta Arrive Time')};
+    const meta = objetivo ? ' · objetivo ' + duracion(objetivo) : '';
+    if (/complet|closed/.test(estado)) {
+      const fin = fecha(f['Complete Time'] || f['FECHA CAMBIO ESTADO']);
+      const usado = fin ? (fin - inicio) / 60000 : null;
+      const st = plano(f['SLA Status']);
+      const cumple = st === 'normal', falla = st.includes('violation');
+      return {clase: cumple ? 'fv-sla-verde' : falla ? 'fv-sla-rojo' : 'fv-sla-gris', icono: cumple ? 'fa-circle-check' : falla ? 'fa-circle-xmark' : 'fa-stopwatch',
+        texto: usado === null ? (cumple ? 'Cumplió' : falla ? 'No cumplió' : 'Cerrado') : duracion(usado),
+        ayuda: (cumple ? 'Cumplió el SLA' : falla ? 'No cumplió el SLA' : 'Cerrado') + (usado === null ? '' : ' en ' + duracion(usado)) + meta};
+    }
+    const pasado = (Date.now() - inicio) / 60000;
+    if (!objetivo) return {clase: 'fv-sla-gris', icono: 'fa-clock', texto: duracion(pasado), ayuda: 'Abierto hace ' + duracion(pasado) + ' · sin SLA Hour'};
+    const resto = objetivo - pasado;
+    if (resto < 0) return {clase: 'fv-sla-rojo', icono: 'fa-triangle-exclamation', texto: '+' + duracion(-resto), ayuda: 'Vencido hace ' + duracion(-resto) + meta};
+    const urgente = resto <= objetivo * POR_VENCER[0] || resto <= POR_VENCER[1];
+    return {clase: urgente ? 'fv-sla-ambar' : 'fv-sla-azul', icono: 'fa-hourglass-half', texto: duracion(resto),
+      ayuda: (urgente ? 'Por vencer: quedan ' : 'En plazo: quedan ') + duracion(resto) + meta};
+  }
+  function chipSla(f) {
+    const s = sla(f);
+    if (!s) return el('span', 'fv-sla fv-sla-vacio', '—');
+    const chip = el('span', 'fv-sla ' + s.clase);
+    chip.title = s.ayuda; chip.setAttribute('aria-label', 'SLA: ' + s.ayuda);
+    chip.append(icono(s.icono), el('span', null, s.texto));
+    return chip;
+  }
+
   let tabla = null, grupo = '', texto = '', filtro = null;
   try { grupo = localStorage.getItem('fv-grupo') || ''; } catch (_) {}
 
@@ -126,7 +170,8 @@
     }
     // Acciones: botón redondo que abre el mismo detalle que el clic en el ticket.
     if (!tabla.getColumn('_fv_acciones') && tabla.getColumn('_key')) {
-      tabla.addColumn({title: 'Acciones', field: '_fv_acciones', headerSort: false, headerFilter: false, width: 92, minWidth: 92, hozAlign: 'center', download: false,
+      const ancho = conSla ? 168 : 92;
+      tabla.addColumn({title: 'Acciones', field: '_fv_acciones', headerSort: false, headerFilter: false, width: ancho, minWidth: ancho, hozAlign: 'center', download: false,
         formatter: celda => {
           const b = el('button', 'fv-accion'); b.type = 'button'; b.title = 'Ver / editar';
           b.setAttribute('aria-label', 'Ver o editar ' + (celda.getRow().getData()._key || ''));
@@ -136,8 +181,21 @@
             const destino = celda.getRow().getCell('_key')?.getElement();
             (destino?.querySelector('.wo-link') || destino)?.click();
           });
-          return b;
+          if (!conSla) return b;
+          const caja = el('div', 'fv-acciones-celda');
+          caja.append(b, chipSla(celda.getRow().getData()));
+          return caja;
         }}, true, '_key');
+    }
+    if (conSla) {
+      // Columnas que usa el SLA: cabecera y celdas con color, y el cronómetro se actualiza cada minuto.
+      COLUMNAS_SLA.forEach(campo => {
+        const col = tabla.getColumn(campo);
+        if (!col) return;
+        const clases = new Set(String(col.getDefinition().cssClass || '').split(' ').filter(Boolean)).add('fv-col-sla');
+        tabla.updateColumnDefinition(campo, {cssClass: [...clases].join(' '), headerTooltip: 'Se usa para calcular el SLA'});
+      });
+      setInterval(() => { try { tabla.getRows('visible').forEach(r => r.reformat()); } catch (_) {} }, 60000);
     }
     main.classList.add('fv-lista');  // ya con el diseño nuevo: se muestra
     tabla.on('dataLoaded', () => setTimeout(pintarPestanas, 0));
