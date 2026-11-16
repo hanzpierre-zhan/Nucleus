@@ -175,6 +175,8 @@ body .excel-main.vista-flm #data-grid .wo-link:hover { text-decoration: underlin
 /* Títulos arriba y a la izquierda (también en columnas sin buscador, como Acciones). */
 body .excel-main.vista-flm #data-grid .tabulator-headers { align-items: stretch; }
 body .excel-main.vista-flm #data-grid .tabulator-col { vertical-align: top !important; display: inline-flex !important; flex-direction: column; justify-content: flex-start !important; }
+/* Las columnas ocultas siguen ocultas: la regla de arriba no debe ganarle al display:none que pone la tabla (si no, las cabeceras se corren). */
+body .excel-main.vista-flm #data-grid .tabulator-col[style*="display: none"] { display: none !important; }
 body .excel-main.vista-flm #data-grid .tabulator-col .tabulator-col-content { width: 100%; }
 body .excel-main.vista-flm #data-grid .tabulator-col-title { text-align: left !important; }
 body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-title { text-align: center !important; overflow: visible !important; }
