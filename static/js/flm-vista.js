@@ -243,19 +243,20 @@
           return caja;
         }}, true, '_key');
     }
-    if (esEntel && !tabla.getColumn('_fv_objetivo')) {
-      const junto = ['Fault Level(create)', 'Fault Level'].find(c => tabla.getColumn(c));
-      tabla.addColumn({title: 'Objetivo SLA', field: '_fv_objetivo', headerSort: true, headerFilter: false, width: 130, minWidth: 120, hozAlign: 'center', download: false,
-        cssClass: 'fv-col-sla', headerTooltip: 'Horas según Fault Level: Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h',
+    // Entel: Fault Level y su objetivo de SLA en un solo chip ("Media · 6 h"), así no se suma otra columna.
+    const colNivel = esEntel && ['Fault Level(create)', 'Fault Level'].find(c => tabla.getColumn(c));
+    if (colNivel) {
+      tabla.updateColumnDefinition(colNivel, {hozAlign: 'left', headerTooltip: 'Objetivo SLA según Fault Level: Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h',
         sorter: (a, b, filaA, filaB) => (objetivoEntel(filaA.getData()) ?? 1e9) - (objetivoEntel(filaB.getData()) ?? 1e9),
         formatter: celda => {
-          const f = celda.getRow().getData(), horas = objetivoEntel(f);
-          if (horas === null) return nivelEntel(f) ? el('span', 'fv-sla fv-sla-vacio', 'Sin regla') : '';
-          const chip = el('span', 'fv-sla ' + (horas <= 4 ? 'fv-sla-rojo' : horas <= 6 ? 'fv-sla-ambar' : 'fv-sla-azul'));
-          chip.title = nivelEntel(f) + ': SLA ' + horas + ' horas';
-          chip.append(icono('fa-stopwatch'), el('span', null, horas + ' h'));
+          const f = celda.getRow().getData(), nivel = nivelEntel(f), horas = objetivoEntel(f);
+          if (!nivel) return '';
+          const clase = {critica: 'critica', critical: 'critica', alta: 'alta', major: 'alta', media: 'media', baja: 'baja', minor: 'baja'}[plano(nivel)];
+          const chip = el('span', 'fv-nivel ' + (clase ? 'fv-nivel-' + clase : 'fv-nivel-otro'));
+          chip.title = horas === null ? nivel + ': sin objetivo de SLA' : nivel + ': SLA ' + horas + ' horas';
+          chip.append(el('span', null, nivel), el('span', 'fv-nivel-horas', horas === null ? '· sin regla' : '· ' + horas + ' h'));
           return chip;
-        }}, false, junto || '_key');
+        }});
     }
     if (esEntel && !tabla.getColumn('_fv_sla_cobra')) {
       // SLA Cobra: nuestro cálculo con los mismos estados que SLA Status, para contrastar. ⚠ si no coinciden.

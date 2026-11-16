@@ -3405,7 +3405,7 @@ let _rendCambiandoVista = false;
 
         // (PRIORIDAD DEL SITE en FLM/PEXT, Prioridad en el maestro SITE)
 
-        if (fieldName && (fieldName.trim().toUpperCase() === "PRIORIDAD DEL SITE" || fieldName.trim() === "Prioridad")) {
+        if (fieldName && (["PRIORIDAD DEL SITE", "SITE PRIORITY"].includes(fieldName.trim().toUpperCase()) || fieldName.trim() === "Prioridad")) {
 
             colDef.formatter = function (cell) {
 
@@ -3415,7 +3415,7 @@ let _rendCambiandoVista = false;
 
                 const valStr = String(val).trim();
 
-                const normVal = valStr.toLowerCase();
+                const normVal = valStr.toLowerCase().replace(/^p_(\d)$/, 'p$1');  // Integratel: P_1 = P1
 
                 const color = SITE_PRIORITY_COLORS[normVal] || { bg: '#8E8E93', fg: '#8E8E93', bgLight: '#8E8E931A' };
 

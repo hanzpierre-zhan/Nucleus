@@ -234,3 +234,12 @@ body.dark-mode .excel-main.vista-flm #data-grid .tabulator-col.fv-col-sla .tabul
 /* SLA Cobra distinto de SLA Status: aviso para revisar. */
 .excel-main.vista-flm .fv-sla-contraste { display: inline-flex; align-items: center; gap: 6px; }
 .excel-main.vista-flm .fv-sla-contraste > i { color: #ea8a0c; font-size: 13px; }
+
+/* Entel: Fault Level + objetivo SLA en un solo chip */
+.vista-flm .fv-nivel { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.3; white-space: nowrap; }
+.vista-flm .fv-nivel-horas { font-weight: 600; opacity: .85; }
+.vista-flm .fv-nivel-critica { background: #dc3545; color: #fff; }
+.vista-flm .fv-nivel-alta { background: #fd7e14; color: #fff; }
+.vista-flm .fv-nivel-media { background: #ffc107; color: #212529; }
+.vista-flm .fv-nivel-baja { background: #28a745; color: #fff; }
+.vista-flm .fv-nivel-otro { background: rgba(142, 142, 147, .2); color: inherit; }
