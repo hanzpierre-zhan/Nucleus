@@ -26,7 +26,7 @@ body.dark-mode .sla-kpi.sla-rojo { color: #fca5a5 !important; } body.dark-mode .
 .sla-pista span { display: block; height: 100%; border-radius: 99px; background: #22c55e; }
 .sla-pista span[data-nivel="medio"] { background: #f59e0b; } .sla-pista span[data-nivel="bajo"] { background: #ef4444; }
 
-.sla-cuerpo { flex: 1; display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(300px, 1fr); gap: 12px; align-items: stretch; min-height: 0; }
+.sla-cuerpo { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; min-height: 0; }
 .sla-panel { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--ios-hairline); border-radius: 14px; background: var(--ios-card-bg, transparent); overflow: hidden; }
 .sla-panel-cabeza { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--ios-hairline); }
 .sla-panel-cabeza h3 { margin: 0; font-size: 14px; display: flex; gap: 8px; align-items: center; }
@@ -86,3 +86,7 @@ body.dark-mode .sla-fila.sla-rojo .sla-estado { color: #fca5a5; } body.dark-mode
 body.dark-mode .sla-status-normal { color: #86efac; } body.dark-mode .sla-status-sla_violation, body.dark-mode .sla-status-milestone_broken { color: #fca5a5; }
 .sla-tabla { overflow-x: auto; }
 .sla-categoria { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Por técnico dentro del panel de casos: aprovecha el ancho con varias columnas. */
+.sla-tecnicos { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); column-gap: 24px; }
+.sla-tecnicos[hidden], .sla-tabla[hidden] { display: none !important; }

@@ -103,24 +103,33 @@
     tarjeta('sla-verde', 'fa-circle-check', 'En plazo', cuenta('en_plazo'), 'con tiempo de sobra', 'en_plazo');
     tarjeta('sla-gris', 'fa-circle-question', 'Sin objetivo', cuenta('sin_objetivo'), 'sin SLA Hour o sin inicio', 'sin_objetivo');
 
+    // Cumplimiento por técnico (cerrados del periodo), de menor a mayor para ver primero a quién apoyar.
+    const porTec = {};
+    for (const c of cerrados) { const k = c.tecnico || ''; const x = porTec[k] ||= {c, total: 0, ok: 0}; x.total++; if (cumple(c)) x.ok++; }
+    const tecs = Object.values(porTec).map(x => ({...x, pct: x.ok / x.total * 100})).sort((a, b) => a.pct - b.pct || b.total - a.total);
+
     // Filtros rápidos de la lista
     const filtros = $('sla-filtros'); filtros.replaceChildren();
-    for (const [clave, texto] of [['', 'Abiertos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_objetivo', 'Sin objetivo'], ['cerrados', 'Cerrados']]) {
+    for (const [clave, texto] of [['', 'Abiertos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_objetivo', 'Sin objetivo'], ['cerrados', 'Cerrados'], ['tecnicos', 'Por técnico']]) {
       const b = el('button', 'sla-chip' + (filtro === clave ? ' activo' : '')); b.type = 'button';
-      b.append(el('span', null, texto), el('strong', null, String(clave === 'cerrados' ? cerrados.length : clave ? cuenta(clave) : abiertos.length)));
+      b.append(el('span', null, texto), el('strong', null, String(clave === 'tecnicos' ? tecs.length : clave === 'cerrados' ? cerrados.length : clave ? cuenta(clave) : abiertos.length)));
       b.addEventListener('click', () => { filtro = clave; pintar(); }); filtros.append(b);
     }
 
+    // "Por técnico" usa el mismo panel: se oculta la tabla de casos y se muestra la lista de técnicos.
+    const verTecnicos = filtro === 'tecnicos';
+    document.querySelector('.sla-tabla').hidden = verTecnicos;
+    $('sla-tecnicos').hidden = !verTecnicos;
     // Casos abiertos, más urgentes primero: por vencer y en plazo según lo que les queda; luego vencidos (los más recientes arriba).
     const orden = {por_vencer: 0, vencido: 1, en_plazo: 2, sin_objetivo: 3};
     // "Cerrados": los del periodo, del más reciente al más antiguo, con su resultado según SLA Status.
     const usoCerrado = c => { const i = fecha(c.inicio), f = fecha(c.fin); return i && f && c.objetivo ? (f - i) / 60000 / c.objetivo * 100 : 0; };
-    const visibles = filtro === 'cerrados'
+    const visibles = verTecnicos ? [] : filtro === 'cerrados'
       ? cerrados.map(c => ({...c, estado: cumple(c) ? 'cumple' : 'no_cumple', uso: usoCerrado(c)})).sort((a, b) => String(b.fin).localeCompare(String(a.fin)))
       : abiertos.filter(c => !filtro || c.estado === filtro)
         .sort((a, b) => orden[a.estado] - orden[b.estado] || (a.estado === 'vencido' ? b.resto - a.resto : (a.resto ?? 1e9) - (b.resto ?? 1e9)));
     const cuerpo = $('sla-lista'); cuerpo.replaceChildren();
-    if (!visibles.length) cuerpo.append(el('p', 'cc-vacio', filtro === 'cerrados' ? 'No hay casos cerrados en el periodo.' : abiertos.length ? 'No hay casos con este filtro.' : 'No hay casos abiertos. 🎉'));
+    if (!visibles.length && !verTecnicos) cuerpo.append(el('p', 'cc-vacio', filtro === 'cerrados' ? 'No hay casos cerrados en el periodo.' : abiertos.length ? 'No hay casos con este filtro.' : 'No hay casos abiertos. 🎉'));
     for (const c of visibles.slice(0, 400)) {
       const [nombre, simbolo, cls] = ESTADOS[c.estado];
       const fila = el('div', 'sla-fila ' + cls); fila.setAttribute('role', 'row');
@@ -149,10 +158,6 @@
     }
     if (visibles.length > 400) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 400 de ' + visibles.length + '. Usa la búsqueda o los filtros.'));
 
-    // Cumplimiento por técnico (cerrados del periodo), de menor a mayor para ver primero a quién apoyar.
-    const porTec = {};
-    for (const c of cerrados) { const k = c.tecnico || ''; const x = porTec[k] ||= {c, total: 0, ok: 0}; x.total++; if (cumple(c)) x.ok++; }
-    const tecs = Object.values(porTec).map(x => ({...x, pct: x.ok / x.total * 100})).sort((a, b) => a.pct - b.pct || b.total - a.total);
     const caja = $('sla-tecnicos'); caja.replaceChildren();
     if (!tecs.length) caja.append(el('p', 'cc-vacio', 'Sin casos cerrados en el periodo.'));
     for (const x of tecs) {

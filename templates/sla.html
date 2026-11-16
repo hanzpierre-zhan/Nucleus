@@ -3,7 +3,7 @@
 {% block content %}
 {# SLA con el diseño de Caja Chica: pestañas por proyecto, indicadores, casos abiertos por urgencia y cumplimiento por técnico. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
-<link rel="stylesheet" href="/static/css/sla.css?v=4">
+<link rel="stylesheet" href="/static/css/sla.css?v=5">
 <section class="cc-gestion sla-gestion" aria-label="SLA">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar ticket, site o técnico" aria-label="Buscar">
@@ -48,13 +48,11 @@
         </div>
         <div id="sla-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
       </div>
-    </section>
-    <section class="sla-panel">
-      <header class="sla-panel-cabeza"><h3><i class="fa-solid fa-users" aria-hidden="true"></i> Cumplimiento por técnico</h3><small>cerrados del periodo</small></header>
-      <div id="sla-tecnicos" class="sla-tecnicos"></div>
+      {# Cumplimiento por técnico: se ve en esta misma tabla con el botón "Por técnico". #}
+      <div id="sla-tecnicos" class="sla-tecnicos" hidden></div>
     </section>
   </div>
 </section>
 <script id="sla-config" type="application/json">{{ dict(por_vencer, con_criterios=con_criterios) | tojson }}</script>
-<script src="/static/js/sla.js?v=9" defer></script>
+<script src="/static/js/sla.js?v=11" defer></script>
 {% endblock %}
