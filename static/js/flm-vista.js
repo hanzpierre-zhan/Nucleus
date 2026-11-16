@@ -70,6 +70,13 @@
     return chip;
   }
 
+  // ── Entel: objetivo del SLA según Fault Level (KPI OM Sitios) ──
+  // Crítica 4 h · Alta 4 h · Media 6 h · Baja 48 h. Equivalencias: Critical = Crítica, Major = Alta, Minor = Baja.
+  const esEntel = main.dataset.proyecto === 'FLM - ENTEL';
+  const OBJETIVO_ENTEL = {critica: 4, critical: 4, alta: 4, major: 4, media: 6, baja: 48, minor: 48};
+  const nivelEntel = f => String(f['Fault Level(create)'] || f['Fault Level'] || '').trim();
+  const objetivoEntel = f => OBJETIVO_ENTEL[plano(nivelEntel(f))] ?? null;
+
   let tabla = null, grupo = '', texto = '', filtro = null;
   try { grupo = localStorage.getItem('fv-grupo') || ''; } catch (_) {}
 
@@ -195,6 +202,24 @@
           caja.append(b, chipSla(celda.getRow().getData()));
           return caja;
         }}, true, '_key');
+    }
+    if (esEntel && !tabla.getColumn('_fv_objetivo')) {
+      const junto = ['Fault Level(create)', 'Fault Level'].find(c => tabla.getColumn(c));
+      tabla.addColumn({title: 'Objetivo SLA', field: '_fv_objetivo', headerSort: true, headerFilter: false, width: 130, minWidth: 120, hozAlign: 'center', download: false,
+        cssClass: 'fv-col-sla', headerTooltip: 'Horas según Fault Level: Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h',
+        sorter: (a, b, filaA, filaB) => (objetivoEntel(filaA.getData()) ?? 1e9) - (objetivoEntel(filaB.getData()) ?? 1e9),
+        formatter: celda => {
+          const f = celda.getRow().getData(), horas = objetivoEntel(f);
+          if (horas === null) return nivelEntel(f) ? el('span', 'fv-sla fv-sla-vacio', 'Sin regla') : '';
+          const chip = el('span', 'fv-sla ' + (horas <= 4 ? 'fv-sla-rojo' : horas <= 6 ? 'fv-sla-ambar' : 'fv-sla-azul'));
+          chip.title = nivelEntel(f) + ': SLA ' + horas + ' horas';
+          chip.append(icono('fa-stopwatch'), el('span', null, horas + ' h'));
+          return chip;
+        }}, false, junto || '_key');
+      if (junto) {
+        const col = tabla.getColumn(junto);
+        tabla.updateColumnDefinition(junto, {cssClass: [...new Set(String(col.getDefinition().cssClass || '').split(' ').filter(Boolean)).add('fv-col-sla')].join(' ')});
+      }
     }
     if (conSla) {
       // Columnas que usa el SLA: cabecera y celdas con color, y el cronómetro se actualiza cada minuto.
