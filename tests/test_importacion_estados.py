@@ -9,7 +9,7 @@ from services.importacion_estados import cancelado
 @pytest.mark.parametrize('proyecto,clave,estado',[
     ('FLM - CLARO','Ticket Id','Task Status'),
     ('FLM - INTEGRATEL','Task Id','Task Status'),
-    ('FLM - ENTEL','Número de WO','Estado de la tarea (WO State)'),
+    ('FLM - ENTEL','Ticket ID','Ticket Status'),
     ('FLM - PEXT','Numero de WO','Estado de la tarea'),
 ])
 def test_canceled_actualiza_existente_y_omite_nuevo(app,auth_client,proyecto,clave,estado):

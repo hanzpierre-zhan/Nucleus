@@ -2,7 +2,7 @@
 ESTADOS = {
     'FLM - CLARO': ('Task Status', 'Estado de la tarea (WO State)'),
     'FLM - INTEGRATEL': ('Task Status', 'Estado de la tarea (WO State)'),
-    'FLM - ENTEL': ('Estado de la tarea (WO State)', 'Task Status'),
+    'FLM - ENTEL': ('Ticket Status', 'Estado de la tarea (WO State)', 'Task Status'),
     'FLM - PEXT': ('Estado de la tarea', 'Estado de la tarea (WO State)', 'Task Status'),
     'PEXT': ('Estado de la tarea', 'Estado de la tarea (WO State)', 'Task Status'),
 }

@@ -1,5 +1,5 @@
 """Identificadores de los archivos FLM; nunca deducirlos del tipo de tarea."""
-CLAVES = {'FLM - CLARO': 'Ticket Id', 'FLM - INTEGRATEL': 'Task Id'}
+CLAVES = {'FLM - CLARO': 'Ticket Id', 'FLM - INTEGRATEL': 'Task Id', 'FLM - ENTEL': 'Ticket ID'}
 
 
 def validar_clave(df, proyecto, seleccionada=''):
