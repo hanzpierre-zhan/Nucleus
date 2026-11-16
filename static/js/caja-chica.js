@@ -452,11 +452,24 @@
     const detalleFicha = seccion('fa-file-lines', 'Detalle de la solicitud');
     campo('Técnico', Object.assign(texto([sol.tecnico, sol.documento].filter(Boolean).join(' · '), 200), {readOnly: true, tabIndex: -1}), detalleFicha);
     campo('Proyecto', proyecto, detalleFicha);
+    const f = sol.formulario || {};
+    const sinPendiente = (v, p) => (String(v || '').trim().toUpperCase() === p ? '' : (v || ''));
+    const site = campo('Site', Object.assign(texto(sinPendiente(f.site, 'SITE PENDIENTE'), 150), {placeholder: 'Site pendiente'}), detalleFicha);
+    const wo = campo('CM / PM / PLM', Object.assign(texto(sinPendiente(f.wo, 'CM PENDIENTE'), 100), {placeholder: 'CM pendiente'}), detalleFicha);
+    wo.classList.add('cc-mono');
 
     const deposito = seccion('fa-building-columns', 'Datos del depósito');
     const banco = campo('Banco', selector(configuracion.bancos, sol.banco), deposito);
     const cuenta = campo('CCI', Object.assign(texto(sol.cuenta, 40, true), {inputMode: 'numeric'}), deposito);
     cuenta.classList.add('cc-mono');
+    const titular = campo('Titular', Object.assign(texto(f.titular || '', 150), {placeholder: sol.tecnico || ''}), deposito);
+    const billetera = campo('Billetera', selector(['No aplica', 'Yape', 'Plin'], f.tipo_billetera || 'No aplica'), deposito);
+    const numeroBilletera = campo('Yape / Plin', Object.assign(texto(f.numero_billetera, 9), {inputMode: 'numeric', pattern: '[0-9]{9}', placeholder: '9 dígitos'}), deposito);
+    numeroBilletera.classList.add('cc-mono');
+    const filaBilletera = numeroBilletera.closest('.cc-editor-fila');
+    const verBilletera = () => { const usa = billetera.value !== 'No aplica'; filaBilletera.style.display = usa ? '' : 'none'; numeroBilletera.required = usa; };
+    billetera.addEventListener('change', verBilletera);
+    verBilletera();
     actualizarTotal();
 
     const adjunto = documentos.elements.namedItem('correo');
@@ -471,7 +484,8 @@
       error.hidden = true;
       const datos = new FormData();
       datos.set('datos', JSON.stringify({proyecto: proyecto.value, motivo: motivo.value, banco: banco.value,
-        cuenta: cuenta.value, items: controles.map(leer => leer()), cotizacion: cotizacion.value}));
+        cuenta: cuenta.value, items: controles.map(leer => leer()), cotizacion: cotizacion.value,
+        formulario: {site: site.value, wo: wo.value, titular: titular.value, tipo_billetera: billetera.value, numero_billetera: numeroBilletera.value}}));
       if (adjunto?.files.length) datos.set('correo', adjunto.files[0]);
       guardar.disabled = true;
       try {

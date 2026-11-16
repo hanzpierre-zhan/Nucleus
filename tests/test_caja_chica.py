@@ -133,6 +133,13 @@ def test_catalogo_aplica_por_proyecto_y_conserva_regla_de_solicitud(app, auth_cl
         assert revision.json['solicitud']['envio_tecnico']['formulario']['site'] == 'LA2859'
         assert revision.json['solicitud']['formulario']['numero_billetera'] == '900000000'
         assert revision.json['solicitud']['revision']['cotizacion'] == 'COT-001'
+        cambio = dict(datos, formulario={'site': 'LI0001', 'wo': 'CM-20261116-00000001', 'tipo_billetera': 'No aplica'})
+        editada = auth_client.post(gestion + '/editar', headers=permisos, data={'datos': json.dumps(cambio)})
+        assert editada.status_code == 200, editada.json
+        assert editada.json['solicitud']['formulario']['site'] == 'LI0001'
+        assert editada.json['solicitud']['formulario']['wo'] == 'CM-20261116-00000001'
+        assert editada.json['solicitud']['formulario']['numero_billetera'] == ''
+        assert editada.json['solicitud']['envio_tecnico']['formulario']['site'] == 'LA2859'
         assert auth_client.get(gestion + '/correo-validacion').data == correo
         documentos = auth_client.post(gestion + '/documentos', headers=permisos,
                                        data={'cotizacion': 'COT-002'})

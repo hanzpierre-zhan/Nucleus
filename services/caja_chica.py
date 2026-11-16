@@ -504,6 +504,27 @@ def guardar_documentos_revision(sol, usuario, cotizacion, archivo, tiempo=None):
         db.session.commit()
 
 
+def _editar_formulario(actual, cambios):
+    """Site, CM, titular y billetera que corrige quien valida. Lo que no llega se conserva."""
+    if not isinstance(cambios, dict):
+        return actual
+    nuevo = dict(actual)
+    for campo, limite in (('site', 150), ('wo', 100), ('titular', 150)):
+        if campo in cambios:
+            valor = str(cambios.get(campo) or '').strip()
+            _exigir(len(valor) <= limite, 'Revisa la longitud de los datos de la solicitud.')
+            nuevo[campo] = valor
+    nuevo['wo'] = normalizar_cm(nuevo.get('wo'))
+    nuevo['site'] = nuevo.get('site') or SITE_PENDIENTE
+    if 'tipo_billetera' in cambios:
+        billetera = str(cambios.get('tipo_billetera') or 'No aplica')
+        _exigir(billetera in ('No aplica', 'Yape', 'Plin'), 'Selecciona una billetera válida.')
+        numero = str(cambios.get('numero_billetera') or '').strip() if billetera != 'No aplica' else ''
+        _exigir(billetera == 'No aplica' or re.fullmatch(r'[0-9]{9}', numero), 'Ingresa los 9 dígitos de Yape o Plin.')
+        nuevo.update(tipo_billetera=billetera, numero_billetera=numero)
+    return nuevo
+
+
 def editar_revision(sol, usuario, datos, archivo, catalogo, proyectos, bancos, importe):
     _exigir(sol.estado == 'PENDIENTE', 'Solo se edita una solicitud pendiente de validación.')
     anterior = a_dict(sol, gestion=True)
@@ -515,10 +536,11 @@ def editar_revision(sol, usuario, datos, archivo, catalogo, proyectos, bancos, i
             {campo: item.get(campo) for campo in ('numero', 'tipo_gasto', 'descripcion', 'monto', 'tipo_presupuesto', 'correo_validador')}
             for item in anterior['items']
         ]
+    formulario = _editar_formulario(anterior['formulario'], datos.get('formulario'))
     conceptos = _llenar(sol, datos, catalogo, proyectos, bancos, importe, anteriores=anterior['items'])
     revision = _documentos_revision(sol, datos.get('cotizacion'), archivo, anterior['revision'])
-    _historial(sol, 'editar solicitud', usuario, conceptos=conceptos,
-               revision=revision, envio_tecnico=envio)
+    _historial(sol, 'editar solicitud', usuario, conceptos=conceptos, revision=revision, envio_tecnico=envio,
+               formulario=formulario if formulario != anterior['formulario'] else None)
     db.session.commit()
 
 
