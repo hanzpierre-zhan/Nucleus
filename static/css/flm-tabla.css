@@ -189,3 +189,9 @@ body .vista-flm .fv-acciones #btn-module-settings i { display: block !important;
 body .excel-main.vista-flm #data-grid .tabulator-header-filter { width: 100% !important; }
 body .excel-main.vista-flm #data-grid .tabulator-header-filter input,
 body .excel-main.vista-flm #data-grid .tabulator-header-filter select { width: 100% !important; box-sizing: border-box !important; height: 25px !important; }
+
+/* Mientras carga no se muestra la tabla antigua: aparece ya con el diseño nuevo. */
+.excel-main.vista-flm:not(.fv-lista) .topbar-row,
+.excel-main.vista-flm:not(.fv-lista) #data-grid,
+.excel-main.vista-flm:not(.fv-lista) #pagination-container,
+.excel-main.vista-flm:not(.fv-lista) #status-record-count { visibility: hidden !important; }

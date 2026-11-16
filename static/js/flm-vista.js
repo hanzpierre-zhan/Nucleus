@@ -137,6 +137,7 @@
           return b;
         }}, true, '_key');
     }
+    main.classList.add('fv-lista');  // ya con el diseño nuevo: se muestra
     tabla.on('dataLoaded', () => setTimeout(pintarPestanas, 0));
     tabla.on('dataChanged', () => setTimeout(pintarPestanas, 0));
     if (grupo) aplicar(); else pintarPestanas();
@@ -146,7 +147,8 @@
   let intentos = 0;
   const esperar = setInterval(() => {
     const t = window.Tabulator?.findTable?.('#data-grid')?.[0];
-    if (t && t.initialized !== false && t.getData().length) { clearInterval(esperar); preparar(t); }
-    else if (++intentos > 150) clearInterval(esperar);
+    // Con datos, o tras 5 s aunque el proyecto esté vacío, se arma el diseño nuevo.
+    if (t && t.initialized !== false && (t.getData().length || intentos > 25)) { clearInterval(esperar); preparar(t); }
+    else if (++intentos > 150) { clearInterval(esperar); main.classList.add('fv-lista'); }
   }, 200);
 })();
