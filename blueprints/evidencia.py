@@ -307,7 +307,9 @@ def api_evidencia_foto(pid, key, nombre):
     comprobar_archivo(pid, key)
     cur = session.get('current_proyecto_id')
     # FLM <-> FLM - ENTEL: las fotos subidas desde uno son accesibles desde el otro.
-    permitido = (pid == cur) or (_flm_hermano_id(cur) == pid)
+    from services.entel_old import proyectos_de_fotos
+    fuentes = proyectos_de_fotos(pid)  # incluye el Backup FLM ENTEL si pid es FLM - ENTEL
+    permitido = (cur in fuentes) or (_flm_hermano_id(cur) == pid)
     if not permitido:
         from blueprints.cotizacion import _split_wos, _resolver_wo_sustento
         if puede_cotizaciones(session.get('user_id'),session.get('rol'),session.get('current_proyecto_nombre')):
@@ -317,7 +319,7 @@ def api_evidencia_foto(pid, key, nombre):
                     cd=json.loads(cf.data_json or '{}')
                     if key.casefold() in [w.casefold() for w in _split_wos(cd.get('NUMERO WO'))]:
                         origen=_resolver_wo_sustento(key,cd.get('CLIENTE'))
-                        if origen and origen[0].id==pid:permitido=True;break
+                        if origen and origen[0].id in fuentes:permitido=True;break
 
     if not permitido and session.get('rol') in ('zeno', 'suport'):
         permitido = True

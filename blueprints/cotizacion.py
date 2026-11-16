@@ -1562,15 +1562,19 @@ def _resolver_wo_sustento(wo, cliente=None):
     wo = str(wo or '').strip()
     if not wo:
         return None
-    proys = Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO)).all()
+    from services.entel_old import NOMBRE as BACKUP_ENTEL
+    proys = Proyecto.query.filter(Proyecto.nombre.in_(_PROYECTOS_WO_SUSTENTO + (BACKUP_ENTEL,))).all()
     from services.recursos_flm import familia
-    coincidencias = []
+    coincidencias, respaldo = [], []
     for p in proys:
-        if familia(cliente) and familia(p.nombre) != familia(cliente):
+        es_backup = p.nombre == BACKUP_ENTEL
+        if familia(cliente) and ('ENTEL' if es_backup else familia(p.nombre)) != familia(cliente):
             continue
         fila = NucleusData.query.filter(NucleusData.proyecto_id == p.id, func.lower(NucleusData.key_value) == wo.lower()).first()
         if fila:
-            coincidencias.append((p, fila))
+            (respaldo if es_backup else coincidencias).append((p, fila))
+    # El backup de Entel solo se usa si el WO ya no está en ningún proyecto FLM.
+    coincidencias = coincidencias or respaldo
     return coincidencias[0] if len(coincidencias) == 1 else None
 
 

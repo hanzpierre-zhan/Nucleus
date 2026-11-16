@@ -131,7 +131,7 @@
                 </a>
                 {# Backup: módulos anteriores (Cotizaciones old y Rendición). #}
                 {% set _backup = [] %}
-                {% for nombre, etiqueta, icono in [('Cotizaciones','Cotizaciones old','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet')] %}{% for p in proyectos_list %}{% if p.nombre == nombre %}{% set _ = _backup.append((p, etiqueta, icono)) %}{% endif %}{% endfor %}{% endfor %}
+                {% for nombre, etiqueta, icono in [('Cotizaciones','Cotizaciones old','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet'),('Backup FLM ENTEL','FLM Entel old','fa-tower-cell')] %}{% for p in proyectos_list %}{% if p.nombre == nombre %}{% set _ = _backup.append((p, etiqueta, icono)) %}{% endif %}{% endfor %}{% endfor %}
                 {% if _backup %}
                 <div class="sidebar-section-label">Backup</div>
                 <div class="sb-grupo" data-grupo="backup">

@@ -245,7 +245,8 @@ def comprobar_archivo(pid, key):
     prefijos = ['/api/evidencia/foto/%s/%s/' % (pid, key),
                 '/api/rendicion/foto/%s/%s/' % (pid, key),
                 '/api/cotizacion/correo/%s/%s/' % (pid, key)]
-    encontrado = NucleusData.query.filter(NucleusData.proyecto_id == pid, or_(
+    from services.entel_old import proyectos_de_fotos
+    encontrado = NucleusData.query.filter(NucleusData.proyecto_id.in_(proyectos_de_fotos(pid)), or_(
         NucleusData.key_value == key,
         *[NucleusData.data_json.contains(p, autoescape=True) for p in prefijos])).first()
     if not encontrado:
