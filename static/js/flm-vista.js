@@ -168,6 +168,15 @@
         const v = celda.getValue(); return v ? el('span', 'fv-chip ' + (CHIP[grupoDe(v)] || ''), v) : '';
       }});
     }
+    // SLA Status: normal en verde, sla_violation en rojo.
+    if (tabla.getColumn('SLA Status')) {
+      tabla.updateColumnDefinition('SLA Status', {formatter: celda => {
+        const v = String(celda.getValue() ?? '').trim(), e = plano(v);
+        if (!v) return '';
+        const clase = e === 'normal' ? 'fv-chip-sla-ok' : e.includes('violation') ? 'fv-chip-sla-mal' : '';
+        return clase ? el('span', 'fv-chip ' + clase, v) : v;
+      }});
+    }
     // Acciones: botón redondo que abre el mismo detalle que el clic en el ticket.
     if (!tabla.getColumn('_fv_acciones') && tabla.getColumn('_key')) {
       const ancho = conSla ? 168 : 92;
