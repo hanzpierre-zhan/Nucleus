@@ -117,8 +117,14 @@
     return chip;
   }
 
-  let tabla = null, grupo = '', texto = '', filtro = null;
-  try { grupo = localStorage.getItem('fv-grupo') || ''; } catch (_) {}
+  let tabla = null, grupo = '', texto = '', filtro = null, tipo = '';
+  try { grupo = localStorage.getItem('fv-grupo') || ''; tipo = localStorage.getItem('fv-tipo') || ''; } catch (_) {}
+  // Tipo de ticket: Task Type (CM, PM o PLM); si no lo trae, el prefijo del N.º de ticket (CM-…, PM-…, PLM-…).
+  const tipoDe = f => {
+    const t = String(f['Task Type'] || '').trim().toUpperCase();
+    if (['CM', 'PM', 'PLM'].includes(t)) return t;
+    return (String(f._key || f['Ticket ID'] || '').toUpperCase().match(/^(CM|PLM|PM)/) || [])[1] || '';
+  };
 
   // ── Barra (mismo marcado que Caja Chica) ──
   const gestion = el('section', 'cc-gestion fv-gestion');
@@ -127,7 +133,19 @@
   buscar.setAttribute('aria-label', 'Buscar en la tabla');
   const pestanas = el('nav', 'cc-tabs'); pestanas.setAttribute('role', 'tablist'); pestanas.setAttribute('aria-label', 'Estado del ticket');
   const acciones = el('div', 'fv-acciones');
-  barra.append(buscar, pestanas, acciones);
+  // Todos · CM · PM · PLM (igual que en la página SLA).
+  const tipos = el('nav', 'sla-tipos fv-tipos'); tipos.setAttribute('aria-label', 'Tipo de ticket');
+  ['', 'CM', 'PM', 'PLM'].forEach(t => {
+    const b = el('button', 'sla-tipo' + (tipo === t ? ' activo' : ''), t || 'Todos'); b.type = 'button'; b.dataset.tipo = t;
+    b.setAttribute('aria-pressed', String(tipo === t));
+    b.addEventListener('click', () => {
+      tipo = t; try { localStorage.setItem('fv-tipo', tipo); } catch (_) {}
+      tipos.querySelectorAll('.sla-tipo').forEach(x => { x.classList.toggle('activo', x.dataset.tipo === tipo); x.setAttribute('aria-pressed', String(x.dataset.tipo === tipo)); });
+      aplicar();
+    });
+    tipos.append(b);
+  });
+  barra.append(buscar, pestanas, tipos, acciones);
   gestion.append(barra);
   let espera;
   buscar.addEventListener('input', () => { clearTimeout(espera); espera = setTimeout(() => { texto = buscar.value; aplicar(); }, 200); });
@@ -136,13 +154,14 @@
     if (filtro) tabla.removeFilter(filtro);
     const campos = tabla.getColumns().filter(c => c.isVisible() && c.getField()).map(c => c.getField());
     const q = plano(texto.trim());
-    filtro = fila => (!grupo || grupoDe(estadoDe(fila)) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
+    filtro = fila => (!tipo || tipoDe(fila) === tipo) && (!grupo || grupoDe(estadoDe(fila)) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
     tabla.addFilter(filtro);
     pintarPestanas();
   }
 
   function pintarPestanas() {
-    const datos = tabla.getData(), cuenta = {};
+    // Las pestañas cuentan solo el tipo elegido (CM, PM o PLM).
+    const datos = tabla.getData().filter(f => !tipo || tipoDe(f) === tipo), cuenta = {};
     datos.forEach(f => { const g = grupoDe(estadoDe(f)); cuenta[g] = (cuenta[g] || 0) + 1; });
     pestanas.replaceChildren(...GRUPOS.map(([clave, nombre, color, simbolo]) => {
       const b = el('button', 'cc-tab' + (grupo === clave ? ' activa' : '')); b.type = 'button'; b.setAttribute('role', 'tab');
@@ -317,7 +336,7 @@
     main.classList.add('fv-lista');  // ya con el diseño nuevo: se muestra
     tabla.on('dataLoaded', () => setTimeout(pintarPestanas, 0));
     tabla.on('dataChanged', () => setTimeout(pintarPestanas, 0));
-    if (grupo) aplicar(); else pintarPestanas();
+    if (grupo || tipo) aplicar(); else pintarPestanas();
   }
 
   // La tabla clásica se crea en otro script: se espera a que exista y tenga datos.

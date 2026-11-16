@@ -244,3 +244,9 @@ body.dark-mode .excel-main.vista-flm #data-grid .tabulator-col.fv-col-sla .tabul
 .vista-flm .fv-nivel-baja { background: #28a745; color: #fff; }
 .vista-flm .fv-nivel-otro { background: rgba(142, 142, 147, .2); color: inherit; }
 .vista-flm .fv-nivel-calidad { background: #6f42c1; color: #fff; }
+
+/* Todos · CM · PM · PLM en la barra de los proyectos FLM (mismo estilo que la página SLA) */
+.vista-flm .fv-tipos { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--ios-fill); flex: none; }
+body .vista-flm .fv-tipos .sla-tipo { min-height: 0 !important; padding: 4px 10px !important; border: 0 !important; border-radius: 999px !important; background: transparent !important;
+  color: var(--ios-secondary) !important; font-size: 12px; font-weight: 600; box-shadow: none !important; cursor: pointer; }
+body .vista-flm .fv-tipos .sla-tipo.activo { background: #1d4ed8 !important; color: #fff !important; }
