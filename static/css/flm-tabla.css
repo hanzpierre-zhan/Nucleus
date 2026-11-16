@@ -174,3 +174,9 @@ body .excel-main.vista-flm #data-grid .tabulator-col { vertical-align: top !impo
 body .excel-main.vista-flm #data-grid .tabulator-col .tabulator-col-content { width: 100%; }
 body .excel-main.vista-flm #data-grid .tabulator-col-title { text-align: left !important; }
 body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-title { text-align: center !important; overflow: visible !important; }
+
+/* ── Igual que Caja Chica: cabecera "Acciones" como título normal y pestañas de dos líneas ── */
+body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] { justify-content: center !important; }
+body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-title {
+  text-transform: none !important; letter-spacing: 0 !important; font-size: 13px !important; font-weight: 600 !important; color: var(--ios-label) !important; }
+.vista-flm .fv-gestion .cc-tab { min-width: 92px; }

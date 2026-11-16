@@ -57,8 +57,11 @@
       const b = el('button', 'cc-tab' + (grupo === clave ? ' activa' : '')); b.type = 'button'; b.setAttribute('role', 'tab');
       b.setAttribute('aria-selected', String(grupo === clave)); b.style.setProperty('--cc-color', color);
       const fila = el('span', 'cc-tab-fila');
-      fila.append(icono(simbolo), el('span', null, nombre), el('span', 'cc-cuenta', (clave ? cuenta[clave] || 0 : datos.length).toLocaleString('es-PE')));
-      b.append(fila);
+      const n = clave ? cuenta[clave] || 0 : datos.length;
+      fila.append(icono(simbolo), el('span', null, nombre), el('span', 'cc-cuenta', n.toLocaleString('es-PE')));
+      // Segunda línea como en Caja Chica: en vez del monto, la parte del total.
+      const parte = datos.length ? Math.round(n * 100 / datos.length) : 0;
+      b.append(fila, el('span', 'cc-plata', clave ? parte + '% del total' : 'tickets'));
       b.addEventListener('click', () => { grupo = clave; try { localStorage.setItem('fv-grupo', grupo); } catch (_) {} aplicar(); });
       return b;
     }));
@@ -108,6 +111,10 @@
       fila.classList.add('fv-oculta');
     }
     ajustarEncabezado();
+    // El N.º de ticket completo, sin cortarse.
+    // (se repite un momento después porque la tabla restaura su diseño guardado al terminar de cargar).
+    const anchoTicket = () => { const ticket = tabla.getColumn('_key'); if (ticket && ticket.getWidth() < 200) ticket.setWidth(200); };
+    [0, 600, 1500].forEach(ms => setTimeout(anchoTicket, ms));
     const cab = document.querySelector('#data-grid .tabulator-header');
     if (cab) new MutationObserver(() => { clearTimeout(ajustarEncabezado.t); ajustarEncabezado.t = setTimeout(ajustarEncabezado, 50); }).observe(cab, {childList: true, subtree: true});
     // Estado como chip de color (solo cómo se ve).
