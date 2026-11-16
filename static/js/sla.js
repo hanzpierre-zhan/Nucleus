@@ -204,8 +204,10 @@
     document.querySelector('[data-cumple="' + clave + '"]').textContent = cerrados.length ? (ok / cerrados.length * 100).toFixed(1) + ' % cumple' : 'Sin cerrados';
   }
 
+  // Sin casos abiertos (ej. Entel, que llega todo en Completed): se abre en "Cerrados" para no mostrar la lista vacía.
+  const filtroInicial = () => { const l = cache[proyecto]; if (!filtro && l && l.length && !l.some(c => !c.cerrado)) filtro = 'cerrados'; };
   document.querySelectorAll('.sla-proyecto').forEach(b => b.addEventListener('click', async () => {
-    proyecto = b.dataset.proyecto; filtro = ''; try { localStorage.setItem('sla-proyecto', proyecto); } catch (_) {} pintar(); await cargar(proyecto); pintar();
+    proyecto = b.dataset.proyecto; filtro = ''; try { localStorage.setItem('sla-proyecto', proyecto); } catch (_) {} pintar(); await cargar(proyecto); filtroInicial(); pintar();
   }));
   document.querySelectorAll('.sla-tipo').forEach(b => b.addEventListener('click', () => { tipo = b.dataset.tipo; pintar(); }));
   $('sla-periodo').addEventListener('change', e => { periodo = e.target.value; pintar(); });
@@ -229,7 +231,7 @@
   const disponibles = [...document.querySelectorAll('.sla-proyecto')].map(b => b.dataset.proyecto);
   if (!disponibles.includes(proyecto)) proyecto = disponibles.includes('CLARO') ? 'CLARO' : disponibles[0];
   pintar();
-  cargar(proyecto).then(pintar).then(() => Promise.all(disponibles.filter(p => p !== proyecto).map(cargar)));
+  cargar(proyecto).then(filtroInicial).then(pintar).then(() => Promise.all(disponibles.filter(p => p !== proyecto).map(cargar)));
   // Cuenta regresiva: se recalcula cada minuto para avisar antes de que venza.
   setInterval(pintar, 60000);
 })();
