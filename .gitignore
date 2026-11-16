@@ -91,3 +91,10 @@ node_modules/
 
 # Excel de revisión con datos de producción (no se versiona)
 revision/
+
+# Carpetas de trabajo y copias locales: no van al repositorio
+backups/
+scratch/
+outputs/
+revision/
+nucleus-*.db
