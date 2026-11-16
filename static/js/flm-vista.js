@@ -97,7 +97,11 @@
     const m = medidaEntel(f), horas = objetivoEntel(f);
     if (!m) return {clase: 'fv-sla-gris', icono: 'fa-hourglass-start', texto: 'Sin inicio', ayuda: 'Falta dispatch_time'};
     const pausa = pausaEntel(f) ? ' · parada de reloj ' + duracion(pausaEntel(f)) : '';
-    if (!m.fin) return abierto(m.neto, horas === null ? null : horas * 60, pausa);
+    if (!m.fin) {
+      // Abierto: muestra el tiempo que va transcurriendo (sin la parada de reloj); el color dice cómo va.
+      const estado = abierto(m.neto, horas === null ? null : horas * 60, pausa);
+      return {...estado, icono: 'fa-stopwatch', texto: duracion(m.neto), ayuda: 'Transcurrido ' + duracion(m.neto) + ' · ' + estado.ayuda};
+    }
     const cobra = slaCobra(f), data = plano(f['SLA Status']);
     const contraste = data && cobra && data !== cobra ? ' · ⚠ la data dice ' + f['SLA Status'] : '';
     return cerrado(cobra === 'normal', cobra === 'sla_violation', m.neto,
