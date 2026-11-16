@@ -8,6 +8,7 @@ Reglas:
 - Objetivo: SLA Hour (minutos). Resultado de un cerrado: SLA Status ("normal" cumple; "sla_violation" no).
 - Abiertos: vencido, por vencer (queda ≤ 25 % del objetivo o ≤ 60 min) o en plazo.
 - Técnico: Schedule Operator.
+- Parada de reloj: Require Finish Time = inicio + SLA Hour + pausa; se descuenta en los abiertos.
 
 Entel (KPI OM Sitios):
 - Desde dispatch_time hasta SubmitTime(complete) (o complete_time), menos Total SLA Pause Duration (segundos).
@@ -106,6 +107,13 @@ def _caso_entel(d, clave):
     }
 
 
+def _pausa_claro(inicio, limite, objetivo):
+    ini, fin = _fecha(inicio), _fecha(limite)
+    if not (ini and fin and objetivo):
+        return 0
+    return round(max(0.0, (fin - ini).total_seconds() / 60 - objetivo), 1)
+
+
 def casos(proyecto):
     """Casos del proyecto con lo necesario para el SLA (sin cancelados)."""
     filas = (NucleusData.query.filter_by(proyecto_id=proyecto.id)
@@ -146,6 +154,8 @@ def casos(proyecto):
             'sla_hour': str(d.get('SLA Hour') or '').strip(), 'categoria': str(d.get('Task Category') or '').strip(), 'sla_status_original': str(d.get('SLA Status') or '').strip(),
             'objetivo': _minutos(d.get('SLA Hour')), 'sla_status': str(d.get('SLA Status') or '').strip().lower(),
             'prioridad': str(d.get('Fault Level label') or d.get('Fault Level') or ''),
+            # Parada de reloj: Require Finish Time = inicio + SLA Hour + pausa (coincide con el SLA Status de Claro).
+            'pausa': _pausa_claro(inicio, d.get('Require Finish Time'), _minutos(d.get('SLA Hour'))),
         })
     for c in salida:
         c['tecnico_nombre'] = nombres.get(c['tecnico'], '')

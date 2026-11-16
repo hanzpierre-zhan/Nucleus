@@ -4442,7 +4442,9 @@ let _rendCambiandoVista = false;
         data: rawData,
 
         layout: "fitData",
-        renderHorizontal: "virtual",
+        // FLM: dibujo horizontal normal. El "virtual" desalinea cabeceras y celdas al mostrar/ocultar columnas
+        // (el embudo filtraba otra columna). Con las columnas ya reducidas y 200 filas por página, el normal es fluido.
+        renderHorizontal: (IS_FLM_LIKE || IS_PEXT) ? "basic" : "virtual",
 
         columns: tableColumns,
 

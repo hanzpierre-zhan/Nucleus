@@ -68,10 +68,12 @@
     if (!inicio) return {clase: 'fv-sla-gris', icono: 'fa-hourglass-start', texto: 'Sin inicio', ayuda: (tipo === 'CM' ? 'Falta Dispatch Time' : 'Falta Arrive Time')};
     if (/complet|closed/.test(estado)) {
       const fin = fecha(f['Complete Time'] || f['FECHA CAMBIO ESTADO']);
-      const st = plano(f['SLA Status']);
-      return cerrado(st === 'normal', st.includes('violation'), fin ? (fin - inicio) / 60000 : null, objetivo ? ' · objetivo ' + duracion(objetivo) : '');
+      const st = plano(f['SLA Status']), m = medidaClaro(f);
+      return cerrado(st === 'normal', st.includes('violation'), m ? m.neto : fin ? (fin - inicio) / 60000 : null,
+        (objetivo ? ' · objetivo ' + duracion(objetivo) : '') + (m && m.pausa ? ' · parada de reloj ' + duracion(m.pausa) : ''));
     }
-    return abierto((Date.now() - inicio) / 60000, objetivo);
+    const m = medidaClaro(f);
+    return abierto(m ? m.neto : (Date.now() - inicio) / 60000, objetivo, m && m.pausa ? ' · parada de reloj ' + duracion(m.pausa) : '');
   }
 
   const OBJETIVO_ENTEL = {critica: 4, critical: 4, alta: 4, major: 4, media: 6, baja: 48, minor: 48, calidad: 720};  // calidad = 30 días
@@ -86,7 +88,30 @@
     return {fin, neto: Math.max(0, ((fin || Date.now()) - inicio) / 60000 - pausaEntel(f))};
   }
   // SLA Cobra: "normal" si el tiempo neto no pasó el objetivo; "sla_violation" si lo pasó.
+  // Claro: CM desde Dispatch Time, PM/PLM desde Arrive Time, hasta Complete Time; objetivo SLA Hour (min).
+  function medidaClaro(f) {
+    if (/cancel/.test(plano(f['Task Status']))) return null;
+    let tipo = String(f['Task Type'] || '').trim().toUpperCase();
+    if (!['CM', 'PM', 'PLM'].includes(tipo)) tipo = (String(f._key || '').toUpperCase().match(/^(CM|PLM|PM)/) || [])[1] || '';
+    const inicio = fecha(tipo === 'CM' ? f['Dispatch Time'] : f['Arrive Time']);
+    const objetivo = Number(f['SLA Hour']) > 0 ? Number(f['SLA Hour']) : null;
+    if (!tipo || !inicio || !objetivo) return null;
+    const cerrado = /complet|closed/.test(plano(f['Task Status']));
+    const fin = cerrado ? fecha(f['Complete Time'] || f['FECHA CAMBIO ESTADO']) : null;
+    if (cerrado && !fin) return null;
+    // Parada de reloj: Require Finish Time = inicio + SLA Hour + pausa (así lo calcula Claro; coincide con su SLA Status).
+    const limite = fecha(f['Require Finish Time']);
+    const pausa = limite ? Math.max(0, (limite - inicio) / 60000 - objetivo) : 0;
+    return {fin, neto: ((fin || Date.now()) - inicio) / 60000 - pausa, objetivo, pausa};
+  }
+  // SLA Cobra: "normal" si el tiempo neto no pasó el objetivo; "sla_violation" si lo pasó (abiertos: solo si ya venció).
   function slaCobra(f) {
+    if (esClaro) {
+      const m = medidaClaro(f);
+      if (!m) return '';
+      if (m.neto > m.objetivo) return 'sla_violation';
+      return m.fin ? 'normal' : '';
+    }
     const m = medidaEntel(f), horas = objetivoEntel(f);
     if (!m || horas === null) return '';
     if (m.neto > horas * 60) return 'sla_violation';
@@ -265,6 +290,8 @@
           chip.append(el('span', null, nivel), el('span', 'fv-nivel-horas', horas === null ? '· sin regla' : horas >= 720 ? '· ' + horas / 24 + ' días' : '· ' + horas + ' h'));
           return chip;
         }});
+    }
+    if (conSla) {
       // SLA Cobra: nuestro cálculo con los mismos estados que SLA Status, para contrastar. ⚠ si no coinciden.
       const tras = indice('SLA Status');
       // Se guarda el cálculo en la fila (mutator) para poder filtrar y buscar como cualquier columna, con el mismo embudo que SLA Status.
@@ -273,7 +300,8 @@
         mutator: (valor, fila) => slaCobra(fila),
         headerFilter: filtroDe.headerFilter ?? 'input', headerFilterFunc: filtroDe.headerFilterFunc ?? 'like', headerFilterParams: filtroDe.headerFilterParams,
         headerFilterPlaceholder: filtroDe.headerFilterPlaceholder, headerPopup: filtroDe.headerPopup, headerPopupIcon: filtroDe.headerPopupIcon,
-        cssClass: 'fv-col-sla', headerTooltip: 'Cálculo Cobra: dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo por Fault Level',
+        cssClass: 'fv-col-sla', headerTooltip: esEntel ? 'Cálculo Cobra: dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo por Fault Level'
+          : 'Cálculo Cobra: CM desde Dispatch Time, PM/PLM desde Arrive Time, hasta Complete Time, contra SLA Hour',
         sorter: (a, b, filaA, filaB) => slaCobra(filaA.getData()).localeCompare(slaCobra(filaB.getData())),
         formatter: celda => {
           const f = celda.getRow().getData(), v = slaCobra(f);
@@ -286,6 +314,8 @@
           caja.append(chip, icono('fa-triangle-exclamation'));
           return caja;
         }});
+    }
+    if (esEntel) {
       // Viene en segundos: se muestra en horas y minutos (el número original queda al pasar el mouse).
       poner('Total SLA Pause Duration', {formatter: celda => {
         const s = Number(String(celda.getValue() ?? '').trim());
