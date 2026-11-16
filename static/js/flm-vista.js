@@ -107,6 +107,10 @@
   // SLA Cobra: "normal" si el tiempo neto no pasó el objetivo; "sla_violation" si lo pasó (abiertos: solo si ya venció).
   function slaCobra(f) {
     if (esClaro) {
+      // SLA Hour vacío o en 0: se marcan para tenerlos ubicados (no se puede medir sin objetivo).
+      const hora = String(f['SLA Hour'] ?? '').trim();
+      if (!hora) return 'sin_sla_hour';
+      if (Number(hora) === 0) return 'sla_hour_0';
       const m = medidaClaro(f);
       if (!m) return '';
       if (m.neto > m.objetivo) return 'sla_violation';
@@ -306,7 +310,9 @@
         formatter: celda => {
           const f = celda.getRow().getData(), v = slaCobra(f);
           if (!v) return '';
-          const chip = el('span', 'fv-chip ' + (v === 'normal' ? 'fv-chip-sla-ok' : 'fv-chip-sla-mal'), v);
+          const medible = v === 'normal' || v === 'sla_violation';
+          const chip = el('span', 'fv-chip ' + (v === 'normal' ? 'fv-chip-sla-ok' : v === 'sla_violation' ? 'fv-chip-sla-mal' : 'fv-chip-sla-sin'), v);
+          if (!medible) { chip.title = v === 'sla_hour_0' ? 'SLA Hour = 0: sin objetivo para medir' : 'SLA Hour vacío: sin objetivo para medir'; return chip; }
           const data = plano(f['SLA Status']);
           if (!data || data === v) return chip;
           const caja = el('span', 'fv-sla-contraste');

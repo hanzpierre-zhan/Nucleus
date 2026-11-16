@@ -252,3 +252,5 @@ body.dark-mode .excel-main.vista-flm #data-grid .tabulator-col.fv-col-sla .tabul
 body .vista-flm .fv-tipos .sla-tipo { min-height: 0 !important; padding: 4px 10px !important; border: 0 !important; border-radius: 999px !important; background: transparent !important;
   color: var(--ios-secondary) !important; font-size: 12px; font-weight: 600; box-shadow: none !important; cursor: pointer; }
 body .vista-flm .fv-tipos .sla-tipo.activo { background: #1d4ed8 !important; color: #fff !important; }
+/* SLA Cobra sin objetivo (Claro: SLA Hour vacío o 0) */
+.vista-flm .fv-chip-sla-sin { background: rgba(142, 142, 147, .18); color: var(--ios-secondary, #6b7280); text-transform: none; }
