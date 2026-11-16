@@ -3,7 +3,7 @@ import json
 import pytest
 
 from db import db
-from models import Proyecto, NucleusData
+from models import AppConfig, Proyecto, NucleusData
 from services.importacion_identidad import CLAVES
 from services.utilidades import get_menu_proyectos
 
@@ -22,7 +22,9 @@ def test_nuevo_wo_en_modulo_independiente(app, auth_client, nombre):
     assert respuesta.status_code == 200, respuesta.json
     with app.app_context():
         registro = NucleusData.query.filter_by(proyecto_id=pid, key_value='TEST-WO-FLM').one()
-        assert json.loads(registro.data_json)[CLAVES.get(nombre, 'Número de WO')] == 'TEST-WO-FLM'
+        # El N.º de WO se guarda en la columna clave que tenga configurada el proyecto.
+        pk = AppConfig.query.filter_by(proyecto_id=pid, clave='primary_key').first()
+        assert json.loads(registro.data_json)[(pk.valor if pk else '') or CLAVES.get(nombre, 'Número de WO')] == 'TEST-WO-FLM'
         db.session.delete(registro)
         db.session.commit()
 

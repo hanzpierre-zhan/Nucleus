@@ -192,42 +192,31 @@
     });
   }
 
-  function preparar(t) {
-    tabla = t;
-    const fila = document.querySelector('.topbar-row');
-    if (fila && !document.querySelector('.fv-gestion')) {
-      fila.before(gestion);
-      moverBotones();
-      moverPaginacion();
-      fila.classList.add('fv-oculta');
-    }
-    ajustarEncabezado();
-    // Con la cabecera ya ordenada, la tabla recalcula su alto para no tapar los buscadores.
-    setTimeout(() => tabla.redraw(), 0);
+  // Ajusta las columnas de la tabla (chips, Acciones, SLA) sobre sus definiciones, en un solo paso.
+  // table-controller la llama ANTES de crear la tabla: así no se redibuja la tabla una vez por cada columna.
+  function ajustarColumnas(defs) {
+    const col = campo => defs.find(d => d && d.field === campo);
+    const poner = (campo, props) => { const d = col(campo); if (d) Object.assign(d, props); return d; };
+    const indice = campo => defs.findIndex(d => d && d.field === campo);
+    if (col('_fv_acciones')) return defs;
     // El N.º de ticket completo, sin cortarse.
-    // Ancho mínimo fijo: así ni el diseño guardado ni el redibujo lo vuelven a cortar.
-    if (tabla.getColumn('_key')) tabla.updateColumnDefinition('_key', {minWidth: 200, width: Math.max(200, tabla.getColumn('_key').getWidth())});
-    const cab = document.querySelector('#data-grid .tabulator-header');
-    if (cab) new MutationObserver(() => { clearTimeout(ajustarEncabezado.t); ajustarEncabezado.t = setTimeout(ajustarEncabezado, 50); }).observe(cab, {childList: true, subtree: true});
+    const clave = col('_key');
+    if (clave) Object.assign(clave, {minWidth: 200, width: Math.max(200, Number(clave.width) || 0)});
     // Estado como chip de color (solo cómo se ve).
-    ['Task Status', 'Ticket Status'].filter(c => tabla.getColumn(c)).forEach(c => {
-      tabla.updateColumnDefinition(c, {formatter: celda => {
-        const v = celda.getValue(); return v ? el('span', 'fv-chip ' + (CHIP[grupoDe(v)] || ''), v) : '';
-      }});
-    });
+    ['Task Status', 'Ticket Status'].forEach(c => poner(c, {formatter: celda => {
+      const v = celda.getValue(); return v ? el('span', 'fv-chip ' + (CHIP[grupoDe(v)] || ''), v) : '';
+    }}));
     // SLA Status: normal en verde, sla_violation en rojo.
-    if (tabla.getColumn('SLA Status')) {
-      tabla.updateColumnDefinition('SLA Status', {formatter: celda => {
-        const v = String(celda.getValue() ?? '').trim(), e = plano(v);
-        if (!v) return '';
-        const clase = e === 'normal' ? 'fv-chip-sla-ok' : e.includes('violation') ? 'fv-chip-sla-mal' : '';
-        return clase ? el('span', 'fv-chip ' + clase, v) : v;
-      }});
-    }
-    // Acciones: botón redondo que abre el mismo detalle que el clic en el ticket.
-    if (!tabla.getColumn('_fv_acciones') && tabla.getColumn('_key')) {
+    poner('SLA Status', {formatter: celda => {
+      const v = String(celda.getValue() ?? '').trim(), e = plano(v);
+      if (!v) return '';
+      const clase = e === 'normal' ? 'fv-chip-sla-ok' : e.includes('violation') ? 'fv-chip-sla-mal' : '';
+      return clase ? el('span', 'fv-chip ' + clase, v) : v;
+    }});
+    // Acciones: botón redondo que abre el mismo detalle que el clic en el ticket (antes del N.º de ticket).
+    if (clave) {
       const ancho = conSla ? 168 : 92;
-      tabla.addColumn({title: 'Acciones', field: '_fv_acciones', headerSort: false, headerFilter: false, width: ancho, minWidth: ancho, hozAlign: 'center', download: false,
+      defs.splice(indice('_key'), 0, {title: 'Acciones', field: '_fv_acciones', headerSort: false, headerFilter: false, width: ancho, minWidth: ancho, hozAlign: 'center', download: false,
         formatter: celda => {
           const b = el('button', 'fv-accion'); b.type = 'button'; b.title = 'Ver / editar';
           b.setAttribute('aria-label', 'Ver o editar ' + (celda.getRow().getData()._key || ''));
@@ -241,12 +230,12 @@
           const caja = el('div', 'fv-acciones-celda');
           caja.append(b, chipSla(celda.getRow().getData()));
           return caja;
-        }}, true, '_key');
+        }});
     }
-    // Entel: Fault Level y su objetivo de SLA en un solo chip ("Media · 6 h"), así no se suma otra columna.
-    const colNivel = esEntel && ['Fault Level(create)', 'Fault Level'].find(c => tabla.getColumn(c));
-    if (colNivel) {
-      tabla.updateColumnDefinition(colNivel, {hozAlign: 'left', headerTooltip: 'Objetivo SLA según Fault Level: Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h',
+    if (esEntel) {
+      // Fault Level y su objetivo de SLA en un solo chip ("Media · 6 h"), así no se suma otra columna.
+      const colNivel = ['Fault Level(create)', 'Fault Level'].find(col);
+      if (colNivel) poner(colNivel, {hozAlign: 'left', headerTooltip: 'Objetivo SLA según Fault Level: Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h · Calidad 30 días',
         sorter: (a, b, filaA, filaB) => (objetivoEntel(filaA.getData()) ?? 1e9) - (objetivoEntel(filaB.getData()) ?? 1e9),
         formatter: celda => {
           const f = celda.getRow().getData(), nivel = nivelEntel(f), horas = objetivoEntel(f);
@@ -257,11 +246,9 @@
           chip.append(el('span', null, nivel), el('span', 'fv-nivel-horas', horas === null ? '· sin regla' : horas >= 720 ? '· ' + horas / 24 + ' días' : '· ' + horas + ' h'));
           return chip;
         }});
-    }
-    if (esEntel && !tabla.getColumn('_fv_sla_cobra')) {
       // SLA Cobra: nuestro cálculo con los mismos estados que SLA Status, para contrastar. ⚠ si no coinciden.
-      const pos = tabla.getColumn('SLA Status') ? 'SLA Status' : '_key';
-      tabla.addColumn({title: 'SLA Cobra', field: '_fv_sla_cobra', headerSort: true, headerFilter: false, width: 150, minWidth: 140, hozAlign: 'left', download: false,
+      const tras = indice('SLA Status');
+      defs.splice(tras >= 0 ? tras + 1 : indice('_key') + 1, 0, {title: 'SLA Cobra', field: '_fv_sla_cobra', headerSort: true, headerFilter: false, width: 150, minWidth: 140, hozAlign: 'left', download: false,
         cssClass: 'fv-col-sla', headerTooltip: 'Cálculo Cobra: dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo por Fault Level',
         sorter: (a, b, filaA, filaB) => slaCobra(filaA.getData()).localeCompare(slaCobra(filaB.getData())),
         formatter: celda => {
@@ -271,29 +258,56 @@
           const data = plano(f['SLA Status']);
           if (!data || data === v) return chip;
           const caja = el('span', 'fv-sla-contraste');
-          const aviso = icono('fa-triangle-exclamation');
           caja.title = 'No coincide: la data dice ' + f['SLA Status'] + ' y el cálculo Cobra dice ' + v;
-          caja.append(chip, aviso);
+          caja.append(chip, icono('fa-triangle-exclamation'));
           return caja;
-        }}, false, pos);
-    }
-    if (esEntel && tabla.getColumn('Total SLA Pause Duration')) {
+        }});
       // Viene en segundos: se muestra en horas y minutos (el número original queda al pasar el mouse).
-      tabla.updateColumnDefinition('Total SLA Pause Duration', {formatter: celda => {
+      poner('Total SLA Pause Duration', {formatter: celda => {
         const s = Number(String(celda.getValue() ?? '').trim());
         if (!(s > 0)) return '';
         const t = el('span', null, duracion(s / 60)); t.title = s + ' segundos'; return t;
       }});
     }
     if (conSla) {
-      // Columnas que usa el SLA: cabecera y celdas con color, y el cronómetro se actualiza cada minuto.
+      // Columnas que usa el SLA: cabecera y celdas con color.
       COLUMNAS_SLA.forEach(campo => {
-        const col = tabla.getColumn(campo);
-        if (!col) return;
-        const clases = new Set(String(col.getDefinition().cssClass || '').split(' ').filter(Boolean)).add('fv-col-sla');
-        tabla.updateColumnDefinition(campo, {cssClass: [...clases].join(' '), headerTooltip: 'Se usa para calcular el SLA'});
+        const d = col(campo);
+        if (!d) return;
+        const clases = new Set(String(d.cssClass || '').split(' ').filter(Boolean)).add('fv-col-sla');
+        Object.assign(d, {cssClass: [...clases].join(' '), headerTooltip: 'Se usa para calcular el SLA'});
       });
-      setInterval(() => { try { tabla.getRows('visible').forEach(r => r.reformat()); } catch (_) {} }, 60000);
+    }
+    return defs;
+  }
+  window.FlmVista = {columnas: ajustarColumnas};
+
+  function preparar(t) {
+    tabla = t;
+    const fila = document.querySelector('.topbar-row');
+    if (fila && !document.querySelector('.fv-gestion')) {
+      fila.before(gestion);
+      moverBotones();
+      moverPaginacion();
+      fila.classList.add('fv-oculta');
+    }
+    ajustarEncabezado();
+    // Con la cabecera ya ordenada, la tabla recalcula su alto para no tapar los buscadores.
+    setTimeout(() => tabla.redraw(), 0);
+    // Las columnas ya vienen ajustadas (FlmVista.columnas, antes de crear la tabla). Si no, se ajustan aquí en un solo paso.
+    if (!tabla.getColumn('_fv_acciones') && tabla.getColumn('_key')) tabla.setColumns(ajustarColumnas(tabla.getColumnDefinitions()));
+    const cab = document.querySelector('#data-grid .tabulator-header');
+    if (cab) new MutationObserver(() => { clearTimeout(ajustarEncabezado.t); ajustarEncabezado.t = setTimeout(ajustarEncabezado, 50); }).observe(cab, {childList: true, subtree: true});
+    if (conSla) {
+      // El cronómetro del SLA se actualiza cada minuto: solo el chip de las filas en pantalla, sin redibujar la fila.
+      setInterval(() => {
+        try {
+          tabla.getRows('visible').forEach(r => {
+            const viejo = r.getElement().querySelector('.fv-acciones-celda .fv-sla');
+            if (viejo) viejo.replaceWith(chipSla(r.getData()));
+          });
+        } catch (_) {}
+      }, 60000);
     }
     main.classList.add('fv-lista');  // ya con el diseño nuevo: se muestra
     tabla.on('dataLoaded', () => setTimeout(pintarPestanas, 0));

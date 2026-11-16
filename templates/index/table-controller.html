@@ -4424,6 +4424,8 @@ let _rendCambiandoVista = false;
         if (c.field === '_clave_portal' && !layoutVisibleMap.has(c.field)) c.visible = true;
     });
     // Aplicar a las columnas definitivas, incluidas las importadas del formulario.
+    // Vista FLM: chips, Acciones y SLA se ajustan aquí, antes de crear la tabla (un solo dibujo, más rápido).
+    if (window.FlmVista && typeof window.FlmVista.columnas === 'function') window.FlmVista.columnas(tableColumns);
     window.NucleusOrden.configurar(tableColumns, manualColsConfig, currentProjectNombre);
     window.NucleusColumnLayout.apply(tableColumns, columnLayout, isAdmin);
     // Validación necesita sus acciones incluso con layouts históricos incompletos.
