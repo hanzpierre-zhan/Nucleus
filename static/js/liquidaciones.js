@@ -165,8 +165,12 @@
       const p = document.querySelector('[data-plata="' + t + '"]'); p.textContent = plata(suma); p.title = 'Total: ' + dinero(suma);
     }
     // Tarjetas por estado (monto y casos), como en el Liquidaciones anterior; clic = filtrar.
-    const COLOR_TARJETA = {cliente: '#3b82f6', cajachica: '#16a34a', sustentar: '#f59e0b', atendido: '#8b5cf6', VALIDADO: '#3b82f6',
-      DEPOSITADO: '#16a34a', POR_DEVOLVER: '#f59e0b', SUSTENTO: '#8b5cf6', ARCHIVADO: '#94a3b8'};
+    // Mismo color e ícono que la pestaña del módulo (Cotizaciones / Caja Chica).
+    const COLOR_TARJETA = {
+      'p:registro': ['#64748b', 'fa-pen-to-square'], 'p:cliente': ['#f08a1c', 'fa-user-check'], 'p:cajachica': ['#16a34a', 'fa-wallet'],
+      'p:sustentar': ['#2563eb', 'fa-screwdriver-wrench'], 'p:atendido': ['#0d9488', 'fa-circle-check'],
+      's:VALIDADO': ['#16a34a', 'fa-building-columns'], 's:DEPOSITADO': ['#f08a1c', 'fa-receipt'], 's:POR_DEVOLVER': ['#eab308', 'fa-rotate-left'],
+      's:SUSTENTO': ['#7c3aed', 'fa-folder-open'], 's:ARCHIVADO': ['#0891b2', 'fa-box-archive'], '': ['#1d4ed8', 'fa-layer-group']};
     const tarjetas = $('lq-tarjetas'); tarjetas.replaceChildren();
     const esEstado = clave => clave.startsWith('p:') || clave.startsWith('s:');
     const estados = [...CHIPS[tab].filter(([clave]) => esEstado(clave)), ['', 'Total']];
@@ -176,9 +180,11 @@
       const filas = clave ? lista().filter(c => { const g = chip; chip = clave; const r = pasaChip(c); chip = g; return r; }) : lista();
       const suma = filas.reduce((t, c) => t + montoDe(c), 0);
       const t = el('button', 'lq-tarjeta' + (chip === clave && clave ? ' activo' : '') + (clave ? '' : ' lq-tarjeta-total')); t.type = 'button';
-      t.style.setProperty('--lq-color', COLOR_TARJETA[clave.slice(2)] || (clave ? '#94a3b8' : 'var(--ios-label)'));
+      const [color, simbolo] = COLOR_TARJETA[clave] || ['#94a3b8', 'fa-circle'];
+      t.style.setProperty('--lq-color', color);
       t.title = clave ? 'Filtrar por ' + texto : 'Quitar el filtro';
-      t.append(el('small', null, texto), el('strong', null, dinero(suma)), el('span', null, filas.length + (filas.length === 1 ? ' caso' : ' casos')));
+      const nombre = el('small'); nombre.append(icono(simbolo), ' ' + texto);
+      t.append(nombre, el('strong', null, dinero(suma)), el('span', null, filas.length + (filas.length === 1 ? ' caso' : ' casos')));
       t.addEventListener('click', () => { chip = clave && chip !== clave ? clave : ''; pintar(); });
       tarjetas.append(t);
     }

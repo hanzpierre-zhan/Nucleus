@@ -23,7 +23,9 @@ body.dark-mode .lq-evid-ok { color: #86efac !important; } body.dark-mode .lq-evi
 .lq-avance-barra span[data-nivel="medio"] { background: #f59e0b; }
 .lq-avance-barra span[data-nivel="ok"] { background: #22c55e; }
 .lq-p-cliente { background: rgba(240, 138, 28, .16); color: #c2410c; }
-.lq-p-cajachica, .lq-p-atendido { background: rgba(34, 197, 94, .16); color: #15803d; }
+.lq-p-cajachica { background: rgba(34, 197, 94, .16); color: #15803d; }
+.lq-p-atendido { background: rgba(13, 148, 136, .15); color: #0f766e; }
+.lq-p-registro { background: rgba(100, 116, 139, .15); color: #475569; }
 .lq-p-sustentar { background: rgba(37, 99, 235, .14); color: #1d4ed8; }
 .lq-p-proveedor { background: rgba(124, 58, 237, .14); color: #6d28d9; }
 .lq-o { background: var(--ios-fill); color: var(--ios-label); }
@@ -59,15 +61,18 @@ body.dark-mode .lq-descarga { color: #93c5fd !important; }
 /* Botón de la versión antigua (respaldo). */
 body .cn-gestion .cc-barra > .lq-clasico { background: #475569 !important; color: #fff !important; }
 
-/* Tarjetas por estado: monto y casos; clic filtra la tabla. */
+/* Tarjetas por estado: color de su pestaña (fondo suave, raya y monto); clic filtra la tabla. */
 .lq-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 0 10px; }
-body .lq-tarjeta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px !important; min-height: 0 !important;
-  border: 1px solid var(--ios-hairline) !important; border-top: 3px solid var(--lq-color) !important; border-radius: 10px !important;
-  background: var(--ios-card-bg) !important; color: var(--ios-label) !important; text-align: left; cursor: pointer; font: inherit; }
-body .lq-tarjeta small { font-size: 12px; color: var(--ios-secondary); font-weight: 600; }
-body .lq-tarjeta strong { font-size: 17px; font-variant-numeric: tabular-nums; }
-body .lq-tarjeta span { font-size: 11px; color: var(--ios-secondary); }
-body .lq-tarjeta:hover { background: var(--ios-fill) !important; }
-body .lq-tarjeta.activo { outline: 2px solid var(--lq-color); outline-offset: -1px; background: color-mix(in srgb, var(--lq-color) 10%, var(--ios-card-bg)) !important; }
-body .lq-tarjeta-total strong { color: var(--ios-label); }
+html body .lq-tarjetas .lq-tarjeta[type] { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px 9px 15px !important; min-height: 0 !important;
+  border: 1px solid color-mix(in srgb, var(--lq-color) 30%, transparent) !important; border-radius: 12px !important;
+  box-shadow: inset 4px 0 0 var(--lq-color) !important;
+  background: color-mix(in srgb, var(--lq-color) 8%, var(--ios-card-bg, #fff)) !important; color: var(--ios-label) !important;
+  text-align: left; cursor: pointer; font: inherit; transition: background .15s, transform .15s; }
+html body .lq-tarjetas .lq-tarjeta[type] small { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--lq-color); }
+html body .lq-tarjetas .lq-tarjeta[type] strong { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--ios-label); }
+html body .lq-tarjetas .lq-tarjeta[type] span { font-size: 11px; color: var(--ios-secondary); }
+html body .lq-tarjetas .lq-tarjeta[type]:hover { background: color-mix(in srgb, var(--lq-color) 14%, var(--ios-card-bg, #fff)) !important; transform: translateY(-1px); }
+html body .lq-tarjetas .lq-tarjeta[type].activo { background: var(--lq-color) !important; border-color: var(--lq-color) !important; box-shadow: 0 4px 14px color-mix(in srgb, var(--lq-color) 35%, transparent) !important; }
+html body .lq-tarjetas .lq-tarjeta[type].activo small, html body .lq-tarjetas .lq-tarjeta[type].activo strong, html body .lq-tarjetas .lq-tarjeta[type].activo span { color: #fff; }
+html body.dark-mode .lq-tarjetas .lq-tarjeta[type] small { color: color-mix(in srgb, var(--lq-color) 70%, #fff); }
 .lq-chips:empty { display: none; }
