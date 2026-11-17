@@ -182,9 +182,10 @@
       const t = el('button', 'lq-tarjeta' + (chip === clave && clave ? ' activo' : '') + (clave ? '' : ' lq-tarjeta-total')); t.type = 'button';
       const [color, simbolo] = COLOR_TARJETA[clave] || ['#94a3b8', 'fa-circle'];
       t.style.setProperty('--lq-color', color);
-      t.title = clave ? 'Filtrar por ' + texto : 'Quitar el filtro';
-      const nombre = el('small'); nombre.append(icono(simbolo), ' ' + texto);
-      t.append(nombre, el('strong', null, dinero(suma)), el('span', null, filas.length + (filas.length === 1 ? ' caso' : ' casos')));
+      t.title = (clave ? 'Filtrar por ' + texto : 'Quitar el filtro') + ' · ' + dinero(suma) + ' · ' + filas.length + (filas.length === 1 ? ' caso' : ' casos');
+      // Compacta, como las pestañas: nombre y casos arriba, monto abajo.
+      const nombre = el('small'); nombre.append(icono(simbolo), ' ' + texto, el('span', 'lq-tarjeta-n', String(filas.length)));
+      t.append(nombre, el('strong', null, plata(suma)));
       t.addEventListener('click', () => { chip = clave && chip !== clave ? clave : ''; pintar(); });
       tarjetas.append(t);
     }

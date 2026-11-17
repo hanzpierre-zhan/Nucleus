@@ -61,18 +61,21 @@ body.dark-mode .lq-descarga { color: #93c5fd !important; }
 /* Botón de la versión antigua (respaldo). */
 body .cn-gestion .cc-barra > .lq-clasico { background: #475569 !important; color: #fff !important; }
 
-/* Tarjetas por estado: color de su pestaña (fondo suave, raya y monto); clic filtra la tabla. */
-.lq-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 0 10px; }
-html body .lq-tarjetas .lq-tarjeta[type] { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px 9px 15px !important; min-height: 0 !important;
-  border: 1px solid color-mix(in srgb, var(--lq-color) 30%, transparent) !important; border-radius: 12px !important;
-  box-shadow: inset 4px 0 0 var(--lq-color) !important;
-  background: color-mix(in srgb, var(--lq-color) 8%, var(--ios-card-bg, #fff)) !important; color: var(--ios-label) !important;
-  text-align: left; cursor: pointer; font: inherit; transition: background .15s, transform .15s; }
-html body .lq-tarjetas .lq-tarjeta[type] small { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--lq-color); }
-html body .lq-tarjetas .lq-tarjeta[type] strong { font-size: 17px; font-variant-numeric: tabular-nums; color: var(--ios-label); }
-html body .lq-tarjetas .lq-tarjeta[type] span { font-size: 11px; color: var(--ios-secondary); }
-html body .lq-tarjetas .lq-tarjeta[type]:hover { background: color-mix(in srgb, var(--lq-color) 14%, var(--ios-card-bg, #fff)) !important; transform: translateY(-1px); }
-html body .lq-tarjetas .lq-tarjeta[type].activo { background: var(--lq-color) !important; border-color: var(--lq-color) !important; box-shadow: 0 4px 14px color-mix(in srgb, var(--lq-color) 35%, transparent) !important; }
-html body .lq-tarjetas .lq-tarjeta[type].activo small, html body .lq-tarjetas .lq-tarjeta[type].activo strong, html body .lq-tarjetas .lq-tarjeta[type].activo span { color: #fff; }
+/* Tarjetas por estado dentro de la barra: compactas como las pestañas, con el color de su pestaña. */
+.lq-gestion .cc-barra #cc-buscar { flex: 0 1 220px; min-width: 140px; }
+.lq-tarjetas { flex: 1 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding: 1px; }
+html body .lq-tarjetas .lq-tarjeta[type] { flex: 1 1 0; min-width: 104px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px;
+  padding: 5px 12px !important; min-height: 0 !important; height: auto !important;
+  border: 1px solid color-mix(in srgb, var(--lq-color) 40%, transparent) !important; border-radius: 999px !important; box-shadow: none !important;
+  background: color-mix(in srgb, var(--lq-color) 10%, var(--ios-card-bg, #fff)) !important; color: var(--ios-label) !important;
+  text-align: left; cursor: pointer; font: inherit; white-space: nowrap; transition: background .15s; }
+html body .lq-tarjetas .lq-tarjeta[type] small { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--lq-color); }
+html body .lq-tarjetas .lq-tarjeta[type] strong { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ios-label); padding-left: 17px; }
+html body .lq-tarjetas .lq-tarjeta[type] .lq-tarjeta-n { font-size: 10.5px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--lq-color) 20%, transparent); color: inherit; }
+html body .lq-tarjetas .lq-tarjeta[type]:hover { background: color-mix(in srgb, var(--lq-color) 18%, var(--ios-card-bg, #fff)) !important; }
+html body .lq-tarjetas .lq-tarjeta[type].activo { background: var(--lq-color) !important; border-color: var(--lq-color) !important; }
+html body .lq-tarjetas .lq-tarjeta[type].activo small, html body .lq-tarjetas .lq-tarjeta[type].activo strong { color: #fff; }
+html body .lq-tarjetas .lq-tarjeta[type].activo .lq-tarjeta-n { background: rgba(255, 255, 255, .25); }
 html body.dark-mode .lq-tarjetas .lq-tarjeta[type] small { color: color-mix(in srgb, var(--lq-color) 70%, #fff); }
 .lq-chips:empty { display: none; }
+@media (max-width: 1100px) { .lq-tarjetas { flex-basis: 100%; order: 10; } }
