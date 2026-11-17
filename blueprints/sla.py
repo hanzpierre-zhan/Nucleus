@@ -125,8 +125,11 @@ def _caso_integratel(d, clave, ahora):
     if not tipo:
         return None
     inicio = str(d.get('Dispatch Time') or '').strip()[:19]
-    cerrado = estado.lower() in ('completed', 'closed')
-    fin = str(d.get('First Complete Time') or d.get('Complete Time') or '').strip()[:19] if cerrado else ''
+    # El SLA termina en el primer cierre: si ya tiene First Complete Time y luego lo reabrieron
+    # (Task Status vuelve a inprocess), para el SLA ya está cerrado y no sigue corriendo.
+    primer_cierre = str(d.get('First Complete Time') or '').strip()[:19]
+    cerrado = estado.lower() in ('completed', 'closed') or bool(primer_cierre)
+    fin = (primer_cierre or str(d.get('Complete Time') or '').strip()[:19]) if cerrado else ''
     ini_d, fin_d = _fecha(inicio), _fecha(fin)
     hasta = fin_d or ahora
     pausa, objetivo, meta = 0.0, None, ''

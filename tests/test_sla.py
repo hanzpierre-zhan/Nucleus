@@ -76,3 +76,14 @@ def test_sla_integratel_primer_cierre_y_pausas():
           'First Complete Time': '2026-11-11 09:00:00', 'Require Finish Time': '2026-11-11 08:00:00'}
     assert _caso_integratel(pm, 'PM-1', ahora)['sla_cobra'] == 'sla_violation'
     assert _caso_integratel({'Task Type': 'CM', 'Task Status': 'canceled'}, 'CM-2', ahora) is None
+
+
+def test_integratel_reabierto_cuenta_hasta_el_primer_cierre():
+    from datetime import datetime
+    from blueprints.sla import _caso_integratel
+    d = {'Task Id': 'PLM-1', 'Task Type': 'PLM', 'Task Status': 'inprocess', 'Dispatch Time': '2026-11-04 08:48:43',
+         'First Complete Time': '2026-11-04 14:37:50', 'Require Finish Time': '2026-11-21 14:45:41', 'Sla Status': 'normal'}
+    c = _caso_integratel(d, 'PLM-1', datetime(2026, 11, 17, 10, 0))
+    assert c['cerrado'] is True and c['fin'] == '2026-11-04 14:37:50' and c['sla_cobra'] == 'normal'
+    abierto = _caso_integratel({**d, 'First Complete Time': ''}, 'PLM-1', datetime(2026, 11, 17, 10, 0))
+    assert abierto['cerrado'] is False and abierto['fin'] == ''

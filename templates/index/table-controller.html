@@ -6205,6 +6205,17 @@ let _rendCambiandoVista = false;
 
             if (!Array.isArray(dataToExport)) dataToExport = rawData;
 
+            // FLM con SLA: agrega SLA Cobra y la duración (calculadas en pantalla) junto al SLA Status.
+            try {
+                const fv = window.FlmVista;
+                if (fv && typeof fv.extrasExport === 'function' && (fv.columnasExport || []).length) {
+                    const extras = fv.columnasExport.filter(c => !exportCols.includes(c));
+                    const tras = exportCols.indexOf(fv.campoEstado);
+                    exportCols.splice(tras >= 0 ? tras + 1 : exportCols.length, 0, ...extras);
+                    dataToExport = dataToExport.map(r => Object.assign({}, r, fv.extrasExport(r) || {}));
+                }
+            } catch (e) {}
+
         } else if (esRendicion) {
 
             // Rendición: columnas siguiendo el flujo (solicitud -> validación -> depósito

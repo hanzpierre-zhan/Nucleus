@@ -407,7 +407,14 @@
     }
     return defs;
   }
-  window.FlmVista = {columnas: ajustarColumnas};
+  // Para el Excel: SLA Cobra y la duración neta (sin parada de reloj) de cada fila.
+  function extrasExport(f) {
+    if (!conSla || /cancel/.test(plano(estadoDe(f)))) return null;
+    const m = esEntel ? medidaEntel(f) : esIntegratel ? medidaIntegratel(f) : medidaClaro(f);
+    const neto = m ? Math.max(0, Math.round(m.neto)) : null;
+    return {'SLA Cobra': slaCobra(f) || '', 'Duración SLA': neto === null ? '' : duracion(neto), 'Duración SLA (min)': neto === null ? '' : neto};
+  }
+  window.FlmVista = {columnas: ajustarColumnas, extrasExport, columnasExport: conSla ? ['SLA Cobra', 'Duración SLA', 'Duración SLA (min)'] : [], campoEstado: CAMPO_ESTADO};
 
   function preparar(t) {
     tabla = t;
