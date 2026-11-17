@@ -58,3 +58,16 @@ body.dark-mode .lq-descarga { color: #93c5fd !important; }
 
 /* Botón de la versión antigua (respaldo). */
 body .cn-gestion .cc-barra > .lq-clasico { background: #475569 !important; color: #fff !important; }
+
+/* Tarjetas por estado: monto y casos; clic filtra la tabla. */
+.lq-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 0 10px; }
+body .lq-tarjeta { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px !important; min-height: 0 !important;
+  border: 1px solid var(--ios-hairline) !important; border-top: 3px solid var(--lq-color) !important; border-radius: 10px !important;
+  background: var(--ios-card-bg) !important; color: var(--ios-label) !important; text-align: left; cursor: pointer; font: inherit; }
+body .lq-tarjeta small { font-size: 12px; color: var(--ios-secondary); font-weight: 600; }
+body .lq-tarjeta strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+body .lq-tarjeta span { font-size: 11px; color: var(--ios-secondary); }
+body .lq-tarjeta:hover { background: var(--ios-fill) !important; }
+body .lq-tarjeta.activo { outline: 2px solid var(--lq-color); outline-offset: -1px; background: color-mix(in srgb, var(--lq-color) 10%, var(--ios-card-bg)) !important; }
+body .lq-tarjeta-total strong { color: var(--ios-label); }
+.lq-chips:empty { display: none; }

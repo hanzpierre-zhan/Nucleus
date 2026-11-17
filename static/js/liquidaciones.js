@@ -12,7 +12,7 @@
   const dialogo = $('cc-solicitud-dialogo');
   const CLIENTES = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
 
-  let tab = 'cotizaciones', chip = '', orden = null;
+  let tab = 'cotizaciones', chip = '', orden = null, filtros = {};  // filtros: columna -> valores elegidos
   try { tab = localStorage.getItem('lq-tab') || tab; } catch (_) {}
   const datos = {cotizaciones: null, cajachica: null};
   const seleccion = {cotizaciones: new Set(), cajachica: new Set()};
@@ -38,16 +38,16 @@
   // ── Columnas por pestaña ──
   const COL = {
     cotizaciones: [
-      {id: 'numero', titulo: 'N.º / cliente', ancho: 'minmax(170px, 1.1fr)', texto: c => c.cotizacion + ' ' + c.correlativo + ' ' + (CLIENTES[c.cliente] || c.cliente),
+      {id: 'numero', titulo: 'N.º / cliente', ancho: 'minmax(170px, 1.1fr)', filtro: c => CLIENTES[c.cliente] || c.cliente || '', texto: c => c.cotizacion + ' ' + c.correlativo + ' ' + (CLIENTES[c.cliente] || c.cliente),
        celda: c => { const s = el('span', 'lq-dos'); const a = el('a', 'cc-codigo-link', c.cotizacion); a.href = '#'; a.addEventListener('click', e => { e.preventDefault(); verCotizacion(c); });
          s.append(a, el('small', null, c.correlativo + ' · ' + (CLIENTES[c.cliente] || c.cliente || '—'))); return s; }},
-      {id: 'site', titulo: 'Site / WO', ancho: 'minmax(170px, 1.1fr)', texto: c => c.site + ' ' + c.wo,
+      {id: 'site', titulo: 'Site / WO', ancho: 'minmax(170px, 1.1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
        celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', null, c.site || '—'), el('small', null, c.wo || 'Sin WO')); return s; }},
-      {id: 'estado', titulo: 'Estado', ancho: 'minmax(150px, 1fr)', texto: c => c.pestana + ' ' + c.estado_pago,
+      {id: 'estado', titulo: 'Estado', ancho: 'minmax(150px, 1fr)', filtro: c => c.pestana || '', texto: c => c.pestana + ' ' + c.estado_pago,
        celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', 'cc-chip lq-p-' + c.pestana_clave, c.pestana), el('small', null, c.estado_pago || c.interaccion || '—')); return s; }},
       {id: 'ejecucion', titulo: 'Ejecución', ancho: 'minmax(130px, .8fr)', texto: c => c.estado_operativo || c.estatus || '—',
        celda: c => el('span', 'cc-chip lq-o', c.estado_operativo || c.estatus || '—')},
-      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(300px, 2fr)', texto: c => Object.entries(c.evidencias).map(([k, v]) => k + ':' + v).join(' '),
+      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(300px, 2fr)', filtro: c => Object.values(c.evidencias).includes('Pendiente') ? 'Con pendientes' : 'Completas', texto: c => Object.entries(c.evidencias).map(([k, v]) => k + ':' + v).join(' '),
        celda: c => {
          const s = el('span', 'lq-evids'), e = c.evidencias;
          s.append(chipEvid('PDF', e.cotizacion, c.generada ? () => abrir('/liquidaciones/api/registros/' + c.id + '/pdf') : null, 'Cotización generada'),
@@ -57,25 +57,25 @@
            chipEvid('Fotos', e.sustento, c.tiene_sustento ? () => verCotizacion(c, true) : null, 'Fotos del sustento'));
          return s;
        }},
-      {id: 'avance', titulo: 'Avance', ancho: 'minmax(90px, .6fr)', num: true, texto: c => c.avance + ' %', orden: c => c.avance,
+      {id: 'avance', titulo: 'Avance', ancho: 'minmax(90px, .6fr)', num: true, filtro: c => c.avance >= 100 ? '100 %' : c.avance >= 50 ? '50 a 99 %' : 'Menos de 50 %', texto: c => c.avance + ' %', orden: c => c.avance,
        celda: c => { const s = el('span', 'lq-avance'); const b = el('span', 'lq-avance-barra'); const f = el('span'); f.style.width = c.avance + '%'; f.dataset.nivel = c.avance >= 100 ? 'ok' : c.avance >= 50 ? 'medio' : 'bajo'; b.append(f); s.append(b, el('small', null, c.avance + ' %')); return s; }},
       {id: 'liquidacion', titulo: 'Liquidación', ancho: 'minmax(120px, .8fr)', texto: c => c.seguimiento.estado_liquidacion || 'Pendiente'},
-      {id: 'monto', titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
+      {id: 'monto', titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, sinFiltro: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
        celda: c => el('strong', 'cc-num', dinero(c.monto))},
     ],
     cajachica: [
-      {id: 'codigo', titulo: 'Código / técnico', ancho: 'minmax(190px, 1.2fr)', texto: c => c.codigo + ' ' + c.tecnico + ' ' + c.documento,
+      {id: 'codigo', titulo: 'Código / técnico', ancho: 'minmax(190px, 1.2fr)', filtro: c => c.tecnico || '', texto: c => c.codigo + ' ' + c.tecnico + ' ' + c.documento,
        celda: c => { const s = el('span', 'lq-dos'); const a = el('a', 'cc-codigo-link', c.codigo); a.href = '#'; a.addEventListener('click', e => { e.preventDefault(); verCajaChica(c); });
          s.append(a, el('small', null, c.tecnico + ' · ' + c.proyecto)); return s; }},
       {id: 'cotizacion', titulo: 'Cotización', ancho: 'minmax(150px, .9fr)', texto: c => c.cotizacion || '—'},
-      {id: 'site', titulo: 'Site / CM', ancho: 'minmax(170px, 1fr)', texto: c => c.site + ' ' + c.wo,
+      {id: 'site', titulo: 'Site / CM', ancho: 'minmax(170px, 1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
        celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', null, c.site || '—'), el('small', null, c.wo || '—')); return s; }},
       {id: 'estado', titulo: 'Estado', ancho: 'minmax(130px, .8fr)', texto: c => c.estado, celda: c => el('span', 'cc-chip lq-s-' + c.estado_clave.toLowerCase(), c.estado)},
       {id: 'tipos', titulo: 'Tipo', ancho: 'minmax(120px, .7fr)', texto: c => c.tipos.join(' · '),
        celda: c => { const s = el('span', 'lq-evids'); c.tipos.forEach(t => s.append(el('span', 'cc-chip ' + (t === 'Refacturable' ? 'cc-refacturable' : 'cc-gasto-cobra'), t))); return s; }},
-      {id: 'montos', titulo: 'Depositado · gastado · devuelto', ancho: 'minmax(210px, 1.2fr)', num: true, texto: c => dinero(c.depositado) + ' ' + dinero(c.gastado), orden: c => Number(c.depositado) || 0,
+      {id: 'montos', titulo: 'Depositado · gastado · devuelto', ancho: 'minmax(210px, 1.2fr)', num: true, sinFiltro: true, texto: c => dinero(c.depositado) + ' ' + dinero(c.gastado), orden: c => Number(c.depositado) || 0,
        celda: c => { const s = el('span', 'lq-dos lq-num'); s.append(el('strong', null, c.depositado ? dinero(c.depositado) : 'Sin depósito'), el('small', null, 'Gastó ' + dinero(c.gastado) + ' · devolvió ' + dinero(c.devuelto))); return s; }},
-      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(330px, 2fr)', texto: c => '',
+      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(330px, 2fr)', texto: c => '', sinFiltro: true,
        celda: c => {
          const s = el('span', 'lq-evids'), deposito = !!c.depositado;
          s.append(chipEvid('Depósito', c.deposito ? 'Completo' : deposito ? 'Pendiente' : 'No aplica', c.deposito ? () => abrir(c.deposito.url) : null),
@@ -108,13 +108,52 @@
   const lista = () => datos[tab] || [];
   function visibles() {
     const q = plano($('cc-buscar').value.trim());
-    let filas = lista().filter(c => pasaChip(c) && (!q || plano(COL[tab].map(col => col.texto(c)).join(' ')).includes(q)));
+    let filas = lista().filter(c => pasaChip(c) && (!q || plano(COL[tab].map(col => col.texto(c)).join(' ')).includes(q))
+      && Object.entries(filtros).every(([id, vals]) => { const col = COL[tab].find(x => x.id === id); return !col || vals.includes(valorFiltro(col, c)); }));
     if (orden) {
       const col = COL[tab].find(x => x.id === orden.col), v = col.orden || col.texto;
       filas = [...filas].sort((a, b) => { const x = v(a), y = v(b); return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'es')) * orden.dir; });
     }
     return filas;
   }
+  const valorFiltro = (col, c) => String((col.filtro || col.texto)(c) ?? '').trim();
+  // Filtro por columna: lista de valores, como en Caja Chica (con lo demás ya filtrado).
+  function abrirFiltro(col, boton) {
+    const caja = $('lq-filtro');
+    if (!caja.hidden && caja.dataset.col === col.id) { caja.hidden = true; return; }
+    const guardado = filtros[col.id]; delete filtros[col.id];
+    const valores = [...new Set(visibles().map(c => valorFiltro(col, c)))].sort((a, b) => a.localeCompare(b, 'es', {numeric: true}));
+    if (guardado) filtros[col.id] = guardado;
+    const marcados = new Set(guardado || valores);
+    caja.dataset.col = col.id; caja.replaceChildren();
+    const buscar = el('input'); Object.assign(buscar, {type: 'search', placeholder: 'Buscar en ' + col.titulo.toLowerCase()});
+    const lista = el('div', 'cc-filtro-valores');
+    const todos = el('label', 'cc-todos'), todosCheck = el('input'); todosCheck.type = 'checkbox'; todos.append(todosCheck, 'Seleccionar todo');
+    const checks = valores.map(v => { const l = el('label'), ch = el('input'); ch.type = 'checkbox'; ch.value = v; ch.checked = marcados.has(v); l.append(ch, v || '(vacío)'); return l; });
+    const sincronizar = () => { const v = checks.filter(l => !l.hidden); todosCheck.checked = v.length > 0 && v.every(l => l.firstChild.checked); };
+    todosCheck.addEventListener('change', () => { checks.filter(l => !l.hidden).forEach(l => { l.firstChild.checked = todosCheck.checked; }); });
+    checks.forEach(l => l.firstChild.addEventListener('change', sincronizar));
+    buscar.addEventListener('input', () => { const t = plano(buscar.value.trim()); checks.forEach(l => { l.hidden = t && !plano(l.textContent).includes(t); }); sincronizar(); });
+    lista.append(todos, ...checks);
+    if (!valores.length) lista.append(el('p', 'cc-nota', 'Sin valores.'));
+    const limpiar = el('button', 'cc-btn', 'Limpiar'), aplicar = el('button', 'cc-btn cc-ok', 'Aplicar');
+    limpiar.type = aplicar.type = 'button';
+    limpiar.addEventListener('click', () => { delete filtros[col.id]; caja.hidden = true; pintar(); });
+    aplicar.addEventListener('click', () => {
+      const elegidos = checks.filter(l => l.firstChild.checked).map(l => l.firstChild.value);
+      if (elegidos.length === valores.length) delete filtros[col.id]; else filtros[col.id] = elegidos;
+      caja.hidden = true; pintar();
+    });
+    const pie = el('div', 'cc-filtro-pie'); pie.append(limpiar, aplicar);
+    caja.append(buscar, lista, pie); sincronizar();
+    caja.hidden = false;
+    const r = boton.getBoundingClientRect();
+    caja.style.top = Math.min(r.bottom + 6, innerHeight - caja.offsetHeight - 8) + 'px';
+    caja.style.left = Math.max(8, Math.min(r.left - 8, innerWidth - caja.offsetWidth - 8)) + 'px';
+    buscar.focus();
+  }
+  document.addEventListener('click', e => { const c = $('lq-filtro'); if (c && !c.hidden && !c.contains(e.target)) c.hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('lq-filtro')) $('lq-filtro').hidden = true; });
   const montoDe = c => Number(tab === 'cotizaciones' ? c.monto : c.depositado) || 0;
 
   function pintar() {
@@ -125,8 +164,26 @@
       const suma = filas.reduce((s, c) => s + (Number(t === 'cotizaciones' ? c.monto : c.depositado) || 0), 0);
       const p = document.querySelector('[data-plata="' + t + '"]'); p.textContent = plata(suma); p.title = 'Total: ' + dinero(suma);
     }
+    // Tarjetas por estado (monto y casos), como en el Liquidaciones anterior; clic = filtrar.
+    const COLOR_TARJETA = {cliente: '#3b82f6', cajachica: '#16a34a', sustentar: '#f59e0b', atendido: '#8b5cf6', VALIDADO: '#3b82f6',
+      DEPOSITADO: '#16a34a', POR_DEVOLVER: '#f59e0b', SUSTENTO: '#8b5cf6', ARCHIVADO: '#94a3b8'};
+    const tarjetas = $('lq-tarjetas'); tarjetas.replaceChildren();
+    const esEstado = clave => clave.startsWith('p:') || clave.startsWith('s:');
+    const estados = [...CHIPS[tab].filter(([clave]) => esEstado(clave)), ['', 'Total']];
+    // Cotizaciones: también la pestaña Registro si hay casos ahí.
+    if (tab === 'cotizaciones' && lista().some(c => c.pestana_clave === 'registro')) estados.unshift(['p:registro', 'Registro']);
+    for (const [clave, texto] of estados) {
+      const filas = clave ? lista().filter(c => { const g = chip; chip = clave; const r = pasaChip(c); chip = g; return r; }) : lista();
+      const suma = filas.reduce((t, c) => t + montoDe(c), 0);
+      const t = el('button', 'lq-tarjeta' + (chip === clave && clave ? ' activo' : '') + (clave ? '' : ' lq-tarjeta-total')); t.type = 'button';
+      t.style.setProperty('--lq-color', COLOR_TARJETA[clave.slice(2)] || (clave ? '#94a3b8' : 'var(--ios-label)'));
+      t.title = clave ? 'Filtrar por ' + texto : 'Quitar el filtro';
+      t.append(el('small', null, texto), el('strong', null, dinero(suma)), el('span', null, filas.length + (filas.length === 1 ? ' caso' : ' casos')));
+      t.addEventListener('click', () => { chip = clave && chip !== clave ? clave : ''; pintar(); });
+      tarjetas.append(t);
+    }
     const chips = $('lq-chips'); chips.replaceChildren();
-    for (const [clave, texto] of CHIPS[tab]) {
+    for (const [clave, texto] of CHIPS[tab].filter(([clave]) => clave && !esEstado(clave))) {
       const b = el('button', 'lq-chip' + (chip === clave ? ' activo' : '')); b.type = 'button';
       const n = clave ? lista().filter(c => { const g = chip; chip = clave; const r = pasaChip(c); chip = g; return r; }).length : lista().length;
       b.append(el('span', null, texto), el('strong', null, String(n)));
@@ -150,7 +207,14 @@
       const b = el('button', 'cc-th-btn' + (sentido ? ' activo' : '')); b.type = 'button'; b.title = 'Ordenar';
       b.append(icono(sentido === 1 ? 'fa-arrow-up-short-wide' : sentido === -1 ? 'fa-arrow-down-wide-short' : 'fa-sort'));
       b.addEventListener('click', () => { orden = sentido === 1 ? {col: col.id, dir: -1} : sentido === -1 ? null : {col: col.id, dir: 1}; pintar(); });
-      fila.append(el('span', 'cc-th-nombre', col.titulo), b); th.append(fila); cab.append(th);
+      fila.append(el('span', 'cc-th-nombre', col.titulo), b);
+      if (!col.sinFiltro) {
+        const f = el('button', 'cc-th-btn' + (filtros[col.id] ? ' activo' : '')); f.type = 'button';
+        f.append(icono('fa-filter')); f.title = f.ariaLabel = 'Filtrar ' + col.titulo;
+        f.addEventListener('click', e => { e.stopPropagation(); abrirFiltro(col, f); });
+        fila.append(f);
+      }
+      th.append(fila); cab.append(th);
     }
     // Filas
     const cuerpo = $('lq-lista'); cuerpo.replaceChildren();
@@ -347,13 +411,13 @@
 
   // ── Pestañas, búsqueda, tuerca y carga ──
   document.querySelectorAll('.lq-tab').forEach(b => b.addEventListener('click', () => {
-    tab = b.dataset.tab; chip = ''; orden = null; try { localStorage.setItem('lq-tab', tab); } catch (_) {} pintar(); cargar(tab);
+    tab = b.dataset.tab; chip = ''; orden = null; filtros = {}; $('lq-filtro').hidden = true; try { localStorage.setItem('lq-tab', tab); } catch (_) {} pintar(); cargar(tab);
   }));
   $('cc-buscar').addEventListener('input', pintar);
   const menu = $('lq-ajustes-menu'), botonMenu = $('lq-ajustes-btn');
   botonMenu.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; botonMenu.setAttribute('aria-expanded', String(!menu.hidden)); });
   document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
-  menu.addEventListener('click', e => { const b = e.target.closest('[data-accion]'); if (!b) return; menu.hidden = true; if (b.dataset.accion === 'limpiar') { chip = ''; orden = null; $('cc-buscar').value = ''; pintar(); } });
+  menu.addEventListener('click', e => { const b = e.target.closest('[data-accion]'); if (!b) return; menu.hidden = true; if (b.dataset.accion === 'limpiar') { chip = ''; orden = null; filtros = {}; $('cc-buscar').value = ''; pintar(); } });
   async function cargar(t) {
     if (datos[t]) return;
     const r = await fetch(t === 'cotizaciones' ? '/liquidaciones/api/v2/cotizaciones' : '/liquidaciones/api/v2/caja-chica');

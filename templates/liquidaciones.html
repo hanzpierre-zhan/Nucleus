@@ -4,7 +4,7 @@
 {# Liquidaciones con el diseño de Caja Chica: todas las evidencias de cada caso, ordenadas y descargables. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=36">
-<link rel="stylesheet" href="/static/css/liquidaciones.css?v=3">
+<link rel="stylesheet" href="/static/css/liquidaciones.css?v=4">
 <section class="cc-gestion cn-gestion lq-gestion" aria-label="Liquidaciones">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar N.º, código, técnico, site o WO" aria-label="Buscar">
@@ -39,6 +39,7 @@
       </div>
     </div>
   </div>
+  <div id="lq-tarjetas" class="lq-tarjetas" aria-label="Resumen por estado"></div>
   <nav id="lq-chips" class="lq-chips" aria-label="Filtros rápidos"></nav>
   <div class="cc-tabla" id="lq-tabla" tabindex="0" role="region" aria-label="Tabla de liquidaciones">
     <div class="cc-encabezado" id="lq-encabezado"></div>
@@ -53,6 +54,7 @@
     </header>
     <div id="cc-solicitud-contenido"></div>
   </dialog>
+  <div class="cc-filtro" id="lq-filtro" role="dialog" aria-label="Filtrar columna" hidden></div>
 </section>
-<script src="/static/js/liquidaciones.js?v=2" defer></script>
+<script src="/static/js/liquidaciones.js?v=4" defer></script>
 {% endblock %}
