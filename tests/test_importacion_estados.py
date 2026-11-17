@@ -89,6 +89,10 @@ def test_claro_solo_importa_cobra(app, auth_client):
         with app.app_context():
             claves = {f.key_value for f in NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.like('QA-CL-%'))}
             assert claves == {'QA-CL-COBRA'}
+            ultima = json.loads(AppConfig.query.filter_by(proyecto_id=pid, clave='ultima_importacion').one().valor)
+            assert ultima['fecha'] and ultima['archivo'] == 'datos.csv'
+        r = auth_client.get('/analytics/claro')
+        assert 'Última importación'.encode() in r.data
     finally:
         with app.app_context():
             NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.like('QA-CL-%')).delete(synchronize_session=False)

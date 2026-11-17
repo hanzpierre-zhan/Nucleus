@@ -814,6 +814,12 @@ def api_import_process():
                 config_schema.valor = safe_json_dumps(list(new_schema))
             else:
                 db.session.add(AppConfig(proyecto_id=pid, clave='app_schema', valor=safe_json_dumps(list(new_schema))))
+        # Fecha y hora de la última importación (los dashboards la muestran como "corte").
+        ultima = AppConfig.query.filter_by(proyecto_id=pid, clave='ultima_importacion').first()
+        if not ultima:
+            ultima = AppConfig(proyecto_id=pid, clave='ultima_importacion'); db.session.add(ultima)
+        ultima.valor = safe_json_dumps({'fecha': datetime.utcnow().isoformat(timespec='seconds'), 'usuario': session.get('username') or '',
+                                        'archivo': file.filename or '', 'nuevos': added, 'actualizados': updated})
         # Una sola transacción mantiene los registros precargados vigentes
         # y permite revertir también el historial y las columnas si algo falla.
         db.session.commit()

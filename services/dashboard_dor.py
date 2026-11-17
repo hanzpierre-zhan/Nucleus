@@ -48,6 +48,31 @@ def normalizar_texto(valor):
     return texto.strip().upper()
 
 
+def ultima_importacion(proyecto_id):
+    """Fecha y hora (Perú) de la última importación del proyecto: el corte de los datos.
+
+    Se guarda en AppConfig 'ultima_importacion' en cada importación; para lo importado antes
+    de este cambio se usa el último registro del historial hecho por la importación."""
+    import json
+    from datetime import datetime, timedelta
+    from sqlalchemy import func
+    from models import AppConfig, HistorialCambios
+    fecha, usuario = None, ''
+    cfg = AppConfig.query.filter_by(proyecto_id=proyecto_id, clave='ultima_importacion').first()
+    if cfg and cfg.valor:
+        try:
+            dato = json.loads(cfg.valor)
+            fecha, usuario = datetime.fromisoformat(dato.get('fecha')), dato.get('usuario') or ''
+        except (ValueError, TypeError):
+            fecha = None
+    if fecha is None:
+        fecha = HistorialCambios.query.with_entities(func.max(HistorialCambios.fecha)).filter_by(proyecto_id=proyecto_id, username='IMPORT').scalar()
+    if fecha is None:
+        return None
+    lima = fecha - timedelta(hours=5)  # se guarda en UTC
+    return {'texto': lima.strftime('%d/%m/%Y %H:%M'), 'usuario': usuario}
+
+
 def indicadores(registros):
     rows = []
     for raw in registros:

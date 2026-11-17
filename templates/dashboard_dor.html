@@ -5,7 +5,7 @@
    Todos los gráficos muestran su número; clic en un punto o barra pregunta y abre el detalle de tickets. #}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-dor.css?v=3">
+<link rel="stylesheet" href="/static/css/dashboard-dor.css?v=4">
 <section class="di-page dor-page">
 {% from '_dashboard_header.html' import dashboard_header with context %}
 {% call dashboard_header('FLM - Claro', 'Operación diaria CM · SLA, backlog y causa raíz', '', 6) %}
@@ -19,7 +19,7 @@
   <div class="dor-campo"><span>Técnico</span><div class="dor-multi" id="dor-tecnico" data-todos="Todos"></div></div>
   <label class="dor-check"><input type="checkbox" id="dor-sin-despachar"> Incluir sin despachar</label>
   <button type="button" id="dor-limpiar" class="dor-limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros</button>
-  <span id="dor-rango" class="dor-rango"></span>
+  <span class="dor-rango"><span id="dor-rango"></span>{% if ultima_import %}<span class="dor-corte" title="Fecha y hora de la última importación de FLM - Claro{{ ' · por ' ~ ultima_import.usuario if ultima_import.usuario }}"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Última importación: <strong>{{ ultima_import.texto }}</strong></span>{% endif %}</span>
 </div>
 {% endcall %}
 

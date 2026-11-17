@@ -617,8 +617,8 @@ def analytics_claro():
     # Vista "Operación diaria CM" (como el reporte diario del cliente) en la misma ruta con ?vista=diaria.
     # Claro usa solo la Operación diaria CM; el dashboard anterior queda en ?vista=clasica por si acaso.
     if request.args.get('vista')!='clasica':
-        from services.dashboard_dor import indicadores as indicadores_dor
-        return render_template('dashboard_dor.html',dashboard=indicadores_dor(registros()),
+        from services.dashboard_dor import indicadores as indicadores_dor, ultima_importacion
+        return render_template('dashboard_dor.html',dashboard=indicadores_dor(registros()),ultima_import=ultima_importacion(proy.id),
                                proyectos_list=proyectos,proyecto_nombre=proy.nombre,proyecto_id=proy.id)
     from services.dashboard_claro import indicadores
     return render_template('dashboard_claro.html',dashboard=indicadores(registros(),'CLARO'),dashboard_titulo='FLM - Claro',
