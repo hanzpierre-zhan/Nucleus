@@ -114,37 +114,94 @@
       ds.borderColor = g;
     },
   };
-  // La app usa zoom (75 % en computadora) y Chart.js ubica mal el mouse: marcaba otro día al hacer clic.
-  // Se recalcula la posición con las medidas reales del lienzo en pantalla.
-  const corregirZoom = {
-    id: 'corregirZoom',
-    beforeEvent(ch, args) {
-      const e = args.event, n = e.native; if (!n || n.clientX === undefined) return;
-      const r = ch.canvas.getBoundingClientRect(); if (!r.width || !r.height) return;
-      e.x = (n.clientX - r.left) / r.width * ch.width;
-      e.y = (n.clientY - r.top) / r.height * ch.height;
-      args.inChartArea = e.x >= ch.chartArea.left && e.x <= ch.chartArea.right && e.y >= ch.chartArea.top && e.y <= ch.chartArea.bottom;
-    },
-  };
+  // La app usa zoom (75 % en computadora) y Chart.js ubica mal el mouse (abría otro día u otra barra).
+  // Por eso el dashboard calcula él mismo qué barra o punto está bajo el mouse, con las medidas reales en pantalla,
+  // y con eso abre el detalle y mueve el cuadro de información. Así el número que ves es el que se abre.
+  function posicion(ch, ev) {
+    const r = ch.canvas.getBoundingClientRect(); if (!r.width || !r.height) return null;
+    return {x: (ev.clientX - r.left) / r.width * ch.width, y: (ev.clientY - r.top) / r.height * ch.height};
+  }
+  function tocado(ch, p) {
+    if (!p) return null;
+    const a = ch.chartArea, horizontal = ch.options.indexAxis === 'y';
+    if (p.x < a.left - 8 || p.x > a.right + 8 || p.y < a.top - 12 || p.y > a.bottom + 8) return null;
+    const visibles = ch.data.datasets.map((ds, i) => i).filter(i => ch.isDatasetVisible(i) && !ch.data.datasets[i].sinClic);
+    if (ch.config.type === 'bar') {
+      // Barra: el punto tiene que caer dentro del rectángulo de la barra.
+      for (const i of visibles) {
+        const datos = ch.getDatasetMeta(i).data;
+        for (let j = 0; j < datos.length; j++) {
+          const v = ch.data.datasets[i].data[j]; if (!v) continue;
+          const e = datos[j].getProps(['x', 'y', 'base', 'width', 'height'], true);
+          const dentro = horizontal
+            ? p.y >= e.y - e.height / 2 && p.y <= e.y + e.height / 2 && p.x >= Math.min(e.base, e.x) - 2 && p.x <= Math.max(e.base, e.x) + 2
+            : p.x >= e.x - e.width / 2 && p.x <= e.x + e.width / 2 && p.y >= Math.min(e.y, e.base) - 10 && p.y <= Math.max(e.y, e.base) + 2;
+          if (dentro) return {datasetIndex: i, index: j};
+        }
+      }
+      return null;
+    }
+    // Áreas apiladas (cierre según días): la franja donde cae el mouse, en el día más cercano.
+    if (ch.config.options.bandas) {
+      const pts = ch.getDatasetMeta(visibles[0]).data; let j = 0;
+      pts.forEach((e, k) => { if (Math.abs(e.x - p.x) < Math.abs(pts[j].x - p.x)) j = k; });
+      for (const i of visibles) {
+        const arriba = ch.getDatasetMeta(i).data[j].y, k = visibles.indexOf(i), abajo = k ? ch.getDatasetMeta(visibles[k - 1]).data[j].y : a.bottom;
+        if (p.y >= arriba - 4 && p.y <= abajo + 4 && ch.data.datasets[i].data[j] !== null) return {datasetIndex: i, index: j};
+      }
+      return null;
+    }
+    // Líneas: el punto más cercano (a no más de 40 px).
+    let mejor = null, dist = 40;
+    for (const i of visibles) ch.getDatasetMeta(i).data.forEach((e, j) => {
+      if (ch.data.datasets[i].data[j] === null || ch.data.datasets[i].data[j] === undefined) return;
+      const d = Math.hypot(e.x - p.x, e.y - p.y); if (d < dist) { dist = d; mejor = {datasetIndex: i, index: j}; }
+    });
+    return mejor;
+  }
+  function mostrarInfo(ch, t) {
+    if (!t) { ch.setActiveElements([]); ch.tooltip.setActiveElements([], {x: 0, y: 0}); ch.update('none'); return; }
+    // El cuadro muestra todas las series de esa fecha/fila, como antes; se resalta la tocada.
+    const todos = ch.data.datasets.map((ds, i) => ({datasetIndex: i, index: t.index}))
+      .filter(x => ch.isDatasetVisible(x.datasetIndex) && ch.data.datasets[x.datasetIndex].data[x.index] !== null && ch.data.datasets[x.datasetIndex].data[x.index] !== undefined);
+    const e = ch.getDatasetMeta(t.datasetIndex).data[t.index];
+    ch.setActiveElements([t]); ch.tooltip.setActiveElements(todos.length ? todos : [t], {x: e.x, y: e.y}); ch.update('none');
+  }
+  function escuchar(canvas) {
+    if (canvas._dorListo) return; canvas._dorListo = true;
+    canvas.addEventListener('mousemove', ev => {
+      const ch = Chart.getChart(canvas); if (!ch) return;
+      const t = tocado(ch, posicion(ch, ev)), clave = t ? t.datasetIndex + ':' + t.index : '';
+      canvas.style.cursor = t && canvas._dorDetalle ? 'pointer' : 'default';
+      if (clave !== canvas._dorUltimo) { canvas._dorUltimo = clave; mostrarInfo(ch, t); }
+    });
+    canvas.addEventListener('mouseleave', () => { const ch = Chart.getChart(canvas); canvas._dorUltimo = ''; if (ch) mostrarInfo(ch, null); });
+    canvas.addEventListener('click', ev => {
+      const ch = Chart.getChart(canvas); if (!ch || !canvas._dorDetalle) return;
+      const t = tocado(ch, posicion(ch, ev)); if (!t) return;
+      ev.stopPropagation();
+      const r = canvas._dorDetalle(t.datasetIndex, t.index); if (r) preguntar(r.titulo, r.filas);
+    });
+  }
   const graficos = {};
   function grafico(id, config, detalle) {
     graficos[id]?.destroy();
     const t = tema(), horizontal = config.options?.indexAxis === 'y';
     const ejes = {grid: {color: 'rgba(137,135,129,.16)'}, ticks: {color: t.suave, font: {size: 10.5}}};
+    // Chart.js solo escucha clics para la leyenda; el mouse sobre los datos lo maneja el dashboard (ver arriba).
     const base = {responsive: true, maintainAspectRatio: false, animation: false, layout: {padding: {top: 20, right: horizontal ? 70 : 12}},
-      interaction: {mode: 'nearest', intersect: false, axis: horizontal ? 'y' : config.type === 'line' ? 'xy' : 'x'},
+      events: ['click'],
       plugins: {legend: {position: 'top', align: 'start', labels: {color: t.suave, boxWidth: 10, boxHeight: 10, font: {size: 11}, filter: it => !it.text.startsWith('·')}},
-        tooltip: {mode: 'index', intersect: false}},
+        tooltip: {events: []}},
       scales: {x: {...ejes, grid: {display: horizontal, color: ejes.grid.color}}, y: {...ejes, grid: {display: !horizontal, color: ejes.grid.color}}}};
     const o = config.options || {};
-    config.options = {...base, ...o, plugins: {...base.plugins, ...(o.plugins || {})},
+    config.options = {...base, ...o, plugins: {...base.plugins, ...(o.plugins || {}), tooltip: {...base.plugins.tooltip, ...(o.plugins?.tooltip || {})}},
       scales: {x: {...base.scales.x, ...(o.scales?.x || {})}, y: {...base.scales.y, ...(o.scales?.y || {})}}};
-    config.plugins = [corregirZoom, etiquetas, ...(config.plugins || [])];
-    if (detalle) {
-      config.options.onClick = (e, els) => { const it = els[0]; if (!it) return; const r = detalle(it.datasetIndex, it.index); if (r) preguntar(r.titulo, r.filas); };
-      config.options.onHover = (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
-    }
-    graficos[id] = new Chart($(id), config);
+    config.plugins = [etiquetas, ...(config.plugins || [])];
+    const canvas = $(id);
+    canvas._dorDetalle = detalle || null; canvas._dorUltimo = '';
+    escuchar(canvas);
+    graficos[id] = new Chart(canvas, config);
   }
 
   // ── Pregunta y detalle ──
@@ -155,6 +212,10 @@
     $('dor-pregunta').hidden = false;
   }
   $('dor-pregunta-no').addEventListener('click', () => { $('dor-pregunta').hidden = true; });
+  document.addEventListener('click', ev => {
+    const p = $('dor-pregunta'); if (p.hidden || p.contains(ev.target) || ev.target.closest('canvas, .dor-kpi, .dor-gauge, .dor-celda')) return;
+    p.hidden = true;
+  });
   $('dor-pregunta-si').addEventListener('click', () => {
     $('dor-pregunta').hidden = true; if (!pendiente) return;
     filasDetalle = pendiente.filas;
@@ -282,9 +343,9 @@
       {label: 'Cumplimiento de SLA', data: serie, borderWidth: 2.5, tension: .35, spanGaps: true, pointRadius: 4, pointHoverRadius: 6,
         pointBackgroundColor: c => (c.raw ?? 0) >= META ? C.verde : C.rojo, pointBorderColor: c => (c.raw ?? 0) >= META ? C.verde : C.rojo,
         etiqueta: {fmt: v => num(v, 1), color: v => v >= META ? C.verde : C.rojo}},
-      {label: 'Meta ≥ ' + META + '%', data: D_.map(() => META), borderColor: tema().suave, borderDash: [6, 5], borderWidth: 1.2, pointRadius: 0}]},
+      {label: 'Meta ≥ ' + META + '%', data: D_.map(() => META), borderColor: tema().suave, borderDash: [6, 5], borderWidth: 1.2, pointRadius: 0, sinClic: true}]},
       options: {scales: {y: {min: minimo, max: 102, ticks: {callback: v => v <= 100 ? v + '%' : ''}}}, plugins: {tooltip: {callbacks: {label: c => c.dataset.label + ': ' + (c.raw === null ? '—' : num(c.raw, 1) + '%')}}}}},
-      (i, j) => i === 0 ? {titulo: 'los tickets cerrados ' + (st.modo === 'dia' ? 'el ' + largo(D_[j]) : 'del ' + largo(D_[0]) + ' al ' + largo(D_[j])),
+      (i, j) => i === 0 ? {titulo: 'los tickets cerrados ' + (st.modo === 'dia' ? 'el ' + largo(D_[j]) : 'del ' + largo(D_[0]) + ' al ' + largo(D_[j])) + ' · SLA ' + num(serie[j], 1) + '%',
         filas: U.filter(r => r.completado && (st.modo === 'dia' ? cerroEl(r, D_[j]) : dia(r.cierre) >= D_[0] && dia(r.cierre) <= D_[j]))} : null);
 
     // Medidor de SLA promedio
@@ -323,7 +384,7 @@
     regiones.forEach((reg, i) => {
       dsB.push({label: nombreRegion(reg), data: D_.map(d => backlogEn(d, reg).length), borderColor: COLOR_REGION(reg), backgroundColor: COLOR_REGION(reg), borderWidth: 2, tension: .3, pointRadius: 3,
         etiqueta: {pos: i % 2 ? 'arriba' : 'abajo', color: COLOR_REGION(reg)}, _reg: reg});
-      if (BASE[reg] !== undefined) dsB.push({label: 'Línea base ' + nombreRegion(reg) + ' (' + BASE[reg] + ')', data: D_.map(() => BASE[reg]), borderColor: COLOR_REGION(reg), borderDash: [5, 5], borderWidth: 1.2, pointRadius: 0});
+      if (BASE[reg] !== undefined) dsB.push({label: 'Línea base ' + nombreRegion(reg) + ' (' + BASE[reg] + ')', data: D_.map(() => BASE[reg]), borderColor: COLOR_REGION(reg), borderDash: [5, 5], borderWidth: 1.2, pointRadius: 0, sinClic: true});
     });
     grafico('dor-backlog', {type: 'line', data: {labels: D_.map(corto), datasets: dsB}, options: {scales: {y: {beginAtZero: true}}}},
       (i, j) => dsB[i]._reg ? {titulo: 'el backlog de ' + nombreRegion(dsB[i]._reg) + ' al cierre del ' + largo(D_[j]), filas: backlogEn(D_[j], dsB[i]._reg)} : null);
@@ -344,17 +405,18 @@
     grafico('dor-dias-cierre', {type: 'line', data: {labels: D_.map(corto), datasets: grupos.map(([label, f, color]) => ({label, fill: true, backgroundColor: color, borderColor: color, pointRadius: 2, tension: .35,
       data: D_.map(d => { const c = cierresDia(d); return c.length ? Math.round(c.filter(r => f(diasDesdeDespacho(r))).length / c.length * 1000) / 10 : null; }),
       etiqueta: {pos: 'abajo', fmt: v => num(v, 1), color: tema().texto}}))},
-      options: {scales: {y: {stacked: true, min: 0, max: 100, ticks: {callback: v => v + '%'}}}}},
-      (i, j) => ({titulo: 'los cerrados el ' + largo(D_[j]) + ' (' + grupos[i][0].toLowerCase() + ')', filas: cierresDia(D_[j]).filter(r => grupos[i][1](diasDesdeDespacho(r)))}));
+      options: {bandas: true, scales: {y: {stacked: true, min: 0, max: 100, ticks: {callback: v => v + '%'}}}}},
+      (i, j) => ({titulo: 'los cerrados el ' + largo(D_[j]) + ' · ' + grupos[i][0].toLowerCase() + ' ' + num(graficos['dor-dias-cierre'].data.datasets[i].data[j], 1) + '%', filas: cierresDia(D_[j]).filter(r => grupos[i][1](diasDesdeDespacho(r)))}));
 
     // Eficiencia por día
     const dsE = regiones.map((reg, i) => ({label: nombreRegion(reg), data: D_.map(d => { const x = efDia(d, reg); return x ? Math.round(x.v * 100) / 100 : null; }), spanGaps: true,
       borderColor: COLOR_REGION(reg), backgroundColor: COLOR_REGION(reg), borderWidth: 2, tension: .35, pointRadius: 3, etiqueta: {pos: i % 2 ? 'arriba' : 'abajo', fmt: v => num(v, 1), color: COLOR_REGION(reg)}, _reg: reg}));
-    dsE.push({label: 'Meta (' + META_EF + ')', data: D_.map(() => META_EF), borderColor: tema().suave, borderDash: [6, 5], borderWidth: 1.2, pointRadius: 0});
+    dsE.push({label: 'Meta (' + META_EF + ')', data: D_.map(() => META_EF), borderColor: tema().suave, borderDash: [6, 5], borderWidth: 1.2, pointRadius: 0, sinClic: true});
     grafico('dor-eficiencia', {type: 'line', data: {labels: D_.map(corto), datasets: dsE}, options: {scales: {y: {beginAtZero: true}},
       plugins: {tooltip: {callbacks: {label: c => { if (!dsE[c.datasetIndex]._reg) return c.dataset.label; const x = efDia(D_[c.dataIndex], dsE[c.datasetIndex]._reg);
         return x ? c.dataset.label + ': ' + num(x.v, 2) + ' por técnico · ' + x.n + ' tickets · ' + x.t + ' técnicos' : c.dataset.label + ': —'; }}}}}},
-      (i, j) => dsE[i]._reg ? {titulo: 'los cerrados de ' + nombreRegion(dsE[i]._reg) + ' el ' + largo(D_[j]), filas: U.filter(r => r.region === dsE[i]._reg && cerroEl(r, D_[j]))} : null);
+      (i, j) => { if (!dsE[i]._reg) return null; const x = efDia(D_[j], dsE[i]._reg);
+        return {titulo: 'los cerrados de ' + nombreRegion(dsE[i]._reg) + ' el ' + largo(D_[j]) + (x ? ' · ' + num(x.v, 2) + ' por técnico (' + x.n + ' tickets ÷ ' + x.t + ' técnicos, sin visitas truncas)' : ''), filas: U.filter(r => r.region === dsE[i]._reg && cerroEl(r, D_[j]))}; });
 
     // Tiempos de atención por FM Office (+ total por región)
     const filasT = [];
@@ -369,7 +431,7 @@
       {label: 'Despacho → llegada', data: filasT.map(f => med(f.filas, 'despacho', 'llegada')), backgroundColor: C.azul, maxBarThickness: 20, etiqueta: {pos: 'centro', fmt: v => num(v, 1), color: '#fff'}},
       {label: 'Llegada → cierre', data: filasT.map(f => med(f.filas, 'llegada', 'cierre')), backgroundColor: C.naranja, maxBarThickness: 20, etiqueta: {pos: 'centro', fmt: v => num(v, 1), color: '#fff'}}]},
       options: {indexAxis: 'y', scales: {x: {stacked: true, beginAtZero: true, title: {display: true, text: 'Horas (mediana)', color: tema().suave}}, y: {stacked: true, ticks: {font: c => ({size: 10.5, weight: filasT[c.index]?.total ? 'bold' : 'normal'})}}}}},
-      (i, j) => ({titulo: 'los cierres de ' + filasT[j].nombre, filas: filasT[j].filas}));
+      (i, j) => ({titulo: 'los cierres de ' + filasT[j].nombre + ' · mediana ' + (i ? 'llegada → cierre' : 'despacho → llegada') + ' ' + num(graficos['dor-tiempos'].data.datasets[i].data[j], 1) + ' h', filas: filasT[j].filas}));
 
     // Causa raíz
     const total = cierres.length;
