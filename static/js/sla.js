@@ -9,6 +9,7 @@
   const ESTADOS = {
     vencido: ['Vencido', 'fa-alarm-clock', 'sla-rojo'], por_vencer: ['Por vencer', 'fa-hourglass-half', 'sla-ambar'],
     en_plazo: ['En plazo', 'fa-circle-check', 'sla-verde'], sin_objetivo: ['Sin objetivo', 'fa-circle-question', 'sla-gris'],
+    sla_cero: ['SLA en 0', 'fa-circle-exclamation', 'sla-gris'], sin_inicio: ['Sin inicio', 'fa-hourglass-start', 'sla-gris'],
     cumple: ['Cerrado · cumplió', 'fa-circle-check', 'sla-verde'], no_cumple: ['Cerrado · no cumplió', 'fa-circle-xmark', 'sla-rojo'],
   };
 
@@ -25,7 +26,10 @@
   // Estado de un caso abierto, calculado contra la hora actual.
   function medir(c, ahora) {
     const ini = fecha(c.inicio);
-    if (!c.objetivo || !ini) return {estado: 'sin_objetivo', resto: null, uso: 0};
+    // Sin medir: SLA en 0, sin objetivo (vacío) o sin la fecha de inicio (CM: Dispatch Time; PM/PLM: Arrive Time).
+    if (/^0+(\.0+)?$/.test(String(c.sla_hour ?? '').trim())) return {estado: 'sla_cero', resto: null, uso: 0};
+    if (!c.objetivo) return {estado: 'sin_objetivo', resto: null, uso: 0};
+    if (!ini) return {estado: 'sin_inicio', resto: null, uso: 0};
     const transcurrido = (ahora - ini) / 60000 - (c.pausa || 0), resto = c.objetivo - transcurrido, uso = Math.max(0, transcurrido / c.objetivo * 100);
     const estado = resto < 0 ? 'vencido' : (resto <= c.objetivo * CFG.porcentaje || resto <= CFG.minutos) ? 'por_vencer' : 'en_plazo';
     return {estado, resto, uso};
@@ -199,7 +203,8 @@
     tarjeta('sla-rojo', 'fa-alarm-clock', 'Vencidos abiertos', cuenta('vencido'), entel ? 'pasaron su objetivo' : 'pasaron su SLA Hour', 'vencido');
     tarjeta('sla-ambar', 'fa-hourglass-half', 'Por vencer', cuenta('por_vencer'), 'queda ≤ ' + Math.round(CFG.porcentaje * 100) + ' % o ≤ ' + CFG.minutos + ' min', 'por_vencer');
     tarjeta('sla-verde', 'fa-circle-check', 'En plazo', cuenta('en_plazo'), 'con tiempo de sobra', 'en_plazo');
-    tarjeta('sla-gris', 'fa-circle-question', 'Sin objetivo', cuenta('sin_objetivo'), entel ? 'sin regla de Fault Level o sin inicio' : 'sin SLA Hour o sin inicio', 'sin_objetivo');
+    const sinMedir = cuenta('sin_objetivo') + cuenta('sla_cero') + cuenta('sin_inicio');
+    tarjeta('sla-gris', 'fa-circle-question', 'Sin medir', sinMedir, [cuenta('sin_inicio') + ' sin inicio', cuenta('sla_cero') + ' con SLA en 0', cuenta('sin_objetivo') + (entel ? ' sin regla' : ' sin SLA')].join(' · '), 'sin_medir');
 
     // Cumplimiento por técnico (cerrados del periodo), de menor a mayor para ver primero a quién apoyar.
     const porTec = {};
@@ -208,7 +213,7 @@
 
     // Filtros rápidos de la lista
     const filtros = $('sla-filtros'); filtros.replaceChildren();
-    for (const [clave, texto] of [['', 'Abiertos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_objetivo', 'Sin objetivo'], ['cerrados', 'Cerrados'], ['tecnicos', 'Por técnico']]) {
+    for (const [clave, texto] of [['', 'Abiertos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_inicio', 'Sin inicio'], ['sla_cero', 'SLA en 0'], ['sin_objetivo', 'Sin objetivo'], ['cerrados', 'Cerrados'], ['tecnicos', 'Por técnico']]) {
       const b = el('button', 'sla-chip' + (filtro === clave ? ' activo' : '')); b.type = 'button';
       b.append(el('span', null, texto), el('strong', null, String(clave === 'tecnicos' ? tecs.length : clave === 'cerrados' ? cerrados.length : clave ? cuenta(clave) : abiertos.length)));
       b.addEventListener('click', () => { filtro = clave; pintar(); }); filtros.append(b);
@@ -219,12 +224,13 @@
     document.querySelector('.sla-tabla').hidden = verTecnicos;
     $('sla-tecnicos').hidden = !verTecnicos;
     // Casos abiertos, más urgentes primero: por vencer y en plazo según lo que les queda; luego vencidos (los más recientes arriba).
-    const orden = {por_vencer: 0, vencido: 1, en_plazo: 2, sin_objetivo: 3};
+    const orden = {por_vencer: 0, vencido: 1, en_plazo: 2, sin_inicio: 3, sla_cero: 4, sin_objetivo: 5};
+    const SIN_MEDIR = ['sin_inicio', 'sla_cero', 'sin_objetivo'];
     // "Cerrados": los del periodo, del más reciente al más antiguo, con su resultado según SLA Status.
     const usoCerrado = c => { const i = fecha(c.inicio), f = fecha(c.fin); return i && f && c.objetivo ? Math.max(0, (f - i) / 60000 - (c.pausa || 0)) / c.objetivo * 100 : 0; };
     baseFiltro = verTecnicos ? [] : filtro === 'cerrados'
       ? cerrados.map(c => ({...c, estado: cumple(c) ? 'cumple' : 'no_cumple', uso: usoCerrado(c)})).sort((a, b) => String(b.fin).localeCompare(String(a.fin)))
-      : abiertos.filter(c => !filtro || c.estado === filtro)
+      : abiertos.filter(c => !filtro || c.estado === filtro || (filtro === 'sin_medir' && SIN_MEDIR.includes(c.estado)))
         .sort((a, b) => orden[a.estado] - orden[b.estado] || (a.estado === 'vencido' ? b.resto - a.resto : (a.resto ?? 1e9) - (b.resto ?? 1e9)));
     // Filtros y orden elegidos en los encabezados.
     let visibles = baseFiltro.filter(c => Object.entries(filtrosCol).every(([col, set]) => set.has(COLS[col].texto(c))));
@@ -249,7 +255,8 @@
       if (c.estado === 'cumple' || c.estado === 'no_cumple') {
         const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, c.uso ? 'Usó ' + Math.round(c.uso) + ' % del objetivo' + (c.pausa ? ' · pausa ' + duracion(c.pausa) : '') : '—'));
         const p = el('span', 'sla-pista'), f = el('span'); f.style.width = Math.min(100, c.uso) + '%'; p.append(f); tiempo.append(cab, p);
-      } else if (c.estado === 'sin_objetivo') tiempo.append(el('small', null, c.objetivo ? 'Sin hora de inicio' : entel ? 'Sin regla de Fault Level' : 'Sin SLA Hour'));
+      } else if (SIN_MEDIR.includes(c.estado)) tiempo.append(el('small', null, c.estado === 'sin_inicio' ? 'Falta ' + (c.tipo === 'CM' || entel || integratel ? 'Dispatch Time' : 'Arrive Time')
+        : c.estado === 'sla_cero' ? 'SLA en 0: no se puede medir' : entel ? 'Sin regla de Fault Level' : integratel && c.tipo === 'CM' ? 'Sla vacío' : integratel ? 'Sin Require Finish Time' : 'SLA Hour vacío'));
       else {
         const cab = el('span', 'sla-tiempo-cab'); cab.append(el('small', null, 'Objetivo ' + duracion(c.objetivo) + (c.pausa ? ' · pausa ' + duracion(c.pausa) : '')), el('small', null, Math.round(c.uso) + ' %'));
         const p = el('span', 'sla-pista'), f = el('span'); f.style.width = Math.min(100, c.uso) + '%'; p.append(f);
@@ -257,7 +264,7 @@
       }
       const estado = el('span', 'sla-estado');
       estado.append(icono(simbolo), el('span', null, c.estado === 'vencido' ? 'Vencido · hace ' + duracion(-c.resto)
-        : ['sin_objetivo', 'cumple', 'no_cumple'].includes(c.estado) ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
+        : [...SIN_MEDIR, 'cumple', 'no_cumple'].includes(c.estado) ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
       fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), tec, ...reales, tiempo, estado);
       cuerpo.append(fila);
     }
