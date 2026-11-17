@@ -120,7 +120,7 @@
     const t = tema(), horizontal = config.options?.indexAxis === 'y';
     const ejes = {grid: {color: 'rgba(137,135,129,.16)'}, ticks: {color: t.suave, font: {size: 10.5}}};
     const base = {responsive: true, maintainAspectRatio: false, animation: false, layout: {padding: {top: 20, right: horizontal ? 70 : 12}},
-      interaction: {mode: 'nearest', intersect: false, axis: horizontal ? 'y' : 'x'},
+      interaction: {mode: 'nearest', intersect: false, axis: horizontal ? 'y' : config.type === 'line' ? 'xy' : 'x'},
       plugins: {legend: {position: 'top', align: 'start', labels: {color: t.suave, boxWidth: 10, boxHeight: 10, font: {size: 11}, filter: it => !it.text.startsWith('·')}},
         tooltip: {mode: 'index', intersect: false}},
       scales: {x: {...ejes, grid: {display: horizontal, color: ejes.grid.color}}, y: {...ejes, grid: {display: !horizontal, color: ejes.grid.color}}}};
@@ -139,7 +139,7 @@
   let pendiente = null, filasDetalle = [];
   function preguntar(titulo, filas) {
     pendiente = {titulo, filas};
-    $('dor-pregunta-txt').textContent = '¿Abrir el detalle de ' + titulo + ' (' + filas.length + ' ticket' + (filas.length === 1 ? '' : 's') + ')?';
+    $('dor-pregunta-txt').textContent = '¿Abrir el detalle ' + (titulo.startsWith('el ') ? 'del ' + titulo.slice(3) : 'de ' + titulo) + ' (' + filas.length + ' ticket' + (filas.length === 1 ? '' : 's') + ')?';
     $('dor-pregunta').hidden = false;
   }
   $('dor-pregunta-no').addEventListener('click', () => { $('dor-pregunta').hidden = true; });
