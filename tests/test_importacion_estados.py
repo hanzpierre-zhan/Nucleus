@@ -75,3 +75,21 @@ def test_importar_mas_de_5000_registros(app,auth_client):
         with app.app_context():
             NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.key_value.like('QA-MAS5000-%')).delete(synchronize_session=False)
             db.session.commit()
+
+
+def test_claro_solo_importa_cobra(app, auth_client):
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='FLM - CLARO').one().id
+    auth_client.get('/switch_project/%s' % pid)
+    csv = 'Ticket Id,Task Status,FME Contractor\nQA-CL-COBRA,completed,COBRA\nQA-CL-OFG,completed,OFG\nQA-CL-VACIO,completed,\n'
+    try:
+        r = auth_client.post('/api/import/process', data={'type': 'base', 'file': (io.BytesIO(csv.encode()), 'datos.csv')})
+        assert r.status_code == 200, r.json
+        assert r.json['ignored_other_contractor'] == 2
+        with app.app_context():
+            claves = {f.key_value for f in NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.like('QA-CL-%'))}
+            assert claves == {'QA-CL-COBRA'}
+    finally:
+        with app.app_context():
+            NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.like('QA-CL-%')).delete(synchronize_session=False)
+            db.session.commit()

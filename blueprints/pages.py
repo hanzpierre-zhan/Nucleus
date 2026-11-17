@@ -593,6 +593,7 @@ def analytics_gerencial():
 
 
 @bp.route('/analytics/claro')
+@bp.route('/analytics/claro/diario', endpoint='analytics_claro_diario')
 @login_required
 def analytics_claro():
     user_id,user_rol,pid=get_session_info()
@@ -613,6 +614,12 @@ def analytics_claro():
             if isinstance(d,dict):
                 d['_key']=fila.key_value
                 if apply_data_restrictions([d],restricciones):yield d
+    # Vista "Operación diaria CM" (como el reporte diario del cliente) en la misma ruta con ?vista=diaria.
+    # Claro usa solo la Operación diaria CM; el dashboard anterior queda en ?vista=clasica por si acaso.
+    if request.args.get('vista')!='clasica':
+        from services.dashboard_dor import indicadores as indicadores_dor
+        return render_template('dashboard_dor.html',dashboard=indicadores_dor(registros()),
+                               proyectos_list=proyectos,proyecto_nombre=proy.nombre,proyecto_id=proy.id)
     from services.dashboard_claro import indicadores
     return render_template('dashboard_claro.html',dashboard=indicadores(registros(),'CLARO'),dashboard_titulo='FLM - Claro',
                            proyectos_list=proyectos,proyecto_nombre=proy.nombre,proyecto_id=proy.id)

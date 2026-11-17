@@ -18,7 +18,7 @@ def test_dashboard_claro_lee_solo_claro(app,auth_client):
         row=NucleusData(proyecto_id=p.id,key_value='CL-DASH-QA',data_json=json.dumps({'Ticket Id':'CL-DASH-QA','Create Time':'2026-10-01','Task Status':'completed'}))
         db.session.add(row);db.session.commit();rid=row.id
     try:
-        r=auth_client.get('/analytics/claro');assert r.status_code==200
+        r=auth_client.get('/analytics/claro?vista=clasica');assert r.status_code==200
         assert b'CL-DASH-QA' in r.data and b'cl-evolucion' in r.data
     finally:
         with app.app_context():db.session.delete(db.session.get(NucleusData,rid));db.session.commit()

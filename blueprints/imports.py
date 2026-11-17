@@ -286,6 +286,16 @@ def api_import_process():
             ignorados_cancelados = int(mascara_cancelados.sum())
             df = df.loc[~mascara_cancelados].copy()
 
+        # FLM - CLARO: solo interesan los tickets de COBRA (FME Contractor). Los de otras
+        # contratas (EXPERIS, OFG, HUAWEI o vacío) no se importan.
+        ignorados_otra_contrata = 0
+        if proy_act_nombre == 'FLM - CLARO':
+            col_contrata = next((c for c in df.columns if c.strip().casefold() == 'fme contractor'), None)
+            if col_contrata is not None and len(df):
+                es_cobra = df[col_contrata].fillna('').astype(str).str.strip().str.upper() == 'COBRA'
+                ignorados_otra_contrata = int((~es_cobra).sum())
+                df = df.loc[es_cobra].copy()
+
         # Validación interna: PEXT debe traer la columna CATEGORY con el valor
         # correcto para evitar importar por error datos de otro proceso/mundo.
         # FLM: sin restricción de CATEGORY (acepta cualquier valor).
@@ -813,6 +823,7 @@ def api_import_process():
             'updated': updated,
             'ignored': ignored,
             'ignored_canceled': ignorados_cancelados,
+            'ignored_other_contractor': ignorados_otra_contrata,
             'updated_canceled': actualizados_cancelados,
             'consolidated': consolidated,
             'rejected_saldo': rejected_saldo,

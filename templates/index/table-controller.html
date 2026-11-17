@@ -10515,6 +10515,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
                 let resumen = `<i class="fa-solid fa-circle-check"></i> <b>Importación exitosa.</b> Añadidos: ${data.added} · Actualizados: ${data.updated} · Ignorados: ${data.ignored}`;
                 if (data.ignored_canceled) resumen += ` · ${data.ignored_canceled} Canceled omitidos`;
+                if (data.ignored_other_contractor) resumen += ` · ${data.ignored_other_contractor} de otras contratas omitidos (solo COBRA)`;
                 if (data.updated_canceled) resumen += ` · ${data.updated_canceled} órdenes existentes marcadas Canceled`;
 
                 if (data.consolidated) resumen += ` · Consolidados: ${data.consolidated}`;
