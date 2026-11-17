@@ -1,25 +1,27 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard FLM - Claro{% endblock %}
+{% block title %}Dashboard {{ dashboard.titulo }}{% endblock %}
+{% set E = dashboard.etiquetas %}
 {% block content %}
-{# Operación diaria CM (Claro), al estilo del reporte diario del cliente: SLA, flujo, backlog, cierre, eficiencia, tiempos y causa raíz.
+{# Operación diaria CM (Claro, Integratel, Entel y PEXT), al estilo del reporte diario del cliente: SLA, flujo, backlog, cierre, eficiencia, tiempos y causa raíz.
    Todos los gráficos muestran su número; clic en un punto o barra pregunta y abre el detalle de tickets. #}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
 <link rel="stylesheet" href="/static/css/dashboard-dor.css?v=4">
 <section class="di-page dor-page">
 {% from '_dashboard_header.html' import dashboard_header with context %}
-{% call dashboard_header('FLM - Claro', 'Operación diaria CM · SLA, backlog y causa raíz', '', 6) %}
+{% call dashboard_header(dashboard.titulo, 'Operación diaria CM · SLA, backlog y causa raíz', '', 6) %}
 <div class="dor-filtros">
   <div class="dor-dias" role="group" aria-label="Periodo">
     {% for n in [7, 15, 30, 45] %}<button type="button" data-dias="{{ n }}" aria-pressed="{{ 'true' if n == 15 else 'false' }}">{{ n }} días</button>{% endfor %}
   </div>
   <div class="dor-campo"><span>Región</span><div class="dor-multi" id="dor-region" data-todos="Todas"></div></div>
-  <div class="dor-campo"><span>FM Office</span><div class="dor-multi" id="dor-oficina" data-todos="Todas"></div></div>
+  <div class="dor-campo"><span>{{ E.oficina }}</span><div class="dor-multi" id="dor-oficina" data-todos="Todas"></div></div>
+  {% if dashboard.con_rm %}<div class="dor-campo"><span>{{ E.rm }}</span><div class="dor-multi" id="dor-rm" data-todos="Todos"></div></div>{% endif %}
   <div class="dor-campo"><span>Contrata</span><div class="dor-multi" id="dor-contrata" data-todos="Todas"></div></div>
   <div class="dor-campo"><span>Técnico</span><div class="dor-multi" id="dor-tecnico" data-todos="Todos"></div></div>
   <label class="dor-check"><input type="checkbox" id="dor-sin-despachar"> Incluir sin despachar</label>
   <button type="button" id="dor-limpiar" class="dor-limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros</button>
-  <span class="dor-rango"><span id="dor-rango"></span>{% if ultima_import %}<span class="dor-corte" title="Fecha y hora de la última importación de FLM - Claro{{ ' · por ' ~ ultima_import.usuario if ultima_import.usuario }}"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Última importación: <strong>{{ ultima_import.texto }}</strong></span>{% endif %}</span>
+  <span class="dor-rango"><span id="dor-rango"></span>{% if ultima_import %}<span class="dor-corte" title="Fecha y hora de la última importación de {{ dashboard.titulo }}{{ ' · por ' ~ ultima_import.usuario if ultima_import.usuario }}"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Última importación: <strong>{{ ultima_import.texto }}</strong></span>{% endif %}</span>
 </div>
 {% endcall %}
 
@@ -27,7 +29,7 @@
 
 <div class="dor-fila dor-fila-sla">
   <article class="dor-card">
-    <header><div><h2>Cumplimiento de SLA por día</h2><p>Tickets completados cada día dentro del SLA. Verde sobre la meta, rojo debajo.</p></div>
+    <header><div><h2>Cumplimiento de SLA por día</h2><p>Tickets completados cada día dentro del SLA. Verde sobre la meta, rojo debajo.{% if dashboard.operador == 'PEXT' %} En PEXT el SLA se mide con Hrs Respuesta (creación → complete).{% elif not dashboard.con_sla %} Este proyecto no trae SLA Status.{% endif %}</p></div>
       <div class="dor-modo" role="group" aria-label="Modo"><button type="button" data-modo="dia" aria-pressed="true">Del día</button><button type="button" data-modo="acumulado" aria-pressed="false">Acumulado</button></div></header>
     <div class="dor-canvas"><canvas id="dor-sla" role="img" aria-label="Cumplimiento de SLA por día"></canvas></div>
   </article>
@@ -52,19 +54,19 @@
 <div class="dor-fila">
   <article class="dor-card"><header><div><h2>Eficiencia por técnico al día</h2><p>Tickets cerrados por cada técnico que cerró al menos uno ese día. No cuentan las visitas truncas.</p></div></header>
     <div class="dor-canvas"><canvas id="dor-eficiencia" role="img" aria-label="Eficiencia por día"></canvas></div></article>
-  <article class="dor-card"><header><div><h2>Tiempos de atención por FM Office</h2><p>Mediana de horas del despacho a la llegada al site y de la llegada al cierre (tickets cerrados en el periodo).</p></div></header>
+  <article class="dor-card"><header><div><h2>Tiempos de atención por {{ E.oficina }}</h2><p>Mediana de horas del despacho a la llegada al site y de la llegada al cierre (tickets cerrados en el periodo).</p></div></header>
     <div class="dor-canvas"><canvas id="dor-tiempos" role="img" aria-label="Tiempos de atención"></canvas></div></article>
 </div>
 
 <h3 class="dor-seccion">Causa raíz <small id="dor-causa-sub"></small></h3>
 <p class="dor-resumen" id="dor-causa-resumen"></p>
 <div class="dor-fila">
-  <article class="dor-card"><header><div><h2>Por familia de causa</h2><p>Las causas de Root Cause agrupadas en familias. Clic en una barra abre sus tickets.</p></div></header>
+  <article class="dor-card"><header><div><h2>Por {{ E.familia }}</h2><p>Cierres del periodo por {{ E.familia }}. Clic en una barra abre sus tickets.</p></div></header>
     <div class="dor-canvas dor-canvas-alto"><canvas id="dor-familias" role="img" aria-label="Cierres por familia de causa"></canvas></div></article>
-  <article class="dor-card"><header><div><h2>Causas más frecuentes</h2><p>Las 15 causas con más tickets, tal como vienen en Root Cause.</p></div></header>
+  <article class="dor-card"><header><div><h2>Causas más frecuentes</h2><p>Las 15 causas con más tickets, tal como vienen en {{ E.causa }}.</p></div></header>
     <div class="dor-canvas dor-canvas-alto"><canvas id="dor-causas" role="img" aria-label="Causas más frecuentes"></canvas></div></article>
 </div>
-<article class="dor-card"><header><div><h2>Familias por FM Office</h2><p>Porcentaje de los cierres de cada oficina que corresponde a cada familia. Más oscuro, más peso. Clic en una celda abre sus tickets.</p></div></header>
+<article class="dor-card"><header><div><h2>{{ E.familia[:1]|upper }}{{ E.familia[1:] }} por {{ E.oficina }}</h2><p>Porcentaje de los cierres de cada {{ E.oficina }} que corresponde a cada grupo. Más oscuro, más peso. Clic en una celda abre sus tickets.</p></div></header>
   <div class="dor-tabla-scroll"><table class="dor-calor" id="dor-calor"></table></div></article>
 
 <div class="dor-pregunta" id="dor-pregunta" hidden role="alertdialog" aria-live="polite">
@@ -79,10 +81,10 @@
       <span id="dor-detalle-n"></span><button type="button" id="dor-csv"><i class="fa-solid fa-download" aria-hidden="true"></i> CSV</button>
       <button type="button" id="dor-detalle-cerrar" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></header>
   <div class="dor-tabla-scroll"><table class="dor-tabla"><thead><tr>
-    <th>Ticket Id</th><th>Site ID</th><th>FM Office</th><th>Región</th><th>Contrata</th><th>Técnico</th><th>Estado</th><th>SLA</th><th>Parada de reloj</th><th>Creado</th><th>Despacho</th><th>Cierre</th><th>Causa</th>
+    <th>Ticket Id</th><th>Site ID</th><th>{{ E.oficina }}</th><th>Región</th><th>Contrata</th><th>Técnico</th><th>Estado</th><th>SLA</th><th>Parada de reloj</th><th>Creado</th><th>Despacho</th><th>Cierre</th><th>Causa</th>
   </tr></thead><tbody id="dor-detalle-filas"></tbody></table></div>
 </article>
 </section>
 <script id="dor-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-dor.js?v=8"></script>
+<script src="/static/js/dashboard-dor.js?v=10"></script>
 {% endblock %}

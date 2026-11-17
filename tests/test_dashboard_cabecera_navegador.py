@@ -27,12 +27,12 @@ def test_cabeceras_comparten_orden_y_posicion(app,auth_client,servidor):
                 assert page.locator('.dash-switch-label').count()==0
                 if path in ('/analytics/entel','/analytics/integratel','/analytics/pext'):
                     assert page.locator('.di-story').count()==0
-                if path == '/analytics/claro':
-                    assert page.locator('#cl-exportar').count()==0
-                    assert page.locator('[data-cl-scale]').all_text_contents()==['Diario','Semanal','Mensual','Trimestre','Anual']
-                    page.get_by_role('button', name='Trimestre').click()
-                    assert page.locator('[data-cl-scale="trimestre"]').get_attribute('aria-pressed')=='true'
-                    assert page.locator('#cl-excluir-cancelados').is_checked()
+                if path in ('/analytics/claro','/analytics/entel','/analytics/integratel','/analytics/pext'):
+                    # Operación diaria CM: periodo por días y SLA por día.
+                    assert page.locator('[data-dias]').all_text_contents()==['7 días','15 días','30 días','45 días']
+                    page.get_by_role('button', name='30 días').click()
+                    assert page.locator('[data-dias="30"]').get_attribute('aria-pressed')=='true'
+                    assert page.locator('#dor-sla').count()==1
                 assert page.locator('.dashboard-header .di-eyebrow,.dashboard-header .re-key').count()==0
                 positions.append(page.locator('.dash-switch').bounding_box())
                 assert page.locator('.di-page').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')

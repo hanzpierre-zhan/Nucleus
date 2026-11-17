@@ -1,4 +1,4 @@
-"""Operación diaria CM (Claro): datos por ticket para el dashboard tipo "Daily Operation Report".
+"""Operación diaria CM (Claro, Integratel, Entel y PEXT): datos por ticket para el dashboard tipo "Daily Operation Report".
 
 El servidor solo arma una fila liviana por ticket CM; los cálculos por día (SLA, backlog,
 flujo, cierre desde el despacho, eficiencia, tiempos y causa raíz) se hacen en el navegador
@@ -73,42 +73,106 @@ def ultima_importacion(proyecto_id):
     return {'texto': lima.strftime('%d/%m/%Y %H:%M'), 'usuario': usuario}
 
 
-def indicadores(registros):
+# Columnas de cada proyecto (se toma la primera que tenga dato). El técnico es siempre el NOMBRE completo.
+CAMPOS = {
+    'CLARO': {
+        'titulo': 'FLM - Claro', 'id': ('Ticket Id',), 'tipo': ('Task Type',), 'estado': ('Task Status',),
+        'creado': ('Create Time',), 'despacho': ('Dispatch Time',), 'llegada': ('Arrive Time',), 'cierre': ('Complete Time',),
+        'cancelacion': ('Cancel Time', '_fecha_cancel_reject', 'FECHA CAMBIO ESTADO'),
+        'sla': ('SLA Status',), 'oficina': ('FM Office', 'FM  Office Site'), 'contrata': ('FME Contractor',),
+        'tecnico': ('Assign To FME Full Name',), 'rm': (), 'site': ('Site ID', 'Site Name'),
+        'causa': ('Root Cause',), 'familia': None, 'parada': ('Suspend State', 'suspend'),
+        'etiquetas': {'oficina': 'FM Office', 'rm': '', 'causa': 'Root Cause', 'familia': 'familias de causa (agrupadas desde Root Cause)'},
+    },
+    'INTEGRATEL': {
+        'titulo': 'FLM - Integratel', 'id': ('Task Id',), 'tipo': ('Task Type',), 'estado': ('Task Status',),
+        'creado': ('Createtime', 'Create Time'), 'despacho': ('Dispatch Time',), 'llegada': ('Arrive Time',),
+        # El SLA termina en el primer cierre (si lo reabren no cuenta).
+        'cierre': ('First Complete Time', 'Complete Time'), 'cancelacion': ('Cancel Time', 'FECHA CAMBIO ESTADO'),
+        'sla': ('Sla Status', 'SLA Status'), 'oficina': ('Fm Office',), 'contrata': ('FME contrator', 'Company Supply'),
+        'tecnico': ('Assign To Fme Full Name',), 'rm': (), 'site': ('Site Id', 'Site Id Name'),
+        'causa': ('Com Fault Cause',), 'familia': ('Com Fault Speciality',), 'parada': ('Suspend State', 'suspend'),
+        'etiquetas': {'oficina': 'Fm Office', 'rm': '', 'causa': 'Com Fault Cause', 'familia': 'especialidad de la falla (Com Fault Speciality)'},
+    },
+    'ENTEL': {
+        'titulo': 'FLM - Entel', 'id': ('Task ID(create)', 'id', 'Ticket ID'), 'tipo': (), 'estado': ('Ticket Status', 'Estado de la tarea (WO State)'),
+        'creado': ('CreateTime(create)',), 'despacho': ('dispatch_time',), 'llegada': ('arrive_time',), 'cierre': ('SubmitTime(complete)', 'complete_time'),
+        'cancelacion': ('Cancel Time',), 'sla': ('SLA Status',), 'oficina': ('fm_office',), 'contrata': ('Contractor',),
+        'tecnico': ('assign_to_fme',), 'rm': ('Region Manager(create)',), 'site': ('Site ID(create)',),
+        'causa': ('Task Subcategory(create)',), 'familia': ('Task Category(create)',), 'parada': ('SLA Paused', 'yes'),
+        'etiquetas': {'oficina': 'FM Office', 'rm': 'Regional Manager', 'causa': 'Task Subcategory', 'familia': 'categoría de la tarea (Task Category)'},
+    },
+    'PEXT': {
+        'titulo': 'FLM - PEXT', 'id': ('Número de WO', 'Numero de WO'), 'tipo': (), 'estado': ('Estado de la tarea (WO State)', 'Estado de la tarea'),
+        'creado': ('Fecha de creación (WO Creation date)', 'Fecha de creacion'), 'despacho': ('Fecha de creación (WO Creation date)', 'Fecha de creacion'),
+        'llegada': (), 'cierre': ('Fecha y hora de WO a estado complete', 'Fecha y hora de WO a estado close'),
+        'cancelacion': ('Fecha y hora de cancelación de WO', 'FECHA CAMBIO ESTADO'), 'sla': (), 'oficina': ('Departamento',),
+        'contrata': ('CONTRATA',), 'tecnico': ('Nombre de personal FLM asignado', 'TECNICO ASIGNADO'), 'rm': ('O&M asignado',),
+        'site': ('Código Site', 'Nombre de Site'), 'causa': ('Causa raíz', 'Causa raiz'), 'familia': ('Tipo tarea',),
+        'parada': ('Estado suspendido', 'yes'), 'objetivo_horas': ('Hrs Respuesta',),
+        'etiquetas': {'oficina': 'Departamento', 'rm': 'O&M asignado', 'causa': 'Causa raíz', 'familia': 'tipo de tarea'},
+    },
+}
+
+
+def _region(operador, oficina):
+    texto = normalizar_texto(oficina)
+    if operador == 'PEXT':  # por departamento: Lima/Callao y el resto
+        return 'LIMA' if texto in ('LIMA', 'CALLAO') else 'PROVINCIAS' if texto else 'Sin región'
+    return region(oficina)
+
+
+def _horas(texto):
+    m = re.search(r'(\d+(?:[.,]\d+)?)', str(texto or ''))
+    return float(m[1].replace(',', '.')) if m else None
+
+
+def indicadores(registros, operador='CLARO'):
+    cfg = CAMPOS[operador]
     rows = []
     for raw in registros:
         d = {normalizar(k): v for k, v in raw.items()}
 
-        def text(*claves):
-            return next((str(d[normalizar(k)]).strip() for k in claves if str(d.get(normalizar(k)) or '').strip()), '')
+        def text(clave):
+            return next((str(d[normalizar(k)]).strip() for k in cfg.get(clave) or () if str(d.get(normalizar(k)) or '').strip()), '')
 
-        ticket = text('Ticket Id')
-        tipo = (text('Task Type') or ticket.split('-')[0]).upper()
+        ticket = text('id')
+        tipo = (text('tipo') or ticket.split('-')[0]).upper()
         if not ticket or tipo != 'CM':
             continue
-        estado = text('Task Status').casefold()
-        cancelado = estado in _CANCELADO
-        completado = estado in _CERRADO
-        despacho = instante(text('Dispatch Time'))
-        sla = text('SLA Status').casefold()
-        oficina = text('FM Office', 'FM  Office Site') or 'Sin oficina'
-        causa = text('Root Cause')
+        estado = text('estado').casefold()
+        cancelado = estado in _CANCELADO or estado == 'cancel'
+        primer_cierre = operador == 'INTEGRATEL' and bool(str(d.get(normalizar('First Complete Time')) or '').strip())
+        completado = (estado in _CERRADO or primer_cierre) and not cancelado
+        creado, despacho = instante(text('creado')), instante(text('despacho'))
+        cierre = instante(text('cierre')) if completado else None
+        sla_txt = text('sla')
+        sla = True if sla_txt.casefold() == 'normal' else False if sla_txt.casefold() in ('sla_violation', 'milestone_broken') else None
+        if operador == 'PEXT' and completado and creado and cierre:
+            # PEXT no trae SLA Status: cumple si se completó dentro de las horas de respuesta (Hrs Respuesta).
+            objetivo = _horas(text('objetivo_horas'))
+            if objetivo:
+                from datetime import datetime
+                usado = (datetime.fromisoformat(cierre) - datetime.fromisoformat(creado)).total_seconds() / 3600
+                sla, sla_txt = usado <= objetivo, ('normal' if usado <= objetivo else 'sla_violation')
+        oficina = text('oficina') or 'Sin oficina'
+        causa = text('causa')
+        campo_parada, valor_parada = cfg['parada']
+        fam = (text('familia') or 'Sin dato') if cfg['familia'] else familia(causa)
         rows.append({
-            'id': ticket, 'site': text('Site ID', 'Site Name'), 'nombre_site': text('Site Name'),
-            'oficina': oficina, 'region': region(oficina), 'contrata': text('FME Contractor') or 'Sin contrata',
-            'tecnico': text('Assign To FME Full Name', 'Assign To FME') or 'Sin técnico',
+            'id': ticket, 'site': text('site'),
+            'oficina': oficina, 'region': _region(operador, oficina), 'contrata': text('contrata') or 'Sin contrata',
+            'tecnico': text('tecnico') or 'Sin técnico', 'rm': text('rm'),
             'estado': estado, 'completado': completado, 'cancelado': cancelado,
-            'creado': instante(text('Create Time')), 'despacho': despacho,
-            'llegada': instante(text('Arrive Time')),
-            'cierre': instante(text('Complete Time')) if completado else None,
-            # Claro casi no trae Cancel Time: se usa la fecha del cambio de estado o, si no hay, la del despacho.
-            'cancelacion': (instante(text('Cancel Time', '_fecha_cancel_reject', 'FECHA CAMBIO ESTADO')) or despacho) if cancelado else None,
-            'sla': True if sla == 'normal' else False if sla in ('sla_violation', 'milestone_broken') else None,
-            'sla_texto': text('SLA Status'),
-            'parada': text('Suspend State').casefold() == 'suspend',
-            'causa': causa or '(sin causa)', 'familia': familia(causa),
-            'categoria': text('Task Category'),
+            'creado': creado, 'despacho': despacho, 'llegada': instante(text('llegada')), 'cierre': cierre,
+            # Si no trae fecha de cancelación se usa la del despacho para ubicarla en el tiempo.
+            'cancelacion': (instante(text('cancelacion')) or despacho) if cancelado else None,
+            'sla': sla, 'sla_texto': sla_txt,
+            'parada': str(d.get(normalizar(campo_parada)) or '').strip().casefold() == valor_parada,
+            'causa': causa or '(sin causa)', 'familia': fam,
         })
     fechas = [r[k][:10] for r in rows for k in ('creado', 'despacho', 'cierre') if r[k]]
-    return {'rows': rows, 'total': len(rows), 'hasta': max(fechas, default=''),
-            'linea_base': LINEA_BASE, 'meta_sla': META_SLA, 'meta_eficiencia': META_EFICIENCIA,
-            'familias': [n for n, _ in FAMILIAS] + ['Otras causas']}
+    return {'rows': rows, 'total': len(rows), 'hasta': max(fechas, default=''), 'operador': operador, 'titulo': cfg['titulo'],
+            'etiquetas': cfg['etiquetas'], 'con_rm': any(r['rm'] for r in rows), 'con_sla': any(r['sla'] is not None for r in rows),
+            'linea_base': LINEA_BASE if operador == 'CLARO' else {}, 'meta_sla': META_SLA, 'meta_eficiencia': META_EFICIENCIA,
+            'resumen_familias': operador == 'CLARO'}

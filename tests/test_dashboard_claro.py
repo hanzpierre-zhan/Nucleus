@@ -40,7 +40,7 @@ def test_mismo_formato_para_integratel_y_entel():
 
 
 def test_integratel_y_entel_usan_dashboard_sla(app,auth_client):
-    for ruta in ('/analytics/integratel','/analytics/entel'):
+    for ruta in ('/analytics/integratel','/analytics/entel','/analytics/pext'):
         r=auth_client.get(ruta)
         if r.status_code==200:
-            assert b'cl-evolucion' in r.data and b'vista=clasica' in r.data
+            assert b'dor-sla' in r.data and b'dor-data' in r.data

@@ -24,8 +24,10 @@
   // ── Estado de filtros ──
   const st = {dias: 15, modo: 'dia'};
   const FILTROS = {region: 'region', oficina: 'oficina', contrata: 'contrata', tecnico: 'tecnico'};
+  if ($('dor-rm')) FILTROS.rm = 'rm';
+  const E = D.etiquetas || {};
   // Filtros con casillas: se pueden marcar varias opciones (ninguna marcada = todas).
-  const elegidos = {region: new Set(), oficina: new Set(), contrata: new Set(), tecnico: new Set()};
+  const elegidos = {region: new Set(), oficina: new Set(), contrata: new Set(), tecnico: new Set(), rm: new Set()};
   const textoOpcion = (id, v) => id === 'region' ? nombreRegion(v) : v;
   function resumenMulti(id) {
     const s = elegidos[id], caja = $('dor-' + id);
@@ -61,7 +63,7 @@
   for (const [id, campo] of Object.entries(FILTROS)) armarMulti(id, campo);
   document.addEventListener('click', () => document.querySelectorAll('.dor-multi-pop').forEach(x => { x.hidden = true; }));
   document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.dor-multi-pop').forEach(x => { x.hidden = true; }); });
-  if (D.rows.some(r => r.contrata === 'COBRA')) { elegidos.contrata.add('COBRA'); $('dor-contrata')._sincronizar(); }
+  if (D.operador !== 'PEXT' && D.rows.some(r => r.contrata === 'COBRA')) { elegidos.contrata.add('COBRA'); $('dor-contrata')._sincronizar(); }
 
   function dias(n, hasta) {
     const out = [], fin = new Date(hasta + 'T12:00:00');
@@ -70,7 +72,7 @@
   }
   function universo() {
     const sinDesp = $('dor-sin-despachar').checked, pasa = (id, v) => !elegidos[id].size || elegidos[id].has(v);
-    return D.rows.filter(r => pasa('region', r.region) && pasa('oficina', r.oficina) && pasa('contrata', r.contrata) && pasa('tecnico', r.tecnico) && (sinDesp || r.despacho));
+    return D.rows.filter(r => pasa('region', r.region) && pasa('oficina', r.oficina) && pasa('contrata', r.contrata) && pasa('tecnico', r.tecnico) && pasa('rm', r.rm) && (sinDesp || r.despacho));
   }
   // Abierto al cierre del día d (backlog): ya existía, no se había completado ni cancelado hasta ese día.
   const abiertoAl = (r, d) => inicio(r) && dia(inicio(r)) <= d && !(r.completado && (!r.cierre || dia(r.cierre) <= d)) && !(r.cancelado && (!r.cancelacion || dia(r.cancelacion) <= d));
@@ -257,7 +259,7 @@
   });
   function filtrosTexto() {
     const partes = [];
-    for (const [id, nombre] of [['region', 'Región'], ['oficina', 'FM Office'], ['contrata', 'Contrata'], ['tecnico', 'Técnico']]) {
+    for (const [id, nombre] of [['region', 'Región'], ['oficina', E.oficina || 'FM Office'], ['contrata', 'Contrata'], ['tecnico', 'Técnico'], ['rm', E.rm || 'RM']]) {
       if (elegidos[id].size) partes.push(nombre + ': ' + [...elegidos[id]].map(v => textoOpcion(id, v)).join(', '));
     }
     return partes.length ? ' · ' + partes.join(' · ') : '';
@@ -319,7 +321,7 @@
         {txt: d === 0 ? '= sin cambio' : (d > 0 ? '▲ ' : '▼ ') + Math.abs(d), cls: d > 0 ? 'baja' : d < 0 ? 'sube' : ''});
       v.prepend(el('span', 'dor-punto', nombreRegion(reg))); v.firstChild.style.setProperty('--c', COLOR_REGION(reg)); bl.append(v);
     }
-    k.append(kpi('Backlog al corte', bl, 'Línea base ' + regiones.slice(0, 2).map(r => nombreRegion(r) + ' ' + (BASE[r] ?? '—')).join(' · ')));
+    k.append(kpi('Backlog al corte', bl, Object.keys(BASE).length ? 'Línea base ' + regiones.slice(0, 2).map(r => nombreRegion(r) + ' ' + (BASE[r] ?? '—')).join(' · ') : 'Tickets abiertos al cierre del ' + largo(corte)));
     const fl = el('div', 'dor-triple');
     const nDesp = U.filter(r => dentro(r.despacho, D_)).length, nCanc = U.filter(r => r.cancelado && dentro(r.cancelacion, D_)).length;
     [['Despachados', nDesp], ['Cerrados', cierres.length], ['Cancelados', nCanc]].forEach(([t, v]) => { const x = valor(num(v)); x.prepend(el('span', null, t)); fl.append(x); });
@@ -327,7 +329,7 @@
     const pr = el('div', 'dor-triple'), abiertos = backlogEn(corte), enParada = abiertos.filter(r => r.parada);
     const xt = valor(num(enParada.length)); xt.prepend(el('span', null, 'Total')); pr.append(xt);
     for (const reg of regiones.slice(0, 2)) { const x = valor(num(enParada.filter(r => r.region === reg).length)); x.prepend(el('span', 'dor-punto', nombreRegion(reg))); x.firstChild.style.setProperty('--c', COLOR_REGION(reg)); pr.append(x); }
-    k.append(kpi('Tickets en parada de reloj', pr, 'De ' + num(abiertos.length) + ' abiertos al corte (Suspend State = suspend)'));
+    k.append(kpi('Tickets en parada de reloj', pr, 'De ' + num(abiertos.length) + ' abiertos al corte (con el reloj de SLA en pausa)'));
     [...k.children].forEach((a, i) => a.addEventListener('click', () => {
       const listas = [[cierres, 'los cierres del periodo'], [cierres, 'los cierres del periodo'], [cierres, 'los cierres del periodo'], [abiertos, 'el backlog al ' + largo(corte)], [cierres, 'los cierres del periodo'], [enParada, 'los tickets en parada de reloj']];
       preguntar(listas[i][1], listas[i][0]);
@@ -436,10 +438,15 @@
     // Causa raíz
     const total = cierres.length;
     const porFam = {}; cierres.forEach(r => { (porFam[r.familia] ||= []).push(r); });
+    const porCausa0 = {}; cierres.forEach(r => { porCausa0[r.causa] = (porCausa0[r.causa] || 0) + 1; });
     const fams = Object.keys(porFam).sort((a, b) => porFam[b].length - porFam[a].length);
     const cuenta = f => porFam[f]?.length || 0;
     $('dor-causa-sub').textContent = num(total) + ' tickets cerrados en el periodo, por la causa que registró el técnico al cerrar';
-    if (fams.length) {
+    if (fams.length && !D.resumen_familias) {
+      const top = fams[0];
+      $('dor-causa-resumen').textContent = top + ' concentra más cierres: ' + cuenta(top) + ' (' + num(pct(cuenta(top), total), 1) + '%). '
+        + (fams[1] ? 'Le sigue ' + fams[1] + ' con ' + cuenta(fams[1]) + ' (' + num(pct(cuenta(fams[1]), total), 1) + '%). ' : '') + (porCausa0['(sin causa)'] ? porCausa0['(sin causa)'] + ' cierres no tienen causa registrada.' : '');
+    } else if (fams.length) {
       const top = fams[0], energia = cuenta('Corte de energía comercial') + cuenta('Baterías y autonomía');
       $('dor-causa-resumen').textContent = top + ' es la familia con más cierres: ' + cuenta(top) + ' (' + num(pct(cuenta(top), total), 1) + '%). Energía comercial y baterías suman '
         + num(pct(energia, total), 1) + '% de los cierres; ' + cuenta('Baterías y autonomía') + ' son por baterías o baja autonomía (se pueden prevenir). '

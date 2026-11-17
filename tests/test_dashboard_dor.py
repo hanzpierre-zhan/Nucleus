@@ -41,3 +41,25 @@ def test_pagina_operacion_diaria(app, auth_client):
     finally:
         with app.app_context():
             db.session.delete(db.session.get(NucleusData, rid)); db.session.commit()
+
+
+def test_otros_proyectos_mismo_formato():
+    i = indicadores([{'Task Id': 'CM-1', 'Task Type': 'CM', 'Task Status': 'inprocess', 'Createtime': '2026-11-01 10:00:00', 'Dispatch Time': '2026-11-01 10:05:00',
+                      'First Complete Time': '2026-11-01 12:00:00', 'Sla Status': 'normal', 'Fm Office': 'HUAWEI CENTRO ICA', 'FME contrator': 'COBRA',
+                      'Assign To Fme': 'T123', 'Assign To Fme Full Name': 'JUAN PEREZ', 'Com Fault Cause': 'AM - FALSO CONTACTO', 'Com Fault Speciality': 'ACCESO MOVIL'}], 'INTEGRATEL')['rows'][0]
+    assert i['completado'] and i['sla'] is True and i['tecnico'] == 'JUAN PEREZ' and i['familia'] == 'ACCESO MOVIL' and i['region'] == 'CENTRO'
+    e = indicadores([{'Task ID(create)': 'CM-2', 'Ticket Status': 'Completed', 'CreateTime(create)': '2026-11-01 10:00:00', 'dispatch_time': '2026-11-01 10:01:00',
+                      'SubmitTime(complete)': '2026-11-01 15:00:00', 'SLA Status': 'sla_violation', 'fm_office': 'ICA_REGIÓN SUR', 'Contractor': 'COBRA',
+                      'assign_to_fme': 'ANA RUIZ', 'Region Manager(create)': 'Harold Lopez', 'Task Category(create)': 'Pext', 'SLA Paused': 'YES'}], 'ENTEL')
+    r = e['rows'][0]
+    assert r['sla'] is False and r['rm'] == 'Harold Lopez' and r['region'] == 'SUR' and r['familia'] == 'Pext' and e['con_rm'] and e['etiquetas']['rm'] == 'Regional Manager'
+    p = indicadores([{'Número de WO': 'CM-3', 'Estado de la tarea (WO State)': 'completed', 'Fecha de creación (WO Creation date)': '2026-11-01 08:00:00',
+                      'Fecha y hora de WO a estado complete': '2026-11-01 20:00:00', 'Hrs Respuesta': '10hrs', 'Departamento': 'CALLAO',
+                      'Nombre de personal FLM asignado': 'LUIS SOTO', 'Tipo tarea': 'CAIDA', 'Causa raíz': 'FO Cut'}], 'PEXT')['rows'][0]
+    # 12 h contra 10 h de respuesta: fuera de SLA.
+    assert p['sla'] is False and p['region'] == 'LIMA' and p['tecnico'] == 'LUIS SOTO' and p['familia'] == 'CAIDA'
+
+
+def test_claro_tecnico_solo_nombre():
+    r = indicadores([{'Ticket Id': 'CM-9', 'Task Type': 'CM', 'Task Status': 'inprocess', 'Assign To FME': 'E8410009'}])['rows'][0]
+    assert r['tecnico'] == 'Sin técnico'
