@@ -3,7 +3,20 @@
  const num=v=>new Intl.NumberFormat('es-PE',{maximumFractionDigits:1}).format(v);
  const palette=window.NucleusDashVisual.operationalColors;
  const colors=[palette.teal,palette.amber,palette.red], speedLabels=['≤ 24 h','24–48 h','> 48 h'];
- for(const field of ['zona','fme','tipo'])[...new Set(data.rows.map(r=>r[field]))].sort().forEach(v=>get(field).add(new Option(v,v)));
+ const FILTROS=['proveedor','region','zona','rm','fme','tipo'].filter(f=>get(f));
+ for(const field of FILTROS)[...new Set(data.rows.map(r=>r[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')).forEach(v=>get(field).add(new Option(v,v)));
+ // Por defecto: COBRA si existe, y el mes en curso.
+ if([...get('proveedor').options].some(o=>o.value==='COBRA'))get('proveedor').value='COBRA';
+ {const hoy=new Date(),mes=hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0');if(data.hasta&&data.hasta>=mes+'-01'){get('desde').value=mes+'-01';get('hasta').value=data.hasta;}}
+ function ranking(id,lista,max){
+  const ol=get(id);ol.replaceChildren();
+  if(!lista.length){const li=document.createElement('li');li.textContent='Sin cierres con SLA en la selección';ol.append(li);return;}
+  for(const g of lista.slice(0,max)){
+   const li=document.createElement('li'),n=document.createElement('span'),barra=document.createElement('i'),b=document.createElement('b'),v=document.createElement('strong'),c=document.createElement('small');
+   li.dataset.level=g.pct>=95?'high':g.pct>=80?'mid':'low';n.textContent=g.nombre;n.title=g.nombre;b.style.width=g.pct+'%';barra.append(b);
+   v.textContent=num(g.pct)+' % ';c.textContent=g.ok+'/'+g.total;v.append(c);li.append(n,barra,v);ol.append(li);
+  }
+ }
  function chart(id,type,labels,datasets,extra={}){charts.get(id)?.destroy();const dark=document.body.classList.contains('dark-mode');const config={type,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,color:dark?'#cbd5e1':'#4b5563',plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}}},...(type==='bar'?{scales:{x:{stacked:true,ticks:{maxRotation:60,autoSkip:true,maxTicksLimit:18,color:dark?'#9ca3af':'#64748b'},grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{precision:0,color:dark?'#9ca3af':'#64748b'},grid:{color:dark?'#ffffff0d':'#0000000d'}}}}:{}),...extra}};charts.set(id,new Chart(get(id),window.NucleusDashVisual.prepare(config)));}
  function table(){const rows=current.selected,pages=Math.max(1,Math.ceil(rows.length/50));page=Math.min(page,pages-1);get('tickets').replaceChildren();for(const r of rows.slice(page*50,page*50+50)){const tr=document.createElement('tr');for(const v of [r.id,r.estado,r.creacion,r.cierre,r.zona,r.fme,r.sla===null?'Sin dato':r.sla?'Cumple':'Fuera de SLA']){const td=document.createElement('td');td.textContent=v||'—';tr.append(td);}get('tickets').append(tr);}get('count').textContent='· '+num(rows.length);get('pagina').textContent=`${page+1} / ${pages}`;get('anterior').disabled=page===0;get('siguiente').disabled=page>=pages-1;}
  function renderSummary(){
@@ -12,7 +25,7 @@
   value.dataset.level=current.sla===null?'empty':current.sla>=95?'high':current.sla>=80?'mid':'low';
   needle.setAttribute('visibility',current.sla===null?'hidden':'visible');
   needle.setAttribute('transform',`rotate(${(current.sla??0)*1.8} 120 108)`);
-  get('sla-nota').textContent=`${num(current.slaBase)} cierres con SLA medido · ${num(current.slaSinDato)} sin SLA`;
+  get('sla-nota').textContent=`${num(current.slaOk)} de ${num(current.slaBase)} cerrados en SLA (normal)`+(current.slaSinDato?` · ${num(current.slaSinDato)} sin SLA Status`:'')+(current.sla!==null&&current.sla<95?` · faltan ${num(95-current.sla)} pts para la meta`:'');
 
   const total=current.velocidad.reduce((sum,count)=>sum+count,0);
   get('velocidad-total').textContent=num(total);
@@ -31,15 +44,20 @@
  function render(){
  const from=get('desde').value,to=get('hasta').value;
  if(from&&to&&from>to){get('nota').textContent='La fecha inicial debe ser anterior o igual a la final.';return;}
- current=ClaroModel.snapshot(data.rows,{desde:from,hasta:to,zona:get('zona').value,fme:get('fme').value,
-  tipo:get('tipo').value,excluir:get('excluir-cancelados').checked,escala:document.querySelector('[data-cl-scale][aria-pressed="true"]').dataset.clScale});
+ const sel={};FILTROS.forEach(f=>sel[f]=get(f).value);
+ current=ClaroModel.snapshot(data.rows,{desde:from,hasta:to,...sel,excluir:get('excluir-cancelados').checked,hijos:get('hijos').checked,despachados:get('solo-despachados').checked,escala:document.querySelector('[data-cl-scale][aria-pressed="true"]').dataset.clScale});
  for(const k of ['creados','completados','cancelados','despachados','abiertos'])get(k).textContent=num(current[k]);get('promedio').textContent=current.promedio===null?'Sin dato':num(current.promedio)+' h';
- get('creados-nota').textContent='Por Create Time';get('completados-nota').textContent='Por Complete Time';get('cancelados-nota').textContent=get('excluir-cancelados').checked?'Excluidos de la selección':'Por Cancel Time';get('despachados-nota').textContent='Por Dispatch Time';get('abiertos-nota').textContent='Acumulado hasta la fecha final';get('promedio-nota').textContent=current.sinDuracion+' cierres sin duración válida';
+ const pct=(a,b)=>b?' ('+num(a/b*100)+' % de creados)':'',porDia=v=>v===null?'':num(v)+' por día';
+ get('creados-nota').textContent=porDia(current.creadosDia)+(current.dias?' · '+current.dias+' días':'');
+ get('completados-nota').textContent=porDia(current.completadosDia)+' · por fecha de cierre';
+ get('cancelados-nota').textContent=get('excluir-cancelados').checked?'Excluidos de la selección':num(current.cancelados/(current.creados||1)*100)+' % de creados';
+ get('despachados-nota').textContent=current.creados?num(current.despachados/current.creados*100)+' % de creados':'';
+ get('abiertos-nota').textContent='Backlog sin cerrar al '+(to||'corte')+' (incluye meses anteriores)';get('promedio-nota').textContent=current.sinDuracion+' cierres sin duración válida';
  get('nota').textContent=`${num(data.total)} tickets importados · ${data.sin_identificador} registros sin Ticket Id excluidos · ${current.sinFecha} tickets sin fecha de creación. Los filtros se aplican a todos los gráficos.`;
  renderSummary();
  const series=current.series,labels=series.map(g=>g.key);chart('evolucion','bar',labels,[{type:'line',label:'Backlog',data:series.map(g=>g.backlog),borderColor:palette.red,backgroundColor:palette.red,pointRadius:2,borderWidth:2,tension:.2,stack:'backlog'},{label:'Creados',data:series.map(g=>g.creados),backgroundColor:palette.blue,stack:'creados'},{label:'Completados',data:series.map(g=>g.completados),backgroundColor:palette.teal,stack:'cerrados'},{label:'Cancelados',data:series.map(g=>g.cancelados),backgroundColor:palette.muted,stack:'cancelados'}]);
- chart('cierres','bar',labels,speedLabels.map((label,i)=>({label,data:series.map(g=>g.velocidad[i]),backgroundColor:colors[i],stack:'tiempo'})));table();}
- for(const id of ['desde','hasta','zona','fme','tipo','excluir-cancelados'])get(id).addEventListener('change',()=>{page=0;render();});
+ chart('cierres','bar',labels,speedLabels.map((label,i)=>({label,data:series.map(g=>g.velocidad[i]),backgroundColor:colors[i],stack:'tiempo'})));ranking('por-zona',current.porZona,12);ranking('por-fme',current.porFme,10);table();}
+ for(const id of ['desde','hasta',...FILTROS,'excluir-cancelados','hijos','solo-despachados'])get(id).addEventListener('change',()=>{page=0;render();});
  const scales=document.querySelectorAll('[data-cl-scale]');
  scales.forEach(button=>button.addEventListener('click',()=>{
   scales.forEach(option=>option.setAttribute('aria-pressed',String(option===button)));

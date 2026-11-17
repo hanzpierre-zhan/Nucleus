@@ -3,7 +3,7 @@
 {% block content %}
 {# SLA con el diseño de Caja Chica: pestañas por proyecto, indicadores, casos abiertos por urgencia y cumplimiento por técnico. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
-<link rel="stylesheet" href="/static/css/sla.css?v=7">
+<link rel="stylesheet" href="/static/css/sla.css?v=8">
 <section class="cc-gestion sla-gestion" aria-label="SLA">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar ticket, site o técnico" aria-label="Buscar">
@@ -41,7 +41,7 @@
       </header>
       <div class="sla-tabla" role="table" aria-label="Casos abiertos">
         <div class="sla-fila sla-encabezado" role="row">
-          <span role="columnheader" data-col="ticket">Ticket / site</span><span role="columnheader" data-col="tipo">Tipo</span><span role="columnheader" data-col="categoria" data-cabecera="categoria">Task Category</span><span role="columnheader" data-col="tecnico" data-cabecera="tecnico">Schedule Operator</span>
+          <span role="columnheader" data-col="ticket">Ticket / site</span><span role="columnheader" data-col="tipo">Tipo</span><span role="columnheader" data-col="categoria" data-cabecera="categoria">Task Category</span><span role="columnheader" data-col="fm_office" data-cabecera="fm_office">FM Office</span><span role="columnheader" data-col="tecnico" data-cabecera="tecnico">Schedule Operator</span>
           <span role="columnheader" data-col="dispatch" data-cabecera="dispatch">Dispatch Time</span><span role="columnheader" data-col="arrive" data-cabecera="arrive">Arrive Time</span><span role="columnheader" data-col="fin" data-cabecera="fin">Complete Time</span>
           <span role="columnheader" data-col="objetivo" data-cabecera="objetivo">SLA Hour</span><span role="columnheader" data-col="sla_status">SLA Status</span>
           <span role="columnheader" data-col="uso">Tiempo SLA</span><span role="columnheader" data-col="estado">Estado</span>
@@ -54,5 +54,5 @@
   </div>
 </section>
 <script id="sla-config" type="application/json">{{ dict(por_vencer, con_criterios=con_criterios) | tojson }}</script>
-<script src="/static/js/sla.js?v=19" defer></script>
+<script src="/static/js/sla.js?v=20" defer></script>
 {% endblock %}

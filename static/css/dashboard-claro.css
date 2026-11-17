@@ -87,3 +87,14 @@
   .cl-scale { flex-basis: 100%; }
   .cl-scale > div { width: fit-content; max-width: 100%; }
 }
+
+/* Ranking de SLA por oficina y por técnico */
+.cl-ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 12px; }
+.cl-ranking li { display: grid; grid-template-columns: minmax(0, 1fr) 120px 92px; align-items: center; gap: 10px; }
+.cl-ranking span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-ranking i { display: block; height: 8px; border-radius: 99px; background: var(--ios-fill); overflow: hidden; }
+.cl-ranking i b { display: block; height: 100%; background: var(--cl-sla-high); }
+.cl-ranking li[data-level=mid] i b { background: var(--cl-sla-mid); }
+.cl-ranking li[data-level=low] i b { background: var(--cl-sla-low); }
+.cl-ranking strong { text-align: right; font-variant-numeric: tabular-nums; }
+.cl-ranking small { color: var(--ios-secondary); font-weight: 400; }

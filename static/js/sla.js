@@ -69,6 +69,7 @@
     ticket: {valor: c => c.ticket, texto: c => c.ticket},
     tipo: {valor: c => c.tipo, texto: c => c.tipo},
     categoria: {valor: c => c.categoria || '', texto: c => c.categoria || '(vacío)'},
+    fm_office: {valor: c => c.fm_office || '', texto: c => c.fm_office || '(vacío)'},
     tecnico: {valor: c => c.tecnico_nombre || c.tecnico || '', texto: c => nombreTec(c)},
     dispatch: {valor: c => c.dispatch || '', texto: c => (c.dispatch || '').slice(0, 10) || '(vacío)'},
     arrive: {valor: c => c.arrive || '', texto: c => (c.arrive || '').slice(0, 10) || '(vacío)'},
@@ -158,10 +159,10 @@
     const entel = proyecto === 'ENTEL';
     const integratel = proyecto === 'INTEGRATEL';
     const CABECERAS = entel
-      ? {tecnico: 'assign_to_fme', dispatch: 'dispatch_time', arrive: 'arrive_time', fin: 'SubmitTime(complete)', objetivo: 'Fault Level · objetivo', categoria: 'Task Category'}
+      ? {tecnico: 'assign_to_fme', dispatch: 'dispatch_time', arrive: 'arrive_time', fin: 'SubmitTime(complete)', objetivo: 'Fault Level · objetivo', categoria: 'Task Category', fm_office: 'fm_office'}
       : integratel
-      ? {tecnico: 'Assign To Fme', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'First Complete Time', objetivo: 'Sla (min) / Require Finish', categoria: 'Task Category'}
-      : {tecnico: 'Schedule Operator', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'Complete Time', objetivo: 'SLA Hour', categoria: 'Task Category'};
+      ? {tecnico: 'Assign To Fme', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'First Complete Time', objetivo: 'Sla (min) / Require Finish', categoria: 'Task Category', fm_office: 'Fm Office'}
+      : {tecnico: 'Schedule Operator', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'Complete Time', objetivo: 'SLA Hour', categoria: 'Task Category', fm_office: proyecto === 'PEXT' ? 'Departamento' : 'FM Office'};
     prepararEncabezado();
     document.querySelectorAll('[data-cabecera]').forEach(h => { const t = h.querySelector('.sla-th-txt') || h; t.textContent = CABECERAS[h.dataset.cabecera] || t.textContent; });
     // Categorías del proyecto (Task Category) para el filtro.
@@ -170,7 +171,7 @@
       sel.replaceChildren(new Option('Todas las categorías', ''), ...cats.map(c => new Option(c, c)));
       sel.dataset.proyecto = proyecto; if (!cats.includes(categoria)) categoria = ''; sel.value = categoria;
     }
-    const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre).includes(q)));
+    const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre + ' ' + (c.fm_office || '')).includes(q)));
     const abiertos = delTipo.filter(c => !c.cerrado).map(c => ({...c, ...medir(c, ahora)}));
     const cerrados = delTipo.filter(c => c.cerrado && enPeriodo(c));
     const cumplidos = cerrados.filter(cumple).length;
@@ -265,7 +266,7 @@
       const estado = el('span', 'sla-estado');
       estado.append(icono(simbolo), el('span', null, c.estado === 'vencido' ? 'Vencido · hace ' + duracion(-c.resto)
         : [...SIN_MEDIR, 'cumple', 'no_cumple'].includes(c.estado) ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
-      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), tec, ...reales, tiempo, estado);
+      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), el('span', 'sla-categoria', c.fm_office || '—'), tec, ...reales, tiempo, estado);
       cuerpo.append(fila);
     }
     if (visibles.length > 400) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 400 de ' + visibles.length + '. Usa la búsqueda o los filtros.'));
@@ -321,7 +322,7 @@
     const ahora = new Date();
     const filas = cache[proyecto].filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria)).map(c => {
       const m = c.cerrado ? null : medir(c, ahora);
-      return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Task Category': c.categoria, 'Site': c.site, 'Schedule Operator': c.tecnico, 'Nombre': c.tecnico_nombre,
+      return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Task Category': c.categoria, 'FM Office': c.fm_office || '', 'Site': c.site, 'Schedule Operator': c.tecnico, 'Nombre': c.tecnico_nombre,
         'Dispatch Time': c.dispatch, 'Arrive Time': c.arrive, 'Complete Time': c.fin, 'SLA Hour': c.sla_hour, 'SLA Status': c.sla_status_original, 'Resultado SLA': resultadoSla(c),
         'Inicio SLA usado': c.inicio, 'Objetivo (min)': c.objetivo || '', 'Task Status': c.estado_ticket, 'Estado': c.cerrado ? (cumple(c) ? 'Cerrado · cumple' : 'Cerrado · no cumple') : ESTADOS[m.estado][0],
         'Minutos restantes': m && m.resto !== null ? Math.round(m.resto) : '',

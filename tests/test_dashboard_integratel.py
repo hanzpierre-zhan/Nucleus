@@ -102,7 +102,7 @@ def test_dashboard_respeta_departamentos_permitidos(app,auth_client,cambiar_rol)
     cambiar_rol(auth_client, 'supervisor')
     with auth_client.session_transaction() as session:
         session['current_proyecto_id']=pid;session['current_proyecto_nombre']='FLM - ENTEL'
-    response=auth_client.get('/analytics/entel')
+    response=auth_client.get('/analytics/entel?vista=clasica')
     assert response.status_code==200
     data=json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>',response.text,re.S).group(1))
     keys={r['wo'] for r in data['detalle']}
@@ -120,7 +120,7 @@ def test_analytics_usa_flm_seleccionado_sin_mezclar_operadores(app, auth_client)
         db.session.add(NucleusData(proyecto_id=entel, key_value='ENTEL-DASH-QA', data_json=json.dumps({'OPERATE PHASE':'close','FECHA DE CREACION':'2026-09-01'})))
         db.session.commit()
     auth_client.get(f'/switch_project/{entel}')
-    response = auth_client.get('/analytics/entel')
+    response = auth_client.get('/analytics/entel?vista=clasica')
     assert response.status_code == 200
     assert '<h1>Flm - Entel</h1>' in response.text
     assert 'Producción: Operate Phase' not in response.text
@@ -141,7 +141,7 @@ def test_dashboard_desde_catalogo_usa_su_flm_de_origen(app, auth_client):
         session['current_proyecto_id'] = material
         session['current_proyecto_nombre'] = 'Material'
         session['flm_resource_context'] = {'catalogo_id':material, 'flm_id':entel, 'recurso':'material'}
-    response = auth_client.get('/analytics/entel')
+    response = auth_client.get('/analytics/entel?vista=clasica')
     assert response.status_code == 200
     assert 'Operación · FLM - ENTEL' in response.text
 
@@ -158,7 +158,7 @@ def test_dashboard_entel_no_consulta_el_flm_anterior(app, auth_client):
         db.session.add(NucleusData(proyecto_id=integratel, key_value='OTRO-OPERADOR', data_json='{}'))
         db.session.commit()
     auth_client.get(f'/switch_project/{integratel}')
-    response = auth_client.get('/analytics/entel')
+    response = auth_client.get('/analytics/entel?vista=clasica')
     assert response.status_code == 200
     data = json.loads(re.search(r'<script id="di-data" type="application/json">(.*?)</script>', response.text, re.S).group(1))
     keys = {r['wo'] for r in data['detalle']}

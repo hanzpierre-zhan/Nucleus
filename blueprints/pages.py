@@ -558,8 +558,16 @@ def analytics_operativo():
                 datos['_key'] = fila.key_value
                 if apply_data_restrictions([datos], restricciones):
                     yield datos
-    dashboard = indicadores(registros(), integratel=request.endpoint == 'pages.analytics_integratel')
     titulo = {'pages.analytics_integratel': 'FLM - Integratel', 'pages.analytics_pext': 'FLM - PEXT'}
+    # Integratel y Entel usan el mismo dashboard operativo de SLA que Claro;
+    # la versión anterior queda en ?vista=clasica.
+    operador = {'pages.analytics_integratel': 'INTEGRATEL', 'pages.analytics_entel': 'ENTEL'}.get(request.endpoint)
+    if operador and request.args.get('vista') != 'clasica':
+        from services.dashboard_claro import indicadores as indicadores_flm
+        return render_template('dashboard_claro.html', dashboard=indicadores_flm(registros(), operador),
+                               dashboard_titulo=titulo.get(request.endpoint, 'FLM - Entel'), vista_clasica=request.path + '?vista=clasica',
+                               proyectos_list=proyectos, proyecto_nombre=proy.nombre, proyecto_id=proy.id)
+    dashboard = indicadores(registros(), integratel=request.endpoint == 'pages.analytics_integratel')
     return render_template('dashboard_integratel.html', dashboard=dashboard,
                            dashboard_titulo=titulo.get(request.endpoint, 'Flm - Entel'),
                            proyectos_list=proyectos, proyecto_nombre=proy.nombre,
@@ -606,7 +614,7 @@ def analytics_claro():
                 d['_key']=fila.key_value
                 if apply_data_restrictions([d],restricciones):yield d
     from services.dashboard_claro import indicadores
-    return render_template('dashboard_claro.html',dashboard=indicadores(registros()),
+    return render_template('dashboard_claro.html',dashboard=indicadores(registros(),'CLARO'),dashboard_titulo='FLM - Claro',
                            proyectos_list=proyectos,proyecto_nombre=proy.nombre,proyecto_id=proy.id)
 
 

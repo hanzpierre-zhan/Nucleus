@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}Dashboard FLM - Claro{% endblock %}
+{% block title %}Dashboard {{ dashboard_titulo or 'FLM - Claro' }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-claro.css?v=6">
+<link rel="stylesheet" href="/static/css/dashboard-claro.css?v=7">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
 <script src="/static/js/dashboard-visual.js?v=3"></script>
 <section class="di-page dv-unified dc-page">
 {% from '_dashboard_header.html' import dashboard_header with context %}
-{% call dashboard_header('Flm - Claro','Control operativo','Tickets importados · lectura en tiempo real',5) %}
+{% call dashboard_header(dashboard_titulo or 'Flm - Claro','Control operativo · SLA','Tickets importados · lectura en tiempo real',7) %}
 <div class="di-filters cl-toolbar">
 <fieldset class="cl-scale">
   <legend>Escala</legend>
@@ -20,15 +20,21 @@
 </fieldset>
 <label>Desde<input id="cl-desde" type="date" value="{{ dashboard.desde }}"></label>
 <label>Hasta<input id="cl-hasta" type="date" value="{{ dashboard.hasta }}"></label>
-<label>Zona / oficina<select id="cl-zona"><option value="">Todas las oficinas</option></select></label>
+<label>Proveedor<select id="cl-proveedor"><option value="">Todos</option></select></label>
+<label>Región<select id="cl-region"><option value="">Todas</option></select></label>
+<label>FM Office<select id="cl-zona"><option value="">Todas las oficinas</option></select></label>
+{% if dashboard.con_rm %}<label>RM<select id="cl-rm"><option value="">Todos</option></select></label>{% endif %}
 <label>FME<select id="cl-fme"><option value="">Todos los técnicos</option></select></label>
 <label>Tipo WO<select id="cl-tipo"><option value="">Todos</option></select></label>
-<label class="cl-exclude"><input type="checkbox" id="cl-excluir-cancelados" checked> Excluir canceladas</label>
+<label class="cl-exclude"><input type="checkbox" id="cl-excluir-cancelados"> Excluir canceladas</label>
+<label class="cl-exclude" title="Tickets asociados a otra tarea (CM/PM/PLM)"><input type="checkbox" id="cl-hijos"> Excluir tickets hijos</label>
+<label class="cl-exclude"><input type="checkbox" id="cl-solo-despachados"> Solo despachados</label>
 </div>
 {% endcall %}
 <p id="cl-nota" class="cl-note" role="status"></p>
+{% if vista_clasica %}<p class="cl-note"><a href="{{ vista_clasica }}">Ver la versión anterior del dashboard</a></p>{% endif %}
 <div class="cl-summary dv-summary">
-<div class="cl-kpis di-kpis dv-kpis" aria-live="polite">{% for key,label,color in [('creados','Creados','blue'),('despachados','Despachados','violet'),('completados','Completados','teal'),('cancelados','Cancelados','orange'),('abiertos','Abiertos al cierre','red'),('promedio','Promedio de cierre','cyan')] %}<article data-color="{{ color }}"><span>{{ label }}</span><strong id="cl-{{ key }}">—</strong><small id="cl-{{ key }}-nota"></small></article>{% endfor %}</div>
+<div class="cl-kpis di-kpis dv-kpis" aria-live="polite">{% for key,label,color in [('creados','Creados','blue'),('despachados','Despachados','violet'),('completados','Completados','teal'),('cancelados','Cancelados','orange'),('abiertos','Abiertos al corte','red'),('promedio','Promedio de cierre','cyan')] %}<article data-color="{{ color }}"><span>{{ label }}</span><strong id="cl-{{ key }}">—</strong><small id="cl-{{ key }}-nota"></small></article>{% endfor %}</div>
 <article class="cl-card di-card cl-gauge dv-sla-card">
   <h2>Cumplimiento de SLA <small>Meta de referencia 95 %</small></h2>
   <div class="cl-meter">
@@ -66,9 +72,13 @@
     <ul id="cl-velocidad-leyenda" class="cl-speed-legend"></ul>
   </div>
 </article>
+<div class="cl-graphs dv-main-charts">
+  <article class="cl-card di-card"><h2>SLA por FM Office</h2><p>Cierres del periodo · menor cumplimiento primero</p><ol id="cl-por-zona" class="cl-ranking"></ol></article>
+  <article class="cl-card di-card"><h2>SLA por técnico</h2><p>Cierres del periodo · menor cumplimiento primero (10 más bajos)</p><ol id="cl-por-fme" class="cl-ranking"></ol></article>
+</div>
 <details class="cl-card di-card"><summary>Consultar tickets de la selección <span id="cl-count"></span></summary><div class="cl-table"><table><thead><tr><th>Ticket Id</th><th>Estado</th><th>Creación</th><th>Cierre</th><th>Oficina</th><th>FME</th><th>SLA</th></tr></thead><tbody id="cl-tickets"></tbody></table></div><button id="cl-anterior">Anterior</button> <span id="cl-pagina"></span> <button id="cl-siguiente">Siguiente</button></details>
 </section>
 <script id="cl-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-claro-model.js?v=4"></script>
-<script src="/static/js/dashboard-claro.js?v=6"></script>
+<script src="/static/js/dashboard-claro-model.js?v=5"></script>
+<script src="/static/js/dashboard-claro.js?v=8"></script>
 {% endblock %}
