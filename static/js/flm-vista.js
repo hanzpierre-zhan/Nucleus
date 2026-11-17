@@ -34,10 +34,17 @@
   //   "SLA Cobra" es nuestro cálculo, para contrastarlo con el SLA Status que trae la data.
   const esClaro = main.dataset.proyecto === 'FLM - CLARO';
   const esEntel = main.dataset.proyecto === 'FLM - ENTEL';
-  const conSla = esClaro || esEntel;
+  const esIntegratel = main.dataset.proyecto === 'FLM - INTEGRATEL';
+  const conSla = esClaro || esEntel || esIntegratel;
+  // Integratel trae su estado de SLA en "Sla Status" (la otra columna, "SLA Status", es vieja).
+  const CAMPO_ESTADO = esIntegratel ? 'Sla Status' : 'SLA Status';
+  const PAUSAS = ['First', 'Second', 'Third', 'Fourth', 'Fifth'];
   const COLUMNAS_SLA = esEntel
     ? ['Ticket Status', 'Fault Level(create)', 'dispatch_time', 'SubmitTime(complete)', 'Total SLA Pause Duration', 'SLA Status']
-    : ['Task Type', 'Task Status', 'Dispatch Time', 'Arrive Time', 'SLA Hour', 'Complete Time', 'SLA Status', 'Schedule Operator'];
+    : esIntegratel
+      ? ['Task Type', 'Task Status', 'Dispatch Time', 'First Complete Time', 'Require Finish Time', 'Sla', 'Sla Status', 'Reject Counter',
+         ...PAUSAS.flatMap(n => [n + ' Pause Time', n + ' Resume Time'])]
+      : ['Task Type', 'Task Status', 'Dispatch Time', 'Arrive Time', 'SLA Hour', 'Complete Time', 'SLA Status', 'Schedule Operator'];
   const estadoDe = f => f['Task Status'] ?? f['Ticket Status'];
   const POR_VENCER = [0.25, 60];
   const fecha = v => { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/); return m ? new Date(m[1], m[2] - 1, m[3], m[4], m[5], m[6] || 0) : null; };
@@ -104,8 +111,59 @@
     const pausa = limite ? Math.max(0, (limite - inicio) / 60000 - objetivo) : 0;
     return {fin, neto: ((fin || Date.now()) - inicio) / 60000 - pausa, objetivo, pausa};
   }
+  // Integratel (coincide con su Sla Status en el 99 % de los CM):
+  //   CM: Dispatch Time → First Complete Time (el primer cierre; si lo rechazan y se reabre, eso no cuenta) − pausas
+  //       (First…Fifth Pause → Resume Time), contra Sla (minutos).
+  //   PM / PLM no traen Sla: el límite es Require Finish Time (objetivo = Require Finish Time − Dispatch Time).
+  const rechazosIntegratel = f => { const n = Number(String(f['Reject Counter'] ?? '').trim()); return n > 0 ? n : 0; };
+  function medidaIntegratel(f) {
+    if (/cancel/.test(plano(f['Task Status']))) return null;
+    const inicio = fecha(f['Dispatch Time']);
+    if (!inicio) return null;
+    const cerrado = /complet|closed/.test(plano(f['Task Status']));
+    const fin = cerrado ? fecha(f['First Complete Time'] || f['Complete Time']) : null;
+    if (cerrado && !fin) return null;
+    const hasta = fin || new Date();
+    if (tipoDe(f) === 'CM') {
+      const objetivo = Number(f['Sla']) > 0 ? Number(f['Sla']) : null;
+      let pausa = 0;
+      PAUSAS.forEach(n => {
+        const p = fecha(f[n + ' Pause Time']);
+        if (!p || p >= hasta) return;
+        const r = fecha(f[n + ' Resume Time']), cierre = r && r < hasta ? r : hasta;
+        pausa += Math.max(0, (cierre - p) / 60000);
+      });
+      return {fin, neto: Math.max(0, (hasta - inicio) / 60000 - pausa), objetivo, pausa};
+    }
+    const limite = fecha(f['Require Finish Time']);
+    const objetivo = limite && limite > inicio ? (limite - inicio) / 60000 : null;
+    return {fin, neto: (hasta - inicio) / 60000, objetivo, pausa: 0};
+  }
+  function slaIntegratel(f) {
+    if (/cancel/.test(plano(f['Task Status']))) return null;
+    const m = medidaIntegratel(f);
+    if (!m) return {clase: 'fv-sla-gris', icono: 'fa-hourglass-start', texto: 'Sin inicio', ayuda: 'Falta Dispatch Time'};
+    const pausa = m.pausa ? ' · parada de reloj ' + duracion(m.pausa) : '';
+    const meta = m.objetivo ? ' · objetivo ' + duracion(m.objetivo) : tipoDe(f) === 'CM' ? ' · sin Sla' : ' · sin Require Finish Time';
+    const rech = rechazosIntegratel(f) ? ' · rechazado ' + rechazosIntegratel(f) + ' vez/veces (cuenta hasta el primer cierre)' : '';
+    if (!m.fin) {
+      const estado = abierto(m.neto, m.objetivo, pausa);
+      return {...estado, icono: 'fa-stopwatch', texto: duracion(m.neto), ayuda: 'Transcurrido ' + duracion(m.neto) + ' · ' + estado.ayuda};
+    }
+    const cobra = slaCobra(f), data = plano(f[CAMPO_ESTADO]);
+    const contraste = data && cobra && data !== cobra ? ' · ⚠ la data dice ' + f[CAMPO_ESTADO] : '';
+    return cerrado(cobra === 'normal', cobra === 'sla_violation', m.neto, meta + pausa + rech + contraste);
+  }
   // SLA Cobra: "normal" si el tiempo neto no pasó el objetivo; "sla_violation" si lo pasó (abiertos: solo si ya venció).
   function slaCobra(f) {
+    if (esIntegratel) {
+      if (/cancel/.test(plano(f['Task Status']))) return '';
+      if (tipoDe(f) === 'CM' && !(Number(f['Sla']) > 0)) return 'sin_sla';
+      const m = medidaIntegratel(f);
+      if (!m || !m.objetivo) return '';
+      if (m.neto > m.objetivo) return 'sla_violation';
+      return m.fin ? 'normal' : '';
+    }
     if (esClaro) {
       // SLA Hour vacío o en 0: se marcan para tenerlos ubicados (no se puede medir sin objetivo).
       const hora = String(f['SLA Hour'] ?? '').trim();
@@ -136,7 +194,7 @@
     return cerrado(cobra === 'normal', cobra === 'sla_violation', m.neto,
       (horas === null ? ' · sin objetivo (Fault Level ' + (nivelEntel(f) || 'vacío') + ')' : ' · objetivo ' + horas + ' h') + pausa + contraste);
   }
-  const sla = f => (esEntel ? slaEntel(f) : slaClaro(f));
+  const sla = f => (esEntel ? slaEntel(f) : esIntegratel ? slaIntegratel(f) : slaClaro(f));
   function chipSla(f) {
     const s = sla(f);
     if (!s) return el('span', 'fv-sla fv-sla-vacio', '—');
@@ -255,7 +313,7 @@
       const v = celda.getValue(); return v ? el('span', 'fv-chip ' + (CHIP[grupoDe(v)] || ''), v) : '';
     }}));
     // SLA Status: normal en verde, sla_violation en rojo.
-    poner('SLA Status', {formatter: celda => {
+    poner(CAMPO_ESTADO, {formatter: celda => {
       const v = String(celda.getValue() ?? '').trim(), e = plano(v);
       if (!v) return '';
       const clase = e === 'normal' ? 'fv-chip-sla-ok' : e.includes('violation') ? 'fv-chip-sla-mal' : '';
@@ -297,14 +355,15 @@
     }
     if (conSla) {
       // SLA Cobra: nuestro cálculo con los mismos estados que SLA Status, para contrastar. ⚠ si no coinciden.
-      const tras = indice('SLA Status');
+      const tras = indice(CAMPO_ESTADO);
       // Se guarda el cálculo en la fila (mutator) para poder filtrar y buscar como cualquier columna, con el mismo embudo que SLA Status.
-      const filtroDe = col('SLA Status') || {};
+      const filtroDe = col(CAMPO_ESTADO) || {};
       defs.splice(tras >= 0 ? tras + 1 : indice('_key') + 1, 0, {title: 'SLA Cobra', field: '_fv_sla_cobra', headerSort: true, width: 150, minWidth: 140, hozAlign: 'left', download: true,
         mutator: (valor, fila) => slaCobra(fila),
         headerFilter: filtroDe.headerFilter ?? 'input', headerFilterFunc: filtroDe.headerFilterFunc ?? 'like', headerFilterParams: filtroDe.headerFilterParams,
         headerFilterPlaceholder: filtroDe.headerFilterPlaceholder, headerPopup: filtroDe.headerPopup, headerPopupIcon: filtroDe.headerPopupIcon,
         cssClass: 'fv-col-sla', headerTooltip: esEntel ? 'Cálculo Cobra: dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo por Fault Level'
+          : esIntegratel ? 'Cálculo Cobra: CM Dispatch Time → First Complete Time − pausas, contra Sla (min) · PM/PLM: cierre antes de Require Finish Time'
           : 'Cálculo Cobra: CM desde Dispatch Time, PM/PLM desde Arrive Time, hasta Complete Time, contra SLA Hour',
         sorter: (a, b, filaA, filaB) => slaCobra(filaA.getData()).localeCompare(slaCobra(filaB.getData())),
         formatter: celda => {
@@ -312,13 +371,21 @@
           if (!v) return '';
           const medible = v === 'normal' || v === 'sla_violation';
           const chip = el('span', 'fv-chip ' + (v === 'normal' ? 'fv-chip-sla-ok' : v === 'sla_violation' ? 'fv-chip-sla-mal' : 'fv-chip-sla-sin'), v);
-          if (!medible) { chip.title = v === 'sla_hour_0' ? 'SLA Hour = 0: sin objetivo para medir' : 'SLA Hour vacío: sin objetivo para medir'; return chip; }
-          const data = plano(f['SLA Status']);
-          if (!data || data === v) return chip;
+          if (!medible) { chip.title = v === 'sla_hour_0' ? 'SLA Hour = 0: sin objetivo para medir' : v === 'sin_sla' ? 'Sla vacío: sin objetivo para medir' : 'SLA Hour vacío: sin objetivo para medir'; return chip; }
+          const data = plano(f[CAMPO_ESTADO]);
           const caja = el('span', 'fv-sla-contraste');
-          caja.title = 'No coincide: la data dice ' + f['SLA Status'] + ' y el cálculo Cobra dice ' + v;
-          caja.append(chip, icono('fa-triangle-exclamation'));
-          return caja;
+          caja.append(chip);
+          if (data && data !== v) {
+            caja.title = 'No coincide: la data dice ' + f[CAMPO_ESTADO] + ' y el cálculo Cobra dice ' + v;
+            caja.append(icono('fa-triangle-exclamation'));
+          }
+          // Integratel: aviso de rechazo aparte (el SLA se mide hasta el primer cierre).
+          const rech = esIntegratel ? rechazosIntegratel(f) : 0;
+          if (rech) {
+            const r = el('span', 'fv-rechazo'); r.title = 'Rechazado ' + rech + (rech === 1 ? ' vez' : ' veces') + ': el SLA se mide hasta el primer cierre';
+            r.append(icono('fa-rotate-left'), el('span', null, String(rech))); caja.append(r);
+          }
+          return caja.childNodes.length > 1 ? caja : chip;
         }});
     }
     if (esEntel) {

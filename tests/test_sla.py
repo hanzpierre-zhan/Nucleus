@@ -28,8 +28,8 @@ def test_sla_claro_inicio_dispatch_y_cierre_por_task_status(app, auth_client):
         assert casos['PM-T-2']['inicio'] == '2026-11-10 09:30:00' and casos['PM-T-2']['cerrado'] is False
         assert 'PLM-T-3' not in casos  # cancelados fuera
         assert auth_client.get('/api/sla/otro').status_code == 404
-        # Integratel aún no tiene criterios: no se calcula.
-        r = auth_client.get('/api/sla/integratel').json
+        # PEXT aún no tiene criterios: no se calcula.
+        r = auth_client.get('/api/sla/pext').json
         assert r['pendiente'] is True and r['casos'] == []
     finally:
         with app.app_context():
@@ -58,3 +58,21 @@ def test_alertas_por_vencer(app, auth_client):
         sla._CACHE_ALERTAS.clear()
         with app.app_context():
             NucleusData.query.filter(NucleusData.id.in_(ids)).delete(synchronize_session=False); db.session.commit()
+
+
+def test_sla_integratel_primer_cierre_y_pausas():
+    """Integratel CM: Dispatch Time → First Complete Time − pausas, contra Sla (min). PM: contra Require Finish Time."""
+    from datetime import datetime
+    from blueprints.sla import _caso_integratel
+    ahora = datetime(2026, 11, 16, 12, 0)
+    cm = {'Task Type': 'CM', 'Task Status': 'completed', 'Sla': '480', 'Sla Status': 'normal', 'Reject Counter': '1',
+          'Dispatch Time': '2026-11-10 08:00:00', 'First Complete Time': '2026-11-10 18:00:00', 'Complete Time': '2026-11-12 10:00:00',
+          'First Pause Time': '2026-11-10 10:00:00', 'First Resume Time': '2026-11-10 13:00:00'}
+    c = _caso_integratel(cm, 'CM-1', ahora)
+    # 10 h − 3 h de pausa = 7 h ≤ 8 h: cumple, aunque el último cierre (rechazo) fue días después.
+    assert c['fin'] == '2026-11-10 18:00:00' and c['pausa'] == 180 and c['objetivo'] == 480
+    assert c['sla_cobra'] == 'normal' and c['rechazos'] == 1
+    pm = {'Task Type': 'PM', 'Task Status': 'closed', 'Dispatch Time': '2026-11-10 08:00:00',
+          'First Complete Time': '2026-11-11 09:00:00', 'Require Finish Time': '2026-11-11 08:00:00'}
+    assert _caso_integratel(pm, 'PM-1', ahora)['sla_cobra'] == 'sla_violation'
+    assert _caso_integratel({'Task Type': 'CM', 'Task Status': 'canceled'}, 'CM-2', ahora) is None

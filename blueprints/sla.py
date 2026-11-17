@@ -15,6 +15,12 @@ Entel (KPI OM Sitios):
 - Objetivo según Fault Level: Crítica/Critical 4 h · Alta/Major 4 h · Media 6 h · Baja/Minor 48 h · Calidad 30 días.
 - Cumplimiento según SLA Status; "SLA Cobra" es el cálculo propio para contrastarlo.
 - Técnico: assign_to_fme.
+
+Integratel (coincide con su "Sla Status" en el 99 % de los CM):
+- CM: Dispatch Time → First Complete Time (primer cierre: si lo rechazan y se reabre, eso no cuenta),
+  menos las pausas (First…Fifth Pause Time → Resume Time). Objetivo: Sla (minutos).
+- PM / PLM no traen Sla: límite Require Finish Time (objetivo = Require Finish Time − Dispatch Time).
+- Técnico: Assign To Fme.
 """
 import json
 import re
@@ -29,7 +35,7 @@ bp = Blueprint('sla', __name__)
 PROYECTOS = (('CLARO', 'FLM - CLARO', 'Claro', '#dc2626'), ('ENTEL', 'FLM - ENTEL', 'Entel', '#1d4ed8'),
              ('INTEGRATEL', 'FLM - INTEGRATEL', 'Integratel', '#16a34a'), ('PEXT', 'FLM - PEXT', 'PEXT', '#ea580c'))
 # Proyectos con criterios de SLA definidos (los demás se muestran como "por definir").
-CON_CRITERIOS = {'CLARO', 'ENTEL'}
+CON_CRITERIOS = {'CLARO', 'ENTEL', 'INTEGRATEL'}
 POR_VENCER_PORCENTAJE = 0.25
 POR_VENCER_MINUTOS = 60
 
@@ -107,6 +113,56 @@ def _caso_entel(d, clave):
     }
 
 
+PAUSAS_INTEGRATEL = ('First', 'Second', 'Third', 'Fourth', 'Fifth')
+
+
+def _caso_integratel(d, clave, ahora):
+    """Un ticket de Integratel con los mismos campos que usa la página para Claro."""
+    estado = str(d.get('Task Status') or '').strip()
+    if 'cancel' in estado.lower():
+        return None
+    tipo = _tipo(d, clave)
+    if not tipo:
+        return None
+    inicio = str(d.get('Dispatch Time') or '').strip()[:19]
+    cerrado = estado.lower() in ('completed', 'closed')
+    fin = str(d.get('First Complete Time') or d.get('Complete Time') or '').strip()[:19] if cerrado else ''
+    ini_d, fin_d = _fecha(inicio), _fecha(fin)
+    hasta = fin_d or ahora
+    pausa, objetivo, meta = 0.0, None, ''
+    if tipo == 'CM':
+        objetivo = _minutos(d.get('Sla'))
+        meta = str(d.get('Sla') or '').strip()
+        for n in PAUSAS_INTEGRATEL:
+            p = _fecha(d.get(n + ' Pause Time'))
+            if not p or p >= hasta:
+                continue
+            r = _fecha(d.get(n + ' Resume Time'))
+            pausa += max(0.0, ((r if r and r < hasta else hasta) - p).total_seconds() / 60)
+    else:
+        limite = _fecha(d.get('Require Finish Time'))
+        if ini_d and limite and limite > ini_d:
+            objetivo = round((limite - ini_d).total_seconds() / 60)
+            meta = 'Require Finish Time ' + str(d.get('Require Finish Time') or '').strip()[:16]
+    cobra = ''
+    if cerrado and ini_d and fin_d and objetivo:
+        cobra = 'sla_violation' if (fin_d - ini_d).total_seconds() / 60 - pausa > objetivo else 'normal'
+    try:
+        rechazos = int(float(str(d.get('Reject Counter') or '0').strip() or 0))
+    except ValueError:
+        rechazos = 0
+    original = str(d.get('Sla Status') or '').strip()
+    return {
+        'ticket': str(d.get('Task Id') or clave), 'tipo': tipo, 'site': str(d.get('Site Id Name') or d.get('Site Id') or ''),
+        'tecnico': str(d.get('Assign To Fme') or '').strip(), 'tecnico_nombre': str(d.get('Assign To Fme Full Name') or '').strip().title(),
+        'estado_ticket': estado, 'inicio': inicio, 'fin': fin, 'cerrado': cerrado,
+        'dispatch': inicio, 'arrive': str(d.get('Arrive Time') or '').strip()[:19],
+        'sla_hour': meta, 'categoria': str(d.get('Task Category') or '').strip(), 'sla_status_original': original,
+        'objetivo': objetivo, 'sla_status': original.lower(), 'prioridad': str(d.get('Site Priority') or ''),
+        'pausa': round(pausa, 1), 'sla_cobra': cobra, 'rechazos': rechazos,
+    }
+
+
 def _pausa_claro(inicio, limite, objetivo):
     ini, fin = _fecha(inicio), _fecha(limite)
     if not (ini and fin and objetivo):
@@ -120,13 +176,16 @@ def casos(proyecto):
              .with_entities(NucleusData.key_value, NucleusData.data_json))
     nombres, salida = {}, []
     es_entel = proyecto.nombre == 'FLM - ENTEL'
+    es_integratel = proyecto.nombre == 'FLM - INTEGRATEL'
+    from datetime import datetime, timedelta
+    ahora = datetime.utcnow() - timedelta(hours=5)  # hora de Perú, como vienen las fechas
     for clave, crudo in filas:
         try:
             d = json.loads(crudo or '{}')
         except ValueError:
             continue
-        if es_entel:
-            caso = _caso_entel(d, clave)
+        if es_entel or es_integratel:
+            caso = _caso_entel(d, clave) if es_entel else _caso_integratel(d, clave, ahora)
             if caso:
                 salida.append(caso)
             continue

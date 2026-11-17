@@ -236,6 +236,9 @@ body.dark-mode .excel-main.vista-flm #data-grid .tabulator-col.fv-col-sla .tabul
 /* SLA Cobra distinto de SLA Status: aviso para revisar. */
 .excel-main.vista-flm .fv-sla-contraste { display: inline-flex; align-items: center; gap: 6px; }
 .excel-main.vista-flm .fv-sla-contraste > i { color: #ea8a0c; font-size: 13px; }
+/* Integratel: caso rechazado (se reabrió); el SLA se mide hasta el primer cierre */
+.excel-main.vista-flm .fv-rechazo { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; font-size: 11px; font-weight: 700; background: rgba(124, 58, 237, .14); color: #6d28d9; }
+.excel-main.vista-flm .fv-rechazo i { font-size: 10px; }
 
 /* Entel: Fault Level + objetivo SLA en un solo chip */
 .vista-flm .fv-nivel { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.3; white-space: nowrap; }

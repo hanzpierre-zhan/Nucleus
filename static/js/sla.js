@@ -78,8 +78,11 @@
     const ahora = new Date(), q = plano($('cc-buscar').value.trim());
     // Nombres de las columnas según el proyecto (Entel trae otras columnas).
     const entel = proyecto === 'ENTEL';
+    const integratel = proyecto === 'INTEGRATEL';
     const CABECERAS = entel
       ? {tecnico: 'assign_to_fme', dispatch: 'dispatch_time', arrive: 'arrive_time', fin: 'SubmitTime(complete)', objetivo: 'Fault Level · objetivo', categoria: 'Task Category'}
+      : integratel
+      ? {tecnico: 'Assign To Fme', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'First Complete Time', objetivo: 'Sla (min) / Require Finish', categoria: 'Task Category'}
       : {tecnico: 'Schedule Operator', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'Complete Time', objetivo: 'SLA Hour', categoria: 'Task Category'};
     document.querySelectorAll('[data-cabecera]').forEach(h => { h.textContent = CABECERAS[h.dataset.cabecera] || h.textContent; });
     // Categorías del proyecto (Task Category) para el filtro.
@@ -113,7 +116,8 @@
     if (conCobra.length) {
       const okCobra = conCobra.filter(c => c.sla_cobra === 'normal').length, distintos = conCobra.filter(c => c.sla_status && c.sla_cobra !== c.sla_status).length;
       const nota = el('span', 'sla-cobra-nota', 'Cálculo Cobra: ' + (okCobra / conCobra.length * 100).toFixed(1) + ' % · ' + distintos + ' no coinciden con SLA Status');
-      nota.title = 'dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo del Fault Level';
+      nota.title = integratel ? 'CM: Dispatch Time → First Complete Time − pausas, contra Sla · PM/PLM: cierre antes de Require Finish Time'
+        : 'dispatch_time → SubmitTime(complete) − parada de reloj, contra el objetivo del Fault Level';
       barra.append(nota);
     }
     kpis.append(barra);
