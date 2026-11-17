@@ -40,7 +40,9 @@
     const boton = grupo.querySelector('.sb-grupo-btn');
     const clave = grupo.dataset.grupo;
     const activo = grupo.querySelector('.sidebar-link.active');
-    boton.setAttribute('aria-expanded', String(Boolean(activo) || abiertos[clave] !== false));
+    // data-cerrado: grupo contraído por defecto (p. ej. Backup) hasta que el usuario lo abra.
+    const porDefecto = !grupo.dataset.cerrado;
+    boton.setAttribute('aria-expanded', String(Boolean(activo) || (clave in abiertos ? abiertos[clave] !== false : porDefecto)));
     boton.addEventListener('click', () => {
       const abrir = boton.getAttribute('aria-expanded') !== 'true';
       boton.setAttribute('aria-expanded', String(abrir));

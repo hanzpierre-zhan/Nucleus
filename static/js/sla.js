@@ -13,7 +13,8 @@
   };
 
   // Al abrir, se ve por defecto la pestaña Abiertos (filtro vacío).
-  let proyecto = '', tipo = '', filtro = '', periodo = '', categoria = '';
+  // Por defecto se ve el mes actual.
+  let proyecto = '', tipo = '', filtro = '', periodo = 'mes', categoria = '';
   try { proyecto = localStorage.getItem('sla-proyecto') || ''; } catch (_) {}
   const cache = {};
 
@@ -48,8 +49,9 @@
   const resultadoSla = c => !c.sla_status ? '' : c.sla_status === 'normal' ? 'Cumplimiento' : 'Incumplimiento';
   function estadoSla(c) {
     const texto = resultadoSla(c);
-    const s = el('span', 'sla-status ' + (!texto ? '' : texto === 'Cumplimiento' ? 'sla-status-normal' : 'sla-status-sla_violation'), texto || '—');
-    if (c.sla_status_original) s.title = 'SLA Status: ' + c.sla_status_original;
+    // Se muestra el valor tal cual viene (normal / sla_violation); el color y el tooltip dicen si cumplió.
+    const s = el('span', 'sla-status ' + (!texto ? '' : texto === 'Cumplimiento' ? 'sla-status-normal' : 'sla-status-sla_violation'), c.sla_status_original || '—');
+    if (texto) s.title = texto;
     // Entel: contraste con el cálculo Cobra (⚠ si no coinciden).
     if (c.sla_cobra && c.sla_status && c.sla_cobra !== c.sla_status) {
       const caja = el('span', 'sla-contraste'); caja.title = 'La data dice ' + c.sla_status_original + ' y el cálculo Cobra dice ' + c.sla_cobra;
@@ -57,6 +59,78 @@
     }
     return s;
   }
+  // ── Ordenar y filtrar por columna (como en Caja Chica) ──
+  // valor: lo que se compara al ordenar; texto: lo que se elige en el filtro.
+  const COLS = {
+    ticket: {valor: c => c.ticket, texto: c => c.ticket},
+    tipo: {valor: c => c.tipo, texto: c => c.tipo},
+    categoria: {valor: c => c.categoria || '', texto: c => c.categoria || '(vacío)'},
+    tecnico: {valor: c => c.tecnico_nombre || c.tecnico || '', texto: c => nombreTec(c)},
+    dispatch: {valor: c => c.dispatch || '', texto: c => (c.dispatch || '').slice(0, 10) || '(vacío)'},
+    arrive: {valor: c => c.arrive || '', texto: c => (c.arrive || '').slice(0, 10) || '(vacío)'},
+    fin: {valor: c => c.fin || '', texto: c => (c.fin || '').slice(0, 10) || '(vacío)'},
+    objetivo: {valor: c => Number(c.objetivo) || 0, texto: c => c.sla_hour || '(vacío)'},
+    sla_status: {valor: c => c.sla_status_original || '', texto: c => c.sla_status_original || '(vacío)'},
+    uso: {valor: c => Number(c.uso) || 0, texto: c => !c.uso ? '0 %' : c.uso > 100 ? 'Más del 100 %' : c.uso >= 75 ? '75 a 100 %' : c.uso >= 50 ? '50 a 75 %' : 'Menos del 50 %'},
+    estado: {valor: c => c.resto ?? (c.estado === 'cumple' ? 1e9 : -1e9), texto: c => (ESTADOS[c.estado] || [c.estado])[0]},
+  };
+  let ordenCol = null;            // {col, dir: 1 | -1}
+  const filtrosCol = {};          // col -> Set de textos elegidos
+  let baseFiltro = [];            // filas antes de los filtros por columna (para armar las opciones)
+  function prepararEncabezado() {
+    document.querySelectorAll('.sla-encabezado [data-col]').forEach(h => {
+      if (h.querySelector('.sla-th-txt')) return;
+      const col = h.dataset.col, txt = el('span', 'sla-th-txt', h.textContent.trim());
+      const ordenar = el('button', 'sla-th-btn sla-th-orden'); ordenar.type = 'button'; ordenar.title = 'Ordenar'; ordenar.append(icono('fa-sort'));
+      const filtrar = el('button', 'sla-th-btn sla-th-filtro'); filtrar.type = 'button'; filtrar.title = 'Filtrar'; filtrar.append(icono('fa-filter'));
+      ordenar.addEventListener('click', () => {
+        ordenCol = ordenCol?.col !== col ? {col, dir: 1} : ordenCol.dir === 1 ? {col, dir: -1} : null; pintar();
+      });
+      filtrar.addEventListener('click', e => { e.stopPropagation(); abrirFiltro(col, filtrar); });
+      h.replaceChildren(txt, ordenar, filtrar);
+    });
+  }
+  function pintarEncabezado() {
+    document.querySelectorAll('.sla-encabezado [data-col]').forEach(h => {
+      const col = h.dataset.col, o = h.querySelector('.sla-th-orden'), f = h.querySelector('.sla-th-filtro');
+      if (!o) return;
+      const sentido = ordenCol?.col === col ? ordenCol.dir : 0;
+      o.classList.toggle('activo', !!sentido); o.replaceChildren(icono(sentido === 1 ? 'fa-arrow-up-short-wide' : sentido === -1 ? 'fa-arrow-down-wide-short' : 'fa-sort'));
+      o.title = sentido === 1 ? 'De menor a mayor · clic: de mayor a menor' : sentido === -1 ? 'De mayor a menor · clic: quitar orden' : 'Ordenar de menor a mayor';
+      f.classList.toggle('activo', !!filtrosCol[col]?.size);
+    });
+  }
+  let popFiltro = null;
+  function cerrarFiltro() { popFiltro?.remove(); popFiltro = null; }
+  document.addEventListener('click', e => { if (popFiltro && !popFiltro.contains(e.target)) cerrarFiltro(); });
+  function abrirFiltro(col, boton) {
+    cerrarFiltro();
+    const conteo = new Map();
+    for (const c of baseFiltro) { const t = COLS[col].texto(c); conteo.set(t, (conteo.get(t) || 0) + 1); }
+    const valores = [...conteo.keys()].sort((a, b) => String(a).localeCompare(String(b), 'es', {numeric: true}));
+    const elegidos = filtrosCol[col] || new Set();
+    const pop = el('div', 'sla-pop'); pop.setAttribute('role', 'dialog'); pop.addEventListener('click', e => e.stopPropagation());
+    const buscar = Object.assign(el('input', 'sla-pop-buscar'), {type: 'search', placeholder: 'Buscar…'});
+    const lista = el('div', 'sla-pop-lista');
+    const pintarLista = () => {
+      const q = plano(buscar.value);
+      lista.replaceChildren(...valores.filter(v => plano(v).includes(q)).slice(0, 300).map(v => {
+        const l = el('label', 'sla-pop-op'), ch = Object.assign(el('input'), {type: 'checkbox', checked: elegidos.has(v)});
+        ch.addEventListener('change', () => { ch.checked ? elegidos.add(v) : elegidos.delete(v); filtrosCol[col] = elegidos; if (!elegidos.size) delete filtrosCol[col]; pintar(); });
+        l.append(ch, el('span', null, v), el('small', null, String(conteo.get(v)))); return l;
+      }));
+    };
+    buscar.addEventListener('input', pintarLista); pintarLista();
+    const limpiar = el('button', 'sla-pop-limpiar', 'Limpiar filtro'); limpiar.type = 'button';
+    limpiar.addEventListener('click', () => { delete filtrosCol[col]; cerrarFiltro(); pintar(); });
+    pop.append(buscar, lista, limpiar);
+    document.body.append(pop);
+    const r = boton.getBoundingClientRect();
+    pop.style.top = Math.min(innerHeight - 340, r.bottom + 6) + 'px';
+    pop.style.left = Math.max(8, Math.min(innerWidth - 268, r.left - 120)) + 'px';
+    popFiltro = pop; buscar.focus();
+  }
+
   const nombreTec = c => c.tecnico ? c.tecnico + (c.tecnico_nombre ? ' · ' + c.tecnico_nombre : '') : 'Sin técnico';
 
   function pintar() {
@@ -84,7 +158,8 @@
       : integratel
       ? {tecnico: 'Assign To Fme', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'First Complete Time', objetivo: 'Sla (min) / Require Finish', categoria: 'Task Category'}
       : {tecnico: 'Schedule Operator', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'Complete Time', objetivo: 'SLA Hour', categoria: 'Task Category'};
-    document.querySelectorAll('[data-cabecera]').forEach(h => { h.textContent = CABECERAS[h.dataset.cabecera] || h.textContent; });
+    prepararEncabezado();
+    document.querySelectorAll('[data-cabecera]').forEach(h => { const t = h.querySelector('.sla-th-txt') || h; t.textContent = CABECERAS[h.dataset.cabecera] || t.textContent; });
     // Categorías del proyecto (Task Category) para el filtro.
     const sel = $('sla-categoria'), cats = [...new Set(lista.map(c => c.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
     if (sel.dataset.proyecto !== proyecto) {
@@ -147,10 +222,17 @@
     const orden = {por_vencer: 0, vencido: 1, en_plazo: 2, sin_objetivo: 3};
     // "Cerrados": los del periodo, del más reciente al más antiguo, con su resultado según SLA Status.
     const usoCerrado = c => { const i = fecha(c.inicio), f = fecha(c.fin); return i && f && c.objetivo ? Math.max(0, (f - i) / 60000 - (c.pausa || 0)) / c.objetivo * 100 : 0; };
-    const visibles = verTecnicos ? [] : filtro === 'cerrados'
+    baseFiltro = verTecnicos ? [] : filtro === 'cerrados'
       ? cerrados.map(c => ({...c, estado: cumple(c) ? 'cumple' : 'no_cumple', uso: usoCerrado(c)})).sort((a, b) => String(b.fin).localeCompare(String(a.fin)))
       : abiertos.filter(c => !filtro || c.estado === filtro)
         .sort((a, b) => orden[a.estado] - orden[b.estado] || (a.estado === 'vencido' ? b.resto - a.resto : (a.resto ?? 1e9) - (b.resto ?? 1e9)));
+    // Filtros y orden elegidos en los encabezados.
+    let visibles = baseFiltro.filter(c => Object.entries(filtrosCol).every(([col, set]) => set.has(COLS[col].texto(c))));
+    if (ordenCol) {
+      const v = COLS[ordenCol.col].valor;
+      visibles = [...visibles].sort((a, b) => { const x = v(a), y = v(b); return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'es', {numeric: true})) * ordenCol.dir; });
+    }
+    pintarEncabezado();
     const cuerpo = $('sla-lista'); cuerpo.replaceChildren();
     if (!visibles.length && !verTecnicos) cuerpo.append(el('p', 'cc-vacio', filtro === 'cerrados' ? 'No hay casos cerrados en el periodo.' : abiertos.length ? 'No hay casos con este filtro.' : 'No hay casos abiertos. 🎉'));
     for (const c of visibles.slice(0, 400)) {
@@ -203,7 +285,12 @@
       document.querySelector('[data-cumple="' + clave + '"]').textContent = 'Por definir';
       return;
     }
-    const lista = cache[clave], cerrados = lista.filter(c => c.cerrado), ok = cerrados.filter(cumple).length;
+    resumenPestana(clave);
+  }
+  // Cuenta de abiertos y % de cumplimiento de la pestaña (cerrados del periodo elegido).
+  function resumenPestana(clave) {
+    const lista = cache[clave]; if (!lista) return;
+    const cerrados = lista.filter(c => c.cerrado && enPeriodo(c)), ok = cerrados.filter(cumple).length;
     document.querySelector('[data-cuenta="' + clave + '"]').textContent = lista.filter(c => !c.cerrado).length.toLocaleString('es-PE');
     document.querySelector('[data-cumple="' + clave + '"]').textContent = cerrados.length ? (ok / cerrados.length * 100).toFixed(1) + ' % cumple' : 'Sin cerrados';
   }
@@ -214,7 +301,12 @@
     proyecto = b.dataset.proyecto; filtro = ''; try { localStorage.setItem('sla-proyecto', proyecto); } catch (_) {} pintar(); await cargar(proyecto); filtroInicial(); pintar();
   }));
   document.querySelectorAll('.sla-tipo').forEach(b => b.addEventListener('click', () => { tipo = b.dataset.tipo; pintar(); }));
-  $('sla-periodo').addEventListener('change', e => { periodo = e.target.value; pintar(); });
+  $('sla-periodo').addEventListener('change', e => {
+    periodo = e.target.value;
+    // El % de cada pestaña sigue el mismo periodo.
+    document.querySelectorAll('.sla-proyecto').forEach(b => { if ((CFG.con_criterios || []).includes(b.dataset.proyecto)) resumenPestana(b.dataset.proyecto); });
+    pintar();
+  });
   $('sla-categoria').addEventListener('change', e => { categoria = e.target.value; pintar(); });
   $('cc-buscar').addEventListener('input', pintar);
   $('cc-excel').addEventListener('click', () => {

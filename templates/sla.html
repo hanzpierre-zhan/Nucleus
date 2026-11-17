@@ -3,7 +3,7 @@
 {% block content %}
 {# SLA con el diseño de Caja Chica: pestañas por proyecto, indicadores, casos abiertos por urgencia y cumplimiento por técnico. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
-<link rel="stylesheet" href="/static/css/sla.css?v=6">
+<link rel="stylesheet" href="/static/css/sla.css?v=7">
 <section class="cc-gestion sla-gestion" aria-label="SLA">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar ticket, site o técnico" aria-label="Buscar">
@@ -21,7 +21,7 @@
     <select id="sla-categoria" class="sla-periodo" aria-label="Task Category"><option value="">Todas las categorías</option></select>
     <select id="sla-periodo" class="sla-periodo" aria-label="Periodo de los cerrados">
       <option value="">Todo el periodo</option>
-      <option value="mes">Este mes</option>
+      <option value="mes" selected>Este mes</option>
       <option value="anterior">Mes anterior</option>
       <option value="7">Últimos 7 días</option>
     </select>
@@ -41,10 +41,10 @@
       </header>
       <div class="sla-tabla" role="table" aria-label="Casos abiertos">
         <div class="sla-fila sla-encabezado" role="row">
-          <span role="columnheader">Ticket / site</span><span role="columnheader">Tipo</span><span role="columnheader" data-cabecera="categoria">Task Category</span><span role="columnheader" data-cabecera="tecnico">Schedule Operator</span>
-          <span role="columnheader" data-cabecera="dispatch">Dispatch Time</span><span role="columnheader" data-cabecera="arrive">Arrive Time</span><span role="columnheader" data-cabecera="fin">Complete Time</span>
-          <span role="columnheader" data-cabecera="objetivo">SLA Hour</span><span role="columnheader">SLA Status</span>
-          <span role="columnheader">Tiempo SLA</span><span role="columnheader">Estado</span>
+          <span role="columnheader" data-col="ticket">Ticket / site</span><span role="columnheader" data-col="tipo">Tipo</span><span role="columnheader" data-col="categoria" data-cabecera="categoria">Task Category</span><span role="columnheader" data-col="tecnico" data-cabecera="tecnico">Schedule Operator</span>
+          <span role="columnheader" data-col="dispatch" data-cabecera="dispatch">Dispatch Time</span><span role="columnheader" data-col="arrive" data-cabecera="arrive">Arrive Time</span><span role="columnheader" data-col="fin" data-cabecera="fin">Complete Time</span>
+          <span role="columnheader" data-col="objetivo" data-cabecera="objetivo">SLA Hour</span><span role="columnheader" data-col="sla_status">SLA Status</span>
+          <span role="columnheader" data-col="uso">Tiempo SLA</span><span role="columnheader" data-col="estado">Estado</span>
         </div>
         <div id="sla-lista" aria-live="polite"><p class="cc-vacio">Cargando…</p></div>
       </div>
@@ -54,5 +54,5 @@
   </div>
 </section>
 <script id="sla-config" type="application/json">{{ dict(por_vencer, con_criterios=con_criterios) | tojson }}</script>
-<script src="/static/js/sla.js?v=14" defer></script>
+<script src="/static/js/sla.js?v=18" defer></script>
 {% endblock %}

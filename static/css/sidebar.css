@@ -118,3 +118,8 @@ body.sidebar-collapsed .sb .sb-pie { padding-top: 6px; }
 body.theme-vercel.sidebar-collapsed .sb .sidebar-link,
 body.theme-vercel.sidebar-collapsed .sb .sb-grupo-items .sidebar-link { width: 38px; height: 38px !important; margin: 2px auto; }
 body.theme-vercel.sidebar-collapsed .sb .sidebar-section-label { margin: 4px 14px; }
+
+/* Subgrupo dentro de otro grupo (Backup dentro de Configuración). */
+.sb-subgrupo { margin: 2px 0; }
+.sb-subgrupo > .sb-grupo-btn { font-size: 13px; }
+.sb-subgrupo > .sb-grupo-items { padding-left: 10px; }
