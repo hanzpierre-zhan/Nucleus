@@ -114,6 +114,18 @@
       ds.borderColor = g;
     },
   };
+  // La app usa zoom (75 % en computadora) y Chart.js ubica mal el mouse: marcaba otro día al hacer clic.
+  // Se recalcula la posición con las medidas reales del lienzo en pantalla.
+  const corregirZoom = {
+    id: 'corregirZoom',
+    beforeEvent(ch, args) {
+      const e = args.event, n = e.native; if (!n || n.clientX === undefined) return;
+      const r = ch.canvas.getBoundingClientRect(); if (!r.width || !r.height) return;
+      e.x = (n.clientX - r.left) / r.width * ch.width;
+      e.y = (n.clientY - r.top) / r.height * ch.height;
+      args.inChartArea = e.x >= ch.chartArea.left && e.x <= ch.chartArea.right && e.y >= ch.chartArea.top && e.y <= ch.chartArea.bottom;
+    },
+  };
   const graficos = {};
   function grafico(id, config, detalle) {
     graficos[id]?.destroy();
@@ -127,7 +139,7 @@
     const o = config.options || {};
     config.options = {...base, ...o, plugins: {...base.plugins, ...(o.plugins || {})},
       scales: {x: {...base.scales.x, ...(o.scales?.x || {})}, y: {...base.scales.y, ...(o.scales?.y || {})}}};
-    config.plugins = [etiquetas, ...(config.plugins || [])];
+    config.plugins = [corregirZoom, etiquetas, ...(config.plugins || [])];
     if (detalle) {
       config.options.onClick = (e, els) => { const it = els[0]; if (!it) return; const r = detalle(it.datasetIndex, it.index); if (r) preguntar(r.titulo, r.filas); };
       config.options.onHover = (e, els) => { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
