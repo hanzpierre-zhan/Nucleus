@@ -615,14 +615,22 @@ def es_refacturable(sol, item):
 
 
 def cerrar_refacturables(sol, ahora=None):
-    """Los conceptos Refacturables no se rinden: al depositar quedan cerrados como gastados por lo solicitado.
+    """Los conceptos Refacturables no se rinden: al depositar pasan a Revisión por lo solicitado.
 
-    El técnico solo rinde Gasto Cobra; la devolución sale solo de lo que sobre de esos conceptos."""
-    ahora = ahora or datetime.utcnow()
+    El técnico solo rinde Gasto Cobra. El revisor valida el refacturable con el correo de aprobación
+    del cliente (cotización) o lo rechaza; si lo rechaza, el técnico lo rinde con boleta o lo devuelve."""
     for item in sol.items:
-        if item.estado in ('POR_RENDIR', 'RECHAZADO') and es_refacturable(sol, item):
-            item.estado, item.monto_gastado = 'APROBADO', item.monto
-            item.revisado_por, item.revisado_en, item.motivo_rechazo = REFACTURABLE_AUTO, ahora, None
+        if item.estado == 'POR_RENDIR' and es_refacturable(sol, item):
+            item.estado, item.monto_gastado = 'EN_REVISION', item.monto
+            item.revisado_por = item.revisado_en = item.motivo_rechazo = None
+
+
+def refacturable_sin_rendir(item, conceptos):
+    """Refacturable que el técnico no rinde (lo valida la revisión con el correo del cliente)."""
+    if item.revisado_por == REFACTURABLE_AUTO:
+        return True  # cerrado automáticamente con la regla anterior
+    tipo = str((conceptos.get(str(item.numero)) or {}).get('tipo_presupuesto') or '').lower()
+    return 'refact' in tipo and item.rendido_en is None and item.estado in ('EN_REVISION', 'APROBADO')
 
 
 def revisar_item(sol, item, usuario, aprobar, motivo=''):
@@ -867,7 +875,7 @@ def a_dict(sol, gestion=False):
                    'rendido_en': i.rendido_en.isoformat(timespec='minutes') if i.rendido_en else '',
                    'revisado_en': i.revisado_en.isoformat(timespec='minutes') if i.revisado_en else '',
                    'revisado_por': i.revisado_por or '',
-                   'refacturable_auto': i.revisado_por == REFACTURABLE_AUTO,
+                   'refacturable_auto': refacturable_sin_rendir(i, conceptos),
                    # Última corrección de monto hecha al revisar (el técnico ve el porqué).
                    'correccion': next((e.get('motivo') or '' for e in reversed(historial)
                                        if e.get('accion') == 'corregir monto ítem %d' % i.numero), ''),
@@ -955,14 +963,17 @@ def exportar_excel(solicitudes, dataper=None):
             else:
                 por_item[item.id] = (solicitud.deposito_monto * item.monto / solicitud.total).quantize(Decimal('0.01')) if solicitud.total else cero
                 repartido += por_item[item.id]
+        refact = {i['id']: i['refacturable_auto'] for i in datos['items']}
         for item in solicitud.items:
             rendido = item.estado in ('APROBADO', 'EN_REVISION')
             gastado = (item.monto_gastado or cero) if rendido else cero
             devuelto = item.monto if item.estado == 'DEVUELTO' else (item.monto - gastado if rendido else cero)
             if not depositada:
                 estado_rendicion = 'Sin depósito'
-            elif item.estado == 'APROBADO' and item.revisado_por == REFACTURABLE_AUTO:
-                estado_rendicion = 'Refacturable (no se rinde)'
+            elif refact.get(item.id) and item.estado == 'APROBADO':
+                estado_rendicion = 'Refacturable validado'
+            elif refact.get(item.id):
+                estado_rendicion = 'Refacturable por validar'
             elif item.estado == 'APROBADO':
                 estado_rendicion = 'Rendido con saldo' if devuelto > 0 else 'Rendido'
             else:

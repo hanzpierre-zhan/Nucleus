@@ -933,15 +933,23 @@ def test_refacturable_no_se_rinde_y_solo_gasto_cobra_va_a_devolucion(app, auth_c
     auth_client.post('/api/caja-chica/%d/validar' % sid)
     s = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '145', 'foto': foto()}).json['solicitud']
     peaje, alquiler = s['items']
-    assert alquiler['estado'] == 'APROBADO' and alquiler['refacturable_auto'] and alquiler['monto_gastado'] == '120.00'
+    # El refacturable no se rinde: pasa a Revisión por lo solicitado (se valida con el correo del cliente).
+    assert alquiler['estado'] == 'EN_REVISION' and alquiler['refacturable_auto'] and alquiler['monto_gastado'] == '120.00'
     assert peaje['estado'] == 'POR_RENDIR' and s['estado'] == 'DEPOSITADO' and s['pendiente'] == '25.00'
     assert cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, peaje['id']), headers=h, data={
         'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': '22', 'fotos': [foto()], 'evidencia': foto('uso.png')}).status_code == 200
     s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': peaje['id'], 'aprobar': True}).json['solicitud']
+    assert s['estado'] == 'DEPOSITADO'  # falta validar el refacturable
+    s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': alquiler['id'], 'aprobar': True}).json['solicitud']
     assert s['estado'] == 'POR_DEVOLVER' and s['diferencia'] == '3.00'  # solo el sobrante del Gasto Cobra
-    # Solo refacturables: se sustenta al depositar.
+    assert s['items'][1]['estado'] == 'APROBADO' and s['items'][1]['refacturable_auto']
+    # Solo refacturables: queda en Revisión; si se rechaza (sin correo del cliente) el técnico lo rinde o lo devuelve.
     sid = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={
         'proyecto': 'CLARO', 'motivo': 'x', 'banco': 'BCP', 'cuenta': '00123456789012345678',
         'items': [{'tipo_gasto': 'Alquiler de vehículos - Refacturable', 'monto': '80'}]}).json['solicitud']['id']
     auth_client.post('/api/caja-chica/%d/validar' % sid)
-    assert auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '80', 'foto': foto()}).json['solicitud']['estado'] == 'SUSTENTO'
+    s = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '80', 'foto': foto()}).json['solicitud']
+    assert s['estado'] == 'DEPOSITADO' and s['items'][0]['estado'] == 'EN_REVISION'
+    s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': s['items'][0]['id'], 'aprobar': False,
+                                                                      'motivo': 'Sin correo de aprobación del cliente'}).json['solicitud']
+    assert s['items'][0]['estado'] == 'RECHAZADO' and not s['items'][0]['refacturable_auto']

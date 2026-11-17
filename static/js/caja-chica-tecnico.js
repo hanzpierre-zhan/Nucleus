@@ -376,7 +376,7 @@
     if (['DEPOSITADO', 'POR_DEVOLVER'].includes(sol.estado)) {
       // Resumen: Gasto Cobra a rendir y lo Refacturable aparte (no se rinde).
       const refact = sol.items.filter(i => i.refacturable_auto).reduce((t, i) => t + Number(i.monto || 0), 0);
-      const porSustentar = sol.items.filter(i => ['POR_RENDIR', 'RECHAZADO', 'EN_REVISION'].includes(i.estado))
+      const porSustentar = sol.items.filter(i => !i.refacturable_auto && ['POR_RENDIR', 'RECHAZADO', 'EN_REVISION'].includes(i.estado))
         .reduce((t, i) => t + Number(i.monto || 0), 0);
       const aDevolver = sol.items.reduce((t, i) => t + saldoItem(i), 0);
       const resumen = el('div', 'cc-resumen-rendir');

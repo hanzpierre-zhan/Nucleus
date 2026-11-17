@@ -1004,10 +1004,11 @@
     // Totales: depositado, aprobado, en revisión, rechazado y la devolución estimada.
     const suma = (estados, campo) => sol.items.filter(i => estados.includes(i.estado)).reduce((t, i) => t + Number(i[campo] || 0), 0);
     const depositado = Number(sol.deposito_monto || sol.total);
-    // Refacturable: se cierra al depositar (no se rinde); va aparte del aprobado.
+    // Refacturable: no se rinde; la revisión lo valida con el correo del cliente. Va aparte del aprobado.
     const refacturable = sol.items.filter(i => i.refacturable_auto).reduce((t, i) => t + Number(i.monto || 0), 0);
-    const aprobado = suma(['APROBADO'], 'monto_gastado') - refacturable;
-    const enRevision = suma(['EN_REVISION'], 'monto_gastado');
+    const sumaRf = (estado, campo) => sol.items.filter(i => i.refacturable_auto && i.estado === estado).reduce((t, i) => t + Number(i[campo] || 0), 0);
+    const aprobado = suma(['APROBADO'], 'monto_gastado') - sumaRf('APROBADO', 'monto_gastado');
+    const enRevision = suma(['EN_REVISION'], 'monto_gastado') - sumaRf('EN_REVISION', 'monto_gastado');
     const porDevolver = sol.estado === 'POR_DEVOLVER' ? Number(sol.diferencia)
       : depositado - refacturable - aprobado - enRevision - suma(['RECHAZADO', 'POR_RENDIR'], 'monto');
     const totales = el('div', 'cc-rev-totales');
@@ -1023,7 +1024,23 @@
       const cab = el('h4', 'cc-ficha-titulo'); cab.append(icono('fa-file-invoice-dollar'), el('span', 'cc-rev-nombre', 'Refacturable · ' + refacturables.length + (refacturables.length === 1 ? ' concepto' : ' conceptos')));
       caja.append(cab);
       const lista = el('dl', 'cc-ficha-datos');
-      for (const i of refacturables) { const f = el('div', 'cc-ficha-fila'); f.append(el('dt', null, i.numero + ' · ' + i.tipo_gasto), el('dd', 'cc-num', dinero(i.monto))); lista.append(f); }
+      for (const i of refacturables) {
+        const f = el('div', 'cc-ficha-fila');
+        const dd = el('dd', 'cc-num cc-rev-rf-fila'); dd.append(el('span', null, dinero(i.monto)), el('span', 'cc-chip cc-' + i.estado.toLowerCase(), i.estado === 'EN_REVISION' ? 'Por validar' : ITEM[i.estado]));
+        // Validar o rechazar con el detalle del correo de aprobación del cliente.
+        if (puedeGestionar && sol.estado === 'DEPOSITADO' && i.estado === 'EN_REVISION') {
+          const validar = boton('', 'cc-dialogo-icono cc-dialogo-guardar', intentar(() => accion(sol, 'revisar_item', {item: i.id, aprobar: true})));
+          validar.title = 'Validar refacturable ' + i.tipo_gasto + ' (correo del cliente conforme)'; validar.setAttribute('aria-label', validar.title); validar.append(icono('fa-check'));
+          const rechazar = boton('', 'cc-dialogo-icono cc-dialogo-cerrar', conMotivo(sol, 'revisar_item', {
+            titulo: 'Rechazar refacturable · ' + i.tipo_gasto, subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
+            datos: [['Solicitado', dinero(i.monto)], ['Cotización', sol.revision?.cotizacion || 'Sin cotización vinculada']],
+            sugerencias: ['Sin correo de aprobación del cliente', 'La cotización no está aprobada', 'El monto no coincide con la cotización', 'El correo no corresponde a este gasto'],
+            ayuda: 'Al rechazarlo, el técnico deberá rendirlo con boleta o devolverlo.'}, {item: i.id, aprobar: false}));
+          rechazar.title = 'Rechazar refacturable ' + i.tipo_gasto; rechazar.setAttribute('aria-label', rechazar.title); rechazar.append(icono('fa-xmark'));
+          const acciones = el('span', 'cc-dialogo-acciones'); acciones.append(validar, rechazar); dd.append(acciones);
+        }
+        f.append(el('dt', null, i.numero + ' · ' + i.tipo_gasto), dd); lista.append(f);
+      }
       caja.append(lista);
       const correo = el('p', 'cc-nota', sol.revision?.cotizacion ? 'Buscando el correo de aprobación del cliente…' : 'Sin cotización vinculada.');
       caja.append(correo);
@@ -1037,7 +1054,7 @@
       }
       columna.append(caja);
     }
-    const porRevisar = itemsEtapa(sol, 'revision');
+    const porRevisar = itemsEtapa(sol, 'revision').filter(i => !i.refacturable_auto);  // los refacturables se validan arriba
     if (porRevisar.length) {
       columna.append(el('h5', 'cc-rev-seccion', 'Por revisar · ' + porRevisar.length),
         ...porRevisar.map(item => tarjetaConcepto(sol, item)));
