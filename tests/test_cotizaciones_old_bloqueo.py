@@ -28,3 +28,18 @@ def test_switch_bloquea_old_pero_no_la_vista_nueva(app, auth_client):
         _activar(auth_client, False)
     r = auth_client.post('/api/cotizacion/accion', json={'key': 'X', 'accion': 'enviar'})
     assert r.status_code != 423
+
+
+def test_bloqueo_old_cubre_importar_y_opciones(app, auth_client):
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='Cotizaciones').one().id
+    auth_client.get('/switch_project/%d?next=/' % pid)
+    _activar(auth_client, True)
+    try:
+        assert auth_client.post('/api/import/process', data={}).status_code == 423
+        assert auth_client.post('/api/master/manual_columns/options', json={}).status_code == 423
+        assert auth_client.post('/api/rows/delete', json={}).status_code == 423
+        # Desde la vista nueva, la importación no se bloquea por el switch.
+        assert auth_client.post('/api/import/process', data={}, headers={'X-Nucleus-Vista': 'cot-new'}).status_code != 423
+    finally:
+        _activar(auth_client, False)

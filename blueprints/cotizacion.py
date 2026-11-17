@@ -903,8 +903,13 @@ def _bloquear_cotizaciones_old():
     if request.headers.get('X-Nucleus-Vista') == 'cot-new' or request.path == '/api/cotizacion/modulo-old':
         return None
     ruta = request.path
-    del_old = ruta.startswith('/api/cotizacion/') or ruta.startswith('/api/cotizaciones/') or (
-        ruta.startswith('/api/rows/') and (session.get('current_proyecto_nombre') or '').strip().lower() == 'cotizaciones')
+    # Descargas y vistas previas siguen permitidas (solo leen).
+    if any(p in ruta for p in ('descargar', 'previsualizar', 'registro_pdf', '/lista')):
+        return None
+    en_cotizaciones = (session.get('current_proyecto_nombre') or '').strip().lower() == 'cotizaciones'
+    del_old = ruta.startswith('/api/cotizacion/') or ruta.startswith('/api/cotizaciones/') or ruta.startswith('/api/admin/cotizacion/') or (
+        en_cotizaciones and ruta.startswith(('/api/rows/', '/api/import/', '/api/master/', '/api/evidencia/subir',
+                                             '/api/evidencia/eliminar', '/api/config/cotizacion')))
     if del_old and session.get('user_id') and cotizaciones_old_bloqueado():
         return jsonify(error='Cotizaciones old está desactivado (solo lectura). Trabaja desde Cotizaciones.'), 423
     return None
