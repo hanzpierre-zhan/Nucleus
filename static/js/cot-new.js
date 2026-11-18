@@ -1032,7 +1032,19 @@
     if (tab === 'atendido' && !j.sustento_aprobado) botones.push(
       ['Aprobar sustento', 'cn-verde', 'fa-check', async () => { try { await accion(c, 'aprobar_sustento'); dialogo.close(); } catch (e) { avisar(e.message); } }],
       ['Rechazar sustento: vuelve a Sustentar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar_sustento', 'Rechazar sustento', 'Rechazar', 'fa-rotate-left')]);
-    botones.push(['Cargar o editar fotos (en Cotizaciones)', 'cn-azul', 'fa-images', abrirClasico]);
+    // Para revisar todo lo cargado: la ficha completa (solo lectura fuera de Operaciones) y el expediente en Excel de cada WO.
+    botones.push(['Ver ficha de sustento completa', 'cn-neutro', 'fa-eye', () => operaciones(c)]);
+    for (const w of j.wos.filter(x => x.encontrado && x.wo)) {
+      botones.push(['Generar expediente (Excel) · ' + w.wo, 'cn-azul', 'fa-file-excel', async () => {
+        try {
+          const x = await fetch('/api/cotizacion/sustento/expediente?' + new URLSearchParams({key: c.key, wo: w.wo}));
+          if (!x.ok) throw Error((await leerJson(x)).error || 'No se pudo generar el expediente.');
+          const nombre = (x.headers.get('Content-Disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i)?.[1];
+          descargar(await x.blob(), nombre ? decodeURIComponent(nombre) : 'Expediente_' + (c['N° COTIZACION'] || c.key) + '.xlsx');
+        } catch (e) { avisar(e.message); }
+      }]);
+    }
+    if (tab === 'sustentar') botones.push(['Cargar o editar fotos (en Cotizaciones)', 'cn-azul', 'fa-images', abrirClasico]);
     ventana('Sustento · ' + (c['N° COTIZACION'] || c.key) + (j.sustento_aprobado ? ' · aprobado' : ''), izquierda, derecha, botones);
   }
   // ── Operaciones: ficha de sustento (mismos datos que Cotizaciones) con el diseño nuevo ──

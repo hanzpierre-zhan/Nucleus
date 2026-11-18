@@ -14,8 +14,8 @@
   };
 
   // Al abrir, se ve por defecto la pestaña Abiertos (filtro vacío).
-  // Por defecto se ve el mes actual.
-  let proyecto = '', tipo = '', filtro = '', periodo = 'mes', categoria = '';
+  // Por defecto se ve el día actual.
+  let proyecto = '', tipo = '', filtro = '', periodo = 'hoy', categoria = '';
   try { proyecto = localStorage.getItem('sla-proyecto') || ''; } catch (_) {}
   const cache = {};
 
