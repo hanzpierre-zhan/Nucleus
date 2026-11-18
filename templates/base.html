@@ -131,7 +131,9 @@
                 </a>
                 {# Backup: módulos anteriores (Cotizaciones old y Rendición). #}
                 {% set _backup = [] %}
-                {% for nombre, etiqueta, icono in [('Cotizaciones','Cotizaciones old','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet'),('Backup FLM ENTEL','FLM Entel old','fa-tower-cell')] %}{% for p in proyectos_list %}{% if p.nombre == nombre %}{% set _ = _backup.append((p, etiqueta, icono)) %}{% endif %}{% endfor %}{% endfor %}
+                {# Cotizaciones old solo la ve administración (los usuarios trabajan en Cotizaciones). #}
+                {% set _admin_old = (session.get('rol') or '').lower() in ['zeno', 'suport', 'admin'] %}
+                {% for nombre, etiqueta, icono in [('Cotizaciones','Cotizaciones old','fa-file-invoice-dollar'),('Rendicion','Rendición','fa-wallet'),('Backup FLM ENTEL','FLM Entel old','fa-tower-cell')] %}{% if nombre != 'Cotizaciones' or _admin_old %}{% for p in proyectos_list %}{% if p.nombre == nombre %}{% set _ = _backup.append((p, etiqueta, icono)) %}{% endif %}{% endfor %}{% endif %}{% endfor %}
                 {% endif %}
                 {% set _es_admin = (session.get('rol') or '').lower() in ['zeno', 'suport'] %}
                 {% if _es_admin or _backup %}

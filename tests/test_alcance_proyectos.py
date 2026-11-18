@@ -78,9 +78,9 @@ def test_exportacion_y_urls_directas_no_revelan_otro_proyecto(app, client, unive
     wb = load_workbook(io.BytesIO(response.data), read_only=True)
     assert 'SCOPE-Cotizaciones-CLARO' not in str(list(wb.active.values))
     wb.close()
+    # Cotizaciones old ya no se muestra a usuarios: los lleva a Cotizaciones (Cot_New).
     pagina = client.get('/')
-    assert pagina.status_code == 200
-    assert 'SCOPE-Cotizaciones-ENTEL' in pagina.text and 'SCOPE-Cotizaciones-CLARO' not in pagina.text
+    assert pagina.status_code == 302 and pagina.headers['Location'].endswith('/cot-new/')
     with client.session_transaction() as s:
         s.update(current_proyecto_id=ids['Cotizaciones'], current_proyecto_nombre='Cotizaciones')
     assert client.post('/api/rows/update', json={'key': 'SCOPE-Cotizaciones-CLARO', 'field': 'MOTIVO', 'value': 'cambio'}).status_code == 404

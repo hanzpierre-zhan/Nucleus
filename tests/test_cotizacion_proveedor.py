@@ -404,8 +404,12 @@ def test_envio_a_transito_vinculado_sin_duplicar(app,auth_client,cotizacion,rol)
         enlace=r.json['newData']['_RENDICION_TRANSITO']
         assert r.json['newData']['_COTIZACION_TRANSITO']['key'] == enlace['key']
         auth_client.get('/switch_project/%s' % pid)
-        html_cot = auth_client.get('/').text
-        assert 'cot-cnt-transito' in html_cot and '6. Tránsito' in html_cot
+        r_cot = auth_client.get('/')
+        if rol in ('gestor', 'supervisor'):
+            # Cotizaciones old ya no se muestra a usuarios: van a Cotizaciones (Cot_New).
+            assert r_cot.status_code == 302 and r_cot.headers['Location'].endswith('/cot-new/')
+        else:
+            assert 'cot-cnt-transito' in r_cot.text and '6. Tránsito' in r_cot.text
         with app.app_context():
             q=NucleusData.query.filter_by(proyecto_id=rend,key_value=enlace['key'])
             assert q.count()==1
