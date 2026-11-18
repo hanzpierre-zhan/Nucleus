@@ -698,9 +698,10 @@
       return s;
     }
     const guardarSolo = async () => { await guardar(); await cargar(); avisar('Cotización guardada.'); };
+    const enCliente = tab === 'cliente';
     const generar = async () => {
       const s = await guardar();
-      const ok = await (window.nucleusConfirm ? window.nucleusConfirm('Se descargará el PDF de ' + (c['N° COTIZACION'] || c.key) + ' por ' + dinero(s) + ' y pasará a Cliente.',
+      const ok = await (window.nucleusConfirm ? window.nucleusConfirm('Se descargará el PDF de ' + (c['N° COTIZACION'] || c.key) + ' por ' + dinero(s) + (enCliente ? ' con los cambios; sigue en Cliente para enviarla al cliente.' : ' y pasará a Cliente.'),
         'Generar cotización', {okText: 'Generar', circular: true}) : confirm('¿Generar la cotización?'));
       if (!ok) { await cargar(); return; }
       await generarClave(c.key); dialogo.close(); await cargar();
@@ -708,7 +709,7 @@
     ventana((c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), izquierda, derecha, [
       ['Plantilla de ítems (en Cotizaciones)', 'cn-azul', 'fa-file-excel', abrirClasico],
       ['Guardar', 'cn-neutro', 'fa-floppy-disk', conErrorEn(error, guardarSolo)],
-      ['Generar: PDF y pasa a Cliente', 'cn-verde', 'fa-paper-plane', conErrorEn(error, generar)]]);
+      [enCliente ? 'Guardar y volver a generar el PDF' : 'Generar: PDF y pasa a Cliente', 'cn-verde', 'fa-paper-plane', conErrorEn(error, generar)]]);
     $('cc-solicitud-contenido').firstChild.classList.add('cn-editor');
   }
   // ── Pago: foto del pago; la fecha y hora se graban solas. Pasa a Operaciones (y Tránsito si corresponde) ──
@@ -1250,9 +1251,12 @@
     const p = tab;
     const lista = [];
     if (!puedeGestionar) return lista;
-    if (p === 'registro') lista.push(['Generar cotización', 'cn-verde', 'fa-file-invoice-dollar', () => editorCotizacion(c)],
+    // Lápiz: se edita hasta que el cliente la aprueba (Registro y Cliente).
+    if (p === 'registro') lista.push(['Editar cotización', 'cn-neutro', 'fa-pen', () => editorCotizacion(c)],
+      ['Generar cotización', 'cn-verde', 'fa-file-invoice-dollar', () => editorCotizacion(c)],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
-    else if (p === 'cliente') lista.push(['Aprobar (conformidad del cliente)', 'cn-verde', 'fa-check', () => aprobar(c)],
+    else if (p === 'cliente') lista.push(['Editar cotización (antes de la aprobación del cliente)', 'cn-neutro', 'fa-pen', () => editorCotizacion(c)],
+      ['Aprobar (conformidad del cliente)', 'cn-verde', 'fa-check', () => aprobar(c)],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
     else if (p === 'sustentar') lista.push(['Ficha de sustento y pasar a Atendido', 'cn-azul', 'fa-screwdriver-wrench', () => operaciones(c)]);
     else if (p === 'atendido') lista.push(['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
