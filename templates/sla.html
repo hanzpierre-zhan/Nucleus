@@ -22,6 +22,7 @@
     <select id="sla-periodo" class="sla-periodo" aria-label="Periodo de los cerrados">
       <option value="">Todo el periodo</option>
       <option value="hoy">Hoy</option>
+      <option value="ayer">Ayer</option>
       <option value="mes" selected>Este mes</option>
       <option value="anterior">Mes anterior</option>
       <option value="7">Últimos 7 días</option>
@@ -55,5 +56,5 @@
   </div>
 </section>
 <script id="sla-config" type="application/json">{{ dict(por_vencer, con_criterios=con_criterios) | tojson }}</script>
-<script src="/static/js/sla.js?v=21" defer></script>
+<script src="/static/js/sla.js?v=22" defer></script>
 {% endblock %}

@@ -45,6 +45,7 @@
     const fin = fecha(c.fin || c.inicio); if (!fin) return false;
     const hoy = new Date();
     if (periodo === 'hoy') return fin.toDateString() === hoy.toDateString();
+    if (periodo === 'ayer') { const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1); return fin.toDateString() === ayer.toDateString(); }
     if (periodo === '7') return hoy - fin <= 7 * 864e5;
     const mes = periodo === 'mes' ? new Date(hoy.getFullYear(), hoy.getMonth(), 1) : new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
     const hasta = new Date(mes.getFullYear(), mes.getMonth() + 1, 1);
