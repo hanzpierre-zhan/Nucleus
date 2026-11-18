@@ -1448,11 +1448,38 @@
                   texto: s => s.formulario?.responsable_validacion || '—'},
     estado:   {titulo: 'Estado', ancho: 'minmax(180px, 1.3fr)', texto: s => estadoDe(s)[0],
                celda: s => { const [t, c] = estadoDe(s); return el('span', 'cc-chip ' + c, t); }},
+    // Seguimiento: el último rechazo u observación (solicitud, gasto o devolución), quién y cuándo.
+    rechazo:  {titulo: 'Motivo de rechazo', ancho: 'minmax(230px, 1.6fr)', clase: 'cc-justificacion-celda',
+               texto: s => { const r = ultimoRechazo(s); return r ? r.motivo : '—'; },
+               celda: s => {
+                 const r = ultimoRechazo(s); if (!r) return el('span', 'cc-nota', '—');
+                 const caja = el('span', 'cc-rechazo-celda' + (r.corregido ? ' corregido' : ''));
+                 caja.append(el('span', 'cc-rechazo-motivo', r.motivo));
+                 caja.append(el('small', null, [r.que, r.usuario, r.fecha].filter(Boolean).join(' · ')));
+                 caja.title = r.que + ': ' + r.motivo; return caja;
+               }},
     fecha:    {titulo: 'Fecha / Avance', ancho: 'minmax(140px, 1.1fr)', clase: 'cc-avance', orden: s => creado(s).getTime(),
                texto: s => s.estado === 'DEPOSITADO' ? s.avance : creado(s).toLocaleDateString('es-PE')},
     total:    {titulo: 'Importe de etapa', ancho: 'minmax(110px, .8fr)', num: true, orden: s => Number(importeEtapa(s)) || 0, texto: s => dinero(importeEtapa(s)),
                celda: s => el('strong', 'cc-num', dinero(importeEtapa(s)))},
   };
+  // Último rechazo u observación de la solicitud: del historial (acciones "rechazar…"), o del ítem rechazado vigente.
+  function ultimoRechazo(sol) {
+    const hist = sol.historial || [];
+    const ev = [...hist].reverse().find(e => /rechaz|observ/i.test(e.accion || '') && (e.motivo || '').trim());
+    // Si después del rechazo hubo un avance (volvió a rendir, se aprobó, depositó…), queda como corregido.
+    const corregido = ev && hist.slice(hist.indexOf(ev) + 1).some(e => /rendir|aprobar|deposit|validar|enviar|sustento/i.test(e.accion || '') && !/rechaz/i.test(e.accion || ''));
+    const fecha = ev?.fecha ? new Date(ev.fecha + 'Z').toLocaleString('es-PE', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'}) : '';
+    if (ev) {
+      const que = (/devoluci/i.test(ev.accion) ? 'Devolución' : /dep[oó]sito/i.test(ev.accion) ? 'Depósito' : /tem|gasto/i.test(ev.accion) ? 'Gasto' : 'Solicitud')
+        + (corregido ? ' (ya corregido)' : '');
+      return {motivo: ev.motivo.trim(), usuario: ev.usuario || '', fecha, que, corregido};
+    }
+    const item = (sol.items || []).find(i => i.estado === 'RECHAZADO' && i.motivo_rechazo);
+    if (item) return {motivo: item.motivo_rechazo, usuario: '', fecha: '', que: 'Gasto · ' + item.tipo_gasto};
+    if (sol.motivo_rechazo) return {motivo: sol.motivo_rechazo, usuario: '', fecha: '', que: 'Solicitud'};
+    return null;
+  }
   // El orden de las columnas lo fija el administrador y es igual para todos (se guarda en el servidor).
   // El ancho de cada columna se recuerda solo en este navegador.
   let columnas = Object.keys(COLUMNAS), filtros = {}, busquedas = {}, anchos = {};

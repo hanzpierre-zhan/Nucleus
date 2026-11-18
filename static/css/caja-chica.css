@@ -759,3 +759,10 @@ body.dark-mode .cc-chip.cc-refacturable { background: #7c3aed !important; color:
 .cc-rev-correo { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; padding: 6px 12px; border-radius: 999px; background: rgba(124, 58, 237, .14); color: #6d28d9 !important; text-decoration: none; font-weight: 600; font-size: 12.5px; }
 body.dark-mode .cc-rev-correo { color: #c4b5fd !important; }
 .cc-cotizacion-no { color: #dc2626 !important; font-weight: 600; }
+
+/* Columna "Motivo de rechazo" (seguimiento de las gestoras) */
+.cc-rechazo-celda { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cc-rechazo-motivo { color: #dc2626; font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cc-rechazo-celda small { color: var(--ios-secondary); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.dark-mode .cc-rechazo-motivo { color: #f87171; }
+.cc-rechazo-celda.corregido .cc-rechazo-motivo { color: var(--ios-secondary); font-weight: 500; }
