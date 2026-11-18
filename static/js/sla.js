@@ -22,6 +22,10 @@
   // Fechas guardadas como "2026-11-02 14:47:13" (hora de Perú, la del navegador).
   const fecha = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : null; };
   const duracion = min => { min = Math.round(Math.abs(min)); const d = Math.floor(min / 1440), h = Math.floor(min % 1440 / 60), m = min % 60; return (d ? d + ' d ' : '') + (d || h ? h + ' h ' : '') + m + ' min'; };
+  const esBacklog = (c, ahora) => {
+    const dispatch = fecha(c.dispatch);
+    return c.tipo === 'CM' && !c.cerrado && !/cancel/i.test(c.estado_ticket || '') && dispatch && ahora - dispatch > 48 * 3600000;
+  };
 
   // Estado de un caso abierto, calculado contra la hora actual.
   function medir(c, ahora) {
@@ -175,6 +179,7 @@
     }
     const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre + ' ' + (c.fme || '') + ' ' + (c.fm_office || '')).includes(q)));
     const abiertos = delTipo.filter(c => !c.cerrado).map(c => ({...c, ...medir(c, ahora)}));
+    const backlog = abiertos.filter(c => esBacklog(c, ahora)).sort((a, b) => fecha(a.dispatch) - fecha(b.dispatch));
     const cerrados = delTipo.filter(c => c.cerrado && enPeriodo(c));
     const cumplidos = cerrados.filter(cumple).length;
     const porcentaje = cerrados.length ? cumplidos / cerrados.length * 100 : null;
@@ -221,9 +226,10 @@
 
     // Filtros rápidos de la lista
     const filtros = $('sla-filtros'); filtros.replaceChildren();
-    for (const [clave, texto] of [['', 'Abiertos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_inicio', 'Sin inicio'], ['sla_cero', 'SLA en 0'], ['sin_objetivo', 'Sin objetivo'], ['cerrados', 'Cerrados'], ['tecnicos', 'Por técnico']]) {
+    for (const [clave, texto] of [['', 'Abiertos'], ['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin_inicio', 'Sin inicio'], ['sla_cero', 'SLA en 0'], ['sin_objetivo', 'Sin objetivo'], ['cerrados', 'Cerrados'], proyecto === 'CLARO' ? ['backlog', 'Back log'] : ['tecnicos', 'Por técnico']]) {
       const b = el('button', 'sla-chip' + (filtro === clave ? ' activo' : '')); b.type = 'button';
-      b.append(el('span', null, texto), el('strong', null, String(clave === 'tecnicos' ? tecs.length : clave === 'cerrados' ? cerrados.length : clave ? cuenta(clave) : abiertos.length)));
+      b.append(el('span', null, texto), el('strong', null, String(clave === 'backlog' ? backlog.length : clave === 'tecnicos' ? tecs.length : clave === 'cerrados' ? cerrados.length : clave ? cuenta(clave) : abiertos.length)));
+      if (clave === 'backlog') b.title = 'CM abiertos con más de 48 horas desde Dispatch, sin descontar pausas. Más antiguos primero.';
       b.addEventListener('click', () => { filtro = clave; pintar(); }); filtros.append(b);
     }
 
@@ -236,7 +242,7 @@
     const SIN_MEDIR = ['sin_inicio', 'sla_cero', 'sin_objetivo'];
     // "Cerrados": los del periodo, del más reciente al más antiguo, con su resultado según SLA Status.
     const usoCerrado = c => { const i = fecha(c.inicio), f = fecha(c.fin); return i && f && c.objetivo ? Math.max(0, (f - i) / 60000 - (c.pausa || 0)) / c.objetivo * 100 : 0; };
-    baseFiltro = verTecnicos ? [] : filtro === 'cerrados'
+    baseFiltro = filtro === 'backlog' ? backlog : verTecnicos ? [] : filtro === 'cerrados'
       ? cerrados.map(c => ({...c, estado: cumple(c) ? 'cumple' : 'no_cumple', uso: usoCerrado(c)})).sort((a, b) => String(b.fin).localeCompare(String(a.fin)))
       : abiertos.filter(c => !filtro || c.estado === filtro || (filtro === 'sin_medir' && SIN_MEDIR.includes(c.estado)))
         .sort((a, b) => orden[a.estado] - orden[b.estado] || (a.estado === 'vencido' ? b.resto - a.resto : (a.resto ?? 1e9) - (b.resto ?? 1e9)));
@@ -271,6 +277,7 @@
         tiempo.append(cab, p);
       }
       const estado = el('span', 'sla-estado');
+      if (filtro === 'backlog') tiempo.append(el('small', null, 'Desde Dispatch: ' + duracion((ahora - fecha(c.dispatch)) / 60000)));
       estado.append(icono(simbolo), el('span', null, c.estado === 'vencido' ? 'Vencido · hace ' + duracion(-c.resto)
         : [...SIN_MEDIR, 'cumple', 'no_cumple'].includes(c.estado) ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
       fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), el('span', 'sla-categoria', c.fm_office || '—'), tec, ...reales, tiempo, estado);
