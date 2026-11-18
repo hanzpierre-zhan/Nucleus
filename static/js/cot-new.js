@@ -1058,7 +1058,7 @@
       ['Aprobar sustento', 'cn-verde', 'fa-check', async () => { try { await accion(c, 'aprobar_sustento'); dialogo.close(); } catch (e) { avisar(e.message); } }],
       ['Rechazar sustento: vuelve a Sustentar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar_sustento', 'Rechazar sustento', 'Rechazar', 'fa-rotate-left')]);
     // Para revisar todo lo cargado: la ficha completa (solo lectura fuera de Operaciones) y el expediente en Excel de cada WO.
-    // En Operaciones abre la ficha para cargar o editar fotos; en Atendido, la misma ficha en solo lectura.
+    // En Operaciones abre la ficha para cargar o editar fotos; en Atendido, la misma ficha para revisar y hacer ajustes puntuales (con Guardar).
     botones.push(tab === 'sustentar' ? ['Cargar o editar fotos (ficha de sustento)', 'cn-azul', 'fa-images', () => operaciones(c)]
       : ['Ver ficha de sustento completa', 'cn-azul', 'fa-images', () => operaciones(c)]);
     for (const w of j.wos.filter(x => x.encontrado && x.wo)) {
@@ -1095,7 +1095,9 @@
     const i = indice ?? lista.findIndex(w => w.encontrado);
     if (i < 0) { avisar('Primero registra los WO en el FLM correspondiente.'); return; }
     const entry = lista[i], datos = entry.wo_data || {}, manual = datos._SUSTENTO_MANUAL || {};
-    const editable = puedeGestionar && tab === 'sustentar' && !j.sustento_aprobado && !entry.bloqueado;
+    // Operaciones edita; en Atendido también se pueden hacer ajustes puntuales mientras el sustento no esté aprobado.
+    const enAtendido = tab === 'atendido';
+    const editable = puedeGestionar && (tab === 'sustentar' || enAtendido) && !j.sustento_aprobado && !entry.bloqueado;
     const ctx = {subiendo: 0};
     const entrada = (valor, tipo) => { const x = Object.assign(el('input'), {type: tipo || 'text', value: valor || '', disabled: !editable}); return x; };
 
@@ -1264,12 +1266,13 @@
       const nombre = (x.headers.get('Content-Disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i)?.[1];
       descargar(await x.blob(), nombre ? decodeURIComponent(nombre) : 'Expediente_' + (c['N° COTIZACION'] || c.key) + '.xlsx');
     })]);
-    if (editable) botones.push(['Guardar', 'cn-neutro', 'fa-floppy-disk', conErrorEn(error, async () => { await guardar(false); estado.textContent = 'Sustento guardado.'; })],
+    if (editable) botones.push(['Guardar', 'cn-neutro', 'fa-floppy-disk', conErrorEn(error, async () => { await guardar(false); estado.textContent = 'Sustento guardado.'; })]);
+    if (editable && !enAtendido) botones.push(
       ['Enviar a Atendido', 'cn-verde', 'fa-paper-plane', conErrorEn(error, async () => {
         if (!await (window.nucleusConfirm ? window.nucleusConfirm('Se guardará el sustento y la cotización pasará a Atendido.', 'Enviar a Atendido', {okText: 'Enviar', circular: true}) : confirm('¿Enviar a Atendido?'))) return;
         await guardar(true); dialogo.close(); await cargar(); avisar((c['N° COTIZACION'] || c.key) + ' pasó a Atendido.');
       })]);
-    ventana('Operaciones · ' + (c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), columna, null, botones);
+    ventana((enAtendido ? 'Ficha de sustento · ' : 'Operaciones · ') + (c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), columna, null, botones);
     $('cc-solicitud-contenido').firstChild.classList.add('cn-operaciones');
     // Un sustento por WO: botones arriba para cambiar de WO (guarda antes de cambiar).
     if (lista.length > 1) {
