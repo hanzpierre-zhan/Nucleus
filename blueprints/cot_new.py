@@ -589,7 +589,7 @@ NOMBRES_CLIENTE = {
     'ENTEL': ('George McCloun', 'Sergio Huaman', 'Even Junior Vivar'),
     'PEXT': ('Marco Gomez',),
     'INTEGRATEL': ('Daivis Mendoza',),
-    'CLARO': ('Percy Huaman', 'Carlos Ocana', 'Giancarlo Saldarriaga', 'Giancarlo Costa', 'Ernesto Rojas'),
+    'CLARO': ('Percy Rodriguez', 'Carlos Ocana', 'Giancarlo Saldarriaga', 'Giancarlo Costa', 'Ernesto Rojas'),
 }
 TIPOS_CONCEPTO = ('Servicio', 'Alquiler', 'Acarreo', 'Compras y suministros', 'Desplazamiento fuera de zona',
                   'Transporte fluvial', 'Custodio y resguardo', 'Personal y mano de obra')
