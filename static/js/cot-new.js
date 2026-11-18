@@ -1034,11 +1034,12 @@
     const derecha = el('div');
     for (const w of (j.wos.length ? j.wos : [{wo: 'Sin WO', encontrado: false}])) {
       const caja = el('section', 'cc-ficha');
-      const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-camera'), el('span', null, 'WO ' + (w.wo || '—'))); caja.append(h);
+      const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-book'), el('span', null, 'WO ' + (w.wo || '—') + ' · bitácoras')); caja.append(h);
       if (!w.encontrado) { caja.append(el('p', 'cc-nota', 'El WO no está registrado en su FLM.')); derecha.append(caja); continue; }
       for (const fase of ['inicio', 'proceso', 'cierre']) {
         const fotos = (w.fotos_urls?.[fase] || []).filter(Boolean);
-        caja.append(el('p', 'cn-fase', fase[0].toUpperCase() + fase.slice(1) + ' · ' + fotos.length + ' foto' + (fotos.length === 1 ? '' : 's')));
+        // Solo el nombre de la fase (bitácora); el conteo de fotos del formato antiguo confundía con las de la ficha.
+        caja.append(el('p', 'cn-fase', fase[0].toUpperCase() + fase.slice(1)));
         if (fotos.length) {
           const tira = el('div', 'cc-rev-miniaturas');
           fotos.forEach(u => { const a = el('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener'; const img = el('img'); img.src = u; img.loading = 'lazy'; img.alt = fase; a.append(img); tira.append(a); });
