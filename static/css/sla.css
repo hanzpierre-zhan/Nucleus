@@ -67,10 +67,10 @@ body .sla-chip.activo { background: #1d4ed8 !important; border-color: #1d4ed8 !i
 .sla-backlog-timer { font-size: 19px; line-height: 1.2; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; color: #b91c1c; }
 body.dark-mode .sla-backlog-timer { color: #fca5a5; }
 /* Color llamativo por registro según urgencia. */
-.sla-fila.sla-rojo { border-left-color: #dc2626; background: rgba(239, 68, 68, .06); }
+.sla-fila.sla-rojo { border-left-color: #dc2626; }
 .sla-fila.sla-rojo .sla-estado { background: rgba(239, 68, 68, .16); color: #b91c1c; }
 .sla-fila.sla-rojo .sla-pista span { background: #ef4444; }
-.sla-fila.sla-ambar { border-left-color: #f59e0b; background: rgba(245, 158, 11, .07); }
+.sla-fila.sla-ambar { border-left-color: #f59e0b; }
 .sla-fila.sla-ambar .sla-estado { background: rgba(245, 158, 11, .2); color: #b45309; animation: sla-latido 1.6s ease-in-out infinite; }
 .sla-fila.sla-ambar .sla-pista span { background: #f59e0b; }
 .sla-fila.sla-verde { border-left-color: #22c55e; }
