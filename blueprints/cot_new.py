@@ -575,6 +575,15 @@ def generar():
     return api_cotizacion_registro_generar()
 
 
+@bp.post('/api/cot-new/pdf')
+@login_required
+def descargar_pdf():
+    """Descarga el PDF de la cotización usando el servicio existente."""
+    _fijar_cotizaciones()
+    from blueprints.cotizacion import api_cotizacion_registro_pdf
+    return api_cotizacion_registro_pdf()
+
+
 # ── Nuevo registro: proyecto FLM, site registrado (con sus datos) y WO registrados ──
 PROYECTOS_FLM = ('FLM - CLARO', 'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - PEXT')
 # PEXT no tiene sites propios en la base de sites: usa los de Entel (por confirmar con el usuario).

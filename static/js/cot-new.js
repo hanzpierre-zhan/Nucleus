@@ -1249,7 +1249,13 @@
   const abrirClasico = () => location.assign(clasico);
   function accionesDe(c) {
     const p = tab;
-    const lista = [];
+    const lista = [['Descargar cotización (PDF)', 'cn-azul', 'fa-file-arrow-down', async () => {
+      try {
+        const r = await fetch('/api/cot-new/pdf', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key})});
+        if (!r.ok) throw Error((await leerJson(r)).error || 'No se pudo descargar la cotización.');
+        descargar(await r.blob(), (c['N° COTIZACION'] || c.key) + '.pdf');
+      } catch (e) { avisar(e.message); }
+    }]];
     if (!puedeGestionar) return lista;
     // Lápiz: se edita hasta que el cliente la aprueba (Registro y Cliente).
     if (p === 'registro') lista.push(['Editar cotización', 'cn-neutro', 'fa-pen', () => editorCotizacion(c)],
@@ -1387,7 +1393,7 @@
       const fila = el('div', 'cc-card cc-resumen cc-fila-solicitud');
       const controles = el('span', 'cc-acciones-rapidas cc-col-acciones');
       const botones = accionesDe(c).map(a => botonRedondo(a));
-      if (!botones.length) botones.push(botonRedondo(['Ver detalle', 'cn-neutro', 'fa-eye', () => verDetalle(c)]));
+      if (botones.length === 1) botones.push(botonRedondo(['Ver detalle', 'cn-neutro', 'fa-eye', () => verDetalle(c)]));
       controles.append(...botones);
       if (puedeEliminar) {
         const celda = el('span', 'cc-seleccion');

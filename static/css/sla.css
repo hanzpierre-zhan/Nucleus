@@ -49,6 +49,12 @@ body .sla-chip.activo { background: #1d4ed8 !important; border-color: #1d4ed8 !i
 .sla-tiempo-cab { display: flex; justify-content: space-between; color: var(--ios-secondary); }
 .sla-tiempo-cab small { font-size: 11px; }
 .sla-estado { display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+.sla-backlog-estado { align-items: flex-start; gap: 6px; }
+.sla-wo-estado { display: inline-flex; padding: 5px 12px; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 800; line-height: 1.3; }
+.sla-wo-dispatch { background: #1d4ed8; }
+.sla-wo-proceso { background: #0f766e; }
+.sla-wo-pausa { background: #92400e; }
+.sla-wo-otro { background: #475569; }
 /* Color llamativo por registro según urgencia. */
 .sla-fila.sla-rojo { border-left-color: #dc2626; background: rgba(239, 68, 68, .06); }
 .sla-fila.sla-rojo .sla-estado { background: rgba(239, 68, 68, .16); color: #b91c1c; }

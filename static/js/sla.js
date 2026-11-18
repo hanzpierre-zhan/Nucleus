@@ -83,7 +83,7 @@
     objetivo: {valor: c => Number(c.objetivo) || 0, texto: c => c.sla_hour || '(vacío)'},
     sla_status: {valor: c => c.sla_status_original || '', texto: c => c.sla_status_original || '(vacío)'},
     uso: {valor: c => Number(c.uso) || 0, texto: c => !c.uso ? '0 %' : c.uso > 100 ? 'Más del 100 %' : c.uso >= 75 ? '75 a 100 %' : c.uso >= 50 ? '50 a 75 %' : 'Menos del 50 %'},
-    estado: {valor: c => c.resto ?? (c.estado === 'cumple' ? 1e9 : -1e9), texto: c => (ESTADOS[c.estado] || [c.estado])[0]},
+    estado: {valor: c => filtro === 'backlog' ? c.estado_ticket || '' : c.resto ?? (c.estado === 'cumple' ? 1e9 : -1e9), texto: c => filtro === 'backlog' ? c.estado_ticket || 'Sin estado' : (ESTADOS[c.estado] || [c.estado])[0]},
   };
   let ordenCol = null;            // {col, dir: 1 | -1}
   const filtrosCol = {};          // col -> Set de textos elegidos
@@ -280,7 +280,16 @@
       if (filtro === 'backlog') tiempo.append(el('small', null, 'Desde Dispatch: ' + duracion((ahora - fecha(c.dispatch)) / 60000)));
       estado.append(icono(simbolo), el('span', null, c.estado === 'vencido' ? 'Vencido · hace ' + duracion(-c.resto)
         : [...SIN_MEDIR, 'cumple', 'no_cumple'].includes(c.estado) ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
-      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), el('span', 'sla-categoria', c.fm_office || '—'), tec, ...reales, tiempo, estado);
+      let celdaEstado = estado;
+      if (filtro === 'backlog') {
+        const actual = plano(c.estado_ticket).replace(/[\s_-]/g, '');
+        const color = /dispatch/.test(actual) ? 'dispatch' : /process|arriv|depart|start/.test(actual) ? 'proceso' : /suspend|pause|hold/.test(actual) ? 'pausa' : 'otro';
+        const etiqueta = el('strong', 'sla-wo-estado sla-wo-' + color, c.estado_ticket || 'Sin estado');
+        etiqueta.title = 'Estado actual de la WO';
+        celdaEstado = el('span', 'sla-dos sla-backlog-estado');
+        celdaEstado.append(etiqueta, estado);
+      }
+      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), el('span', 'sla-categoria', c.fm_office || '—'), tec, ...reales, tiempo, celdaEstado);
       cuerpo.append(fila);
     }
     if (visibles.length > 400) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 400 de ' + visibles.length + '. Usa la búsqueda o los filtros.'));
