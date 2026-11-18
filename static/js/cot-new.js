@@ -706,8 +706,32 @@
       if (!ok) { await cargar(); return; }
       await generarClave(c.key); dialogo.close(); await cargar();
     };
+    // Plantilla de ítems en Excel: se descarga, se llena y se carga aquí mismo (reemplaza los ítems del editor).
+    const bajarPlantilla = async () => {
+      const r = await fetch('/api/cotizacion/items_template');
+      if (!r.ok) throw Error((await r.json().catch(() => ({}))).error || 'No se pudo generar la plantilla.');
+      descargar(await r.blob(), 'Plantilla_Items_Cotizacion.xlsx');
+    };
+    const archivoItems = Object.assign(el('input'), {type: 'file', accept: '.xlsx,.xls,.csv', hidden: true});
+    derecha.append(archivoItems);
+    archivoItems.addEventListener('change', conErrorEn(error, async () => {
+      const archivo = archivoItems.files[0]; if (!archivo) return;
+      try {
+        const datos = new FormData(); datos.append('file', archivo);
+        const r = await fetch('/api/cotizacion/items_import', {method: 'POST', body: datos});
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || j.error) throw Error(j.error || 'No se pudo leer el archivo.');
+        const items = j.items || [];
+        if (!items.length) throw Error('No se encontraron ítems en el archivo. Usa la plantilla de ítems.');
+        const hayItems = [...cuerpo.children].some(tr => { const i = tr.leer().item; return i.texto || num(i.valor_unitario); });
+        if (hayItems && !await (window.nucleusConfirm ? window.nucleusConfirm('Los ' + items.length + ' ítems del archivo reemplazarán los ítems actuales.', 'Cargar ítems', {okText: 'Reemplazar', circular: true}) : confirm('¿Reemplazar los ítems actuales?'))) return;
+        cuerpo.replaceChildren(); items.forEach(i => fila(i)); recalcular();
+        avisar(items.length + ' ítem(s) cargados. Revisa y guarda la cotización.');
+      } finally { archivoItems.value = ''; }
+    }));
     ventana((c['N° COTIZACION'] || c.key) + ' · ' + (CLIENTES[c.familia] || c.CLIENTE || ''), izquierda, derecha, [
-      ['Plantilla de ítems (en Cotizaciones)', 'cn-azul', 'fa-file-excel', abrirClasico],
+      ['Descargar plantilla de ítems (Excel)', 'cn-azul', 'fa-file-excel', conErrorEn(error, bajarPlantilla)],
+      ['Cargar ítems desde Excel', 'cn-morado', 'fa-file-import', () => archivoItems.click()],
       ['Guardar', 'cn-neutro', 'fa-floppy-disk', conErrorEn(error, guardarSolo)],
       [enCliente ? 'Guardar y volver a generar el PDF' : 'Generar: PDF y pasa a Cliente', 'cn-verde', 'fa-paper-plane', conErrorEn(error, generar)]]);
     $('cc-solicitud-contenido').firstChild.classList.add('cn-editor');
@@ -1033,7 +1057,9 @@
       ['Aprobar sustento', 'cn-verde', 'fa-check', async () => { try { await accion(c, 'aprobar_sustento'); dialogo.close(); } catch (e) { avisar(e.message); } }],
       ['Rechazar sustento: vuelve a Sustentar', 'cn-naranja', 'fa-rotate-left', conMotivo(c, 'rechazar_sustento', 'Rechazar sustento', 'Rechazar', 'fa-rotate-left')]);
     // Para revisar todo lo cargado: la ficha completa (solo lectura fuera de Operaciones) y el expediente en Excel de cada WO.
-    botones.push(['Ver ficha de sustento completa', 'cn-neutro', 'fa-eye', () => operaciones(c)]);
+    // En Operaciones abre la ficha para cargar o editar fotos; en Atendido, la misma ficha en solo lectura.
+    botones.push(tab === 'sustentar' ? ['Cargar o editar fotos (ficha de sustento)', 'cn-azul', 'fa-images', () => operaciones(c)]
+      : ['Ver ficha de sustento completa', 'cn-azul', 'fa-images', () => operaciones(c)]);
     for (const w of j.wos.filter(x => x.encontrado && x.wo)) {
       botones.push(['Generar expediente (Excel) · ' + w.wo, 'cn-azul', 'fa-file-excel', async () => {
         try {
@@ -1044,7 +1070,6 @@
         } catch (e) { avisar(e.message); }
       }]);
     }
-    if (tab === 'sustentar') botones.push(['Cargar o editar fotos (en Cotizaciones)', 'cn-azul', 'fa-images', abrirClasico]);
     ventana('Sustento · ' + (c['N° COTIZACION'] || c.key) + (j.sustento_aprobado ? ' · aprobado' : ''), izquierda, derecha, botones);
   }
   // ── Operaciones: ficha de sustento (mismos datos que Cotizaciones) con el diseño nuevo ──
@@ -1277,7 +1302,8 @@
       ['Aprobar (conformidad del cliente)', 'cn-verde', 'fa-check', () => aprobar(c)],
       ['Anular', 'cn-rojo', 'fa-ban', conMotivo(c, 'cancelar', 'Anular cotización', 'Anular', 'fa-ban')]);
     else if (p === 'sustentar') lista.push(['Ficha de sustento y pasar a Atendido', 'cn-azul', 'fa-screwdriver-wrench', () => operaciones(c)]);
-    else if (p === 'atendido') lista.push(['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
+    else if (p === 'atendido') lista.push(['Ficha de sustento (todo lo cargado)', 'cn-azul', 'fa-images', () => operaciones(c)],
+      ['Revisar sustento', 'cn-verde', 'fa-magnifying-glass', () => sustento(c)]);
     else if (p === 'cajachica') {
       lista.push(['Registrar pago', 'cn-verde', 'fa-money-bill-wave', () => pagar(c)]);
     } else if (p === 'proveedor') {
