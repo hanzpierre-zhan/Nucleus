@@ -9,6 +9,9 @@ from services.dashboard_gerencial import resumen
 def test_analytics_abre_gerencial(auth_client):
     response = auth_client.get('/analytics', follow_redirects=True)
     assert response.request.path == '/analytics/gerencial'
+    # Vista nueva: operación FLM, plata en la calle y alertas; la anterior sigue en ?vista=clasica.
+    assert 'Alertas para gestionar hoy' in response.text and 'vista=clasica' in response.text
+    response = auth_client.get('/analytics/gerencial?vista=clasica')
     assert 'Total depositado' in response.text
     assert 'Falta rendir' in response.text
     assert 'Evolución de depósitos' in response.text
@@ -95,3 +98,20 @@ def test_gerencial_cruza_carteras_y_respeta_restricciones(app, auth_client):
             else:
                 acceso.restricciones = anterior
             db.session.commit()
+
+
+
+def test_gerencial_nuevo_periodos(auth_client):
+    for periodo in ('mes', 'anterior', '7', 'hoy', 'otro'):
+        r = auth_client.get('/analytics/gerencial?periodo=' + periodo)
+        assert r.status_code == 200 and 'dg2-page' in r.text
+
+
+def test_rango_de_periodos():
+    from datetime import date
+    from services.dashboard_gerencial_v2 import rango
+    hoy = date(2026, 11, 18)
+    assert rango('mes', hoy) == (date(2026, 11, 1), hoy)
+    assert rango('anterior', hoy) == (date(2026, 10, 1), date(2026, 10, 31))
+    assert rango('7', hoy) == (date(2026, 11, 12), hoy)
+    assert rango('hoy', hoy) == (hoy, hoy)

@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard Gerencial{% endblock %}
+{% block content %}
+{# Gerencial: operación FLM (SLA y backlog), plata en la calle (Caja Chica), embudo de cotizaciones y alertas.
+   Todos los números se ven fijos; clic en una tarjeta o barra abre el módulo o el detalle. #}
+{% set D = dashboard %}
+{% macro soles(v) %}S/ {{ '{:,.0f}'.format(v or 0) }}{% endmacro %}
+{% macro nivel(v) %}{{ '' if v is none else ('dg2-ok' if v >= D.meta_sla else ('dg2-medio' if v >= 85 else 'dg2-mal')) }}{% endmacro %}
+<link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
+<link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
+<link rel="stylesheet" href="/static/css/dashboard-gerencial-v2.css?v=1">
+<section class="di-page dg2-page">
+{% from '_dashboard_header.html' import dashboard_header with context %}
+{% call dashboard_header('Gerencial', 'Operación y plata en una sola vista', '', 1) %}
+<nav class="dg2-periodos" aria-label="Periodo del SLA">
+  {% for clave, texto in D.periodos.items() %}<a href="?periodo={{ clave }}" class="{{ 'activo' if clave == D.periodo }}" {% if clave == D.periodo %}aria-current="true"{% endif %}>{{ texto }}</a>{% endfor %}
+  <span class="dg2-rango">SLA del {{ D.desde[8:10] }}/{{ D.desde[5:7] }} al {{ D.hasta[8:10] }}/{{ D.hasta[5:7] }} · backlog y plata a hoy</span>
+  <a class="dg2-clasica" href="?vista=clasica">Ver la versión anterior</a>
+</nav>
+{% endcall %}
+
+{% if D.operacion %}
+<h3 class="dg2-seccion"><i class="fa-solid fa-tower-cell" aria-hidden="true"></i> Operación FLM <small>SLA de los cerrados del periodo · backlog de hoy</small></h3>
+<div class="dg2-kpis">
+  {% for o in D.operacion %}
+  <a class="dg2-kpi" href="{{ o.url }}" style="--c: {{ o.color }}" title="Abrir el dashboard de FLM - {{ o.nombre }}">
+    <small>FLM - {{ o.nombre }}</small>
+    <strong class="{{ nivel(o.sla) }}">{{ '—' if o.sla is none else '{:.1f} %'.format(o.sla) }}</strong>
+    <span>{{ o.ok }} de {{ o.medidos }} en SLA · meta {{ D.meta_sla }} %</span>
+    <span class="dg2-kpi-pie"><b>{{ o.backlog }}</b> en backlog{% if o.vencidos %} · <b class="dg2-mal">{{ o.vencidos }}</b> vencidos{% endif %}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if D.caja or D.cotizaciones %}
+<h3 class="dg2-seccion"><i class="fa-solid fa-sack-dollar" aria-hidden="true"></i> Plata en la calle <small>a hoy</small></h3>
+<div class="dg2-kpis">
+  {% if D.caja %}
+  <a class="dg2-kpi" href="/caja-chica/" style="--c: #eda100"><small>Caja Chica · por rendir</small><strong class="dg2-medio">{{ soles(D.caja.total.por_rendir) }}</strong>
+    <span>{{ D.caja.cuenta.get('por_rendir', 0) }} gastos · {{ D.caja.dias_promedio }} días en promedio desde el depósito</span></a>
+  <a class="dg2-kpi" href="/caja-chica/" style="--c: #e34948"><small>Caja Chica · rechazados sin corregir</small><strong class="dg2-mal">{{ soles(D.caja.total.rechazado) }}</strong>
+    <span>{{ D.caja.cuenta.get('rechazado', 0) }} gastos · {{ D.caja.solicitudes_con_rechazo }} solicitudes</span></a>
+  {% endif %}
+  {% if D.cotizaciones %}{% set cli = D.cotizaciones.embudo[0] %}
+  <a class="dg2-kpi" href="/cot-new/" style="--c: #2a78d6"><small>Cotizaciones esperando al cliente</small><strong>{{ soles(cli.monto) }}</strong>
+    <span>{{ cli.cantidad }} en Cliente (En aprobación)</span></a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="dg2-fila">
+  {% if D.operacion %}
+  <article class="dg2-card">
+    <header><h2>SLA del periodo por FLM</h2><p>La línea es la meta ({{ D.meta_sla }} %). Clic abre el dashboard del FLM.</p></header>
+    {% for o in D.operacion %}
+    <a class="dg2-barra" href="{{ o.url }}">
+      <span class="dg2-barra-nombre">{{ o.nombre }}</span>
+      <span class="dg2-pista"><i class="{{ nivel(o.sla) }}-fondo" style="width: {{ o.sla or 0 }}%"></i><b class="dg2-meta" style="left: {{ D.meta_sla }}%"></b></span>
+      <span class="dg2-barra-valor {{ nivel(o.sla) }}">{{ '—' if o.sla is none else '{:.1f} %'.format(o.sla) }}</span>
+    </a>
+    {% endfor %}
+  </article>
+  {% endif %}
+  {% if D.cotizaciones %}{% set maximo = (D.cotizaciones.embudo | map(attribute='monto') | max) or 1 %}
+  <article class="dg2-card">
+    <header><h2>Cotizaciones · embudo</h2><p>Monto y cantidad por etapa, a hoy. Clic abre Cotizaciones.</p></header>
+    {% for e in D.cotizaciones.embudo %}
+    <a class="dg2-barra" href="/cot-new/">
+      <span class="dg2-barra-nombre">{{ e.etapa }}</span>
+      <span class="dg2-pista"><i class="dg2-etapa-{{ loop.index }}" style="width: {{ (e.monto / maximo * 100) | round(1) }}%"></i></span>
+      <span class="dg2-barra-valor">{{ soles(e.monto) }} · {{ e.cantidad }}</span>
+    </a>
+    {% endfor %}
+  </article>
+  {% endif %}
+</div>
+
+<div class="dg2-fila">
+  {% if D.caja %}{% set t = D.caja.total %}{% set suma = (t.por_rendir + t.rechazado + t.en_revision + t.rendido) or 1 %}
+  <article class="dg2-card">
+    <header><h2>Caja Chica · estado de lo depositado</h2><p>Solicitudes depositadas que aún no se cierran.</p></header>
+    <div class="dg2-apilada">
+      {% for clave, texto, color in [('por_rendir', 'Por rendir', '#eda100'), ('rechazado', 'Rechazado', '#e34948'), ('en_revision', 'En revisión', '#2a78d6'), ('rendido', 'Rendido', '#1baf7a')] %}
+      {% if t[clave] %}<span style="flex: {{ t[clave] }}; background: {{ color }}" title="{{ texto }}: {{ soles(t[clave]) }}">{{ (t[clave] / suma * 100) | round | int }}%</span>{% endif %}
+      {% endfor %}
+    </div>
+    <ul class="dg2-leyenda">
+      {% for clave, texto, color in [('por_rendir', 'Por rendir', '#eda100'), ('rechazado', 'Rechazado', '#e34948'), ('en_revision', 'En revisión', '#2a78d6'), ('rendido', 'Rendido', '#1baf7a')] %}
+      <li style="--q: {{ color }}">{{ texto }} <b>{{ soles(t[clave]) }}</b> · {{ D.caja.cuenta.get(clave, 0) }}</li>
+      {% endfor %}
+    </ul>
+    <h3 class="dg2-sub">Antigüedad de lo por rendir (días desde el depósito)</h3>
+    {% set suma_a = (D.caja.antiguedad | map(attribute='monto') | sum) or 1 %}
+    <div class="dg2-apilada">
+      {% for a in D.caja.antiguedad %}{% if a.monto %}<span style="flex: {{ a.monto }}; background: {{ ['#1baf7a', '#97C459', '#eda100', '#e34948'][loop.index0] }}" title="{{ a.tramo }}: {{ soles(a.monto) }}">{{ (a.monto / suma_a * 100) | round | int }}%</span>{% endif %}{% endfor %}
+    </div>
+    <ul class="dg2-leyenda">
+      {% for a in D.caja.antiguedad %}<li style="--q: {{ ['#1baf7a', '#97C459', '#eda100', '#e34948'][loop.index0] }}">{{ a.tramo }} <b>{{ soles(a.monto) }}</b> · {{ a.gastos }}</li>{% endfor %}
+    </ul>
+  </article>
+  {% endif %}
+
+  <article class="dg2-card">
+    <header><h2>Alertas para gestionar hoy</h2><p>Clic en una alerta para ver la lista.</p></header>
+    {% set alertas = [] %}
+    {% if D.caja %}{% set _ = alertas.append(('tecnicos', 'Técnicos con gastos por rendir de más de 15 días', D.caja.atrasados | length, 'dg2-mal')) %}{% endif %}
+    {% if D.cotizaciones %}
+      {% set _ = alertas.append(('cliente', 'Cotizaciones en Cliente hace más de 7 días', D.cotizaciones.en_cliente | length, 'dg2-medio')) %}
+      {% set _ = alertas.append(('sinwo', 'Aprobadas sin WO (no pueden sustentar)', D.cotizaciones.sin_wo | length, 'dg2-medio')) %}
+      {% set _ = alertas.append(('sinfotos', 'Sustentos aprobados sin fotos', D.cotizaciones.sin_fotos | length, 'dg2-mal')) %}
+    {% endif %}
+    {% if D.operacion %}{% set _ = alertas.append(('vencidos', 'Casos FLM vencidos (SLA)', D.total_vencidos, 'dg2-mal')) %}{% endif %}
+    <ul class="dg2-alertas">
+      {% for clave, texto, n, clase in alertas %}
+      <li><button type="button" data-alerta="{{ clave }}" {% if not n %}disabled{% endif %}><span>{{ texto }}</span><b class="{{ clase if n }}">{{ n }}</b><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button></li>
+      {% endfor %}
+    </ul>
+  </article>
+</div>
+
+<article class="dg2-card dg2-detalle" id="dg2-detalle" hidden>
+  <header><h2 id="dg2-detalle-titulo"></h2><button type="button" id="dg2-detalle-cerrar" aria-label="Cerrar" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+  <div class="dg2-tabla-scroll"><table class="dg2-tabla"><thead id="dg2-detalle-cab"></thead><tbody id="dg2-detalle-filas"></tbody></table></div>
+</article>
+</section>
+<script id="dg2-data" type="application/json">{{ {'tecnicos': D.caja.atrasados if D.caja else [], 'cliente': D.cotizaciones.en_cliente if D.cotizaciones else [],
+  'sinwo': D.cotizaciones.sin_wo if D.cotizaciones else [], 'sinfotos': D.cotizaciones.sin_fotos if D.cotizaciones else [], 'vencidos': D.vencidos} | tojson }}</script>
+<script>
+(() => {
+  const datos = JSON.parse(document.getElementById('dg2-data').textContent);
+  const soles = v => 'S/ ' + Number(v || 0).toLocaleString('es-PE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const TABLAS = {
+    tecnicos: ['Técnicos con gastos por rendir de más de 15 días', [['Técnico', 'tecnico'], ['Proyecto', 'proyecto'], ['Por rendir', 'monto', soles], ['Gastos', 'gastos'], ['Días (el más antiguo)', 'dias'], ['Solicitudes', 'solicitudes']]],
+    cliente: ['Cotizaciones en Cliente hace más de 7 días', [['Cotización', 'cotizacion'], ['Cliente', 'cliente'], ['Monto', 'monto', soles], ['Gestor', 'gestor'], ['Fecha', 'fecha'], ['Días', 'dias']]],
+    sinwo: ['Cotizaciones aprobadas sin WO', [['Cotización', 'cotizacion'], ['Cliente', 'cliente'], ['Monto', 'monto', soles], ['Gestor', 'gestor'], ['Fecha', 'fecha'], ['WO', 'wo']]],
+    sinfotos: ['Sustentos aprobados sin fotos', [['Cotización', 'cotizacion'], ['Cliente', 'cliente'], ['Monto', 'monto', soles], ['Gestor', 'gestor'], ['WO', 'wo']]],
+    vencidos: ['Casos FLM vencidos (SLA), del más atrasado al menos', [['Ticket', 'ticket'], ['Proyecto', 'proyecto'], ['Site', 'site'], ['Técnico', 'tecnico'], ['Vencido hace (h)', 'horas']]],
+  };
+  const caja = document.getElementById('dg2-detalle');
+  document.querySelectorAll('[data-alerta]').forEach(b => b.addEventListener('click', () => {
+    const [titulo, cols] = TABLAS[b.dataset.alerta], filas = datos[b.dataset.alerta] || [];
+    document.getElementById('dg2-detalle-titulo').textContent = titulo + ' · ' + filas.length;
+    const cab = document.getElementById('dg2-detalle-cab'), cuerpo = document.getElementById('dg2-detalle-filas');
+    const tr = document.createElement('tr'); cols.forEach(([t]) => { const th = document.createElement('th'); th.textContent = t; tr.append(th); }); cab.replaceChildren(tr);
+    cuerpo.replaceChildren(...filas.map(f => { const r = document.createElement('tr'); cols.forEach(([, k, fmt]) => { const td = document.createElement('td'); td.textContent = fmt ? fmt(f[k]) : (f[k] ?? ''); r.append(td); }); return r; }));
+    caja.hidden = false; caja.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }));
+  document.getElementById('dg2-detalle-cerrar').addEventListener('click', () => { caja.hidden = true; });
+})();
+</script>
+{% endblock %}

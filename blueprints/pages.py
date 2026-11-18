@@ -591,8 +591,13 @@ def analytics_gerencial():
     user_id, user_rol, _ = get_session_info()
     if user_rol in ('contrata', 'gestor'):
         return redirect(url_for('pages.index'))
-    from services.dashboard_gerencial import resumen
     proyectos = get_menu_proyectos(user_id, user_rol)
+    # Vista nueva: operación FLM, Caja Chica, cotizaciones y alertas. La anterior queda en ?vista=clasica.
+    if request.args.get('vista') != 'clasica':
+        from services.dashboard_gerencial_v2 import resumen as resumen_v2
+        return render_template('dashboard_gerencial_v2.html', proyectos_list=proyectos,
+                               dashboard=resumen_v2(proyectos, request.args.get('periodo', 'mes')))
+    from services.dashboard_gerencial import resumen
     dashboard = resumen(proyectos, user_id, user_rol)
     return render_template('dashboard_gerencial.html', proyectos_list=proyectos, dashboard=dashboard)
 
