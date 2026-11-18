@@ -213,7 +213,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
         return cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, item['id']), headers=h,
                         data={'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': gastado, 'fotos': [foto()],
                               'evidencia': foto('uso.png'), 'razon_social': 'FERRETERIA EL PERNO SAC'})
-    assert rendir(items[0], '60').status_code == 400  # más que el ítem
+    # Gastar más que el ítem ya se permite (lo revisa la responsable); ver test_rendir_puede_gastar_mas_de_lo_depositado.
     sin_evidencia = cli.post('/form-pruebas/caja-chica/%d/item/%d/rendir' % (sid, items[0]['id']), headers=h,
                              data={'ruc': '20123456789', 'comprobante': 'F001-1', 'monto_gastado': '50', 'fotos': [foto()]})
     assert sin_evidencia.status_code == 400 and 'evidencia' in sin_evidencia.json['error']
@@ -366,7 +366,7 @@ def test_rendir_varios_comprobantes_con_su_foto_y_evidencias(app, auth_client, t
         if fotos:
             d['comp_foto_0'], d['comp_foto_1'] = foto('b1.png'), foto('b2.png')
         return d
-    assert cli.post(url, headers=h, data=datos(montos=('60', '50'))).status_code == 400  # suma más que el ítem
+    # Gastar más que el ítem ya se permite (lo revisa la responsable); ver test_rendir_puede_gastar_mas_de_lo_depositado.
     repetida = cli.post(url, headers=h, data=datos(numeros=('B001-452', 'B001-452'), rucs=('20123456789',) * 2))
     assert repetida.status_code == 400 and 'ya está' in repetida.json['error']
     sin_foto = cli.post(url, headers=h, data=datos(fotos=False))
@@ -953,3 +953,25 @@ def test_refacturable_no_se_rinde_y_solo_gasto_cobra_va_a_devolucion(app, auth_c
     s = auth_client.post('/api/caja-chica/%d/revisar_item' % sid, json={'item': s['items'][0]['id'], 'aprobar': False,
                                                                       'motivo': 'Sin correo de aprobación del cliente'}).json['solicitud']
     assert s['items'][0]['estado'] == 'RECHAZADO' and not s['items'][0]['refacturable_auto']
+
+
+def test_rendir_sin_tope_de_comprobantes():
+    from types import SimpleNamespace
+    from decimal import Decimal
+    import services.caja_chica as cc
+    sol = SimpleNamespace(documento='111', estado='DEPOSITADO')
+    item = SimpleNamespace(estado='POR_RENDIR', monto=Decimal('1000'))
+    comps = [{'ruc': '20123456789', 'comprobante': 'B001-%d' % n, 'monto': '40'} for n in range(1, 21)]
+    limpios = cc.preparar_rendicion(sol, item, '111', comps, lambda v: Decimal(str(v)))
+    assert len(limpios) == 20
+
+
+def test_rendir_puede_gastar_mas_de_lo_depositado():
+    from types import SimpleNamespace
+    from decimal import Decimal
+    import services.caja_chica as cc
+    sol = SimpleNamespace(documento='111', estado='DEPOSITADO')
+    item = SimpleNamespace(estado='POR_RENDIR', monto=Decimal('100'))
+    comps = [{'ruc': '20123456789', 'comprobante': 'B001-1', 'monto': '130'}]
+    # Se acepta: la responsable de Caja Chica lo aprueba o rechaza al revisar.
+    assert cc.preparar_rendicion(sol, item, '111', comps, lambda v: Decimal(str(v)))[0]['monto'] == Decimal('130')

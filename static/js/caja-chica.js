@@ -140,7 +140,8 @@
     return {
       titulo: 'Rechazar ' + item.tipo_gasto, subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''),
       datos: [['Comprobante', (item.comprobantes || []).map(c => c.comprobante).join(' / ') || item.comprobante], ['Solicitado', dinero(item.monto)],
-        ['Gastó', item.monto_gastado && dinero(item.monto_gastado)], ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) : '', 'naranja']],
+        ['Gastó', item.monto_gastado && dinero(item.monto_gastado)], ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) : '', 'naranja'],
+        ['Excede lo depositado', sobrante < 0 && item.monto_gastado ? dinero(-sobrante) : '', 'rojo']],
       sugerencias: SUGERENCIAS.item, ayuda: 'El técnico verá este motivo y podrá corregir el ítem o devolverlo.',
     };
   }
@@ -908,6 +909,7 @@
       ...filasComp,
       ['Solicitado', dinero(item.monto)], ['Gastó', item.monto_gastado && dinero(item.monto_gastado)],
       ['Sobrante', sobrante > 0 && item.monto_gastado ? dinero(sobrante) + ' · va a devolución' : '', 'cc-rev-sobrante'],
+      ['Excede lo depositado', sobrante < 0 && item.monto_gastado ? dinero(-sobrante) + ' · gastó más de lo solicitado: apruébalo o recházalo' : '', 'cc-rev-excede'],
       ['Monto corregido', item.correccion, 'cc-rev-sobrante']]).querySelector('dl'));
     const evidencias = item.evidencias?.length ? item.evidencias : [item.evidencia].filter(Boolean);
     if (!item.fotos.length && !evidencias.length) {

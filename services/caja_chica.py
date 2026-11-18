@@ -31,7 +31,7 @@ from models import AppConfig, CajaChicaItem, CajaChicaSolicitud, Proyecto
 MODULO = 'Caja Chica'
 MAX_ITEMS = 20
 MAX_FOTOS = 5
-MAX_COMPROBANTES = 10
+MAX_COMPROBANTES = None  # sin tope: el técnico rinde todas las boletas o facturas que tenga
 # SUSTENTO: todo resuelto, la gestión lo revisa y lo archiva. Para el técnico ya terminó.
 ESTADOS_FINALES = ('SUSTENTO', 'ARCHIVADO', 'ANULADO')
 
@@ -340,7 +340,7 @@ def preparar_rendicion(sol, item, documento, comprobantes, importe):
     _exigir(sol.documento == documento, 'Esta solicitud no es tuya.')
     _exigir(sol.estado == 'DEPOSITADO', 'Solo se rinde una solicitud depositada.')
     _exigir(item.estado in ('POR_RENDIR', 'RECHAZADO'), 'Este ítem ya fue rendido.')
-    _exigir(1 <= len(comprobantes) <= MAX_COMPROBANTES, 'Agrega entre 1 y %d comprobantes.' % MAX_COMPROBANTES)
+    _exigir(len(comprobantes) >= 1, 'Agrega al menos un comprobante.')
     limpios, vistos = [], set()
     for n, datos in enumerate(comprobantes, 1):
         pre = 'Comprobante %d: ' % n if len(comprobantes) > 1 else ''
@@ -358,8 +358,7 @@ def preparar_rendicion(sol, item, documento, comprobantes, importe):
         limpios.append({'ruc': ruc, 'comprobante': numero, 'monto': monto,
                         'razon_social': str(datos.get('razon_social') or '').strip()[:200]})
     gastado = sum(c['monto'] for c in limpios)
-    _exigir(gastado <= item.monto, 'El monto gastado (S/ %s) no puede superar el monto del ítem (S/ %s).'
-            % (dinero(gastado), dinero(item.monto)))
+    # Puede gastar más de lo depositado: lo revisa la responsable de Caja Chica (aprueba o rechaza).
     return limpios
 
 
@@ -663,7 +662,6 @@ def corregir_monto(sol, item, usuario, montos, importe, comentario=''):
         except ValueError as exc:
             raise ValueError(('Comprobante %d: ' % n if len(comps) > 1 else '') + str(exc)) from None
     total = sum(nuevos, Decimal('0'))
-    _exigir(total <= item.monto, 'El monto (S/ %s) no puede superar lo solicitado (S/ %s).' % (dinero(total), dinero(item.monto)))
     antes = item.monto_gastado or Decimal('0')
     _exigir(total != antes, 'El monto es el mismo.')
     comentario = str(comentario or '').strip()[:300]
@@ -967,7 +965,7 @@ def exportar_excel(solicitudes, dataper=None):
         for item in solicitud.items:
             rendido = item.estado in ('APROBADO', 'EN_REVISION')
             gastado = (item.monto_gastado or cero) if rendido else cero
-            devuelto = item.monto if item.estado == 'DEVUELTO' else (item.monto - gastado if rendido else cero)
+            devuelto = item.monto if item.estado == 'DEVUELTO' else (max(item.monto - gastado, cero) if rendido else cero)
             if not depositada:
                 estado_rendicion = 'Sin depósito'
             elif refact.get(item.id) and item.estado == 'APROBADO':

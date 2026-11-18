@@ -79,7 +79,6 @@
     });
     return {casilla, input};
   }
-  const MAX_COMPROBANTES = 10;
   const aNumero = t => { const v = Number(String(t || '').replace(',', '.').trim()); return Number.isFinite(v) ? v : NaN; };
   // Rendir un ítem: uno o más comprobantes (RUC, N.º, monto y su foto) y de 1 a 3 fotos de evidencia.
   function formRendir(sol, item) {
@@ -150,7 +149,6 @@
         c.querySelector('.cc-comp-cab strong').textContent = 'Comprobante ' + (i + 1);
         c.querySelector('.cc-comp-quitar').hidden = cajas.length === 1;
       });
-      agregar.hidden = cajas.length >= MAX_COMPROBANTES;
       actualizar();
     }
     function actualizar() {
@@ -160,7 +158,7 @@
       const fila = (a, b, clase) => { const d = el('div', clase || null); d.append(el('dt', null, a), el('dd', null, b)); return d; };
       totales.replaceChildren(fila('Total gastado', dinero(gastado) + ' de ' + dinero(item.monto)),
         ...(resto > 0 && gastado > 0 ? [fila('Pasa a tu devolución', dinero(resto), 'dev')] : []),
-        ...(resto < 0 ? [fila('Excede lo depositado', dinero(-resto), 'alerta')] : []));
+        ...(resto < 0 ? [fila('Excede lo depositado (lo revisa Caja Chica)', dinero(-resto), 'alerta')] : []));
       totales.hidden = gastado <= 0;
       form.dataset.gastado = String(gastado);
       form.closest('.cc-rindiendo')?.dispatchEvent(new Event('input', {bubbles: true}));
@@ -210,7 +208,6 @@
         datos.append('comp_monto', v('monto')); datos.append('comp_razon', c.razonSocial || '');
         datos.append('comp_foto_' + i, c.foto.files[0]);
       });
-      if (Number(form.dataset.gastado) > Number(item.monto)) throw Error('El total gastado no puede superar ' + dinero(item.monto) + '.');
       const fotos = [...evidencias.querySelectorAll('.cc-evidencia input')].filter(i => i.files.length);
       if (!fotos.length) throw Error('Adjunta la foto de la evidencia del gasto.');
       fotos.forEach(i => datos.append('evidencia', i.files[0]));
