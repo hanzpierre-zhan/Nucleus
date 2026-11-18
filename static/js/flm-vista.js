@@ -204,7 +204,17 @@
     return chip;
   }
 
-  let tabla = null, grupo = '', texto = '', filtro = null, tipo = '';
+  let tabla = null, grupo = '', texto = '', filtro = null, tipo = '', fotos = '';
+  function tieneFotos(fila) {
+    return ['INICIO', 'PROCESO', 'CIERRE', 'RESGUARDO', 'FOTOS'].some(tipo => {
+      let lista = fila['_EVIDENCIA_' + tipo];
+      if (typeof lista === 'string') {
+        try { lista = JSON.parse(lista); } catch (_) { return false; }
+      }
+      return Array.isArray(lista) && lista.some(url => typeof url === 'string' && url.trim());
+    });
+  }
+  const coincideFotos = fila => !fotos || tieneFotos(fila) === (fotos === 'con');
   try { grupo = localStorage.getItem('fv-grupo') || ''; tipo = localStorage.getItem('fv-tipo') || ''; } catch (_) {}
   // Tipo de ticket: Task Type (CM, PM o PLM); si no lo trae, el prefijo del N.º de ticket (CM-…, PM-…, PLM-…).
   const tipoDe = f => {
@@ -241,14 +251,14 @@
     if (filtro) tabla.removeFilter(filtro);
     const campos = tabla.getColumns().filter(c => c.isVisible() && c.getField()).map(c => c.getField());
     const q = plano(texto.trim());
-    filtro = fila => (!tipo || tipoDe(fila) === tipo) && (!grupo || grupoDe(estadoDe(fila)) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
+    filtro = fila => coincideFotos(fila) && (!tipo || tipoDe(fila) === tipo) && (!grupo || grupoDe(estadoDe(fila)) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
     tabla.addFilter(filtro);
     pintarPestanas();
   }
 
   function pintarPestanas() {
     // Las pestañas cuentan solo el tipo elegido (CM, PM o PLM).
-    const datos = tabla.getData().filter(f => !tipo || tipoDe(f) === tipo), cuenta = {};
+    const datos = tabla.getData().filter(f => coincideFotos(f) && (!tipo || tipoDe(f) === tipo)), cuenta = {};
     datos.forEach(f => { const g = grupoDe(estadoDe(f)); cuenta[g] = (cuenta[g] || 0) + 1; });
     pestanas.replaceChildren(...GRUPOS.map(([clave, nombre, color, simbolo]) => {
       const b = el('button', 'cc-tab' + (grupo === clave ? ' activa' : '')); b.type = 'button'; b.setAttribute('role', 'tab');
@@ -276,6 +286,16 @@
     }
     const menu = $('module-settings-wrap');
     if (menu) { menu.classList.add('cc-ajustes'); $('btn-module-settings')?.classList.add('cc-ajustes-btn'); acciones.append(menu); }
+    const opciones = $('module-settings-menu');
+    if (opciones && !$('fv-filtro-fotos')) {
+      const caja = el('label', 'fv-filtro-fotos');
+      const titulo = el('span'); titulo.append(icono('fa-camera'), ' Fotos cargadas');
+      const selector = el('select', 'sla-periodo'); selector.id = 'fv-filtro-fotos';
+      selector.setAttribute('aria-label', 'Filtrar por fotos cargadas');
+      selector.append(new Option('Todos', ''), new Option('Con fotos', 'con'), new Option('Sin fotos', 'sin'));
+      selector.addEventListener('change', () => { fotos = selector.value; aplicar(); });
+      caja.append(titulo, selector); opciones.prepend(caja);
+    }
   }
 
   // Contador y paginación debajo de la tabla (la barra queda como en Caja Chica).

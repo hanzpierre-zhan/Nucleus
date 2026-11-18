@@ -257,3 +257,6 @@ body .vista-flm .fv-tipos .sla-tipo { min-height: 0 !important; padding: 4px 10p
 body .vista-flm .fv-tipos .sla-tipo.activo { background: #1d4ed8 !important; color: #fff !important; }
 /* SLA Cobra sin objetivo (Claro: SLA Hour vacío o 0) */
 .vista-flm .fv-chip-sla-sin { background: rgba(142, 142, 147, .18); color: var(--ios-secondary, #6b7280); text-transform: none; }
+.fv-filtro-fotos { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border-bottom: 1px solid var(--ios-hairline); font-size: 12px; }
+.fv-filtro-fotos > span { white-space: nowrap; }
+.fv-filtro-fotos select { max-width: 130px; font-size: 12px; }
