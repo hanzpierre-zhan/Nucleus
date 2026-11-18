@@ -7,7 +7,7 @@ Reglas:
 - Canceled no se mide.
 - Objetivo: SLA Hour (minutos). Resultado de un cerrado: SLA Status ("normal" cumple; "sla_violation" no).
 - Abiertos: vencido, por vencer (queda ≤ 25 % del objetivo o ≤ 60 min) o en plazo.
-- Técnico: Schedule Operator.
+- Técnico de Claro: Assign To FME Full Name (código Assign To FME).
 - Parada de reloj: Require Finish Time = inicio + SLA Hour + pausa; se descuenta en los abiertos.
 
 Entel (KPI OM Sitios):
@@ -218,7 +218,9 @@ def casos(proyecto):
         estado_ticket = str(d.get('Task Status') or '').strip().lower()
         salida.append({
             'ticket': str(d.get('Ticket Id') or clave), 'tipo': tipo, 'site': str(d.get('Site Name') or ''),
-            'tecnico': str(d.get('Schedule Operator') or '').strip(), 'estado_ticket': str(d.get('Task Status') or ''), 'fm_office': _fm_office(d),
+            'tecnico': str(d.get('Assign To FME') or d.get('Schedule Operator') or '').strip(),
+            'tecnico_nombre': str(d.get('Assign To FME Full Name') or '').strip(),
+            'estado_ticket': str(d.get('Task Status') or ''), 'fm_office': _fm_office(d),
             'fme': str(d.get('Assign To FME Full Name') or '').strip(),
             'inicio': inicio[:19], 'fin': str(d.get('Complete Time') or (d.get('FECHA CAMBIO ESTADO') if estado_ticket in ('completed', 'closed') else '') or '').strip()[:19],
             # Cerrado = el ticket ya está completed (o closed); ahí se usa SLA Status y SLA Hour.
@@ -232,7 +234,7 @@ def casos(proyecto):
             'pausa': _pausa_claro(inicio, d.get('Require Finish Time'), _minutos(d.get('SLA Hour'))),
         })
     for c in salida:
-        c['tecnico_nombre'] = nombres.get(c['tecnico'], '')
+        c['tecnico_nombre'] = c.get('tecnico_nombre') or nombres.get(c['tecnico'], '')
     return salida
 
 

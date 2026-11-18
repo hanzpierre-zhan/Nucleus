@@ -13,7 +13,8 @@ def test_sla_claro_inicio_dispatch_y_cierre_por_task_status(app, auth_client):
                         'Complete Time': '2026-11-10 11:00:00', 'SLA Hour': '240', 'SLA Status': 'normal', 'Schedule Operator': 'E1234567', 'Task Category': 'Caida',
                         'Create Operator ID': 'E1234567', 'Create Operator': 'JUAN PEREZ'}),
             ('PM-T-2', {'Ticket Id': 'PM-T-2', 'Task Type': 'PM', 'Dispatch Time': '2026-11-10 08:00:00', 'Arrive Time': '2026-11-10 09:30:00',
-                        'SLA Hour': '150', 'SLA Status': 'normal', 'Schedule Operator': 'E7654321'}),
+                        'SLA Hour': '150', 'SLA Status': 'normal', 'Schedule Operator': 'E7654321',
+                        'Assign To FME': 'E9999999', 'Assign To FME Full Name': 'TÉCNICO ASIGNADO'}),
             ('PLM-T-3', {'Ticket Id': 'PLM-T-3', 'Task Status': 'canceled', 'Task Type': 'PLM'}))]
         db.session.add_all(filas); db.session.commit()
         ids = [f.id for f in filas]
@@ -26,6 +27,8 @@ def test_sla_claro_inicio_dispatch_y_cierre_por_task_status(app, auth_client):
         assert casos['CM-T-1']['cerrado'] is True
         # PM/PLM cuentan desde Arrive Time; abierto mientras no esté completed.
         assert casos['PM-T-2']['inicio'] == '2026-11-10 09:30:00' and casos['PM-T-2']['cerrado'] is False
+        assert casos['PM-T-2']['tecnico'] == 'E9999999'
+        assert casos['PM-T-2']['tecnico_nombre'] == 'TÉCNICO ASIGNADO'
         assert 'PLM-T-3' not in casos  # cancelados fuera
         assert auth_client.get('/api/sla/otro').status_code == 404
         # PEXT aún no tiene criterios: no se calcula.

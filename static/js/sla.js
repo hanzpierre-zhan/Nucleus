@@ -151,7 +151,8 @@
     popFiltro = pop; buscar.focus();
   }
 
-  const nombreTec = c => c.tecnico ? c.tecnico + (c.tecnico_nombre ? ' · ' + c.tecnico_nombre : '') : 'Sin técnico';
+  const nombreTec = c => proyecto === 'CLARO' ? c.tecnico_nombre || c.fme || 'Sin nombre asignado'
+    : c.tecnico ? c.tecnico + (c.tecnico_nombre ? ' · ' + c.tecnico_nombre : '') : 'Sin técnico';
 
   function pintar() {
     const lista = cache[proyecto];
@@ -177,9 +178,16 @@
       ? {tecnico: 'assign_to_fme', dispatch: 'dispatch_time', arrive: 'arrive_time', fin: 'SubmitTime(complete)', objetivo: 'Fault Level · objetivo', categoria: 'Task Category', fm_office: 'fm_office'}
       : integratel
       ? {tecnico: 'Assign To Fme', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'First Complete Time', objetivo: 'Sla (min) / Require Finish', categoria: 'Task Category', fm_office: 'Fm Office'}
-      : {tecnico: 'Schedule Operator', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'Complete Time', objetivo: 'SLA Hour', categoria: 'Task Category', fm_office: proyecto === 'PEXT' ? 'Departamento' : 'FM Office'};
+      : {tecnico: proyecto === 'CLARO' ? 'Técnico asignado' : 'Schedule Operator', dispatch: 'Dispatch Time', arrive: 'Arrive Time', fin: 'Complete Time', objetivo: 'SLA Hour', categoria: 'Task Category', fm_office: proyecto === 'PEXT' ? 'Departamento' : 'FM Office'};
     prepararEncabezado();
     document.querySelectorAll('[data-cabecera]').forEach(h => { const t = h.querySelector('.sla-th-txt') || h; t.textContent = CABECERAS[h.dataset.cabecera] || t.textContent; });
+    const vistaBacklog = filtro === 'backlog';
+    document.querySelector('.sla-tabla').classList.toggle('sla-tabla-backlog', vistaBacklog);
+    document.querySelectorAll('.sla-encabezado [data-col]').forEach(h => {
+      h.hidden = vistaBacklog && ['fin', 'objetivo', 'sla_status'].includes(h.dataset.col);
+      if (h.dataset.col === 'uso') h.querySelector('.sla-th-txt').textContent = vistaBacklog ? 'Tiempo abierto' : 'Tiempo SLA';
+      if (h.dataset.col === 'estado') h.querySelector('.sla-th-txt').textContent = vistaBacklog ? 'Task Status' : 'Estado';
+    });
     // Categorías del proyecto (Task Category) para el filtro.
     const sel = $('sla-categoria'), cats = [...new Set(lista.map(c => c.categoria).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
     if (sel.dataset.proyecto !== proyecto) {
@@ -268,9 +276,24 @@
       const [nombre, simbolo, cls] = ESTADOS[c.estado];
       const fila = el('div', 'sla-fila ' + cls); fila.setAttribute('role', 'row');
       const t = el('span', 'sla-dos'); t.append(el('strong', 'sla-ticket', c.ticket), el('small', null, c.site || '—'));
-      const tec = el('span', 'sla-dos'); tec.append(el('span', null, c.tecnico || '—'), el('small', null, c.tecnico_nombre || ''));
+      const tec = el('span', 'sla-dos');
+      if (proyecto === 'CLARO') tec.append(el('strong', null, nombreTec(c)));
+      else tec.append(el('span', null, c.tecnico || '—'), el('small', null, c.tecnico_nombre || ''));
       // Columnas reales; la fecha con la que empieza el SLA va resaltada (CM: Dispatch; PM/PLM: Arrive).
       const celdaFecha = (valor, usada) => { const s = el('span', 'sla-fecha' + (usada ? ' sla-fecha-inicio' : ''), valor || '—'); if (usada) s.title = 'Desde aquí cuenta el SLA'; return s; };
+      if (vistaBacklog) {
+        tec.classList.add('sla-backlog-tecnico');
+        const actual = plano(c.estado_ticket).replace(/[\s_-]/g, '');
+        const color = /dispatch/.test(actual) ? 'dispatch' : /process|arriv|depart|start/.test(actual) ? 'proceso' : /suspend|pause|hold/.test(actual) ? 'pausa' : 'otro';
+        const etiqueta = el('strong', 'sla-wo-estado sla-wo-' + color, c.estado_ticket || 'Sin estado');
+        const timer = el('strong', 'sla-backlog-timer');
+        timer.dataset.backlogDispatch = String(fecha(c.dispatch).getTime());
+        timer.title = 'Tiempo abierto desde Dispatch · días y horas:minutos:segundos';
+        fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'),
+          el('span', 'sla-categoria', c.fm_office || '—'), tec, celdaFecha(c.dispatch, true), celdaFecha(c.arrive, false), timer, etiqueta);
+        cuerpo.append(fila);
+        continue;
+      }
       const reales = [celdaFecha(c.dispatch, c.tipo === 'CM'), celdaFecha(c.arrive, c.tipo !== 'CM'), celdaFecha(c.fin, false),
         el('span', 'sla-num', c.sla_hour ? (/^\d+(\.\d+)?$/.test(c.sla_hour) ? c.sla_hour + ' min' : c.sla_hour) : '—'),
         estadoSla(c)];
@@ -286,24 +309,9 @@
         tiempo.append(cab, p);
       }
       const estado = el('span', 'sla-estado');
-      if (filtro === 'backlog') tiempo.append(el('small', null, 'Desde Dispatch: ' + duracion((ahora - fecha(c.dispatch)) / 60000)));
       estado.append(icono(simbolo), el('span', null, c.estado === 'vencido' ? 'Vencido · hace ' + duracion(-c.resto)
         : [...SIN_MEDIR, 'cumple', 'no_cumple'].includes(c.estado) ? nombre : nombre + ' · quedan ' + duracion(c.resto)));
-      let celdaEstado = estado;
-      if (filtro === 'backlog') {
-        const actual = plano(c.estado_ticket).replace(/[\s_-]/g, '');
-        const color = /dispatch/.test(actual) ? 'dispatch' : /process|arriv|depart|start/.test(actual) ? 'proceso' : /suspend|pause|hold/.test(actual) ? 'pausa' : 'otro';
-        const etiqueta = el('strong', 'sla-wo-estado sla-wo-' + color, c.estado_ticket || 'Sin estado');
-        etiqueta.title = 'Estado actual de la WO';
-        const destacado = el('span', 'sla-backlog-destacado');
-        const timer = el('strong', 'sla-backlog-timer');
-        timer.dataset.backlogDispatch = String(fecha(c.dispatch).getTime());
-        timer.title = 'Días y horas:minutos:segundos abierto desde Dispatch, sin descontar pausas';
-        destacado.append(el('small', 'sla-backlog-label', 'Task Status'), etiqueta,
-          el('small', 'sla-backlog-label', 'Tiempo abierto'), timer);
-        t.prepend(destacado);
-      }
-      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), el('span', 'sla-categoria', c.fm_office || '—'), tec, ...reales, tiempo, celdaEstado);
+      fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), el('span', 'sla-categoria', c.fm_office || '—'), tec, ...reales, tiempo, estado);
       cuerpo.append(fila);
     }
     if (visibles.length > 400) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 400 de ' + visibles.length + '. Usa la búsqueda o los filtros.'));
@@ -382,7 +390,8 @@
     const ahora = new Date();
     const filas = cache[proyecto].filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria)).map(c => {
       const m = c.cerrado ? null : medir(c, ahora);
-      return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Task Category': c.categoria, 'FM Office': c.fm_office || '', 'Site': c.site, 'Schedule Operator': c.tecnico, 'Nombre': c.tecnico_nombre,
+      return {'Ticket': c.ticket, 'Tipo': c.tipo, 'Task Category': c.categoria, 'FM Office': c.fm_office || '', 'Site': c.site,
+        [proyecto === 'CLARO' ? 'Assign To FME' : 'Schedule Operator']: c.tecnico, 'Nombre': c.tecnico_nombre,
         'Dispatch Time': c.dispatch, 'Arrive Time': c.arrive, 'Complete Time': c.fin, 'SLA Hour': c.sla_hour, 'SLA Status': c.sla_status_original, 'Resultado SLA': resultadoSla(c),
         'Inicio SLA usado': c.inicio, 'Objetivo (min)': c.objetivo || '', 'Task Status': c.estado_ticket, 'Estado': c.cerrado ? (cumple(c) ? 'Cerrado · cumple' : 'Cerrado · no cumple') : ESTADOS[m.estado][0],
         'Minutos restantes': m && m.resto !== null ? Math.round(m.resto) : '',

@@ -55,6 +55,12 @@ body .sla-chip.activo { background: #1d4ed8 !important; border-color: #1d4ed8 !i
 .sla-wo-proceso { background: #0f766e; }
 .sla-wo-pausa { background: #92400e; }
 .sla-wo-otro { background: #475569; }
+.sla-tabla-backlog .sla-fila { grid-template-columns: minmax(185px, 1.25fr) 40px minmax(95px, .7fr) minmax(110px, .8fr) minmax(200px, 1.5fr) 145px 145px 150px 110px; min-width: 1260px; padding: 8px 12px; gap: 10px; }
+.sla-tabla-backlog .sla-encabezado [hidden] { display: none; }
+.sla-tabla-backlog .sla-backlog-tecnico strong { white-space: normal; overflow-wrap: anywhere; font-size: 13px; line-height: 1.4; color: var(--ios-label); }
+.sla-tabla-backlog .sla-backlog-timer { font-size: 15px; }
+.sla-tabla-backlog .sla-wo-estado { font-size: 12px; padding: 4px 10px; justify-self: start; }
+.sla-tabla-backlog .sla-dos small { white-space: normal; }
 .sla-backlog-destacado { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid #ef4444; border-radius: 12px; background: var(--ios-card-bg, var(--ios-fill)); }
 .sla-backlog-label { font-size: 10px !important; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 .sla-backlog-destacado .sla-wo-estado { font-size: 15px; padding: 6px 12px; }
