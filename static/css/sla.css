@@ -55,6 +55,11 @@ body .sla-chip.activo { background: #1d4ed8 !important; border-color: #1d4ed8 !i
 .sla-wo-proceso { background: #0f766e; }
 .sla-wo-pausa { background: #92400e; }
 .sla-wo-otro { background: #475569; }
+.sla-backlog-destacado { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; padding: 8px 10px; border: 1px solid #ef4444; border-radius: 12px; background: var(--ios-card-bg, var(--ios-fill)); }
+.sla-backlog-label { font-size: 10px !important; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.sla-backlog-destacado .sla-wo-estado { font-size: 15px; padding: 6px 12px; }
+.sla-backlog-timer { font-size: 19px; line-height: 1.2; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; color: #b91c1c; }
+body.dark-mode .sla-backlog-timer { color: #fca5a5; }
 /* Color llamativo por registro según urgencia. */
 .sla-fila.sla-rojo { border-left-color: #dc2626; background: rgba(239, 68, 68, .06); }
 .sla-fila.sla-rojo .sla-estado { background: rgba(239, 68, 68, .16); color: #b91c1c; }

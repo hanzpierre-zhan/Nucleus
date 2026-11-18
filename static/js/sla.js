@@ -22,6 +22,15 @@
   // Fechas guardadas como "2026-11-02 14:47:13" (hora de Perú, la del navegador).
   const fecha = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : null; };
   const duracion = min => { min = Math.round(Math.abs(min)); const d = Math.floor(min / 1440), h = Math.floor(min % 1440 / 60), m = min % 60; return (d ? d + ' d ' : '') + (d || h ? h + ' h ' : '') + m + ' min'; };
+  function actualizarTimers() {
+    document.querySelectorAll('[data-backlog-dispatch]').forEach(timer => {
+      const segundos = Math.max(0, Math.floor((Date.now() - Number(timer.dataset.backlogDispatch)) / 1000));
+      const dias = Math.floor(segundos / 86400);
+      const reloj = [Math.floor(segundos % 86400 / 3600), Math.floor(segundos % 3600 / 60), segundos % 60]
+        .map(n => String(n).padStart(2, '0')).join(':');
+      timer.textContent = dias + ' d · ' + reloj;
+    });
+  }
   const esBacklog = (c, ahora) => {
     const dispatch = fecha(c.dispatch);
     return c.tipo === 'CM' && !c.cerrado && !/cancel/i.test(c.estado_ticket || '') && dispatch && ahora - dispatch > 48 * 3600000;
@@ -286,13 +295,19 @@
         const color = /dispatch/.test(actual) ? 'dispatch' : /process|arriv|depart|start/.test(actual) ? 'proceso' : /suspend|pause|hold/.test(actual) ? 'pausa' : 'otro';
         const etiqueta = el('strong', 'sla-wo-estado sla-wo-' + color, c.estado_ticket || 'Sin estado');
         etiqueta.title = 'Estado actual de la WO';
-        celdaEstado = el('span', 'sla-dos sla-backlog-estado');
-        celdaEstado.append(etiqueta, estado);
+        const destacado = el('span', 'sla-backlog-destacado');
+        const timer = el('strong', 'sla-backlog-timer');
+        timer.dataset.backlogDispatch = String(fecha(c.dispatch).getTime());
+        timer.title = 'Días y horas:minutos:segundos abierto desde Dispatch, sin descontar pausas';
+        destacado.append(el('small', 'sla-backlog-label', 'Task Status'), etiqueta,
+          el('small', 'sla-backlog-label', 'Tiempo abierto'), timer);
+        t.prepend(destacado);
       }
       fila.append(t, el('span', 'sla-tipo-chip', c.tipo), el('span', 'sla-categoria', c.categoria || '—'), el('span', 'sla-categoria', c.fm_office || '—'), tec, ...reales, tiempo, celdaEstado);
       cuerpo.append(fila);
     }
     if (visibles.length > 400) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 400 de ' + visibles.length + '. Usa la búsqueda o los filtros.'));
+    actualizarTimers();
 
     const caja = $('sla-tecnicos'); caja.replaceChildren();
     if (!tecs.length) caja.append(el('p', 'cc-vacio', 'Sin casos abiertos ni cerrados en el periodo.'));
@@ -383,4 +398,5 @@
   cargar(proyecto).then(filtroInicial).then(pintar).then(() => Promise.all(disponibles.filter(p => p !== proyecto).map(cargar)));
   // Cuenta regresiva: se recalcula cada minuto para avisar antes de que venza.
   setInterval(pintar, 60000);
+  setInterval(actualizarTimers, 1000);
 })();
