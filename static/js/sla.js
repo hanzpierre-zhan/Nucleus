@@ -173,7 +173,7 @@
       sel.replaceChildren(new Option('Todas las categorías', ''), ...cats.map(c => new Option(c, c)));
       sel.dataset.proyecto = proyecto; if (!cats.includes(categoria)) categoria = ''; sel.value = categoria;
     }
-    const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre + ' ' + (c.fm_office || '')).includes(q)));
+    const delTipo = lista.filter(c => (!tipo || c.tipo === tipo) && (!categoria || c.categoria === categoria) && (!q || plano(c.ticket + ' ' + c.site + ' ' + c.tecnico + ' ' + c.tecnico_nombre + ' ' + (c.fme || '') + ' ' + (c.fm_office || '')).includes(q)));
     const abiertos = delTipo.filter(c => !c.cerrado).map(c => ({...c, ...medir(c, ahora)}));
     const cerrados = delTipo.filter(c => c.cerrado && enPeriodo(c));
     const cumplidos = cerrados.filter(cumple).length;
@@ -210,9 +210,14 @@
     tarjeta('sla-gris', 'fa-circle-question', 'Sin medir', sinMedir, [cuenta('sin_inicio') + ' sin inicio', cuenta('sla_cero') + ' con SLA en 0', cuenta('sin_objetivo') + (entel ? ' sin regla' : ' sin SLA')].join(' · '), 'sin_medir');
 
     // Cumplimiento por técnico (cerrados del periodo), de menor a mayor para ver primero a quién apoyar.
+    // Por técnico: el técnico asignado (nombre) con su backlog abierto y su SLA de los cerrados del periodo.
+    const fmeDe = c => String(c.fme || '').trim() || 'Sin técnico asignado';
     const porTec = {};
-    for (const c of cerrados) { const k = c.tecnico || ''; const x = porTec[k] ||= {c, total: 0, ok: 0}; x.total++; if (cumple(c)) x.ok++; }
-    const tecs = Object.values(porTec).map(x => ({...x, pct: x.ok / x.total * 100})).sort((a, b) => a.pct - b.pct || b.total - a.total);
+    const tecDe = k => porTec[k] ||= {nombre: k, abiertos: 0, vencido: 0, por_vencer: 0, en_plazo: 0, sin: 0, cerrados: 0, ok: 0};
+    for (const c of abiertos) { const x = tecDe(fmeDe(c)); x.abiertos++; if (['vencido', 'por_vencer', 'en_plazo'].includes(c.estado)) x[c.estado]++; else x.sin++; }
+    for (const c of cerrados) { const x = tecDe(fmeDe(c)); x.cerrados++; if (cumple(c)) x.ok++; }
+    const tecs = Object.values(porTec).map(x => ({...x, pct: x.cerrados ? x.ok / x.cerrados * 100 : null}))
+      .sort((a, b) => b.vencido - a.vencido || b.por_vencer - a.por_vencer || b.abiertos - a.abiertos || (a.pct ?? 101) - (b.pct ?? 101));
 
     // Filtros rápidos de la lista
     const filtros = $('sla-filtros'); filtros.replaceChildren();
@@ -274,14 +279,36 @@
     if (visibles.length > 400) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 400 de ' + visibles.length + '. Usa la búsqueda o los filtros.'));
 
     const caja = $('sla-tecnicos'); caja.replaceChildren();
-    if (!tecs.length) caja.append(el('p', 'cc-vacio', 'Sin casos cerrados en el periodo.'));
+    if (!tecs.length) caja.append(el('p', 'cc-vacio', 'Sin casos abiertos ni cerrados en el periodo.'));
+    else {
+      const leyenda = el('p', 'sla-tec-leyenda');
+      leyenda.append('Técnico asignado, ordenado por lo más urgente de su backlog.',
+        ...[['vencido', 'Vencidos'], ['por_vencer', 'Por vencer'], ['en_plazo', 'En plazo'], ['sin', 'Sin medir']].map(([k, t]) => el('span', 'sla-tec-punto sla-tec-' + k, t)),
+        'Clic en un técnico para ver sus casos abiertos.');
+      caja.append(leyenda);
+    }
+    const NOMBRES_ESTADO = {vencido: 'vencidos', por_vencer: 'por vencer', en_plazo: 'en plazo', sin: 'sin medir'};
     for (const x of tecs) {
-      const fila = el('div', 'sla-tec'), cab = el('div', 'sla-tec-cab');
-      cab.append(el('strong', null, nombreTec(x.c)), el('span', null, x.pct.toFixed(1) + ' % · ' + x.total + ' casos'));
-      const p = el('div', 'sla-pista'), f = el('span'); f.style.width = x.pct + '%'; f.dataset.nivel = x.pct >= 90 ? 'ok' : x.pct >= 80 ? 'medio' : 'bajo'; p.append(f);
-      const abiertosTec = abiertos.filter(c => c.tecnico === x.c.tecnico && ['vencido', 'por_vencer'].includes(c.estado)).length;
-      fila.append(cab, p); if (abiertosTec) fila.append(el('small', 'sla-tec-alerta', abiertosTec + ' abierto(s) vencido(s) o por vencer'));
-      caja.append(fila);
+      const tarjeta = el('button', 'sla-tec' + (x.vencido ? ' con-vencidos' : x.por_vencer ? ' con-por-vencer' : '')); tarjeta.type = 'button';
+      tarjeta.title = 'Ver los casos abiertos de ' + x.nombre;
+      const cab = el('div', 'sla-tec-cab');
+      cab.append(el('strong', null, x.nombre), el('span', 'sla-tec-backlog', x.abiertos ? x.abiertos + ' en backlog' : 'Sin backlog'));
+      const barra = el('div', 'sla-tec-barra' + (x.abiertos ? '' : ' vacia'));
+      const cifras = el('div', 'sla-tec-cifras');
+      for (const k of Object.keys(NOMBRES_ESTADO)) {
+        if (!x[k]) continue;
+        const tramo = el('span', 'sla-tec-' + k); tramo.style.flex = String(x[k]); tramo.title = x[k] + ' ' + NOMBRES_ESTADO[k]; barra.append(tramo);
+        cifras.append(el('span', 'sla-tec-punto sla-tec-' + k, x[k] + ' ' + NOMBRES_ESTADO[k]));
+      }
+      const pie = el('div', 'sla-tec-pie');
+      if (x.pct === null) pie.append(el('span', null, 'Sin cierres en el periodo'));
+      else {
+        const nivel = x.pct >= 95 ? 'ok' : x.pct >= 85 ? 'medio' : 'bajo';
+        pie.append(el('span', null, 'SLA de cerrados: '), el('strong', 'sla-tec-sla-' + nivel, x.pct.toFixed(1) + ' %'), el('span', null, ' · ' + x.ok + ' de ' + x.cerrados));
+      }
+      tarjeta.append(cab, barra, cifras, pie);
+      tarjeta.addEventListener('click', () => { $('cc-buscar').value = x.nombre === 'Sin técnico asignado' ? '' : x.nombre; filtro = ''; pintar(); });
+      caja.append(tarjeta);
     }
     $('sla-reloj').textContent = 'Actualizado ' + ahora.toLocaleTimeString('es-PE', {hour: '2-digit', minute: '2-digit'});
   }

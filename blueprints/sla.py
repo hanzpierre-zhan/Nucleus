@@ -103,7 +103,7 @@ def _caso_entel(d, clave):
     tecnico = str(d.get('assign_to_fme') or '').strip()
     return {
         'ticket': str(d.get('Ticket ID') or clave), 'tipo': _tipo(d, clave) or 'CM', 'site': str(d.get('Site Name(create)') or ''),
-        'tecnico': tecnico, 'tecnico_nombre': '', 'estado_ticket': estado, 'fm_office': _fm_office(d),
+        'tecnico': tecnico, 'tecnico_nombre': '', 'fme': tecnico, 'estado_ticket': estado, 'fm_office': _fm_office(d),
         'inicio': inicio, 'fin': fin if cerrado else '', 'cerrado': cerrado,
         'dispatch': inicio, 'arrive': str(d.get('arrive_time') or '').strip()[:19],
         'sla_hour': (nivel + ' · ' + (f'{horas // 24} días' if horas and horas >= 720 else f'{horas} h')) if horas else (nivel or ''),
@@ -168,6 +168,7 @@ def _caso_integratel(d, clave, ahora):
         'ticket': str(d.get('Task Id') or clave), 'tipo': tipo, 'site': str(d.get('Site Id Name') or d.get('Site Id') or ''),
         'fm_office': _fm_office(d),
         'tecnico': str(d.get('Assign To Fme') or '').strip(), 'tecnico_nombre': str(d.get('Assign To Fme Full Name') or '').strip().title(),
+        'fme': str(d.get('Assign To Fme Full Name') or '').strip(),
         'estado_ticket': estado, 'inicio': inicio, 'fin': fin, 'cerrado': cerrado,
         'dispatch': inicio, 'arrive': str(d.get('Arrive Time') or '').strip()[:19],
         'sla_hour': meta, 'categoria': str(d.get('Task Category') or '').strip(), 'sla_status_original': original,
@@ -218,6 +219,7 @@ def casos(proyecto):
         salida.append({
             'ticket': str(d.get('Ticket Id') or clave), 'tipo': tipo, 'site': str(d.get('Site Name') or ''),
             'tecnico': str(d.get('Schedule Operator') or '').strip(), 'estado_ticket': str(d.get('Task Status') or ''), 'fm_office': _fm_office(d),
+            'fme': str(d.get('Assign To FME Full Name') or '').strip(),
             'inicio': inicio[:19], 'fin': str(d.get('Complete Time') or (d.get('FECHA CAMBIO ESTADO') if estado_ticket in ('completed', 'closed') else '') or '').strip()[:19],
             # Cerrado = el ticket ya está completed (o closed); ahí se usa SLA Status y SLA Hour.
             'cerrado': estado_ticket in ('completed', 'closed'),
