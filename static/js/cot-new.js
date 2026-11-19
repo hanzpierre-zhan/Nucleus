@@ -18,6 +18,8 @@
   const puedeGestionar = seccion.dataset.gestionar === 'si';
   // Casillas para marcar una o varias cotizaciones y eliminarlas (solo administradores y supervisores).
   const puedeEliminar = seccion.dataset.eliminar === 'si';
+  // zeno y suport: pueden corregir cualquier campo de una cotización (ventana "Editar campos").
+  const puedeAdminCampos = seccion.dataset.adminCampos === 'si';
   const seleccionadas = new Set();
   const botonEliminar = $('cc-eliminar');
   let eliminando = false;
@@ -841,6 +843,64 @@
     $('cc-solicitud-contenido').replaceChildren(cols);
     if (!dialogo.open) dialogo.showModal();
   }
+  // ── Editar campos (solo zeno y suport): todos los campos del registro; muestra los cambios antes de guardar ──
+  async function editarCampos(c) {
+    const r = await fetch('/api/cot-new/admin-campos?key=' + encodeURIComponent(c.key));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { avisar(j.error || 'No se pudieron cargar los campos.'); return; }
+    const originales = Object.fromEntries(j.campos.map(x => [x.campo, x.valor]));
+    const izquierda = el('section', 'cc-ficha cn-admin-campos');
+    const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-pen-to-square'), el('span', null, 'Campos (' + j.campos.length + ')')); izquierda.append(h);
+    const filtros = el('div', 'cn-admin-filtros');
+    const buscar = Object.assign(el('input'), {type: 'search', id: 'cn-admin-buscar', placeholder: 'Buscar campo…'});
+    buscar.setAttribute('aria-label', 'Buscar campo');
+    const soloMod = el('label', 'cn-admin-solo'); const chSolo = Object.assign(el('input'), {type: 'checkbox', id: 'cn-admin-solo'}); soloMod.append(chSolo, ' Solo modificados');
+    filtros.append(buscar, soloMod); izquierda.append(filtros);
+    const rejilla = el('div', 'cn-admin-rejilla');
+    const derecha = el('section', 'cc-ficha cn-admin-resumen');
+    const hr = el('h4', 'cc-ficha-titulo'), lista = el('div', 'cn-admin-cambios');
+    derecha.append(hr, lista, el('p', 'cc-nota', 'El N.º de cotización (llave) y los datos internos (fotos, sustento, enlaces) no se editan aquí. Cada cambio queda en el historial con tu usuario y se guarda una copia del registro anterior.'));
+    const entradas = j.campos.map(x => {
+      const largo = x.valor.length > 60 || x.valor.includes('\n');
+      const control = Object.assign(el(largo ? 'textarea' : 'input'), {value: x.valor}); if (largo) control.rows = 3;
+      control.dataset.campo = x.campo; control.setAttribute('aria-label', x.campo);
+      const fila = el('label', 'cn-admin-fila'); fila.append(el('span', null, x.campo), control);
+      control.addEventListener('input', pintarCambios);
+      rejilla.append(fila); return {fila, control, campo: x.campo};
+    });
+    izquierda.append(rejilla);
+    const cambios = () => Object.fromEntries(entradas.filter(e => e.control.value !== originales[e.campo]).map(e => [e.campo, e.control.value]));
+    function pintarCambios() {
+      const ch = cambios();
+      hr.replaceChildren(icono('fa-list-check'), el('span', null, 'Cambios a guardar (' + Object.keys(ch).length + ')'));
+      lista.replaceChildren(...(Object.keys(ch).length ? Object.entries(ch).map(([k, v]) => {
+        const li = el('div', 'cn-admin-cambio'); li.append(el('strong', null, k), el('span', 'cn-admin-antes', originales[k] || '(vacío)'), el('span', null, '→'), el('span', 'cn-admin-nuevo', v || '(vacío)'));
+        return li;
+      }) : [el('p', 'cc-nota', 'Todavía no cambiaste ningún campo.')]));
+      entradas.forEach(e => e.fila.classList.toggle('modificado', e.control.value !== originales[e.campo]));
+      filtrar();
+    }
+    function filtrar() {
+      const q = plano(buscar.value.trim()), solo = chSolo.checked;
+      entradas.forEach(e => { e.fila.hidden = (q && !plano(e.campo + ' ' + e.control.value).includes(q)) || (solo && e.control.value === originales[e.campo]); });
+    }
+    buscar.addEventListener('input', filtrar); chSolo.addEventListener('change', filtrar);
+    pintarCambios();
+    const error = errorCaja(); derecha.append(error);
+    ventana('Editar campos · ' + (c['N° COTIZACION'] || c.key), izquierda, derecha, [
+      ['Guardar cambios', 'cn-verde', 'fa-floppy-disk', conErrorEn(error, async () => {
+        const ch = cambios();
+        if (!Object.keys(ch).length) throw Error('No hay cambios para guardar.');
+        const ok = await (window.nucleusConfirm ? window.nucleusConfirm('Se guardarán ' + Object.keys(ch).length + ' cambio(s) en ' + (c['N° COTIZACION'] || c.key) + '. Quedarán en el historial.', 'Guardar cambios', {okText: 'Guardar', circular: true}) : confirm('¿Guardar los cambios?'));
+        if (!ok) return;
+        const x = await fetch('/api/cot-new/admin-editar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key, cambios: ch})});
+        const y = await x.json().catch(() => ({}));
+        if (!x.ok || !y.success) throw Error(y.error || 'No se pudieron guardar los cambios.');
+        dialogo.close(); await cargar(); avisar(y.cambiados + ' campo(s) actualizados en ' + (c['N° COTIZACION'] || c.key) + '.');
+      })]]);
+    $('cc-solicitud-contenido').firstChild.classList.add('cn-admin');
+    buscar.focus();
+  }
   const resumenCot = c => ficha('fa-file-lines', 'Cotización', [['N.º', c['N° COTIZACION'] || c.key], ['Cliente', CLIENTES[c.familia] || c.CLIENTE],
     ['Site', c['NOMBRE SITE']], ['N.º WO', c['NUMERO WO']], ['Motivo', c.MOTIVO], ['Enviada', c['FECHA ENVIO CLIENTE']],
     ['Aprobada', c['FECHA APROBACION']], ['Interacción', c['TIPO GASTO APROBACION']], ['Sub total + FEE', dinero(c.monto)]]);
@@ -1315,6 +1375,7 @@
       lista.push(['Derivar a Caja chica', 'cn-naranja', 'fa-wallet', () => moverA(c, 'proveedor', 'cajachica', 'Caja chica')]);
     } else if (p === 'transito') lista.push(['Pasar a Proveedor (se encontró proveedor)', 'cn-morado', 'fa-file-invoice', () => transitoAProveedor(c)]);
     else if (p === 'pendientes') lista.push(['Completar WO y site', 'cn-naranja', 'fa-location-dot', () => completarWoSite(c)]);
+    if (puedeAdminCampos) lista.push(['Editar campos (administrador)', 'cn-neutro', 'fa-user-pen', () => editarCampos(c)]);
     return lista;
   }
   // WO / Site pendiente: se completan el N.º WO y el site; al tener ambos sale de la pestaña.

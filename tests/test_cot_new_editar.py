@@ -24,3 +24,25 @@ def test_editar_en_cliente_antes_de_aprobar(app, auth_client):
     finally:
         with app.app_context():
             db.session.delete(db.session.get(NucleusData, rid)); db.session.commit()
+
+
+def test_admin_edita_cualquier_campo_con_historial(app, auth_client, cambiar_rol):
+    from models import HistorialCambios, NucleusHistory
+    pid, rid, key = _cot(app, 'Aprobado', {'FECHA': '2026-11-19', '_SUSTENTO_FICHAS': {'x': {}}})
+    try:
+        campos = auth_client.get('/api/cot-new/admin-campos?key=' + key).get_json()['campos']
+        nombres = {c['campo'] for c in campos}
+        assert 'FECHA' in nombres and 'N° COTIZACION' not in nombres and '_SUSTENTO_FICHAS' not in nombres
+        r = auth_client.post('/api/cot-new/admin-editar', json={'key': key, 'cambios': {'FECHA': '2026-11-18 10:30'}})
+        assert r.status_code == 200 and r.get_json()['cambiados'] == 1
+        assert auth_client.post('/api/cot-new/admin-editar', json={'key': key, 'cambios': {'N° COTIZACION': 'X'}}).status_code == 400
+        with app.app_context():
+            d = json.loads(db.session.get(NucleusData, rid).data_json)
+            assert d['FECHA'] == '2026-11-18 10:30' and d['_SUSTENTO_FICHAS'] == {'x': {}}
+            assert HistorialCambios.query.filter_by(key_value=key, campo_modificado='FECHA').count() == 1
+            assert NucleusHistory.query.filter_by(key_value=key).count() >= 1
+        cambiar_rol(auth_client, 'supervisor')
+        assert auth_client.get('/api/cot-new/admin-campos?key=' + key).status_code == 403
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(NucleusData, rid)); db.session.commit()

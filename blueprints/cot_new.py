@@ -228,7 +228,7 @@ def pagina():
                            nombres_cliente=NOMBRES_CLIENTE, supervisores=SUPERVISORES,
                            proyectos_flm=PROYECTOS_FLM,
                            puede_gestionar=rol not in ('demo', 'contrata'),
-                           puede_eliminar=rol in ROLES_ELIMINAR,
+                           puede_eliminar=rol in ROLES_ELIMINAR, puede_admin_campos=str(rol or '').lower() in ('zeno', 'suport'),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
 
@@ -677,3 +677,69 @@ def wos():
             if not str(key).startswith('WO-TEMP-'):
                 resultado.append(str(key))
     return jsonify(wos=list(dict.fromkeys(resultado))[:60])
+
+
+# ── Edición de cualquier campo (solo zeno y suport): para corregir casos especiales ──
+ROLES_ADMIN_CAMPOS = ('zeno', 'suport')
+# La llave y lo interno (fotos, sustento, enlaces con Caja Chica, etc.) no se tocan desde aquí.
+CAMPOS_NO_EDITABLES = {'N° COTIZACION', '_key'}
+
+
+def _es_admin_campos():
+    return str(session.get('rol') or '').lower() in ROLES_ADMIN_CAMPOS
+
+
+def _campo_editable(campo, valor):
+    return (campo not in CAMPOS_NO_EDITABLES and not str(campo).startswith('_')
+            and not isinstance(valor, (dict, list)) and str(campo).strip() != '')
+
+
+@bp.get('/api/cot-new/admin-campos')
+@login_required
+def admin_campos():
+    """Todos los campos editables de una cotización (texto plano), para la ventana de administrador."""
+    if not _es_admin_campos():
+        return jsonify(error='Solo zeno y suport pueden editar todos los campos.'), 403
+    modulo = _proyecto()
+    fila = NucleusData.query.filter_by(proyecto_id=modulo.id, key_value=str(request.args.get('key') or '').strip()).first()
+    if not fila:
+        return jsonify(error='Cotización no encontrada.'), 404
+    datos = json.loads(fila.data_json or '{}')
+    campos = [{'campo': k, 'valor': '' if v is None else str(v)} for k, v in datos.items() if _campo_editable(k, v)]
+    return jsonify(key=fila.key_value, campos=sorted(campos, key=lambda x: x['campo'].casefold()))
+
+
+@bp.post('/api/cot-new/admin-editar')
+@login_required
+def admin_editar():
+    """Guarda los campos cambiados por zeno/suport: deja copia del registro y una línea por campo en el historial."""
+    if not _es_admin_campos():
+        return jsonify(error='Solo zeno y suport pueden editar todos los campos.'), 403
+    from datetime import datetime
+    from models import HistorialCambios, NucleusHistory
+    entrada = request.get_json(silent=True) or {}
+    cambios = entrada.get('cambios') or {}
+    if not isinstance(cambios, dict) or not cambios:
+        return jsonify(error='No hay cambios para guardar.'), 400
+    modulo, fila, datos = _fila_cotizacion(entrada.get('key'))
+    aplicados = {}
+    for campo, valor in cambios.items():
+        campo = str(campo)
+        if not _campo_editable(campo, datos.get(campo, '')):
+            return jsonify(error='El campo «%s» no se puede editar aquí.' % campo), 400
+        nuevo = '' if valor is None else str(valor)
+        anterior = '' if datos.get(campo) is None else str(datos.get(campo))
+        if nuevo != anterior:
+            aplicados[campo] = (anterior, nuevo)
+    if not aplicados:
+        return jsonify(error='Los valores son iguales a los guardados.'), 400
+    db.session.add(NucleusHistory(proyecto_id=modulo.id, key_value=fila.key_value, data_json=fila.data_json))
+    usuario = _usuario()
+    for campo, (anterior, nuevo) in aplicados.items():
+        datos[campo] = nuevo
+        db.session.add(HistorialCambios(proyecto_id=modulo.id, usuario_id=session.get('user_id'), username=usuario,
+                                        key_value=fila.key_value, campo_modificado=campo, valor_anterior=anterior,
+                                        valor_nuevo=nuevo, fecha=datetime.utcnow()))
+    fila.data_json = json.dumps(datos, ensure_ascii=False)
+    db.session.commit()
+    return jsonify(success=True, cambiados=len(aplicados))

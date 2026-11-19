@@ -263,3 +263,18 @@ body.dark-mode .cn-sla-rojo { color: #fca5a5; } body.dark-mode .cn-sla-ok { colo
 /* Depósitos de Caja Chica: código en una línea y foto al lado de cada registro. */
 .cn-depositos-tabla td:first-child, .cn-depositos-tabla th:first-child { white-space: nowrap; }
 .cn-depositos-tabla th:last-child, .cn-depositos-foto { text-align: center; width: 56px; }
+
+/* Editar campos (zeno y suport) */
+.cn-admin-filtros { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.cn-admin-filtros input[type=search] { flex: 1; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); }
+.cn-admin-solo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; }
+.cn-admin-rejilla { display: flex; flex-direction: column; gap: 4px; max-height: 60dvh; overflow: auto; padding-right: 4px; }
+.cn-admin-fila { display: grid; grid-template-columns: minmax(130px, 38%) minmax(0, 1fr); gap: 10px; align-items: center; padding: 3px 4px; border-radius: 8px; font-size: 12px; }
+.cn-admin-fila[hidden] { display: none; }
+.cn-admin-fila > span { color: var(--ios-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-admin-fila input, .cn-admin-fila textarea { width: 100%; box-sizing: border-box; min-height: 30px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font: inherit; font-size: 12.5px; }
+.cn-admin-fila.modificado input, .cn-admin-fila.modificado textarea { border-color: #d97706; background: rgba(217, 119, 6, .1); }
+.cn-admin-cambios { display: flex; flex-direction: column; gap: 6px; max-height: 50dvh; overflow: auto; }
+.cn-admin-cambio { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 6px 8px; border: 1px solid var(--ios-hairline); border-radius: 8px; font-size: 12px; }
+.cn-admin-antes { color: var(--ios-secondary); text-decoration: line-through; }
+.cn-admin-nuevo { color: #16a34a; font-weight: 600; }

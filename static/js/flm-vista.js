@@ -205,6 +205,9 @@
   }
 
   let tabla = null, grupo = '', texto = '', filtro = null, tipo = '', fotos = '';
+  // Filtro por lista de tickets pegada (tuerca): null = sin filtro; si no, el conjunto de códigos.
+  let lista = null, faltantes = [];
+  const codigo = v => String(v ?? '').trim().toUpperCase();
   function tieneFotos(fila) {
     return ['INICIO', 'PROCESO', 'CIERRE', 'RESGUARDO', 'FOTOS'].some(tipo => {
       let lista = fila['_EVIDENCIA_' + tipo];
@@ -251,9 +254,61 @@
     if (filtro) tabla.removeFilter(filtro);
     const campos = tabla.getColumns().filter(c => c.isVisible() && c.getField()).map(c => c.getField());
     const q = plano(texto.trim());
-    filtro = fila => coincideFotos(fila) && (!tipo || tipoDe(fila) === tipo) && (!grupo || grupoDe(estadoDe(fila)) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
+    filtro = fila => (!lista || lista.has(codigo(fila._key))) && coincideFotos(fila) && (!tipo || tipoDe(fila) === tipo) && (!grupo || grupoDe(estadoDe(fila)) === grupo) && (!q || campos.some(c => plano(fila[c]).includes(q)));
     tabla.addFilter(filtro);
     pintarPestanas();
+    pintarAvisoLista();
+  }
+
+  // ── Filtrar por lista de tickets: ventana solo para pegar los códigos; los casos se ven en la tabla ──
+  let dialogoLista = null;
+  function abrirLista() {
+    if (!dialogoLista) {
+      dialogoLista = el('dialog', 'fv-lista-dialogo');
+      const cab = el('header', 'fv-lista-cab');
+      const titulo = el('h2', null, 'Filtrar por lista de tickets');
+      const botones = el('div', 'fv-lista-botones');
+      const ok = el('button', 'fv-redondo fv-verde'); ok.type = 'button'; ok.title = 'Filtrar'; ok.setAttribute('aria-label', 'Filtrar'); ok.append(icono('fa-filter'));
+      const cerrar = el('button', 'fv-redondo fv-lista-cerrar'); cerrar.type = 'button'; cerrar.title = 'Cerrar'; cerrar.setAttribute('aria-label', 'Cerrar'); cerrar.append(icono('fa-xmark'));
+      botones.append(ok, cerrar); cab.append(titulo, botones);
+      const area = Object.assign(el('textarea'), {id: 'fv-lista-codigos', rows: 12, placeholder: 'Pega aquí los N.º WO / Ticket Id\nCM-20261014-00000084\nCM-20261031-00000129'});
+      area.setAttribute('aria-label', 'Lista de tickets');
+      const ayuda = el('small', 'fv-lista-ayuda', 'Uno por línea, o separados por coma o espacio. Se puede copiar la columna desde Excel.');
+      dialogoLista.append(cab, area, ayuda);
+      document.body.append(dialogoLista);
+      cerrar.addEventListener('click', () => dialogoLista.close());
+      ok.addEventListener('click', () => {
+        const codigos = [...new Set(area.value.split(/[\s,;]+/).map(codigo).filter(Boolean))];
+        if (!codigos.length) { area.focus(); return; }
+        const existentes = new Set(tabla.getData().map(f => codigo(f._key)));
+        lista = new Set(codigos);
+        faltantes = codigos.filter(c => !existentes.has(c));
+        // Para que se vean todos los encontrados: pestaña Todos, sin tipo ni búsqueda.
+        grupo = ''; tipo = ''; texto = ''; buscar.value = '';
+        tipos.querySelectorAll('.sla-tipo').forEach(x => { x.classList.toggle('activo', !x.dataset.tipo); x.setAttribute('aria-pressed', String(!x.dataset.tipo)); });
+        dialogoLista.close();
+        aplicar();
+      });
+    }
+    dialogoLista.showModal();
+    dialogoLista.querySelector('textarea').focus();
+  }
+  const avisoLista = el('div', 'fv-lista-aviso'); avisoLista.hidden = true;
+  function pintarAvisoLista() {
+    if (!avisoLista.isConnected) $('data-grid')?.before(avisoLista);
+    avisoLista.hidden = !lista;
+    if (!lista) return;
+    const encontrados = lista.size - faltantes.length;
+    avisoLista.replaceChildren();
+    const texto1 = el('span', null); texto1.append(icono('fa-filter'), ' Filtrado por lista: ', el('strong', null, encontrados + ' de ' + lista.size), ' tickets');
+    avisoLista.append(texto1);
+    if (faltantes.length) {
+      const no = el('span', 'fv-lista-faltan'); no.append(icono('fa-triangle-exclamation'), ' No encontrados (' + faltantes.length + '): ', el('strong', null, faltantes.join(', ')));
+      avisoLista.append(no);
+    }
+    const quitar = el('button', 'fv-lista-quitar', 'Quitar filtro'); quitar.type = 'button';
+    quitar.addEventListener('click', () => { lista = null; faltantes = []; aplicar(); });
+    avisoLista.append(quitar);
   }
 
   function pintarPestanas() {
@@ -287,15 +342,139 @@
     const menu = $('module-settings-wrap');
     if (menu) { menu.classList.add('cc-ajustes'); $('btn-module-settings')?.classList.add('cc-ajustes-btn'); acciones.append(menu); }
     const opciones = $('module-settings-menu');
-    if (opciones && !$('fv-filtro-fotos')) {
-      const caja = el('label', 'fv-filtro-fotos');
-      const titulo = el('span'); titulo.append(icono('fa-camera'), ' Fotos cargadas');
-      const selector = el('select', 'sla-periodo'); selector.id = 'fv-filtro-fotos';
-      selector.setAttribute('aria-label', 'Filtrar por fotos cargadas');
-      selector.append(new Option('Todos', ''), new Option('Con fotos', 'con'), new Option('Sin fotos', 'sin'));
-      selector.addEventListener('change', () => { fotos = selector.value; aplicar(); });
-      caja.append(titulo, selector); opciones.prepend(caja);
+    if (opciones && !opciones.classList.contains('fv-menu')) armarMenu(opciones);
+  }
+
+  // ── Menú de la tuerca (igual para todos): fotos, lista de tickets, columnas, orden e importar ──
+  function armarMenu(opciones) {
+    opciones.classList.add('fv-menu');
+    const item = (id, simbolo, textoItem, accion) => {
+      const b = el('button', 'fv-menu-item'); b.type = 'button'; b.id = id;
+      b.append(icono(simbolo), el('span', null, textoItem));
+      b.addEventListener('click', ev => { ev.stopPropagation(); accion(b); });
+      return b;
+    };
+    const interruptor = el('span', 'fv-interruptor'); interruptor.setAttribute('aria-hidden', 'true');
+    const bFotos = item('fv-solo-fotos', 'fa-camera', 'Solo con fotos cargadas', b => {
+      fotos = fotos ? '' : 'con';
+      b.setAttribute('aria-pressed', String(!!fotos)); b.classList.toggle('activo', !!fotos);
+      aplicar();
+    });
+    bFotos.setAttribute('aria-pressed', 'false'); bFotos.append(interruptor);
+    const cerrarMenu = () => { opciones.classList.remove('show'); $('btn-module-settings')?.setAttribute('aria-expanded', 'false'); };
+    const bLista = item('fv-abrir-lista', 'fa-list-check', 'Filtrar por lista de tickets', () => { cerrarMenu(); abrirLista(); });
+    const bCols = item('fv-abrir-columnas', 'fa-table-columns', 'Columnas…', () => { cerrarMenu(); abrirColumnas(); });
+    const bOrden = item('fv-abrir-orden', 'fa-arrow-down-short-wide', 'Ordenar columnas…', () => { cerrarMenu(); abrirOrden(); });
+    const bImportar = item('fv-importar', 'fa-file-import', 'Importar', () => { cerrarMenu(); $('btn-top-import')?.click(); });
+    if (!$('btn-top-import')) bImportar.hidden = true;
+    const lista = el('div', 'fv-menu-lista'); lista.append(bFotos, bLista, bCols, bOrden, bImportar);
+    opciones.prepend(lista);
+  }
+
+  // ── Ventanas (mismo formato: título y botones redondos junto a la X) ──
+  function ventanaFv(titulo, clase) {
+    const d = el('dialog', 'fv-dialogo ' + (clase || ''));
+    const cab = el('header', 'fv-dialogo-cab'), botones = el('div', 'fv-dialogo-botones');
+    const cerrar = el('button', 'fv-redondo fv-dialogo-cerrar'); cerrar.type = 'button'; cerrar.title = 'Cerrar'; cerrar.setAttribute('aria-label', 'Cerrar'); cerrar.append(icono('fa-xmark'));
+    cerrar.addEventListener('click', () => d.close());
+    botones.append(cerrar); cab.append(el('h2', null, titulo), botones);
+    const cuerpo = el('div', 'fv-dialogo-cuerpo'), pie = el('p', 'fv-dialogo-nota');
+    d.append(cab, cuerpo, pie); document.body.append(d);
+    d.addEventListener('close', () => d.remove());
+    const boton = (simbolo, tituloB, claseB, accion) => {
+      const b = el('button', 'fv-redondo ' + (claseB || '')); b.type = 'button'; b.title = tituloB; b.setAttribute('aria-label', tituloB); b.append(icono(simbolo));
+      b.addEventListener('click', accion); botones.insertBefore(b, cerrar); return b;
+    };
+    return {d, cuerpo, pie, boton};
+  }
+  const esAdmin = () => { try { return typeof isAdmin !== 'undefined' && !!isAdmin; } catch (_) { return false; } };
+  // Columnas de datos de la tabla (sin selección, acciones ni campos internos de esta vista).
+  const columnasDatos = () => tabla.getColumns().filter(c => {
+    const f = c.getField(); return f && !f.startsWith('_fv_') && (f === '_key' || !f.startsWith('_'));
+  });
+  const tituloDe = c => String(c.getDefinition().title || c.getField()).replace(/<[^>]*>/g, '').trim() || c.getField();
+  const manuales = () => { try { return new Set((typeof manualColsConfig !== 'undefined' ? manualColsConfig : []).map(m => String(m.nombre || '').trim())); } catch (_) { return new Set(); } };
+  async function guardarDiseno() {
+    if (esAdmin() && typeof saveColumnLayout === 'function') { await saveColumnLayout(true); return 'Guardado para todos los usuarios.'; }
+    return 'Aplicado en tu pantalla. Para dejarlo fijo para todos, lo guarda un administrador.';
+  }
+
+  function abrirColumnas() {
+    const {d, cuerpo, pie, boton} = ventanaFv('Columnas visibles', 'fv-dialogo-ancho');
+    const man = manuales(), cols = columnasDatos();
+    const marcado = new Map(cols.map(c => [c.getField(), c.isVisible()]));
+    const buscar = Object.assign(el('input'), {type: 'search', id: 'fv-columnas-buscar', placeholder: 'Buscar columna…'});
+    buscar.setAttribute('aria-label', 'Buscar columna');
+    const contador = el('span', 'fv-dialogo-contador');
+    const grupos = el('div', 'fv-columnas-grupos');
+    const contar = () => { contador.textContent = [...marcado.values()].filter(Boolean).length + ' de ' + cols.length + ' visibles'; };
+    const grupo = (titulo, lista) => {
+      const caja = el('section', 'fv-columnas-grupo'), cab = el('div', 'fv-columnas-cab');
+      const todas = el('button', 'fv-chip-btn', 'Todas'), ninguna = el('button', 'fv-chip-btn', 'Ninguna'); todas.type = ninguna.type = 'button';
+      cab.append(el('h3', null, titulo + ' (' + lista.length + ')'), todas, ninguna);
+      const items = el('div', 'fv-columnas-lista');
+      const checks = lista.map(c => {
+        const l = el('label', 'fv-columna'), ch = Object.assign(el('input'), {type: 'checkbox', checked: marcado.get(c.getField())});
+        ch.addEventListener('change', () => { marcado.set(c.getField(), ch.checked); contar(); });
+        l.append(ch, el('span', null, tituloDe(c))); l.dataset.buscar = plano(tituloDe(c)); items.append(l); return {l, ch, c};
+      });
+      const marcarTodas = v => { checks.filter(x => !x.l.hidden).forEach(x => { x.ch.checked = v; marcado.set(x.c.getField(), v); }); contar(); };
+      todas.addEventListener('click', () => marcarTodas(true)); ninguna.addEventListener('click', () => marcarTodas(false));
+      caja.append(cab, items); grupos.append(caja); return checks;
+    };
+    const todosChecks = [...grupo('De la importación', cols.filter(c => !man.has(c.getField()))), ...grupo('Manuales (gestión)', cols.filter(c => man.has(c.getField())))];
+    buscar.addEventListener('input', () => { const q = plano(buscar.value.trim()); todosChecks.forEach(x => { x.l.hidden = !!q && !x.l.dataset.buscar.includes(q); }); });
+    const barraSup = el('div', 'fv-dialogo-barra'); barraSup.append(buscar, contador);
+    cuerpo.append(barraSup, grupos); contar();
+    pie.textContent = esAdmin() ? 'Al aplicar, se guarda para todos los usuarios de este módulo.' : 'Se aplica en tu pantalla.';
+    boton('fa-check', 'Aplicar', 'fv-verde', async () => {
+      cols.forEach(c => { const v = marcado.get(c.getField()); if (v && !c.isVisible()) c.show(); else if (!v && c.isVisible()) c.hide(); });
+      tabla.redraw?.(true);
+      const msg = await guardarDiseno(); d.close(); (window.nucleusAlert || alert)(msg);
+    });
+    d.showModal(); buscar.focus();
+  }
+
+  function abrirOrden() {
+    const {d, cuerpo, pie, boton} = ventanaFv('Ordenar columnas', 'fv-dialogo-ancho');
+    const cols = columnasDatos();
+    let orden = cols.map(c => ({campo: c.getField(), titulo: tituloDe(c), visible: c.isVisible()}));
+    const buscar = Object.assign(el('input'), {type: 'search', id: 'fv-orden-buscar', placeholder: 'Buscar columna…'});
+    buscar.setAttribute('aria-label', 'Buscar columna');
+    const ayuda = el('span', 'fv-dialogo-contador', 'Arrastra o usa las flechas');
+    const lista = el('ol', 'fv-orden-lista');
+    let arrastrado = null;
+    const mover = (i, j) => { if (j < 0 || j >= orden.length || i === j) return; const [x] = orden.splice(i, 1); orden.splice(j, 0, x); pintar(x.campo); };
+    function pintar(foco) {
+      const q = plano(buscar.value.trim());
+      lista.replaceChildren(...orden.map((o, i) => {
+        const li = el('li', 'fv-orden-fila' + (o.visible ? '' : ' oculta') + (q && plano(o.titulo).includes(q) ? ' resaltada' : ''));
+        li.draggable = true; li.dataset.i = i;
+        const asa = el('span', 'fv-orden-asa'); asa.append(icono('fa-grip-vertical'));
+        const acciones = el('span', 'fv-orden-acciones');
+        [['fa-angles-up', 'Al inicio', () => mover(i, 0)], ['fa-arrow-up', 'Subir', () => mover(i, i - 1)],
+         ['fa-arrow-down', 'Bajar', () => mover(i, i + 1)], ['fa-angles-down', 'Al final', () => mover(i, orden.length - 1)]].forEach(([s2, t2, f2]) => {
+          const b = el('button', 'fv-orden-btn'); b.type = 'button'; b.title = t2; b.setAttribute('aria-label', t2 + ': ' + o.titulo); b.append(icono(s2)); b.addEventListener('click', f2); acciones.append(b);
+        });
+        li.append(asa, el('span', 'fv-orden-n', String(i + 1)), el('span', 'fv-orden-titulo', o.titulo + (o.visible ? '' : ' (oculta)')), acciones);
+        li.addEventListener('dragstart', () => { arrastrado = i; li.classList.add('arrastrando'); });
+        li.addEventListener('dragend', () => li.classList.remove('arrastrando'));
+        li.addEventListener('dragover', ev => ev.preventDefault());
+        li.addEventListener('drop', ev => { ev.preventDefault(); if (arrastrado !== null) mover(arrastrado, i); arrastrado = null; });
+        return li;
+      }));
+      if (foco) lista.querySelector('.fv-orden-fila:nth-child(' + (orden.findIndex(o => o.campo === foco) + 1) + ')')?.scrollIntoView({block: 'nearest'});
     }
+    buscar.addEventListener('input', () => { pintar(); lista.querySelector('.resaltada')?.scrollIntoView({block: 'nearest'}); });
+    const barraSup = el('div', 'fv-dialogo-barra'); barraSup.append(buscar, ayuda);
+    cuerpo.append(barraSup, lista); pintar();
+    pie.textContent = esAdmin() ? 'Al aplicar, el orden se guarda para todos los usuarios de este módulo.' : 'Se aplica en tu pantalla.';
+    if (esAdmin() && typeof resetLayout === 'function') boton('fa-rotate-left', 'Volver al orden original', '', () => { d.close(); resetLayout(); });
+    boton('fa-check', 'Aplicar', 'fv-verde', async () => {
+      for (let i = 1; i < orden.length; i++) tabla.moveColumn(orden[i].campo, orden[i - 1].campo, true);
+      const msg = await guardarDiseno(); d.close(); (window.nucleusAlert || alert)(msg);
+    });
+    d.showModal(); buscar.focus();
   }
 
   // Contador y paginación debajo de la tabla (la barra queda como en Caja Chica).
