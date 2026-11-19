@@ -458,7 +458,8 @@ def guardar():
     _fijar_cotizaciones()
     from blueprints.rows import api_rows_bulk_update
     datos = request.get_json(silent=True) or {}
-    permitidos = ('MOTIVO', 'OBJETIVO', 'SUPERVISOR', 'NUMERO WO', 'NOMBRE SITE', 'ITEMS_JSON', 'SUB TOTAL + FEE')
+    permitidos = ('MOTIVO', 'OBJETIVO', 'SUPERVISOR', 'NUMERO WO', 'NOMBRE SITE', 'ITEMS_JSON', 'SUB TOTAL + FEE',
+                  'TIEMPO DE ENTREGA', 'LUGAR DE ENTREGA', 'VALIDEZ DE LA OFERTA', 'CONDICIONES GENERALES')
     return api_rows_bulk_update({'key': datos.get('key'), 'data': {k: v for k, v in (datos.get('data') or {}).items() if k in permitidos}})
 
 

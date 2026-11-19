@@ -627,8 +627,10 @@
       buscar: t => buscarSitesDe(proyectoFlm, t)});
     campo(textos, 'Nombre del site', selSite);
     const area = (v, filas) => Object.assign(el('textarea'), {value: v || '', rows: filas, maxLength: 300});
-    const objetivo = campo(textos, 'Objetivo (título de la cotización)', area(c.OBJETIVO || c.MOTIVO, 2));
-    const motivo = campo(textos, 'Motivo', area(c.MOTIVO, 3));
+    const textoSolicitud = [...new Set([c.OBJETIVO, c.MOTIVO].map(v => String(v || '').trim()).filter(Boolean))].join('\n\n');
+    const motivo = campo(textos, 'Motivo de la cotización', area(textoSolicitud, 2));
+    motivo.maxLength = 600;
+    motivo.parentElement.classList.add('cn-editor-motivo');
     izquierda.append(textos);
 
     const derecha = el('section', 'cc-ficha cn-items');
@@ -638,10 +640,10 @@
     const feeCaja = el('label', 'cn-editor-fee'); feeCaja.append(el('span', null, 'FEE %'), fee);
     cabeza.append(t, feeCaja);
     const tabla = el('table', 'cn-items-tabla cn-items-editar');
-    const cab = el('tr'); ['#', 'Tipo', 'Descripción', 'Und', 'Cant.', 'V. unit.', 'Total', ''].forEach(x => cab.append(el('th', null, x)));
+    const cab = el('tr'); ['#', 'Tipo', 'Descripción', 'Und', 'Cant.', 'V. unit. inicial', '% Terc.', 'V. tercerizado', 'V. unit. final', 'Valor final', ''].forEach(x => cab.append(el('th', null, x)));
     const cuerpo = el('tbody'), pieTabla = el('tfoot'), filaPie = el('tr');
     const totVu = el('td', 'cc-num cn-pie-vu'), totFee = el('td', 'cc-num cn-pie-total');
-    const etiquetaPie = el('td', 'cn-pie-etiqueta', 'Total valor unitario · Sub total + FEE'); etiquetaPie.colSpan = 5;
+    const etiquetaPie = el('td', 'cn-pie-etiqueta', 'Sub total · Sub total + FEE'); etiquetaPie.colSpan = 8;
     filaPie.append(etiquetaPie, totVu, totFee, el('td')); pieTabla.append(filaPie);
     tabla.append(cab, cuerpo, pieTabla);
     const sub = el('span'), feeMonto = el('span'), feeTexto = el('span', 'cc-nota'), total = el('strong');
@@ -651,18 +653,22 @@
       const entrada = (v, cls, modo) => Object.assign(el('input', cls), {value: v ?? '', inputMode: modo || 'text'});
       const texto = entrada(item.texto || item.descripcion, 'cn-item-texto'), und = entrada(item.und || 'UND', 'cn-item-und');
       const cant = entrada(item.cantidad || '1', 'cn-item-num', 'decimal'), vu = entrada(item.valor_unitario, 'cn-item-num', 'decimal');
-      const tot = el('td', 'cc-num cn-item-total');
+      const pct = entrada(item.tercerizado ?? (item.valor_unitario ? '0' : '20'), 'cn-item-num cn-item-pct', 'decimal');
+      const vTerc = el('td', 'cc-num cn-item-calc'), vFinal = el('td', 'cc-num cn-item-calc'), tot = el('td', 'cc-num cn-item-total');
       const quitar = el('button', 'cn-item-quitar'); quitar.type = 'button'; quitar.title = 'Quitar ítem'; quitar.append(icono('fa-trash-can'));
       quitar.addEventListener('click', () => { tr.remove(); recalcular(); });
-      [cant, vu].forEach(i => i.addEventListener('input', recalcular));
+      [cant, vu, pct].forEach(i => i.addEventListener('input', recalcular));
       const td = x => { const d = el('td'); d.append(x); return d; };
-      tr.append(n, td(tipo), td(texto), td(und), td(cant), td(vu), tot, td(quitar));
+      tr.append(n, td(tipo), td(texto), td(und), td(cant), td(vu), td(pct), vTerc, vFinal, tot, td(quitar));
+      // V. tercerizado = V. unit. × %; V. unit. final = V. unit. + V. tercerizado; Valor final = V. unit. final × cantidad.
       tr.leer = () => {
-        const base = Math.round(num(cant.value) * num(vu.value) * 100) / 100, f = num(fee.value);
-        return {base, item: {tipo: tipo.value, texto: texto.value.trim(), und: und.value.trim(), cantidad: cant.value.trim(), valor_unitario: vu.value.trim(),
+        const terc = Math.round(num(vu.value) * num(pct.value)) / 100, final = Math.round((num(vu.value) + terc) * 100) / 100;
+        const base = Math.round(num(cant.value) * final * 100) / 100, f = num(fee.value);
+        return {base, terc, final, item: {tipo: tipo.value, texto: texto.value.trim(), und: und.value.trim(), cantidad: cant.value.trim(), valor_unitario: vu.value.trim(),
+          tercerizado: String(num(pct.value)), valor_tercerizado: terc.toFixed(2), valor_unitario_final: final.toFixed(2), valor_final: base.toFixed(2),
           fee: String(f), valor_total: (Math.round(base * (1 + f / 100) * 100) / 100).toFixed(2), comentarios: item.comentarios || ''}};
       };
-      tr.pintar = i => { n.textContent = i + 1; tot.textContent = dinero(tr.leer().base); };
+      tr.pintar = i => { const l = tr.leer(); n.textContent = i + 1; vTerc.textContent = dinero(l.terc); vFinal.textContent = dinero(l.final); tot.textContent = dinero(l.base); };
       cuerpo.append(tr); return tr;
     }
     function recalcular() {
@@ -681,8 +687,18 @@
     resumen.append(linea(el('span', 'cc-nota', 'Sub total'), sub), linea(feeTexto, feeMonto));
     const pie = el('div', 'cn-total'); pie.append(el('span', null, 'Sub total + FEE'), total);
     const envoltura = el('div', 'cn-items-scroll'); envoltura.append(tabla);
+    // Condiciones: vienen llenas y se pueden cambiar; salen en el PDF debajo de los ítems.
+    const condiciones = el('div', 'cn-condiciones');
+    const hc = el('h4', 'cc-ficha-titulo'); hc.append(icono('fa-file-contract'), el('span', null, 'Condiciones (salen en el PDF)'));
+    const condicion = (titulo, valor) => { const a = Object.assign(el('textarea'), {value: valor, rows: 2, maxLength: 500}); a.setAttribute('aria-label', titulo);
+      const l = el('label', 'cn-condicion'); l.append(el('span', null, titulo), a); condiciones.append(l); return a; };
+    condiciones.append(hc);
+    const cTiempo = condicion('Tiempo de entrega', c['TIEMPO DE ENTREGA'] || 'Por definir (posterior a la validación del presente presupuesto)');
+    const cLugar = condicion('Lugar de entrega', c['LUGAR DE ENTREGA'] || (c['NOMBRE SITE'] || c.SITE || ''));
+    const cValidez = condicion('Validez de la oferta', c['VALIDEZ DE LA OFERTA'] || '2 días calendario');
+    const cGenerales = condicion('Condiciones generales', c['CONDICIONES GENERALES'] || 'Después de OC');
     const error = errorCaja();
-    derecha.append(cabeza, envoltura, agregar, resumen, pie, error);
+    derecha.append(cabeza, envoltura, agregar, resumen, pie, condiciones, error);
     recalcular();
 
     async function guardar() {
@@ -690,11 +706,11 @@
       if (leidos.some(i => !i.texto || !(num(i.valor_unitario) > 0) || !(num(i.cantidad) > 0))) throw Error('Cada ítem necesita descripción, cantidad y valor unitario.');
       if (!leidos.length) throw Error('Agrega al menos un ítem.');
       if (!motivo.value.trim()) throw Error('Escribe el motivo.');
-      if (!objetivo.value.trim()) throw Error('Escribe el objetivo (título de la cotización).');
       const s = leidos.reduce((a, i) => a + num(i.valor_total), 0);
       const r = await fetch('/api/cot-new/guardar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: c.key,
-        data: {MOTIVO: motivo.value.trim(), OBJETIVO: objetivo.value.trim() || motivo.value.trim(), SUPERVISOR: supervisor.value,
-          'NUMERO WO': selWo.valores().join(', '), 'NOMBRE SITE': selSite.valores().join(', '), ITEMS_JSON: JSON.stringify(leidos), 'SUB TOTAL + FEE': s.toFixed(2)}})});
+        data: {MOTIVO: motivo.value.trim(), OBJETIVO: motivo.value.trim(), SUPERVISOR: supervisor.value,
+          'NUMERO WO': selWo.valores().join(', '), 'NOMBRE SITE': selSite.valores().join(', '), ITEMS_JSON: JSON.stringify(leidos), 'SUB TOTAL + FEE': s.toFixed(2),
+          'TIEMPO DE ENTREGA': cTiempo.value.trim(), 'LUGAR DE ENTREGA': cLugar.value.trim(), 'VALIDEZ DE LA OFERTA': cValidez.value.trim(), 'CONDICIONES GENERALES': cGenerales.value.trim()}})});
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error || j.success === false) throw Error(j.error || 'No se pudo guardar la cotización.');
       return s;
