@@ -381,7 +381,7 @@ def _generar_pdf_cotizacion(numero, nota, ticket, cotizado_por, revisado_por, fe
     return buf.read()
 
 
-def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, elaborado_por, items, fecha=None):
+def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, elaborado_por, items, fecha=None, condiciones=None):
     """
     Genera el PDF de cotizacion FLM con el formato Cobra:
     cabecera (FECHA/EMPRESA/DIRIGIDO A/SITE/N COTIZACION/OBJETIVO + RESPONSABLE/
@@ -533,13 +533,21 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
             cant = float(str(it.get('cantidad', '') or 0).replace(',', '.'))
         except Exception:
             cant = 0.0
-        try:
-            vu = float(str(it.get('valor_unitario', '') or 0).replace(',', '.'))
-        except Exception:
-            vu = 0.0
+        def _n(v):
+            try:
+                return float(str(v).replace('%', '').replace(',', '.'))
+            except Exception:
+                return None
+        # Valor unitario = valor unitario final (inicial + tercerizado); el tercerizado no se muestra.
+        vu = _n(it.get('valor_unitario_final')) if str(it.get('valor_unitario_final', '') or '').strip() else None
+        if vu is None:
+            vu = _n(it.get('valor_unitario') or 0) or 0.0
         tipo = str(it.get('tipo', '') or '').strip().upper()
-        fee = 5.0 if tipo == 'REEMBOLSABLE' else 0.0
-        vt = cant * vu * (1 + fee / 100.0)
+        # FEE % del editor; los ítems antiguos sin FEE usan la regla anterior por tipo.
+        fee = _n(it.get('fee')) if str(it.get('fee', '') or '').strip() else None
+        if fee is None:
+            fee = 5.0 if tipo == 'REEMBOLSABLE' else 0.0
+        vt = round(round(cant * vu, 2) * (1 + fee / 100.0), 2)
         items_ok.append(vt)
         it_rows.append([
             Paragraph(str(i + 1), st_cell_c),
@@ -592,6 +600,11 @@ def _generar_pdf_cotizacion_cobra(numero, site, supervisor, objetivo, ticket, el
         'VALIDEZ DE LA OFERTA': '2 días calendario',
         'CONDICIONES GENERALES': ''
     }
+    # Textos escritos en el editor de la cotización (si existen) reemplazan los de por defecto.
+    from xml.sax.saxutils import escape
+    for titulo, texto in (condiciones or {}).items():
+        if titulo in secciones_cierre and texto is not None and str(texto).strip():
+            secciones_cierre[titulo] = escape(str(texto).strip()).replace('\n', '<br/>')
     for titulo, contenido in secciones_cierre.items():
         sec_tbl = Table([[Paragraph(f'<b>{titulo}</b>', st_sec)]], colWidths=[W])
         sec_tbl.setStyle(TableStyle([
@@ -662,7 +675,8 @@ def _cotizacion_registro_pdf_response(rec):
         elaborado_por=str(d.get('GESTOR', '') or audit_user()),
         items=items,
         # FECHA registrada de la cotización (no la fecha de descarga)
-        fecha=d.get('FECHA')
+        fecha=d.get('FECHA'),
+        condiciones={k: d.get(k) for k in ('TIEMPO DE ENTREGA', 'LUGAR DE ENTREGA', 'VALIDEZ DE LA OFERTA', 'CONDICIONES GENERALES')},
     )
     from flask import make_response
     resp = make_response(pdf_bytes)
