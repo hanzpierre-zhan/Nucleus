@@ -1642,6 +1642,9 @@
       const col = COLUMNAS[orden.col];
       filas.sort((a, b) => (col.orden ? col.orden(a) - col.orden(b)
         : String(col.texto(a)).localeCompare(String(col.texto(b)), 'es', {numeric: true, sensitivity: 'base'})) * orden.dir || b.id - a.id);
+    } else if (tab === 'por_rendir') {
+      const fechaDepositoOrden = s => Date.parse(s.depositado_en ? s.depositado_en + 'Z' : s.deposito_fecha || '') || 0;
+      filas.sort((a, b) => fechaDepositoOrden(b) - fechaDepositoOrden(a) || b.id - a.id);
     } else if (tab === 'pendientes') filas.sort((a, b) => COLUMNAS.responsable.texto(a).localeCompare(COLUMNAS.responsable.texto(b), 'es') || b.id - a.id);
     return filas;
   }
