@@ -610,3 +610,45 @@
 .attendance-topbar .attendance-control-group {
   flex-shrink: 0;
 }
+
+/* Marcas de Nucleus Mobile y faltas automáticas */
+.attendance-table button.movil { font-weight: 700; }
+.attendance-table button.movil-pendiente { background: #fef3c7 !important; color: #92400e !important; box-shadow: inset 0 0 0 1px #f59e0b; }
+.attendance-table button.movil-validada { background: #dcfce7 !important; color: #166534 !important; box-shadow: inset 0 0 0 1px #22c55e; }
+.attendance-table button.movil-observada { background: #fee2e2 !important; color: #991b1b !important; box-shadow: inset 0 0 0 1px #ef4444; }
+.attendance-table button.auto { outline: 1px dashed #ef4444; outline-offset: -3px; }
+
+/* Ventana: asistencia de Mobile con foto y recorrido */
+.am-ventana { width: min(1100px, 96vw); max-height: 92dvh; padding: 0; border: 1px solid var(--ios-hairline, #d8e0eb); border-radius: 16px; background: var(--ios-card-bg, #fff); color: var(--ios-label, #172e4a); }
+.am-ventana::backdrop { background: rgba(15, 23, 42, .55); }
+.am-cargando, .am-ventana > .am-error { padding: 24px; }
+.am-cabeza { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--ios-hairline, #d8e0eb); }
+.am-cabeza strong { display: block; font-size: 17px; }
+.am-cabeza small { color: var(--ios-secondary, #64748b); }
+.am-chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+.am-pendiente { background: #fef3c7; color: #92400e; } .am-validada { background: #dcfce7; color: #166534; } .am-observada { background: #fee2e2; color: #991b1b; }
+.am-botones { margin-left: auto; display: flex; gap: 8px; }
+.am-redondo { width: 38px; height: 38px; border-radius: 50%; border: 0; color: #fff; display: grid; place-items: center; cursor: pointer; font-size: 15px; }
+.am-verde { background: #16a34a; } .am-ambar { background: #d97706; } .am-rojo { background: #dc2626; } .am-gris { background: #64748b; }
+.am-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 14px; padding: 14px 18px 18px; overflow: auto; max-height: calc(92dvh - 70px); }
+.am-panel { border: 1px solid var(--ios-hairline, #d8e0eb); border-radius: 12px; padding: 12px; min-width: 0; }
+.am-panel h4 { margin: 0 0 8px; font-size: 13px; }
+.am-foto { display: block; width: 100%; max-height: 300px; object-fit: cover; border-radius: 10px; margin-bottom: 8px; }
+.am-fila { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid var(--ios-hairline, #eef2f7); }
+.am-fila span { color: var(--ios-secondary, #64748b); }
+.am-fila strong { text-align: right; font-weight: 600; }
+.am-alertas { margin: 10px 0; }
+.am-alerta { margin: 0 0 6px; padding: 7px 9px; border-radius: 8px; background: #fee2e2; color: #991b1b; font-size: 12.5px; }
+.am-ok { margin: 0; font-size: 12.5px; color: #166534; }
+.am-label { display: block; font-size: 12px; font-weight: 600; margin: 8px 0 4px; }
+.am-panel textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--ios-hairline, #d8e0eb); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 12.5px; background: var(--ios-fill, #f8fafc); color: inherit; }
+.am-error { color: #b91c1c; font-size: 12.5px; margin: 6px 0 0; }
+.am-mapa { height: 340px; border-radius: 10px; overflow: hidden; }
+.am-recorrido { list-style: none; margin: 10px 0 0; padding: 0; font-size: 12.5px; }
+.am-recorrido li { display: grid; grid-template-columns: 24px 48px 1fr auto; gap: 8px; align-items: center; padding: 5px 0; border-top: 1px solid var(--ios-hairline, #eef2f7); }
+.am-recorrido b { width: 22px; height: 22px; border-radius: 50%; background: #2563eb; color: #fff; display: grid; place-items: center; font-size: 11px; }
+.am-recorrido li:first-child b { background: #16a34a; }
+.am-recorrido small { color: var(--ios-secondary, #64748b); }
+.am-pin { background: #2563eb; color: #fff; border-radius: 50%; display: grid !important; place-items: center; font: 700 11px/1 system-ui; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.am-pin-asis { background: #16a34a; }
+@media (max-width: 800px) { .am-cuerpo { grid-template-columns: 1fr; } }

@@ -21,6 +21,7 @@ def _register_blueprints(app):
     from blueprints.asistencia import bp as asistencia_bp
     from blueprints.formularios_prueba import bp as form_pruebas_bp
     from blueprints.caja_chica import bp as caja_chica_bp
+    from blueprints.asistencia_movil import bp as asistencia_movil_bp
     from blueprints.cot_new import bp as cot_new_bp
     from blueprints.vistas_nuevas import bp as vistas_nuevas_bp
     from blueprints.sla import bp as sla_bp
@@ -43,6 +44,7 @@ def _register_blueprints(app):
         asistencia_bp,
         form_pruebas_bp,
         caja_chica_bp,
+        asistencia_movil_bp,
         cot_new_bp,
         vistas_nuevas_bp,
         sla_bp,

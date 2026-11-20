@@ -1,5 +1,6 @@
 import { crearApi } from "./asistencia/api.mjs";
 import { siglas, clave, filtrarYOrdenar } from "./asistencia/modelo.mjs";
+import { abrirMovil } from "./asistencia/movil.mjs?v=1";
 
 (() => {
   "use strict";
@@ -135,6 +136,20 @@ import { siglas, clave, filtrarYOrdenar } from "./asistencia/modelo.mjs";
           marcar(p, d);
           dibujar();
         };
+        // Marcado en Nucleus Mobile: abre la ventana con foto y recorrido para validar.
+        const movil = !cambios.has(clave(p, d)) && marca.movil;
+        if (movil) {
+          b.classList.add("movil", `movil-${movil.validacion.toLowerCase()}`);
+          b.textContent =
+            siglas[marca.estado] +
+            ({ PENDIENTE: "?", VALIDADA: "✓", OBSERVADA: "!" }[movil.validacion] || "");
+          b.title = `${d}/${mes}/${anio}: marcó en Mobile a las ${movil.hora} · ${{ PENDIENTE: "falta validar", VALIDADA: "validada", OBSERVADA: "observada" }[movil.validacion]}. Clic para ver foto y recorrido.`;
+          b.disabled = false;
+          b.onclick = () => abrirMovil(movil.id, api, cargar);
+        } else if (marca.auto && !cambios.has(clave(p, d))) {
+          b.classList.add("auto");
+          b.title = `${d}/${mes}/${anio}: Falta automática · no marcó en Nucleus Mobile. Clic para cambiar.`;
+        }
         if (cambios.has(clave(p, d))) b.classList.add("unsaved");
         td.append(b);
         if ([0, 6].includes(new Date(anio, mes - 1, d).getDay()))
@@ -162,7 +177,7 @@ import { siglas, clave, filtrarYOrdenar } from "./asistencia/modelo.mjs";
     }
     $("as-totales").replaceChildren(cards);
     $("as-estado").textContent =
-      `${filas.length} personas · ${mesCargado} · Cada celda es un día. Pulsa una sigla para marcar. Sin marcar no es falta.`;
+      `${filas.length} personas · ${mesCargado} · Cada celda es un día. Pulsa una sigla para marcar. Con ? = marcó en Mobile, falta validar. F punteada = falta automática.`;
     botones();
   }
   async function cargar() {

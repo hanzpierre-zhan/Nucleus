@@ -150,6 +150,9 @@ def consultar_planilla(ps, escritura, inicio, fin, filtro):
         for p in salida.values()
         if filtro == "ambos" or p["activo"] == (filtro == "activos")
     ]
+    from services.asistencia_movil import completar_planilla
+
+    completar_planilla(personas, inicio, fin)
     return sorted(personas, key=lambda p: (p["proyecto"], p["nombre"].casefold()))
 
 

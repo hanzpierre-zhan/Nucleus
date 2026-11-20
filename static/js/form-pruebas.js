@@ -149,6 +149,12 @@
       $('cc-home-detalle').textContent=depositos?`${depositos} depósito${depositos===1?'':'s'} por rendir. Tienes 24 horas desde el depósito.`:'Estás al día: no tienes depósitos por rendir.';
     }catch(e){$('cc-home-detalle').textContent='No se pudo calcular tu saldo por rendir. Actualiza la página.';}
   }
+  // Asistencia de hoy en la tarjeta del inicio.
+  async function estadoAsistencia(){
+    const e=$('asis-home-estado');if(!e)return;
+    try{const r=await fetch('/form-pruebas/asistencia/estado',{credentials:'same-origin'});const j=await r.json();if(!r.ok)return;
+      e.textContent=j.marcado?`Hoy marcaste a las ${j.hora}`:'Hoy aún no marcas';e.closest('.action').classList.toggle('asistencia-pendiente',!j.marcado);}catch(_){}
+  }
   async function load(){
     state=await api('/datos');$('csrf').value=state.csrf;
     $('nombre').textContent=state.personal.nombre.split(/\s+/)[0];$('proyecto').textContent=state.personal.proyecto||'TU ESPACIO';
@@ -172,7 +178,7 @@
     avisos.replaceChildren(...novedades.map(r => el('p', r.estado + ' · ' + r.codigo, 'notice')));
     avisos.hidden = !novedades.length;
     $('cargando').hidden=true;$('portal').hidden=false;
-    totalCajaChica();
+    totalCajaChica(); estadoAsistencia();
   }
   async function actualizarRendicion() {
     const boton = $('actualizar-rendicion');

@@ -31,6 +31,7 @@ def tecnico(app, monkeypatch, tmp_path):
         db.session.commit()
         rid = fila.id
     cliente = app.test_client()
+    cliente.environ_base['HTTP_X_UBICACION'] = '-12.0464,-77.0428,15'  # Mobile exige ubicación
     pagina = cliente.get('/form-pruebas/')
     token = re.search(rb'id="csrf" type="hidden" value="([^"]+)"', pagina.data).group(1).decode()
     assert cliente.post('/form-pruebas/ingresar', json={'documento': DOC, 'clave': 'Clave-123'},

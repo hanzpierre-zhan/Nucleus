@@ -58,6 +58,8 @@ def portal(tmp_path):
 
 
 def entrar(client, doc='00001111', clave=None):
+    # Nucleus Mobile exige la ubicación del momento en cada acción del técnico.
+    client.environ_base['HTTP_X_UBICACION'] = '-12.0464,-77.0428,15'
     page = client.get('/form-pruebas/')
     token = re.search(rb'id="csrf" type="hidden" value="([^"]+)"', page.data).group(1).decode()
     response = client.post('/form-pruebas/ingresar', json={'documento':doc,'clave':clave or doc},

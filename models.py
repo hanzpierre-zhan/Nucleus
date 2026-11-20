@@ -364,3 +364,44 @@ class LpuRegistro(db.Model):
     activity = db.Column(db.Text, nullable=False, default='')
     actualizado_por = db.Column(db.String(100), nullable=False, default='')
     actualizado_en = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AsistenciaCuadrilla(db.Model):
+    """Asistencia marcada desde Nucleus Mobile: principal, junior, placa y foto con coordenadas (una por día)."""
+    __tablename__ = 'asistencia_cuadrilla'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    personal_id = db.Column(db.Integer, nullable=False, index=True)
+    documento = db.Column(db.String(30), nullable=False, index=True)
+    nombre = db.Column(db.String(200), nullable=False)
+    proyecto = db.Column(db.String(100), nullable=False, default='')
+    junior_id = db.Column(db.Integer, nullable=True)
+    junior_documento = db.Column(db.String(30), nullable=False, default='')
+    junior_nombre = db.Column(db.String(200), nullable=False, default='')
+    placa = db.Column(db.String(20), nullable=False)
+    foto = db.Column(db.String(200), nullable=False)
+    latitud = db.Column(db.Float, nullable=False)
+    longitud = db.Column(db.Float, nullable=False)
+    precision_m = db.Column(db.Float, nullable=True)
+    registrado_en = db.Column(db.DateTime, nullable=False)
+    dispositivo = db.Column(db.String(64), nullable=False, default='')
+    # PENDIENTE (falta validar), VALIDADA u OBSERVADA: lo decide el gestor o supervisor en Dataper.
+    validacion = db.Column(db.String(12), nullable=False, default='PENDIENTE')
+    validado_por = db.Column(db.String(100), nullable=False, default='')
+    validado_en = db.Column(db.DateTime, nullable=True)
+    motivo = db.Column(db.String(500), nullable=False, default='')
+    __table_args__ = (db.UniqueConstraint('documento', 'fecha', name='uq_asistencia_cuadrilla_dia'),)
+
+
+class UbicacionMovil(db.Model):
+    """Punto del recorrido: cada acción del técnico en Nucleus Mobile guarda dónde estaba."""
+    __tablename__ = 'ubicacion_movil'
+    id = db.Column(db.Integer, primary_key=True)
+    documento = db.Column(db.String(30), nullable=False, index=True)
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    hora = db.Column(db.DateTime, nullable=False)
+    latitud = db.Column(db.Float, nullable=False)
+    longitud = db.Column(db.Float, nullable=False)
+    precision_m = db.Column(db.Float, nullable=True)
+    evento = db.Column(db.String(60), nullable=False)
+    dispositivo = db.Column(db.String(64), nullable=False, default='')

@@ -162,3 +162,38 @@ a.action{text-decoration:none;color:inherit}
   gap: 8px;
   margin-inline-start: auto;
 }
+
+/* Asistencia (tarjeta del inicio y pantalla) */
+.action.asistencia-pendiente small{color:#b45309;font-weight:600}
+:root[data-theme="dark"] .action.asistencia-pendiente small{color:#fbbf24}
+.asis-datos{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding:14px 0 4px;font-size:13px}
+.asis-datos span{display:block;font-size:11px;color:var(--muted)}
+.asis-foto{display:block;margin:0!important;text-align:center;padding:22px 10px;border:1px dashed var(--input-border);border-radius:12px;background:var(--field);color:var(--ink);cursor:pointer;font-size:14px;font-weight:600}
+.asis-foto small{display:block;font-weight:400;color:var(--muted);font-size:12px;margin-top:4px}
+.asis-foto input{position:absolute;width:1px;height:1px;opacity:0}
+.asis-previa{display:block;width:100%;max-height:340px;object-fit:cover;border-radius:12px;margin-top:10px}
+.asis-gps{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--muted);margin-top:10px;line-height:1.4}
+.asis-gps.ok{color:#15803d}.asis-gps.mal{color:var(--error-text)}
+:root[data-theme="dark"] .asis-gps.ok{color:#4ade80}
+.asis-hecho{text-align:center}
+.asis-hecho img{display:block;width:100%;border-radius:12px;margin:14px 0}
+.asis-hecho .asis-datos{text-align:left}
+
+/* Ubicación obligatoria en Nucleus Mobile */
+.ubi-velo{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.72);display:grid;place-items:center;padding:20px}
+.ubi-velo[hidden]{display:none!important}
+.ubi-caja{background:var(--card);color:var(--ink);border-radius:22px;padding:24px;max-width:420px;width:100%;max-height:90dvh;overflow:auto}
+.ubi-caja h2{margin:6px 0 8px;font-size:22px}
+.ubi-caja p{margin:0 0 12px;font-size:14px}
+.ubi-caja ol{padding-left:18px;font-size:13px;color:var(--muted);margin:0 0 12px}
+.ubi-caja li{margin-bottom:6px}
+.ubi-icono{font-size:34px}
+.ubi-nota{font-size:12px!important;color:var(--muted)}
+button.asis-foto{width:100%}
+.asis-camara{position:relative;margin-top:10px;border-radius:14px;overflow:hidden;background:#000}
+.asis-camara video{display:block;width:100%;max-height:60dvh;object-fit:cover}
+.asis-camara-botones{position:absolute;left:0;right:0;bottom:12px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;justify-items:center}
+.asis-disparo{width:66px;height:66px;border-radius:50%;border:5px solid #fff;background:#ffffff55}
+.asis-disparo:active{background:#fff}
+.asis-cam-sec{width:44px;height:44px;border-radius:50%;border:0;background:#0008;color:#fff;font-size:20px}
+.asis-repetir{margin:8px 0 0}
