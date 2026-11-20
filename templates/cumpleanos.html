@@ -1,15 +1,39 @@
 {% extends 'base.html' %}
 {% block title %}Cumpleaños — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/perfil-personal.css?v=1">
+{% set meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'] %}
+<link rel="stylesheet" href="/static/css/perfil-personal.css?v=2">
+<link rel="stylesheet" href="/static/css/cumpleanos.css?v=1">
 <section class="cumple-panel">
-  <h2><i class="fa-solid fa-cake-candles"></i> Cumpleaños</h2>
-  <p>{{ 'Datos personales y cumpleaños de los usuarios activos.' if admin else 'Celebremos a nuestro equipo.' }}</p>
-  <input type="search" id="cumple-buscar" placeholder="Buscar persona" aria-label="Buscar persona">
-  <div class="cumple-scroll"><table class="cumple-tabla"><thead><tr><th>Nombre</th><th>Cumpleaños</th>{% if admin %}<th>Primer nombre</th><th>Segundo nombre</th><th>Apellido paterno</th><th>Apellido materno</th><th>Fecha de nacimiento</th>{% endif %}</tr></thead><tbody>
-  {% for f in filas %}<tr><td>{{ f.nombre }}</td><td>{% if f.pendiente %}Pendiente de completar{% else %}{{ '%02d/%02d'|format(f.dia, f.mes) }} {% if f.hoy %}<span class="cumple-hoy">¡Hoy!</span>{% endif %}{% endif %}</td>{% if admin %}{% for campo in ['primer_nombre','segundo_nombre','apellido_paterno','apellido_materno','fecha_nacimiento'] %}<td>{{ f.get(campo, '—') }}</td>{% endfor %}{% endif %}</tr>
-  {% else %}<tr><td>No hay cumpleaños registrados todavía.</td></tr>{% endfor %}
+  <header class="cumple-banner">
+    <div class="cumple-simbolo" aria-hidden="true">🎂</div>
+    <div><span class="cumple-etiqueta">NUESTRO EQUIPO</span><h2>Cumpleaños</h2><p>Un día especial para celebrar a quienes hacen posible nuestro trabajo.</p></div>
+    <span class="cumple-decoracion" aria-hidden="true">🎉</span>
+  </header>
+  <div class="cumple-filtros">
+    <label>Mes del cumpleaños<select id="cumple-mes" aria-label="Mes del cumpleaños"><option value="">Todos los meses</option>{% for mes in meses %}<option value="{{ loop.index }}" {% if loop.index == mes_actual %}selected{% endif %}>{{ mes }}</option>{% endfor %}{% if admin %}<option value="pendiente">Sin completar</option>{% endif %}</select></label>
+    <label>Buscar persona<input type="search" id="cumple-buscar" placeholder="Nombre o apellido" aria-label="Buscar persona"></label>
+    <span id="cumple-cantidad" role="status" aria-live="polite"></span>
+  </div>
+  <div class="cumple-scroll" tabindex="0" role="region" aria-label="Lista de cumpleaños con desplazamiento vertical">
+  <table class="cumple-tabla"><thead><tr><th>Nombre</th><th>Día</th><th>Mes del cumpleaños</th>{% if admin %}<th>Primer nombre</th><th>Segundo nombre</th><th>Apellido paterno</th><th>Apellido materno</th><th>Fecha de nacimiento</th>{% endif %}</tr></thead><tbody>
+  {% for f in filas %}<tr data-mes="{{ f.get('mes', 'pendiente') }}"><td><span class="cumple-avatar" aria-hidden="true">{{ f.nombre[:1]|upper }}</span><strong>{{ f.nombre|upper }}</strong>{% if f.hoy %}<span class="cumple-hoy">🎈 ¡Hoy!</span>{% endif %}</td><td>{{ '%02d'|format(f.dia) if not f.pendiente else '—' }}</td><td>{% if f.pendiente %}Pendiente de completar{% else %}<span class="cumple-mes-badge">{{ meses[f.mes - 1] }}</span>{% endif %}</td>{% if admin %}{% for campo in ['primer_nombre','segundo_nombre','apellido_paterno','apellido_materno','fecha_nacimiento'] %}<td>{{ f.get(campo, '—')|upper }}</td>{% endfor %}{% endif %}</tr>{% endfor %}
+  <tr id="cumple-vacio" hidden><td colspan="{{ 8 if admin else 3 }}">No hay cumpleaños para esta selección. 🎁</td></tr>
   </tbody></table></div>
 </section>
-<script>document.getElementById('cumple-buscar').addEventListener('input', function(){for(const fila of document.querySelectorAll('.cumple-tabla tbody tr'))fila.hidden=!fila.textContent.toLocaleLowerCase().includes(this.value.toLocaleLowerCase());});</script>
+<script>
+(() => {
+  const mes = document.getElementById('cumple-mes'), buscar = document.getElementById('cumple-buscar');
+  function filtrar() {
+    let cantidad = 0;
+    for (const fila of document.querySelectorAll('.cumple-tabla tr[data-mes]')) {
+      fila.hidden = !!((mes.value && fila.dataset.mes !== mes.value) || !fila.textContent.toLocaleLowerCase().includes(buscar.value.trim().toLocaleLowerCase()));
+      if (!fila.hidden) cantidad++;
+    }
+    document.getElementById('cumple-cantidad').textContent = cantidad + (cantidad === 1 ? ' persona' : ' personas');
+    document.getElementById('cumple-vacio').hidden = cantidad > 0;
+  }
+  mes.addEventListener('change', filtrar); buscar.addEventListener('input', filtrar); filtrar();
+})();
+</script>
 {% endblock %}

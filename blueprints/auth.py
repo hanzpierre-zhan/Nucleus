@@ -75,7 +75,36 @@ def _iniciar_sesion(user, conformidad):
     from services import caja_chica as cc
     if cc.es_celular(request.headers.get('User-Agent')) and user.id in cc.depositantes():
         return redirect('/caja-chica/movil')
-    return redirect(url_for('pages.analytics'))
+    return redirect(url_for('auth.inicio'))
+
+
+@bp.get('/inicio')
+@login_required
+def inicio():
+    from sqlalchemy import extract
+    from models import DatosPersonalesUsuario
+    from services.frases_inicio import frase_para
+    from services.perfil_personal import hoy_lima
+
+    hoy = hoy_lima()
+    meses = ('enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+             'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre')
+    dias = ('lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo')
+    frases = []
+    for atraso in range(10):
+        fecha = hoy - timedelta(days=atraso)
+        texto, autor, fuente = frase_para(fecha)
+        frases.append(dict(texto=texto, autor=autor, fuente=fuente,
+                           fecha=f'{dias[fecha.weekday()]}, {fecha.day} de {meses[fecha.month - 1]}'))
+    dia = extract('day', DatosPersonalesUsuario.fecha_nacimiento)
+    cumpleanos = (usuarios_activos()
+                  .join(DatosPersonalesUsuario, DatosPersonalesUsuario.usuario_id == Usuario.id)
+                  .with_entities(Usuario.nombre, dia)
+                  .filter(extract('month', DatosPersonalesUsuario.fecha_nacimiento) == hoy.month)
+                  .order_by(dia, Usuario.nombre).all())
+    return render_template('inicio.html', frases=frases, cumpleanos=cumpleanos,
+                           mes=meses[hoy.month - 1], dia_actual=hoy.day,
+                           proyectos_list=get_menu_proyectos(session['user_id'], session.get('rol')))
 
 
 @bp.route('/login', methods=['GET', 'POST'])
@@ -188,7 +217,7 @@ def cumpleanos():
             fila.update(datos)
         filas.append(fila)
     filas.sort(key=lambda f: (not f.get('hoy', False), f.get('mes', 13), f.get('dia', 32), f['nombre']))
-    return render_template('cumpleanos.html', filas=filas, admin=admin,
+    return render_template('cumpleanos.html', filas=filas, admin=admin, mes_actual=hoy_lima().month,
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
 

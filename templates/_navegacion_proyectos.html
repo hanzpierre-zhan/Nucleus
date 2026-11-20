@@ -9,3 +9,4 @@
 <nav id="modulos" aria-label="Módulos autorizados">
 {% for m in navegacion_negocio.modulos %}<a href="/espacios?proyecto={{ navegacion_negocio.seleccion }}&amp;modulo={{ m.id }}" data-modulo="{{ m.id }}" class="sidebar-link {% if request.path == '/espacios' and not request.args.get('administrar') and navegacion_negocio.modulo == m.id %}active{% endif %}"><i class="fa-solid {{ m.icono }}"></i><span class="sidebar-link-text">{{ m.nombre }}</span></a>{% endfor %}
 </nav>
+<a href="/cumpleanos" class="sidebar-link {% if request.path == '/cumpleanos' %}active{% endif %}" title="Cumpleaños"><i class="fa-solid fa-cake-candles"></i><span class="sidebar-link-text">Cumpleaños</span></a>

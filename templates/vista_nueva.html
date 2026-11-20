@@ -31,6 +31,9 @@
         <i class="fa-solid fa-gear" aria-hidden="true"></i><span class="sr-only">Opciones</span>
       </button>
       <div id="cn-ajustes-menu" class="cc-ajustes-menu" role="menu" hidden>
+        {% if slug == 'dataper' %}
+        <a role="menuitem" class="vn-enlace" href="{{ url_for('asistencia.index') }}"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> Asistencia</a>
+        {% endif %}
         <button type="button" role="menuitem" data-accion="copiar"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copiar tabla</button>
         {% for nombre, url, ic in extras or [] %}<a role="menuitem" class="vn-enlace" href="{{ url }}"><i class="fa-solid {{ ic }}" aria-hidden="true"></i> {{ nombre }}</a>{% endfor %}
         <button type="button" role="menuitem" data-accion="limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros y búsquedas</button>

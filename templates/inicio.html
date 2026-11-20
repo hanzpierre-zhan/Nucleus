@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Inicio — Nucleus{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/inicio.css?v=1">
+<section class="inicio-panel">
+  <h1>Bienvenido a Nucleus</h1>
+  <section class="inicio-banner" aria-label="Frases del día">
+    <div id="inicio-fecha">{{ frases[0].fecha }} · Mensaje del día</div>
+    <blockquote id="inicio-frase" aria-live="polite">«{{ frases[0].texto }}»</blockquote>
+    <div class="inicio-acciones">
+      <a id="inicio-autor" href="{{ frases[0].fuente }}" target="_blank" rel="noopener">{{ frases[0].autor }}</a>
+      <div class="inicio-navegar">
+        <button type="button" id="inicio-anterior" title="Frase anterior" aria-label="Frase anterior">←</button>
+        <button type="button" id="inicio-siguiente" title="Frase siguiente" aria-label="Frase siguiente" disabled>→</button>
+      </div>
+    </div>
+  </section>
+  <div class="inicio-columnas">
+    <section class="inicio-tarjeta">
+      <h2>🎂 Cumpleaños de {{ mes }}</h2>
+      <ul>
+        {% for nombre, dia in cumpleanos %}
+        <li><span class="inicio-dia">{{ '%02d'|format(dia) }}</span><strong>{{ nombre|upper }}</strong>{% if dia == dia_actual %}<span class="inicio-hoy">¡Hoy!</span>{% endif %}</li>
+        {% else %}
+        <li>No hay cumpleaños registrados este mes.</li>
+        {% endfor %}
+      </ul>
+      <a href="{{ url_for('auth.cumpleanos') }}">Ver todos los cumpleaños →</a>
+    </section>
+    <section class="inicio-tarjeta">
+      <h2>📣 Novedades del equipo</h2>
+      <p>Todavía no hay publicaciones.</p>
+      <p>Aquí encontrarás los comunicados, guías y nuevos procesos.</p>
+    </section>
+  </div>
+</section>
+<script type="application/json" id="inicio-frases">{{ frases|tojson }}</script>
+<script src="/static/js/inicio.js?v=1" defer></script>
+{% endblock %}

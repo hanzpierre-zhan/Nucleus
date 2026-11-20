@@ -5,7 +5,7 @@
     if (personas.length) {
       const panel = document.createElement('aside'); panel.className = 'cumple-aviso'; panel.setAttribute('role', 'status');
       const titulo = document.createElement('strong'); titulo.textContent = '🎂 Hoy es el cumpleaños de';
-      const nombres = document.createElement('p'); nombres.textContent = personas.map(p => p.nombre).join(', ') + '. ¡Feliz cumpleaños!';
+      const nombres = document.createElement('p'); nombres.textContent = personas.map(p => p.nombre.toLocaleUpperCase('es-PE')).join(', ') + '. ¡Feliz cumpleaños!';
       const cerrar = document.createElement('button'); cerrar.className = 'cumple-cerrar'; cerrar.textContent = '×'; cerrar.setAttribute('aria-label', 'Cerrar aviso'); cerrar.onclick = () => panel.remove();
       panel.append(titulo, nombres, cerrar); document.body.append(panel);
     }
