@@ -29,6 +29,7 @@
 <!-- Solicitar y Rendir trabajan sobre Caja Chica: lo que envía el técnico llega a la gestión de Caja Chica. -->
 <!-- Lo que el técnico debe rendir en Caja Chica, grande y arriba para que no pase desapercibido. -->
 <div class="balance cc-home-balance"><span class="balance-label">TOTAL POR RENDIR</span><div id="cc-home-total" class="big-money" aria-live="polite">S/ 0.00</div><p id="cc-home-detalle">Calculando…</p></div>
+<div class="card" id="asis-rechazo" role="status" hidden></div>
 <div class="actions"><a class="action request-action" href="/form-pruebas/caja-chica#nueva"><span class="action-icon" aria-hidden="true">＋</span><span><strong>Solicitar</strong><small>Pide dinero para tu trabajo</small></span><span aria-hidden="true">↗</span></a><a class="action" href="/form-pruebas/caja-chica"><span class="action-icon" aria-hidden="true">✓</span><span><strong>Rendir</strong><small>Envía tus comprobantes y fotos</small></span><span aria-hidden="true">↗</span></a><a class="action asistencia-action" href="/form-pruebas/asistencia"><span class="action-icon" aria-hidden="true">👥</span><span><strong>Asistencia</strong><small id="asis-home-estado">Marca tu ingreso con tu junior</small></span><span aria-hidden="true">↗</span></a></div>
 <!-- Elementos del flujo anterior: se conservan ocultos porque form-pruebas.js aún los rellena. -->
 <div hidden><div id="avisos-pago" role="status" hidden></div><div class="balance"><div id="total" class="big-money">S/ 0.00</div><p id="cantidad"></p></div>
@@ -137,4 +138,4 @@
 </main>
 <footer>NUCLEUS · Formularios para técnicos</footer>
 <input id="csrf" type="hidden" value="{{ session.get('form_csrf', '') }}">
-{% if autenticado and not debe_cambiar %}<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=1) }}" defer></script>{% endif %}<script src="{{ url_for('static',filename='js/form-pruebas.js',v=33) }}" defer></script></body></html>
+{% if autenticado and not debe_cambiar %}<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=1) }}" defer></script>{% endif %}<script src="{{ url_for('static',filename='js/form-pruebas.js',v=34) }}" defer></script></body></html>

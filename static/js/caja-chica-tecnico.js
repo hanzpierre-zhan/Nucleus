@@ -47,6 +47,7 @@
     const r = await fetch(prefijo + ruta, {credentials: 'same-origin', ...opciones, headers: {'X-CSRF-Token': $('csrf').value, ...(opciones.headers || {})}});
     let j; try { j = await r.json(); } catch { throw Error('No se pudo leer la respuesta. Revisa tu conexión.'); }
     if (r.status === 401 || (r.status === 403 && j.codigo === 'CAMBIAR_CLAVE')) { location.href = '/form-pruebas/'; throw Error(j.error); }
+    if (j.codigo === 'ASISTENCIA_REQUERIDA') location.replace('/form-pruebas/asistencia');
     if (!r.ok) throw Error(j.error || 'No se pudo completar el envío.');
     return j;
   }

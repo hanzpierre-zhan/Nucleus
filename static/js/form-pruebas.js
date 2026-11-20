@@ -11,7 +11,7 @@
   async function api(path, options={}) {
     const response=await fetch(base+path,{credentials:'same-origin',...options,headers:{'X-CSRF-Token':token(),...(options.headers||{})}});
     let data;try{data=await response.json();}catch{throw Error('No se pudo leer la respuesta. Revisa tu conexión y vuelve a intentar.');}
-    if(!response.ok){if((response.status===401 && !$('login'))||(response.status===403 && data.codigo==='CAMBIAR_CLAVE' && !$('form-clave')?.closest('.login')))location.reload();throw Error(data.error||'No se pudo completar el envío.');}
+    if(!response.ok){if(data.codigo==='ASISTENCIA_REQUERIDA')location.replace('/form-pruebas/asistencia');if((response.status===401 && !$('login'))||(response.status===403 && data.codigo==='CAMBIAR_CLAVE' && !$('form-clave')?.closest('.login')))location.reload();throw Error(data.error||'No se pudo completar el envío.');}
     return data;
   }
   function showError(form,message){const box=form.querySelector('.error');box.textContent=message;box.hidden=false;box.focus();}
@@ -153,6 +153,7 @@
   async function estadoAsistencia(){
     const e=$('asis-home-estado');if(!e)return;
     try{const r=await fetch('/form-pruebas/asistencia/estado',{credentials:'same-origin'});const j=await r.json();if(!r.ok)return;
+      const aviso=$('asis-rechazo');if(aviso && j.rechazo){aviso.textContent='Asistencia rechazada · '+j.rechazo.fecha+'. Motivo: '+j.rechazo.motivo;aviso.hidden=false;}
       e.textContent=j.marcado?`Hoy marcaste a las ${j.hora}`:'Hoy aún no marcas';e.closest('.action').classList.toggle('asistencia-pendiente',!j.marcado);}catch(_){}
   }
   async function load(){

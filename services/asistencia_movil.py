@@ -67,6 +67,17 @@ def de_hoy(documento):
             .filter((AsistenciaCuadrilla.documento == documento) | (AsistenciaCuadrilla.junior_documento == documento)).first())
 
 
+def ultimo_rechazo(documento):
+    registro = (AsistenciaCuadrilla.query
+                .filter(AsistenciaCuadrilla.validacion == 'RECHAZADA',
+                        (AsistenciaCuadrilla.documento == documento) |
+                        (AsistenciaCuadrilla.junior_documento == documento))
+                .order_by(AsistenciaCuadrilla.validado_en.desc(), AsistenciaCuadrilla.id.desc()).first())
+    if registro:
+        return {'fecha': registro.fecha.strftime('%d/%m/%Y'), 'motivo': registro.motivo}
+    return None
+
+
 def a_dict(r):
     return {'id': r.id, 'fecha': r.fecha.isoformat(), 'nombre': r.nombre, 'documento': r.documento, 'proyecto': r.proyecto,
             'junior': r.junior_nombre, 'junior_documento': r.junior_documento, 'placa': r.placa,
@@ -87,7 +98,7 @@ def _numero(v, minimo, maximo, nombre):
 
 
 def _foto_con_datos(archivo, texto):
-    """Normaliza la foto y le imprime abajo la fecha, hora, coordenadas y placa."""
+    """Superpone los datos de asistencia en la esquina inferior derecha."""
     contenido = archivo.read(20 * 1024 * 1024 + 1)
     if not contenido:
         raise ValueError('Toma la foto de la cuadrilla.')
@@ -99,18 +110,25 @@ def _foto_con_datos(archivo, texto):
             imagen.thumbnail((1800, 1800))
     except Exception:
         raise ValueError('La foto no se pudo abrir. Vuelve a tomarla.') from None
-    tam = max(14, imagen.width // 45)
+    tam = max(9, min(imagen.width // 27, imagen.height // 10))
     try:
         fuente = ImageFont.load_default(size=tam)
     except TypeError:
         fuente = ImageFont.load_default()
     # La fuente incluida no trae tildes ni ñ: se imprimen sin ellas.
     texto = [''.join(c for c in unicodedata.normalize('NFKD', t) if not unicodedata.combining(c)) for t in texto]
+    margen = max(4, tam // 2)
+    paso = max(tam + 2, round(tam * 1.3))
+    derecha = imagen.width - margen
+    abajo = imagen.height - margen
     dibujo = ImageDraw.Draw(imagen)
-    alto = int(tam * 1.4) * len(texto) + tam
-    dibujo.rectangle([0, imagen.height - alto, imagen.width, imagen.height], fill=(0, 0, 0))
-    for n, linea in enumerate(texto):
-        dibujo.text((tam // 2, imagen.height - alto + tam // 2 + n * int(tam * 1.4)), linea, fill=(255, 255, 255), font=fuente)
+    for n, linea in enumerate(reversed(texto)):
+        while linea and dibujo.textlength(linea, font=fuente) > imagen.width - 2 * margen:
+            linea = linea[:-1]
+        if linea != texto[-1 - n] and len(linea) > 3:
+            linea = linea[:-3] + '...'
+        dibujo.text((derecha, abajo - n * paso), linea, anchor='rd', fill='white',
+                    font=fuente, stroke_width=max(1, tam // 24), stroke_fill='#181818')
     salida = io.BytesIO()
     imagen.save(salida, 'JPEG', quality=85)
     salida.seek(0)
@@ -164,9 +182,14 @@ def registrar(tecnico, form, archivo, dispositivo=''):
     if archivo is None or not archivo.filename:
         raise ValueError('Toma la foto de la cuadrilla.')
     ahora = ahora_peru()
-    texto = ['%s  ·  Placa %s' % (ahora.strftime('%d/%m/%Y %H:%M'), placa),
-             'Lat %.6f  Lng %.6f%s' % (lat, lng, ('  (±%d m)' % precision) if precision is not None else ''),
-             '%s + %s' % (tecnico['nombre'], junior['nombre'])]
+    meses = ('ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
+             'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.')
+    hora = ahora.strftime('%I:%M:%S').lstrip('0')
+    periodo = 'a. m.' if ahora.hour < 12 else 'p. m.'
+    texto = [f'{ahora.day} {meses[ahora.month - 1]} {ahora.year}, {hora} {periodo}',
+             f'{lat:.6f}, {lng:.6f}',
+             f"Placa {placa}",
+             f"{tecnico['nombre']} + {junior['nombre']}"]
     salida = _foto_con_datos(archivo, texto)
     nombre = '%s/%s.jpg' % (ahora.strftime('%Y-%m'), uuid.uuid4().hex)
     _guardar(nombre, salida)

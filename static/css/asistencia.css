@@ -615,7 +615,7 @@
 .attendance-table button.movil { font-weight: 700; }
 .attendance-table button.movil-pendiente { background: #fef3c7 !important; color: #92400e !important; box-shadow: inset 0 0 0 1px #f59e0b; }
 .attendance-table button.movil-validada { background: #dcfce7 !important; color: #166534 !important; box-shadow: inset 0 0 0 1px #22c55e; }
-.attendance-table button.movil-observada { background: #fee2e2 !important; color: #991b1b !important; box-shadow: inset 0 0 0 1px #ef4444; }
+.attendance-table button.movil-observada, .attendance-table button.movil-rechazada { background: #fee2e2 !important; color: #991b1b !important; box-shadow: inset 0 0 0 1px #ef4444; }
 .attendance-table button.auto { outline: 1px dashed #ef4444; outline-offset: -3px; }
 
 /* Ventana: asistencia de Mobile con foto y recorrido */
@@ -626,7 +626,7 @@
 .am-cabeza strong { display: block; font-size: 17px; }
 .am-cabeza small { color: var(--ios-secondary, #64748b); }
 .am-chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
-.am-pendiente { background: #fef3c7; color: #92400e; } .am-validada { background: #dcfce7; color: #166534; } .am-observada { background: #fee2e2; color: #991b1b; }
+.am-pendiente { background: #fef3c7; color: #92400e; } .am-validada { background: #dcfce7; color: #166534; } .am-observada, .am-rechazada { background: #fee2e2; color: #991b1b; }
 .am-botones { margin-left: auto; display: flex; gap: 8px; }
 .am-redondo { width: 38px; height: 38px; border-radius: 50%; border: 0; color: #fff; display: grid; place-items: center; cursor: pointer; font-size: 15px; }
 .am-verde { background: #16a34a; } .am-ambar { background: #d97706; } .am-rojo { background: #dc2626; } .am-gris { background: #64748b; }

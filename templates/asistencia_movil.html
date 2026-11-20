@@ -3,11 +3,13 @@
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg') }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Asistencia</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
 <main class="shell">
+{% if rechazo %}<div class="card" role="status"><strong>Asistencia rechazada · {{ rechazo.fecha }}</strong><p>{{ rechazo.motivo }}</p></div>{% endif %}
 <div id="cargando" role="status">Cargando tu información…</div>
 
 <section id="asis-form-vista" class="view" hidden>
   <a class="back" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Volver</a>
   <div class="eyebrow">03 / ASISTENCIA</div><h1>Asistencia de hoy<span class="dot">.</span></h1>
+  <p>Marca tu asistencia para continuar a Nucleus. La marcación se renueva a las 00:00, hora de Perú.</p>
   <form id="asis-form" class="card" novalidate>
     <div class="identity"><strong id="asis-nombre"></strong><span id="asis-doc"></span></div>
     <div class="asis-datos" id="asis-datos"></div>

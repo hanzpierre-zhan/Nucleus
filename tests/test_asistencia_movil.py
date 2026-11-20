@@ -55,6 +55,8 @@ def _foto():
 
 def test_datos_y_juniors_del_mismo_proyecto(cuadrilla):
     cli, h, ids = cuadrilla
+    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
+    assert cli.get('/form-pruebas/caja-chica').location.endswith('/form-pruebas/asistencia')
     assert cli.get('/form-pruebas/asistencia').status_code == 200
     j = cli.get('/form-pruebas/asistencia/datos').json
     assert j['personal']['nombre'] == 'Principal Uno' and j['personal']['cargo'] == 'TECNICO ESPECIALISTA' and j['personal']['celular'] == '999111222'
@@ -77,6 +79,7 @@ def test_registra_una_vez_con_foto_y_coordenadas(cuadrilla):
     foto = cli.get('/form-pruebas/asistencia/foto/%d' % reg['id'])
     assert foto.status_code == 200 and foto.mimetype == 'image/jpeg'
     assert cli.get('/form-pruebas/asistencia/estado').json['marcado'] is True
+    assert cli.get('/form-pruebas/').status_code == 200
     assert cli.get('/form-pruebas/asistencia/datos').json['hoy']['id'] == reg['id']
     r = cli.post('/form-pruebas/asistencia', headers=h, data={**base, 'foto': _foto()}, content_type='multipart/form-data')
     assert r.status_code == 400 and 'Ya registraste' in r.json['error']
@@ -118,7 +121,7 @@ def gestor(app, client, monkeypatch):
 
 def test_planilla_marca_mobile_falta_automatica_y_validacion(app, cuadrilla, gestor):
     from datetime import date, datetime
-    _, _, ids = cuadrilla
+    tecnico, _, ids = cuadrilla
     c, h, claro = gestor
     principal, junior = ids['Principal Uno'], ids['Junior Dos']
     with app.app_context():
@@ -146,8 +149,9 @@ def test_planilla_marca_mobile_falta_automatica_y_validacion(app, cuadrilla, ges
         assert c.post('/api/asistencia/movil/%d' % rid, headers=h, json={'accion': 'validar'}).json['validacion'] == 'VALIDADA'
         with app.app_context():
             assert {(a.personal_id, a.estado) for a in AsistenciaDiaria.query.filter_by(fecha=date(2026, 10, 5))} == {(principal, 'PRESENTE'), (junior, 'PRESENTE')}
-        r = c.post('/api/asistencia/movil/%d' % rid, headers=h, json={'accion': 'falta', 'motivo': 'Marcó desde su casa'})
-        assert r.status_code == 200 and r.json['validacion'] == 'OBSERVADA'
+        r = c.post('/api/asistencia/movil/%d' % rid, headers=h, json={'accion': 'rechazar', 'motivo': 'Marcó desde su casa'})
+        assert r.status_code == 200 and r.json['validacion'] == 'RECHAZADA'
+        assert tecnico.get('/form-pruebas/asistencia/estado').json['rechazo']['motivo'] == 'Marcó desde su casa'
         with app.app_context():
             assert {a.estado for a in AsistenciaDiaria.query.filter_by(fecha=date(2026, 10, 5))} == {'FALTA'}
     finally:

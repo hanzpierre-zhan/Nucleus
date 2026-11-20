@@ -177,7 +177,7 @@ def movil_detalle(rid):
 @bp.route("/api/asistencia/movil/<int:rid>", methods=["POST"])
 @login_required
 def movil_validar(rid):
-    """Validar (A en la planilla), observar (queda en rojo para seguimiento) o marcar falta a la cuadrilla."""
+    """Valida la asistencia o la rechaza con un motivo."""
     from services.asistencia_movil import detalle
 
     registro, claves, permitidos, escritura = _registro_movil(rid)
@@ -186,29 +186,26 @@ def movil_validar(rid):
     datos = request.get_json(silent=True) or {}
     accion = datos.get("accion")
     motivo = str(datos.get("motivo") or "").strip()[:500]
-    if accion not in ("validar", "observar", "falta"):
+    if accion not in ("validar", "rechazar"):
         abort(400)
     if accion != "validar" and not motivo:
         return jsonify(error="Escribe el motivo."), 400
     usuario = session.get("username") or str(session["user_id"])
-    registro.validacion = {"validar": "VALIDADA", "observar": "OBSERVADA", "falta": "OBSERVADA"}[accion]
+    registro.validacion = {"validar": "VALIDADA", "rechazar": "RECHAZADA"}[accion]
     registro.motivo = "" if accion == "validar" else motivo
     registro.validado_por = usuario
     registro.validado_en = ahora_peru()
     try:
-        if accion in ("validar", "falta"):
-            estado = "PRESENTE" if accion == "validar" else "FALTA"
-            nota = "Validada desde Nucleus Mobile" if accion == "validar" else motivo
-            cambios = []
-            for k in claves:
-                if k[1] not in escritura:
-                    continue
-                fila = AsistenciaDiaria.query.filter_by(personal_id=k[0], proyecto_id=k[1], fecha=registro.fecha).first()
-                cambios.append({"personal_id": k[0], "proyecto_id": k[1], "estado": estado, "observacion": nota,
-                                "version": fila.version if fila else 0})
-            guardar_marcas(permitidos, escritura, registro.fecha, cambios, session["user_id"])
-        else:
-            db.session.commit()
+        estado = "PRESENTE" if accion == "validar" else "FALTA"
+        nota = "Validada desde Nucleus Mobile" if accion == "validar" else motivo
+        cambios = []
+        for k in claves:
+            if k[1] not in escritura:
+                continue
+            fila = AsistenciaDiaria.query.filter_by(personal_id=k[0], proyecto_id=k[1], fecha=registro.fecha).first()
+            cambios.append({"personal_id": k[0], "proyecto_id": k[1], "estado": estado, "observacion": nota,
+                            "version": fila.version if fila else 0})
+        guardar_marcas(permitidos, escritura, registro.fecha, cambios, session["user_id"])
     except (ConflictoVersion, IntegrityError, StaleDataError) as error:
         db.session.rollback()
         return jsonify(error=str(error) or "La asistencia cambió. Actualiza y vuelve a intentar."), 409

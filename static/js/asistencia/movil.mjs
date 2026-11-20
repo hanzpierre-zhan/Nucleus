@@ -1,5 +1,5 @@
 /** Ventana de una asistencia marcada en Nucleus Mobile: foto, alertas, recorrido en mapa y validación. */
-const ESTADO = { PENDIENTE: "Falta validar", VALIDADA: "Validada", OBSERVADA: "Observada" };
+const ESTADO = { PENDIENTE: "Falta validar", VALIDADA: "Validada", OBSERVADA: "Rechazada", RECHAZADA: "Rechazada" };
 
 const el = (tag, clase, texto) => {
   const n = document.createElement(tag);
@@ -45,7 +45,7 @@ export function abrirMovil(id, api, alTerminar) {
     const motivo = el("textarea");
     motivo.rows = 2;
     motivo.maxLength = 500;
-    motivo.placeholder = "Motivo (obligatorio para observar o marcar falta)";
+    motivo.placeholder = "Motivo (obligatorio para rechazar)";
     motivo.value = d.motivo || "";
     const error = el("p", "am-error");
     error.hidden = true;
@@ -68,8 +68,7 @@ export function abrirMovil(id, api, alTerminar) {
     };
     if (d.editar) {
       redondo("am-verde", "fa-check", "Validar asistencia (queda como Asistió)", () => enviar("validar"));
-      redondo("am-ambar", "fa-triangle-exclamation", "Observar (queda en rojo para seguimiento)", () => enviar("observar"));
-      redondo("am-rojo", "fa-user-xmark", "Marcar falta a la cuadrilla", () => enviar("falta"));
+      redondo("am-rojo", "fa-user-xmark", "Rechazar asistencia", () => enviar("rechazar"));
     }
     redondo("am-rojo", "fa-xmark", "Cerrar", () => dlg.close());
     cab.append(titulo, chip, botones);
