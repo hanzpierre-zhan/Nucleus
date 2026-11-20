@@ -1125,9 +1125,6 @@
     if (sol.deposito_comentario) izquierda.append(ficha('fa-comment', 'Comentario del depósito', [['Comentario', sol.deposito_comentario]]));
     const fichas = resumenSolicitud({...sol, items: pendientes, total: sol.pendiente});
     izquierda.append(...(pendientes.length ? fichas : fichas.slice(1)));
-    for (const item of pendientes.filter(i => i.estado === 'RECHAZADO')) {
-      izquierda.append(el('p', 'cc-alerta', item.tipo_gasto + ' · ' + item.motivo_rechazo));
-    }
     const derecha = el('figure', 'cc-rendir-foto');
     if (sol.deposito_foto) {
       const enlace = el('a');
@@ -1142,6 +1139,15 @@
     const columnaFoto = el('div', 'cc-rendir-derecha');
     columnaFoto.append(timer, derecha);
     panel.append(izquierda, columnaFoto);
+    // Rechazados: lo que rindió el técnico (boletas, evidencias y motivo) para que la gestión lo revise.
+    const rechazados = pendientes.filter(i => i.estado === 'RECHAZADO');
+    if (rechazados.length) {
+      const bloque = el('section', 'cc-rendir-rechazados');
+      const titulo = el('h4', 'cc-ficha-titulo');
+      titulo.append(icono('fa-rotate-left'), el('span', null, 'Rendición rechazada · lo que subió el técnico (' + rechazados.length + ')'));
+      bloque.append(titulo, ...rechazados.map(item => tarjetaConcepto(sol, item)));
+      panel.append(bloque);
+    }
     return panel;
   }
 

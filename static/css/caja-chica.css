@@ -766,3 +766,7 @@ body.dark-mode .cc-rev-correo { color: #c4b5fd !important; }
 .cc-rechazo-celda small { color: var(--ios-secondary); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 body.dark-mode .cc-rechazo-motivo { color: #f87171; }
 .cc-rechazo-celda.corregido .cc-rechazo-motivo { color: var(--ios-secondary); font-weight: 500; }
+
+/* Por rendir: rendición rechazada con lo que subió el técnico */
+.cc-rendir-rechazados { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; padding: 12px; border: 1px solid rgba(220, 38, 38, .45); border-radius: 14px; background: rgba(220, 38, 38, .06); }
+.cc-rendir-rechazados > .cc-ficha-titulo { margin: 0; color: #dc2626; }
