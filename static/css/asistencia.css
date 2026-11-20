@@ -652,3 +652,34 @@
 .am-pin { background: #2563eb; color: #fff; border-radius: 50%; display: grid !important; place-items: center; font: 700 11px/1 system-ui; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 .am-pin-asis { background: #16a34a; }
 @media (max-width: 800px) { .am-cuerpo { grid-template-columns: 1fr; } }
+
+/* Controles visibles, sin desplazar horizontalmente la barra. */
+.attendance{padding:16px;gap:12px}
+.attendance .attendance-topbar{display:flex;flex-wrap:wrap;overflow:visible;padding:12px;border:1px solid var(--ios-hairline);border-radius:14px;background:var(--ios-card-bg);gap:12px}
+.attendance .attendance-topbar>strong{font-size:16px;flex-basis:100%}
+.attendance .attendance-control-group{flex-wrap:wrap;gap:8px;border:0;padding:0;min-width:0}
+.attendance .attendance-control-group label{font-size:11px;gap:6px}
+.attendance .attendance-mark-group{padding-left:12px;border-left:1px solid var(--ios-hairline)}
+.attendance .attendance-topbar select,.attendance .attendance-topbar input{height:34px;min-height:34px;border-radius:8px!important;font-size:12px!important}
+.attendance .attendance-topbar #as-buscar{width:180px}
+body .attendance .attendance-topbar .as-redondo{width:36px!important;height:36px!important;min-width:36px!important;min-height:36px!important;border-radius:50%!important;padding:0!important;border:0!important;display:inline-grid;place-items:center;font-size:14px!important;color:#fff!important;box-shadow:none!important}
+body .attendance .attendance-topbar .as-azul{background:#2563eb!important}
+body .attendance .attendance-topbar .as-verde,body .attendance .attendance-topbar #as-guardar{background:#18794e!important;color:#fff!important}
+body .attendance .attendance-topbar .as-gris{background:#64748b!important}
+body .attendance .attendance-topbar .as-redondo:disabled{opacity:.35;cursor:not-allowed}
+.attendance .attendance-stat{border-radius:12px;padding:10px;justify-content:flex-start}
+.attendance .attendance-table{border-radius:12px;scrollbar-color:#3b82f6 var(--ios-fill)}
+.attendance .attendance-table::-webkit-scrollbar{height:14px;width:14px}
+.attendance .attendance-table::-webkit-scrollbar-thumb{background:#3b82f6}
+body .am-ventana{width:min(1200px,calc(100vw - 40px));padding:0!important;overflow:hidden;border-radius:18px!important}
+.am-cabeza{position:sticky;top:0;z-index:1001;background:var(--ios-card-bg,#222);flex-wrap:wrap}
+.am-cabeza>div:first-child{flex:1;min-width:180px}.am-cabeza strong{font-size:17px;line-height:1.4}.am-cabeza small{display:block;margin-top:4px}
+body .am-ventana .am-redondo{width:38px!important;height:38px!important;min-width:38px!important;min-height:38px!important;padding:0!important;border-radius:50%!important;border:0!important;color:#fff!important;box-shadow:none!important}
+body .am-ventana .am-verde{background:#18794e!important}body .am-ventana .am-ambar{background:#d97706!important}body .am-ventana .am-rojo{background:#dc2626!important}
+.am-cuerpo{grid-template-columns:minmax(280px,.85fr) minmax(0,1.35fr);max-height:calc(90dvh - 90px);align-items:start}
+.am-panel{background:var(--ios-card-bg);padding:14px}.am-foto{object-fit:contain;background:var(--ios-fill,#181818);max-height:360px}
+.am-fila{padding:7px 0;line-height:1.4}.am-fila strong{overflow-wrap:anywhere}
+.am-mapa{height:clamp(300px,43vh,480px);background:#edf2f7}.am-mapa-cabecera{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.am-mapa-cabecera h4{margin:0}.am-mapa-enlace{font-size:12px;color:var(--ios-secondary,#94a3b8)}
+.am-recorrido{max-height:230px;overflow:auto}.am-recorrido li{grid-template-columns:24px minmax(0,1fr) auto;gap:8px;padding:9px 0}
+body .am-ventana .am-punto{background:transparent!important;border:0!important;text-align:left;padding:4px!important;white-space:normal;color:var(--ios-label)!important;cursor:pointer;font-size:12px!important}.am-punto:hover{text-decoration:underline}
+@media(max-width:800px){.attendance{padding:8px}.attendance .attendance-mark-group{border:0;padding:0}.attendance .attendance-topbar .attendance-exit-group{margin-left:0}.am-cuerpo{grid-template-columns:1fr}.am-cabeza{gap:8px;padding:12px}.am-botones{gap:6px}.am-cabeza strong{font-size:15px}.am-recorrido li{grid-template-columns:24px minmax(0,1fr)}.am-recorrido small{grid-column:2}.am-cuerpo{padding:12px}.am-chip{font-size:11px}}

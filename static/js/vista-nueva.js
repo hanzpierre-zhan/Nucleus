@@ -246,7 +246,14 @@
     accionesCab.querySelectorAll('.cn-redondo').forEach(b => b.remove());
     const form = el('form', 'cc-ficha vn-form'); form.noValidate = true;
     const cab = el('h4', 'cc-ficha-titulo'); cab.append(icono('fa-id-badge'), el('span', null, 'Datos')); form.append(cab);
-    form.append(campoEdicion('Nombre', u.nombre), campoEdicion('Usuario', u.username), campoEdicion('Rol', u.rol, ROLES));
+    const personales = [['primer_nombre', 'Primer nombre'], ['segundo_nombre', 'Segundo nombre'], ['apellido_paterno', 'Apellido paterno'], ['apellido_materno', 'Apellido materno'], ['fecha_nacimiento', 'Fecha de nacimiento']];
+    for (const [key, label] of personales) {
+      const campo = campoEdicion(label, u[key] || '');
+      const input = campo.querySelector('input');
+      if (key === 'fecha_nacimiento') input.type = 'date'; else input.maxLength = 60;
+      form.append(campo);
+    }
+    form.append(campoEdicion('Usuario', u.username), campoEdicion('Rol', u.rol, ROLES));
     const clave = campoEdicion(nuevo ? 'Clave' : 'Nueva clave (vacío = no cambia)', ''); clave.querySelector('input').type = 'password'; clave.querySelector('input').autocomplete = 'new-password';
     form.append(clave);
     const derecha = el('section', 'cc-ficha');
@@ -273,6 +280,7 @@
       const cuerpo = {nombre: v('Nombre'), username: v('Usuario'), rol: v('Rol'), password: clave.querySelector('input').value,
                       proyectos: [...lista.querySelectorAll('input:checked')].map(c => Number(c.value))};
       if (!nuevo) cuerpo.id = u.id;
+      for (const [key, label] of personales) cuerpo[key] = v(label);
       const r = await fetch('/api/admin/usuario', {method: nuevo ? 'POST' : 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cuerpo)});
       const j = await r.json().catch(() => ({}));
       if (!r.ok || j.error) throw Error(j.error || 'No se pudo guardar el usuario.');

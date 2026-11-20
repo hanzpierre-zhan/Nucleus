@@ -195,10 +195,16 @@ def api_admin_usuario():
             nuevo = Usuario(username=user, password_hash=generate_password_hash(pw), rol=rol, nombre=nombre)
             db.session.add(nuevo)
             db.session.flush()
+            if 'primer_nombre' in data:
+                from services.perfil_personal import guardar_perfil
+                guardar_perfil(nuevo, data)
             for pid in proyectos:
                 db.session.add(AccesoProyecto(usuario_id=nuevo.id, proyecto_id=int(pid), restricciones='{}'))
             db.session.commit()
             return jsonify({'success': True, 'id': nuevo.id})
+        except ValueError as error:
+            db.session.rollback()
+            return jsonify(error=str(error)), 400
         except:
             db.session.rollback()
             return jsonify({'error': 'Usuario duplicado'}), 400
@@ -222,6 +228,9 @@ def api_admin_usuario():
                 return jsonify({'error': 'El rol Suport no puede editar a un usuario Zeno.'}), 403
             
             u.nombre = nombre
+            if 'primer_nombre' in data:
+                from services.perfil_personal import guardar_perfil
+                guardar_perfil(u, data)
             u.username = user
             if pw:
                 u.password_hash = generate_password_hash(pw)

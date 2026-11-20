@@ -14,6 +14,16 @@ class Usuario(db.Model):
     rol = db.Column(db.String(20), default='supervisor')
 
 
+class DatosPersonalesUsuario(db.Model):
+    __tablename__ = 'datos_personales_usuario'
+    usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), primary_key=True)
+    primer_nombre = db.Column(db.String(60), nullable=False)
+    segundo_nombre = db.Column(db.String(60), nullable=False, default='')
+    apellido_paterno = db.Column(db.String(60), nullable=False)
+    apellido_materno = db.Column(db.String(60), nullable=False)
+    fecha_nacimiento = db.Column(db.Date, nullable=False)
+
+
 class ConformidadUsuario(db.Model):
     __tablename__ = 'conformidad_usuario'
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'), primary_key=True)

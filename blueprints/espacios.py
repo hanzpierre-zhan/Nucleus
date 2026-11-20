@@ -202,6 +202,9 @@ def guardar_usuario_integrado():
             from werkzeug.security import generate_password_hash
             usuario.password_hash = generate_password_hash(clave)
         db.session.flush()
+        if 'primer_nombre' in datos:
+            from services.perfil_personal import guardar_perfil
+            guardar_perfil(usuario, datos)
         AccesoEspacio.query.filter_by(usuario_id=usuario.id).delete()
         if rol != 'zeno':
             permisos = {}

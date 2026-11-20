@@ -2,7 +2,7 @@
 {% block title %}Asistencia mensual — Nucleus{% endblock %}
 {% block content %}
 <meta name="asistencia-csrf" content="{{ session.get('asistencia_csrf') }}">
-<link rel="stylesheet" href="/static/css/asistencia.css?v=8">
+<link rel="stylesheet" href="/static/css/asistencia.css?v=9">
 <link rel="stylesheet" href="/static/vendor/css/leaflet.css">
 <link rel="stylesheet" href="/static/css/personal.css?v=2">
 <section class="attendance">
@@ -13,20 +13,20 @@
 <label>Año<input id="as-anio" aria-label="Año" type="number" min="1900" max="9999"></label>
 <label>Proyecto<select id="as-proyecto" aria-label="Proyecto"></select></label>
 <label>Personal<select id="as-personal"><option value="activos">Activos</option><option value="cesados">Cesados</option><option value="ambos">Ambos</option></select></label>
-<button id="as-consultar">Consultar</button>
+<button id="as-consultar" class="as-redondo as-azul" title="Consultar asistencia" aria-label="Consultar asistencia"><i class="fa-solid fa-magnifying-glass"></i></button>
 <input id="as-buscar" type="search" placeholder="Buscar personal…" aria-label="Buscar personal">
 </div>
 <div class="attendance-control-group attendance-mark-group" aria-label="Marcación por rango">
 <label>Marcar<select id="as-pincel" aria-label="Estado para marcar"></select></label>
 <label>Días<input id="as-desde" aria-label="Desde el día" type="number" min="1" max="31" value="1"></label>
 <label>al<input id="as-hasta" aria-label="Hasta el día" type="number" min="1" max="31" value="1"></label>
-<button id="as-aplicar" title="Aplicar el estado a los trabajadores seleccionados en todos los días del rango">Aplicar</button>
+<button id="as-aplicar" class="as-redondo as-azul" aria-label="Aplicar marcación" title="Aplicar el estado a los trabajadores seleccionados en todos los días del rango"><i class="fa-solid fa-check"></i></button>
 </div>
 <div class="attendance-control-group attendance-save-group" aria-label="Guardar o descartar marcas">
-<button id="as-guardar" disabled>Guardar cambios</button><button id="as-deshacer" title="Descartar las marcas sin guardar">Descartar</button>
+<button id="as-guardar" class="as-redondo as-verde" title="Guardar cambios" aria-label="Guardar cambios" disabled><i class="fa-solid fa-floppy-disk"></i></button><button id="as-deshacer" class="as-redondo as-gris" aria-label="Descartar cambios" title="Descartar las marcas sin guardar"><i class="fa-solid fa-rotate-left"></i></button>
 </div>
 <div class="attendance-control-group attendance-exit-group" aria-label="Exportar y regresar">
-<button id="as-exportar">Exportar Excel</button>
+<button id="as-exportar" class="as-redondo as-verde" title="Exportar Excel" aria-label="Exportar Excel"><i class="fa-solid fa-file-excel"></i></button>
 <a class="personal-attendance-link" href="{{ '/espacios?modulo=personal' if session.get('current_proyecto_nombre') != 'Dataper' else '/' }}"><i class="fa-solid fa-users" aria-hidden="true"></i> Volver a Personal</a>
 </div>
 </div>
@@ -36,4 +36,4 @@
 
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/leaflet.js"></script><script type="module" src="/static/js/asistencia.js?v=8"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/leaflet.js"></script><script type="module" src="/static/js/asistencia.js?v=9"></script>{% endblock %}

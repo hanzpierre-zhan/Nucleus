@@ -225,7 +225,9 @@ def usuarios_lista():
         accesos.setdefault(a.usuario_id, []).append(a.proyecto_id)
     from services.caja_chica import depositantes
     marcados = depositantes()
+    from services.perfil_personal import datos_perfil
     return jsonify(usuarios=[{'id': u.id, 'nombre': u.nombre or '', 'username': u.username, 'rol': u.rol or '',
+                              **datos_perfil(u),
                               'proyectos': accesos.get(u.id, []), 'depositante': u.id in marcados}
                              for u in usuarios_activos().all()])
 

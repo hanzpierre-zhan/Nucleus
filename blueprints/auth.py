@@ -61,6 +61,7 @@ def _iniciar_sesion(user, conformidad):
     session['user_id'] = user.id
     session['username'] = user.username
     session['rol'] = str(user.rol).strip().lower()
+    session['aviso_cumpleanos_pendiente'] = True
     session['legal_acceptance'] = {
         'version': conformidad.version,
         'accepted_at': conformidad.aceptado_en.isoformat(timespec='seconds') + 'Z',
@@ -134,6 +135,61 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for('auth.login'))
+
+
+@bp.route('/api/perfil-personal', methods=['GET', 'POST'])
+@login_required
+def perfil_personal():
+    from services.perfil_personal import datos_perfil, guardar_perfil, cumpleaneros
+    usuario = db.session.get(Usuario, session['user_id'])
+    if request.method == 'POST':
+        try:
+            guardar_perfil(usuario, request.get_json(silent=True) or {})
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
+        db.session.commit()
+    return jsonify(perfil=datos_perfil(usuario),
+                   cumpleanos=cumpleaneros() if session.get('aviso_cumpleanos_pendiente') else [])
+
+
+@bp.post('/api/cumpleanos/visto')
+@login_required
+def cumpleanos_visto():
+    session.pop('aviso_cumpleanos_pendiente', None)
+    return jsonify(success=True)
+
+
+@bp.get('/api/perfil-personal/usuario/<int:uid>')
+@login_required
+def perfil_personal_usuario(uid):
+    if session.get('rol') not in ('zeno', 'suport'):
+        abort(403)
+    from services.perfil_personal import datos_perfil
+    usuario = usuarios_activos().filter_by(id=uid).first_or_404()
+    return jsonify(datos_perfil(usuario))
+
+
+@bp.get('/cumpleanos')
+@login_required
+def cumpleanos():
+    from services.perfil_personal import datos_perfil, hoy_lima
+    admin = session.get('rol') in ('zeno', 'suport')
+    filas = []
+    for usuario in usuarios_activos().order_by(Usuario.nombre).all():
+        datos = datos_perfil(usuario)
+        if not datos:
+            if admin:
+                filas.append({'nombre': usuario.nombre or usuario.username, 'pendiente': True})
+            continue
+        nacimiento = datetime.strptime(datos['fecha_nacimiento'], '%Y-%m-%d').date()
+        fila = {'nombre': usuario.nombre, 'dia': nacimiento.day, 'mes': nacimiento.month,
+                'hoy': (nacimiento.month, nacimiento.day) == (hoy_lima().month, hoy_lima().day)}
+        if admin:
+            fila.update(datos)
+        filas.append(fila)
+    filas.sort(key=lambda f: (not f.get('hoy', False), f.get('mes', 13), f.get('dia', 32), f['nombre']))
+    return render_template('cumpleanos.html', filas=filas, admin=admin,
+                           proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))
 
 
 @bp.route('/api/cambiar-password', methods=['POST'])

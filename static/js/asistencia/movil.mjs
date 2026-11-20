@@ -16,7 +16,7 @@ const fila = (titulo, valor) => {
 export function abrirMovil(id, api, alTerminar) {
   const dlg = document.createElement("dialog");
   dlg.className = "am-ventana";
-  dlg.addEventListener("close", () => dlg.remove());
+  dlg.addEventListener("close", () => { if (mapa) mapa.remove(); dlg.remove(); });
   document.body.append(dlg);
   dlg.append(el("p", "am-cargando", "Cargando…"));
   dlg.showModal();
@@ -27,7 +27,7 @@ export function abrirMovil(id, api, alTerminar) {
     const cab = el("header", "am-cabeza");
     const titulo = el("div");
     titulo.append(
-      el("strong", null, `${d.nombre} + ${d.junior}`),
+      el("strong", null, d.nombre),
       el("small", null, `${d.fecha.split("-").reverse().join("/")} · ${d.proyecto}`),
     );
     const chip = el("span", `am-chip am-${d.validacion.toLowerCase()}`, ESTADO[d.validacion] || d.validacion);
@@ -71,7 +71,7 @@ export function abrirMovil(id, api, alTerminar) {
       redondo("am-ambar", "fa-triangle-exclamation", "Observar (queda en rojo para seguimiento)", () => enviar("observar"));
       redondo("am-rojo", "fa-user-xmark", "Marcar falta a la cuadrilla", () => enviar("falta"));
     }
-    redondo("am-gris", "fa-xmark", "Cerrar", () => dlg.close());
+    redondo("am-rojo", "fa-xmark", "Cerrar", () => dlg.close());
     cab.append(titulo, chip, botones);
 
     const izq = el("section", "am-panel");
@@ -109,16 +109,25 @@ export function abrirMovil(id, api, alTerminar) {
     const der = el("section", "am-panel");
     const caja = el("div", "am-mapa");
     const lista = el("ol", "am-recorrido");
-    der.append(el("h4", null, "Recorrido del día"), caja, lista);
+    const cabMapa = el('div', 'am-mapa-cabecera');
+    const abrirMapa = el('a', 'am-mapa-enlace', 'Abrir mapa ↗');
+    abrirMapa.href = `https://www.openstreetmap.org/?mlat=${d.latitud}&mlon=${d.longitud}#map=17/${d.latitud}/${d.longitud}`;
+    abrirMapa.target = '_blank'; abrirMapa.rel = 'noopener';
+    cabMapa.append(el('h4', null, 'Recorrido del día'), abrirMapa);
+    const avisoMapa = el('p', 'am-error', 'No se pudieron cargar las calles. Revisa tu conexión o usa «Abrir mapa».');
+    avisoMapa.hidden = true;
+    der.append(cabMapa, caja, avisoMapa, lista);
     const puntos = d.recorrido.length
       ? d.recorrido
       : [{ hora: d.hora, evento: "Asistencia", latitud: d.latitud, longitud: d.longitud, km: 0, quien: "Principal" }];
     puntos.forEach((p, i) => {
       const li = el("li");
+      const punto = el('button', 'am-punto', `${p.hora} · ${p.evento}${p.quien === 'Junior' ? ' (junior)' : ''}`);
+      punto.type = 'button'; punto.title = 'Ver este punto en el mapa';
+      punto.onclick = () => { if (mapa) mapa.flyTo([p.latitud, p.longitud], 17); };
       li.append(
         el("b", null, `${i + 1}`),
-        el("span", null, p.hora),
-        el("span", null, `${p.evento}${p.quien === "Junior" ? " (junior)" : ""}`),
+        punto,
         el("small", null, p.km ? `${p.km} km de la marcación` : "punto de marcación"),
       );
       lista.append(li);
@@ -130,10 +139,12 @@ export function abrirMovil(id, api, alTerminar) {
     if (window.L) {
       if (mapa) mapa.remove();
       mapa = L.map(caja, { scrollWheelZoom: false });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution: "© OpenStreetMap © CARTO",
+      const calles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       }).addTo(mapa);
+      calles.on('tileerror', () => { avisoMapa.hidden = false; });
+      calles.on('tileload', () => { avisoMapa.hidden = true; });
       const coords = puntos.map((p) => [p.latitud, p.longitud]);
       L.polyline(coords, { color: "#2563eb", weight: 3, dashArray: "6 6" }).addTo(mapa);
       puntos.forEach((p, i) =>

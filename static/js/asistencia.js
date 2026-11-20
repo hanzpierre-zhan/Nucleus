@@ -1,6 +1,6 @@
 import { crearApi } from "./asistencia/api.mjs";
 import { siglas, clave, filtrarYOrdenar } from "./asistencia/modelo.mjs";
-import { abrirMovil } from "./asistencia/movil.mjs?v=1";
+import { abrirMovil } from "./asistencia/movil.mjs?v=2";
 
 (() => {
   "use strict";
@@ -242,9 +242,10 @@ import { abrirMovil } from "./asistencia/movil.mjs?v=1";
   }
   function botones() {
     $("as-guardar").disabled = !cambios.size || guardando;
-    $("as-guardar").textContent = cambios.size
+    $("as-guardar").title = cambios.size
       ? `Guardar ${cambios.size} marcas`
       : "Guardar cambios";
+    $("as-guardar").setAttribute('aria-label', $("as-guardar").title);
     $("as-pendientes").textContent = cambios.size
       ? `${cambios.size} cambios sin guardar (borde azul).`
       : "Elige un estado y pulsa las celdas. No se guarda hasta presionar Guardar.";

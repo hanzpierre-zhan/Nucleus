@@ -249,12 +249,19 @@
                 </div>
                 <div class="up-form-h">
                     <div class="up-field">
-                        <label for="user-nombre">Nombre</label>
+                        <label for="user-nombre">Primer nombre</label>
                         <div class="up-input-wrap">
                             <i class="fa-solid fa-id-card"></i>
-                            <input type="text" id="user-nombre" placeholder="Nombre completo" autocomplete="off">
+                            <input type="text" id="user-nombre" placeholder="Primer nombre" maxlength="60" autocomplete="off">
                         </div>
                     </div>
+                    <div class="up-field">
+                        <label for="user-segundo">Segundo nombre</label>
+                        <input id="user-segundo" type="text" maxlength="60">
+                    </div>
+                    <div class="up-field"><label for="user-paterno">Apellido paterno</label><input id="user-paterno" type="text" maxlength="60"></div>
+                    <div class="up-field"><label for="user-materno">Apellido materno</label><input id="user-materno" type="text" maxlength="60"></div>
+                    <div class="up-field"><label for="user-nacimiento">Fecha de nacimiento</label><input id="user-nacimiento" type="date" min="1900-01-01"></div>
                     <div class="up-field">
                         <label for="user-name">Nombre de usuario</label>
                         <div class="up-input-wrap">
@@ -487,6 +494,7 @@ async function cancelarEdicion() {
     document.getElementById("up-editor").open = false;
     editUserId = null;
     document.getElementById('user-nombre').value = '';
+    for (const campo of ['segundo','paterno','materno','nacimiento']) document.getElementById('user-'+campo).value = '';
     document.getElementById('user-name').value = '';
     document.getElementById('user-pw').value = '';
     document.getElementById('user-pw').placeholder = 'Dejar vacío para no cambiar';
@@ -502,7 +510,14 @@ async function cancelarEdicion() {
 async function editarUsuarioUI(id, nombre, username, rol, projIds) {
     contextoEditorUI("Editar · " + (nombre || username), "Edición de cuenta");
     document.getElementById("up-editor").open = true;
-    document.getElementById('user-nombre').value = nombre;
+    document.getElementById('user-nombre').value = '';
+    for (const campo of ['segundo','paterno','materno','nacimiento']) document.getElementById('user-'+campo).value = '';
+    try {
+        const respuesta = await fetch('/api/perfil-personal/usuario/'+id);
+        if (!respuesta.ok) throw Error('No se pudieron cargar los datos personales.');
+        const datos = await respuesta.json();
+        for (const [campo,key] of [['nombre','primer_nombre'],['segundo','segundo_nombre'],['paterno','apellido_paterno'],['materno','apellido_materno'],['nacimiento','fecha_nacimiento']]) document.getElementById('user-'+campo).value=datos[key]||'';
+    } catch(error) { alert(error.message); return; }
     document.getElementById('user-name').value = username;
     selectRol(rol);
     document.getElementById('user-pw').value = '';
@@ -530,6 +545,7 @@ async function crearUsuario() {
     if(!document.getElementById('usuarios-ambitos') && (r === 'gestor' || r === 'contrata') && getSelectedProyectos().length === 0) return alert("El rol Gestor/Contrata requiere al menos un módulo asignado.");
 
     const payload = {nombre: n, username: u, password: p, rol: r, proyectos: getSelectedProyectos()};
+    Object.assign(payload, {primer_nombre:n, segundo_nombre:document.getElementById('user-segundo').value, apellido_paterno:document.getElementById('user-paterno').value, apellido_materno:document.getElementById('user-materno').value, fecha_nacimiento:document.getElementById('user-nacimiento').value});
     if(document.getElementById('usuarios-ambitos')){
         payload.proyectos=[...document.querySelectorAll('.negocio-check:checked')].map(b=>Number(b.value));
         payload.modulos=[...document.querySelectorAll('.modulo-check:checked')].map(b=>b.value);

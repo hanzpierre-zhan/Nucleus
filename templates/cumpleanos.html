@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Cumpleaños — Nucleus{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/perfil-personal.css?v=1">
+<section class="cumple-panel">
+  <h2><i class="fa-solid fa-cake-candles"></i> Cumpleaños</h2>
+  <p>{{ 'Datos personales y cumpleaños de los usuarios activos.' if admin else 'Celebremos a nuestro equipo.' }}</p>
+  <input type="search" id="cumple-buscar" placeholder="Buscar persona" aria-label="Buscar persona">
+  <div class="cumple-scroll"><table class="cumple-tabla"><thead><tr><th>Nombre</th><th>Cumpleaños</th>{% if admin %}<th>Primer nombre</th><th>Segundo nombre</th><th>Apellido paterno</th><th>Apellido materno</th><th>Fecha de nacimiento</th>{% endif %}</tr></thead><tbody>
+  {% for f in filas %}<tr><td>{{ f.nombre }}</td><td>{% if f.pendiente %}Pendiente de completar{% else %}{{ '%02d/%02d'|format(f.dia, f.mes) }} {% if f.hoy %}<span class="cumple-hoy">¡Hoy!</span>{% endif %}{% endif %}</td>{% if admin %}{% for campo in ['primer_nombre','segundo_nombre','apellido_paterno','apellido_materno','fecha_nacimiento'] %}<td>{{ f.get(campo, '—') }}</td>{% endfor %}{% endif %}</tr>
+  {% else %}<tr><td>No hay cumpleaños registrados todavía.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<script>document.getElementById('cumple-buscar').addEventListener('input', function(){for(const fila of document.querySelectorAll('.cumple-tabla tbody tr'))fila.hidden=!fila.textContent.toLocaleLowerCase().includes(this.value.toLocaleLowerCase());});</script>
+{% endblock %}

@@ -64,6 +64,7 @@
             </div>
 
             <nav class="sidebar-nav">
+                <a href="/cumpleanos" class="sidebar-link {% if request.path == '/cumpleanos' %}active{% endif %}" title="Cumpleaños"><i class="fa-solid fa-cake-candles"></i><span class="sidebar-link-text">Cumpleaños</span></a>
                 {% if request.path == '/espacios' and navegacion_negocio and not navegacion_negocio.admin %}
                 {% include '_navegacion_proyectos.html' %}
                 {% else %}
@@ -421,5 +422,9 @@
     })();
     </script>
     {% include 'cookie_banner.html' %}
+    {% if session.get('user_id') %}
+    <link rel="stylesheet" href="/static/css/perfil-personal.css?v=1">
+    <script src="/static/js/perfil-personal.js?v=2" defer></script>
+    {% endif %}
 </body>
 </html>
