@@ -517,32 +517,35 @@
       sitesWo = [];
     };
     proyecto.addEventListener('change', () => {
-      buscarSite.value = ''; limpiarSite(); selWo.limpiar(); listaSites.hidden = true;
+      buscaSite++; clearTimeout(buscarSite._t);
+      limpiarSite(); selWo.limpiar(); listaSites.hidden = true;
       pintarNombresCliente();
+      if (buscarSite.value.trim()) cargarSites();
     });
     // La lista de sites sale al tocar el campo (sin escribir) y se filtra al escribir.
     buscarSite.addEventListener('focus', () => { if (!siteElegido) cargarSites(); });
     buscarSite.addEventListener('input', () => { limpiarSite(); cargarSites(); });
-    const avisoProyecto = lista => { lista.replaceChildren(el('p', 'cc-nota', 'Elige primero el proyecto.')); lista.hidden = false; };
     function cargarSites() {
-      if (!proyecto.value) { avisoProyecto(listaSites); return; }
       const turno = ++buscaSite;
       clearTimeout(buscarSite._t);
+      if (!proyecto.value && !buscarSite.value.trim()) { listaSites.hidden = true; return; }
       buscarSite._t = setTimeout(async () => {
         const r = await fetch('/api/cot-new/sites?' + new URLSearchParams({proyecto: proyecto.value, q: buscarSite.value.trim()}));
         const j = await r.json().catch(() => ({}));
         if (turno !== buscaSite) return;
         listaSites.replaceChildren(...(j.sites || []).map(s => {
           const b = el('button', 'cn-opcion'); b.type = 'button';
-          b.append(el('strong', null, s.site), el('small', null, [s.codigo, s.distrito, s.provincia].filter(Boolean).join(' · ')));
+          b.append(el('strong', null, s.nombre || s.site), el('small', null, [s.codigo, s.proyecto, s.distrito, s.provincia].filter(Boolean).join(' · ')));
           b.addEventListener('click', () => elegirSite(s));
           return b;
         }));
-        if (!(j.sites || []).length) listaSites.append(el('p', 'cc-nota', 'Sin sites con ese nombre en ' + proyecto.value + '.'));
+        if (!(j.sites || []).length) listaSites.append(el('p', 'cc-nota', 'No se encontraron sites con ese nombre o código.'));
         listaSites.hidden = false;
       }, buscarSite.value.trim() ? 250 : 0);
     }
     async function elegirSite(s) {
+      if (!proyecto.value) { proyecto.value = s.proyecto; pintarNombresCliente(); }
+      buscaSite++; clearTimeout(buscarSite._t);
       siteElegido = s; buscarSite.value = s.site; listaSites.hidden = true;
       vCodigo.textContent = s.codigo || '—'; vDistrito.textContent = s.distrito || '—'; vProvincia.textContent = s.provincia || '—'; vRegion.textContent = s.region || '—';
       const r = await fetch('/api/cot-new/wos?' + new URLSearchParams({proyecto: proyecto.value, codigo: s.codigo, nombre: s.nombre}));

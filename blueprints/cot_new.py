@@ -625,22 +625,36 @@ def sites():
     _proyecto()
     from services.alcance_proyectos import _valor
     proyecto = request.args.get('proyecto', '')
-    if proyecto not in PROYECTOS_FLM:
+    if proyecto and proyecto not in PROYECTOS_FLM:
         return jsonify(error='Elige un proyecto FLM.'), 400
     modulo = Proyecto.query.filter_by(nombre='SITE').first()
     if not modulo:
         return jsonify(sites=[])
     texto = str(request.args.get('q') or '').strip()
     raw = NucleusData.data_json
-    consulta = NucleusData.query.filter(NucleusData.proyecto_id == modulo.id,
-                                        _valor(raw, 'Proyecto') == SITES_DE.get(proyecto, proyecto))
+    proyecto_site = _valor(raw, 'Proyecto')
+    consulta = NucleusData.query.filter(NucleusData.proyecto_id == modulo.id)
+    if proyecto:
+        consulta = consulta.filter(proyecto_site == SITES_DE.get(proyecto, proyecto))
+    elif texto:
+        consulta = consulta.filter(proyecto_site.in_(PROYECTOS_FLM))
+    else:
+        return jsonify(sites=[])
     if texto:
-        patron = '%' + texto.replace('%', '') + '%'
-        consulta = consulta.filter(NucleusData.data_json.ilike(patron))
+        from sqlalchemy import or_
+        codigo = _valor(raw, 'Código del sitio | Site ID')
+        nombre = _valor(raw, 'Nombre del sitio | Site name')
+        codigo_buscado = (texto.lstrip('0') or texto) if texto.isdigit() else texto
+        consulta = consulta.filter(or_(codigo.icontains(codigo_buscado, autoescape=True),
+                                        nombre.icontains(texto, autoescape=True),
+                                        NucleusData.key_value.icontains(texto, autoescape=True)))
+        consulta = consulta.order_by((codigo == codigo_buscado).desc())
     resultado = []
-    for (crudo,) in consulta.with_entities(NucleusData.data_json).limit(30):
+    for llave, crudo in consulta.with_entities(NucleusData.key_value, NucleusData.data_json).order_by(NucleusData.key_value).limit(30):
         try:
-            resultado.append(_site(json.loads(crudo or '{}')))
+            datos = json.loads(crudo or '{}')
+            site = _site(datos)
+            resultado.append({**site, 'site': site['site'] or llave, 'proyecto': datos.get('Proyecto', '')})
         except ValueError:
             continue
     return jsonify(sites=resultado)

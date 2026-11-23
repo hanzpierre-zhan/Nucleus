@@ -82,7 +82,8 @@ def test_nuevo_registro_busca_sites_y_wo_del_proyecto(app, auth_client):
     try:
         sitios = auth_client.get('/api/cot-new/sites?proyecto=FLM - CLARO&q=ZZ9901').json['sites']
         assert sitios == [{'site': 'ZZ9901_PRUEBA', 'nombre': 'PRUEBA', 'codigo': 'ZZ9901', 'distrito': 'PERENE',
-                           'provincia': 'CHANCHAMAYO', 'region': 'CENTRO'}]
+                           'provincia': 'CHANCHAMAYO', 'region': 'CENTRO', 'proyecto': 'FLM - CLARO'}]
+        assert sitios[0] in auth_client.get('/api/cot-new/sites?q=prueba').json['sites']
         assert auth_client.get('/api/cot-new/sites?proyecto=FLM - ENTEL&q=ZZ9901').json['sites'] == []  # otro proyecto
         wos = auth_client.get('/api/cot-new/wos?proyecto=FLM - CLARO&codigo=ZZ9901&nombre=PRUEBA').json['wos']
         assert 'CM-20261109-00009901' in wos
