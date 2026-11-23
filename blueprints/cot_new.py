@@ -599,6 +599,7 @@ COTIZADORES = (('Luciano Aracca', 'laracca'), ('Diego Rodriguez', 'drodriguez'),
 SUPERVISORES = ('Jordan Gonzales', 'Dennis Quispe', 'Jesus Sotelo', 'Roberto Encarnacion', 'Eloy Huancapaza', 'Dennis Unton', 'Edwin Lopez')
 # Supervisores que solo aparecen en las cotizaciones de ese cliente (además de la lista general).
 SUPERVISORES_CLIENTE = {
+    'INTEGRATEL': ('Juan Carlos Espilco', 'Victor Caro', 'Gary Arenas'),
     'CLARO': ('Gerardo Garcia Pasache', 'Jordan Rodrigo Huamani Lazo', 'Sebastian Ascayo Vianny Becquer', 'Jhorvin Lara Mendoza'),
 }
 # Contactos del cliente que se eligen al registrar la cotización, según el proyecto.
