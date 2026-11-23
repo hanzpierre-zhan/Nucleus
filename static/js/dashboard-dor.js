@@ -208,6 +208,16 @@
 
   // ── Pregunta y detalle ──
   let pendiente = null, filasDetalle = [];
+  const ordenes = [...document.querySelectorAll('.dor-detalle-orden')];
+  const filtrosDetalle = [...document.querySelectorAll('.dor-detalle-filtro')];
+  const compararDetalle = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
+  let ordenDetalle = -1, direccionDetalle = 1;
+  filtrosDetalle.forEach(input => input.addEventListener('input', pintarDetalle));
+  ordenes.forEach((boton, i) => boton.addEventListener('click', () => {
+    direccionDetalle = ordenDetalle === i ? -direccionDetalle : 1;
+    ordenDetalle = i;
+    pintarDetalle();
+  }));
   function preguntar(titulo, filas) {
     pendiente = {titulo, filas};
     $('dor-pregunta-txt').textContent = '¿Abrir el detalle ' + (titulo.startsWith('el ') ? 'del ' + titulo.slice(3) : 'de ' + titulo) + ' (' + filas.length + ' ticket' + (filas.length === 1 ? '' : 's') + ')?';
@@ -223,7 +233,10 @@
     filasDetalle = pendiente.filas;
     $('dor-detalle-titulo').textContent = 'Selección: ' + pendiente.titulo;
     $('dor-detalle-sub').textContent = $('dor-rango').textContent + filtrosTexto();
-    $('dor-buscar').value = ''; pintarDetalle(); $('dor-detalle').hidden = false;
+    $('dor-buscar').value = '';
+    filtrosDetalle.forEach(input => { input.value = ''; });
+    ordenDetalle = -1;
+    pintarDetalle(); $('dor-detalle').hidden = false;
     $('dor-detalle').scrollIntoView({behavior: 'smooth', block: 'start'});
   });
   $('dor-detalle-cerrar').addEventListener('click', () => { $('dor-detalle').hidden = true; });
@@ -233,9 +246,24 @@
     r.sla === true ? 'Normal' : r.sla === false ? 'Fuera de SLA' : '—', r.parada ? 'Sí' : '', fechaHora(r.creado), fechaHora(r.despacho), fechaHora(r.cierre), r.causa];
   function visiblesDetalle() {
     const q = $('dor-buscar').value.trim().toLowerCase();
-    return filasDetalle.filter(r => !q || columnasDetalle(r).join(' ').toLowerCase().includes(q));
+    const filtros = filtrosDetalle.map(input => input.value.trim().toLowerCase());
+    const filas = filasDetalle.map(r => ({ r, celdas: columnasDetalle(r) })).filter(({ celdas }) =>
+      (!q || celdas.join(' ').toLowerCase().includes(q)) &&
+      filtros.every((valor, i) => !valor || String(celdas[i] ?? '').toLowerCase().includes(valor)));
+    if (ordenDetalle >= 0) {
+      const campoFecha = { 9: 'creado', 10: 'despacho', 11: 'cierre' }[ordenDetalle];
+      const valor = fila => String((campoFecha ? fila.r[campoFecha] : fila.celdas[ordenDetalle]) ?? '');
+      filas.sort((a, b) => compararDetalle.compare(valor(a), valor(b)) * direccionDetalle);
+    }
+    return filas.map(({ r }) => r);
   }
   function pintarDetalle() {
+    ordenes.forEach((boton, i) => {
+      const activo = i === ordenDetalle;
+      boton.querySelector('span').textContent = activo ? (direccionDetalle === 1 ? '↑' : '↓') : '↕';
+      if (activo) boton.parentElement.setAttribute('aria-sort', direccionDetalle === 1 ? 'ascending' : 'descending');
+      else boton.parentElement.removeAttribute('aria-sort');
+    });
     const filas = visiblesDetalle(), cuerpo = $('dor-detalle-filas'); cuerpo.replaceChildren();
     $('dor-detalle-n').textContent = filas.length + ' tickets';
     for (const r of filas.slice(0, 800)) {
