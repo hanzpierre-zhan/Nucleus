@@ -46,6 +46,20 @@ def asignar(app, universo, nombres):
         db.session.commit()
 
 
+def test_cotizacion_pext_busca_sites_entel(app, universo, client):
+    asignar(app, universo, ['FLM - PEXT'])
+    uid, ids, _ = universo
+    with app.app_context():
+        fila = NucleusData.query.filter_by(proyecto_id=ids['SITE'], key_value='SCOPE-SITE-ENTEL').one()
+        fila.data_json = json.dumps({'Proyecto': 'FLM - ENTEL', 'Site': 'ENTEL-PRUEBA'})
+        db.session.commit()
+    with client.session_transaction() as ses:
+        ses.update(user_id=uid, rol='supervisor')
+    respuesta = client.get('/api/cot-new/sites?proyecto=FLM+-+PEXT&q=SCOPE-SITE-ENTEL')
+    assert respuesta.status_code == 200
+    assert [site['site'] for site in respuesta.json['sites']] == ['ENTEL-PRUEBA']
+
+
 @pytest.mark.parametrize('familias', [('ENTEL',), ('CLARO', 'INTEGRATEL'), ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT'), ()])
 def test_consultas_y_conteos_consolidan_solo_asignados(app, universo, familias):
     asignar(app, universo, ['FLM - ' + n for n in familias])

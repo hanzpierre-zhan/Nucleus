@@ -222,11 +222,14 @@ def _filas():
 @login_required
 def pagina():
     modulo = _proyecto()
+    from services.alcance_proyectos import contexto
+    alcance = contexto()
     rol = str(session.get('rol') or '').strip().lower()
     return render_template('cot_new.html', pestanas=PESTANAS, proyecto_id=modulo.id, tipos_concepto=TIPOS_CONCEPTO,
                            cotizadores=[{'nombre': n, 'usuario': u} for n, u in COTIZADORES],
                            nombres_cliente=NOMBRES_CLIENTE, supervisores=SUPERVISORES, supervisores_cliente=SUPERVISORES_CLIENTE,
                            proyectos_flm=PROYECTOS_FLM,
+                           proyecto_inicial='FLM - PEXT' if alcance and alcance['familias'] == {'PEXT'} else '',
                            puede_gestionar=rol not in ('demo', 'contrata'),
                            puede_eliminar=rol in ROLES_ELIMINAR, puede_admin_campos=str(rol or '').lower() in ('zeno', 'suport'),
                            proyectos_list=get_menu_proyectos(session.get('user_id'), session.get('rol')))

@@ -469,6 +469,7 @@
     const h = el('h4', 'cc-ficha-titulo'); h.append(icono('fa-location-dot'), el('span', null, 'Proyecto y site')); izq.append(h);
     const proyecto = el('select'); proyecto.add(new Option('Selecciona el proyecto', ''));
     (CN_CFG.proyectos || []).forEach(p => proyecto.add(new Option(p, p)));
+    proyecto.value = JSON.parse(document.getElementById('cn-proyecto-inicial')?.textContent || '""');
     campo(izq, 'Proyecto', proyecto);
     const nombreCliente = el('select');
     const pintarNombresCliente = () => {

@@ -191,6 +191,10 @@ def criterio(tabla=None):
     compartido = and_(t.c.proyecto_id.in_(ctx['compartidos']),
                      or_(proyecto.in_(ctx['familias']), and_(proyecto.is_(None),
                          or_(vinculo, vinculo_gen, por_qr, _site_por_operacion(t, ctx)))))
+    # PEXT usa el catálogo de Entel. El resto de módulos conserva su alcance.
+    if 'PEXT' in ctx['familias'] and request.endpoint == 'cot_new.sites':
+        maestros_site = [pid for pid, nombre in ctx['proyectos'].items() if nombre == 'SITE']
+        compartido = or_(compartido, and_(t.c.proyecto_id.in_(maestros_site), proyecto == 'ENTEL'))
     conocidos = set(operativos) | ctx['compartidos']
     importacion = request.environ.get('nucleus.importacion_rendicion', {})
     return or_(t.c.proyecto_id.in_(ctx['operacion']), compartido,
