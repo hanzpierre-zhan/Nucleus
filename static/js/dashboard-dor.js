@@ -250,12 +250,16 @@
       cuerpo.append(tr);
     }
   }
-  $('dor-csv').addEventListener('click', () => {
+  $('dor-excel').addEventListener('click', () => {
     const cab = ['Ticket Id', 'Site ID', 'FM Office', 'Región', 'Contrata', 'Técnico', 'Estado', 'SLA', 'Parada de reloj', 'Creado', 'Despacho', 'Cierre', 'Causa'];
-    const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-    const csv = '﻿' + [cab, ...visiblesDetalle().map(columnasDetalle)].map(f => f.map(esc).join(';')).join('\r\n');
-    const a = el('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8'}));
-    a.download = 'detalle_operacion_cm.csv'; document.body.append(a); a.click(); a.remove();
+    const filas = visiblesDetalle().map(columnasDetalle);
+    const hoja = XLSX.utils.aoa_to_sheet([cab, ...filas]);
+    hoja['!autofilter'] = { ref: hoja['!ref'] };
+    hoja['!cols'] = [24, 15, 30, 18, 18, 38, 18, 16, 20, 21, 21, 21, 45]
+      .map(wch => ({ wch }));
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Detalle CM');
+    XLSX.writeFile(libro, 'detalle_operacion_cm.xlsx');
   });
   function filtrosTexto() {
     const partes = [];

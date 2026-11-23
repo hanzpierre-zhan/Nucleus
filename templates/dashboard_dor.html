@@ -78,7 +78,7 @@
 <article class="dor-card dor-detalle" id="dor-detalle" hidden>
   <header><div><h2 id="dor-detalle-titulo">Detalle</h2><p id="dor-detalle-sub"></p></div>
     <div class="dor-detalle-acciones"><input type="search" id="dor-buscar" placeholder="Ticket, site, oficina, técnico…" aria-label="Buscar en el detalle">
-      <span id="dor-detalle-n"></span><button type="button" id="dor-csv"><i class="fa-solid fa-download" aria-hidden="true"></i> CSV</button>
+      <span id="dor-detalle-n"></span><button type="button" id="dor-excel"><i class="fa-solid fa-download" aria-hidden="true"></i> Excel</button>
       <button type="button" id="dor-detalle-cerrar" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></header>
   <div class="dor-tabla-scroll"><table class="dor-tabla"><thead><tr>
     <th>Ticket Id</th><th>Site ID</th><th>{{ E.oficina }}</th><th>Región</th><th>Contrata</th><th>Técnico</th><th>Estado</th><th>SLA</th><th>Parada de reloj</th><th>Creado</th><th>Despacho</th><th>Cierre</th><th>Causa</th>
@@ -86,5 +86,5 @@
 </article>
 </section>
 <script id="dor-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-dor.js?v=10"></script>
+<script src="/static/js/dashboard-dor.js?v=11"></script>
 {% endblock %}
