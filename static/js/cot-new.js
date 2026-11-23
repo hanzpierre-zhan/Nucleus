@@ -614,7 +614,7 @@
     const partes = v => String(v || '').split(/\s*[,;]\s*/).filter(Boolean);
     // Supervisor: lista homologada; si el registro trae otro nombre parecido, se elige el homologado.
     const supervisor = el('select'); supervisor.add(new Option('Selecciona el supervisor', ''));
-    const lista = CN_CFG.supervisores || [];
+    const lista = [...((CN_CFG.supervisores_cliente || {})[c.familia] || []), ...(CN_CFG.supervisores || [])];
     lista.forEach(n => supervisor.add(new Option(n, n)));
     const actual = String(c.SUPERVISOR || '').trim();
     const parecido = lista.find(n => plano(n) === plano(actual)) || lista.find(n => plano(n).split(' ').every(p => plano(actual).includes(p)));

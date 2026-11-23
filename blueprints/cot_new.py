@@ -225,7 +225,7 @@ def pagina():
     rol = str(session.get('rol') or '').strip().lower()
     return render_template('cot_new.html', pestanas=PESTANAS, proyecto_id=modulo.id, tipos_concepto=TIPOS_CONCEPTO,
                            cotizadores=[{'nombre': n, 'usuario': u} for n, u in COTIZADORES],
-                           nombres_cliente=NOMBRES_CLIENTE, supervisores=SUPERVISORES,
+                           nombres_cliente=NOMBRES_CLIENTE, supervisores=SUPERVISORES, supervisores_cliente=SUPERVISORES_CLIENTE,
                            proyectos_flm=PROYECTOS_FLM,
                            puede_gestionar=rol not in ('demo', 'contrata'),
                            puede_eliminar=rol in ROLES_ELIMINAR, puede_admin_campos=str(rol or '').lower() in ('zeno', 'suport'),
@@ -594,6 +594,10 @@ CAMPOS_SITE_WO = ('Site Name', 'Site ID', 'Nombre de Site', 'Código Site', 'Sit
 COTIZADORES = (('Luciano Aracca', 'laracca'), ('Diego Rodriguez', 'drodriguez'), ('Ricardo Huaman', 'rhuaman'), ('Edwin Lopez', 'elopez'))
 # Supervisores (lista de Cotizaciones, con el nombre homologado: Nombre Apellido).
 SUPERVISORES = ('Jordan Gonzales', 'Dennis Quispe', 'Jesus Sotelo', 'Roberto Encarnacion', 'Eloy Huancapaza', 'Dennis Unton', 'Edwin Lopez')
+# Supervisores que solo aparecen en las cotizaciones de ese cliente (además de la lista general).
+SUPERVISORES_CLIENTE = {
+    'CLARO': ('Gerardo Garcia Pasache', 'Jordan Rodrigo Huamani Lazo', 'Sebastian Ascayo Vianny Becquer', 'Jhorvin Lara Mendoza'),
+}
 # Contactos del cliente que se eligen al registrar la cotización, según el proyecto.
 NOMBRES_CLIENTE = {
     'ENTEL': ('George McCloun', 'Sergio Huaman', 'Even Junior Vivar'),
