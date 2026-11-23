@@ -93,9 +93,7 @@ def inicio():
     frases = []
     for atraso in range(10):
         fecha = hoy - timedelta(days=atraso)
-        texto, autor, fuente = frase_para(fecha)
-        frases.append(dict(texto=texto, autor=autor, fuente=fuente,
-                           fecha=f'{dias[fecha.weekday()]}, {fecha.day} de {meses[fecha.month - 1]}'))
+        frases.append(dict(frase_para(fecha), fecha=f'{dias[fecha.weekday()]}, {fecha.day} de {meses[fecha.month - 1]}'))
     dia = extract('day', DatosPersonalesUsuario.fecha_nacimiento)
     cumpleanos = (usuarios_activos()
                   .join(DatosPersonalesUsuario, DatosPersonalesUsuario.usuario_id == Usuario.id)
@@ -103,7 +101,7 @@ def inicio():
                   .filter(extract('month', DatosPersonalesUsuario.fecha_nacimiento) == hoy.month)
                   .order_by(dia, Usuario.nombre).all())
     return render_template('inicio.html', frases=frases, cumpleanos=cumpleanos,
-                           mes=meses[hoy.month - 1], dia_actual=hoy.day,
+                           mes=meses[hoy.month - 1], dia_actual=hoy.day, hoy_mmdd=hoy.strftime('%m/%d'),
                            proyectos_list=get_menu_proyectos(session['user_id'], session.get('rol')))
 
 

@@ -1,39 +1,51 @@
 {% extends 'base.html' %}
 {% block title %}Inicio — Nucleus{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="/static/css/inicio.css?v=1">
+<link rel="stylesheet" href="/static/css/inicio.css?v=3">
 <section class="inicio-panel">
   <h1>Bienvenido a Nucleus</h1>
-  <section class="inicio-banner" aria-label="Frases del día">
-    <div id="inicio-fecha">{{ frases[0].fecha }} · Mensaje del día</div>
-    <blockquote id="inicio-frase" aria-live="polite">«{{ frases[0].texto }}»</blockquote>
-    <div class="inicio-acciones">
+  {# Frase del día: foto del autor en blanco y negro (de Wikipedia) y la frase grande. #}
+  <section class="inicio-banner" aria-label="Frase del día">
+    <div class="inicio-foto" aria-hidden="true"><span id="inicio-iniciales"></span><img id="inicio-foto" alt="" hidden></div>
+    <div id="inicio-fecha">{{ frases[0].fecha }} · Frase del día</div>
+    <div class="inicio-texto">
+      <blockquote id="inicio-frase" aria-live="polite">«{{ frases[0].texto }}»</blockquote>
       <a id="inicio-autor" href="{{ frases[0].fuente }}" target="_blank" rel="noopener">{{ frases[0].autor }}</a>
-      <div class="inicio-navegar">
-        <button type="button" id="inicio-anterior" title="Frase anterior" aria-label="Frase anterior">←</button>
-        <button type="button" id="inicio-siguiente" title="Frase siguiente" aria-label="Frase siguiente" disabled>→</button>
-      </div>
+      <small id="inicio-descripcion">{{ frases[0].descripcion }}</small>
+    </div>
+    <div class="inicio-navegar">
+      <button type="button" id="inicio-anterior" title="Frase anterior" aria-label="Frase anterior">←</button>
+      <button type="button" id="inicio-siguiente" title="Frase siguiente" aria-label="Frase siguiente" disabled>→</button>
     </div>
   </section>
   <div class="inicio-columnas">
-    <section class="inicio-tarjeta">
+    {# Un día como hoy: hechos de esta fecha (Wikipedia en español). Si no carga, no se muestra. #}
+    <section class="inicio-tarjeta inicio-hoy-historia" id="inicio-historia" data-fecha="{{ hoy_mmdd }}" hidden>
+      <h2>📅 Un día como hoy…</h2>
+      <div class="inicio-hecho">
+        <a class="inicio-hecho-img" id="inicio-hecho-enlace" target="_blank" rel="noopener"><img id="inicio-hecho-img" alt=""></a>
+        <div><div class="inicio-hecho-anio" id="inicio-hecho-anio"></div><p id="inicio-hecho-texto"></p></div>
+      </div>
+      <ul class="inicio-hechos" id="inicio-hechos"></ul>
+      <small class="inicio-fuente">Fuente: Wikipedia</small>
+    </section>
+    <section class="inicio-tarjeta inicio-cumple">
       <h2>🎂 Cumpleaños de {{ mes }}</h2>
       <ul>
         {% for nombre, dia in cumpleanos %}
-        <li><span class="inicio-dia">{{ '%02d'|format(dia) }}</span><strong>{{ nombre|upper }}</strong>{% if dia == dia_actual %}<span class="inicio-hoy">¡Hoy!</span>{% endif %}</li>
+        <li class="{{ 'es-hoy' if dia == dia_actual }}"><span class="inicio-dia">{{ '%02d'|format(dia) }}</span><strong>{{ nombre|title }}</strong>{% if dia == dia_actual %}<span class="inicio-hoy">¡Hoy!</span>{% endif %}</li>
         {% else %}
         <li>No hay cumpleaños registrados este mes.</li>
         {% endfor %}
       </ul>
-      <a href="{{ url_for('auth.cumpleanos') }}">Ver todos los cumpleaños →</a>
-    </section>
-    <section class="inicio-tarjeta">
-      <h2>📣 Novedades del equipo</h2>
-      <p>Todavía no hay publicaciones.</p>
-      <p>Aquí encontrarás los comunicados, guías y nuevos procesos.</p>
+      <a href="{{ url_for('auth.cumpleanos') }}">Ver todos →</a>
     </section>
   </div>
+  <section class="inicio-tarjeta inicio-novedades">
+    <h2>📣 Novedades del equipo</h2>
+    <p>Todavía no hay publicaciones. Aquí encontrarás los comunicados, guías y nuevos procesos.</p>
+  </section>
 </section>
 <script type="application/json" id="inicio-frases">{{ frases|tojson }}</script>
-<script src="/static/js/inicio.js?v=1" defer></script>
+<script src="/static/js/inicio.js?v=3" defer></script>
 {% endblock %}
