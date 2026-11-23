@@ -210,6 +210,7 @@
   let pendiente = null, filasDetalle = [];
   const ordenes = [...document.querySelectorAll('.dor-detalle-orden')];
   const filtrosDetalle = [...document.querySelectorAll('.dor-detalle-filtro')];
+  const indicesDetalle = ordenes.map(boton => Number(boton.parentElement.dataset.detalleCol));
   const compararDetalle = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
   let ordenDetalle = -1, direccionDetalle = 1;
   filtrosDetalle.forEach(input => input.addEventListener('input', pintarDetalle));
@@ -249,10 +250,11 @@
     const filtros = filtrosDetalle.map(input => input.value.trim().toLowerCase());
     const filas = filasDetalle.map(r => ({ r, celdas: columnasDetalle(r) })).filter(({ celdas }) =>
       (!q || celdas.join(' ').toLowerCase().includes(q)) &&
-      filtros.every((valor, i) => !valor || String(celdas[i] ?? '').toLowerCase().includes(valor)));
+      filtros.every((valor, i) => !valor || String(celdas[indicesDetalle[i]] ?? '').toLowerCase().includes(valor)));
     if (ordenDetalle >= 0) {
-      const campoFecha = { 9: 'creado', 10: 'despacho', 11: 'cierre' }[ordenDetalle];
-      const valor = fila => String((campoFecha ? fila.r[campoFecha] : fila.celdas[ordenDetalle]) ?? '');
+      const indice = indicesDetalle[ordenDetalle];
+      const campoFecha = { 9: 'creado', 10: 'despacho', 11: 'cierre' }[indice];
+      const valor = fila => String((campoFecha ? fila.r[campoFecha] : fila.celdas[indice]) ?? '');
       filas.sort((a, b) => compararDetalle.compare(valor(a), valor(b)) * direccionDetalle);
     }
     return filas.map(({ r }) => r);
@@ -268,7 +270,9 @@
     $('dor-detalle-n').textContent = filas.length + ' tickets';
     for (const r of filas.slice(0, 800)) {
       const tr = el('tr');
-      columnasDetalle(r).forEach((v, i) => {
+      const celdas = columnasDetalle(r);
+      indicesDetalle.forEach(i => {
+        const v = celdas[i];
         const td = el('td');
         if (i === 6) td.append(el('span', 'dor-chip dor-chip-' + (r.completado ? 'ok' : r.cancelado ? 'gris' : 'proceso'), v));
         else if (i === 7 && v !== '—') td.append(el('span', 'dor-chip dor-chip-' + (r.sla ? 'ok' : 'mal'), v));
@@ -280,10 +284,11 @@
   }
   $('dor-excel').addEventListener('click', () => {
     const cab = ['Ticket Id', 'Site ID', 'FM Office', 'Región', 'Contrata', 'Técnico', 'Estado', 'SLA', 'Parada de reloj', 'Creado', 'Despacho', 'Cierre', 'Causa'];
-    const filas = visiblesDetalle().map(columnasDetalle);
-    const hoja = XLSX.utils.aoa_to_sheet([cab, ...filas]);
+    const elegirColumnas = fila => indicesDetalle.map(i => fila[i]);
+    const filas = visiblesDetalle().map(r => elegirColumnas(columnasDetalle(r)));
+    const hoja = XLSX.utils.aoa_to_sheet([elegirColumnas(cab), ...filas]);
     hoja['!autofilter'] = { ref: hoja['!ref'] };
-    hoja['!cols'] = [24, 15, 30, 18, 18, 38, 18, 16, 20, 21, 21, 21, 45]
+    hoja['!cols'] = elegirColumnas([24, 15, 30, 18, 18, 38, 18, 16, 20, 21, 21, 21, 45])
       .map(wch => ({ wch }));
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, 'Detalle CM');

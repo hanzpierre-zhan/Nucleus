@@ -60,7 +60,7 @@ def test_lista_editar_y_exportar_dataper(app, auth_client, persona):
     assert act('CELULAR', '911111111').status_code == 200
     libro = load_workbook(io.BytesIO(auth_client.post('/api/vista/dataper/exportar',
                                                       json={'ids': [persona], 'columnas': ['TECNICO', 'CELULAR']}).data))
-    assert [c.value for c in libro.active[2]] == ['VN-71234567', 'Prueba Vista', '911111111']
+    assert [c.value for c in libro.active[2]] == ['VN-71234567', 'PRUEBA VISTA', '911111111']
 
 
 def test_modulo_inexistente_y_usuarios(auth_client):

@@ -16,7 +16,11 @@
   const memoria = 'vn-' + cfg.slug;
   try { tab = localStorage.getItem(memoria + '-tab') || ''; } catch (_) {}
 
-  const valor = (f, c) => { const v = f.datos[c]; return v === undefined || v === null || v === '' ? '—' : String(v); };
+  const valor = (f, c) => {
+    const v = f.datos[c];
+    if (v === undefined || v === null || v === '') return cfg.slug === 'dataper' && c === 'CARGO' ? '' : '—';
+    return cfg.slug === 'dataper' ? String(v).toLocaleUpperCase('es-PE') : String(v);
+  };
   const numero = v => { const n = Number(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : null; };
 
   // ── Encabezado con ordenar, filtrar y buscar por columna ──
@@ -163,6 +167,14 @@
       control = Object.assign(el('input'), {value: String(actual ?? '').replace(/\D/g, '').slice(-9), inputMode: 'numeric', maxLength: 9, pattern: '9[0-9]{8}', placeholder: '9XXXXXXXX'});
       control.addEventListener('input', () => { control.value = control.value.replace(/\D/g, '').slice(0, 9); });
     } else control = Object.assign(el('input'), {value: actual ?? '', maxLength: 500});
+    if (cfg.slug === 'dataper' && control.tagName === 'INPUT') {
+      if (nombre === 'FECHA DE NACIMIENTO' && (!actual || /^\d{4}-\d{2}-\d{2}$/.test(actual))) {
+        control.type = 'date';
+        control.min = '1900-01-01';
+      }
+      if (nombre === 'CORREO CORPORATIVO') control.type = 'email';
+      if (nombre === 'NÚMERO DE EMERGENCIA') control.type = 'tel';
+    }
     if (!cfg.editar) control.disabled = true;
     control.dataset.campo = nombre; control.dataset.inicial = actual ?? '';
     fila.append(el('span', null, nombre), control);
@@ -204,9 +216,10 @@
     const cab = el('h4', 'cc-ficha-titulo'); cab.append(icono('fa-file-lines'), el('span', null, nuevo ? 'Datos del nuevo registro' : 'Datos'));
     form.append(cab);
     if (nuevo) form.append(campoEdicion(cfg.clave + ' (clave)', '', null));
-    const campos = [...new Set([...columnasBase, ...Object.keys(f.datos)])].filter(c => c !== 'EDITADO POR');
+    const campos = [...new Set([...columnasBase, ...Object.keys(f.datos)])]
+      .filter(c => !['EDITADO POR', 'REVISIÓN DEL NOMBRE'].includes(c));
     // Campos con valores fijos: se eligen de una lista (p. ej. ESTADO en Dataper).
-    for (const c of campos) form.append(campoEdicion(c, f.datos[c] ?? (nuevo && LISTAS[c] ? LISTAS[c][0][0] : ''), LISTAS[c]));
+    for (const c of campos) form.append(campoEdicion(c, f.datos[c] ?? (nuevo && LISTAS[c] && c !== 'CARGO' ? LISTAS[c][0][0] : ''), LISTAS[c]));
     if (!nuevo && f.datos['EDITADO POR']) form.append(el('p', 'cc-nota', 'Última edición: ' + f.datos['EDITADO POR']));
     const derecha = tarjetaDerecha(f, nuevo);
     const contenedor = el('div', 'cc-validacion-columnas' + (derecha ? '' : ' cc-una-columna'));

@@ -76,8 +76,9 @@ def _listas(slug):
     """Campos que se eligen de una lista en la ventana de edición."""
     if slug != 'dataper':
         return {}
-    from services.personal import DEPARTAMENTOS, proyectos_permitidos
-    return {'ESTADO': ['ACTIVO', 'CESADO'], 'PROYECTO': proyectos_permitidos(), 'DEPARTAMENTO': DEPARTAMENTOS}
+    from services.personal import CARGOS_DATAPER, DEPARTAMENTOS, proyectos_permitidos
+    return {'ESTADO': ['ACTIVO', 'CESADO'], 'PROYECTO': proyectos_permitidos(),
+            'DEPARTAMENTO': DEPARTAMENTOS, 'CARGO': CARGOS_DATAPER}
 
 
 @bp.get('/vista/<slug>/')
@@ -116,6 +117,9 @@ def lista(slug):
             datos = json.loads(crudo or '{}')
         except ValueError:
             continue
+        if slug == 'dataper':
+            from services.personal import presentar_ficha
+            datos = presentar_ficha(datos)
         pestana = _clave_pestana(slug, datos)
         if permitidas is not None and pestana not in permitidas:
             continue
@@ -125,6 +129,10 @@ def lista(slug):
             visibles[clave] = key  # la clave del registro (p. ej. DOCUMENTO en Dataper) siempre se ve
         filas.append({'id': rid, 'key': key, 'pestana': pestana, 'datos': visibles})
     columnas = _columnas(proyecto, filas)
+    if slug == 'dataper':
+        from services.personal import FICHA_PERSONAL
+        principales = ['TECNICO', *FICHA_PERSONAL, 'REVISIÓN DEL NOMBRE']
+        columnas = principales + [c for c in columnas if c not in principales]
     clave = MODULOS[slug][5]
     # La columna clave va siempre primero, aunque el diseño guardado del módulo la tenga oculta.
     columnas = [clave] + [c for c in columnas if c != clave]
@@ -176,8 +184,16 @@ def exportar(slug):
     for rid, key, crudo in (NucleusData.query.filter(NucleusData.proyecto_id == proyecto.id, NucleusData.id.in_(elegidos))
                             .with_entities(NucleusData.id, NucleusData.key_value, NucleusData.data_json)):
         fila = json.loads(crudo or '{}')
+        if slug == 'dataper':
+            from services.personal import presentar_ficha
+            fila = presentar_ficha(fila)
         valores = [key, *(fila.get(c, '') for c in columnas)]
+        if slug == 'dataper':
+            valores = [str(v).upper() if v is not None else '' for v in valores]
         hoja.append([ILLEGAL_CHARACTERS_RE.sub('', str(v)) if v not in (None, '') else '' for v in valores])
+        if slug == 'dataper':
+            for celda in hoja[hoja.max_row]:
+                celda.data_type = 's'
     hoja.freeze_panes = 'A2'
     hoja.auto_filter.ref = hoja.dimensions
     for columna in hoja.columns:
