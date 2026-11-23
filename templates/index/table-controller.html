@@ -9805,6 +9805,8 @@ btnItem.onclick = () => cotRegAgregarFila();
         const actions = document.getElementById('module-settings-actions');
         if (!actions) return;
         ['btn-top-export', 'btn-top-plantilla', 'btn-top-import', 'btn-sync-rendicion', 'btn-copiar-rendicion', 'rend-avisos-wrap', 'btn-delete-rows'].forEach(id => {
+            // FLM mueve el tachito a su barra. No volver a esconderlo en la tuerca.
+            if (id === 'btn-delete-rows' && window.FlmVista) return;
             const control = document.getElementById(id);
             if (control) actions.appendChild(control);
         });

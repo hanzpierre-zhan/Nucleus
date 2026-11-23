@@ -56,6 +56,40 @@ def servidor(app):
         servidor.detener()
 
 
+def test_claro_muestra_tachito_al_seleccionar_cancelados(app, auth_client, servidor):
+    claves = ('CM-QA-CANCEL-1', 'CM-QA-CANCEL-2')
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='FLM - CLARO').one().id
+        db.session.add_all([NucleusData(proyecto_id=pid, key_value=clave, data_json=json.dumps({
+            'Ticket Id': clave, 'Task Status': 'Canceled', 'FME Contractor': 'COBRA',
+        })) for clave in claves])
+        db.session.commit()
+    try:
+        auth_client.get(f'/switch_project/{pid}')
+        with playwright_api.sync_playwright() as playwright:
+            navegador = playwright.chromium.launch()
+            contexto = navegador.new_context()
+            contexto.add_cookies([{'name': 'session', 'value': auth_client.get_cookie('session').value,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            pagina = contexto.new_page()
+            pagina.route('**/api/perfil-personal', lambda ruta: ruta.fulfill(
+                json={'perfil': {'fecha_nacimiento': '1990-01-01'}, 'cumpleanos': []}))
+            pagina.goto(servidor + '/')
+            pagina.get_by_role('tab', name='Cancelado').click()
+            tachito = pagina.locator('.fv-acciones #btn-delete-rows')
+            playwright_api.expect(tachito).to_have_count(1)
+            playwright_api.expect(tachito).to_be_hidden()
+            for clave in claves:
+                fila = pagina.locator('.tabulator-row').filter(has_text=clave)
+                fila.locator('input[type=checkbox]').check()
+            playwright_api.expect(tachito).to_be_visible()
+            navegador.close()
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.key_value.in_(claves)).delete()
+            db.session.commit()
+
+
 @pytest.mark.lento
 def test_smoke_navegador_la_tabla_se_construye(app, auth_client, servidor):
     with app.app_context():
