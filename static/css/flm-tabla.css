@@ -112,6 +112,8 @@ body .excel-main.vista-flm #data-grid .tabulator-footer .tabulator-page.active {
 .vista-flm .fv-gestion { margin-top: 6px; }
 .vista-flm .fv-gestion .cc-barra { margin-bottom: 0; background: var(--ios-card-bg, var(--excel-bg)) !important; border: 1px solid var(--ios-hairline) !important; }
 .vista-flm .fv-acciones { display: flex; align-items: center; gap: 6px; flex: none; }
+body .vista-flm .fv-acciones #btn-delete-rows { flex: none; box-sizing: border-box; width: 38px !important; min-width: 38px !important; height: 38px !important; min-height: 0 !important; padding: 0 !important; border-radius: 50% !important; align-items: center; justify-content: center; background: #b91c1c !important; color: #fff !important; }
+body .vista-flm .fv-acciones #btn-delete-rows .pill-txt { display: none; }
 /* Nuevo WO: círculo verde como el "+" de Cotizaciones. */
 body .vista-flm .fv-acciones .coti-new-record { box-sizing: border-box !important; width: 38px !important; height: 38px !important; min-width: 38px !important; min-height: 0 !important;
   padding: 0 !important; border: 0 !important; border-radius: 50% !important; clip-path: circle(50%); display: grid !important; place-items: center !important;

@@ -329,10 +329,15 @@
     }));
   }
 
-  // Botones redondos al final: Nuevo WO, Excel y Menú (los mismos de la vista clásica).
+  // Reutiliza las acciones de la barra clásica antes de ocultarla.
   function moverBotones() {
     const nuevo = document.querySelector('.topbar-row .coti-new-record');
     if (nuevo) { nuevo.classList.add('fv-redondo', 'fv-verde'); acciones.append(nuevo); }
+    const eliminar = $('btn-delete-rows');
+    if (eliminar) {
+      eliminar.setAttribute('aria-label', 'Eliminar registros seleccionados');
+      acciones.append(eliminar);
+    }
     if (typeof window.descargarExcel === 'function' || $('btn-top-export')) {
       const excel = el('button', 'cc-excel fv-excel'); excel.type = 'button'; excel.id = 'cc-excel';
       excel.title = 'Exportar a Excel'; excel.setAttribute('aria-label', 'Exportar a Excel'); excel.append(icono('fa-file-excel'));
