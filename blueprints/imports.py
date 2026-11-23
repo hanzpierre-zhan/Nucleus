@@ -279,12 +279,19 @@ def api_import_process():
         # para actualizar el estado de las órdenes que ya existen.
         from services.importacion_estados import cancelado, estado_fuente, ESTADOS
         claves_canceladas, ignorados_cancelados = set(), 0
+        claves_unscheduled, ignorados_unscheduled = set(), 0
         campos_estado = {campo.casefold() for campo in ESTADOS.get(proy_act_nombre, ())}
         if proy_act_nombre in ESTADOS and len(df):
             mascara_cancelados = df.fillna('').apply(lambda fila: cancelado(fila.to_dict(), proy_act_nombre), axis=1)
             claves_canceladas = set(df.loc[mascara_cancelados, file_key].fillna('').astype(str).str.strip()) - {''}
             ignorados_cancelados = int(mascara_cancelados.sum())
             df = df.loc[~mascara_cancelados].copy()
+        if proy_act_nombre in ('FLM - INTEGRATEL', 'FLM - ENTEL', 'FLM - PEXT', 'PEXT') and len(df):
+            sin_programar = df.fillna('').apply(
+                lambda fila: estado_fuente(fila.to_dict(), proy_act_nombre).casefold() == 'unscheduled', axis=1)
+            claves_unscheduled = set(df.loc[sin_programar, file_key].astype(str).str.strip()) - {''}
+            ignorados_unscheduled = int(sin_programar.sum())
+            df = df.loc[~sin_programar].copy()
 
         # FLM - CLARO: solo interesan los tickets de COBRA (FME Contractor). Los de otras
         # contratas (EXPERIS, OFG, HUAWEI o vacío) no se importan.
@@ -445,7 +452,7 @@ def api_import_process():
             
         # Delta: consultar solo las filas cuyas claves vienen en el archivo,
         # en chunks de 400 (limite de parametros de SQLite) para no traer toda la tabla.
-        imported_keys = set(claves_canceladas)
+        imported_keys = claves_canceladas | claves_unscheduled
         file_keys = df[file_key].astype(str).str.strip()
         imported_keys.update(key for key in file_keys if key)
         site_projects = {}
@@ -486,7 +493,7 @@ def api_import_process():
         cons_cfg = json.loads(cons_cfg_row.valor) if cons_cfg_row else {}
         consolidate_on_fail = cons_cfg.get('consolidate_on_filter_fail', False)
         
-        updated, added, ignored, consolidated = 0, 0, ignorados_cancelados, 0
+        updated, added, ignored, consolidated = 0, 0, ignorados_cancelados + ignorados_unscheduled, 0
         rejected_saldo = []
         dynamic_cols = set()
         config_schema = AppConfig.query.filter_by(proyecto_id=pid, clave='app_schema').first()
@@ -829,6 +836,7 @@ def api_import_process():
             'updated': updated,
             'ignored': ignored,
             'ignored_canceled': ignorados_cancelados,
+            'ignored_unscheduled': ignorados_unscheduled,
             'ignored_other_contractor': ignorados_otra_contrata,
             'updated_canceled': actualizados_cancelados,
             'consolidated': consolidated,

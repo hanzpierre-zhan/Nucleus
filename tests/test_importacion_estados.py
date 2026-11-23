@@ -25,14 +25,19 @@ def test_canceled_actualiza_existente_y_omite_nuevo(app,auth_client,proyecto,cla
     auth_client.get('/switch_project/%s'%pid)
     try:
         csv=f'{clave},{estado}\nQA-CANCEL-EXISTE, Canceled \nQA-CANCEL-NUEVO,cAnCeLeD\nQA-CANCEL-ACTIVO,Running\n'
+        excluye_unscheduled = proyecto != 'FLM - CLARO'
+        if excluye_unscheduled:
+            csv += 'QA-CANCEL-SIN-PROGRAMAR, Unscheduled \n'
         r=auth_client.post('/api/import/process',data={'type':'base','file':(io.BytesIO(csv.encode()),'datos.csv')})
         assert r.status_code==200,r.json
         assert r.json['added']==1 and r.json['ignored_canceled']==1 and r.json['updated_canceled']==1
+        assert r.json['ignored_unscheduled'] == int(excluye_unscheduled)
         with app.app_context():
             guardado = json.loads(db.session.get(NucleusData,rid).data_json)
             assert guardado[estado]=='Canceled'
             assert guardado['GESTOR']=='Conservar' and guardado['_EVIDENCIA_INICIO']=='["/foto.jpg"]'
             assert not NucleusData.query.filter_by(proyecto_id=pid,key_value='QA-CANCEL-NUEVO').first()
+            assert not NucleusData.query.filter_by(proyecto_id=pid,key_value='QA-CANCEL-SIN-PROGRAMAR').first()
         # Un archivo completamente cancelado tampoco consolida los activos.
         csv=f'{clave},{estado}\nQA-CANCEL-EXISTE,Canceled\n'
         r=auth_client.post('/api/import/process',data={'type':'base','file':(io.BytesIO(csv.encode()),'datos.csv')})
