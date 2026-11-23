@@ -3397,6 +3397,7 @@ let _rendCambiandoVista = false;
 
 
     const isAdmin = ["zeno", "suport"].includes("{{ session.get('rol') }}");
+    const puedeSeleccionarFilas = ["zeno", "suport", "supervisor"].includes("{{ session.get('rol') }}");
 
 
 
@@ -3406,7 +3407,7 @@ let _rendCambiandoVista = false;
 
         titleFormatter: function () {
 
-            return "<input type='checkbox' class='tabulator-select-all' onchange='tabulatorSelectAll(this)' />";
+            return "<input type='checkbox' class='tabulator-select-all' aria-label='Seleccionar todos los resultados filtrados' title='Seleccionar todas las páginas del filtro' onchange='tabulatorSelectAll(this)' />";
 
         },
 
@@ -3972,6 +3973,9 @@ let _rendCambiandoVista = false;
 
         if (cb.checked) {
 
+            const filtradas = new Set(rows);
+            const fueraDelFiltro = table.getSelectedRows().filter(row => !filtradas.has(row));
+            if (fueraDelFiltro.length) table.deselectRow(fueraDelFiltro);
             table.selectRow(rows);
 
         } else {
@@ -4463,7 +4467,7 @@ let _rendCambiandoVista = false;
         rowHeight: 44,
         columnDefaults: { vertAlign: "middle", minWidth: 48, resizable: isAdmin },
 
-        selectable: isAdmin,
+        selectable: puedeSeleccionarFilas,
 
         selectableRangeMode: false,
 
@@ -19711,7 +19715,7 @@ btnItem.onclick = () => cotRegAgregarFila();
 
         } else {
 
-            if (!await nucleusConfirm(`¿Eliminar definitivamente los ${keys.length} registros seleccionados?`)) return;
+            if (!await nucleusConfirm(`¿Eliminar definitivamente los ${keys.length} registros seleccionados, incluidas las demás páginas?`)) return;
 
         }
 
@@ -19729,6 +19733,10 @@ btnItem.onclick = () => cotRegAgregarFila();
 
             if (res.success) {
 
+                if (window.FlmVista && keys.length > table.getPageSize()) {
+                    window.location.reload();
+                    return;
+                }
                 const keySet = new Set(keys);
 
                 selectedRows.forEach(row => {

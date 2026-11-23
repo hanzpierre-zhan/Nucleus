@@ -843,11 +843,16 @@ def api_rows_delete():
                 RefacturableDetalle.query.filter(RefacturableDetalle.origen_id.in_(ids)).delete(synchronize_session=False)
             # La numeración de Liquidaciones se conserva: nunca se reutiliza.
 
-        # Delete records
-        NucleusData.query.filter(NucleusData.proyecto_id == pid, NucleusData.key_value.in_(keys)).delete(synchronize_session=False)
+        # Acota el número de parámetros sin partir la transacción del borrado.
+        eliminados = 0
+        for inicio in range(0, len(keys), 500):
+            lote = keys[inicio:inicio + 500]
+            eliminados += NucleusData.query.filter(
+                NucleusData.proyecto_id == pid, NucleusData.key_value.in_(lote)
+            ).delete(synchronize_session=False)
         db.session.commit()
         
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'deleted': eliminados})
     except IntegrityError:
         db.session.rollback()
         current_app.logger.exception('No se pudo eliminar el registro por datos vinculados')

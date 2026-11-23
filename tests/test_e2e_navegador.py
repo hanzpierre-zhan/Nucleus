@@ -25,7 +25,7 @@ playwright_api = pytest.importorskip(
     reason='requiere: pip install playwright && python -m playwright install chromium')
 
 from db import db  # noqa: E402
-from models import AppConfig, LiquidacionNumero, NucleusData, Proyecto, RefacturableDetalle  # noqa: E402
+from models import AccesoProyecto, AppConfig, LiquidacionNumero, NucleusData, Proyecto, RefacturableDetalle, Usuario  # noqa: E402
 
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -87,6 +87,58 @@ def test_claro_muestra_tachito_al_seleccionar_cancelados(app, auth_client, servi
     finally:
         with app.app_context():
             NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.key_value.in_(claves)).delete()
+            db.session.commit()
+
+
+def test_claro_elimina_todos_los_cancelados_de_varias_paginas(app, auth_client, servidor, cambiar_rol):
+    prefijo = 'CM-QA-MASIVO-'
+    total = 3001
+    with app.app_context():
+        pid = Proyecto.query.filter_by(nombre='FLM - CLARO').one().id
+        db.session.add_all([
+            NucleusData(proyecto_id=pid, key_value=clave, data_json=json.dumps({
+                'Ticket Id': clave, 'Task Status': estado, 'FME Contractor': 'COBRA',
+            }))
+            for clave, estado in [(f'{prefijo}{i}', 'Canceled') for i in range(total)]
+            + [(prefijo + 'ACTIVO', 'InProcess')]
+        ])
+        db.session.commit()
+    try:
+        cambiar_rol(auth_client, 'supervisor')
+        with app.app_context():
+            usuario = Usuario.query.filter_by(username='zeno').one()
+            if not AccesoProyecto.query.filter_by(usuario_id=usuario.id, proyecto_id=pid).first():
+                acceso = AccesoProyecto(usuario_id=usuario.id, proyecto_id=pid)
+                db.session.add(acceso)
+                db.session.commit()
+                acceso_id = acceso.id
+        auth_client.get(f'/switch_project/{pid}')
+        with playwright_api.sync_playwright() as playwright:
+            navegador = playwright.chromium.launch()
+            contexto = navegador.new_context()
+            contexto.add_cookies([{'name': 'session', 'value': auth_client.get_cookie('session').value,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            pagina = contexto.new_page()
+            pagina.route('**/api/perfil-personal', lambda ruta: ruta.fulfill(
+                json={'perfil': {'fecha_nacimiento': '1990-01-01'}, 'cumpleanos': []}))
+            pagina.goto(servidor + '/')
+            pagina.get_by_role('tab', name='Cancelado').click()
+            pagina.get_by_role('checkbox', name='Seleccionar todos los resultados filtrados').check()
+            pagina.locator('.fv-acciones #btn-delete-rows').click()
+            dialogo = pagina.locator('dialog[open]').filter(has_text=f'{total} registros seleccionados')
+            playwright_api.expect(dialogo).to_be_visible()
+            with pagina.expect_response(lambda r: r.url.endswith('/api/rows/delete')) as respuesta:
+                dialogo.get_by_role('button', name='Aceptar').click()
+            assert respuesta.value.ok
+            navegador.close()
+        with app.app_context():
+            restantes = NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.key_value.startswith(prefijo)).all()
+            assert [fila.key_value for fila in restantes] == [prefijo + 'ACTIVO']
+    finally:
+        with app.app_context():
+            NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.key_value.startswith(prefijo)).delete()
+            if 'acceso_id' in locals():
+                db.session.delete(db.session.get(AccesoProyecto, acceso_id))
             db.session.commit()
 
 
