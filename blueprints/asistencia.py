@@ -147,7 +147,7 @@ def planilla():
 # ── Asistencia marcada en Nucleus Mobile: detalle con recorrido y validación ──
 
 def _registro_movil(rid):
-    """Registro de Mobile y las claves (personal, proyecto) de la cuadrilla dentro del alcance del usuario."""
+    """Registro de Mobile y las claves (personal, proyecto) de quien marcó, dentro del alcance del usuario."""
     from models import AsistenciaCuadrilla
     from services.asistencia import roster
 
@@ -155,7 +155,8 @@ def _registro_movil(rid):
     registro = db.session.get(AsistenciaCuadrilla, rid)
     if not registro or not permitidos:
         abort(404)
-    claves = [k for k in roster(permitidos) if k[0] in (registro.personal_id, registro.junior_id)]
+    # La asistencia es individual: validar o rechazar solo afecta a quien marcó, no a su compañero.
+    claves = [k for k in roster(permitidos) if k[0] == registro.personal_id]
     if not claves:
         abort(404)
     return registro, claves, permitidos, escritura

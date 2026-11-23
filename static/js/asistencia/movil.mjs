@@ -76,7 +76,7 @@ export function abrirMovil(id, api, alTerminar) {
     const izq = el("section", "am-panel");
     const foto = el("img", "am-foto");
     foto.src = d.foto_url;
-    foto.alt = "Foto de la cuadrilla";
+    foto.alt = "Foto de asistencia";
     const enlace = el("a");
     enlace.href = d.foto_url;
     enlace.target = "_blank";
@@ -86,8 +86,8 @@ export function abrirMovil(id, api, alTerminar) {
       el("h4", null, "Marcación"),
       enlace,
       fila("Hora", d.hora),
-      fila("Placa", d.placa),
-      fila("Junior", d.junior),
+      fila("Movilidad", d.a_pie ? "A pie (caminante)" : `Vehículo · ${d.placa}`),
+      fila("Compañero", d.solo ? "Trabajó solo" : `${d.junior} · ${d.companero_hora ? "marcó a las " + d.companero_hora : "no marcó"}`),
       fila("Ubicación", `${d.latitud.toFixed(6)}, ${d.longitud.toFixed(6)}`),
       fila("Precisión", d.precision != null ? `±${Math.round(d.precision)} m` : ""),
     );

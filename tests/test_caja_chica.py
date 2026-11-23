@@ -30,6 +30,14 @@ def tecnico(app, monkeypatch, tmp_path):
         db.session.add_all([fila, ClaveTecnico(documento=DOC, clave_hash=generate_password_hash('Clave-123'))])
         db.session.commit()
         rid = fila.id
+        # Nucleus Mobile exige marcar la asistencia del día antes de usar Caja Chica.
+        from datetime import datetime
+        from models import AsistenciaCuadrilla
+        from services.utilidades import ahora_peru
+        db.session.add(AsistenciaCuadrilla(fecha=ahora_peru().date(), personal_id=rid, documento=DOC, nombre='Técnico Caja',
+                                           proyecto='FLM - CLARO', movilidad='A_PIE', foto='2026-11/' + 'c' * 32 + '.jpg',
+                                           latitud=-12.0464, longitud=-77.0428, registrado_en=datetime.utcnow()))
+        db.session.commit()
     cliente = app.test_client()
     cliente.environ_base['HTTP_X_UBICACION'] = '-12.0464,-77.0428,15'  # Mobile exige ubicación
     pagina = cliente.get('/form-pruebas/')
@@ -42,6 +50,8 @@ def tecnico(app, monkeypatch, tmp_path):
     with app.app_context():
         CajaChicaSolicitud.query.filter_by(documento=DOC).delete()
         db.session.execute(db.text('DELETE FROM caja_chica_items WHERE solicitud_id NOT IN (SELECT id FROM caja_chica_solicitudes)'))
+        from models import AsistenciaCuadrilla
+        AsistenciaCuadrilla.query.filter_by(documento=DOC).delete()
         NucleusData.query.filter_by(id=rid).delete()
         ClaveTecnico.query.filter_by(documento=DOC).delete()
         db.session.commit()

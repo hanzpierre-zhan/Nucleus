@@ -1,4 +1,4 @@
-"""Nucleus Mobile · Asistencia: junior de Dataper, placa y foto con coordenadas, una vez por día."""
+"""Nucleus Mobile · Asistencia individual: con vehículo o a pie, con compañero o solo; foto con coordenadas, una vez por día."""
 import io
 import json
 import re
@@ -29,7 +29,7 @@ def cuadrilla(app, monkeypatch, tmp_path):
         pid = Proyecto.query.filter_by(nombre='Dataper').one().id
         filas = [persona(DOC, 'Principal Uno', 'TECNICO ESPECIALISTA'), persona('47770002', 'Junior Dos', 'TECNICO JUNIOR'),
                  persona('47770003', 'Otro Tres', 'TECNICO'), persona('47770004', 'Entel Cuatro', 'JUNIOR', 'FLM - ENTEL'),
-                 persona('47770005', 'Cesado Cinco', 'JUNIOR', estado='CESADO')]
+                 persona('47770005', 'Cesado Cinco', 'JUNIOR', estado='CESADO'), persona('47770006', 'Supervisora Seis', 'SUPERVISOR')]
         db.session.add_all(filas + [ClaveTecnico(documento=DOC, clave_hash=generate_password_hash('Clave-123'))])
         db.session.commit()
         ids = {json.loads(f.data_json)['TECNICO']: f.id for f in filas}
@@ -60,7 +60,8 @@ def test_datos_y_juniors_del_mismo_proyecto(cuadrilla):
     assert cli.get('/form-pruebas/asistencia').status_code == 200
     j = cli.get('/form-pruebas/asistencia/datos').json
     assert j['personal']['nombre'] == 'Principal Uno' and j['personal']['cargo'] == 'TECNICO ESPECIALISTA' and j['personal']['celular'] == '999111222'
-    assert [x['nombre'] for x in j['juniors']] == ['Junior Dos', 'Otro Tres']  # junior primero; sin otro proyecto, cesados ni él mismo
+    # Junior primero; sin otro proyecto, cesados, cargos de oficina (supervisor) ni él mismo.
+    assert [x['nombre'] for x in j['juniors']] == ['Junior Dos', 'Otro Tres']
     assert j['hoy'] is None
     assert cli.get('/form-pruebas/asistencia/estado').json['marcado'] is False
 
@@ -71,7 +72,9 @@ def test_registra_una_vez_con_foto_y_coordenadas(cuadrilla):
     r = cli.post('/form-pruebas/asistencia', headers=h, data={**base, 'latitud': ''}, content_type='multipart/form-data')
     assert r.status_code == 400 and 'ubicación' in r.json['error']
     r = cli.post('/form-pruebas/asistencia', headers=h, data={**base, 'junior': str(ids['Entel Cuatro']), 'foto': _foto()}, content_type='multipart/form-data')
-    assert r.status_code == 400 and 'junior' in r.json['error']
+    assert r.status_code == 400 and 'compañero' in r.json['error']
+    r = cli.post('/form-pruebas/asistencia', headers=h, data={**base, 'placa': '', 'foto': _foto()}, content_type='multipart/form-data')
+    assert r.status_code == 400 and 'placa' in r.json['error']
     r = cli.post('/form-pruebas/asistencia', headers=h, data={**base, 'foto': _foto()}, content_type='multipart/form-data')
     assert r.status_code == 200, r.json
     reg = r.json['registro']
@@ -84,6 +87,38 @@ def test_registra_una_vez_con_foto_y_coordenadas(cuadrilla):
     r = cli.post('/form-pruebas/asistencia', headers=h, data={**base, 'foto': _foto()}, content_type='multipart/form-data')
     assert r.status_code == 400 and 'Ya registraste' in r.json['error']
     assert cli.post('/form-pruebas/asistencia', headers={'X-Ubicacion': h['X-Ubicacion']}, data={**base, 'foto': _foto()}, content_type='multipart/form-data').status_code == 403
+
+
+def test_caminante_solo_sin_placa_ni_companero(app, cuadrilla):
+    cli, h, ids = cuadrilla
+    datos = {'movilidad': 'a_pie', 'companero': 'solo', 'latitud': '-12.05', 'longitud': '-77.04', 'precision': '9', 'foto': _foto()}
+    r = cli.post('/form-pruebas/asistencia', headers=h, data=datos, content_type='multipart/form-data')
+    assert r.status_code == 200, r.json
+    reg = r.json['registro']
+    assert reg['a_pie'] and reg['solo'] and reg['placa'] == '' and reg['junior'] == ''
+
+
+def test_asistencia_es_individual(app, cuadrilla):
+    from datetime import datetime
+    from services.utilidades import ahora_peru
+    cli, h, ids = cuadrilla
+    hoy = ahora_peru().date()
+    with app.app_context():
+        # Otro técnico ya marcó hoy y puso a Principal Uno como compañero: eso no le marca asistencia.
+        db.session.add(AsistenciaCuadrilla(fecha=hoy, personal_id=ids['Otro Tres'], documento='47770003', nombre='Otro Tres',
+                                           proyecto='FLM - CLARO', junior_id=ids['Principal Uno'], junior_documento=DOC,
+                                           junior_nombre='Principal Uno', placa='XYZ999', foto='2026-11/' + 'b' * 32 + '.jpg',
+                                           latitud=-12.0, longitud=-77.0, registrado_en=datetime.now()))
+        db.session.commit()
+    try:
+        assert cli.get('/form-pruebas/asistencia/estado').json['marcado'] is False
+        datos = {'movilidad': 'vehiculo', 'placa': 'XYZ-999', 'companero': 'con', 'junior': str(ids['Otro Tres']),
+                 'latitud': '-12.0', 'longitud': '-77.0', 'foto': _foto()}
+        r = cli.post('/form-pruebas/asistencia', headers=h, data=datos, content_type='multipart/form-data')
+        assert r.status_code == 200, r.json
+    finally:
+        with app.app_context():
+            AsistenciaCuadrilla.query.filter_by(documento='47770003').delete(); db.session.commit()
 
 
 def test_sin_ubicacion_no_deja_actuar_y_cada_accion_guarda_su_punto(app, cuadrilla):
@@ -137,7 +172,9 @@ def test_planilla_marca_mobile_falta_automatica_y_validacion(app, cuadrilla, ges
         db.session.commit(); rid = r.id
     try:
         plan = {p['personal_id']: p['marcas'] for p in c.get('/api/asistencia/planilla?mes=2026-10&proyecto=%d' % claro).json['registros']}
-        assert plan[principal]['5']['movil']['validacion'] == 'PENDIENTE' and plan[junior]['5']['estado'] == 'PRESENTE'
+        assert plan[principal]['5']['movil']['validacion'] == 'PENDIENTE' and plan[principal]['5']['movil']['companero'] == 'Junior Dos'
+        # El compañero no marcó: falta, con el aviso de quién lo puso como compañero.
+        assert plan[junior]['5']['estado'] == 'FALTA' and 'Principal Uno lo puso como compañero' in plan[junior]['5']['observacion']
         assert plan[principal]['6']['estado'] == 'FALTA' and plan[principal]['6']['auto'] is True  # martes sin marcar
         assert '11' not in plan[principal]  # domingo
         assert '4' not in plan[principal]  # antes de su primera marca
@@ -145,10 +182,12 @@ def test_planilla_marca_mobile_falta_automatica_y_validacion(app, cuadrilla, ges
         d = c.get('/api/asistencia/movil/%d' % rid).json
         assert d['editar'] and [p['evento'] for p in d['recorrido']] == ['Asistencia', 'Solicitud']
         assert any('20 min' in a and 'No cuadra' in a for a in d['alertas'])
+        assert any('Junior Dos no marcó' in a for a in d['alertas']) and d['companero_hora'] == ''
         assert c.post('/api/asistencia/movil/%d' % rid, headers=h, json={'accion': 'observar'}).status_code == 400
         assert c.post('/api/asistencia/movil/%d' % rid, headers=h, json={'accion': 'validar'}).json['validacion'] == 'VALIDADA'
         with app.app_context():
-            assert {(a.personal_id, a.estado) for a in AsistenciaDiaria.query.filter_by(fecha=date(2026, 10, 5))} == {(principal, 'PRESENTE'), (junior, 'PRESENTE')}
+            # Validar solo afecta a quien marcó, no a su compañero.
+            assert {(a.personal_id, a.estado) for a in AsistenciaDiaria.query.filter_by(fecha=date(2026, 10, 5))} == {(principal, 'PRESENTE')}
         r = c.post('/api/asistencia/movil/%d' % rid, headers=h, json={'accion': 'rechazar', 'motivo': 'Marcó desde su casa'})
         assert r.status_code == 200 and r.json['validacion'] == 'RECHAZADA'
         assert tecnico.get('/form-pruebas/asistencia/estado').json['rechazo']['motivo'] == 'Marcó desde su casa'

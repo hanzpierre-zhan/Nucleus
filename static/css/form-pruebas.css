@@ -197,3 +197,12 @@ button.asis-foto{width:100%}
 .asis-disparo:active{background:#fff}
 .asis-cam-sec{width:44px;height:44px;border-radius:50%;border:0;background:#0008;color:#fff;font-size:20px}
 .asis-repetir{margin:8px 0 0}
+
+/* Asistencia individual: opciones de movilidad y compañero */
+.asis-opciones{border:0;padding:0;margin:18px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.asis-opciones legend{font-size:13px;font-weight:650;margin-bottom:8px;padding:0}
+.asis-opciones label{margin:0!important;display:block}
+.asis-opciones input{position:absolute;opacity:0;width:1px;height:1px}
+.asis-opciones span{display:block;text-align:center;padding:12px 8px;border:1px solid var(--input-border);border-radius:12px;background:var(--field);font-size:13px;cursor:pointer}
+.asis-opciones input:checked+span{border:2px solid var(--blue);background:var(--accent);font-weight:650;padding:11px 7px}
+.asis-opciones input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px}

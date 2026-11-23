@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Asistencia · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=13) }}"></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Asistencia · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=14) }}"></head>
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg',v=5) }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Asistencia</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
 <main class="shell">
@@ -13,11 +13,24 @@
   <form id="asis-form" class="card" novalidate>
     <div class="identity"><strong id="asis-nombre"></strong><span id="asis-doc"></span></div>
     <div class="asis-datos" id="asis-datos"></div>
-    <label for="asis-junior">Tu junior</label>
-    <select id="asis-junior" name="junior" required><option value="">Elige a tu junior</option></select>
-    <label for="asis-placa">Placa del vehículo</label>
-    <input id="asis-placa" name="placa" required maxlength="10" autocomplete="off" autocapitalize="characters" placeholder="ABC-123">
-    <label>Foto de la cuadrilla <small>tú, tu junior y el vehículo con la placa visible</small></label>
+    <fieldset class="asis-opciones"><legend>¿Cómo te movilizas hoy?</legend>
+      <label><input type="radio" name="movilidad" value="vehiculo" checked><span>🚗 Con vehículo</span></label>
+      <label><input type="radio" name="movilidad" value="a_pie"><span>🚶 A pie (caminante)</span></label>
+    </fieldset>
+    <div id="asis-placa-caja">
+      <label for="asis-placa">Placa del vehículo</label>
+      <input id="asis-placa" name="placa" maxlength="10" autocomplete="off" autocapitalize="characters" placeholder="ABC-123">
+    </div>
+    <fieldset class="asis-opciones"><legend>¿Trabajas con alguien hoy?</legend>
+      <label><input type="radio" name="companero" value="con" checked><span>👥 Con compañero</span></label>
+      <label><input type="radio" name="companero" value="solo"><span>🧍 Solo</span></label>
+    </fieldset>
+    <div id="asis-junior-caja">
+      <label for="asis-junior">Tu compañero</label>
+      <select id="asis-junior" name="junior"><option value="">Elige a tu compañero</option></select>
+      <p class="hint">Personal de tu proyecto activo en Dataper. Tu compañero marca su propia asistencia.</p>
+    </div>
+    <label>Tu foto <small id="asis-foto-ayuda">tú en el lugar de trabajo, con la placa del vehículo visible</small></label>
     <button type="button" class="asis-foto" id="asis-camara-abrir">📷 Abrir cámara<small>La foto se toma aquí mismo y se guarda con tu ubicación.</small></button>
     <div id="asis-camara" class="asis-camara" hidden>
       <video id="asis-video" playsinline muted autoplay></video>
@@ -38,10 +51,10 @@
     <div class="eyebrow">ASISTENCIA REGISTRADA</div>
     <h1 id="asis-hecho-titulo" tabindex="-1">¡Listo!</h1>
     <p id="asis-hecho-texto"></p>
-    <img id="asis-hecho-foto" alt="Foto de la cuadrilla">
+    <img id="asis-hecho-foto" alt="Tu foto de asistencia">
     <div class="asis-datos" id="asis-hecho-datos"></div>
   </div>
 </section>
 </main>
 <input id="csrf" type="hidden" value="{{ csrf }}">
-<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=1) }}" defer></script><script src="{{ url_for('static',filename='js/asistencia-movil.js',v=2) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=1) }}" defer></script><script src="{{ url_for('static',filename='js/asistencia-movil.js',v=3) }}" defer></script></body></html>

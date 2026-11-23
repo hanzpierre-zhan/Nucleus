@@ -1,6 +1,6 @@
 import { crearApi } from "./asistencia/api.mjs";
 import { siglas, clave, filtrarYOrdenar } from "./asistencia/modelo.mjs";
-import { abrirMovil } from "./asistencia/movil.mjs?v=3";
+import { abrirMovil } from "./asistencia/movil.mjs?v=4";
 
 (() => {
   "use strict";
@@ -143,7 +143,7 @@ import { abrirMovil } from "./asistencia/movil.mjs?v=3";
           b.textContent =
             siglas[marca.estado] +
             ({ PENDIENTE: "?", VALIDADA: "✓", OBSERVADA: "!", RECHAZADA: "!" }[movil.validacion] || "");
-          b.title = `${d}/${mes}/${anio}: marcó en Mobile a las ${movil.hora} · ${{ PENDIENTE: "falta validar", VALIDADA: "validada", OBSERVADA: "rechazada", RECHAZADA: "rechazada" }[movil.validacion]}. Clic para ver foto y recorrido.`;
+          b.title = `${d}/${mes}/${anio}: marcó en Mobile a las ${movil.hora} · ${movil.a_pie ? "a pie" : "vehículo " + movil.placa} · ${movil.companero ? "con " + movil.companero : "solo"} · ${{ PENDIENTE: "falta validar", VALIDADA: "validada", OBSERVADA: "rechazada", RECHAZADA: "rechazada" }[movil.validacion]}. Clic para ver foto y recorrido.`;
           b.disabled = false;
           b.onclick = () => abrirMovil(movil.id, api, cargar);
         } else if (marca.auto && !cambios.has(clave(p, d))) {

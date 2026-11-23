@@ -388,7 +388,9 @@ class AsistenciaCuadrilla(db.Model):
     junior_id = db.Column(db.Integer, nullable=True)
     junior_documento = db.Column(db.String(30), nullable=False, default='')
     junior_nombre = db.Column(db.String(200), nullable=False, default='')
-    placa = db.Column(db.String(20), nullable=False)
+    placa = db.Column(db.String(20), nullable=False, default='')
+    # VEHICULO o A_PIE (técnico caminante, sin placa). El compañero (junior) es opcional: puede trabajar solo.
+    movilidad = db.Column(db.String(12), nullable=False, default='VEHICULO')
     foto = db.Column(db.String(200), nullable=False)
     latitud = db.Column(db.Float, nullable=False)
     longitud = db.Column(db.Float, nullable=False)

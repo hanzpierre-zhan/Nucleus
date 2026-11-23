@@ -1,4 +1,4 @@
-"""Asistencia de cuadrilla desde Nucleus Mobile: principal + junior + placa + foto con coordenadas."""
+"""Asistencia individual desde Nucleus Mobile: cada técnico marca la suya (con vehículo o a pie, con compañero o solo)."""
 import io
 import json
 import os
@@ -15,6 +15,19 @@ from services.formularios_prueba import valor
 from services.utilidades import ahora_peru
 
 PLACA = re.compile(r'^[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}$')
+# Cargos que no salen a campo: no aparecen como compañeros.
+CARGOS_OFICINA = re.compile(r'SUPERVIS|GESTOR|COORDINA|ALMACEN|ENCARGAD|PROPIETARI|ADMINISTRA|ASISTENTE|JEFE DE PROYECTO', re.I)
+
+
+def instalar():
+    """create_all no agrega columnas a tablas que ya existen (Neon): se añaden aquí."""
+    from sqlalchemy import inspect
+    if 'asistencia_cuadrilla' not in inspect(db.engine).get_table_names():
+        return
+    columnas = {c['name'] for c in inspect(db.engine).get_columns('asistencia_cuadrilla')}
+    if 'movilidad' not in columnas:
+        db.session.execute(db.text("ALTER TABLE asistencia_cuadrilla ADD COLUMN movilidad VARCHAR(12) NOT NULL DEFAULT 'VEHICULO'"))
+        db.session.commit()
 
 
 def _dataper():
@@ -43,7 +56,7 @@ def ficha(tecnico):
 
 
 def juniors(tecnico):
-    """Personal activo de Dataper del mismo proyecto; primero los de cargo Junior."""
+    """Compañeros posibles: personal de campo ACTIVO en Dataper del mismo proyecto; primero los de cargo Junior."""
     proyecto = str(tecnico.get('proyecto') or '').strip().upper()
     lista = []
     for fila, d in _dataper():
@@ -55,6 +68,8 @@ def juniors(tecnico):
         if not nombre:
             continue
         cargo = str(valor(d, 'CARGO') or '').strip()
+        if CARGOS_OFICINA.search(cargo):
+            continue
         lista.append({'id': fila.id, 'nombre': nombre, 'cargo': cargo, 'documento': str(valor(d, 'DOCUMENTO') or fila.key_value),
                       'junior': 'JUNIOR' in cargo.upper()})
     lista.sort(key=lambda x: (not x['junior'], x['nombre'].upper()))
@@ -62,16 +77,13 @@ def juniors(tecnico):
 
 
 def de_hoy(documento):
-    """Asistencia de hoy donde la persona aparece como principal o como junior."""
-    return (AsistenciaCuadrilla.query.filter_by(fecha=ahora_peru().date())
-            .filter((AsistenciaCuadrilla.documento == documento) | (AsistenciaCuadrilla.junior_documento == documento)).first())
+    """Asistencia que la persona marcó hoy (es individual: el compañero marca la suya)."""
+    return AsistenciaCuadrilla.query.filter_by(fecha=ahora_peru().date(), documento=documento).first()
 
 
 def ultimo_rechazo(documento):
     registro = (AsistenciaCuadrilla.query
-                .filter(AsistenciaCuadrilla.validacion == 'RECHAZADA',
-                        (AsistenciaCuadrilla.documento == documento) |
-                        (AsistenciaCuadrilla.junior_documento == documento))
+                .filter(AsistenciaCuadrilla.validacion == 'RECHAZADA', AsistenciaCuadrilla.documento == documento)
                 .order_by(AsistenciaCuadrilla.validado_en.desc(), AsistenciaCuadrilla.id.desc()).first())
     if registro:
         return {'fecha': registro.fecha.strftime('%d/%m/%Y'), 'motivo': registro.motivo}
@@ -81,6 +93,7 @@ def ultimo_rechazo(documento):
 def a_dict(r):
     return {'id': r.id, 'fecha': r.fecha.isoformat(), 'nombre': r.nombre, 'documento': r.documento, 'proyecto': r.proyecto,
             'junior': r.junior_nombre, 'junior_documento': r.junior_documento, 'placa': r.placa,
+            'movilidad': r.movilidad or 'VEHICULO', 'a_pie': (r.movilidad or '') == 'A_PIE', 'solo': not r.junior_documento,
             'latitud': r.latitud, 'longitud': r.longitud, 'precision': r.precision_m,
             'hora': r.registrado_en.strftime('%H:%M'), 'registrado_en': r.registrado_en.isoformat(sep=' ', timespec='minutes'),
             'validacion': r.validacion, 'validado_por': r.validado_por, 'motivo': r.motivo,
@@ -101,7 +114,7 @@ def _foto_con_datos(archivo, texto):
     """Superpone los datos de asistencia en la esquina inferior derecha."""
     contenido = archivo.read(20 * 1024 * 1024 + 1)
     if not contenido:
-        raise ValueError('Toma la foto de la cuadrilla.')
+        raise ValueError('Toma tu foto de asistencia.')
     if len(contenido) > 20 * 1024 * 1024:
         raise ValueError('La foto debe pesar como máximo 20 MB.')
     try:
@@ -157,22 +170,23 @@ def leer_foto(nombre):
 
 
 def registrar(tecnico, form, archivo, dispositivo=''):
-    previo = de_hoy(tecnico['documento'])
-    if previo:
-        raise ValueError('Ya registraste tu asistencia de hoy.' if previo.documento == tecnico['documento']
-                         else '%s ya registró la asistencia de hoy contigo.' % previo.nombre)
-    try:
-        junior_id = int(form.get('junior') or 0)
-    except ValueError:
-        junior_id = 0
-    junior = next((j for j in juniors(tecnico) if j['id'] == junior_id), None)
-    if not junior:
-        raise ValueError('Elige a tu junior de la lista.')
-    if de_hoy(junior['documento']):
-        raise ValueError('%s ya tiene asistencia registrada hoy en otra cuadrilla.' % junior['nombre'])
-    placa = re.sub(r'\s+', '', str(form.get('placa') or '')).upper()
-    if not PLACA.match(placa):
-        raise ValueError('Escribe la placa del vehículo (por ejemplo ABC-123).')
+    if de_hoy(tecnico['documento']):
+        raise ValueError('Ya registraste tu asistencia de hoy.')
+    movilidad = 'A_PIE' if str(form.get('movilidad') or '').strip().lower() in ('a_pie', 'pie', 'a pie') else 'VEHICULO'
+    junior = None
+    if str(form.get('companero') or 'con').strip().lower() != 'solo':
+        try:
+            junior_id = int(form.get('junior') or 0)
+        except ValueError:
+            junior_id = 0
+        junior = next((j for j in juniors(tecnico) if j['id'] == junior_id), None)
+        if not junior:
+            raise ValueError('Elige a tu compañero de la lista o marca que trabajas solo.')
+    placa = ''
+    if movilidad == 'VEHICULO':
+        placa = re.sub(r'\s+', '', str(form.get('placa') or '')).upper()
+        if not PLACA.match(placa):
+            raise ValueError('Escribe la placa del vehículo (por ejemplo ABC-123) o marca que vas a pie.')
     lat = _numero(form.get('latitud'), -90, 90, 'latitud')
     lng = _numero(form.get('longitud'), -180, 180, 'longitud')
     try:
@@ -180,7 +194,7 @@ def registrar(tecnico, form, archivo, dispositivo=''):
     except (TypeError, ValueError):
         precision = None
     if archivo is None or not archivo.filename:
-        raise ValueError('Toma la foto de la cuadrilla.')
+        raise ValueError('Toma tu foto de asistencia.')
     ahora = ahora_peru()
     meses = ('ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
              'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.')
@@ -188,14 +202,15 @@ def registrar(tecnico, form, archivo, dispositivo=''):
     periodo = 'a. m.' if ahora.hour < 12 else 'p. m.'
     texto = [f'{ahora.day} {meses[ahora.month - 1]} {ahora.year}, {hora} {periodo}',
              f'{lat:.6f}, {lng:.6f}',
-             f"Placa {placa}",
-             f"{tecnico['nombre']} + {junior['nombre']}"]
+             f"Placa {placa}" if placa else 'A pie',
+             f"{tecnico['nombre']} con {junior['nombre']}" if junior else f"{tecnico['nombre']} (solo)"]
     salida = _foto_con_datos(archivo, texto)
     nombre = '%s/%s.jpg' % (ahora.strftime('%Y-%m'), uuid.uuid4().hex)
     _guardar(nombre, salida)
     registro = AsistenciaCuadrilla(fecha=ahora.date(), personal_id=tecnico['id'], documento=tecnico['documento'],
-                                   nombre=tecnico['nombre'], proyecto=tecnico.get('proyecto') or '', junior_id=junior['id'],
-                                   junior_documento=junior['documento'], junior_nombre=junior['nombre'], placa=placa,
+                                   nombre=tecnico['nombre'], proyecto=tecnico.get('proyecto') or '',
+                                   junior_id=junior['id'] if junior else None, junior_documento=junior['documento'] if junior else '',
+                                   junior_nombre=junior['nombre'] if junior else '', placa=placa, movilidad=movilidad,
                                    foto=nombre, latitud=lat, longitud=lng, precision_m=precision, registrado_en=ahora,
                                    dispositivo=str(dispositivo or '')[:64])
     db.session.add(registro)
@@ -233,16 +248,15 @@ def distancia_km(a, b):
 
 
 def recorrido(registro):
-    """Puntos del día del principal (y del junior), en orden, con distancia a la marcación."""
+    """Puntos del día de quien marcó, en orden, con distancia a la marcación."""
     from models import UbicacionMovil
-    docs = [d for d in (registro.documento, registro.junior_documento) if d]
-    filas = (UbicacionMovil.query.filter(UbicacionMovil.fecha == registro.fecha, UbicacionMovil.documento.in_(docs))
+    filas = (UbicacionMovil.query.filter(UbicacionMovil.fecha == registro.fecha, UbicacionMovil.documento == registro.documento)
              .order_by(UbicacionMovil.hora).all())
     origen = (registro.latitud, registro.longitud)
     puntos = []
     for f in filas:
         puntos.append({'hora': f.hora.strftime('%H:%M'), 'evento': f.evento, 'latitud': f.latitud, 'longitud': f.longitud,
-                       'precision': f.precision_m, 'quien': 'Junior' if f.documento != registro.documento else 'Principal',
+                       'precision': f.precision_m, 'quien': 'Principal',
                        'km': round(distancia_km(origen, (f.latitud, f.longitud)), 1), '_t': f.hora})
     return puntos
 
@@ -278,34 +292,48 @@ def alertas(registro, puntos):
     return salida
 
 
+def companero_marco(registro):
+    """Asistencia propia del compañero ese día (None si no marcó)."""
+    if not registro.junior_documento:
+        return None
+    return AsistenciaCuadrilla.query.filter_by(fecha=registro.fecha, documento=registro.junior_documento).first()
+
+
 def detalle(registro):
     puntos = recorrido(registro)
     avisos = alertas(registro, puntos)
     for p in puntos:
         p.pop('_t')
-    return {**a_dict(registro), 'recorrido': puntos, 'alertas': avisos}
+    otro = companero_marco(registro)
+    if registro.junior_documento and not otro:
+        avisos.append('Su compañero %s no marcó asistencia ese día.' % registro.junior_nombre)
+    return {**a_dict(registro), 'recorrido': puntos, 'alertas': avisos,
+            'companero_hora': otro.registrado_en.strftime('%H:%M') if otro else ''}
 
 
 # ── Planilla de Dataper: marcas de Mobile y faltas automáticas ──────────────
 
 def marcas_periodo(base, inicio, fin):
-    """{(personal_id, proyecto_id): {dia: marca de Mobile}} y la primera fecha en que cada persona marcó."""
+    """{(personal_id, proyecto_id): {dia: marca propia de Mobile}}, quién lo puso como compañero ese día y
+    la primera fecha en que cada persona aparece en Mobile (desde ahí cuenta la falta automática)."""
     from sqlalchemy import func
     claves = {}
     for clave in base:
         claves.setdefault(clave[0], []).append(clave)
-    salida = {}
+    salida, nombrado = {}, {}
     for r in AsistenciaCuadrilla.query.filter(AsistenciaCuadrilla.fecha >= inicio, AsistenciaCuadrilla.fecha <= fin):
-        for pid, rol in ((r.personal_id, 'principal'), (r.junior_id, 'junior')):
-            for clave in claves.get(pid, []):
-                salida.setdefault(clave, {})[r.fecha.day] = {'id': r.id, 'validacion': r.validacion, 'rol': rol,
-                                                             'hora': r.registrado_en.strftime('%H:%M'), 'placa': r.placa}
+        for clave in claves.get(r.personal_id, []):
+            salida.setdefault(clave, {})[r.fecha.day] = {'id': r.id, 'validacion': r.validacion,
+                                                         'hora': r.registrado_en.strftime('%H:%M'), 'placa': r.placa,
+                                                         'a_pie': (r.movilidad or '') == 'A_PIE', 'companero': r.junior_nombre}
+        for clave in claves.get(r.junior_id, []):
+            nombrado.setdefault(clave, {})[r.fecha.day] = r.nombre
     primera = {}
     for columna in (AsistenciaCuadrilla.personal_id, AsistenciaCuadrilla.junior_id):
         for pid, fecha in db.session.query(columna, func.min(AsistenciaCuadrilla.fecha)).group_by(columna):
             if pid is not None and (pid not in primera or fecha < primera[pid]):
                 primera[pid] = fecha
-    return salida, primera
+    return salida, nombrado, primera
 
 
 def completar_planilla(personas, inicio, fin):
@@ -315,7 +343,7 @@ def completar_planilla(personas, inicio, fin):
     y sin contar domingos. Una marca guardada a mano siempre manda."""
     from datetime import timedelta
     base = {(p['personal_id'], p['proyecto_id']): p for p in personas}
-    movil, primera = marcas_periodo(base, inicio, fin)
+    movil, nombrado, primera = marcas_periodo(base, inicio, fin)
     hoy = ahora_peru().date()
     for clave, p in base.items():
         dias_movil = movil.get(clave, {})
@@ -330,6 +358,8 @@ def completar_planilla(personas, inicio, fin):
             elif mv:
                 p['marcas'][n] = {'estado': 'PRESENTE', 'observacion': 'Marcó en Mobile a las %s' % mv['hora'], 'version': 0, 'movil': mv}
             elif desde and desde <= dia < hoy and dia.weekday() != 6 and p.get('activo'):
-                p['marcas'][n] = {'estado': 'FALTA', 'observacion': 'No marcó en Nucleus Mobile', 'version': 0, 'auto': True}
+                quien = nombrado.get(clave, {}).get(dia.day)
+                nota = 'No marcó en Nucleus Mobile' + (' (%s lo puso como compañero)' % quien if quien else '')
+                p['marcas'][n] = {'estado': 'FALTA', 'observacion': nota, 'version': 0, 'auto': True}
             dia += timedelta(days=1)
     return personas

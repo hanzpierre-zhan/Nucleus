@@ -1,4 +1,4 @@
-// Nucleus Mobile · Asistencia: junior, placa y foto de la cuadrilla con coordenadas.
+// Nucleus Mobile · Asistencia individual: con vehículo o a pie, con compañero o solo; foto con coordenadas.
 (() => {
   const $ = id => document.getElementById(id);
   const csrf = $('csrf').value;
@@ -12,7 +12,7 @@
     $('asis-form-vista').hidden = true; $('asis-hecho-vista').hidden = false;
     $('asis-hecho-texto').textContent = 'Registraste tu asistencia hoy a las ' + r.hora + '.';
     $('asis-hecho-foto').src = '/form-pruebas/asistencia/foto/' + r.id;
-    $('asis-hecho-datos').replaceChildren(dato('Junior', r.junior), dato('Placa', r.placa),
+    $('asis-hecho-datos').replaceChildren(dato('Compañero', r.junior || 'Trabajó solo'), dato('Movilidad', r.a_pie ? 'A pie' : 'Vehículo ' + r.placa),
       dato('Ubicación', r.latitud.toFixed(6) + ', ' + r.longitud.toFixed(6)), dato('Precisión', r.precision != null ? '±' + Math.round(r.precision) + ' m' : ''));
     $('asis-hecho-titulo').focus();
   }
@@ -30,7 +30,7 @@
       $('asis-doc').textContent = 'Documento ' + p.documento + (p.cargo ? ' · ' + p.cargo : '');
       $('asis-datos').replaceChildren(dato('Proyecto', p.proyecto), dato('Departamento', p.departamento), dato('Supervisor', p.supervisor), dato('Celular', p.celular));
       const sel = $('asis-junior');
-      const grupos = [['Junior', j.juniors.filter(x => x.junior)], ['Otros del proyecto', j.juniors.filter(x => !x.junior)]];
+      const grupos = [['Junior', j.juniors.filter(x => x.junior)], ['Técnicos del proyecto', j.juniors.filter(x => !x.junior)]];
       for (const [titulo, lista] of grupos) {
         if (!lista.length) continue;
         const g = document.createElement('optgroup'); g.label = titulo;
@@ -80,19 +80,32 @@
   });
   window.addEventListener('pagehide', apagarCamara);
   $('asis-placa').addEventListener('input', e => { e.target.value = e.target.value.toUpperCase(); });
+  // A pie: no se pide placa. Solo: no se pide compañero.
+  const elegido = nombre => document.querySelector('input[name="' + nombre + '"]:checked').value;
+  function opciones() {
+    const aPie = elegido('movilidad') === 'a_pie', solo = elegido('companero') === 'solo';
+    $('asis-placa-caja').hidden = aPie;
+    $('asis-junior-caja').hidden = solo;
+    $('asis-foto-ayuda').textContent = aPie ? 'tú en el lugar de trabajo' : 'tú en el lugar de trabajo, con la placa del vehículo visible';
+  }
+  document.querySelectorAll('input[name="movilidad"], input[name="companero"]').forEach(r => r.addEventListener('change', opciones));
+  opciones();
 
   $('asis-form').addEventListener('submit', async e => {
     e.preventDefault(); error('');
-    if (!$('asis-junior').value) return error('Elige a tu junior.');
-    if (!$('asis-placa').value.trim()) return error('Escribe la placa del vehículo.');
+    const aPie = elegido('movilidad') === 'a_pie', solo = elegido('companero') === 'solo';
+    if (!aPie && !$('asis-placa').value.trim()) return error('Escribe la placa del vehículo o marca que vas a pie.');
+    if (!solo && !$('asis-junior').value) return error('Elige a tu compañero o marca que trabajas solo.');
     if (!foto) return error('Toma la foto de la cuadrilla.');
     if (!ubicacion) return error('Falta tu ubicación. Activa el GPS y vuelve a tomar la foto.');
     const boton = e.target.querySelector('button[type=submit]'); boton.disabled = true;
     try {
       const datos = new FormData();
-      datos.append('junior', $('asis-junior').value); datos.append('placa', $('asis-placa').value.trim());
+      datos.append('movilidad', aPie ? 'a_pie' : 'vehiculo'); datos.append('companero', solo ? 'solo' : 'con');
+      if (!solo) datos.append('junior', $('asis-junior').value);
+      if (!aPie) datos.append('placa', $('asis-placa').value.trim());
       datos.append('latitud', ubicacion.latitud); datos.append('longitud', ubicacion.longitud); datos.append('precision', ubicacion.precision);
-      datos.append('foto', foto, 'cuadrilla.jpg');
+      datos.append('foto', foto, 'asistencia.jpg');
       const r = await fetch('/form-pruebas/asistencia', {method: 'POST', credentials: 'same-origin', headers: {'X-CSRF-Token': csrf}, body: datos});
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.success) throw Error(j.error || 'No se pudo registrar tu asistencia.');

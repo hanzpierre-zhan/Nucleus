@@ -183,6 +183,9 @@ def create_app(config_object=None):
 
         startup_stage('Configurando Caja Chica')
         instalar_caja_chica()
+        from services.asistencia_movil import instalar as instalar_asistencia_movil
+
+        instalar_asistencia_movil()
 
     startup_stage('Aplicación lista')
     return app

@@ -515,7 +515,8 @@ def test_login_movil_de_gestora_entra_a_nucleus_no_al_portal(portal):
                             headers=headers_movil)
     assert b'name="legal_accept"' in respuesta.data
     respuesta = client.post('/login', data={'consent_step': '1', 'legal_accept': '1'}, headers=headers_movil)
-    assert respuesta.headers['Location'] == '/analytics'
+    # Los usuarios administrativos entran al Inicio de Nucleus, no al portal de técnicos.
+    assert respuesta.headers['Location'] == '/inicio'
 
 
 def test_por_rendir_agrupa_y_ordena_depositos_del_proyecto(portal):
