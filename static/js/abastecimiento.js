@@ -48,6 +48,10 @@ for (const formulario of document.querySelectorAll('.ab-form')) {
     try {
       const respuesta = await fetch(boton?.getAttribute('formaction') || formulario.action, {method: 'POST', body: datos});
       const resultado = await respuesta.json().catch(() => ({}));
+      if (resultado.codigo === 'ASISTENCIA_REQUERIDA') {
+        location.href = resultado.destino;
+        return;
+      }
       if (!respuesta.ok || !resultado.ok) throw Error(resultado.error || 'No se pudo guardar. Actualiza la página y vuelve a intentar.');
       if (window.parent !== window) window.parent.postMessage('abastecimiento-prueba-guardada', location.origin);
       window.location.reload();

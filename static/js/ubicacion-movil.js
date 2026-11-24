@@ -60,7 +60,9 @@
     headers.set('X-Ubicacion', [u.lat, u.lng, Math.round(u.acc)].join(','));
     if (dispositivo) headers.set('X-Dispositivo', dispositivo);
     const r = await original(recurso, {...opciones, headers});
-    if (r.status === 428) bloquear('Nucleus no recibió tu ubicación.');
+    if (r.status === 428 && (await r.clone().json().catch(() => ({}))).codigo === 'UBICACION') {
+      bloquear('Nucleus no recibió tu ubicación.');
+    }
     return r;
   };
 

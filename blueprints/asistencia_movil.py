@@ -2,7 +2,7 @@
 import re
 import time
 
-from flask import Blueprint, Response, abort, g, jsonify, redirect, render_template, session, url_for, request
+from flask import Blueprint, Response, abort, current_app, g, jsonify, redirect, render_template, session, url_for, request
 
 from db import db
 from models import AsistenciaCuadrilla, NucleusData
@@ -22,6 +22,11 @@ EVENTOS = {
     'form_pruebas.rendir': 'Rendición', 'caja_chica.portal_devolver_item': 'Devolución',
     'caja_chica.portal_devolucion': 'Devolución', 'caja_chica.portal_deshacer_devolucion': 'Corrigió devolución',
 }
+SOLICITUDES_CON_ASISTENCIA = {
+    'caja_chica.portal_solicitar': 'caja-chica',
+    'form_pruebas.solicitar': 'caja-chica',
+    'abastecimiento.solicitar': 'abastecimiento',
+}
 
 
 def _accion_tecnico():
@@ -30,7 +35,7 @@ def _accion_tecnico():
 
 
 @bp.before_app_request
-def exigir_asistencia_diaria():
+def preparar_sesion_movil():
     doc = session.get('form_documento')
     endpoint = request.endpoint or ''
     if (not doc or session.get('form_debe_cambiar') or not endpoint
@@ -53,13 +58,21 @@ def exigir_asistencia_diaria():
             return jsonify(error='Actualiza tus datos en Dataper para continuar.',
                            codigo='DATAPER_REQUERIDO', destino=destino), 428
         session.pop('form_verificar_dataper', None)
-    if endpoint.startswith('asistencia_movil.') or not g.perfil_mobile_requiere_asistencia or am.de_hoy(doc):
+    origen = SOLICITUDES_CON_ASISTENCIA.get(endpoint)
+    if origen == 'abastecimiento' and not current_app.config.get('ABASTECIMIENTO_MOBILE_ENABLED', False):
+        abort(404)
+    abriendo_solicitud = endpoint == 'caja_chica.portal' and request.args.get('solicitar') == '1'
+    if not (origen or abriendo_solicitud) or not asistencia_pendiente(doc):
         return None
-    destino = url_for('asistencia_movil.pantalla')
-    if endpoint in ('form_pruebas.inicio', 'caja_chica.portal', 'abastecimiento.entrada'):
+    destino = url_for('asistencia_movil.pantalla', solicitud=origen or 'caja-chica')
+    if abriendo_solicitud:
         return redirect(destino)
-    return jsonify(error='Marca tu asistencia de hoy para continuar.', codigo='ASISTENCIA_REQUERIDA',
+    return jsonify(error='Marca tu asistencia de hoy antes de solicitar.', codigo='ASISTENCIA_REQUERIDA',
                    destino=destino), 428
+
+
+def asistencia_pendiente(documento):
+    return bool(g.get('perfil_mobile_requiere_asistencia') and not am.de_hoy(documento))
 
 
 @bp.before_app_request
@@ -94,7 +107,12 @@ def pantalla():
     if not g.perfil_mobile_requiere_asistencia:
         return redirect(url_for('form_pruebas.inicio'))
     aviso = am.ultimo_rechazo(session['form_documento'])
-    return render_template('asistencia_movil.html', csrf=csrf(), rechazo=aviso)
+    origen = request.args.get('solicitud')
+    continuar = {
+        'caja-chica': url_for('caja_chica.portal', solicitar=1, _anchor='nueva'),
+        'abastecimiento': url_for('abastecimiento.entrada'),
+    }.get(origen)
+    return render_template('asistencia_movil.html', csrf=csrf(), rechazo=aviso, continuar_solicitud=continuar)
 
 
 @bp.get('/form-pruebas/asistencia/datos')

@@ -85,11 +85,13 @@ def portal():
 @bp.get('/form-pruebas/caja-chica/datos')
 @tecnico
 def portal_datos():
+    from blueprints.asistencia_movil import asistencia_pendiente
     solicitudes = (CajaChicaSolicitud.query.filter_by(documento=g.tecnico['documento'])
                    .filter(CajaChicaSolicitud.estado.notin_((*cc.ESTADOS_FINALES, 'ELIMINADO')))
                    .options(selectinload(CajaChicaSolicitud.items))
                    .order_by(CajaChicaSolicitud.id.desc()).all())
     return jsonify(personal=g.tecnico, proyecto=familia(g.tecnico['proyecto']), catalogo=_catalogo(_config_catalogo()[1]),
+                   asistencia_pendiente=asistencia_pendiente(g.tecnico['documento']),
                    responsables=responsables_por_proyecto(), cuenta_devolucion=cc.CUENTA_DEVOLUCION,
                    restricciones=reglas.estado(g.tecnico['documento'], familia(g.tecnico['proyecto'])),
                    solicitudes=[cc.a_dict(s) for s in solicitudes])

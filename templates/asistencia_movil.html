@@ -9,7 +9,7 @@
 <section id="asis-form-vista" class="view" hidden>
   <a class="back" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Volver</a>
   <div class="eyebrow">03 / ASISTENCIA</div><h1>Asistencia de hoy<span class="dot">.</span></h1>
-  <p>Marca tu asistencia para continuar a Nucleus. La marcación se renueva a las 00:00, hora de Perú.</p>
+  {% if continuar_solicitud %}<p>Marca tu asistencia de hoy antes de continuar con la solicitud.</p>{% else %}<p>Registra tu asistencia del día. La marcación se renueva a las 00:00, hora de Perú.</p>{% endif %}
   <form id="asis-form" class="card" novalidate>
     <div class="identity"><strong id="asis-nombre"></strong><span id="asis-doc"></span></div>
     <div class="asis-datos" id="asis-datos"></div>
@@ -51,10 +51,11 @@
     <div class="eyebrow">ASISTENCIA REGISTRADA</div>
     <h1 id="asis-hecho-titulo" tabindex="-1">¡Listo!</h1>
     <p id="asis-hecho-texto"></p>
+    {% if continuar_solicitud %}<a class="primary wide" href="{{ continuar_solicitud }}">Continuar a la solicitud</a>{% endif %}
     <img id="asis-hecho-foto" alt="Tu foto de asistencia">
     <div class="asis-datos" id="asis-hecho-datos"></div>
   </div>
 </section>
 </main>
 <input id="csrf" type="hidden" value="{{ csrf }}">
-<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=1) }}" defer></script><script src="{{ url_for('static',filename='js/asistencia-movil.js',v=3) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=2) }}" defer></script><script src="{{ url_for('static',filename='js/asistencia-movil.js',v=3) }}" defer></script></body></html>

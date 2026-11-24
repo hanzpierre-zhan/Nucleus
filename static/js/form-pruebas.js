@@ -11,7 +11,7 @@
   async function api(path, options={}) {
     const response=await fetch(base+path,{credentials:'same-origin',...options,headers:{'X-CSRF-Token':token(),...(options.headers||{})}});
     let data;try{data=await response.json();}catch{throw Error('No se pudo leer la respuesta. Revisa tu conexión y vuelve a intentar.');}
-    if(!response.ok){if(data.codigo==='ASISTENCIA_REQUERIDA')location.replace('/form-pruebas/asistencia');if((response.status===401 && !$('login'))||(response.status===403 && data.codigo==='CAMBIAR_CLAVE' && !$('form-clave')?.closest('.login')))location.reload();throw Error(data.error||'No se pudo completar el envío.');}
+    if(!response.ok){if(data.codigo==='ASISTENCIA_REQUERIDA')location.replace(data.destino);if((response.status===401 && !$('login'))||(response.status===403 && data.codigo==='CAMBIAR_CLAVE' && !$('form-clave')?.closest('.login')))location.reload();throw Error(data.error||'No se pudo completar el envío.');}
     return data;
   }
   function showError(form,message){const box=form.querySelector('.error');box.textContent=message;box.hidden=false;box.focus();}

@@ -47,7 +47,7 @@
     const r = await fetch(prefijo + ruta, {credentials: 'same-origin', ...opciones, headers: {'X-CSRF-Token': $('csrf').value, ...(opciones.headers || {})}});
     let j; try { j = await r.json(); } catch { throw Error('No se pudo leer la respuesta. Revisa tu conexión.'); }
     if (r.status === 401 || (r.status === 403 && j.codigo === 'CAMBIAR_CLAVE')) { location.href = '/form-pruebas/'; throw Error(j.error); }
-    if (j.codigo === 'ASISTENCIA_REQUERIDA') location.replace('/form-pruebas/asistencia');
+    if (j.codigo === 'ASISTENCIA_REQUERIDA') location.replace(j.destino);
     if (!r.ok) throw Error(j.error || 'No se pudo completar el envío.');
     return j;
   }
@@ -573,6 +573,10 @@
     $('cc-billetera-numero').hidden = $('cc-numero-billetera').disabled = $('cc-billetera').value === 'No aplica';
   }
   function abrirFormulario(sol) {
+    if (!sol && datos.asistencia_pendiente) {
+      location.href = '/form-pruebas/asistencia?solicitud=caja-chica';
+      return;
+    }
     corrigiendo = sol || null;
     const form = $('cc-form'); form.reset(); pintarCci();
     // El proyecto es el del técnico en Dataper: se muestra, pero no se puede cambiar.
@@ -690,6 +694,9 @@
 
   cargar().then(() => {
     // "Solicitar" del inicio del portal llega con #nueva: abre directo el formulario.
-    if (location.hash === '#nueva') { history.replaceState(null, '', location.pathname); abrirFormulario(); }
+    if (location.hash === '#nueva' || new URLSearchParams(location.search).get('solicitar') === '1') {
+      history.replaceState(null, '', location.pathname);
+      abrirFormulario();
+    }
   }).catch(e => { const c = $('cargando'); c.setAttribute('role', 'alert'); c.textContent = e.message; });
 })();

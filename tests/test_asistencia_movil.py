@@ -89,7 +89,7 @@ def test_actualizar_dataper_en_mobile(app, cuadrilla):
         assert ficha['DOCUMENTO'] == DOC and ficha['ESTADO'] == 'ACTIVO'
         assert ficha['PROYECTO'] == 'FLM - CLARO'
         assert ficha['CARGO'] == 'TÉCNICO JUNIOR'
-    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
+    assert cli.get('/form-pruebas/').status_code == 200
     assert cli.get('/form-pruebas/dataper/foto').mimetype == 'image/jpeg'
     assert app.test_client().get('/form-pruebas/dataper/foto').status_code == 401
     # La ficha inicial se pide una vez; luego puede editarla sin repetir la foto.
@@ -109,7 +109,7 @@ def test_actualizar_dataper_en_mobile(app, cuadrilla):
 
     with cli.session_transaction() as sesion:
         sesion['form_verificar_dataper'] = True
-    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
+    assert cli.get('/form-pruebas/').status_code == 200
     with cli.session_transaction() as sesion:
         sesion['form_documento'] = '47770006'
         sesion['form_personal_id'] = ids['Supervisora Seis']
@@ -135,11 +135,18 @@ def test_asistencia_se_exige_solo_a_junior_y_especialista(app, cuadrilla, cargo,
         db.session.commit()
     inicio = cliente.get('/form-pruebas/')
     pantalla = cliente.get('/form-pruebas/asistencia')
+    assert inicio.status_code == 200
+    assert cliente.get('/form-pruebas/caja-chica').status_code == 200
+    solicitud = cliente.get('/form-pruebas/caja-chica?solicitar=1')
     if obligatorio:
-        assert inicio.location.endswith('/form-pruebas/asistencia')
+        assert b'asis-home-estado' in inicio.data
+        assert solicitud.location.endswith('/form-pruebas/asistencia?solicitud=caja-chica')
+        assert b'antes de continuar con la solicitud' in cliente.get(solicitud.location).data
+        bloqueada = cliente.post('/form-pruebas/caja-chica/solicitar', headers=headers, json={})
+        assert bloqueada.status_code == 428 and bloqueada.json['codigo'] == 'ASISTENCIA_REQUERIDA'
         assert pantalla.status_code == 200
     else:
-        assert inicio.status_code == 200
+        assert solicitud.status_code == 200
         assert b'asis-home-estado' not in inicio.data
         assert pantalla.location.endswith('/form-pruebas/')
         assert cliente.post('/form-pruebas/asistencia', headers=headers).status_code == 403
@@ -147,8 +154,8 @@ def test_asistencia_se_exige_solo_a_junior_y_especialista(app, cuadrilla, cargo,
 
 def test_datos_y_juniors_del_mismo_proyecto(cuadrilla):
     cli, h, ids = cuadrilla
-    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
-    assert cli.get('/form-pruebas/caja-chica').location.endswith('/form-pruebas/asistencia')
+    assert cli.get('/form-pruebas/').status_code == 200
+    assert cli.get('/form-pruebas/caja-chica').status_code == 200
     assert cli.get('/form-pruebas/asistencia').status_code == 200
     j = cli.get('/form-pruebas/asistencia/datos').json
     assert j['personal']['nombre'] == 'Principal Uno' and j['personal']['cargo'] == 'TÉCNICO ESPECIALISTA' and j['personal']['celular'] == '999111222'
@@ -174,6 +181,8 @@ def test_registra_una_vez_con_foto_y_coordenadas(cuadrilla):
     foto = cli.get('/form-pruebas/asistencia/foto/%d' % reg['id'])
     assert foto.status_code == 200 and foto.mimetype == 'image/jpeg'
     assert cli.get('/form-pruebas/asistencia/estado').json['marcado'] is True
+    assert cli.get('/form-pruebas/caja-chica?solicitar=1').status_code == 200
+    assert cli.get('/form-pruebas/caja-chica/datos').json['asistencia_pendiente'] is False
     assert cli.get('/form-pruebas/').status_code == 200
     assert cli.get('/form-pruebas/asistencia/datos').json['hoy']['id'] == reg['id']
     r = cli.post('/form-pruebas/asistencia', headers=h, data={**base, 'foto': _foto()}, content_type='multipart/form-data')
