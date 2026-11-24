@@ -60,7 +60,7 @@ def referencias_pedido(form, anterior, cierre=False):
     return datos
 
 
-def datos_pedido(form, proyecto, anterior=None, galones_anteriores=None):
+def datos_pedido(form, proyecto, anterior=None, galones_anteriores=None, *, prueba=False):
     anterior = anterior or {}
     campos = 'fecha zona site codigo combustible otro_combustible placa generador'.split()
     datos = {campo: form.get(campo, '').strip()[:1000] for campo in campos}
@@ -86,7 +86,7 @@ def datos_pedido(form, proyecto, anterior=None, galones_anteriores=None):
         datos.update(generador='', generador_serie='')
     else:
         datos['placa'] = ''
-        equipo = next((g for g in catalogo_generadores(proyecto) if g['qr'] == datos['generador']), None)
+        equipo = next((g for g in catalogo_generadores(proyecto, prueba=prueba) if g['qr'] == datos['generador']), None)
         if not equipo and datos['generador'] != anterior.get('generador'):
             raise ValueError('Selecciona un generador registrado en tu proyecto.')
         datos['generador_serie'] = equipo['serie'] if equipo else anterior.get('generador_serie', '')
@@ -172,10 +172,17 @@ def generadores_visibles(rol, proyectos):
             if rol in ADMIN or familia(datos.get('PROYECTO') or datos.get('Proyecto')) in proyectos}
 
 
-def catalogo_generadores(proyecto):
-    return [{'qr': str(d['QR ASIGNADO']).strip(), 'serie': str(d.get('SERIE DE EQUIPO') or '').strip(),
-             'zona': str(d.get('ZONA') or '').strip()}
-            for d in generadores_visibles('gestor', {proyecto}).values() if str(d.get('QR ASIGNADO') or '').strip()]
+def catalogo_generadores(proyecto, *, prueba=False):
+    resultado = {}
+    for _, datos in fichas_generadores():
+        asignado = datos.get('PROYECTO') or datos.get('Proyecto') or ''
+        if familia(asignado) != proyecto and not (prueba and not str(asignado).strip()):
+            continue
+        qr = str(datos.get('QR ASIGNADO') or '').strip()
+        if qr:
+            resultado.setdefault(qr, {'qr': qr, 'serie': str(datos.get('SERIE DE EQUIPO') or '').strip(),
+                                       'zona': str(datos.get('ZONA') or '').strip()})
+    return sorted(resultado.values(), key=lambda g: g['qr'].casefold())
 
 
 def catalogo_sites(proyecto, consulta):
@@ -183,10 +190,10 @@ def catalogo_sites(proyecto, consulta):
              'clave': s['site_key']} for s in sitios(consulta, proyecto='ENTEL' if proyecto == 'PEXT' else proyecto)]
 
 
-def datos_catalogo(proyecto):
+def datos_catalogo(proyecto, *, prueba=False):
     consulta = request.args.get('q', '').strip()[:120]
     return jsonify(sites=catalogo_sites(proyecto, consulta),
-                   generadores=[] if consulta else catalogo_generadores(proyecto))
+                   generadores=[] if consulta else catalogo_generadores(proyecto, prueba=prueba))
 
 
 @bp.get('/abastecimiento/catalogos')
@@ -196,7 +203,7 @@ def catalogos_gestion():
     proyecto = request.args.get('proyecto')
     if proyecto not in (PROYECTOS_PRUEBA if rol in ADMIN else proyectos):
         abort(403)
-    return datos_catalogo(proyecto)
+    return datos_catalogo(proyecto, prueba=rol in ADMIN and request.args.get('prueba') == '1')
 
 
 @bp.get('/form-pruebas/abastecimiento/catalogos')
@@ -306,7 +313,8 @@ def revisar(sid, accion):
         abort(404)
     try:
         if accion in ('editar', 'validar') and rol != 'supervisor' and sol.estado == 'gestora':
-            datos, unidad, galones = datos_pedido(request.form, sol.proyecto, sol.datos, sol.solicitado)
+            datos, unidad, galones = datos_pedido(request.form, sol.proyecto, sol.datos, sol.solicitado,
+                                                  prueba=sol.tecnico_id < 0)
             if sol.tecnico_id < 0:
                 unidad = 'prueba:' + unidad
             unidad_libre(unidad, sol.id)
@@ -374,7 +382,7 @@ def crear_pedido(persona, prueba=False):
             raise ValueError('Selecciona un proyecto para la prueba.')
         if not proyecto:
             raise ValueError('Tu proyecto debe estar registrado en Dataper.')
-        datos, unidad, galones = datos_pedido(request.form, proyecto)
+        datos, unidad, galones = datos_pedido(request.form, proyecto, prueba=prueba)
         if prueba:
             unidad = 'prueba:' + unidad
         bloquear_cambios()

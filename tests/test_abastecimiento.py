@@ -87,6 +87,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
         for modulo, clave, contenido in (
             ('Generadores', 'QA-GEP-CATALOGO', {'QR ASIGNADO': 'QA-AB-01', 'SERIE DE EQUIPO': '0001',
                                                 'PROYECTO': 'FLM - INTEGRATEL'}),
+            ('Generadores', 'QA-GEP-LEGADO', {'QR ASIGNADO': 'QA-GEP-SIN-PROYECTO', 'ZONA': 'ICA'}),
             ('SITE', 'QA-SITE-AB', {'Nombre del sitio | Site name': 'CHOQUECANCHA QA',
                                   'Código del sitio | Site ID': 'HU-ABC', 'Proyecto': 'FLM - INTEGRATEL'}),
         ):
@@ -99,6 +100,10 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert 'value="Técnico QA" readonly' in portal and 'value="FLM - INTEGRATEL" readonly' in portal
     inventario = mobile.get('/form-pruebas/abastecimiento/catalogos').json['generadores']
     assert any(g['qr'] == 'QA-AB-01' for g in inventario)
+    assert not any(g['qr'] == 'QA-GEP-SIN-PROYECTO' for g in inventario)
+    url_catalogo = '/abastecimiento/catalogos?proyecto=INTEGRATEL&prueba=1'
+    assert any(g['qr'] == 'QA-GEP-SIN-PROYECTO' for g in auth_client.get(url_catalogo).json['generadores'])
+    assert not any(g['qr'] == 'QA-GEP-SIN-PROYECTO' for g in gestora.get(url_catalogo).json['generadores'])
     assert mobile.get('/form-pruebas/abastecimiento/catalogos?q=HU-ABC').json['sites'][0]['nombre'] == 'CHOQUECANCHA QA'
     datos = {'fecha': '2026-11-24', 'zona': 'HUANCAVELICA', 'site': 'QA-SITE-SIN-REGISTRO-761893',
              'cm': 'CM-20261124-00000018', 'plm': 'PLM-20261124-00000018', 'tipo': 'generador',
@@ -188,6 +193,9 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     with auth_client.session_transaction() as ses:
         csrf_admin = ses['form_csrf']
     headers = {'X-CSRF-Token': csrf_admin}
+    legado = {**datos, 'proyecto': 'INTEGRATEL', 'generador': 'QA-GEP-SIN-PROYECTO'}
+    respuesta = auth_client.post('/abastecimiento/prueba/solicitar', data=legado, headers=headers)
+    assert respuesta.status_code == 200, respuesta.json
     creado = auth_client.post('/abastecimiento/prueba/solicitar',
                               data={**datos, 'proyecto': 'INTEGRATEL'}, headers=headers)
     assert creado.status_code == 200, creado.json

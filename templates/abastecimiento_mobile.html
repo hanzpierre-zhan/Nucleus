@@ -28,7 +28,8 @@
       {% else %}
       <label>Proyecto <input value="{{ persona.proyecto }}" readonly></label>
       {% endif %}
-      {{ pedido(datos, '', zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion' if prueba else 'abastecimiento.catalogos_tecnico'), proyecto) }}
+      {% set url_catalogo = url_for('abastecimiento.catalogos_gestion', prueba=1) if prueba else url_for('abastecimiento.catalogos_tecnico') %}
+      {{ pedido(datos, '', zonas, combustibles_pedido, url_catalogo, proyecto) }}
       <p class="hint">Puedes agregar el CM y el PLM más adelante. Se piden al cerrar la recarga.</p>
       <p class="error" data-error role="alert" hidden></p>
       <button type="submit" class="primary wide">Enviar solicitud</button>
