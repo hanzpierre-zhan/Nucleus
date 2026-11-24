@@ -268,3 +268,28 @@ def test_planilla_marca_mobile_falta_automatica_y_validacion(app, cuadrilla, ges
             AsistenciaCambio.query.filter(AsistenciaCambio.asistencia_id.in_(filas)).delete(synchronize_session=False)
             AsistenciaDiaria.query.filter(AsistenciaDiaria.id.in_(filas)).delete(synchronize_session=False)
             db.session.commit()
+
+
+def test_rechazada_hoy_puede_volver_a_subir_la_foto(app, cuadrilla):
+    cli, h, ids = cuadrilla
+    datos = lambda: {'movilidad': 'a_pie', 'companero': 'solo', 'latitud': '-12.05', 'longitud': '-77.04', 'foto': _foto()}
+    r = cli.post('/form-pruebas/asistencia', headers=h, data=datos(), content_type='multipart/form-data')
+    assert r.status_code == 200, r.json
+    rid, foto = r.json['registro']['id'], None
+    with app.app_context():
+        reg = db.session.get(AsistenciaCuadrilla, rid)
+        foto = reg.foto
+        reg.validacion, reg.motivo = 'RECHAZADA', 'Foto borrosa'
+        db.session.commit()
+    estado = cli.get('/form-pruebas/asistencia/estado').json
+    assert estado['marcado'] is False and estado['rechazo']['motivo'] == 'Foto borrosa' and estado['rechazo']['hoy'] is True
+    assert b'Volver a registrar mi asistencia' in cli.get('/form-pruebas/asistencia').data
+    r = cli.post('/form-pruebas/asistencia', headers=h, data=datos(), content_type='multipart/form-data')
+    assert r.status_code == 200, r.json
+    assert r.json['registro']['id'] == rid and r.json['registro']['validacion'] == 'PENDIENTE'
+    with app.app_context():
+        reg = db.session.get(AsistenciaCuadrilla, rid)
+        assert reg.foto != foto and 'Foto borrosa' in reg.motivo
+    assert cli.get('/form-pruebas/asistencia/estado').json['marcado'] is True
+    r = cli.post('/form-pruebas/asistencia', headers=h, data=datos(), content_type='multipart/form-data')
+    assert r.status_code == 400 and 'Ya registraste' in r.json['error']

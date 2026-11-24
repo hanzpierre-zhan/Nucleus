@@ -90,7 +90,9 @@ def index():
     is_admin = user_rol == 'zeno'
     is_privileged = user_rol == 'zeno'
 
-    if session.get('current_proyecto_nombre') == 'FLM - CLARO y INTEGRATEL':
+    from services.utilidades import PROYECTOS_REMOVIDOS
+    # Módulos retirados o en backup (p. ej. Combustible): se pasa al primer módulo visible.
+    if session.get('current_proyecto_nombre') in PROYECTOS_REMOVIDOS:
         proyectos_activos = get_menu_proyectos(user_id, user_rol)
         if proyectos_activos:
             proyecto_activo = proyectos_activos[0]

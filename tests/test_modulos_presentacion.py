@@ -37,40 +37,13 @@ def test_sites_y_mapa_son_un_solo_modulo(app, auth_client):
     assert b'class="sidebar-link active"' in mapa.data
 
 
-def test_combustible_incluye_generadores(app, auth_client):
-    """Generadores vive dentro de Combustible: se entra con un botón y se
-    vuelve con otro; el menú lateral solo muestra Combustible."""
+def test_combustible_y_generadores_en_backup(app, auth_client, client):
+    """Combustible y Generadores pasaron a backup: sus datos siguen en la base, pero nadie los ve ni entra."""
+    from db import db
+    from models import AccesoProyecto, Usuario
     with app.app_context():
         comb = Proyecto.query.filter_by(nombre='Combustible').one().id
         gen = Proyecto.query.filter_by(nombre='Generadores').one().id
-    enlace_gen = ('href="/switch_project/%d?next=/"' % gen).encode()
-    enlace_comb = ('href="/switch_project/%d?next=/"' % comb).encode()
-
-    auth_client.get('/switch_project/%d' % comb)
-    combustible = auth_client.get('/')
-    assert combustible.status_code == 200
-    assert b'Volver a Combustible' not in combustible.data
-    # Una sola entrada a Generadores: el botón (ya no hay enlace en el menú).
-    assert combustible.data.count(enlace_gen) == 1
-
-    auth_client.get('/switch_project/%d' % gen)
-    generadores = auth_client.get('/')
-    assert generadores.status_code == 200
-    assert b'Volver a Combustible' in generadores.data
-    # El botón de volver (el menú lateral abre la vista nueva de Combustible).
-    assert generadores.data.count(enlace_comb) == 1 and b'href="/vista/combustible/"' in generadores.data
-    # Desde la vista nueva de Combustible se entra a Generadores por la tuerca.
-    assert enlace_gen in auth_client.get('/vista/combustible/').data
-    # El menú marca Combustible mientras se está en Generadores.
-    assert b'class="sidebar-link active"' in generadores.data
-
-
-def test_gestor_sin_combustible_conserva_generadores(app, client):
-    """Generadores vive dentro de Combustible, pero el Gestor (que no ve
-    Combustible) conserva su entrada propia para no perder el acceso."""
-    from db import db
-    from models import AccesoProyecto, Proyecto, Usuario
-    with app.app_context():
         flm = Proyecto.query.filter_by(nombre='FLM - CLARO').one().id
         usuario = Usuario(username='gestor-comb-gen', password_hash='prueba', rol='gestor')
         db.session.add(usuario)
@@ -79,12 +52,17 @@ def test_gestor_sin_combustible_conserva_generadores(app, client):
         db.session.commit()
         uid = usuario.id
     try:
+        # Ni el administrador general puede entrar.
+        assert auth_client.get('/vista/combustible/').status_code == 403
+        for pid in (comb, gen):
+            auth_client.get('/switch_project/%d' % pid)
+            with auth_client.session_transaction() as ses:
+                assert ses.get('current_proyecto_id') != pid
         with client.session_transaction() as ses:
             ses.update({'user_id': uid, 'username': 'gestor-comb-gen', 'rol': 'gestor',
                         'current_proyecto_id': flm, 'current_proyecto_nombre': 'FLM - CLARO'})
         pagina = client.get('/')
-        assert pagina.status_code == 200
-        assert b'<span class="sidebar-link-text">Generadores</span>' in pagina.data
+        assert b'<span class="sidebar-link-text">Generadores</span>' not in pagina.data
         assert b'<span class="sidebar-link-text">Combustible</span>' not in pagina.data
     finally:
         with app.app_context():

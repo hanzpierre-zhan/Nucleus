@@ -9,6 +9,7 @@
   const plano = t => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const cfg = JSON.parse($('vn-config').textContent);
   const esUsuarios = cfg.slug === 'usuarios';
+  const esDataper = cfg.slug === 'dataper';
   const esCesado = f => String(f.datos.ESTADO || '').trim().toUpperCase() === 'CESADO';
   const coincidePestana = (f, clave) => !clave || (
     cfg.slug === 'dataper' && clave === 'CESADOS' ? esCesado(f) : f.pestana === clave
@@ -225,11 +226,24 @@
     const form = el('form', 'cc-ficha vn-form'); form.noValidate = true;
     const cab = el('h4', 'cc-ficha-titulo'); cab.append(icono('fa-file-lines'), el('span', null, nuevo ? 'Datos del nuevo registro' : 'Datos'));
     form.append(cab);
+    if (nuevo && esDataper) {
+      form.autocomplete = 'off';
+      form.append(el('p', 'cc-nota', 'Ingresa el documento y el proyecto. Puedes completar más adelante el correo, el usuario Autin y otros datos pendientes.'));
+    }
     if (nuevo) form.append(campoEdicion(cfg.clave + ' (clave)', '', null));
     const campos = [...new Set([...columnasBase, ...Object.keys(f.datos)])]
       .filter(c => !['EDITADO POR', 'REVISIÓN DEL NOMBRE'].includes(c));
     // Campos con valores fijos: se eligen de una lista (p. ej. ESTADO en Dataper).
-    for (const c of campos) form.append(campoEdicion(c, f.datos[c] ?? (nuevo && LISTAS[c] && c !== 'CARGO' ? LISTAS[c][0][0] : ''), LISTAS[c]));
+    for (const c of campos) {
+      const opciones = LISTAS[c];
+      let inicial = '';
+      if (nuevo && opciones?.length) {
+        if (!esDataper) inicial = opciones[0][0];
+        else if (c === 'ESTADO') inicial = 'ACTIVO';
+        else if (c === 'PROYECTO' && opciones.length === 1) inicial = opciones[0][0];
+      }
+      form.append(campoEdicion(c, f.datos[c] ?? inicial, opciones));
+    }
     if (!nuevo && f.datos['EDITADO POR']) form.append(el('p', 'cc-nota', 'Última edición: ' + f.datos['EDITADO POR']));
     const derecha = tarjetaDerecha(f, nuevo);
     const contenedor = el('div', 'cc-validacion-columnas' + (derecha ? '' : ' cc-una-columna'));

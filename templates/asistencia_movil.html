@@ -3,7 +3,7 @@
 <body>
 <header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg',v=5) }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Asistencia</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
 <main class="shell">
-{% if rechazo %}<div class="card" role="status"><strong>Asistencia rechazada · {{ rechazo.fecha }}</strong><p>{{ rechazo.motivo }}</p></div>{% endif %}
+{% if rechazo %}<div class="card" role="status"><strong>Asistencia rechazada · {{ rechazo.fecha }}</strong><p>{{ rechazo.motivo }}</p>{% if rechazo.hoy %}<p><strong>Vuelve a tomar tu foto y registra tu asistencia otra vez aquí abajo.</strong></p>{% endif %}</div>{% endif %}
 <div id="cargando" role="status">Cargando tu información…</div>
 
 <section id="asis-form-vista" class="view" hidden>
@@ -40,7 +40,7 @@
     <button type="button" id="asis-repetir" class="back asis-repetir" hidden>↺ Tomar otra foto</button>
     <div id="asis-gps" class="asis-gps" role="status" hidden></div>
     <div class="error" role="alert" tabindex="-1" hidden></div>
-    <button class="primary wide" type="submit">Registrar asistencia <span aria-hidden="true">→</span></button>
+    <button class="primary wide" type="submit">{{ 'Volver a registrar mi asistencia' if rechazo and rechazo.hoy else 'Registrar asistencia' }} <span aria-hidden="true">→</span></button>
   </form>
 </section>
 

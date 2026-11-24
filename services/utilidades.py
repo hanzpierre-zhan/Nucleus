@@ -17,7 +17,9 @@ from models import (Proyecto, AppConfig, NucleusData, KpiConfig,
 
 # ── Proyectos que no pueden borrarse ni accederse externamente ─────────────
 PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT', 'Dataper', 'Material'})
-PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL', 'FLM - CLARO y INTEGRATEL'})
+# Módulos en backup: sus datos se conservan en la base, pero nadie los ve en el menú ni puede entrar.
+PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL', 'FLM - CLARO y INTEGRATEL',
+                                 'Combustible', 'Generadores'})
 
 
 # ── Auth decorator ─────────────────────────────────────────────────────────
@@ -121,6 +123,8 @@ def _get_menu_proyectos(user_id, user_rol):
     if any(n in nombres for n in ('FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'Claro', 'Integratel')):
         extras = ('SITE', 'Generadores') if user_rol in ('gestor', 'contrata') else ('Site Name', 'Generadores', 'Combustible', 'Cotizaciones', 'SITE')
         for extra_name in extras:
+            if extra_name in PROYECTOS_REMOVIDOS:
+                continue
             e = Proyecto.query.filter_by(nombre=extra_name).first()
             if e and e.id not in ids_set:
                 proyectos.append(e)

@@ -61,7 +61,7 @@ def test_combustible_por_wo_no_expone_otro_proyecto(app,client):
         db.session.commit();rids=[f.id for f in filas]
     try:
         with client.session_transaction() as s:s.update(user_id=uid,username='auditor-gestor-local',rol='gestor')
-        propia=client.get('/api/combustible/por_wo?wo=AUD-COMB-PROPIA');assert propia.status_code==200 and len(propia.json['movimientos'])==1
+        propia=client.get('/api/combustible/por_wo?wo=AUD-COMB-PROPIA');assert propia.status_code==403  # Combustible está en backup
         ajena=client.get('/api/combustible/por_wo?wo=AUD-COMB-AJENA');assert ajena.status_code==403 and 'movimientos' not in ajena.json
         assert client.get('/api/combustible/por_wo?wo=NO-EXISTE').status_code==403
         with app.app_context():

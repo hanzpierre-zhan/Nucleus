@@ -88,6 +88,27 @@ def test_lista_editar_y_exportar_dataper(app, auth_client, persona):
     assert [c.value for c in libro.active[2]] == ['VN-71234567', 'PRUEBA VISTA', '911111111']
 
 
+def test_dataper_crea_ficha_con_datos_pendientes(auth_client, persona):
+    key = 'VN-71234568'
+    try:
+        respuesta = auth_client.post('/api/vista/dataper/agregar', json={
+            'key': key,
+            'data': {'PROYECTO': 'FLM - CLARO', 'ESTADO': 'ACTIVO'},
+        })
+        assert respuesta.status_code == 200, respuesta.json
+        filas = auth_client.get('/api/vista/dataper/lista').json['filas']
+        datos = next(f['datos'] for f in filas if f['key'] == key)
+        for campo in ('CORREO CORPORATIVO', 'USUARIO AUTIN', 'DEPARTAMENTO', 'CELULAR', 'CARGO'):
+            assert not datos.get(campo)
+        for correo, estado in [('invalido', 400), ('prueba@example.com', 200), ('', 200)]:
+            respuesta = auth_client.post('/api/vista/dataper/actualizar', json={
+                'key': key, 'field': 'CORREO CORPORATIVO', 'value': correo,
+            })
+            assert respuesta.status_code == estado, respuesta.json
+    finally:
+        auth_client.post('/api/vista/dataper/eliminar', json={'keys': [key]})
+
+
 def test_modulo_inexistente_y_usuarios(auth_client):
     assert auth_client.get('/vista/otra/').status_code == 404
     assert auth_client.get('/vista/usuarios/').status_code == 200

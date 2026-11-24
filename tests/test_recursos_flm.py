@@ -53,11 +53,15 @@ def test_sugerencias_y_texto_libre(auth_client,recursos):
     r=auth_client.post('/api/rows/add',json={'key':'NUEVO-RECURSO-TEST','data':{'NOMBRE DE SITE':'SITE NUEVO LIBRE','DEPARTAMENTO':'Arequipa'}})
     assert r.status_code==200,r.json
 
-@pytest.mark.parametrize('recurso',['material','sites','mapa','generadores'])
+@pytest.mark.parametrize('recurso',['material','sites','mapa'])
 def test_recursos_disponibles_y_excepciones(auth_client,recursos,recurso):
     assert auth_client.get('/flm/%s/recursos/%s'%(recursos['FLM - CLARO'],recurso),follow_redirects=True).status_code==200
     assert auth_client.get('/flm/%s/recursos/combustible'%recursos['FLM - CLARO']).status_code==404
     assert auth_client.get('/flm/%s/recursos/personal'%recursos['Cotizaciones']).status_code==404
+
+
+def test_generadores_en_backup_no_se_abre_desde_flm(auth_client,recursos):
+    assert auth_client.get('/flm/%s/recursos/generadores'%recursos['FLM - CLARO'],follow_redirects=True).status_code==403
 
 
 def test_importacion_no_cruza_proyecto(auth_client,recursos):
@@ -96,20 +100,6 @@ def test_gestor_solo_accede_recursos_de_su_flm(app,client,recursos):
         with app.app_context():
             AccesoProyecto.query.filter_by(usuario_id=uid).delete();Usuario.query.filter_by(id=uid).delete();db.session.commit()
 
-
-def test_generadores_con_contexto_explicito(auth_client,recursos):
-    r=auth_client.get('/flm/%s/recursos/generadores'%recursos['FLM - INTEGRATEL'],follow_redirects=True)
-    assert r.status_code==200
-    assert '<details class="flm-resource-menu"' not in r.text
-    # Generadores dejó de ser un módulo del menú: vive dentro de Combustible,
-    # así que la página ofrece el botón para volver a ese módulo.
-    assert 'Volver a Combustible' in r.text
-    assert '/switch_project/%s?next=/'%recursos['Combustible'] in r.text
-    headers={'X-FLM-Origin':str(recursos['FLM - INTEGRATEL']),'X-Nucleus-Project':str(recursos['Generadores'])}
-    assert auth_client.get('/api/catalogos/autocompletar',headers=headers).status_code==200
-    with auth_client.session_transaction() as ses:
-        assert ses['current_proyecto_nombre']=='Generadores'
-        assert ses['flm_resource_context']['recurso']=='generadores'
 
 def test_personal_directo_consolida_proyectos_asignados(app,client,recursos):
     with app.app_context():
@@ -160,7 +150,7 @@ def test_personal_nombres_supervisor_y_estado(app,recursos):
         with app.app_context():
             AccesoProyecto.query.filter_by(usuario_id=uid).delete();Usuario.query.filter_by(id=uid).delete();db.session.commit()
 
-@pytest.mark.parametrize('catalogo',['Material','SITE','Generadores'])
+@pytest.mark.parametrize('catalogo',['Material','SITE'])  # Generadores está en backup
 def test_proyecto_canonico_en_catalogos(app,auth_client,recursos,catalogo):
     auth_client.get('/switch_project/%s?next=/'%recursos[catalogo])
     r=auth_client.post('/api/rows/add',json={'key':'NUEVO-RECURSO-TEST','data':{'PROYECTO':'CLARO'}})

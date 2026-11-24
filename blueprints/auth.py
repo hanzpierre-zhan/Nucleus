@@ -261,6 +261,11 @@ def cambiar_password_public():
 @login_required
 def switch_project(pid):
     session.pop('flm_resource_context',None)
+    # Módulos en backup (Combustible, Generadores…): nadie entra, ni el administrador general.
+    from services.utilidades import PROYECTOS_REMOVIDOS
+    proy_destino = db.session.get(Proyecto, pid)
+    if proy_destino and proy_destino.nombre in PROYECTOS_REMOVIDOS:
+        return redirect(url_for('pages.index'))
     # Check permission
     if session.get('rol') != 'zeno':
         acceso = AccesoProyecto.query.filter_by(usuario_id=session.get('user_id'), proyecto_id=pid).first()

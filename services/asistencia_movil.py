@@ -77,8 +77,15 @@ def juniors(tecnico):
 
 
 def de_hoy(documento):
-    """Asistencia que la persona marcó hoy (es individual: el compañero marca la suya)."""
-    return AsistenciaCuadrilla.query.filter_by(fecha=ahora_peru().date(), documento=documento).first()
+    """Asistencia vigente que la persona marcó hoy (es individual: el compañero marca la suya).
+
+    Si se la rechazaron, no cuenta: debe volver a subir su foto para seguir usando Nucleus Mobile."""
+    return (AsistenciaCuadrilla.query.filter_by(fecha=ahora_peru().date(), documento=documento)
+            .filter(AsistenciaCuadrilla.validacion != 'RECHAZADA').first())
+
+
+def rechazada_hoy(documento):
+    return AsistenciaCuadrilla.query.filter_by(fecha=ahora_peru().date(), documento=documento, validacion='RECHAZADA').first()
 
 
 def ultimo_rechazo(documento):
@@ -86,7 +93,7 @@ def ultimo_rechazo(documento):
                 .filter(AsistenciaCuadrilla.validacion == 'RECHAZADA', AsistenciaCuadrilla.documento == documento)
                 .order_by(AsistenciaCuadrilla.validado_en.desc(), AsistenciaCuadrilla.id.desc()).first())
     if registro:
-        return {'fecha': registro.fecha.strftime('%d/%m/%Y'), 'motivo': registro.motivo}
+        return {'fecha': registro.fecha.strftime('%d/%m/%Y'), 'motivo': registro.motivo, 'hoy': registro.fecha == ahora_peru().date()}
     return None
 
 
@@ -215,13 +222,21 @@ def registrar(tecnico, form, archivo, dispositivo=''):
     salida = _foto_con_datos(archivo, texto)
     nombre = '%s/%s.jpg' % (ahora.strftime('%Y-%m'), uuid.uuid4().hex)
     _guardar(nombre, salida)
-    registro = AsistenciaCuadrilla(fecha=ahora.date(), personal_id=tecnico['id'], documento=tecnico['documento'],
-                                   nombre=tecnico['nombre'], proyecto=tecnico.get('proyecto') or '',
-                                   junior_id=junior['id'] if junior else None, junior_documento=junior['documento'] if junior else '',
-                                   junior_nombre=junior['nombre'] if junior else '', placa=placa, movilidad=movilidad,
-                                   foto=nombre, latitud=lat, longitud=lng, precision_m=precision, registrado_en=ahora,
-                                   dispositivo=str(dispositivo or '')[:64])
-    db.session.add(registro)
+    datos = dict(personal_id=tecnico['id'], nombre=tecnico['nombre'], proyecto=tecnico.get('proyecto') or '',
+                 junior_id=junior['id'] if junior else None, junior_documento=junior['documento'] if junior else '',
+                 junior_nombre=junior['nombre'] if junior else '', placa=placa, movilidad=movilidad,
+                 foto=nombre, latitud=lat, longitud=lng, precision_m=precision, registrado_en=ahora,
+                 dispositivo=str(dispositivo or '')[:64])
+    # Asistencia de hoy rechazada: se reemplaza con la nueva foto y vuelve a quedar por validar.
+    registro = rechazada_hoy(tecnico['documento'])
+    if registro:
+        for campo, valor in datos.items():
+            setattr(registro, campo, valor)
+        registro.validacion, registro.validado_por, registro.validado_en = 'PENDIENTE', '', None
+        registro.motivo = ('Volvió a subir la foto. Rechazo anterior: ' + (registro.motivo or ''))[:500]
+    else:
+        registro = AsistenciaCuadrilla(fecha=ahora.date(), documento=tecnico['documento'], **datos)
+        db.session.add(registro)
     db.session.commit()
     return registro
 
