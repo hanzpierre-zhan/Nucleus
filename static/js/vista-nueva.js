@@ -9,6 +9,10 @@
   const plano = t => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const cfg = JSON.parse($('vn-config').textContent);
   const esUsuarios = cfg.slug === 'usuarios';
+  const esCesado = f => String(f.datos.ESTADO || '').trim().toUpperCase() === 'CESADO';
+  const coincidePestana = (f, clave) => !clave || (
+    cfg.slug === 'dataper' && clave === 'CESADOS' ? esCesado(f) : f.pestana === clave
+  );
   const dialogo = $('cc-solicitud-dialogo');
   const eliminar = $('cc-eliminar');
   const seleccionadas = new Set();
@@ -104,7 +108,7 @@
 
   function base(excepto) {
     const texto = plano($('cc-buscar').value.trim());
-    const lista = filas.filter(f => (!tab || f.pestana === tab)
+    const lista = filas.filter(f => coincidePestana(f, tab)
       && (!texto || plano(f.key + ' ' + Object.values(f.datos).join(' ')).includes(texto))
       && Object.entries(filtros).every(([id, vals]) => id === excepto || vals.includes(valor(f, id)))
       && Object.entries(busquedas).every(([id, t]) => plano(valor(f, id)).includes(plano(t.trim()))));
@@ -134,7 +138,7 @@
   const LISTAS = Object.fromEntries(Object.entries(cfg.listas || {}).map(([c, ops]) => [c, ops.map(o => [o, o])]));
   // Dataper: cesar o reactivar al técnico con un toque (queda registrado como cualquier edición).
   async function cambiarEstado(f) {
-    const activo = String(f.datos.ESTADO || '').toUpperCase() !== 'CESADO';
+    const activo = !esCesado(f);
     const nuevo = activo ? 'CESADO' : 'ACTIVO';
     if (!await confirmar((f.datos.TECNICO || f.key) + (activo ? ' pasará a CESADO: ya no podrá entrar al portal ni pedir Caja Chica.' : ' volverá a ACTIVO y podrá entrar al portal.'),
       activo ? 'Cesar técnico' : 'Reactivar técnico', {okText: activo ? 'Cesar' : 'Reactivar', circular: true})) return;
@@ -145,7 +149,7 @@
     if (dialogo.open) dialogo.close();
     await cargar();
   }
-  const botonEstado = (f, grande) => String(f.datos.ESTADO || '').toUpperCase() === 'CESADO'
+  const botonEstado = (f, grande) => esCesado(f)
     ? redondo('Reactivar (pasar a ACTIVO)', 'cn-verde', 'fa-user-check', () => cambiarEstado(f), grande)
     : redondo('Cesar (pasar a CESADO)', 'cn-rojo', 'fa-user-xmark', () => cambiarEstado(f), grande);
   function acciones(f) {
@@ -318,7 +322,7 @@
   // ── Pintar ──
   function pintar() {
     document.querySelectorAll('.cn-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', b.dataset.tab === tab); });
-    document.querySelectorAll('[data-cuenta]').forEach(n => { n.textContent = filas.filter(f => !n.dataset.cuenta || f.pestana === n.dataset.cuenta).length.toLocaleString('es-PE'); });
+    document.querySelectorAll('[data-cuenta]').forEach(n => { n.textContent = filas.filter(f => coincidePestana(f, n.dataset.cuenta)).length.toLocaleString('es-PE'); });
     if (cfg.suma) document.querySelectorAll('[data-plata]').forEach(p => {
       const s = filas.filter(f => !p.dataset.plata || f.pestana === p.dataset.plata).reduce((t, f) => t + (numero(f.datos[cfg.suma]) || 0), 0);
       p.textContent = s.toLocaleString('es-PE', {maximumFractionDigits: 1}) + ' ' + cfg.unidad;

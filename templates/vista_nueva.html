@@ -18,6 +18,11 @@
         <span class="cc-plata" data-plata="{{ clave }}"></span>
       </button>
       {% endfor %}
+      {% if slug == 'dataper' %}
+      <button type="button" role="tab" class="cc-tab cn-tab" data-tab="CESADOS" style="--cc-color: #64748b">
+        <span class="cc-tab-fila"><i class="fa-solid fa-user-xmark" aria-hidden="true"></i> Cesados <span class="cc-cuenta" data-cuenta="CESADOS">0</span></span>
+      </button>
+      {% endif %}
     </nav>
     {% if puede_editar %}
     <button type="button" id="vn-nuevo" class="cn-redondo cn-verde" title="Nuevo registro" aria-label="Nuevo registro"><i class="fa-solid fa-plus" aria-hidden="true"></i></button>
@@ -60,5 +65,5 @@
   </dialog>
   <script id="vn-config" type="application/json">{{ {'slug': slug, 'titulo': titulo, 'proyecto': proyecto_id, 'clave': campo_clave, 'suma': suma, 'unidad': unidad, 'editar': puede_editar, 'clave_portal': puede_clave, 'pestanas': pestanas, 'proyectos': proyectos or [], 'listas': listas or {}} | tojson }}</script>
 </section>
-<script src="/static/js/vista-nueva.js?v=13" defer></script>
+<script src="/static/js/vista-nueva.js?v=14" defer></script>
 {% endblock %}
