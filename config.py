@@ -38,6 +38,7 @@ class Config:
     """Configuración base — válida para todos los entornos."""
     TESTING = False
     FORM_PRUEBAS_ENABLED = os.environ.get('FORM_PRUEBAS_ENABLED', '1') == '1'
+    ABASTECIMIENTO_MOBILE_ENABLED = os.environ.get('ABASTECIMIENTO_MOBILE_ENABLED', '0') == '1'
     FORM_PRUEBAS_DIR = os.environ.get('FORM_PRUEBAS_DIR', '')
     DEBUG = False
     # Piloto independiente; requiere asignaciones expresas antes de habilitarlo.

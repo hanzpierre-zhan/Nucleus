@@ -1,0 +1,61 @@
+{% macro campo(datos, clave, etiqueta, requerido=false, tipo='text') %}
+<label>{{ etiqueta }}
+  <input name="{{ clave }}" type="{{ tipo }}" value="{{ datos.get(clave, '') }}"{% if requerido %} required{% endif %}{% if tipo == 'number' %} min="0" step="0.01"{% endif %}>
+</label>
+{% endmacro %}
+
+{% macro pedido(datos, galones='') %}
+<div class="ab-campos">
+  <label>Tipo de pedido
+    <select name="tipo" required>
+      <option value="vehiculo"{% if datos.get('tipo') == 'vehiculo' %} selected{% endif %}>Vehículo</option>
+      <option value="generador"{% if datos.get('tipo') == 'generador' %} selected{% endif %}>Generador (GEP)</option>
+    </select>
+  </label>
+  {{ campo(datos, 'fecha', 'Fecha', true, 'date') }}
+  {{ campo(datos, 'zona', 'Zona de trabajo', true) }}
+  {{ campo(datos, 'site', 'Site', true) }}
+  {{ campo(datos, 'codigo', 'Código único del site') }}
+  {{ campo(datos, 'cm', 'CM', true) }}
+  {{ campo(datos, 'plm', 'PLM', true) }}
+  {{ campo(datos, 'pm', 'PM') }}
+  {{ campo(datos, 'gep', 'Referencia GEP') }}
+  <label>Tipo de combustible
+    <select name="combustible" required>
+      <option value="">Selecciona</option>
+      {% for clave, etiqueta in [('diesel', 'Diésel (petróleo)'), ('gasolina', 'Gasolina'), ('otro', 'Otro')] %}
+      <option value="{{ clave }}"{% if datos.get('combustible') == clave %} selected{% endif %}>{{ etiqueta }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div data-combustible-otro>{{ campo(datos, 'otro_combustible', 'Especifica el combustible') }}</div>
+  <div data-unidad="vehiculo">{{ campo(datos, 'placa', 'Placa del vehículo', true) }}</div>
+  <div data-unidad="vehiculo">{{ campo(datos, 'km_inicial', 'Kilometraje inicial', false, 'number') }}</div>
+  <div data-unidad="vehiculo">{{ campo(datos, 'km_final', 'Kilometraje final', false, 'number') }}</div>
+  <div data-unidad="generador">{{ campo(datos, 'generador', 'Código o serie del generador', true) }}</div>
+  {{ campo(datos, 'tipo_unidad', 'Tipo de unidad') }}
+  <label>Galones solicitados <input name="galones" type="number" min="0.01" step="0.01" value="{{ galones }}" required></label>
+  {{ campo(datos, 'equipo', 'Técnicos que harán el trabajo') }}
+  {{ campo(datos, 'supervisor', 'Supervisor a cargo') }}
+  {{ campo(datos, 'grifo', 'Grifo') }}
+  {{ campo(datos, 'direccion', 'Dirección del grifo') }}
+  {{ campo(datos, 'modalidad', 'Modalidad de abastecimiento') }}
+  {{ campo(datos, 'comprobante', 'Número de comprobante') }}
+  <label class="ab-largo">Trabajo a desarrollar <textarea name="trabajo" rows="2" required>{{ datos.get('trabajo', '') }}</textarea></label>
+  <label class="ab-largo">Detalle del gasto <textarea name="detalle" rows="2">{{ datos.get('detalle', '') }}</textarea></label>
+</div>
+{% endmacro %}
+
+{% macro fotos_campos(fotos) %}
+{% for tipo, etiqueta in fotos.items() %}
+<label>{{ etiqueta }} <input type="file" name="{{ tipo }}" accept="image/jpeg,image/png,image/webp" capture="environment" required></label>
+{% endfor %}
+{% endmacro %}
+
+{% macro resumen(sol) %}
+<p>{{ sol.datos.fecha }} · {{ sol.proyecto }} · {{ sol.datos.tecnico }}</p>
+<p>CM {{ sol.datos.cm }} · PLM {{ sol.datos.plm }} · {{ sol.datos.placa or sol.datos.generador }}</p>
+<p><strong>{{ sol.solicitado }} gal solicitados</strong>
+{% if sol.autorizado is not none %} · {{ sol.saldo_previo }} gal de saldo previo · <strong>{{ sol.autorizado }} gal nuevos</strong>{% endif %}
+{% if sol.saldo_final is not none %} · {{ sol.consumido }} gal usados · <strong>{{ sol.saldo_final }} gal restantes</strong>{% endif %}</p>
+{% endmacro %}

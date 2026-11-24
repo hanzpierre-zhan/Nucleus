@@ -32,6 +32,13 @@ def _rol():
     return str(session.get('rol') or '').strip().lower()
 
 
+@bp.get('/abastecimiento/')
+@login_required
+def abastecimiento():
+    from blueprints.abastecimiento import gestion
+    return gestion()
+
+
 def _modulo(slug):
     if slug not in MODULOS:
         abort(404)

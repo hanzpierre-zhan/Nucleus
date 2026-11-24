@@ -56,7 +56,7 @@ def exigir_asistencia_diaria():
     if endpoint.startswith('asistencia_movil.') or g.perfil_mobile_supervisor or am.de_hoy(doc):
         return None
     destino = url_for('asistencia_movil.pantalla')
-    if endpoint in ('form_pruebas.inicio', 'caja_chica.portal'):
+    if endpoint in ('form_pruebas.inicio', 'caja_chica.portal', 'abastecimiento.entrada'):
         return redirect(destino)
     return jsonify(error='Marca tu asistencia de hoy para continuar.', codigo='ASISTENCIA_REQUERIDA',
                    destino=destino), 428

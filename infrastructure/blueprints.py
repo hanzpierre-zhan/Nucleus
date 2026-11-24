@@ -24,6 +24,7 @@ def _register_blueprints(app):
     from blueprints.asistencia_movil import bp as asistencia_movil_bp
     from blueprints.cot_new import bp as cot_new_bp
     from blueprints.vistas_nuevas import bp as vistas_nuevas_bp
+    from blueprints.abastecimiento import bp as abastecimiento_bp
     from blueprints.sla import bp as sla_bp
 
     for _bp in (
@@ -47,6 +48,7 @@ def _register_blueprints(app):
         asistencia_movil_bp,
         cot_new_bp,
         vistas_nuevas_bp,
+        abastecimiento_bp,
         sla_bp,
     ):
         app.register_blueprint(_bp)

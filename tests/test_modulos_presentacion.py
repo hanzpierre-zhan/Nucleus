@@ -37,12 +37,10 @@ def test_sites_y_mapa_son_un_solo_modulo(app, auth_client):
     assert b'class="sidebar-link active"' in mapa.data
 
 
-def test_combustible_y_generadores_en_backup(app, auth_client, client):
-    """Combustible y Generadores pasaron a backup: sus datos siguen en la base, pero nadie los ve ni entra."""
+def test_combustible_en_backup_y_generadores_en_modulos(app, auth_client, client):
     from db import db
     from models import AccesoProyecto, Usuario
     with app.app_context():
-        comb = Proyecto.query.filter_by(nombre='Combustible').one().id
         gen = Proyecto.query.filter_by(nombre='Generadores').one().id
         flm = Proyecto.query.filter_by(nombre='FLM - CLARO').one().id
         usuario = Usuario(username='gestor-comb-gen', password_hash='prueba', rol='gestor')
@@ -52,20 +50,32 @@ def test_combustible_y_generadores_en_backup(app, auth_client, client):
         db.session.commit()
         uid = usuario.id
     try:
-        # Ni el administrador general puede entrar.
-        assert auth_client.get('/vista/combustible/').status_code == 403
-        for pid in (comb, gen):
-            auth_client.get('/switch_project/%d' % pid)
-            with auth_client.session_transaction() as ses:
-                assert ses.get('current_proyecto_id') != pid
+        pagina = auth_client.get('/vista/combustible/')
+        assert pagina.status_code == 200
+        assert pagina.data.count(b'<span class="sidebar-link-text">Combustible</span>') == 1
+        backup = pagina.data.split(b'data-grupo="backup-config"', 1)[1]
+        assert b'href="/vista/combustible/"' in backup
+        assert b'<span class="sidebar-link-text">Generadores</span>' in pagina.data.split(b'data-grupo="backup-config"', 1)[0]
+        assert auth_client.get('/switch_project/%d?next=/' % gen, follow_redirects=True).status_code == 200
+        with auth_client.session_transaction() as ses:
+            assert ses.get('current_proyecto_id') == gen
         with client.session_transaction() as ses:
             ses.update({'user_id': uid, 'username': 'gestor-comb-gen', 'rol': 'gestor',
                         'current_proyecto_id': flm, 'current_proyecto_nombre': 'FLM - CLARO'})
         pagina = client.get('/')
-        assert b'<span class="sidebar-link-text">Generadores</span>' not in pagina.data
+        assert b'<span class="sidebar-link-text">Generadores</span>' in pagina.data
         assert b'<span class="sidebar-link-text">Combustible</span>' not in pagina.data
+        assert client.get('/vista/combustible/').status_code == 403
+        assert client.get('/abastecimiento/').status_code == 403
     finally:
         with app.app_context():
             AccesoProyecto.query.filter_by(usuario_id=uid).delete()
             Usuario.query.filter_by(id=uid).delete()
             db.session.commit()
+
+
+def test_abastecimiento_aparece_en_modulos(auth_client):
+    pagina = auth_client.get('/abastecimiento/')
+    assert pagina.status_code == 200
+    assert b'href="/abastecimiento/" class="sidebar-link active"' in pagina.data
+    assert b'id="abastecimiento-titulo"' in pagina.data

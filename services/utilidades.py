@@ -16,10 +16,9 @@ from models import (Proyecto, AppConfig, NucleusData, KpiConfig,
                     AccesoProyecto, HistorialCambios)
 
 # ── Proyectos que no pueden borrarse ni accederse externamente ─────────────
-PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT', 'Dataper', 'Material'})
-# Módulos en backup: sus datos se conservan en la base, pero nadie los ve en el menú ni puede entrar.
-PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL', 'FLM - CLARO y INTEGRATEL',
-                                 'Combustible', 'Generadores'})
+PROYECTOS_FIJOS = frozenset({'FLM - ENTEL', 'FLM - INTEGRATEL', 'FLM - CLARO', 'FLM - PEXT', 'PEXT', 'Dataper', 'Material', 'Abastecimiento'})
+# Módulos retirados del menú y del selector de proyectos.
+PROYECTOS_REMOVIDOS = frozenset({'FLM', 'PEXT (old)', 'Claro', 'Integratel', 'CLARO', 'INTEGRATEL', 'FLM - CLARO y INTEGRATEL'})
 
 
 # ── Auth decorator ─────────────────────────────────────────────────────────

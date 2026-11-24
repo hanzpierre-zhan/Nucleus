@@ -1,0 +1,74 @@
+{% from '_abastecimiento_campos.html' import pedido, fotos_campos, resumen, campo %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Abastecimiento · Nucleus Mobile</title>
+  <script src="{{ url_for('static', filename='js/form-pruebas-theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form-pruebas.css', v=16) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css') }}">
+</head>
+<body>
+<main class="shell">
+  <a class="back" href="{{ url_for('vistas_nuevas.abastecimiento' if prueba else 'form_pruebas.inicio') }}"{% if prueba %} target="_top"{% endif %}>← {{ 'Volver a gestión' if prueba else 'Volver a Nucleus' }}</a>
+  <h1>Abastecimiento</h1>
+  <p>{{ 'Modo de prueba · Técnico simulado' if prueba else persona.nombre ~ ' · ' ~ persona.proyecto }}</p>
+  <details class="ab-pedido"{% if prueba and not filas %} open{% endif %}>
+    <summary><strong>Solicitar combustible</strong></summary>
+    <form method="post" class="ab-form" action="{{ url_for('abastecimiento.prueba_solicitar' if prueba else 'abastecimiento.solicitar') }}">
+      <input type="hidden" id="csrf" name="csrf" value="{{ csrf }}">
+      {% if prueba %}
+      <label>Proyecto
+        <select name="proyecto" required>
+          <option value="">Selecciona</option>
+          {% for proyecto in proyectos_prueba %}<option value="{{ proyecto }}">FLM - {{ proyecto }}</option>{% endfor %}
+        </select>
+      </label>
+      {% endif %}
+      {{ pedido(datos) }}
+      <p class="error" data-error role="alert" hidden></p>
+      <button type="submit" class="primary wide">Enviar solicitud</button>
+    </form>
+  </details>
+  <h2>Mis pedidos</h2>
+  <div class="ab-lista">
+  {% for sol in filas %}
+    <article class="ab-pedido">
+      <h3>#{{ sol.id }} · {{ sol.datos.site }}</h3>
+      <strong>{{ estados[sol.estado] }}</strong>
+      {{ resumen(sol) }}
+      {% if sol.estado == 'llenado' %}
+        {% set url_qr = url_for('abastecimiento.foto_gestion' if prueba else 'abastecimiento.foto_tecnico', sid=sol.id, tipo='qr') %}
+        <a class="ab-qr" href="{{ url_qr }}">
+          <img alt="Mostrar código QR en el grifo" src="{{ url_qr }}">
+          Abrir QR para el grifo
+        </a>
+        <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='llenado') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label>Galones cargados <input type="number" name="cargado" min="0.01" max="{{ sol.autorizado }}" step="0.01" placeholder="{{ sol.autorizado }}" required></label>
+          {{ campo(sol.datos, 'comprobante', 'Número de comprobante') }}
+          {{ fotos_campos(fotos_llenado) }}
+          <p class="error" data-error role="alert" hidden></p>
+          <button type="submit" class="primary wide">Enviar fotos del llenado</button>
+        </form>
+      {% elif sol.estado == 'recarga' %}
+        <p>{{ sol.saldo_previo + sol.cargado }} gal disponibles para la recarga.</p>
+        <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='recarga') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          <label>Galones usados en el trabajo <input name="consumido" type="number" min="0" max="{{ sol.saldo_previo + sol.cargado }}" step="0.01" required></label>
+          {{ fotos_campos(fotos_recarga) }}
+          <p class="error" data-error role="alert" hidden></p>
+          <button type="submit" class="primary wide">Enviar evidencia de recarga</button>
+        </form>
+      {% endif %}
+    </article>
+  {% else %}
+    <p>Todavía no tienes pedidos.</p>
+  {% endfor %}
+  </div>
+</main>
+{% if not prueba %}<script src="{{ url_for('static', filename='js/ubicacion-movil.js', v=1) }}" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/abastecimiento.js') }}" defer></script>
+</body>
+</html>

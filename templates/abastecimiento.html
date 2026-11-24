@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% from '_abastecimiento_campos.html' import pedido, resumen %}
+{% block title %}Abastecimiento — Nucleus{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=6">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css') }}">
+<section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
+  <div class="cc-barra">
+    <nav class="cc-tabs" aria-label="Secciones de Abastecimiento">
+      {% for clave, etiqueta in pestañas.items() %}
+      <a href="{{ url_for('vistas_nuevas.abastecimiento', estado=clave) }}" class="cc-tab {{ 'activa' if clave == estado }}"{% if clave == estado %} aria-current="page"{% endif %} style="--cc-color: #2563eb">
+        <span class="cc-tab-fila">{{ etiqueta }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+    {% if puede_probar %}
+    <a id="ab-abrir-prueba" href="{{ url_for('abastecimiento.prueba_tecnico') }}" class="cc-btn" aria-haspopup="dialog"><i class="fa-solid fa-flask" aria-hidden="true"></i> Registrar pedido de prueba</a>
+    {% endif %}
+    {% for p in proyectos_list if p.nombre == 'Generadores' %}
+    <a href="/switch_project/{{ p.id }}?next=/" class="cn-redondo cn-azul" title="Abrir Generadores" aria-label="Abrir Generadores"><i class="fa-solid fa-bolt" aria-hidden="true"></i></a>
+    {% endfor %}
+  </div>
+  <h1 id="abastecimiento-titulo">Abastecimiento</h1>
+  <div class="ab-lista">
+  {% for sol in filas %}
+    <details class="ab-pedido">
+      <summary>{% if sol.tecnico_id < 0 %}<strong>PRUEBA · </strong>{% endif %}<strong>Pedido #{{ sol.id }} · {{ sol.datos.site }}</strong> · {{ sol.datos.tecnico }} · {{ sol.solicitado }} gal</summary>
+      {% if estado == 'recarga' %}<p><strong>{{ 'Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia' }}</strong></p>{% endif %}
+      {{ resumen(sol) }}
+      {% if estado == 'gestora' %}
+        <form class="ab-form" method="post" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='editar') }}">
+          <input type="hidden" name="csrf" value="{{ csrf }}">
+          {{ pedido(sol.datos, sol.solicitado) }}
+          <p data-error role="alert" hidden></p>
+          <div class="ab-acciones">
+            <button type="submit" class="cc-btn">Guardar cambios</button>
+            <button type="submit" class="cc-btn" formaction="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='validar') }}">Validar y enviar a Generación QR</button>
+          </div>
+        </form>
+      {% else %}
+        <details><summary>Datos del pedido</summary><fieldset disabled>{{ pedido(sol.datos, sol.solicitado) }}</fieldset></details>
+        {% if estado == 'parque' %}
+          <form class="ab-form" method="post" enctype="multipart/form-data" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='enviar') }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            {% if sol.autorizado > 0 %}
+            <label>Captura del QR para {{ sol.autorizado }} gal <input type="file" name="qr" accept="image/jpeg,image/png,image/webp" required></label>
+            {% else %}
+            <p>El saldo previo cubre el pedido.</p>
+            {% endif %}
+            <p data-error role="alert" hidden></p>
+            <button type="submit" class="cc-btn">{{ 'Enviar QR al técnico' if sol.autorizado > 0 else 'Avisar al técnico que use el saldo' }}</button>
+          </form>
+        {% elif estado in ('llenado', 'recarga') %}
+          <div class="ab-acciones">
+            {% for clave, etiqueta in fotos.items() %}
+            {% if (clave == 'qr' and sol.autorizado > 0) or (clave in ('boleta', 'antes_llenado', 'despues_llenado') and sol.cargado and estado == 'recarga') or (clave in ('antes_recarga', 'despues_recarga') and sol.estado == 'cerrado') %}
+            <a href="{{ url_for('abastecimiento.foto_gestion', sid=sol.id, tipo=clave) }}" target="_blank" rel="noopener">{{ etiqueta }}</a>
+            {% endif %}
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endif %}
+    </details>
+  {% else %}
+    <p class="cc-vacio">No hay pedidos en esta etapa.</p>
+  {% endfor %}
+  </div>
+</section>
+{% if puede_probar %}
+<dialog id="ab-prueba" class="ab-prueba" aria-labelledby="ab-prueba-titulo">
+  <header class="ab-prueba-cabecera">
+    <h2 id="ab-prueba-titulo">Abastecimiento · Vista del técnico</h2>
+    <form method="dialog">
+      <button class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar vista de prueba" title="Cerrar" autofocus><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </form>
+  </header>
+  <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile"></iframe>
+</dialog>
+{% endif %}
+<script src="{{ url_for('static', filename='js/abastecimiento.js') }}" defer></script>
+{% endblock %}

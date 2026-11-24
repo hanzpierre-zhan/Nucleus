@@ -228,6 +228,7 @@ def run_migrations(app, database_url=''):
             ('Site Name', 'Sitios (solo FLM)'),
             ('Generadores', 'Grupos Electrógenos (solo FLM)'),
             ('Combustible', 'Consumo de Combustible (solo FLM)'),
+            ('Abastecimiento', 'Módulo de Abastecimiento'),
             ('Cotizaciones', 'Registro de Cotizaciones (solo FLM)'),
             ('SITE', 'Maestro de Sites – COBRA SITES (20 columnas)'),
         ]

@@ -65,6 +65,32 @@ class NucleusData(db.Model):
     __table_args__ = (db.UniqueConstraint('proyecto_id', 'key_value', name='_proj_key_uc'),)
 
 
+class AbastecimientoSolicitud(db.Model):
+    __tablename__ = 'abastecimiento_solicitudes'
+    id = db.Column(db.Integer, primary_key=True)
+    tecnico_id = db.Column(db.Integer, nullable=False, index=True)
+    proyecto = db.Column(db.String(20), nullable=False, index=True)
+    unidad = db.Column(db.String(100), nullable=False, index=True)
+    estado = db.Column(db.String(20), nullable=False, default='gestora')
+    datos = db.Column(db.JSON, nullable=False)
+    solicitado = db.Column(db.Numeric(9, 2), nullable=False)
+    saldo_previo = db.Column(db.Numeric(9, 2))
+    autorizado = db.Column(db.Numeric(9, 2))
+    cargado = db.Column(db.Numeric(9, 2))
+    consumido = db.Column(db.Numeric(9, 2))
+    saldo_final = db.Column(db.Numeric(9, 2))
+    gestora_id = db.Column(db.Integer)
+    parque_id = db.Column(db.Integer)
+
+
+class AbastecimientoFoto(db.Model):
+    __tablename__ = 'abastecimiento_fotos'
+    solicitud_id = db.Column(db.Integer, db.ForeignKey('abastecimiento_solicitudes.id', ondelete='CASCADE'), primary_key=True)
+    tipo = db.Column(db.String(24), primary_key=True)
+    contenido = db.deferred(db.Column(db.LargeBinary, nullable=False))
+    mime = db.Column(db.String(20), nullable=False, default='image/jpeg')
+
+
 class RendicionCorreo(db.Model):
     """Copia durable del correo, fuera del JSON que alimenta las tablas."""
     __tablename__ = 'rendicion_correos'

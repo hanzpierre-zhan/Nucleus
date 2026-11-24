@@ -166,8 +166,16 @@ def tecnico(fn):
 @bp.get('/')
 def inicio():
     csrf()
+    qr_abastecimiento = False
+    mostrar_abastecimiento = current_app.config.get('ABASTECIMIENTO_MOBILE_ENABLED', False)
+    if mostrar_abastecimiento and session.get('form_personal_id') and not session.get('form_debe_cambiar'):
+        from models import AbastecimientoSolicitud
+        qr_abastecimiento = AbastecimientoSolicitud.query.filter_by(
+            tecnico_id=session['form_personal_id'], estado='llenado').first() is not None
     return render_template('form_pruebas.html', autenticado=bool(session.get('form_documento')),
                            debe_cambiar=bool(session.get('form_debe_cambiar')),
+                           qr_abastecimiento=qr_abastecimiento,
+                           mostrar_abastecimiento=mostrar_abastecimiento,
                            catalogo_gastos=CATALOGO_GASTOS,
                            bancos=BANCOS)
 
