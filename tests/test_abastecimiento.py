@@ -118,24 +118,24 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
         return cuenta.post(f'/abastecimiento/{sid}/{accion}', data=campos,
                            headers={'X-CSRF-Token': 'gestion-csrf'})
 
-    assert post_mobile('solicitar', {**datos, 'cm': ''}).status_code == 400
-    assert post_mobile('solicitar', {**datos, 'plm': ''}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'plm': 'CM-20261124-00000018'}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'generador': 'INVENTADO'}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'galones': '1.15'}).status_code == 400
-    creado = post_mobile('solicitar', datos)
+    sin_referencias = {**datos, 'cm': '', 'plm': ''}
+    creado = post_mobile('solicitar', sin_referencias)
     assert creado.status_code == 200, creado.json
     sid = creado.json['id']
     assert post_mobile('solicitar', datos).status_code == 400
     assert revisar(parque, sid, 'validar', datos).status_code == 400
     assert b'Site por verificar' in gestora.get('/abastecimiento/').data
-    corregido = {**datos, 'site': 'HU-ABC'}
+    corregido = {**sin_referencias, 'site': 'HU-ABC'}
     assert revisar(gestora, sid, 'editar', corregido).status_code == 200
     assert b'Site por verificar' not in gestora.get('/abastecimiento/').data
     assert revisar(gestora, sid, 'validar', corregido).status_code == 200
     assert b'CHOQUECANCHA QA' in parque.get('/abastecimiento/?estado=parque').data
     assert revisar(gestora, sid, 'enviar', {'qr': foto()}).status_code == 400
     assert revisar(parque, sid, 'enviar', {'qr': foto()}).status_code == 200
+    assert post_mobile(f'{sid}/referencias', {'cm': datos['cm']}).status_code == 200
     assert b'Tienes un QR listo' in mobile.get('/form-pruebas/').data
     assert f'/{sid}/foto/qr'.encode() in mobile.get('/form-pruebas/abastecimiento').data
     portal_qr = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
@@ -150,9 +150,13 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     fotos_llenado = ('boleta', 'antes_llenado', 'despues_llenado')
     assert post_mobile(f'{sid}/llenado', {'cargado': '10', 'boleta': foto()}).status_code == 400
     assert post_mobile(f'{sid}/llenado', {'cargado': '10', **{k: foto() for k in fotos_llenado}}).status_code == 200
+    pendiente = post_mobile(f'{sid}/recarga', {'consumido': '7'})
+    assert pendiente.status_code == 400 and 'Completa PLM' in pendiente.json['error']
+    assert post_mobile(f'{sid}/referencias', {'plm': datos['plm']}).status_code == 200
     assert post_mobile(f'{sid}/recarga', {'consumido': '11'}).status_code == 400
     fotos_recarga = {'antes_recarga': foto(), 'despues_recarga': foto()}
     assert post_mobile(f'{sid}/recarga', {'consumido': '7', **fotos_recarga}).status_code == 200
+    assert post_mobile(f'{sid}/referencias', {'cm': datos['cm']}).status_code == 400
     siguiente = {**datos, 'galones': '5.1', 'combustible': 'petroleo'}
     segundo = post_mobile('solicitar', siguiente).json['id']
     assert revisar(gestora, segundo, 'validar', siguiente).status_code == 200

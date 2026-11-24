@@ -46,18 +46,29 @@ def cantidad(valor, etiqueta, minimo=CERO):
     return n
 
 
+def referencias_pedido(form, anterior, cierre=False):
+    datos = {}
+    for campo, ejemplo in (('cm', 'CM-20261124-00000018'), ('plm', 'PLM-20261124-00000018')):
+        valor_anterior = (anterior.get(campo) or '').strip().upper()
+        valor = form.get(campo, valor_anterior).strip().upper()
+        if cierre and not valor:
+            raise ValueError(f'Completa {campo.upper()} para cerrar la recarga.')
+        es_valido = re.fullmatch(fr'{campo.upper()}-[0-9]{{8}}-[0-9]{{8}}', valor)
+        if valor and not es_valido and (cierre or valor != valor_anterior):
+            raise ValueError(f'Ingresa {campo.upper()} con el formato {ejemplo}.')
+        datos[campo] = valor
+    return datos
+
+
 def datos_pedido(form, proyecto, anterior=None, galones_anteriores=None):
     anterior = anterior or {}
-    campos = 'fecha zona site codigo cm plm combustible otro_combustible placa generador'.split()
+    campos = 'fecha zona site codigo combustible otro_combustible placa generador'.split()
     datos = {campo: form.get(campo, '').strip()[:1000] for campo in campos}
     tipo = form.get('tipo')
-    for campo, etiqueta in (('zona', 'zona de trabajo'), ('site', 'site'), ('cm', 'CM'), ('plm', 'PLM')):
+    for campo, etiqueta in (('zona', 'zona de trabajo'), ('site', 'site')):
         if not datos[campo]:
             raise ValueError(f'Completa {etiqueta}.')
-    for campo, ejemplo in (('cm', 'CM-20261124-00000018'), ('plm', 'PLM-20261124-00000018')):
-        datos[campo] = datos[campo].upper()
-        if not re.fullmatch(fr'{campo.upper()}-[0-9]{{8}}-[0-9]{{8}}', datos[campo]) and datos[campo] != anterior.get(campo):
-            raise ValueError(f'Ingresa {campo.upper()} con el formato {ejemplo}.')
+    datos.update(referencias_pedido(form, anterior))
     try:
         datos['fecha'] = date.fromisoformat(datos['fecha']).isoformat()
     except ValueError:
@@ -389,7 +400,9 @@ def registrar_evidencias(sid, accion, tecnico_id):
     bloquear_cambios()
     sol = Solicitud.query.filter_by(id=sid, tecnico_id=tecnico_id).first_or_404()
     try:
-        if accion == sol.estado == 'llenado':
+        if accion == 'referencias' and sol.estado != 'cerrado':
+            sol.datos = {**sol.datos, **referencias_pedido(request.form, sol.datos)}
+        elif accion == sol.estado == 'llenado':
             cargado = cantidad(request.form.get('cargado'), 'galones cargados', Decimal('0.01'))
             if cargado > sol.autorizado:
                 raise ValueError(f'El llenado no puede superar los {sol.autorizado} galones autorizados.')
@@ -398,12 +411,14 @@ def registrar_evidencias(sid, accion, tecnico_id):
             sol.cargado = cargado
             sol.estado = 'recarga'
         elif accion == sol.estado == 'recarga':
+            referencias = referencias_pedido(request.form, sol.datos, cierre=True)
             consumido = cantidad(request.form.get('consumido'), 'galones usados')
             disponible = sol.saldo_previo + sol.cargado
             if consumido > disponible:
                 raise ValueError(f'El consumo no puede superar los {disponible} galones disponibles.')
             for tipo in FOTOS_RECARGA:
                 guardar_foto(sol, tipo)
+            sol.datos = {**sol.datos, **referencias}
             sol.consumido, sol.saldo_final, sol.estado = consumido, disponible - consumido, 'cerrado'
         else:
             raise ValueError('La acción ya no está disponible. Actualiza la página.')

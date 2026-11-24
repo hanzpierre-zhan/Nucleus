@@ -35,6 +35,10 @@ if (dialogoQr) {
   });
 }
 
+for (const ticket of document.querySelectorAll('[data-ab-ticket]')) {
+  ticket.addEventListener('input', () => { ticket.value = ticket.value.toUpperCase(); });
+}
+
 for (const campos of document.querySelectorAll('[data-pedido]')) {
   const unidad = campos.querySelector('[name="tipo"]');
   const actualizar = () => {
@@ -46,9 +50,6 @@ for (const campos of document.querySelectorAll('[data-pedido]')) {
   unidad.addEventListener('change', actualizar);
   actualizar();
 
-  for (const ticket of campos.querySelectorAll('[name="cm"], [name="plm"]')) {
-    ticket.addEventListener('input', () => { ticket.value = ticket.value.toUpperCase(); });
-  }
   if (!campos.dataset.catalogo) continue;
   const proyecto = campos.closest('form')?.querySelector('[name="proyecto"]');
   const site = campos.querySelector('[name="site"]');

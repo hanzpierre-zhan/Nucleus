@@ -1,4 +1,4 @@
-{% from '_abastecimiento_campos.html' import pedido, fotos_campos, resumen %}
+{% from '_abastecimiento_campos.html' import pedido, fotos_campos, resumen, referencias %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -29,6 +29,7 @@
       <label>Proyecto <input value="{{ persona.proyecto }}" readonly></label>
       {% endif %}
       {{ pedido(datos, '', zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion' if prueba else 'abastecimiento.catalogos_tecnico'), proyecto) }}
+      <p class="hint">Puedes agregar el CM y el PLM más adelante. Se piden al cerrar la recarga.</p>
       <p class="error" data-error role="alert" hidden></p>
       <button type="submit" class="primary wide">Enviar solicitud</button>
     </form>
@@ -54,11 +55,23 @@
         <p>{{ sol.saldo_previo + sol.cargado }} gal disponibles para la recarga.</p>
         <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='recarga') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
+          <div class="ab-campos">{{ referencias(sol.datos, requeridas=true) }}</div>
           <label>Galones usados en el trabajo <input name="consumido" type="number" min="0" max="{{ sol.saldo_previo + sol.cargado }}" step="0.01" required></label>
           {{ fotos_campos(fotos_recarga) }}
           <p class="error" data-error role="alert" hidden></p>
           <button type="submit" class="primary wide">Enviar evidencia de recarga</button>
         </form>
+      {% endif %}
+      {% if sol.estado != 'cerrado' %}
+        <details>
+          <summary>Actualizar CM y PLM</summary>
+          <form method="post" class="ab-form" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='referencias') }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <div class="ab-campos">{{ referencias(sol.datos) }}</div>
+            <p class="error" data-error role="alert" hidden></p>
+            <button type="submit" class="primary wide">Guardar referencias</button>
+          </form>
+        </details>
       {% endif %}
     </article>
   {% else %}
@@ -71,6 +84,6 @@
   <img alt="Código QR para mostrar en el grifo">
 </dialog>
 {% if not prueba %}<script src="{{ url_for('static', filename='js/ubicacion-movil.js', v=2) }}" defer></script>{% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=4) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=5) }}" defer></script>
 </body>
 </html>
