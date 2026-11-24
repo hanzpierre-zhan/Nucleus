@@ -122,13 +122,36 @@ def test_actualizar_dataper_en_mobile(app, cuadrilla):
     assert b'asistencia-action' not in inicio.data
 
 
+@pytest.mark.parametrize(('cargo', 'obligatorio'), [
+    ('JUNIOR', True), ('TÉCNICO ESPECIALISTA', True), ('Técnico de telecomunicaciones', True),
+    ('SUPERVISOR', False), ('ADMINISTRATIVO', False), ('PERSONAL EXTERNO', False), ('', False),
+])
+def test_asistencia_se_exige_solo_a_junior_y_especialista(app, cuadrilla, cargo, obligatorio):
+    cliente, headers, ids = cuadrilla
+    with app.app_context():
+        fila = db.session.get(NucleusData, ids['Principal Uno'])
+        datos = json.loads(fila.data_json)
+        fila.data_json = json.dumps({**datos, 'CARGO': cargo})
+        db.session.commit()
+    inicio = cliente.get('/form-pruebas/')
+    pantalla = cliente.get('/form-pruebas/asistencia')
+    if obligatorio:
+        assert inicio.location.endswith('/form-pruebas/asistencia')
+        assert pantalla.status_code == 200
+    else:
+        assert inicio.status_code == 200
+        assert b'asis-home-estado' not in inicio.data
+        assert pantalla.location.endswith('/form-pruebas/')
+        assert cliente.post('/form-pruebas/asistencia', headers=headers).status_code == 403
+
+
 def test_datos_y_juniors_del_mismo_proyecto(cuadrilla):
     cli, h, ids = cuadrilla
     assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
     assert cli.get('/form-pruebas/caja-chica').location.endswith('/form-pruebas/asistencia')
     assert cli.get('/form-pruebas/asistencia').status_code == 200
     j = cli.get('/form-pruebas/asistencia/datos').json
-    assert j['personal']['nombre'] == 'Principal Uno' and j['personal']['cargo'] == 'TECNICO ESPECIALISTA' and j['personal']['celular'] == '999111222'
+    assert j['personal']['nombre'] == 'Principal Uno' and j['personal']['cargo'] == 'TÉCNICO ESPECIALISTA' and j['personal']['celular'] == '999111222'
     # Junior primero; sin otro proyecto, cesados, cargos de oficina (supervisor) ni él mismo.
     assert [x['nombre'] for x in j['juniors']] == ['Junior Dos', 'Otro Tres']
     assert j['hoy'] is None

@@ -44,7 +44,7 @@ def exigir_asistencia_diaria():
             jsonify(error='Tu sesión venció. Vuelve a ingresar.'), 401)
     datos = perfil.leer(db.session.get(NucleusData, session.get('form_personal_id'))) if session.get('form_personal_id') else {}
     g.perfil_mobile_foto = bool(datos.get('_foto_perfil_mobile'))
-    g.perfil_mobile_supervisor = perfil.es_supervisor(datos)
+    g.perfil_mobile_requiere_asistencia = perfil.requiere_asistencia(datos)
     if session.get('form_verificar_dataper'):
         if datos.get('_perfil_mobile_version') != perfil.VERSION:
             destino = url_for('asistencia_movil.actualizar_dataper')
@@ -53,7 +53,7 @@ def exigir_asistencia_diaria():
             return jsonify(error='Actualiza tus datos en Dataper para continuar.',
                            codigo='DATAPER_REQUERIDO', destino=destino), 428
         session.pop('form_verificar_dataper', None)
-    if endpoint.startswith('asistencia_movil.') or g.perfil_mobile_supervisor or am.de_hoy(doc):
+    if endpoint.startswith('asistencia_movil.') or not g.perfil_mobile_requiere_asistencia or am.de_hoy(doc):
         return None
     destino = url_for('asistencia_movil.pantalla')
     if endpoint in ('form_pruebas.inicio', 'caja_chica.portal', 'abastecimiento.entrada'):
@@ -91,8 +91,7 @@ def guardar_punto(respuesta):
 def pantalla():
     if not session.get('form_documento') or session.get('form_debe_cambiar'):
         return redirect(url_for('form_pruebas.inicio'))
-    fila = db.session.get(NucleusData, session['form_personal_id'])
-    if perfil.es_supervisor(perfil.leer(fila)):
+    if not g.perfil_mobile_requiere_asistencia:
         return redirect(url_for('form_pruebas.inicio'))
     aviso = am.ultimo_rechazo(session['form_documento'])
     return render_template('asistencia_movil.html', csrf=csrf(), rechazo=aviso)
@@ -117,7 +116,7 @@ def estado():
 @tecnico
 def registrar():
     comprobar_csrf()
-    if perfil.es_supervisor(perfil.leer(db.session.get(NucleusData, g.tecnico['id']))):
+    if not g.perfil_mobile_requiere_asistencia:
         return jsonify(error='Tu cargo está exento de marcar asistencia.'), 403
     try:
         registro = am.registrar(g.tecnico, request.form, request.files.get('foto'), request.headers.get('X-Dispositivo'))

@@ -29,6 +29,10 @@ def es_supervisor(datos):
     return bool(re.match(r'^supervisora?\b', cargo))
 
 
+def requiere_asistencia(datos):
+    return personal.cargo_homologado(valor(datos, 'CARGO')) in personal.CARGOS_ASISTENCIA
+
+
 def valores(datos):
     ficha = personal.presentar_ficha(datos)
     campos = {campo: ficha.get(campo) or valor(datos, campo) for campo in CAMPOS}

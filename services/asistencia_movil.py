@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from db import db
 from models import AsistenciaCuadrilla, NucleusData, Proyecto
 from services.formularios_prueba import valor
+from services.personal import cargo_homologado
 from services.utilidades import ahora_peru
 
 PLACA = re.compile(r'^[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}$')
@@ -52,7 +53,8 @@ def ficha(tecnico):
     texto = lambda k: str(valor(d, k) or '').strip()
     return {'nombre': tecnico['nombre'], 'documento': tecnico['documento'], 'proyecto': tecnico['proyecto'],
             'departamento': tecnico.get('departamento') or texto('DEPARTAMENTO'), 'supervisor': tecnico.get('supervisor') or texto('SUPERVISOR'),
-            'cargo': texto('CARGO'), 'celular': texto('CELULAR'), 'contrata': texto('CONTRATA')}
+            'cargo': cargo_homologado(texto('CARGO')) or texto('CARGO'),
+            'celular': texto('CELULAR'), 'contrata': texto('CONTRATA')}
 
 
 def juniors(tecnico):
@@ -70,6 +72,7 @@ def juniors(tecnico):
         cargo = str(valor(d, 'CARGO') or '').strip()
         if CARGOS_OFICINA.search(cargo):
             continue
+        cargo = cargo_homologado(cargo) or cargo
         lista.append({'id': fila.id, 'nombre': nombre, 'cargo': cargo, 'documento': str(valor(d, 'DOCUMENTO') or fila.key_value),
                       'junior': 'JUNIOR' in cargo.upper()})
     lista.sort(key=lambda x: (not x['junior'], x['nombre'].upper()))

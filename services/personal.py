@@ -43,16 +43,23 @@ FICHA_PERSONAL = (*PARTES_NOMBRE, 'FECHA DE NACIMIENTO', 'USUARIO AUTIN', 'PROYE
                   'CORREO CORPORATIVO', 'NÚMERO DE EMERGENCIA', 'CONTACTO DE EMERGENCIA',
                   'DEPARTAMENTO', 'PROVINCIA', 'DISTRITO', 'CARGO', 'CONTRATA')
 
-CARGOS_DATAPER = ('TÉCNICO JUNIOR', 'TÉCNICO DE TELECOMUNICACIONES', 'SUPERVISOR',
+CARGOS_ASISTENCIA = ('TÉCNICO JUNIOR', 'TÉCNICO ESPECIALISTA')
+CARGOS_DATAPER = (*CARGOS_ASISTENCIA, 'SUPERVISOR',
                   'PERSONAL EXTERNO', 'ADMINISTRATIVO')
 _CARGOS_POR_NOMBRE = {_plano(cargo): cargo for cargo in CARGOS_DATAPER}
 _CARGOS_POR_NOMBRE.update({
     'junior': 'TÉCNICO JUNIOR',
     'tecnico junion': 'TÉCNICO JUNIOR',
-    'tecnico telecomunicaciones': 'TÉCNICO DE TELECOMUNICACIONES',
+    'tecnico telecomunicaciones': 'TÉCNICO ESPECIALISTA',
+    'tecnico de telecomunicaciones': 'TÉCNICO ESPECIALISTA',
+    'especialista': 'TÉCNICO ESPECIALISTA',
     'supervisor de operaciones': 'SUPERVISOR',
     'externo': 'PERSONAL EXTERNO',
 })
+
+
+def cargo_homologado(valor):
+    return _CARGOS_POR_NOMBRE.get(_plano(valor), '')
 
 _ALIAS_FICHA = {
     'FECHA DE NACIMIENTO': ('fecha nacimiento',),
@@ -102,7 +109,7 @@ def presentar_ficha(datos):
         if campo not in ficha:
             variantes = (_plano(campo), *_ALIAS_FICHA.get(campo, ()))
             ficha[campo] = next((por_nombre[nombre] for nombre in variantes if nombre in por_nombre), '')
-    ficha['CARGO'] = _CARGOS_POR_NOMBRE.get(_plano(ficha['CARGO']), '')
+    ficha['CARGO'] = cargo_homologado(ficha['CARGO'])
     nombre_departamento = departamento(ficha['DEPARTAMENTO'])
     if nombre_departamento:
         ficha['DEPARTAMENTO'] = nombre_departamento
@@ -160,6 +167,7 @@ def configurar(columnas):
     columnas = [dict(c) for c in columnas]
     definiciones = {'PROYECTO':{'nombre':'PROYECTO','tipo':'lista','opciones':proyectos_permitidos()},
                     'ESTADO':{'nombre':'ESTADO','tipo':'lista','opciones':['ACTIVO','CESADO']},
+                    'CARGO':{'nombre':'CARGO','tipo':'lista','opciones':list(CARGOS_DATAPER)},
                     'DEPARTAMENTO':{'nombre':'DEPARTAMENTO','tipo':'lista','opciones':DEPARTAMENTOS},
                     'SUPERVISOR':{'nombre':'SUPERVISOR','tipo':'texto'}}
     for campo in FICHA_PERSONAL:
@@ -185,6 +193,8 @@ def presentar(datos):
 
 def validar(datos, nuevo=False):
     datos = dict(datos)
+    if 'CARGO' in datos:
+        datos['CARGO'] = cargo_homologado(datos['CARGO'])
     fecha = str(datos.get('FECHA DE NACIMIENTO') or '').strip()
     if fecha:
         from services.utilidades import ahora_peru
