@@ -4,6 +4,10 @@
 </label>
 {% endmacro %}
 
+{% macro galones_pedido(valor) -%}
+{{ valor if valor * 10 % 1 else '%.1f'|format(valor) }}
+{%- endmacro %}
+
 {% macro pedido(datos, galones='', zonas=(), combustibles={}, catalogo='', proyecto='', sufijo='mobile') %}
 <div class="ab-campos" data-pedido data-catalogo="{{ catalogo }}" data-proyecto="{{ proyecto }}">
   <label>Tipo de pedido
@@ -26,7 +30,7 @@
     <datalist id="ab-sites-{{ sufijo }}"></datalist>
     {% if catalogo %}<small>Busca por nombre o código. Si no aparece, escribe el site para que lo revise la gestora.</small>{% endif %}
   </label>
-  {{ campo(datos, 'codigo', 'Código único del site') }}
+  <input type="hidden" name="codigo" value="{{ datos.get('codigo', '') }}">
   {% for ticket in ('CM', 'PLM') %}
   <label>{{ ticket }}
     <input name="{{ ticket|lower }}" value="{{ datos.get(ticket|lower, '') }}" placeholder="{{ ticket }}-AAAAMMDD-00000000" autocomplete="off" autocapitalize="characters" required
@@ -52,7 +56,8 @@
       </select>
     </label>
   </div>
-  <label>Galones solicitados <input name="galones" type="number" min="0.01" step="0.01" value="{{ galones }}" required></label>
+  {% set historico = galones and galones * 10 % 1 %}
+  <label>Galones solicitados <input name="galones" type="number" inputmode="decimal" min="{{ '0.01' if historico else '0.1' }}" step="{{ '0.01' if historico else '0.1' }}" value="{{ galones_pedido(galones) if galones else '' }}" placeholder="Ej. 1.1" required></label>
 </div>
 {% endmacro %}
 
@@ -65,7 +70,7 @@
 {% macro resumen(sol) %}
 <p>{{ sol.datos.fecha }} · {{ sol.proyecto }} · {{ sol.datos.tecnico }}</p>
 <p>CM {{ sol.datos.cm }} · PLM {{ sol.datos.plm }} · {{ sol.datos.placa or sol.datos.generador }}</p>
-<p><strong>{{ sol.solicitado }} gal solicitados</strong>
+<p><strong>{{ galones_pedido(sol.solicitado) }} gal solicitados</strong>
 {% if sol.autorizado is not none %} · {{ sol.saldo_previo }} gal de saldo previo · <strong>{{ sol.autorizado }} gal nuevos</strong>{% endif %}
 {% if sol.saldo_final is not none %} · {{ sol.consumido }} gal usados · <strong>{{ sol.saldo_final }} gal restantes</strong>{% endif %}</p>
 {% endmacro %}

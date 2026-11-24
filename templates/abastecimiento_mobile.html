@@ -11,7 +11,7 @@
 </head>
 <body>
 <main class="shell">
-  <a class="back" href="{{ url_for('vistas_nuevas.abastecimiento' if prueba else 'form_pruebas.inicio') }}"{% if prueba %} target="_top"{% endif %}>← {{ 'Volver a gestión' if prueba else 'Volver a Nucleus' }}</a>
+  <a class="back" href="{{ url_for('abastecimiento.prueba_tecnico' if prueba else 'form_pruebas.inicio') }}">← Volver a Nucleus</a>
   <h1>Abastecimiento</h1>
   <p>{{ 'Modo de prueba · Técnico simulado' if prueba else persona.nombre ~ ' · ' ~ persona.proyecto }}</p>
   <details class="ab-pedido"{% if prueba %} open{% endif %}>

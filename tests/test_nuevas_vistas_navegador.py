@@ -37,11 +37,15 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
                 "e => getComputedStyle(e).getPropertyValue('--cc-color')")
             assert pagina.locator('#ab-abrir-prueba .fa-mobile-screen-button').count() == 1
             pagina.get_by_role('link', name='Registrar pedido de prueba').click()
-            modal = pagina.get_by_role('dialog', name='Abastecimiento · Vista del técnico')
+            modal = pagina.get_by_role('dialog', name='Nucleus Mobile · Vista del técnico')
             pw.expect(modal).to_be_visible()
             pantalla = modal.frame_locator('iframe')
+            pw.expect(pantalla.get_by_text('TOTAL POR RENDIR')).to_be_visible()
+            pantalla.get_by_role('link', name='Abastecimiento').press('Enter')
             pw.expect(pantalla.get_by_text('Modo de prueba · Técnico simulado')).to_be_visible()
             assert modal.bounding_box()['width'] <= 420
+            pw.expect(pantalla.get_by_label('Galones solicitados')).to_have_attribute('step', '0.1')
+            assert pantalla.get_by_label('Código único del site').count() == 0
             pantalla.get_by_label('Tipo de pedido').select_option('generador', timeout=5000)
             pw.expect(pantalla.get_by_label('Generador registrado')).to_be_visible()
             modal.get_by_role('button', name='Cerrar vista de prueba').click()

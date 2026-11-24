@@ -46,7 +46,7 @@ def cantidad(valor, etiqueta, minimo=CERO):
     return n
 
 
-def datos_pedido(form, proyecto, anterior=None):
+def datos_pedido(form, proyecto, anterior=None, galones_anteriores=None):
     anterior = anterior or {}
     campos = 'fecha zona site codigo cm plm combustible otro_combustible placa generador'.split()
     datos = {campo: form.get(campo, '').strip()[:1000] for campo in campos}
@@ -92,7 +92,10 @@ def datos_pedido(form, proyecto, anterior=None):
         combustible = 'diesel'  # Comparte el saldo de la unidad con el diésel.
     if combustible == 'otro':
         combustible += ':' + re.sub(r'\s+', ' ', datos['otro_combustible'].casefold())[:34]
-    return datos, f'{tipo}:{unidad}:{combustible}', cantidad(form.get('galones'), 'galones solicitados', Decimal('0.01'))
+    galones = cantidad(form.get('galones'), 'galones solicitados', Decimal('0.01'))
+    if galones != galones_anteriores and (galones < Decimal('0.1') or galones * 10 % 1):
+        raise ValueError('Ingresa los galones solicitados con un máximo de un decimal, por ejemplo 1.1.')
+    return datos, f'{tipo}:{unidad}:{combustible}', galones
 
 
 def alcance():
@@ -292,7 +295,7 @@ def revisar(sid, accion):
         abort(404)
     try:
         if accion in ('editar', 'validar') and rol != 'supervisor' and sol.estado == 'gestora':
-            datos, unidad, galones = datos_pedido(request.form, sol.proyecto, sol.datos)
+            datos, unidad, galones = datos_pedido(request.form, sol.proyecto, sol.datos, sol.solicitado)
             if sol.tecnico_id < 0:
                 unidad = 'prueba:' + unidad
             unidad_libre(unidad, sol.id)
@@ -447,6 +450,16 @@ def persona_prueba():
 @bp.get('/abastecimiento/prueba/')
 @login_required
 def prueba_tecnico():
+    persona = persona_prueba()
+    ultimo = Solicitud.query.filter_by(tecnico_id=persona['id']).order_by(Solicitud.id.desc()).first()
+    qr_listo = Solicitud.query.filter_by(tecnico_id=persona['id'], estado='llenado').first() is not None
+    return render_template('abastecimiento_prueba_inicio.html', persona=persona,
+                           proyecto=ultimo.proyecto if ultimo else 'CLARO', qr_abastecimiento=qr_listo)
+
+
+@bp.get('/abastecimiento/prueba/pedidos')
+@login_required
+def prueba_pedidos():
     return pantalla_tecnico(persona_prueba(), prueba=True)
 
 

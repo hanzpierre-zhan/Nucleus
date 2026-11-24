@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from '_abastecimiento_campos.html' import pedido, resumen %}
+{% from '_abastecimiento_campos.html' import pedido, resumen, galones_pedido %}
 {% block title %}Abastecimiento — Nucleus{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
@@ -25,7 +25,7 @@
   <div class="ab-lista">
   {% for sol in filas %}
     <details class="ab-pedido">
-      <summary>{% if sol.tecnico_id < 0 %}<strong>PRUEBA · </strong>{% endif %}<strong>Pedido #{{ sol.id }} · {{ sol.datos.site }}</strong> · {{ sol.datos.tecnico }} · {{ sol.solicitado }} gal{% if estado == 'gestora' and sol.datos.get('site_pendiente') %} <span class="ab-alerta">Site por verificar</span>{% endif %}</summary>
+      <summary>{% if sol.tecnico_id < 0 %}<strong>PRUEBA · </strong>{% endif %}<strong>Pedido #{{ sol.id }} · {{ sol.datos.site }}</strong> · {{ sol.datos.tecnico }} · {{ galones_pedido(sol.solicitado) }} gal{% if estado == 'gestora' and sol.datos.get('site_pendiente') %} <span class="ab-alerta">Site por verificar</span>{% endif %}</summary>
       {% if estado == 'recarga' %}<p><strong>{{ 'Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia' }}</strong></p>{% endif %}
       {{ resumen(sol) }}
       {% if estado == 'gestora' %}
@@ -74,7 +74,7 @@
 {% if puede_probar %}
 <dialog id="ab-prueba" class="ab-prueba" aria-labelledby="ab-prueba-titulo">
   <header class="ab-prueba-cabecera">
-    <h2 id="ab-prueba-titulo">Abastecimiento · Vista del técnico</h2>
+    <h2 id="ab-prueba-titulo">Nucleus Mobile · Vista del técnico</h2>
     <form method="dialog">
       <button class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar vista de prueba" title="Cerrar" autofocus><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     </form>

@@ -1,6 +1,7 @@
 import io
 import json
 import time
+from decimal import Decimal
 
 from PIL import Image
 
@@ -121,6 +122,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert post_mobile('solicitar', {**datos, 'plm': ''}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'plm': 'CM-20261124-00000018'}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'generador': 'INVENTADO'}).status_code == 400
+    assert post_mobile('solicitar', {**datos, 'galones': '1.15'}).status_code == 400
     creado = post_mobile('solicitar', datos)
     assert creado.status_code == 200, creado.json
     sid = creado.json['id']
@@ -151,13 +153,13 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert post_mobile(f'{sid}/recarga', {'consumido': '11'}).status_code == 400
     fotos_recarga = {'antes_recarga': foto(), 'despues_recarga': foto()}
     assert post_mobile(f'{sid}/recarga', {'consumido': '7', **fotos_recarga}).status_code == 200
-    siguiente = {**datos, 'galones': '5', 'combustible': 'petroleo'}
+    siguiente = {**datos, 'galones': '5.1', 'combustible': 'petroleo'}
     segundo = post_mobile('solicitar', siguiente).json['id']
     assert revisar(gestora, segundo, 'validar', siguiente).status_code == 200
     with app.app_context():
         assert db.session.get(AbastecimientoSolicitud, sid).saldo_final == 3
         sol = db.session.get(AbastecimientoSolicitud, segundo)
-        assert (sol.saldo_previo, sol.autorizado, sol.estado) == (3, 2, 'parque')
+        assert (sol.saldo_previo, sol.autorizado, sol.estado) == (3, Decimal('2.1'), 'parque')
 
     assert revisar(parque, segundo, 'enviar', {'qr': foto()}).status_code == 200
     assert post_mobile(f'{segundo}/llenado', {'cargado': '3'}).status_code == 400
@@ -178,6 +180,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
 
     prueba = auth_client.get('/abastecimiento/prueba/')
     assert prueba.status_code == 200 and b'Modo de prueba' in prueba.data
+    assert b'TOTAL POR RENDIR' in prueba.data and b'/abastecimiento/prueba/pedidos' in prueba.data
     with auth_client.session_transaction() as ses:
         csrf_admin = ses['form_csrf']
     headers = {'X-CSRF-Token': csrf_admin}
@@ -192,7 +195,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
         assert sol.tecnico_id < 0 and sol.unidad.startswith('prueba:')
         assert (sol.saldo_previo, sol.autorizado) == (0, 10)
     assert revisar(parque, piloto, 'enviar', {'qr': foto()}).status_code == 200
-    assert f'/{piloto}/foto/qr'.encode() in auth_client.get('/abastecimiento/prueba/').data
+    assert f'/{piloto}/foto/qr'.encode() in auth_client.get('/abastecimiento/prueba/pedidos').data
     assert auth_client.post(f'/abastecimiento/prueba/{piloto}/llenado', headers=headers,
                             data={'cargado': '10', **{k: foto() for k in fotos_llenado}}).status_code == 200
     assert auth_client.post(f'/abastecimiento/prueba/{piloto}/recarga', headers=headers,
