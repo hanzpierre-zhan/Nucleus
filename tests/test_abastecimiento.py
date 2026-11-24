@@ -100,7 +100,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert any(g['qr'] == 'QA-AB-01' for g in inventario)
     assert mobile.get('/form-pruebas/abastecimiento/catalogos?q=HU-ABC').json['sites'][0]['nombre'] == 'CHOQUECANCHA QA'
     datos = {'fecha': '2026-11-24', 'zona': 'HUANCAVELICA', 'site': 'QA-SITE-SIN-REGISTRO-761893',
-             'cm': 'CM-20261124-00000018', 'plm': 'PLM-20261124-00000018', 'trabajo': 'Recarga', 'tipo': 'generador',
+             'cm': 'CM-20261124-00000018', 'plm': 'PLM-20261124-00000018', 'tipo': 'generador',
              'generador': 'QA-AB-01', 'combustible': 'diesel', 'galones': '10'}
 
     def foto():
@@ -127,11 +127,11 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert post_mobile('solicitar', datos).status_code == 400
     assert revisar(parque, sid, 'validar', datos).status_code == 400
     assert b'Site por verificar' in gestora.get('/abastecimiento/').data
-    corregido = {**datos, 'site': 'HU-ABC', 'grifo': 'GRIFO QA'}
+    corregido = {**datos, 'site': 'HU-ABC'}
     assert revisar(gestora, sid, 'editar', corregido).status_code == 200
     assert b'Site por verificar' not in gestora.get('/abastecimiento/').data
     assert revisar(gestora, sid, 'validar', corregido).status_code == 200
-    assert b'GRIFO QA' in parque.get('/abastecimiento/?estado=parque').data
+    assert b'CHOQUECANCHA QA' in parque.get('/abastecimiento/?estado=parque').data
     assert revisar(gestora, sid, 'enviar', {'qr': foto()}).status_code == 400
     assert revisar(parque, sid, 'enviar', {'qr': foto()}).status_code == 200
     assert b'Tienes un QR listo' in mobile.get('/form-pruebas/').data

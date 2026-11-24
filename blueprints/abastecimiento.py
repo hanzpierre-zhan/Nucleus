@@ -48,12 +48,10 @@ def cantidad(valor, etiqueta, minimo=CERO):
 
 def datos_pedido(form, proyecto, anterior=None):
     anterior = anterior or {}
-    campos = ('fecha zona site codigo cm plm pm gep combustible otro_combustible placa generador '
-              'equipo trabajo detalle grifo direccion modalidad comprobante km_inicial km_final tipo_unidad supervisor').split()
+    campos = 'fecha zona site codigo cm plm combustible otro_combustible placa generador'.split()
     datos = {campo: form.get(campo, '').strip()[:1000] for campo in campos}
     tipo = form.get('tipo')
-    for campo, etiqueta in (('zona', 'zona de trabajo'), ('site', 'site'), ('cm', 'CM'), ('plm', 'PLM'),
-                            ('trabajo', 'trabajo a desarrollar')):
+    for campo, etiqueta in (('zona', 'zona de trabajo'), ('site', 'site'), ('cm', 'CM'), ('plm', 'PLM')):
         if not datos[campo]:
             raise ValueError(f'Completa {etiqueta}.')
     for campo, ejemplo in (('cm', 'CM-20261124-00000018'), ('plm', 'PLM-20261124-00000018')):
@@ -74,12 +72,9 @@ def datos_pedido(form, proyecto, anterior=None):
     if not 1 <= len(unidad) <= 40:
         raise ValueError('Ingresa la placa o el identificador del generador.')
     if tipo == 'vehiculo':
-        datos['generador'] = ''
-        kms = [cantidad(datos[k], k.replace('_', ' ')) if datos[k] else None for k in ('km_inicial', 'km_final')]
-        if None not in kms and kms[1] < kms[0]:
-            raise ValueError('El kilometraje final debe ser mayor o igual al inicial.')
+        datos.update(generador='', generador_serie='')
     else:
-        datos.update(placa='', km_inicial='', km_final='')
+        datos['placa'] = ''
         equipo = next((g for g in catalogo_generadores(proyecto) if g['qr'] == datos['generador']), None)
         if not equipo and datos['generador'] != anterior.get('generador'):
             raise ValueError('Selecciona un generador registrado en tu proyecto.')
@@ -301,7 +296,7 @@ def revisar(sid, accion):
             if sol.tecnico_id < 0:
                 unidad = 'prueba:' + unidad
             unidad_libre(unidad, sol.id)
-            sol.datos = {**datos, 'tecnico': sol.datos['tecnico']}
+            sol.datos = {**sol.datos, **datos}
             sol.unidad, sol.solicitado = unidad, galones
             if accion == 'validar':
                 sol.saldo_previo = ultimo_saldo(unidad)
@@ -342,8 +337,7 @@ def exigir_mobile():
 
 def pantalla_tecnico(persona, prueba=False):
     filas = Solicitud.query.filter_by(tecnico_id=persona['id']).order_by(Solicitud.id.desc()).all()
-    datos = {'fecha': ahora_peru().date().isoformat(), 'zona': persona['departamento'],
-             'supervisor': persona['supervisor']}
+    datos = {'fecha': ahora_peru().date().isoformat(), 'zona': persona['departamento']}
     return render_template('abastecimiento_mobile.html', filas=filas, datos=datos, persona=persona,
                            prueba=prueba, proyectos_prueba=PROYECTOS_PRUEBA, estados=ESTADOS, csrf=csrf(),
                            proyecto=filas[0].proyecto if prueba and filas else 'CLARO' if prueba else familia(persona['proyecto']),
@@ -398,7 +392,6 @@ def registrar_evidencias(sid, accion, tecnico_id):
                 raise ValueError(f'El llenado no puede superar los {sol.autorizado} galones autorizados.')
             for tipo in FOTOS_LLENADO:
                 guardar_foto(sol, tipo)
-            sol.datos = {**sol.datos, 'comprobante': request.form.get('comprobante', '').strip()[:1000]}
             sol.cargado = cargado
             sol.estado = 'recarga'
         elif accion == sol.estado == 'recarga':

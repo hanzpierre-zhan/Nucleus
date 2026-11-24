@@ -1,4 +1,4 @@
-{% from '_abastecimiento_campos.html' import pedido, fotos_campos, resumen, campo %}
+{% from '_abastecimiento_campos.html' import pedido, fotos_campos, resumen %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -46,7 +46,6 @@
         <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='llenado') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
           <label>Galones cargados <input type="number" name="cargado" min="0.01" max="{{ sol.autorizado }}" step="0.01" placeholder="{{ sol.autorizado }}" required></label>
-          {{ campo(sol.datos, 'comprobante', 'Número de comprobante') }}
           {{ fotos_campos(fotos_llenado) }}
           <p class="error" data-error role="alert" hidden></p>
           <button type="submit" class="primary wide">Enviar fotos del llenado</button>

@@ -33,8 +33,6 @@
       {% if sufijo == 'mobile' %}pattern="{{ ticket }}-[0-9]{8}-[0-9]{8}" title="{{ ticket }}-AAAAMMDD-00000000"{% endif %}>
   </label>
   {% endfor %}
-  {{ campo(datos, 'pm', 'PM') }}
-  {{ campo(datos, 'gep', 'Referencia GEP') }}
   <label>Tipo de combustible
     <select name="combustible" required>
       <option value="">Selecciona</option>
@@ -46,8 +44,6 @@
   </label>
   {% if datos.get('combustible') == 'otro' %}<input type="hidden" name="otro_combustible" value="{{ datos.otro_combustible }}">{% endif %}
   <div data-unidad="vehiculo">{{ campo(datos, 'placa', 'Placa del vehículo', true) }}</div>
-  <div data-unidad="vehiculo">{{ campo(datos, 'km_inicial', 'Kilometraje inicial', false, 'number') }}</div>
-  <div data-unidad="vehiculo">{{ campo(datos, 'km_final', 'Kilometraje final', false, 'number') }}</div>
   <div data-unidad="generador">
     <label>Generador registrado
       <select name="generador" required>
@@ -56,16 +52,7 @@
       </select>
     </label>
   </div>
-  {{ campo(datos, 'tipo_unidad', 'Tipo de unidad') }}
   <label>Galones solicitados <input name="galones" type="number" min="0.01" step="0.01" value="{{ galones }}" required></label>
-  {{ campo(datos, 'equipo', 'Técnicos que harán el trabajo') }}
-  {{ campo(datos, 'supervisor', 'Supervisor a cargo') }}
-  {{ campo(datos, 'grifo', 'Grifo') }}
-  {{ campo(datos, 'direccion', 'Dirección del grifo') }}
-  {{ campo(datos, 'modalidad', 'Modalidad de abastecimiento') }}
-  {{ campo(datos, 'comprobante', 'Número de comprobante') }}
-  <label class="ab-largo">Trabajo a desarrollar <textarea name="trabajo" rows="2" required>{{ datos.get('trabajo', '') }}</textarea></label>
-  <label class="ab-largo">Detalle del gasto <textarea name="detalle" rows="2">{{ datos.get('detalle', '') }}</textarea></label>
 </div>
 {% endmacro %}
 

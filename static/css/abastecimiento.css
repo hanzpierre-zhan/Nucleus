@@ -21,7 +21,6 @@
   min-width: 0;
 }
 .ab-acciones { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
-.ab-largo { grid-column: 1 / -1; }
 .ab-ver-qr { display: block; text-align: center; text-decoration: none; }
 .ab-alerta { color: var(--ios-label, inherit); background: #d9770633; border-radius: 6px; padding: 3px 6px; }
 .ab-qr-completo {
