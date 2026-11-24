@@ -92,7 +92,7 @@ for (const campos of document.querySelectorAll('[data-pedido]')) {
       const etiquetaAnterior = generador.selectedOptions[0]?.textContent || anterior;
       generador.options.length = 1;
       for (const g of catalogo.generadores) {
-        generador.add(new Option([g.qr, g.serie, g.zona].filter(Boolean).join(' · '), g.qr));
+        generador.add(new Option(g.qr, g.qr));
       }
       if (anterior && ![...generador.options].some(o => o.value === anterior)) generador.add(new Option(etiquetaAnterior, anterior));
       generador.value = anterior;

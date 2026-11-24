@@ -14,7 +14,9 @@
       </a>
       {% endfor %}
     </nav>
+    {% if estado == 'generadores' %}
     <a href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores', nuevo=1, _anchor='ab-form-generador') }}" class="cn-redondo cn-verde" aria-label="Registrar generador" title="Registrar generador"><i class="fa-solid fa-plus" aria-hidden="true"></i></a>
+    {% endif %}
     {% if puede_probar %}
     <a id="ab-abrir-prueba" href="{{ url_for('abastecimiento.prueba_tecnico') }}" class="cn-redondo cn-azul" aria-haspopup="dialog" aria-label="Registrar pedido de prueba" title="Registrar pedido de prueba"><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i></a>
     {% endif %}
@@ -82,5 +84,5 @@
   <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile" allowfullscreen></iframe>
 </dialog>
 {% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=5) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=6) }}" defer></script>
 {% endblock %}

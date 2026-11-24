@@ -57,7 +57,7 @@
     <label>Generador registrado
       <select name="generador" required>
         <option value="">Selecciona un generador</option>
-        {% if datos.get('generador') %}<option selected value="{{ datos.generador }}">{{ datos.generador }}{% if datos.get('generador_serie') %} · {{ datos.generador_serie }}{% endif %}</option>{% endif %}
+        {% if datos.get('generador') %}<option selected value="{{ datos.generador }}">{{ datos.generador }}</option>{% endif %}
       </select>
     </label>
   </div>
