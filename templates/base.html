@@ -191,14 +191,23 @@
                     </nav>
                     <dialog id="mi-perfil" class="perfil-dialog" aria-labelledby="mi-perfil-titulo">
                         <h2 id="mi-perfil-titulo">Mi perfil</h2>
-                        <p>{{ _nombre_actual }}</p>
+                        <p id="mi-perfil-nombre">{{ _nombre_actual }}</p>
                         <dl class="perfil-grid">
                             <div><dt>Usuario</dt><dd>{{ session.get('username') }}</dd></div>
                             <div><dt>Rol</dt><dd>{{ session.get('rol')|upper }}</dd></div>
                         </dl>
                         <dl class="perfil-grid" id="mi-perfil-datos"></dl>
                         <p id="mi-perfil-estado" role="status" hidden></p>
-                        <form method="dialog"><button class="perfil-guardar" autofocus>Cerrar</button></form>
+                        <form id="mi-perfil-edicion" hidden>
+                            <div class="perfil-grid"></div>
+                            <p class="perfil-error" role="alert" hidden></p>
+                            <button class="perfil-guardar" type="submit">Guardar cambios</button>
+                            <button class="perfil-guardar" type="button" id="mi-perfil-cancelar">Cancelar</button>
+                        </form>
+                        <form method="dialog" id="mi-perfil-acciones">
+                            <button class="perfil-guardar" type="button" id="mi-perfil-editar" disabled>Editar</button>
+                            <button class="perfil-guardar" autofocus>Cerrar</button>
+                        </form>
                     </dialog>
                 </div>
             </div>
@@ -435,8 +444,8 @@
     </script>
     {% include 'cookie_banner.html' %}
     {% if session.get('user_id') %}
-    <link rel="stylesheet" href="/static/css/perfil-personal.css?v=3">
-    <script src="/static/js/perfil-personal.js?v=4" defer></script>
+    <link rel="stylesheet" href="/static/css/perfil-personal.css?v=4">
+    <script src="/static/js/perfil-personal.js?v=5" defer></script>
     {% endif %}
 </body>
 </html>
