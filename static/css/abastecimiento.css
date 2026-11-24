@@ -53,6 +53,10 @@
 .ab-tabla { width: 100%; min-width: 760px; border-collapse: collapse; text-align: left; }
 .ab-tabla :is(th, td) { padding: 9px 12px; border-bottom: 1px solid var(--ios-hairline, #8798ab); }
 .ab-tabla th { background: var(--ios-fill, #273140); }
+.ab-tabla th.cc-th { display: table-cell; }
+.ab-tabla .cc-th-fila { cursor: default; margin-bottom: 5px; }
+.ab-tabla .cc-th-btn { opacity: 1; }
+.ab-tabla tr[hidden], #ab-filtro-generadores[hidden] { display: none; }
 .ab-prueba {
   box-sizing: border-box;
   width: min(420px, calc(100vw - 24px));

@@ -50,6 +50,18 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pw.expect(pantalla.get_by_label('Generador registrado')).to_be_visible()
             modal.get_by_role('button', name='Cerrar vista de prueba').click()
             pw.expect(modal).to_be_hidden()
+            pagina.get_by_role('link', name='Generadores', exact=True).click()
+            pw.expect(pagina.locator('#ab-form-generador')).to_have_count(0)
+            pagina.get_by_role('button', name='Ordenar QR asignado').click()
+            pw.expect(pagina.locator('th[data-columna="1"]')).to_have_attribute('aria-sort', 'ascending')
+            pagina.get_by_role('button', name='Filtrar Zona').click()
+            filtro = pagina.get_by_role('dialog', name='Filtrar Zona')
+            pw.expect(filtro).to_be_visible()
+            filtro.get_by_role('button', name='Limpiar').click()
+            pagina.get_by_role('searchbox', name='Buscar en QR asignado').fill('QR-QUE-NO-EXISTE-9922')
+            pw.expect(pagina.get_by_text('Ningún generador coincide con los filtros.')).to_be_visible()
+            pagina.get_by_role('link', name='Registrar generador').click()
+            pw.expect(pagina.locator('#ab-form-generador')).to_be_visible()
         finally:
             navegador.close()
 

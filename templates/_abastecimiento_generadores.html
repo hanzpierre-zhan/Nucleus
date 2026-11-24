@@ -1,6 +1,7 @@
 {% set ficha = ficha or {} %}
-<details id="ab-form-generador" class="ab-pedido"{% if editar or request.args.get('nuevo') == '1' %} open{% endif %}>
-  <summary><strong>{{ 'Editar generador' if editar else 'Registrar generador' }}</strong></summary>
+{% if editar or request.args.get('nuevo') == '1' %}
+<section id="ab-form-generador" class="ab-pedido" aria-labelledby="ab-form-titulo">
+  <strong id="ab-form-titulo">{{ 'Editar generador' if editar else 'Registrar generador' }}</strong>
   <form class="ab-form" method="post" action="{{ url_for('abastecimiento.guardar_generador') }}">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     {% if editar %}<input type="hidden" name="registro" value="{{ editar }}">{% endif %}
@@ -34,20 +35,34 @@
     </div>
     <p data-error role="alert" hidden></p>
     <div class="ab-acciones"><button type="submit" class="cc-btn">Guardar generador</button>
-    {% if editar %}<a href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores') }}">Cancelar</a>{% endif %}</div>
+    <a href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores') }}">Cancelar</a></div>
   </form>
-</details>
+</section>
+{% endif %}
 <div class="ab-tabla-wrap" tabindex="0" role="region" aria-label="Tabla de generadores">
-  <table class="ab-tabla">
-    <thead><tr><th scope="col">Acciones</th>{% for campo in ['QR asignado', 'Serie del equipo', 'Zona', 'Tipo de propiedad', 'Tipo de combustible', 'Proyecto'] %}<th scope="col">{{ campo }}</th>{% endfor %}</tr></thead>
+  <table class="ab-tabla" id="ab-tabla-generadores">
+    <thead><tr><th scope="col">Acciones</th>
+    {% for campo in ['QR asignado', 'Serie del equipo', 'Zona', 'Tipo de propiedad', 'Tipo de combustible', 'Proyecto'] %}
+      <th scope="col" class="cc-th" data-columna="{{ loop.index }}" data-etiqueta="{{ campo }}">
+        <div class="cc-th-fila">
+          <span class="cc-th-nombre">{{ campo }}</span>
+          <button type="button" class="cc-th-btn" data-ordenar title="Ordenar {{ campo }}" aria-label="Ordenar {{ campo }}"><i class="fa-solid fa-sort" aria-hidden="true"></i></button>
+          <button type="button" class="cc-th-btn" data-filtrar title="Filtrar {{ campo }}" aria-label="Filtrar {{ campo }}" aria-expanded="false" aria-controls="ab-filtro-generadores"><i class="fa-solid fa-filter" aria-hidden="true"></i></button>
+        </div>
+        <input class="cc-th-buscar" type="search" placeholder="Buscar…" aria-label="Buscar en {{ campo }}">
+      </th>
+    {% endfor %}
+    </tr></thead>
     <tbody>
       {% for id, datos in generadores.items() %}
-      <tr>
+      <tr data-generador>
         <td><a class="cn-redondo cn-azul" href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores', editar=id) }}" title="Editar generador" aria-label="Editar generador {{ datos.get('QR ASIGNADO', id) }}"><i class="fa-solid fa-pen" aria-hidden="true"></i></a></td>
         {% for campo in campos %}<td>{{ datos.get(campo) or (datos.get('Proyecto') if campo == 'PROYECTO' else '') or '—' }}</td>{% endfor %}
       </tr>
-      {% else %}<tr><td colspan="7">No hay generadores registrados en tus proyectos.</td></tr>
       {% endfor %}
+      <tr data-sin-resultados{% if generadores %} hidden{% endif %}><td colspan="7">{{ 'Ningún generador coincide con los filtros.' if generadores else 'No hay generadores registrados en tus proyectos.' }}</td></tr>
     </tbody>
   </table>
 </div>
+<div class="cc-filtro" id="ab-filtro-generadores" role="dialog" aria-label="Filtrar generadores" hidden></div>
+<script src="{{ url_for('static', filename='js/abastecimiento-generadores.js', v=1) }}" defer></script>

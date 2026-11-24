@@ -14,13 +14,15 @@ def test_generadores_reutiliza_catalogo_y_edita(app, auth_client):
     gestion = auth_client.get('/abastecimiento/?estado=parque').get_data(as_text=True)
     assert 'aria-label="Registrar generador"' in gestion
     alta = auth_client.get('/abastecimiento/?estado=generadores&nuevo=1')
-    assert b'id="ab-form-generador" class="ab-pedido" open' in alta.data
+    assert b'id="ab-form-generador"' in alta.data
     contenido = alta.get_data(as_text=True)
     assert 'Petróleo' in contenido and 'Técnico asignado' not in contenido
     for proyecto in ('Claro', 'Integratel', 'Entel', 'PEXT'):
         assert f'FLM - {proyecto}</option>' in contenido
     pagina = auth_client.get('/abastecimiento/?estado=generadores')
     assert pagina.status_code == 200 and b'Tabla de generadores' in pagina.data
+    assert b'id="ab-form-generador"' not in pagina.data
+    assert b'Ordenar Zona' in pagina.data and b'Filtrar Zona' in pagina.data
     with auth_client.session_transaction() as ses:
         headers = {'X-CSRF-Token': ses['form_csrf']}
     ruta = '/abastecimiento/generadores/guardar'
