@@ -1,7 +1,7 @@
 import json
 import re
 
-NOMBRES = ('Juan Carlos Espilco', 'Victor Caro', 'Gary Arenas')
+NOMBRES = ('Juan Carlos Espilco Canales', 'Victor Manuel Caro Ojeda', 'Gary William Arenas Bazan')
 
 
 def test_componente_catalogo_integratel():

@@ -110,7 +110,7 @@ def _numero(v, minimo, maximo, nombre):
     return n
 
 
-def _foto_con_datos(archivo, texto):
+def _foto_con_datos(archivo, texto, limite=1800):
     """Superpone los datos de asistencia en la esquina inferior derecha."""
     contenido = archivo.read(20 * 1024 * 1024 + 1)
     if not contenido:
@@ -120,7 +120,7 @@ def _foto_con_datos(archivo, texto):
     try:
         with Image.open(io.BytesIO(contenido)) as imagen:
             imagen = ImageOps.exif_transpose(imagen).convert('RGB')
-            imagen.thumbnail((1800, 1800))
+            imagen.thumbnail((limite, limite))
     except Exception:
         raise ValueError('La foto no se pudo abrir. Vuelve a tomarla.') from None
     tam = max(9, min(imagen.width // 27, imagen.height // 10))
@@ -167,6 +167,14 @@ def leer_foto(nombre):
         return b2_cliente().get_object(Bucket=current_app.config['B2_BUCKET'], Key='asistencia/' + nombre)['Body'].read()
     with open(os.path.join(current_app.config['EVIDENCIA_DIR'], 'asistencia', nombre), 'rb') as origen:
         return origen.read()
+
+
+def guardar_foto_perfil(archivo):
+    if not archivo or not archivo.filename:
+        raise ValueError('Toma tu foto de perfil.')
+    nombre = 'perfil/' + uuid.uuid4().hex + '.jpg'
+    _guardar(nombre, _foto_con_datos(archivo, [], limite=640))
+    return nombre
 
 
 def registrar(tecnico, form, archivo, dispositivo=''):

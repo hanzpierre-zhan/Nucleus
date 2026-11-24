@@ -46,6 +46,7 @@ def tecnico(app, monkeypatch, tmp_path):
                         headers={'X-CSRF-Token': token}).json['debe_cambiar'] is False
     with cliente.session_transaction() as s:  # el ingreso renueva el token
         token = s['form_csrf']
+        s.pop('form_verificar_dataper')
     yield cliente, {'X-CSRF-Token': token}
     with app.app_context():
         CajaChicaSolicitud.query.filter_by(documento=DOC).delete()

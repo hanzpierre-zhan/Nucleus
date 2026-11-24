@@ -41,7 +41,7 @@ NOMBRES = {'ENTEL':'FLM - ENTEL','CLARO':'FLM - CLARO','INTEGRATEL':'FLM - INTEG
 PARTES_NOMBRE = ('PRIMER NOMBRE', 'SEGUNDO NOMBRE', 'APELLIDO PATERNO', 'APELLIDO MATERNO')
 FICHA_PERSONAL = (*PARTES_NOMBRE, 'FECHA DE NACIMIENTO', 'USUARIO AUTIN', 'PROYECTO', 'CELULAR',
                   'CORREO CORPORATIVO', 'NÚMERO DE EMERGENCIA', 'CONTACTO DE EMERGENCIA',
-                  'DEPARTAMENTO', 'PROVINCIA', 'DISTRITO', 'CARGO')
+                  'DEPARTAMENTO', 'PROVINCIA', 'DISTRITO', 'CARGO', 'CONTRATA')
 
 CARGOS_DATAPER = ('TÉCNICO JUNIOR', 'TÉCNICO DE TELECOMUNICACIONES', 'SUPERVISOR',
                   'PERSONAL EXTERNO', 'ADMINISTRATIVO')
@@ -62,6 +62,38 @@ _ALIAS_FICHA = {
     'CONTACTO DE EMERGENCIA': ('contacto emergencia',),
 }
 
+_NOMBRES_FRECUENTES = frozenset("""
+    alex alejandro alberto ana andres angel antonio carlos carmen cesar christian cristhian
+    daniel david diego edgar eduardo edwuards elena eloy emilio enrique fernando francisco
+    frank gabriel gerardo gloria hugo isabel javier jesus jorge jose juan julio karla
+    laura luis manuel marco maria mario miguel monica oscar pablo paola paolo patricia
+    pedro rafael raul renato ricardo roberto rosa ruben sandra sergio silvia victor wilber
+""".split())
+_PARTICULAS_NOMBRE = {'de', 'del', 'la', 'los', 'las', 'san', 'santa'}
+
+
+def _desglosar_nombre(valor):
+    original = str(valor or '').strip()
+    izquierda, coma, derecha = original.partition(',')
+    if coma:
+        apellidos, nombres = izquierda.split(), derecha.split()
+    else:
+        tokens = original.split()
+        if len(tokens) not in (3, 4):
+            return ()
+        inicio_nombre = _plano(tokens[0]) in _NOMBRES_FRECUENTES
+        tercero_nombre = _plano(tokens[2]) in _NOMBRES_FRECUENTES
+        if inicio_nombre == tercero_nombre:
+            return ()
+        if inicio_nombre:
+            nombres, apellidos = tokens[:-2], tokens[-2:]
+        else:
+            apellidos, nombres = tokens[:2], tokens[2:]
+    if (len(apellidos) != 2 or not 1 <= len(nombres) <= 2
+            or any(not t.isalpha() or _plano(t) in _PARTICULAS_NOMBRE for t in (*nombres, *apellidos))):
+        return ()
+    return nombres[0], nombres[1] if len(nombres) == 2 else '', *apellidos
+
 
 def presentar_ficha(datos):
     ficha = presentar(datos)
@@ -74,22 +106,52 @@ def presentar_ficha(datos):
     nombre_departamento = departamento(ficha['DEPARTAMENTO'])
     if nombre_departamento:
         ficha['DEPARTAMENTO'] = nombre_departamento
-    nombre = str(datos.get('TECNICO') or '').strip()
-    apellidos, coma, nombres = nombre.partition(',')
-    if coma and ',' not in nombres:
-        apellidos = apellidos.split()
-        nombres = nombres.split()
-        if 1 <= len(nombres) <= 2 and len(apellidos) == 2 and not any(
-            parte.lower() in ('de', 'del', 'la', 'los', 'las', 'san', 'santa')
-            for parte in (*nombres, *apellidos)
-        ):
-            valores = (nombres[0], nombres[1] if len(nombres) == 2 else '', *apellidos)
-            for campo, valor in zip(PARTES_NOMBRE, valores):
-                if campo not in datos and not ficha[campo]:
-                    ficha[campo] = valor
-    estado = 'Completo' if all(ficha[c] for c in ('PRIMER NOMBRE', 'APELLIDO PATERNO', 'APELLIDO MATERNO')) else 'Por revisar'
-    ficha['REVISIÓN DEL NOMBRE'] = estado
+    valores = _desglosar_nombre(datos.get('TECNICO'))
+    for campo, valor in zip(PARTES_NOMBRE, valores):
+        if campo not in datos and not ficha[campo]:
+            ficha[campo] = valor
+    ficha.pop('REVISIÓN DEL NOMBRE', None)
+    ficha.pop('REVISION DEL NOMBRE', None)
     return ficha
+
+
+def resolver_supervisores(fichas):
+    from services.usuarios import usuarios_activos
+
+    def partes(nombre):
+        return frozenset(re.findall(r'[a-z]+', _plano(nombre)))
+
+    usuarios = {}
+    for usuario in usuarios_activos():
+        nombre = str(usuario.nombre or '').strip()
+        if len(partes(nombre)) >= 3:
+            usuarios[partes(nombre)] = nombre
+    padron = {}
+    for ficha in fichas:
+        opciones = [ficha.get('SUPERVISOR')]
+        if _plano(ficha.get('CARGO')).startswith('supervisor'):
+            opciones.append(ficha.get('TECNICO'))
+        for nombre in opciones:
+            nombre = str(nombre or '').strip()
+            if len(partes(nombre)) >= 3:
+                padron[partes(nombre)] = nombre
+
+    def resolver(valor):
+        clave = partes(valor)
+        if not clave:
+            return valor
+        for nombres in (usuarios, padron):
+            exacto = nombres.get(clave)
+            if exacto:
+                return exacto
+            candidatos = [nombre for tokens, nombre in nombres.items() if clave <= tokens]
+            if len(candidatos) == 1:
+                return candidatos[0]
+            if candidatos:
+                break
+        return valor
+
+    return resolver
 
 def proyectos_permitidos():
     return [p.nombre for p in get_menu_proyectos(session.get('user_id'), session.get('rol')) if p.nombre in FLM_NOMBRES]
@@ -112,6 +174,12 @@ def presentar(datos):
     datos = dict(datos)
     if datos.get('PROYECTO'):
         datos['PROYECTO'] = NOMBRES.get(familia(datos['PROYECTO']), datos['PROYECTO'])
+    if 'CONTRATA' in datos:
+        contrata = ' '.join(str(datos['CONTRATA'] or '').split())
+        if re.sub(r'[^a-z0-9]', '', _plano(contrata)) in ('cobra', 'cobraperu', 'cobraperusa', 'cobraperusac'):
+            datos['CONTRATA'] = 'COBRA'
+        else:
+            datos['CONTRATA'] = '' if contrata in ('-', '–', '—', '--') else contrata.upper()
     datos.setdefault('SUPERVISOR','')
     return datos
 

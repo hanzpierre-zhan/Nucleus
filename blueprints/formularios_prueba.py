@@ -107,7 +107,8 @@ def comprobar_csrf():
 def iniciar_tecnico(person):
     """Identidad exclusiva del portal; nunca crea una cuenta administrativa."""
     session.clear()
-    session.update(form_documento=person['documento'], form_personal_id=person['id'], form_login_at=time.time())
+    session.update(form_documento=person['documento'], form_personal_id=person['id'],
+                   form_login_at=time.time(), form_verificar_dataper=True)
     csrf()
 
 
@@ -227,6 +228,8 @@ def cambiar_clave():
 @bp.post('/salir')
 def salir():
     session.clear()
+    if request.form.get('volver'):
+        return redirect(url_for('form_pruebas.inicio'))
     return jsonify(success=True)
 
 

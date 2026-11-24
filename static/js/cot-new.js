@@ -621,7 +621,14 @@
     const lista = [...((CN_CFG.supervisores_cliente || {})[c.familia] || []), ...(CN_CFG.supervisores || [])];
     lista.forEach(n => supervisor.add(new Option(n, n)));
     const actual = String(c.SUPERVISOR || '').trim();
-    const parecido = lista.find(n => plano(n) === plano(actual)) || lista.find(n => plano(n).split(' ').every(p => plano(actual).includes(p)));
+    const palabras = nombre => plano(nombre).match(/[\p{L}\p{N}]+/gu) || [];
+    const anteriores = palabras(actual);
+    const coincidencias = anteriores.length >= 2 ? lista.filter(nombre => {
+      const completas = new Set(palabras(nombre));
+      return anteriores.every(palabra => completas.has(palabra));
+    }) : [];
+    const parecido = lista.find(n => plano(n) === plano(actual)) ||
+      (coincidencias.length === 1 ? coincidencias[0] : '');
     if (actual && !parecido) supervisor.add(new Option(actual, actual));
     supervisor.value = parecido || actual;
     campo(textos, 'Supervisor', supervisor);

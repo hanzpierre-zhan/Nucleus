@@ -10,6 +10,11 @@
   const cfg = JSON.parse($('vn-config').textContent);
   const esUsuarios = cfg.slug === 'usuarios';
   const dialogo = $('cc-solicitud-dialogo');
+  const eliminar = $('cc-eliminar');
+  const seleccionadas = new Set();
+  const actualizarEliminar = () => {
+    if (eliminar) eliminar.hidden = !seleccionadas.size;
+  };
   const POR_PAGINA = 300;
 
   let filas = [], columnas = [], columnasBase = [], tab = '', orden = null, filtros = {}, busquedas = {}, limite = POR_PAGINA;
@@ -27,7 +32,7 @@
   function plantilla() {
     const anchos = columnas.map(c => c.length > 18 ? 'minmax(170px, 1.4fr)' : 'minmax(120px, 1fr)');
     $('cn-tabla').style.setProperty('--cc-min', (columnas.length * 150 + 140) + 'px');
-    return ['112px', ...anchos].join(' ');
+    return [...(eliminar ? ['52px'] : []), '112px', ...anchos].join(' ');
   }
   function pintarEncabezado() {
     $('cn-tabla').style.setProperty('--cc-cols', plantilla());
@@ -35,6 +40,7 @@
     const activo = document.activeElement, foco = activo && cab.contains(activo) && activo.dataset.buscar
       ? {col: activo.dataset.buscar, ini: activo.selectionStart, fin: activo.selectionEnd} : null;
     cab.replaceChildren(el('div', 'cc-th cc-th-nombre cc-acciones-cab', 'Acciones'));
+    if (eliminar) cab.prepend(el('div', 'cc-th cc-seleccion', 'Sel.'));
     for (const id of columnas) {
       const th = el('div', 'cc-th'), fila = el('div', 'cc-th-fila'); fila.draggable = true;
       const sentido = orden?.col === id ? orden.dir : 0;
@@ -323,6 +329,18 @@
     if (!visibles.length) { lista.append(el('p', 'cc-vacio', filas.length ? 'Ningún registro coincide con los filtros.' : 'No hay registros.')); return; }
     for (const f of visibles.slice(0, limite)) {
       const fila = el('div', 'cc-card cc-resumen cc-fila-solicitud');
+      if (eliminar) {
+        const celda = el('span', 'cc-seleccion');
+        const check = Object.assign(el('input'), {type: 'checkbox', checked: seleccionadas.has(f.key)});
+        check.setAttribute('aria-label', 'Seleccionar ' + f.key);
+        check.addEventListener('change', () => {
+          if (check.checked) seleccionadas.add(f.key);
+          else seleccionadas.delete(f.key);
+          actualizarEliminar();
+        });
+        celda.append(check);
+        fila.append(celda);
+      }
       const controles = el('span', 'cc-acciones-rapidas cc-col-acciones');
       controles.append(...(esUsuarios ? [redondo('Ver y editar', 'cn-azul', 'fa-pen', () => verUsuario(f))] : acciones(f)));
       fila.append(controles);
@@ -352,6 +370,24 @@
       body: JSON.stringify({ids: lista.map(f => f.id), columnas})});
     if (!r.ok) return avisar('No se pudo exportar.');
     const a = el('a'); a.href = URL.createObjectURL(await r.blob()); a.download = cfg.titulo + '.xlsx'; document.body.append(a); a.click(); a.remove();
+  });
+  eliminar?.addEventListener('click', async () => {
+    const keys = [...seleccionadas];
+    if (!keys.length || !await confirmar(`¿Eliminar definitivamente los ${keys.length} registros seleccionados?`, 'Eliminar registros')) return;
+    eliminar.disabled = true;
+    try {
+      const respuesta = await fetch('/api/vista/dataper/eliminar', {method: 'POST',
+        headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys})});
+      const datos = await respuesta.json().catch(() => ({}));
+      if (!respuesta.ok || !datos.success) throw Error(datos.error || 'No se pudieron eliminar los registros.');
+      seleccionadas.clear();
+      actualizarEliminar();
+      await cargar();
+    } catch (error) {
+      avisar(error.message);
+    } finally {
+      eliminar.disabled = false;
+    }
   });
   async function copiar(lista, comoExcel) {
     const texto = [columnas.join('\t'), ...lista.map(f => columnas.map(c => valor(f, c).replace(/\s+/g, ' ')).join('\t'))].join('\n');

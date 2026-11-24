@@ -206,3 +206,14 @@ button.asis-foto{width:100%}
 .asis-opciones span{display:block;text-align:center;padding:12px 8px;border:1px solid var(--input-border);border-radius:12px;background:var(--field);font-size:13px;cursor:pointer}
 .asis-opciones input:checked+span{border:2px solid var(--blue);background:var(--accent);font-weight:650;padding:11px 7px}
 .asis-opciones input:focus-visible+span{outline:2px solid var(--focus);outline-offset:2px}
+.foto-perfil-mobile {
+  display: block;
+  flex: none;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.greeting .foto-perfil-mobile {
+  float: right;
+  margin-left: 12px;
+}

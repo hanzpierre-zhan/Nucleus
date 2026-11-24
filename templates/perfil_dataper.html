@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Actualiza tus datos · Nucleus</title>
+  <script src="{{ url_for('static', filename='js/form-pruebas-theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form-pruebas.css', v=15) }}">
+</head>
+<body>
+  <main class="shell">
+    <h1>Actualiza tus datos</h1>
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    <form class="card" method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <p><strong>Proyecto</strong> {{ proyecto }}</p>
+      {% for campo in campos %}
+        {% set obligatorio = campo in requeridos and (campo != 'SUPERVISOR' or (opciones[campo] and opciones['CARGO'] != ['SUPERVISOR'])) %}
+        <label for="dataper-{{ loop.index }}">{{ campo.capitalize() }}</label>
+        {% if campo in opciones %}
+          <select id="dataper-{{ loop.index }}" name="{{ campo }}" {% if obligatorio %}required{% endif %}>
+            <option value="">Selecciona</option>
+            {% for opcion in opciones[campo] %}
+              <option {% if opcion == valores[campo]|upper %}selected{% endif %}>{{ opcion }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <input id="dataper-{{ loop.index }}" name="{{ campo }}" value="{{ valores[campo] }}"
+            {% if campo == 'FECHA DE NACIMIENTO' %}type="date" min="1900-01-01" max="{{ hoy }}"
+            {% elif campo == 'CORREO CORPORATIVO' %}type="email" maxlength="120"
+            {% elif campo in ('CELULAR', 'NÚMERO DE EMERGENCIA') %}type="tel" inputmode="tel" maxlength="20"
+            {% else %}type="text" maxlength="120"{% endif %} {% if obligatorio %}required{% endif %}>
+        {% endif %}
+      {% endfor %}
+      <label for="dataper-foto">Foto frontal de perfil</label>
+      <p>Mira de frente a la cámara y asegúrate de que se vea tu rostro completo.</p>
+      <input id="dataper-foto" type="file" name="foto" accept="image/*" capture="user" required>
+      <button class="primary wide" type="submit">Guardar y continuar</button>
+    </form>
+    <form method="post" action="{{ url_for('form_pruebas.salir') }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="volver" value="1">
+      <button class="quiet" type="submit">Cerrar sesión</button>
+    </form>
+  </main>
+</body>
+</html>
