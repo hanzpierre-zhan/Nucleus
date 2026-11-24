@@ -14,6 +14,7 @@
       </a>
       {% endfor %}
     </nav>
+    <a href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores', nuevo=1, _anchor='ab-form-generador') }}" class="cn-redondo cn-verde" aria-label="Registrar generador" title="Registrar generador"><i class="fa-solid fa-plus" aria-hidden="true"></i></a>
     {% if puede_probar %}
     <a id="ab-abrir-prueba" href="{{ url_for('abastecimiento.prueba_tecnico') }}" class="cn-redondo cn-azul" aria-haspopup="dialog" aria-label="Registrar pedido de prueba" title="Registrar pedido de prueba"><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i></a>
     {% endif %}

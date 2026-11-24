@@ -1,5 +1,5 @@
 {% set ficha = ficha or {} %}
-<details class="ab-pedido"{% if editar %} open{% endif %}>
+<details id="ab-form-generador" class="ab-pedido"{% if editar or request.args.get('nuevo') == '1' %} open{% endif %}>
   <summary><strong>{{ 'Editar generador' if editar else 'Registrar generador' }}</strong></summary>
   <form class="ab-form" method="post" action="{{ url_for('abastecimiento.guardar_generador') }}">
     <input type="hidden" name="csrf" value="{{ csrf }}">

@@ -10,6 +10,10 @@ from models import AbastecimientoSolicitud, AccesoProyecto, NucleusData, Proyect
 
 
 def test_generadores_reutiliza_catalogo_y_edita(app, auth_client):
+    gestion = auth_client.get('/abastecimiento/?estado=parque').get_data(as_text=True)
+    assert 'aria-label="Registrar generador"' in gestion
+    alta = auth_client.get('/abastecimiento/?estado=generadores&nuevo=1')
+    assert b'id="ab-form-generador" class="ab-pedido" open' in alta.data
     pagina = auth_client.get('/abastecimiento/?estado=generadores')
     assert pagina.status_code == 200 and b'Tabla de generadores' in pagina.data
     with auth_client.session_transaction() as ses:
