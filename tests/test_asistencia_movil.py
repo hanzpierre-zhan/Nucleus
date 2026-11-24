@@ -92,6 +92,21 @@ def test_actualizar_dataper_en_mobile(app, cuadrilla):
     assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
     assert cli.get('/form-pruebas/dataper/foto').mimetype == 'image/jpeg'
     assert app.test_client().get('/form-pruebas/dataper/foto').status_code == 401
+    # La ficha inicial se pide una vez; luego puede editarla sin repetir la foto.
+    assert cli.get('/form-pruebas/dataper').status_code == 302
+    pagina = cli.get('/form-pruebas/perfil')
+    assert pagina.status_code == 200 and b'Editar perfil' in pagina.data
+    assert app.test_client().get('/form-pruebas/perfil').status_code == 401
+    with app.app_context():
+        foto_original = json.loads(db.session.get(NucleusData, ids['Principal Uno']).data_json)['_foto_perfil_mobile']
+    assert cli.post('/form-pruebas/perfil', headers=csrf_header,
+                    data={**datos, 'CELULAR': '988222333'}).status_code == 302
+    with app.app_context():
+        ficha = json.loads(db.session.get(NucleusData, ids['Principal Uno']).data_json)
+        assert ficha['CELULAR'] == '988222333'
+        assert ficha['_foto_perfil_mobile'] == foto_original
+    assert cli.get('/form-pruebas/dataper').status_code == 302
+
     with cli.session_transaction() as sesion:
         sesion['form_verificar_dataper'] = True
     assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')

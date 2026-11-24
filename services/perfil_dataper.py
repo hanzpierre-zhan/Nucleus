@@ -83,7 +83,8 @@ def guardar(fila, datos, opciones, foto):
             if alias != campo and alias.strip().casefold() == campo.casefold():
                 del actuales[alias]
         actuales[campo] = contenido
-    actuales['_foto_perfil_mobile'] = asistencia_movil.guardar_foto_perfil(foto)
+    if foto and foto.filename or not actuales.get('_foto_perfil_mobile'):
+        actuales['_foto_perfil_mobile'] = asistencia_movil.guardar_foto_perfil(foto)
     actuales['_perfil_mobile_version'] = VERSION
     fila.data_json = json.dumps(actuales, ensure_ascii=False)
     db.session.commit()

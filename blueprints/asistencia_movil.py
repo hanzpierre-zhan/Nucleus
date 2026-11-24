@@ -14,7 +14,7 @@ bp = Blueprint('asistencia_movil', __name__)
 
 # Acciones del técnico que no exigen ubicación (entrar, cambiar clave, salir).
 SIN_UBICACION = {'form_pruebas.ingresar', 'form_pruebas.cambiar_clave', 'form_pruebas.salir',
-                 'asistencia_movil.actualizar_dataper'}
+                 'asistencia_movil.actualizar_dataper', 'asistencia_movil.editar_perfil'}
 EVENTOS = {
     'asistencia_movil.registrar': 'Asistencia', 'asistencia_movil.ubicacion': None,
     'caja_chica.portal_solicitar': 'Solicitud', 'form_pruebas.solicitar': 'Solicitud',
@@ -127,12 +127,14 @@ def registrar():
     return jsonify(success=True, registro=am.a_dict(registro))
 
 
+@bp.route('/form-pruebas/perfil', methods=['GET', 'POST'], endpoint='editar_perfil')
 @bp.route('/form-pruebas/dataper', methods=['GET', 'POST'])
 @tecnico
 def actualizar_dataper():
     fila = db.session.get(NucleusData, g.tecnico['id'], with_for_update=request.method == 'POST')
     datos = perfil.leer(fila)
-    if datos.get('_perfil_mobile_version') == perfil.VERSION:
+    editando = request.endpoint == 'asistencia_movil.editar_perfil'
+    if not editando and datos.get('_perfil_mobile_version') == perfil.VERSION:
         return redirect(url_for('form_pruebas.inicio'))
     opciones = perfil.opciones(datos)
     valores = perfil.valores(datos)
@@ -149,7 +151,7 @@ def actualizar_dataper():
     return render_template('perfil_dataper.html', csrf=csrf(), campos=perfil.CAMPOS,
                            valores=valores, opciones=opciones, requeridos=perfil.REQUERIDOS,
                            proyecto=g.tecnico['proyecto'], hoy=am.ahora_peru().date().isoformat(),
-                           error=error), (400 if error else 200)
+                           error=error, editando=editando, tiene_foto=bool(datos.get('_foto_perfil_mobile'))), (400 if error else 200)
 
 
 @bp.get('/form-pruebas/dataper/foto')
