@@ -129,8 +129,13 @@ def _datos_portal():
     datos = request.get_json(silent=True)
     if not isinstance(datos, dict):
         raise ValueError('Los datos de la solicitud no son válidos.')
-    if not re.fullmatch(r'[0-9]{20}', str(datos.get('cuenta') or '')):
+    cuenta = str(datos.get('cuenta') or '').strip()
+    if str(datos.get('banco') or '').strip() == 'Interbank':
+        if not re.fullmatch(r'[0-9]{13}', cuenta):
+            raise ValueError('Ingresa el número de cuenta Interbank de 13 dígitos.')
+    elif not re.fullmatch(r'[0-9]{20}', cuenta):
         raise ValueError('Ingresa el CCI de 20 dígitos.')
+    datos['cuenta'] = cuenta
     # El proyecto no lo elige el técnico: es el que tiene en Dataper.
     proyecto = familia(g.tecnico.get('proyecto', ''))
     if proyecto not in PROYECTOS:

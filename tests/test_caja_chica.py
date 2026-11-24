@@ -479,6 +479,12 @@ def test_validaciones_de_la_solicitud(tecnico):
                    {'items': [{'tipo_gasto': 'Inventado', 'monto': '5'}]}, {'items': [{'tipo_gasto': 'Peajes', 'monto': '0'}]}):
         assert cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={**base, **cambio}).status_code == 400, cambio
     assert cli.post('/form-pruebas/caja-chica/solicitar', json=base).status_code == 403  # sin CSRF
+    interbank = {**base, 'banco': 'Interbank'}
+    assert cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json=interbank).status_code == 400
+    cuenta = '0012345678901'
+    respuesta = cli.post('/form-pruebas/caja-chica/solicitar', headers=h, json={**interbank, 'cuenta': cuenta})
+    assert respuesta.status_code == 200, respuesta.json
+    assert respuesta.json['solicitud']['cuenta'] == cuenta
 
 
 def test_usuario_sin_modulo_no_entra(app, client):

@@ -578,7 +578,7 @@
       return;
     }
     corrigiendo = sol || null;
-    const form = $('cc-form'); form.reset(); pintarCci();
+    const form = $('cc-form'); form.reset();
     // El proyecto es el del técnico en Dataper: se muestra, pero no se puede cambiar.
     const selectorProyecto = $('cc-proyecto');
     for (const opcion of [...selectorProyecto.options]) if (opcion.value !== datos.proyecto) opcion.remove();
@@ -600,8 +600,8 @@
       $('cc-rechazo').textContent = 'Rechazada: ' + sol.motivo_rechazo;
       $('cc-motivo').value = sol.motivo;
       $('cc-banco').value = sol.banco; $('cc-cuenta').value = sol.cuenta;
-      pintarCci();
     }
+    pintarCuenta();
     mostrarConceptos(sol?.items, Boolean(sol));
     const extra = sol?.formulario || {};
     $('cc-site').value = extra.site === 'SITE PENDIENTE' ? '' : extra.site || '';
@@ -618,16 +618,23 @@
     mostrarConceptos(itemsSeleccionados());
   });
   $('cc-billetera').addEventListener('change', actualizarBilletera);
-  // CCI: exactamente 20 dígitos (ni más ni menos); el contador avisa cuántos faltan.
-  function pintarCci() {
+  function pintarCuenta() {
     const input = $('cc-cuenta'), n = input.value.length, ayuda = $('cc-cuenta-ayuda');
-    ayuda.textContent = !n ? 'Debe tener exactamente 20 dígitos.' : n === 20 ? '✓ 20 de 20 dígitos' : n + ' de 20 dígitos · faltan ' + (20 - n);
-    ayuda.dataset.estado = !n ? '' : n === 20 ? 'ok' : 'falta';
-    input.setCustomValidity(n && n !== 20 ? 'El CCI debe tener exactamente 20 dígitos.' : '');
+    const interbank = $('cc-banco').value === 'Interbank';
+    const longitud = interbank ? 13 : 20;
+    const etiqueta = interbank ? 'Número de cuenta' : 'CCI';
+    const aviso = etiqueta + ' de ' + longitud + ' dígitos.';
+    $('cc-cuenta-etiqueta').textContent = etiqueta + ' (' + longitud + ' dígitos)';
+    input.minLength = longitud;
+    input.pattern = '[0-9]{' + longitud + '}';
+    ayuda.textContent = !n ? aviso : n === longitud ? '✓ ' + longitud + ' de ' + longitud + ' dígitos' : n + ' de ' + longitud + ' dígitos';
+    ayuda.dataset.estado = !n ? '' : n === longitud ? 'ok' : 'falta';
+    input.setCustomValidity(new RegExp('^' + input.pattern + '$').test(input.value) ? '' : 'Ingresa el ' + aviso);
   }
+  $('cc-banco').addEventListener('change', pintarCuenta);
   $('cc-cuenta').addEventListener('input', ({target}) => {
     target.value = target.value.replace(/[^0-9]/g, '').slice(0, 20);
-    pintarCci();
+    pintarCuenta();
   });
   for (const campo of ['site', 'wo']) {
     const input = $('cc-' + campo);
@@ -673,7 +680,9 @@
   $('cc-form').addEventListener('submit', e => {
     e.preventDefault(); const form = e.currentTarget, error = form.querySelector('.error');
     enviando(form.querySelector('[type=submit]'), error, async () => {
-      if (!/^[0-9]{20}$/.test($('cc-cuenta').value)) { $('cc-cuenta').focus(); throw Error('El CCI debe tener exactamente 20 dígitos (tienes ' + $('cc-cuenta').value.length + ').'); }
+      pintarCuenta();
+      const cuenta = $('cc-cuenta');
+      if (!cuenta.validity.valid) { cuenta.focus(); throw Error(cuenta.validationMessage); }
       // Un concepto marcado sin monto (vacío o 0) no se considera.
       const items = itemsSeleccionados().filter(item => numero(item.monto) > 0);
       if (!items.length) throw Error('Marca al menos un concepto y escribe su monto.');

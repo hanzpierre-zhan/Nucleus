@@ -48,11 +48,11 @@
     <textarea id="cc-motivo" name="motivo" maxlength="500" rows="2" required></textarea>
     </fieldset>
     <fieldset><legend>Datos del depósito</legend>
-    <label for="cc-cuenta">CCI (20 dígitos)</label>
-    <input id="cc-cuenta" name="cuenta" inputmode="numeric" minlength="20" maxlength="20" pattern="[0-9]{20}" required aria-describedby="cc-cuenta-ayuda">
-    <small id="cc-cuenta-ayuda" class="cc-cuenta-ayuda" aria-live="polite">Debe tener exactamente 20 dígitos.</small>
     <label for="cc-banco">Banco</label>
     <select id="cc-banco" name="banco" required><option value="">Selecciona un banco</option>{% for b in bancos %}<option>{{ b }}</option>{% endfor %}</select>
+    <label id="cc-cuenta-etiqueta" for="cc-cuenta">CCI (20 dígitos)</label>
+    <input id="cc-cuenta" name="cuenta" inputmode="numeric" minlength="20" maxlength="20" pattern="[0-9]{20}" required aria-describedby="cc-cuenta-ayuda">
+    <small id="cc-cuenta-ayuda" class="cc-cuenta-ayuda" aria-live="polite">Debe tener exactamente 20 dígitos.</small>
     <label for="cc-titular">Titular de la cuenta</label><input id="cc-titular" name="titular" maxlength="150">
     </fieldset>
     <fieldset><legend>Billetera digital</legend>
@@ -98,4 +98,4 @@
 <input id="csrf" type="hidden" value="{{ csrf }}">
 </main>
 <footer>NUCLEUS · Caja Chica</footer>
-<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=2) }}" defer></script><script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=43) }}" defer></script></body></html>
+<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=2) }}" defer></script><script src="{{ url_for('static',filename='js/caja-chica-tecnico.js',v=44) }}" defer></script></body></html>

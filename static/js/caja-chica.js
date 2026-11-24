@@ -461,7 +461,7 @@
 
     const deposito = seccion('fa-building-columns', 'Datos del depósito');
     const banco = campo('Banco', selector(configuracion.bancos, sol.banco), deposito);
-    const cuenta = campo('CCI', Object.assign(texto(sol.cuenta, 40, true), {inputMode: 'numeric'}), deposito);
+    const cuenta = campo('CCI o número de cuenta', Object.assign(texto(sol.cuenta, 40, true), {inputMode: 'numeric'}), deposito);
     cuenta.classList.add('cc-mono');
     const titular = campo('Titular', Object.assign(texto(f.titular || '', 150), {placeholder: sol.tecnico || ''}), deposito);
     const billetera = campo('Billetera', selector(['No aplica', 'Yape', 'Plin'], f.tipo_billetera || 'No aplica'), deposito);
@@ -586,7 +586,8 @@
   }
   function datosBancarios(sol) {
     const f = sol.formulario || {};
-    const filas = [['Banco', sol.banco], ['CCI', sol.cuenta, 'cc-mono'], ['Titular', f.titular || sol.tecnico]];
+    const etiquetaCuenta = sol.banco === 'Interbank' && /^\d{13}$/.test(sol.cuenta) ? 'Número de cuenta' : 'CCI';
+    const filas = [['Banco', sol.banco], [etiquetaCuenta, sol.cuenta, 'cc-mono'], ['Titular', f.titular || sol.tecnico]];
     if (f.tipo_billetera && f.tipo_billetera !== 'No aplica') filas.push([f.tipo_billetera, f.numero_billetera, 'cc-mono']);
     return filas;
   }
