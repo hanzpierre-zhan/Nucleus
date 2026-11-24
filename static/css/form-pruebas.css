@@ -163,6 +163,12 @@ a.action{text-decoration:none;color:inherit}
   margin-inline-start: auto;
 }
 
+@media (max-width: 380px) {
+  .top:has(.top-actions) { padding-inline: 12px; }
+  .top-actions { gap: 4px; }
+  .top-actions .theme-toggle { width: 40px; height: 40px; padding: 8px; }
+}
+
 /* Asistencia (tarjeta del inicio y pantalla) */
 .action.asistencia-pendiente small{color:#b45309;font-weight:600}
 :root[data-theme="dark"] .action.asistencia-pendiente small{color:#fbbf24}

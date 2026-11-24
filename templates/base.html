@@ -183,11 +183,23 @@
                         <i class="fa-solid fa-chevron-up sb-flecha" aria-hidden="true"></i>
                     </button>
                     <nav id="sb-usuario-menu" class="sb-usuario-menu" aria-label="Cuenta" hidden>
+                        <a href="#mi-perfil" id="abrir-mi-perfil" aria-haspopup="dialog"><i class="fa-solid fa-user" aria-hidden="true"></i> Mi perfil</a>
                         <a href="/privacidad"><i class="fa-solid fa-shield-halved"></i> Privacidad</a>
                         <a href="/terminos"><i class="fa-solid fa-file-contract"></i> Términos</a>
                         <a href="/cookies"><i class="fa-solid fa-cookie-bite"></i> Cookies</a>
                         <a href="/logout" class="sb-salir"><i class="fa-solid fa-right-from-bracket"></i> Cerrar sesión</a>
                     </nav>
+                    <dialog id="mi-perfil" class="perfil-dialog" aria-labelledby="mi-perfil-titulo">
+                        <h2 id="mi-perfil-titulo">Mi perfil</h2>
+                        <p>{{ _nombre_actual }}</p>
+                        <dl class="perfil-grid">
+                            <div><dt>Usuario</dt><dd>{{ session.get('username') }}</dd></div>
+                            <div><dt>Rol</dt><dd>{{ session.get('rol')|upper }}</dd></div>
+                        </dl>
+                        <dl class="perfil-grid" id="mi-perfil-datos"></dl>
+                        <p id="mi-perfil-estado" role="status" hidden></p>
+                        <form method="dialog"><button class="perfil-guardar" autofocus>Cerrar</button></form>
+                    </dialog>
                 </div>
             </div>
         </aside>
@@ -423,8 +435,8 @@
     </script>
     {% include 'cookie_banner.html' %}
     {% if session.get('user_id') %}
-    <link rel="stylesheet" href="/static/css/perfil-personal.css?v=2">
-    <script src="/static/js/perfil-personal.js?v=3" defer></script>
+    <link rel="stylesheet" href="/static/css/perfil-personal.css?v=3">
+    <script src="/static/js/perfil-personal.js?v=4" defer></script>
     {% endif %}
 </body>
 </html>

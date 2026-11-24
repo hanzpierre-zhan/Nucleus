@@ -37,5 +37,40 @@
       } catch (err) { error.textContent = err.message; } finally { guardar.disabled = false; }
     });
   }
+  const enlace = document.getElementById('abrir-mi-perfil');
+  if (enlace) {
+    const dialogo = document.getElementById('mi-perfil');
+    const lista = document.getElementById('mi-perfil-datos');
+    const estado = document.getElementById('mi-perfil-estado');
+    const botonCuenta = document.getElementById('sb-usuario-btn');
+    dialogo.addEventListener('close', () => botonCuenta.focus());
+    enlace.addEventListener('click', async event => {
+      event.preventDefault();
+      lista.replaceChildren();
+      estado.textContent = 'Cargando datos…';
+      estado.hidden = false;
+      dialogo.showModal();
+      if (botonCuenta.getAttribute('aria-expanded') === 'true') botonCuenta.click();
+      try {
+        const respuesta = await fetch('/api/perfil-personal', {cache: 'no-store'});
+        if (!respuesta.ok) throw new Error();
+        const {perfil} = await respuesta.json();
+        for (const [campo, etiqueta] of campos) {
+          const fila = document.createElement('div');
+          const nombre = document.createElement('dt');
+          const valor = document.createElement('dd');
+          nombre.textContent = etiqueta;
+          valor.textContent = campo === 'fecha_nacimiento' && perfil[campo]
+            ? perfil[campo].split('-').reverse().join('/')
+            : perfil[campo] || '—';
+          fila.append(nombre, valor);
+          lista.append(fila);
+        }
+        estado.hidden = true;
+      } catch {
+        estado.textContent = 'No se pudieron cargar los datos del perfil.';
+      }
+    });
+  }
   iniciar().catch(() => {});
 })();
