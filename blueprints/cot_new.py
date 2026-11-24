@@ -596,10 +596,14 @@ CAMPOS_SITE_WO = ('Site Name', 'Site ID', 'Nombre de Site', 'Código Site', 'Sit
 # Cotizadores que se asignan al registrar (nombre y usuario de Nucleus, como figuran en Usuarios).
 COTIZADORES = (('Luciano Aracca', 'laracca'), ('Diego Rodriguez', 'drodriguez'), ('Ricardo Huaman', 'rhuaman'), ('Edwin Lopez', 'elopez'))
 # Supervisores (lista de Cotizaciones, con el nombre homologado: Nombre Apellido).
-SUPERVISORES = ('Jordan Gonzales', 'Dennis Quispe', 'Jesus Sotelo', 'Roberto Encarnacion', 'Eloy Huancapaza', 'Dennis Unton', 'Edwin Lopez')
+SUPERVISORES = (
+    'Jordan Anibal Gonzales Caceres', 'Dennis Giovanni Quispe Castro', 'Jesus Alfredo Sotelo Torres',
+    'Roberto Encarnacion Vega', 'Eloy Huancapaza Condori', 'Dennis Junior Unton Soncco',
+    'Edwin Harold Lopez Vargas',
+)
 # Supervisores que solo aparecen en las cotizaciones de ese cliente (además de la lista general).
 SUPERVISORES_CLIENTE = {
-    'INTEGRATEL': ('Juan Carlos Espilco', 'Victor Caro', 'Gary Arenas'),
+    'INTEGRATEL': ('Juan Carlos Espilco Canales', 'Victor Manuel Caro Ojeda', 'Gary William Arenas Bazan'),
     'CLARO': ('Gerardo Garcia Pasache', 'Jordan Rodrigo Huamani Lazo', 'Sebastian Ascayo Vianny Becquer', 'Jhorvin Lara Mendoza'),
 }
 # Contactos del cliente que se eligen al registrar la cotización, según el proyecto.

@@ -5,14 +5,16 @@ import time
 from flask import Blueprint, Response, abort, g, jsonify, redirect, render_template, session, url_for, request
 
 from db import db
-from models import AsistenciaCuadrilla
+from models import AsistenciaCuadrilla, NucleusData
 from services import asistencia_movil as am
+from services import perfil_dataper as perfil
 from blueprints.formularios_prueba import comprobar_csrf, csrf, tecnico
 
 bp = Blueprint('asistencia_movil', __name__)
 
 # Acciones del técnico que no exigen ubicación (entrar, cambiar clave, salir).
-SIN_UBICACION = {'form_pruebas.ingresar', 'form_pruebas.cambiar_clave', 'form_pruebas.salir'}
+SIN_UBICACION = {'form_pruebas.ingresar', 'form_pruebas.cambiar_clave', 'form_pruebas.salir',
+                 'asistencia_movil.actualizar_dataper'}
 EVENTOS = {
     'asistencia_movil.registrar': 'Asistencia', 'asistencia_movil.ubicacion': None,
     'caja_chica.portal_solicitar': 'Solicitud', 'form_pruebas.solicitar': 'Solicitud',
@@ -33,14 +35,25 @@ def exigir_asistencia_diaria():
     endpoint = request.endpoint or ''
     if (not doc or session.get('form_debe_cambiar') or not endpoint
             or not request.path.startswith('/form-pruebas')
-            or endpoint.startswith('asistencia_movil.') or endpoint in SIN_UBICACION):
+            or endpoint in SIN_UBICACION):
         return None
     if time.time() - session.get('form_login_at', 0) > 8 * 3600:
         session.pop('form_documento', None)
         session.pop('form_personal_id', None)
         return redirect(url_for('form_pruebas.inicio')) if request.method == 'GET' else (
             jsonify(error='Tu sesión venció. Vuelve a ingresar.'), 401)
-    if am.de_hoy(doc):
+    datos = perfil.leer(db.session.get(NucleusData, session.get('form_personal_id'))) if session.get('form_personal_id') else {}
+    g.perfil_mobile_foto = bool(datos.get('_foto_perfil_mobile'))
+    g.perfil_mobile_supervisor = perfil.es_supervisor(datos)
+    if session.get('form_verificar_dataper'):
+        if datos.get('_perfil_mobile_version') != perfil.VERSION:
+            destino = url_for('asistencia_movil.actualizar_dataper')
+            if request.method == 'GET':
+                return redirect(destino)
+            return jsonify(error='Actualiza tus datos en Dataper para continuar.',
+                           codigo='DATAPER_REQUERIDO', destino=destino), 428
+        session.pop('form_verificar_dataper', None)
+    if endpoint.startswith('asistencia_movil.') or g.perfil_mobile_supervisor or am.de_hoy(doc):
         return None
     destino = url_for('asistencia_movil.pantalla')
     if endpoint in ('form_pruebas.inicio', 'caja_chica.portal'):
@@ -78,6 +91,9 @@ def guardar_punto(respuesta):
 def pantalla():
     if not session.get('form_documento') or session.get('form_debe_cambiar'):
         return redirect(url_for('form_pruebas.inicio'))
+    fila = db.session.get(NucleusData, session['form_personal_id'])
+    if perfil.es_supervisor(perfil.leer(fila)):
+        return redirect(url_for('form_pruebas.inicio'))
     aviso = am.ultimo_rechazo(session['form_documento'])
     return render_template('asistencia_movil.html', csrf=csrf(), rechazo=aviso)
 
@@ -101,12 +117,53 @@ def estado():
 @tecnico
 def registrar():
     comprobar_csrf()
+    if perfil.es_supervisor(perfil.leer(db.session.get(NucleusData, g.tecnico['id']))):
+        return jsonify(error='Tu cargo está exento de marcar asistencia.'), 403
     try:
         registro = am.registrar(g.tecnico, request.form, request.files.get('foto'), request.headers.get('X-Dispositivo'))
     except ValueError as exc:
         db.session.rollback()
         return jsonify(error=str(exc)), 400
     return jsonify(success=True, registro=am.a_dict(registro))
+
+
+@bp.route('/form-pruebas/dataper', methods=['GET', 'POST'])
+@tecnico
+def actualizar_dataper():
+    fila = db.session.get(NucleusData, g.tecnico['id'], with_for_update=request.method == 'POST')
+    datos = perfil.leer(fila)
+    if datos.get('_perfil_mobile_version') == perfil.VERSION:
+        return redirect(url_for('form_pruebas.inicio'))
+    opciones = perfil.opciones(datos)
+    valores = perfil.valores(datos)
+    error = ''
+    if request.method == 'POST':
+        comprobar_csrf()
+        valores = {campo: request.form.get(campo, '') for campo in perfil.CAMPOS}
+        try:
+            perfil.guardar(fila, valores, opciones, request.files.get('foto'))
+        except ValueError as exc:
+            error = str(exc)
+        else:
+            return redirect(url_for('form_pruebas.inicio'))
+    return render_template('perfil_dataper.html', csrf=csrf(), campos=perfil.CAMPOS,
+                           valores=valores, opciones=opciones, requeridos=perfil.REQUERIDOS,
+                           proyecto=g.tecnico['proyecto'], hoy=am.ahora_peru().date().isoformat(),
+                           error=error), (400 if error else 200)
+
+
+@bp.get('/form-pruebas/dataper/foto')
+@tecnico
+def foto_perfil():
+    datos = perfil.leer(db.session.get(NucleusData, g.tecnico['id']))
+    nombre = datos.get('_foto_perfil_mobile', '')
+    if not re.fullmatch(r'perfil/[a-f0-9]{32}\.jpg', nombre):
+        abort(404)
+    try:
+        contenido = am.leer_foto(nombre)
+    except Exception:
+        abort(404)
+    return Response(contenido, mimetype='image/jpeg', headers={'Cache-Control': 'no-store, private'})
 
 
 @bp.post('/form-pruebas/ubicacion')

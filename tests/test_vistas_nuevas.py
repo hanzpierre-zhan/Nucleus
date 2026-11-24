@@ -5,7 +5,7 @@ import pytest
 from openpyxl import load_workbook
 
 from db import db
-from models import NucleusData, Proyecto
+from models import NucleusData, Proyecto, Usuario
 
 
 @pytest.fixture
@@ -19,6 +19,31 @@ def persona(app):
     yield fid
     with app.app_context():
         NucleusData.query.filter_by(id=fid).delete(); db.session.commit()
+
+
+def test_dataper_supervisor_completo_y_eliminar(app, auth_client, persona):
+    with app.app_context():
+        registro = db.session.get(NucleusData, persona)
+        datos = json.loads(registro.data_json)
+        registro.data_json = json.dumps({**datos, 'SUPERVISOR': 'Ana Rojas'})
+        usuario = Usuario(username='qa-supervisora-dataper', nombre='Ana María Rojas Pérez',
+                          rol='supervisor', password_hash='no-login')
+        db.session.add(usuario)
+        db.session.commit()
+        uid = usuario.id
+    try:
+        filas = auth_client.get('/api/vista/dataper/lista').json['filas']
+        assert next(f for f in filas if f['id'] == persona)['datos']['SUPERVISOR'] == 'Ana María Rojas Pérez'
+        excel = auth_client.post('/api/vista/dataper/exportar', json={'ids': [persona], 'columnas': ['SUPERVISOR']})
+        assert load_workbook(io.BytesIO(excel.data)).active['B2'].value == 'ANA MARÍA ROJAS PÉREZ'
+        respuesta = auth_client.post('/api/vista/dataper/eliminar', json={'keys': ['VN-71234567']})
+        assert respuesta.status_code == 200
+        with app.app_context():
+            assert db.session.get(NucleusData, persona) is None
+    finally:
+        with app.app_context():
+            db.session.delete(db.session.get(Usuario, uid))
+            db.session.commit()
 
 
 def test_lista_editar_y_exportar_dataper(app, auth_client, persona):

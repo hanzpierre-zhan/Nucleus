@@ -39,6 +39,7 @@ def cuadrilla(app, monkeypatch, tmp_path):
                         headers={'X-CSRF-Token': token}).status_code == 200
     with cliente.session_transaction() as s:
         token = s['form_csrf']
+        s.pop('form_verificar_dataper')
     yield cliente, {'X-CSRF-Token': token, 'X-Ubicacion': '-12.0464,-77.0428,12', 'X-Dispositivo': 'cel-1'}, ids
     with app.app_context():
         AsistenciaCuadrilla.query.filter_by(documento=DOC).delete()
@@ -51,6 +52,59 @@ def cuadrilla(app, monkeypatch, tmp_path):
 def _foto():
     b = io.BytesIO(); Image.new('RGB', (800, 600), (40, 90, 160)).save(b, 'JPEG'); b.seek(0)
     return (b, 'cuadrilla.jpg')
+
+
+def test_actualizar_dataper_en_mobile(app, cuadrilla):
+    cli, h, ids = cuadrilla
+    with cli.session_transaction() as sesion:
+        sesion['form_verificar_dataper'] = True
+    # Los nombres importados pueden contener espacios repetidos o no separables.
+    with app.app_context():
+        supervisor = db.session.get(NucleusData, ids['Supervisora Seis'])
+        ficha = json.loads(supervisor.data_json)
+        ficha['TECNICO'] = '  Supervisora\u00a0  Seis  '
+        supervisor.data_json = json.dumps(ficha)
+        db.session.commit()
+    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/dataper')
+    assert cli.get('/form-pruebas/asistencia').location.endswith('/form-pruebas/dataper')
+    assert b'capture="user"' in cli.get('/form-pruebas/dataper').data
+    datos = {
+        'PRIMER NOMBRE': 'Juan', 'APELLIDO PATERNO': 'Pérez', 'APELLIDO MATERNO': 'López',
+        'FECHA DE NACIMIENTO': '1998-07-03', 'CARGO': 'TÉCNICO JUNIOR',
+        'SUPERVISOR': 'SUPERVISORA SEIS', 'CELULAR': '999111222',
+        'NÚMERO DE EMERGENCIA': '988111222', 'CONTACTO DE EMERGENCIA': 'Ana Pérez',
+        'DEPARTAMENTO': 'LIMA', 'PROVINCIA': 'Lima', 'DISTRITO': 'Lima',
+    }
+    csrf_header = {'X-CSRF-Token': h['X-CSRF-Token']}
+    assert cli.post('/form-pruebas/dataper', headers=csrf_header, data=datos).status_code == 400
+    assert cli.post('/form-pruebas/dataper', headers=csrf_header,
+                    data={**datos, 'CARGO': 'SUPERVISOR', 'foto': _foto()}).status_code == 400
+    assert cli.post('/form-pruebas/dataper', data={**datos, 'foto': _foto()}).status_code == 403
+    assert cli.post('/form-pruebas/dataper', headers=csrf_header,
+                    data={**datos, 'foto': _foto()}).status_code == 302
+    with app.app_context():
+        fila = db.session.get(NucleusData, ids['Principal Uno'])
+        ficha = json.loads(fila.data_json)
+        assert ficha['APELLIDO PATERNO'] == 'PÉREZ'
+        assert ficha['DOCUMENTO'] == DOC and ficha['ESTADO'] == 'ACTIVO'
+        assert ficha['PROYECTO'] == 'FLM - CLARO'
+        assert ficha['CARGO'] == 'TÉCNICO JUNIOR'
+    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
+    assert cli.get('/form-pruebas/dataper/foto').mimetype == 'image/jpeg'
+    assert app.test_client().get('/form-pruebas/dataper/foto').status_code == 401
+    with cli.session_transaction() as sesion:
+        sesion['form_verificar_dataper'] = True
+    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/asistencia')
+    with cli.session_transaction() as sesion:
+        sesion['form_documento'] = '47770006'
+        sesion['form_personal_id'] = ids['Supervisora Seis']
+        sesion['form_verificar_dataper'] = True
+    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/dataper')
+    assert cli.post('/form-pruebas/dataper', headers=csrf_header,
+                    data={**datos, 'CARGO': 'SUPERVISOR', 'foto': _foto()}).status_code == 302
+    inicio = cli.get('/form-pruebas/')
+    assert inicio.status_code == 200 and b'foto-perfil-mobile' in inicio.data
+    assert b'asistencia-action' not in inicio.data
 
 
 def test_datos_y_juniors_del_mismo_proyecto(cuadrilla):

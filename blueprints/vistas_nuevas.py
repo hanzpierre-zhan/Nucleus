@@ -130,8 +130,12 @@ def lista(slug):
         filas.append({'id': rid, 'key': key, 'pestana': pestana, 'datos': visibles})
     columnas = _columnas(proyecto, filas)
     if slug == 'dataper':
-        from services.personal import FICHA_PERSONAL
-        principales = ['TECNICO', *FICHA_PERSONAL, 'REVISIÓN DEL NOMBRE']
+        from services.personal import FICHA_PERSONAL, resolver_supervisores
+        resolver = resolver_supervisores(f['datos'] for f in filas)
+        for fila in filas:
+            datos = fila['datos']
+            datos['SUPERVISOR'] = resolver(datos.get('SUPERVISOR', ''))
+        principales = ['TECNICO', *FICHA_PERSONAL, 'SUPERVISOR']
         columnas = principales + [c for c in columnas if c not in principales]
     clave = MODULOS[slug][5]
     # La columna clave va siempre primero, aunque el diseño guardado del módulo la tenga oculta.
@@ -163,6 +167,16 @@ def agregar(slug):
     return api_rows_add()
 
 
+@bp.post('/api/vista/dataper/eliminar')
+@login_required
+def eliminar_dataper():
+    if _rol() not in ('zeno', 'suport', 'supervisor'):
+        abort(403)
+    _fijar_modulo('dataper')
+    from blueprints.rows import api_rows_delete
+    return api_rows_delete()
+
+
 @bp.post('/api/vista/<slug>/exportar')
 @login_required
 def exportar(slug):
@@ -177,6 +191,11 @@ def exportar(slug):
         return jsonify(error='Selecciona registros válidos para exportar.'), 400
     proyecto = _modulo(slug)
     elegidos = set(ids)
+    resolver = None
+    if slug == 'dataper' and 'SUPERVISOR' in columnas:
+        from services.personal import resolver_supervisores
+        padron = NucleusData.query.filter_by(proyecto_id=proyecto.id).with_entities(NucleusData.data_json)
+        resolver = resolver_supervisores(json.loads(crudo or '{}') for crudo, in padron)
     libro = Workbook()
     hoja = libro.active
     hoja.title = MODULOS[slug][1][:30]
@@ -187,6 +206,8 @@ def exportar(slug):
         if slug == 'dataper':
             from services.personal import presentar_ficha
             fila = presentar_ficha(fila)
+            if resolver:
+                fila['SUPERVISOR'] = resolver(fila.get('SUPERVISOR', ''))
         valores = [key, *(fila.get(c, '') for c in columnas)]
         if slug == 'dataper':
             valores = [str(v).upper() if v is not None else '' for v in valores]
