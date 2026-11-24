@@ -370,13 +370,11 @@
 
     {% if proy_nombre == 'combustible' %}
 
-    {% set _proy_generadores = (proyectos_list | selectattr('nombre', 'equalto', 'Generadores') | list | first) %}
+    {% set _proy_generadores = (proyectos_list | selectattr('nombre', 'equalto', 'Abastecimiento') | list | first) %}
 
     {% if _proy_generadores %}
 
-    <!-- Botón Generadores (Azul): los generadores se ven dentro de Combustible -->
-
-    <a href="/switch_project/{{ _proy_generadores.id }}?next=/" class="action-pill pill-blue" title="Ver los generadores">
+    <a href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores') }}" class="action-pill pill-blue" title="Ver los generadores">
 
         <i class="fa-solid fa-bolt" aria-hidden="true"></i><span class="pill-txt"> Generadores</span>
 

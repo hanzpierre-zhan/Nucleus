@@ -24,6 +24,19 @@
 .ab-largo { grid-column: 1 / -1; }
 .ab-qr { display: grid; gap: 8px; justify-items: center; margin: 12px 0; }
 .ab-qr img { width: min(100%, 360px); border-radius: 8px; }
+.ab-tab-gestora { --cc-color: #2563eb; }
+.ab-tab-parque { --cc-color: #7c3aed; }
+.ab-tab-llenado { --cc-color: #a54b0c; }
+.ab-tab-recarga { --cc-color: #14804a; }
+.ab-tab-generadores { --cc-color: #0e7490; }
+.cc-gestion[aria-label="Abastecimiento"] :is(.cc-tab, .cn-redondo) { text-decoration: none; }
+.cc-gestion[aria-label="Abastecimiento"] .cc-tab:not(.activa) {
+  background: color-mix(in srgb, var(--cc-color) 15%, transparent);
+}
+.ab-tabla-wrap { overflow: auto; margin-top: 14px; }
+.ab-tabla { width: 100%; min-width: 760px; border-collapse: collapse; text-align: left; }
+.ab-tabla :is(th, td) { padding: 9px 12px; border-bottom: 1px solid var(--ios-hairline, #8798ab); }
+.ab-tabla th { background: var(--ios-fill, #273140); }
 .ab-prueba {
   box-sizing: border-box;
   width: min(420px, calc(100vw - 24px));

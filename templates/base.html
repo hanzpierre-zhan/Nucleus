@@ -119,9 +119,6 @@
                 {% if proyectos_list | selectattr('nombre', 'equalto', 'Abastecimiento') | list %}
                 <a href="{{ url_for('vistas_nuevas.abastecimiento') }}" class="sidebar-link {% if request.endpoint == 'vistas_nuevas.abastecimiento' %}active{% endif %}" title="Abastecimiento"><i class="fa-solid fa-truck-ramp-box"></i><span class="sidebar-link-text">Abastecimiento</span></a>
                 {% endif %}
-                {% for p in proyectos_list %}{% if p.nombre == 'Generadores' %}
-                <a href="/switch_project/{{ p.id }}?next=/" class="sidebar-link {% if request.path == '/' and p.id == session.get('current_proyecto_id') %}active{% endif %}" title="Generadores"><i class="fa-solid fa-bolt"></i><span class="sidebar-link-text">Generadores</span></a>
-                {% endif %}{% endfor %}
                 {# Caja Chica es un módulo aislado (tablas propias): no pasa por switch_project. #}
                 {% for p in proyectos_list %}{% if p.nombre == 'Caja Chica' %}
                 <a href="/caja-chica/" class="sidebar-link {% if request.path.startswith('/caja-chica') %}active{% endif %}" data-nav="/caja-chica/" title="Caja Chica"><i class="fa-solid fa-cash-register"></i><span class="sidebar-link-text">Caja Chica</span></a>

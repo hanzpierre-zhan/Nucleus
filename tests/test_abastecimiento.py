@@ -1,11 +1,44 @@
 import io
+import json
 import time
 
 from PIL import Image
 
 from blueprints import asistencia_movil, formularios_prueba
 from db import db
-from models import AbastecimientoSolicitud, AccesoProyecto, Proyecto, Usuario
+from models import AbastecimientoSolicitud, AccesoProyecto, NucleusData, Proyecto, Usuario
+
+
+def test_generadores_reutiliza_catalogo_y_edita(app, auth_client):
+    pagina = auth_client.get('/abastecimiento/?estado=generadores')
+    assert pagina.status_code == 200 and b'Tabla de generadores' in pagina.data
+    with auth_client.session_transaction() as ses:
+        headers = {'X-CSRF-Token': ses['form_csrf']}
+    ruta = '/abastecimiento/generadores/guardar'
+    datos = {'QR ASIGNADO': 'QA-QR-G1', 'SERIE DE EQUIPO': '000113', 'ZONA': 'CENTRO',
+             'TIPO': 'CLIENTE', 'PROYECTO': 'CLARO'}
+    try:
+        assert auth_client.post(ruta, headers=headers, data=datos).status_code == 200
+        assert auth_client.post(ruta, headers=headers, data=datos).status_code == 400
+        with app.app_context():
+            pid = Proyecto.query.filter_by(nombre='Generadores').one().id
+            fila = NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.data_json.contains('QA-QR-G1')).one()
+            datos_guardados = json.loads(fila.data_json)
+            assert datos_guardados['SERIE DE EQUIPO'] == '000113'
+            datos_guardados['CAMPO ANTERIOR'] = 'conservar'
+            fila.data_json = json.dumps(datos_guardados)
+            registro = fila.id
+            db.session.commit()
+        assert b'QA-QR-G1' in auth_client.get(f'/abastecimiento/?estado=generadores&editar={registro}').data
+        assert auth_client.post(ruta, headers=headers, data={**datos, 'registro': registro, 'TIPO': 'ALQUILADO'}).status_code == 200
+        with app.app_context():
+            ficha = json.loads(db.session.get(NucleusData, registro).data_json)
+            assert ficha['CAMPO ANTERIOR'] == 'conservar' and ficha['TIPO'] == 'ALQUILADO'
+    finally:
+        with app.app_context():
+            pid = Proyecto.query.filter_by(nombre='Generadores').one().id
+            NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.data_json.contains('QA-QR-G1')).delete(synchronize_session=False)
+            db.session.commit()
 
 
 def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypatch):

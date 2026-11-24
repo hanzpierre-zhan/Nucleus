@@ -54,7 +54,8 @@ for (const formulario of document.querySelectorAll('.ab-form')) {
       }
       if (!respuesta.ok || !resultado.ok) throw Error(resultado.error || 'No se pudo guardar. Actualiza la página y vuelve a intentar.');
       if (window.parent !== window) window.parent.postMessage('abastecimiento-prueba-guardada', location.origin);
-      window.location.reload();
+      if (resultado.destino) window.location.assign(resultado.destino);
+      else window.location.reload();
     } catch (error) {
       aviso.textContent = error.message;
       aviso.hidden = false;

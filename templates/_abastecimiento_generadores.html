@@ -1,0 +1,44 @@
+{% set ficha = ficha or {} %}
+<details class="ab-pedido"{% if editar %} open{% endif %}>
+  <summary><strong>{{ 'Editar generador' if editar else 'Registrar generador' }}</strong></summary>
+  <form class="ab-form" method="post" action="{{ url_for('abastecimiento.guardar_generador') }}">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% if editar %}<input type="hidden" name="registro" value="{{ editar }}">{% endif %}
+    <div class="ab-campos">
+      {% for campo, etiqueta in [('QR ASIGNADO', 'QR asignado'), ('SERIE DE EQUIPO', 'Serie del equipo'), ('ZONA', 'Zona'), ('TIPO DE COMBUSTIBLE', 'Tipo de combustible'), ('TECNICO ASIGNADO', 'Técnico asignado')] %}
+      <label>{{ etiqueta }}<input name="{{ campo }}" value="{{ ficha.get(campo, '') }}" maxlength="150"{% if loop.index <= 3 %} required{% endif %}></label>
+      {% endfor %}
+      <label>Tipo de propiedad
+        <select name="TIPO" required>
+          <option value="">Selecciona</option>
+          {% set anterior = ficha.get('TIPO') %}
+          {% if anterior and anterior not in tipos %}<option selected>{{ anterior }}</option>{% endif %}
+          {% for tipo in tipos %}<option value="{{ tipo }}"{% if anterior == tipo %} selected{% endif %}>{{ tipo|capitalize }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Proyecto
+        <select name="PROYECTO" required>
+          <option value="">Selecciona</option>
+          {% for proyecto in proyectos %}<option value="{{ proyecto }}"{% if proyecto in (ficha.get('PROYECTO') or ficha.get('Proyecto') or '')|upper %} selected{% endif %}>FLM - {{ proyecto }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <p data-error role="alert" hidden></p>
+    <div class="ab-acciones"><button type="submit" class="cc-btn">Guardar generador</button>
+    {% if editar %}<a href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores') }}">Cancelar</a>{% endif %}</div>
+  </form>
+</details>
+<div class="ab-tabla-wrap" tabindex="0" role="region" aria-label="Tabla de generadores">
+  <table class="ab-tabla">
+    <thead><tr><th scope="col">Acciones</th>{% for campo in ['QR asignado', 'Serie del equipo', 'Zona', 'Tipo de propiedad', 'Tipo de combustible', 'Técnico asignado', 'Proyecto'] %}<th scope="col">{{ campo }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for id, datos in generadores.items() %}
+      <tr>
+        <td><a class="cn-redondo cn-azul" href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores', editar=id) }}" title="Editar generador" aria-label="Editar generador {{ datos.get('QR ASIGNADO', id) }}"><i class="fa-solid fa-pen" aria-hidden="true"></i></a></td>
+        {% for campo in campos %}<td>{{ datos.get(campo) or (datos.get('Proyecto') if campo == 'PROYECTO' else '') or '—' }}</td>{% endfor %}
+      </tr>
+      {% else %}<tr><td colspan="8">No hay generadores registrados en tus proyectos.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

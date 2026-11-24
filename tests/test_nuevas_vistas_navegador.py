@@ -30,13 +30,19 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pagina.route('**/api/perfil-personal', lambda ruta: ruta.fulfill(
                 json={'perfil': {'fecha_nacimiento': '1990-02-01'}, 'cumpleanos': []}))
             pagina.goto(servidor + '/abastecimiento/', wait_until='domcontentloaded')
+            validacion = pagina.get_by_role('link', name='Validación', exact=True)
+            qr = pagina.get_by_role('link', name='Generación QR', exact=True)
+            pw.expect(validacion).to_have_css('text-decoration-line', 'none')
+            assert validacion.evaluate("e => getComputedStyle(e).getPropertyValue('--cc-color')") != qr.evaluate(
+                "e => getComputedStyle(e).getPropertyValue('--cc-color')")
+            assert pagina.locator('#ab-abrir-prueba .fa-mobile-screen-button').count() == 1
             pagina.get_by_role('link', name='Registrar pedido de prueba').click()
             modal = pagina.get_by_role('dialog', name='Abastecimiento · Vista del técnico')
             pw.expect(modal).to_be_visible()
             pantalla = modal.frame_locator('iframe')
             pw.expect(pantalla.get_by_text('Modo de prueba · Técnico simulado')).to_be_visible()
             assert modal.bounding_box()['width'] <= 420
-            pantalla.get_by_label('Tipo de pedido').select_option('generador')
+            pantalla.get_by_label('Tipo de pedido').select_option('generador', timeout=5000)
             pw.expect(pantalla.get_by_label('Código o serie del generador')).to_be_visible()
             modal.get_by_role('button', name='Cerrar vista de prueba').click()
             pw.expect(modal).to_be_hidden()

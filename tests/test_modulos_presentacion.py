@@ -37,7 +37,7 @@ def test_sites_y_mapa_son_un_solo_modulo(app, auth_client):
     assert b'class="sidebar-link active"' in mapa.data
 
 
-def test_combustible_en_backup_y_generadores_en_modulos(app, auth_client, client):
+def test_combustible_en_backup_y_generadores_en_abastecimiento(app, auth_client, client):
     from db import db
     from models import AccesoProyecto, Usuario
     with app.app_context():
@@ -55,15 +55,15 @@ def test_combustible_en_backup_y_generadores_en_modulos(app, auth_client, client
         assert pagina.data.count(b'<span class="sidebar-link-text">Combustible</span>') == 1
         backup = pagina.data.split(b'data-grupo="backup-config"', 1)[1]
         assert b'href="/vista/combustible/"' in backup
-        assert b'<span class="sidebar-link-text">Generadores</span>' in pagina.data.split(b'data-grupo="backup-config"', 1)[0]
-        assert auth_client.get('/switch_project/%d?next=/' % gen, follow_redirects=True).status_code == 200
-        with auth_client.session_transaction() as ses:
-            assert ses.get('current_proyecto_id') == gen
+        assert b'<span class="sidebar-link-text">Generadores</span>' not in pagina.data
+        destino = auth_client.get('/switch_project/%d?next=/' % gen)
+        assert destino.location.endswith('/abastecimiento/?estado=generadores')
+        assert auth_client.get(destino.location).status_code == 200
         with client.session_transaction() as ses:
             ses.update({'user_id': uid, 'username': 'gestor-comb-gen', 'rol': 'gestor',
                         'current_proyecto_id': flm, 'current_proyecto_nombre': 'FLM - CLARO'})
         pagina = client.get('/')
-        assert b'<span class="sidebar-link-text">Generadores</span>' in pagina.data
+        assert b'<span class="sidebar-link-text">Generadores</span>' not in pagina.data
         assert b'<span class="sidebar-link-text">Combustible</span>' not in pagina.data
         assert client.get('/vista/combustible/').status_code == 403
         assert client.get('/abastecimiento/').status_code == 403
@@ -78,4 +78,6 @@ def test_abastecimiento_aparece_en_modulos(auth_client):
     pagina = auth_client.get('/abastecimiento/')
     assert pagina.status_code == 200
     assert b'href="/abastecimiento/" class="sidebar-link active"' in pagina.data
-    assert b'id="abastecimiento-titulo"' in pagina.data
+    assert b'fa-mobile-screen-button' in pagina.data
+    assert b'?estado=generadores' in pagina.data
+    assert b'id="abastecimiento-titulo"' not in pagina.data

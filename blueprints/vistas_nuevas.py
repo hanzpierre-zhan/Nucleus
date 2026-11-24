@@ -7,7 +7,7 @@ import io
 import json
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, abort, jsonify, render_template, request, send_file, session
+from flask import Blueprint, abort, jsonify, render_template, request, send_file, session, url_for
 
 from models import AccesoProyecto, AppConfig, NucleusData, Proyecto
 from services import get_menu_proyectos, login_required
@@ -98,9 +98,8 @@ def pagina(slug):
     _, titulo, icono, _, _, clave, suma, unidad = MODULOS[slug]
     rol = _rol()
     menu = get_menu_proyectos(session.get('user_id'), session.get('rol'))
-    # Generadores vive dentro de Combustible: se entra desde su tuerca.
-    extras = [('Generadores', '/switch_project/%d?next=/' % p.id, 'fa-bolt') for p in menu
-              if slug == 'combustible' and p.nombre == 'Generadores']
+    extras = [('Generadores', url_for('vistas_nuevas.abastecimiento', estado='generadores'), 'fa-bolt')
+              for p in menu if slug == 'combustible' and p.nombre == 'Abastecimiento']
     return render_template('vista_nueva.html', slug=slug, titulo=titulo, icono=icono, proyecto_id=proyecto.id,
                            pestanas=_pestanas(slug), campo_clave=clave, unidad=unidad, suma=suma or '',
                            puede_editar=rol not in ('demo', 'contrata') and (slug != 'sites' or rol in ('zeno', 'suport', 'supervisor')),

@@ -1,6 +1,8 @@
 """Solicitudes y evidencias de combustible en gestión y Nucleus Mobile."""
 import io
+import json
 import re
+from uuid import uuid4
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -9,7 +11,7 @@ from PIL import Image, ImageOps
 
 from blueprints.formularios_prueba import comprobar_csrf, csrf, habilitado, tecnico
 from db import db
-from models import AbastecimientoFoto, AbastecimientoSolicitud as Solicitud, Proyecto
+from models import AbastecimientoFoto, AbastecimientoSolicitud as Solicitud, NucleusData, Proyecto
 from services import get_menu_proyectos, login_required
 from services.recursos_flm import familia
 from services.utilidades import ahora_peru
@@ -25,6 +27,9 @@ FOTOS_RECARGA = {'antes_recarga': 'Antes de la recarga en el site', 'despues_rec
 FOTOS = {'qr': 'Código QR', **FOTOS_LLENADO, **FOTOS_RECARGA}
 CERO = Decimal('0.00')
 PROYECTOS_PRUEBA = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
+TIPOS_GENERADOR = ('PROPIO', 'ALQUILADO', 'CLIENTE', 'OTRO')
+CAMPOS_GENERADOR = ('QR ASIGNADO', 'SERIE DE EQUIPO', 'ZONA', 'TIPO',
+                    'TIPO DE COMBUSTIBLE', 'TECNICO ASIGNADO', 'PROYECTO')
 
 
 def cantidad(valor, etiqueta, minimo=CERO):
@@ -84,11 +89,22 @@ def gestion():
     menu, rol, proyectos = alcance()
     pestañas = {k: v for k, v in ESTADOS.items() if k != 'cerrado'
                 and (k != 'gestora' or rol != 'supervisor') and (k != 'parque' or rol != 'gestor')}
+    pestañas['generadores'] = 'Generadores'
     estado = request.args.get('estado', next(iter(pestañas)))
     if estado == 'cerrado':
         return redirect(url_for('vistas_nuevas.abastecimiento', estado='recarga'))
     if estado not in pestañas:
         abort(404)
+    if estado == 'generadores':
+        filas = generadores_visibles(rol, proyectos)
+        editar = request.args.get('editar', type=int)
+        ficha = filas.get(editar)
+        if editar is not None and ficha is None:
+            abort(404)
+        return render_template('abastecimiento.html', proyectos_list=menu, estado=estado, pestañas=pestañas,
+                               csrf=csrf(), generadores=filas, ficha=ficha, editar=editar,
+                               campos=CAMPOS_GENERADOR, tipos=TIPOS_GENERADOR,
+                               proyectos=PROYECTOS_PRUEBA if rol in ADMIN else sorted(proyectos))
     estados_visibles = ('recarga', 'cerrado') if estado == 'recarga' else (estado,)
     consulta = Solicitud.query.filter(Solicitud.estado.in_(estados_visibles))
     if rol not in ADMIN:
@@ -102,6 +118,59 @@ def bloquear_cambios():
     # Serializa altas y transiciones, incluso antes de que exista saldo para la unidad.
     db.session.execute(db.update(Proyecto).where(Proyecto.nombre == 'Abastecimiento')
                        .values(descripcion=Proyecto.descripcion))
+
+
+def modulo_generadores():
+    return Proyecto.query.filter_by(nombre='Generadores').first_or_404()
+
+
+def fichas_generadores():
+    for fila in NucleusData.query.filter_by(proyecto_id=modulo_generadores().id).order_by(NucleusData.id.desc()):
+        try:
+            datos = json.loads(fila.data_json)
+        except ValueError:
+            continue
+        if isinstance(datos, dict):
+            yield fila, datos
+
+
+def generadores_visibles(rol, proyectos):
+    return {fila.id: datos for fila, datos in fichas_generadores()
+            if rol in ADMIN or familia(datos.get('PROYECTO') or datos.get('Proyecto')) in proyectos}
+
+
+@bp.post('/abastecimiento/generadores/guardar')
+@login_required
+def guardar_generador():
+    comprobar_csrf()
+    _, rol, proyectos = alcance()
+    bloquear_cambios()
+    registro_id = request.form.get('registro', type=int)
+    fichas = list(fichas_generadores())
+    fila, anterior = next(((fila, datos) for fila, datos in fichas if fila.id == registro_id), (None, {}))
+    if request.form.get('registro') and (fila is None or
+            (rol not in ADMIN and familia(anterior.get('PROYECTO') or anterior.get('Proyecto')) not in proyectos)):
+        abort(404)
+    datos = {campo: request.form.get(campo, '').strip()[:150] for campo in CAMPOS_GENERADOR}
+    datos['TIPO'] = datos['TIPO'].upper()
+    qr = datos['QR ASIGNADO']
+    if not qr or not datos['SERIE DE EQUIPO'] or not datos['ZONA']:
+        return error(ValueError('Completa el QR, la serie y la zona.'))
+    if datos['TIPO'] not in TIPOS_GENERADOR and (not datos['TIPO'] or datos['TIPO'] != str(anterior.get('TIPO', '')).upper()):
+        return error(ValueError('Selecciona el tipo de propiedad.'))
+    seleccion = familia(datos['PROYECTO'])
+    if seleccion not in (PROYECTOS_PRUEBA if rol in ADMIN else proyectos):
+        return error(ValueError('Selecciona uno de tus proyectos autorizados.'))
+    if qr.casefold() != str(anterior.get('QR ASIGNADO', '')).strip().casefold() and any(
+            qr.casefold() == str(otra.get('QR ASIGNADO', '')).strip().casefold() for _, otra in fichas):
+        return error(ValueError('Ese QR ya está asignado a un generador.'))
+    datos['PROYECTO'] = f'FLM - {seleccion}'
+    if fila is None:
+        fila = NucleusData(proyecto_id=modulo_generadores().id, key_value='GEN-' + uuid4().hex)
+        db.session.add(fila)
+    fila.data_json = json.dumps({**anterior, **datos}, ensure_ascii=False)
+    db.session.commit()
+    return jsonify(ok=True, destino=url_for('vistas_nuevas.abastecimiento', estado='generadores'))
 
 
 def unidad_libre(unidad, excluir=None):

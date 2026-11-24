@@ -4,24 +4,23 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=6">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=2) }}">
 <section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
   <div class="cc-barra">
     <nav class="cc-tabs" aria-label="Secciones de Abastecimiento">
       {% for clave, etiqueta in pestañas.items() %}
-      <a href="{{ url_for('vistas_nuevas.abastecimiento', estado=clave) }}" class="cc-tab {{ 'activa' if clave == estado }}"{% if clave == estado %} aria-current="page"{% endif %} style="--cc-color: #2563eb">
+      <a href="{{ url_for('vistas_nuevas.abastecimiento', estado=clave) }}" class="cc-tab ab-tab-{{ clave }} {{ 'activa' if clave == estado }}"{% if clave == estado %} aria-current="page"{% endif %}>
         <span class="cc-tab-fila">{{ etiqueta }}</span>
       </a>
       {% endfor %}
     </nav>
     {% if puede_probar %}
-    <a id="ab-abrir-prueba" href="{{ url_for('abastecimiento.prueba_tecnico') }}" class="cc-btn" aria-haspopup="dialog"><i class="fa-solid fa-flask" aria-hidden="true"></i> Registrar pedido de prueba</a>
+    <a id="ab-abrir-prueba" href="{{ url_for('abastecimiento.prueba_tecnico') }}" class="cn-redondo cn-azul" aria-haspopup="dialog" aria-label="Registrar pedido de prueba" title="Registrar pedido de prueba"><i class="fa-solid fa-mobile-screen-button" aria-hidden="true"></i></a>
     {% endif %}
-    {% for p in proyectos_list if p.nombre == 'Generadores' %}
-    <a href="/switch_project/{{ p.id }}?next=/" class="cn-redondo cn-azul" title="Abrir Generadores" aria-label="Abrir Generadores"><i class="fa-solid fa-bolt" aria-hidden="true"></i></a>
-    {% endfor %}
   </div>
-  <h1 id="abastecimiento-titulo">Abastecimiento</h1>
+  {% if estado == 'generadores' %}
+  {% include '_abastecimiento_generadores.html' %}
+  {% else %}
   <div class="ab-lista">
   {% for sol in filas %}
     <details class="ab-pedido">
@@ -66,6 +65,7 @@
     <p class="cc-vacio">No hay pedidos en esta etapa.</p>
   {% endfor %}
   </div>
+  {% endif %}
 </section>
 {% if puede_probar %}
 <dialog id="ab-prueba" class="ab-prueba" aria-labelledby="ab-prueba-titulo">
@@ -78,5 +78,5 @@
   <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile"></iframe>
 </dialog>
 {% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=3) }}" defer></script>
 {% endblock %}
