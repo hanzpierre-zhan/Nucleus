@@ -22,8 +22,25 @@
 }
 .ab-acciones { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
 .ab-largo { grid-column: 1 / -1; }
-.ab-qr { display: grid; gap: 8px; justify-items: center; margin: 12px 0; }
-.ab-qr img { width: min(100%, 360px); border-radius: 8px; }
+.ab-ver-qr { display: block; text-align: center; text-decoration: none; }
+.ab-alerta { color: var(--ios-label, inherit); background: #d9770633; border-radius: 6px; padding: 3px 6px; }
+.ab-qr-completo {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  padding: 52px 12px 12px;
+  box-sizing: border-box;
+  background: #fff;
+}
+.ab-qr-completo[open] { display: grid; place-items: center; }
+.ab-qr-completo img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.ab-qr-completo form { position: absolute; top: 8px; right: 12px; }
+.ab-cerrar-qr { width: 40px; height: 40px; background: #1e293b; color: #fff; border: 0; border-radius: 50%; font-size: 24px; cursor: pointer; }
 .ab-tab-gestora { --cc-color: #2563eb; }
 .ab-tab-parque { --cc-color: #7c3aed; }
 .ab-tab-llenado { --cc-color: #a54b0c; }

@@ -5,9 +5,18 @@
     <input type="hidden" name="csrf" value="{{ csrf }}">
     {% if editar %}<input type="hidden" name="registro" value="{{ editar }}">{% endif %}
     <div class="ab-campos">
-      {% for campo, etiqueta in [('QR ASIGNADO', 'QR asignado'), ('SERIE DE EQUIPO', 'Serie del equipo'), ('ZONA', 'Zona'), ('TIPO DE COMBUSTIBLE', 'Tipo de combustible'), ('TECNICO ASIGNADO', 'Técnico asignado')] %}
-      <label>{{ etiqueta }}<input name="{{ campo }}" value="{{ ficha.get(campo, '') }}" maxlength="150"{% if loop.index <= 3 %} required{% endif %}></label>
+      {% for campo, etiqueta in [('QR ASIGNADO', 'QR asignado'), ('SERIE DE EQUIPO', 'Serie del equipo'), ('ZONA', 'Zona')] %}
+      <label>{{ etiqueta }}<input name="{{ campo }}" value="{{ ficha.get(campo, '') }}" maxlength="150" required></label>
       {% endfor %}
+      <label>Tipo de combustible
+        <select name="TIPO DE COMBUSTIBLE">
+          <option value="">Selecciona</option>
+          {% set actual = (ficha.get('TIPO DE COMBUSTIBLE') or '')|trim|upper %}
+          {% set actual = {'PETROLEO': 'PETRÓLEO', 'DIESEL': 'DIÉSEL'}.get(actual, actual) %}
+          {% if actual and actual not in combustibles %}<option selected>{{ actual }}</option>{% endif %}
+          {% for combustible in combustibles %}<option value="{{ combustible }}"{% if actual == combustible %} selected{% endif %}>{{ combustible|capitalize }}</option>{% endfor %}
+        </select>
+      </label>
       <label>Tipo de propiedad
         <select name="TIPO" required>
           <option value="">Selecciona</option>
@@ -19,7 +28,7 @@
       <label>Proyecto
         <select name="PROYECTO" required>
           <option value="">Selecciona</option>
-          {% for proyecto in proyectos %}<option value="{{ proyecto }}"{% if proyecto in (ficha.get('PROYECTO') or ficha.get('Proyecto') or '')|upper %} selected{% endif %}>FLM - {{ proyecto }}</option>{% endfor %}
+          {% for proyecto in proyectos %}<option value="{{ proyecto }}"{% if proyecto in (ficha.get('PROYECTO') or ficha.get('Proyecto') or '')|upper %} selected{% endif %}>FLM - {{ proyecto if proyecto == 'PEXT' else proyecto|capitalize }}</option>{% endfor %}
         </select>
       </label>
     </div>
@@ -30,14 +39,14 @@
 </details>
 <div class="ab-tabla-wrap" tabindex="0" role="region" aria-label="Tabla de generadores">
   <table class="ab-tabla">
-    <thead><tr><th scope="col">Acciones</th>{% for campo in ['QR asignado', 'Serie del equipo', 'Zona', 'Tipo de propiedad', 'Tipo de combustible', 'Técnico asignado', 'Proyecto'] %}<th scope="col">{{ campo }}</th>{% endfor %}</tr></thead>
+    <thead><tr><th scope="col">Acciones</th>{% for campo in ['QR asignado', 'Serie del equipo', 'Zona', 'Tipo de propiedad', 'Tipo de combustible', 'Proyecto'] %}<th scope="col">{{ campo }}</th>{% endfor %}</tr></thead>
     <tbody>
       {% for id, datos in generadores.items() %}
       <tr>
         <td><a class="cn-redondo cn-azul" href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores', editar=id) }}" title="Editar generador" aria-label="Editar generador {{ datos.get('QR ASIGNADO', id) }}"><i class="fa-solid fa-pen" aria-hidden="true"></i></a></td>
         {% for campo in campos %}<td>{{ datos.get(campo) or (datos.get('Proyecto') if campo == 'PROYECTO' else '') or '—' }}</td>{% endfor %}
       </tr>
-      {% else %}<tr><td colspan="8">No hay generadores registrados en tus proyectos.</td></tr>
+      {% else %}<tr><td colspan="7">No hay generadores registrados en tus proyectos.</td></tr>
       {% endfor %}
     </tbody>
   </table>

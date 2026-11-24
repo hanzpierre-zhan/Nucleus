@@ -4,8 +4,8 @@
 </label>
 {% endmacro %}
 
-{% macro pedido(datos, galones='') %}
-<div class="ab-campos">
+{% macro pedido(datos, galones='', zonas=(), combustibles={}, catalogo='', proyecto='', sufijo='mobile') %}
+<div class="ab-campos" data-pedido data-catalogo="{{ catalogo }}" data-proyecto="{{ proyecto }}">
   <label>Tipo de pedido
     <select name="tipo" required>
       <option value="vehiculo"{% if datos.get('tipo') == 'vehiculo' %} selected{% endif %}>Vehículo</option>
@@ -13,26 +13,49 @@
     </select>
   </label>
   {{ campo(datos, 'fecha', 'Fecha', true, 'date') }}
-  {{ campo(datos, 'zona', 'Zona de trabajo', true) }}
-  {{ campo(datos, 'site', 'Site', true) }}
+  {% set zona = (datos.get('zona') or '')|upper %}
+  <label>Zona de trabajo
+    <select name="zona" required>
+      <option value="">Selecciona</option>
+      {% if zona and zona not in zonas|map('upper')|list %}<option selected>{{ zona }}</option>{% endif %}
+      {% for opcion in zonas %}<option value="{{ opcion|upper }}"{% if zona == opcion|upper %} selected{% endif %}>{{ opcion }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Site
+    <input name="site" value="{{ datos.get('site', '') }}" list="ab-sites-{{ sufijo }}" autocomplete="off" required>
+    <datalist id="ab-sites-{{ sufijo }}"></datalist>
+    {% if catalogo %}<small>Busca por nombre o código. Si no aparece, escribe el site para que lo revise la gestora.</small>{% endif %}
+  </label>
   {{ campo(datos, 'codigo', 'Código único del site') }}
-  {{ campo(datos, 'cm', 'CM', true) }}
-  {{ campo(datos, 'plm', 'PLM', true) }}
+  {% for ticket in ('CM', 'PLM') %}
+  <label>{{ ticket }}
+    <input name="{{ ticket|lower }}" value="{{ datos.get(ticket|lower, '') }}" placeholder="{{ ticket }}-AAAAMMDD-00000000" autocomplete="off" autocapitalize="characters" required
+      {% if sufijo == 'mobile' %}pattern="{{ ticket }}-[0-9]{8}-[0-9]{8}" title="{{ ticket }}-AAAAMMDD-00000000"{% endif %}>
+  </label>
+  {% endfor %}
   {{ campo(datos, 'pm', 'PM') }}
   {{ campo(datos, 'gep', 'Referencia GEP') }}
   <label>Tipo de combustible
     <select name="combustible" required>
       <option value="">Selecciona</option>
-      {% for clave, etiqueta in [('diesel', 'Diésel (petróleo)'), ('gasolina', 'Gasolina'), ('otro', 'Otro')] %}
+      {% if datos.get('combustible') and datos.combustible not in combustibles %}<option value="{{ datos.combustible }}" selected>{{ datos.otro_combustible or datos.combustible }}</option>{% endif %}
+      {% for clave, etiqueta in combustibles.items() %}
       <option value="{{ clave }}"{% if datos.get('combustible') == clave %} selected{% endif %}>{{ etiqueta }}</option>
       {% endfor %}
     </select>
   </label>
-  <div data-combustible-otro>{{ campo(datos, 'otro_combustible', 'Especifica el combustible') }}</div>
+  {% if datos.get('combustible') == 'otro' %}<input type="hidden" name="otro_combustible" value="{{ datos.otro_combustible }}">{% endif %}
   <div data-unidad="vehiculo">{{ campo(datos, 'placa', 'Placa del vehículo', true) }}</div>
   <div data-unidad="vehiculo">{{ campo(datos, 'km_inicial', 'Kilometraje inicial', false, 'number') }}</div>
   <div data-unidad="vehiculo">{{ campo(datos, 'km_final', 'Kilometraje final', false, 'number') }}</div>
-  <div data-unidad="generador">{{ campo(datos, 'generador', 'Código o serie del generador', true) }}</div>
+  <div data-unidad="generador">
+    <label>Generador registrado
+      <select name="generador" required>
+        <option value="">Selecciona un generador</option>
+        {% if datos.get('generador') %}<option selected value="{{ datos.generador }}">{{ datos.generador }}{% if datos.get('generador_serie') %} · {{ datos.generador_serie }}{% endif %}</option>{% endif %}
+      </select>
+    </label>
+  </div>
   {{ campo(datos, 'tipo_unidad', 'Tipo de unidad') }}
   <label>Galones solicitados <input name="galones" type="number" min="0.01" step="0.01" value="{{ galones }}" required></label>
   {{ campo(datos, 'equipo', 'Técnicos que harán el trabajo') }}

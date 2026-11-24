@@ -4,7 +4,7 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=6">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=2) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=3) }}">
 <section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
   <div class="cc-barra">
     <nav class="cc-tabs" aria-label="Secciones de Abastecimiento">
@@ -25,13 +25,16 @@
   <div class="ab-lista">
   {% for sol in filas %}
     <details class="ab-pedido">
-      <summary>{% if sol.tecnico_id < 0 %}<strong>PRUEBA · </strong>{% endif %}<strong>Pedido #{{ sol.id }} · {{ sol.datos.site }}</strong> · {{ sol.datos.tecnico }} · {{ sol.solicitado }} gal</summary>
+      <summary>{% if sol.tecnico_id < 0 %}<strong>PRUEBA · </strong>{% endif %}<strong>Pedido #{{ sol.id }} · {{ sol.datos.site }}</strong> · {{ sol.datos.tecnico }} · {{ sol.solicitado }} gal{% if estado == 'gestora' and sol.datos.get('site_pendiente') %} <span class="ab-alerta">Site por verificar</span>{% endif %}</summary>
       {% if estado == 'recarga' %}<p><strong>{{ 'Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia' }}</strong></p>{% endif %}
       {{ resumen(sol) }}
       {% if estado == 'gestora' %}
+        {% if sol.datos.get('site_pendiente') %}
+        <p class="ab-alerta" role="status">Corrige el site en el pedido o <a href="{{ url_for('vistas_nuevas.pagina', slug='sites') }}" target="_blank" rel="noopener">regístralo en Sites</a> durante la validación.</p>
+        {% endif %}
         <form class="ab-form" method="post" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='editar') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          {{ pedido(sol.datos, sol.solicitado) }}
+          {{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion'), sol.proyecto, sol.id) }}
           <p data-error role="alert" hidden></p>
           <div class="ab-acciones">
             <button type="submit" class="cc-btn">Guardar cambios</button>
@@ -39,7 +42,7 @@
           </div>
         </form>
       {% else %}
-        <details><summary>Datos del pedido</summary><fieldset disabled>{{ pedido(sol.datos, sol.solicitado) }}</fieldset></details>
+        <details><summary>Datos del pedido</summary><fieldset disabled>{{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, '', sol.proyecto, sol.id) }}</fieldset></details>
         {% if estado == 'parque' %}
           <form class="ab-form" method="post" enctype="multipart/form-data" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='enviar') }}">
             <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -76,8 +79,8 @@
       <button class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar vista de prueba" title="Cerrar" autofocus><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     </form>
   </header>
-  <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile"></iframe>
+  <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile" allowfullscreen></iframe>
 </dialog>
 {% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=3) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=4) }}" defer></script>
 {% endblock %}

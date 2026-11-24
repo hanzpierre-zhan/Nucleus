@@ -7,7 +7,7 @@
   <title>Abastecimiento · Nucleus Mobile</title>
   <script src="{{ url_for('static', filename='js/form-pruebas-theme.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/form-pruebas.css', v=16) }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=3) }}">
 </head>
 <body>
 <main class="shell">
@@ -18,15 +18,17 @@
     <summary><strong>Solicitar combustible</strong></summary>
     <form method="post" class="ab-form" action="{{ url_for('abastecimiento.prueba_solicitar' if prueba else 'abastecimiento.solicitar') }}">
       <input type="hidden" id="csrf" name="csrf" value="{{ csrf }}">
+      <label>Solicitante <input value="{{ persona.nombre }}" readonly></label>
       {% if prueba %}
       <label>Proyecto
         <select name="proyecto" required>
-          <option value="">Selecciona</option>
-          {% for proyecto in proyectos_prueba %}<option value="{{ proyecto }}">FLM - {{ proyecto }}</option>{% endfor %}
+          {% for opcion in proyectos_prueba %}<option value="{{ opcion }}"{% if opcion == proyecto %} selected{% endif %}>FLM - {{ opcion }}</option>{% endfor %}
         </select>
       </label>
+      {% else %}
+      <label>Proyecto <input value="{{ persona.proyecto }}" readonly></label>
       {% endif %}
-      {{ pedido(datos) }}
+      {{ pedido(datos, '', zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion' if prueba else 'abastecimiento.catalogos_tecnico'), proyecto) }}
       <p class="error" data-error role="alert" hidden></p>
       <button type="submit" class="primary wide">Enviar solicitud</button>
     </form>
@@ -40,10 +42,7 @@
       {{ resumen(sol) }}
       {% if sol.estado == 'llenado' %}
         {% set url_qr = url_for('abastecimiento.foto_gestion' if prueba else 'abastecimiento.foto_tecnico', sid=sol.id, tipo='qr') %}
-        <a class="ab-qr" href="{{ url_qr }}">
-          <img alt="Mostrar código QR en el grifo" src="{{ url_qr }}">
-          Abrir QR para el grifo
-        </a>
+        <a class="primary wide ab-ver-qr" href="{{ url_qr }}" data-ver-qr aria-haspopup="dialog">Mostrar QR a pantalla completa</a>
         <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='llenado') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
           <label>Galones cargados <input type="number" name="cargado" min="0.01" max="{{ sol.autorizado }}" step="0.01" placeholder="{{ sol.autorizado }}" required></label>
@@ -68,7 +67,11 @@
   {% endfor %}
   </div>
 </main>
+<dialog id="ab-qr-completo" class="ab-qr-completo" aria-label="Código QR para el grifo">
+  <form method="dialog"><button type="submit" class="ab-cerrar-qr" aria-label="Cerrar QR">×</button></form>
+  <img alt="Código QR para mostrar en el grifo">
+</dialog>
 {% if not prueba %}<script src="{{ url_for('static', filename='js/ubicacion-movil.js', v=2) }}" defer></script>{% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=2) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=4) }}" defer></script>
 </body>
 </html>

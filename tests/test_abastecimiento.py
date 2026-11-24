@@ -14,13 +14,17 @@ def test_generadores_reutiliza_catalogo_y_edita(app, auth_client):
     assert 'aria-label="Registrar generador"' in gestion
     alta = auth_client.get('/abastecimiento/?estado=generadores&nuevo=1')
     assert b'id="ab-form-generador" class="ab-pedido" open' in alta.data
+    contenido = alta.get_data(as_text=True)
+    assert 'Petróleo' in contenido and 'Técnico asignado' not in contenido
+    for proyecto in ('Claro', 'Integratel', 'Entel', 'PEXT'):
+        assert f'FLM - {proyecto}</option>' in contenido
     pagina = auth_client.get('/abastecimiento/?estado=generadores')
     assert pagina.status_code == 200 and b'Tabla de generadores' in pagina.data
     with auth_client.session_transaction() as ses:
         headers = {'X-CSRF-Token': ses['form_csrf']}
     ruta = '/abastecimiento/generadores/guardar'
     datos = {'QR ASIGNADO': 'QA-QR-G1', 'SERIE DE EQUIPO': '000113', 'ZONA': 'CENTRO',
-             'TIPO': 'CLIENTE', 'PROYECTO': 'CLARO'}
+             'TIPO': 'CLIENTE', 'PROYECTO': 'CLARO', 'TIPO DE COMBUSTIBLE': 'PETRÓLEO'}
     try:
         assert auth_client.post(ruta, headers=headers, data=datos).status_code == 200
         assert auth_client.post(ruta, headers=headers, data=datos).status_code == 400
@@ -29,6 +33,7 @@ def test_generadores_reutiliza_catalogo_y_edita(app, auth_client):
             fila = NucleusData.query.filter_by(proyecto_id=pid).filter(NucleusData.data_json.contains('QA-QR-G1')).one()
             datos_guardados = json.loads(fila.data_json)
             assert datos_guardados['SERIE DE EQUIPO'] == '000113'
+            assert datos_guardados['TIPO DE COMBUSTIBLE'] == 'PETRÓLEO'
             datos_guardados['CAMPO ANTERIOR'] = 'conservar'
             fila.data_json = json.dumps(datos_guardados)
             registro = fila.id
@@ -77,11 +82,25 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
 
     gestora = operador('gestor')
     parque = operador('supervisor')
+    with app.app_context():
+        for modulo, clave, contenido in (
+            ('Generadores', 'QA-GEP-CATALOGO', {'QR ASIGNADO': 'QA-AB-01', 'SERIE DE EQUIPO': '0001',
+                                                'PROYECTO': 'FLM - INTEGRATEL'}),
+            ('SITE', 'QA-SITE-AB', {'Nombre del sitio | Site name': 'CHOQUECANCHA QA',
+                                  'Código del sitio | Site ID': 'HU-ABC', 'Proyecto': 'FLM - INTEGRATEL'}),
+        ):
+            pid = Proyecto.query.filter_by(nombre=modulo).one().id
+            db.session.add(NucleusData(proyecto_id=pid, key_value=clave, data_json=json.dumps(contenido)))
+        db.session.commit()
     assert gestora.get('/abastecimiento/').status_code == 200
     assert parque.get('/abastecimiento/?estado=parque').status_code == 200
-    assert mobile.get('/form-pruebas/abastecimiento').status_code == 200
-    datos = {'fecha': '2026-11-24', 'zona': 'HUANCAVELICA', 'site': 'CHOQUECANCHA',
-             'cm': 'CM-1', 'plm': 'PLM-1', 'trabajo': 'Recarga', 'tipo': 'generador',
+    portal = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
+    assert 'value="Técnico QA" readonly' in portal and 'value="FLM - INTEGRATEL" readonly' in portal
+    inventario = mobile.get('/form-pruebas/abastecimiento/catalogos').json['generadores']
+    assert any(g['qr'] == 'QA-AB-01' for g in inventario)
+    assert mobile.get('/form-pruebas/abastecimiento/catalogos?q=HU-ABC').json['sites'][0]['nombre'] == 'CHOQUECANCHA QA'
+    datos = {'fecha': '2026-11-24', 'zona': 'HUANCAVELICA', 'site': 'QA-SITE-SIN-REGISTRO-761893',
+             'cm': 'CM-20261124-00000018', 'plm': 'PLM-20261124-00000018', 'trabajo': 'Recarga', 'tipo': 'generador',
              'generador': 'QA-AB-01', 'combustible': 'diesel', 'galones': '10'}
 
     def foto():
@@ -100,18 +119,26 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
 
     assert post_mobile('solicitar', {**datos, 'cm': ''}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'plm': ''}).status_code == 400
+    assert post_mobile('solicitar', {**datos, 'plm': 'CM-20261124-00000018'}).status_code == 400
+    assert post_mobile('solicitar', {**datos, 'generador': 'INVENTADO'}).status_code == 400
     creado = post_mobile('solicitar', datos)
     assert creado.status_code == 200, creado.json
     sid = creado.json['id']
     assert post_mobile('solicitar', datos).status_code == 400
     assert revisar(parque, sid, 'validar', datos).status_code == 400
-    assert revisar(gestora, sid, 'editar', {**datos, 'grifo': 'GRIFO QA'}).status_code == 200
-    assert revisar(gestora, sid, 'validar', {**datos, 'grifo': 'GRIFO QA'}).status_code == 200
+    assert b'Site por verificar' in gestora.get('/abastecimiento/').data
+    corregido = {**datos, 'site': 'HU-ABC', 'grifo': 'GRIFO QA'}
+    assert revisar(gestora, sid, 'editar', corregido).status_code == 200
+    assert b'Site por verificar' not in gestora.get('/abastecimiento/').data
+    assert revisar(gestora, sid, 'validar', corregido).status_code == 200
     assert b'GRIFO QA' in parque.get('/abastecimiento/?estado=parque').data
     assert revisar(gestora, sid, 'enviar', {'qr': foto()}).status_code == 400
     assert revisar(parque, sid, 'enviar', {'qr': foto()}).status_code == 200
     assert b'Tienes un QR listo' in mobile.get('/form-pruebas/').data
     assert f'/{sid}/foto/qr'.encode() in mobile.get('/form-pruebas/abastecimiento').data
+    portal_qr = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
+    assert 'Mostrar QR a pantalla completa' in portal_qr and 'Cerrar QR' in portal_qr
+    assert portal_qr.count('capture="environment"') == 3
     assert mobile.get(f'/form-pruebas/abastecimiento/{sid}/foto/qr').mimetype == 'image/png'
     otro = app.test_client()
     with otro.session_transaction() as ses:
@@ -124,7 +151,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert post_mobile(f'{sid}/recarga', {'consumido': '11'}).status_code == 400
     fotos_recarga = {'antes_recarga': foto(), 'despues_recarga': foto()}
     assert post_mobile(f'{sid}/recarga', {'consumido': '7', **fotos_recarga}).status_code == 200
-    siguiente = {**datos, 'galones': '5'}
+    siguiente = {**datos, 'galones': '5', 'combustible': 'petroleo'}
     segundo = post_mobile('solicitar', siguiente).json['id']
     assert revisar(gestora, segundo, 'validar', siguiente).status_code == 200
     with app.app_context():

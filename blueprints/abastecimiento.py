@@ -13,6 +13,8 @@ from blueprints.formularios_prueba import comprobar_csrf, csrf, habilitado, tecn
 from db import db
 from models import AbastecimientoFoto, AbastecimientoSolicitud as Solicitud, NucleusData, Proyecto
 from services import get_menu_proyectos, login_required
+from services.cotizacion_ficha import normalizar, sitios
+from services.personal import DEPARTAMENTOS
 from services.recursos_flm import familia
 from services.utilidades import ahora_peru
 
@@ -28,8 +30,10 @@ FOTOS = {'qr': 'Código QR', **FOTOS_LLENADO, **FOTOS_RECARGA}
 CERO = Decimal('0.00')
 PROYECTOS_PRUEBA = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
 TIPOS_GENERADOR = ('PROPIO', 'ALQUILADO', 'CLIENTE', 'OTRO')
+COMBUSTIBLES_GENERADOR = ('GASOLINA', 'PETRÓLEO', 'DIÉSEL', 'OTRO')
+COMBUSTIBLES_PEDIDO = {'gasolina': 'Gasolina', 'petroleo': 'Petróleo', 'diesel': 'Diésel'}
 CAMPOS_GENERADOR = ('QR ASIGNADO', 'SERIE DE EQUIPO', 'ZONA', 'TIPO',
-                    'TIPO DE COMBUSTIBLE', 'TECNICO ASIGNADO', 'PROYECTO')
+                    'TIPO DE COMBUSTIBLE', 'PROYECTO')
 
 
 def cantidad(valor, etiqueta, minimo=CERO):
@@ -42,7 +46,8 @@ def cantidad(valor, etiqueta, minimo=CERO):
     return n
 
 
-def datos_pedido(form):
+def datos_pedido(form, proyecto, anterior=None):
+    anterior = anterior or {}
     campos = ('fecha zona site codigo cm plm pm gep combustible otro_combustible placa generador '
               'equipo trabajo detalle grifo direccion modalidad comprobante km_inicial km_final tipo_unidad supervisor').split()
     datos = {campo: form.get(campo, '').strip()[:1000] for campo in campos}
@@ -51,12 +56,16 @@ def datos_pedido(form):
                             ('trabajo', 'trabajo a desarrollar')):
         if not datos[campo]:
             raise ValueError(f'Completa {etiqueta}.')
+    for campo, ejemplo in (('cm', 'CM-20261124-00000018'), ('plm', 'PLM-20261124-00000018')):
+        datos[campo] = datos[campo].upper()
+        if not re.fullmatch(fr'{campo.upper()}-[0-9]{{8}}-[0-9]{{8}}', datos[campo]) and datos[campo] != anterior.get(campo):
+            raise ValueError(f'Ingresa {campo.upper()} con el formato {ejemplo}.')
     try:
         datos['fecha'] = date.fromisoformat(datos['fecha']).isoformat()
     except ValueError:
         raise ValueError('Selecciona la fecha del pedido.') from None
     combustible = datos['combustible']
-    if combustible not in ('diesel', 'gasolina', 'otro') or (combustible == 'otro' and not datos['otro_combustible']):
+    if combustible not in COMBUSTIBLES_PEDIDO and combustible != anterior.get('combustible'):
         raise ValueError('Selecciona el tipo de combustible.')
     if tipo not in ('vehiculo', 'generador'):
         raise ValueError('Selecciona vehículo o generador.')
@@ -71,7 +80,21 @@ def datos_pedido(form):
             raise ValueError('El kilometraje final debe ser mayor o igual al inicial.')
     else:
         datos.update(placa='', km_inicial='', km_final='')
+        equipo = next((g for g in catalogo_generadores(proyecto) if g['qr'] == datos['generador']), None)
+        if not equipo and datos['generador'] != anterior.get('generador'):
+            raise ValueError('Selecciona un generador registrado en tu proyecto.')
+        datos['generador_serie'] = equipo['serie'] if equipo else anterior.get('generador_serie', '')
     datos['tipo'] = tipo
+    coincidencias = [s for s in catalogo_sites(proyecto, datos['site'])
+                     if normalizar(datos['site']) in {normalizar(s['nombre']), normalizar(s['codigo']), normalizar(s['clave'])}]
+    site = next((s for s in coincidencias if s['codigo'] == datos['codigo']), None)
+    if site is None and len(coincidencias) == 1:
+        site = coincidencias[0]
+    datos['site_pendiente'] = site is None
+    if site:
+        datos.update(site=site['nombre'], codigo=site['codigo'])
+    if combustible == 'petroleo':
+        combustible = 'diesel'  # Comparte el saldo de la unidad con el diésel.
     if combustible == 'otro':
         combustible += ':' + re.sub(r'\s+', ' ', datos['otro_combustible'].casefold())[:34]
     return datos, f'{tipo}:{unidad}:{combustible}', cantidad(form.get('galones'), 'galones solicitados', Decimal('0.01'))
@@ -103,7 +126,7 @@ def gestion():
             abort(404)
         return render_template('abastecimiento.html', proyectos_list=menu, estado=estado, pestañas=pestañas,
                                csrf=csrf(), generadores=filas, ficha=ficha, editar=editar,
-                               campos=CAMPOS_GENERADOR, tipos=TIPOS_GENERADOR,
+                               campos=CAMPOS_GENERADOR, tipos=TIPOS_GENERADOR, combustibles=COMBUSTIBLES_GENERADOR,
                                proyectos=PROYECTOS_PRUEBA if rol in ADMIN else sorted(proyectos))
     estados_visibles = ('recarga', 'cerrado') if estado == 'recarga' else (estado,)
     consulta = Solicitud.query.filter(Solicitud.estado.in_(estados_visibles))
@@ -111,7 +134,8 @@ def gestion():
         consulta = consulta.filter(Solicitud.proyecto.in_(proyectos))
     filas = consulta.order_by(Solicitud.id.desc()).all()
     return render_template('abastecimiento.html', proyectos_list=menu, filas=filas, estado=estado,
-                           pestañas=pestañas, fotos=FOTOS, csrf=csrf(), puede_probar=rol in ADMIN)
+                           pestañas=pestañas, fotos=FOTOS, csrf=csrf(), puede_probar=rol in ADMIN,
+                           zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO)
 
 
 def bloquear_cambios():
@@ -139,6 +163,43 @@ def generadores_visibles(rol, proyectos):
             if rol in ADMIN or familia(datos.get('PROYECTO') or datos.get('Proyecto')) in proyectos}
 
 
+def catalogo_generadores(proyecto):
+    return [{'qr': str(d['QR ASIGNADO']).strip(), 'serie': str(d.get('SERIE DE EQUIPO') or '').strip(),
+             'zona': str(d.get('ZONA') or '').strip()}
+            for d in generadores_visibles('gestor', {proyecto}).values() if str(d.get('QR ASIGNADO') or '').strip()]
+
+
+def catalogo_sites(proyecto, consulta):
+    return [{'nombre': s['site_name'] or s['site_key'], 'codigo': s['site_id'],
+             'clave': s['site_key']} for s in sitios(consulta, proyecto='ENTEL' if proyecto == 'PEXT' else proyecto)]
+
+
+def datos_catalogo(proyecto):
+    consulta = request.args.get('q', '').strip()[:120]
+    return jsonify(sites=catalogo_sites(proyecto, consulta),
+                   generadores=[] if consulta else catalogo_generadores(proyecto))
+
+
+@bp.get('/abastecimiento/catalogos')
+@login_required
+def catalogos_gestion():
+    _, rol, proyectos = alcance()
+    proyecto = request.args.get('proyecto')
+    if proyecto not in (PROYECTOS_PRUEBA if rol in ADMIN else proyectos):
+        abort(403)
+    return datos_catalogo(proyecto)
+
+
+@bp.get('/form-pruebas/abastecimiento/catalogos')
+@tecnico
+def catalogos_tecnico():
+    exigir_mobile()
+    proyecto = familia(g.tecnico['proyecto'])
+    if not proyecto:
+        abort(403)
+    return datos_catalogo(proyecto)
+
+
 @bp.post('/abastecimiento/generadores/guardar')
 @login_required
 def guardar_generador():
@@ -153,6 +214,10 @@ def guardar_generador():
         abort(404)
     datos = {campo: request.form.get(campo, '').strip()[:150] for campo in CAMPOS_GENERADOR}
     datos['TIPO'] = datos['TIPO'].upper()
+    combustible = datos['TIPO DE COMBUSTIBLE'].upper()
+    datos['TIPO DE COMBUSTIBLE'] = {'PETROLEO': 'PETRÓLEO', 'DIESEL': 'DIÉSEL'}.get(combustible, combustible)
+    if datos['TIPO DE COMBUSTIBLE'] and datos['TIPO DE COMBUSTIBLE'] not in COMBUSTIBLES_GENERADOR and combustible != str(anterior.get('TIPO DE COMBUSTIBLE') or '').upper():
+        return error(ValueError('Selecciona un tipo de combustible.'))
     qr = datos['QR ASIGNADO']
     if not qr or not datos['SERIE DE EQUIPO'] or not datos['ZONA']:
         return error(ValueError('Completa el QR, la serie y la zona.'))
@@ -232,7 +297,7 @@ def revisar(sid, accion):
         abort(404)
     try:
         if accion in ('editar', 'validar') and rol != 'supervisor' and sol.estado == 'gestora':
-            datos, unidad, galones = datos_pedido(request.form)
+            datos, unidad, galones = datos_pedido(request.form, sol.proyecto, sol.datos)
             if sol.tecnico_id < 0:
                 unidad = 'prueba:' + unidad
             unidad_libre(unidad, sol.id)
@@ -281,6 +346,8 @@ def pantalla_tecnico(persona, prueba=False):
              'supervisor': persona['supervisor']}
     return render_template('abastecimiento_mobile.html', filas=filas, datos=datos, persona=persona,
                            prueba=prueba, proyectos_prueba=PROYECTOS_PRUEBA, estados=ESTADOS, csrf=csrf(),
+                           proyecto=filas[0].proyecto if prueba and filas else 'CLARO' if prueba else familia(persona['proyecto']),
+                           zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO,
                            fotos_llenado=FOTOS_LLENADO, fotos_recarga=FOTOS_RECARGA)
 
 
@@ -299,7 +366,7 @@ def crear_pedido(persona, prueba=False):
             raise ValueError('Selecciona un proyecto para la prueba.')
         if not proyecto:
             raise ValueError('Tu proyecto debe estar registrado en Dataper.')
-        datos, unidad, galones = datos_pedido(request.form)
+        datos, unidad, galones = datos_pedido(request.form, proyecto)
         if prueba:
             unidad = 'prueba:' + unidad
         bloquear_cambios()

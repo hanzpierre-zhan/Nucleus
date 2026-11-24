@@ -43,7 +43,7 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pw.expect(pantalla.get_by_text('Modo de prueba · Técnico simulado')).to_be_visible()
             assert modal.bounding_box()['width'] <= 420
             pantalla.get_by_label('Tipo de pedido').select_option('generador', timeout=5000)
-            pw.expect(pantalla.get_by_label('Código o serie del generador')).to_be_visible()
+            pw.expect(pantalla.get_by_label('Generador registrado')).to_be_visible()
             modal.get_by_role('button', name='Cerrar vista de prueba').click()
             pw.expect(modal).to_be_hidden()
         finally:
