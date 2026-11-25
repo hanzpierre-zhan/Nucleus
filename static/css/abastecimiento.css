@@ -91,3 +91,31 @@
 .ab-prueba-cabecera { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 14px; }
 .ab-prueba-cabecera h2 { margin: 0; font-size: 14px; }
 .ab-prueba-pantalla { border: 0; width: 100%; flex: 1; min-height: 0; background: #f5f7fa; }
+.ab-dialogo-pedido .ab-prueba-cabecera { padding: 12px 16px; border-bottom: 1px solid var(--ios-hairline); }
+.ab-dialogo-pedido .ab-prueba-cabecera h2 { font-size: 17px; }
+.ab-dialogo-herramientas { display: flex; align-items: center; gap: 6px; }
+.ab-dialogo-validacion .ab-dialogo-contenido { padding: 14px 16px 16px; }
+.ab-validacion-resumen, .ab-validacion-datos {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--ios-hairline);
+  border-radius: 10px;
+}
+.ab-validacion-resumen { display: flex; flex-wrap: wrap; gap: 8px 28px; }
+.ab-validacion-resumen dt, .ab-validacion-datos label { font-size: 12px; color: var(--ios-secondary); }
+.ab-validacion-resumen dd { margin: 2px 0 0; font-weight: 600; }
+.ab-validacion-datos { min-width: 0; }
+.ab-validacion-datos legend { padding: 0 5px; font-size: 13px; font-weight: 700; }
+.ab-validacion-datos .ab-campos { gap: 12px; }
+.ab-validacion-datos .ab-campos :is(input:not([type="hidden"]), select) {
+  height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--ios-hairline);
+  border-radius: 7px;
+  background: var(--ios-fill);
+  color: var(--ios-label);
+  font-size: 12px;
+}
+.ab-validacion-datos .ab-campos :is(input, select):focus-visible { outline: 2px solid var(--ios-blue); outline-offset: 1px; }
+.ab-validacion-datos .ab-campos small { line-height: 1.35; }
+.ab-validacion-error { margin: 0; color: var(--ios-red, #dc2626); }

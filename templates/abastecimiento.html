@@ -4,7 +4,7 @@
 {% block title %}Abastecimiento — Nucleus{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
-<link rel="stylesheet" href="/static/css/cot-new.css?v=6">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=7">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=6) }}">
 <section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
   <div class="cc-barra">
@@ -54,26 +54,38 @@
     </table>
   </div>
   {% for sol in filas %}
-    <dialog id="ab-pedido-{{ sol.id }}" class="ab-dialogo-pedido" aria-labelledby="ab-pedido-titulo-{{ sol.id }}">
+    <dialog id="ab-pedido-{{ sol.id }}" class="ab-dialogo-pedido{{ ' ab-dialogo-validacion' if estado == 'gestora' }}" aria-labelledby="ab-pedido-titulo-{{ sol.id }}">
       <header class="ab-prueba-cabecera">
         <h2 id="ab-pedido-titulo-{{ sol.id }}">{% if sol.tecnico_id < 0 %}PRUEBA · {% endif %}Pedido #{{ sol.id }} · {{ sol.datos.site }}</h2>
-        <form method="dialog"><button class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar detalle"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
+        <div class="ab-dialogo-herramientas">
+          {% if estado == 'gestora' %}
+          <button type="submit" form="ab-validar-{{ sol.id }}" class="cn-redondo cn-neutro" title="Guardar cambios" aria-label="Guardar cambios"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
+          <button type="submit" form="ab-validar-{{ sol.id }}" class="cn-redondo cn-verde" formaction="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='validar') }}" title="Validar y enviar a Generación QR" aria-label="Validar y enviar a Generación QR"><i class="fa-solid fa-check" aria-hidden="true"></i></button>
+          {% endif %}
+          <form method="dialog"><button class="cn-redondo cn-rojo" title="Cerrar detalle" aria-label="Cerrar detalle"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
+        </div>
       </header>
       <div class="ab-dialogo-contenido">
       {% if estado == 'recarga' %}<p><strong>{{ 'Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia' }}</strong></p>{% endif %}
-      {{ resumen(sol) }}
+      {% if estado == 'gestora' %}
+        <dl class="ab-validacion-resumen">
+          <div><dt>Solicitante</dt><dd>{{ sol.datos.tecnico }}</dd></div>
+          <div><dt>Proyecto</dt><dd>{{ sol.proyecto }}</dd></div>
+        </dl>
+      {% else %}
+        {{ resumen(sol) }}
+      {% endif %}
       {% if estado == 'gestora' %}
         {% if sol.datos.get('site_pendiente') %}
         <p class="ab-alerta" role="status">Corrige el site en el pedido o <a href="{{ url_for('vistas_nuevas.pagina', slug='sites') }}" target="_blank" rel="noopener">regístralo en Sites</a> durante la validación.</p>
         {% endif %}
-        <form class="ab-form" method="post" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='editar') }}">
+        <form id="ab-validar-{{ sol.id }}" class="ab-form" method="post" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='editar') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          {{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion'), sol.proyecto, sol.id, grifos) }}
-          <p data-error role="alert" hidden></p>
-          <div class="ab-acciones">
-            <button type="submit" class="cc-btn">Guardar cambios</button>
-            <button type="submit" class="cc-btn" formaction="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='validar') }}">Validar y enviar a Generación QR</button>
-          </div>
+          <fieldset class="ab-validacion-datos">
+            <legend>Datos del pedido</legend>
+            {{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion'), sol.proyecto, sol.id, grifos) }}
+          </fieldset>
+          <p class="ab-validacion-error" data-error role="alert" hidden></p>
         </form>
       {% else %}
         <details><summary>Datos del pedido</summary><fieldset disabled>{{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, '', sol.proyecto, sol.id, grifos) }}</fieldset></details>
@@ -114,7 +126,7 @@
   <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile" allowfullscreen></iframe>
 </dialog>
 {% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=7) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=8) }}" defer></script>
   <div class="cc-filtro" id="ab-filtro-tabla" role="dialog" aria-label="Filtrar columna" hidden></div>
   <script src="{{ url_for('static', filename='js/abastecimiento-tabla.js', v=1) }}" defer></script>
 {% endblock %}

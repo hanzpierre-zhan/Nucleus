@@ -166,7 +166,7 @@ for (const formulario of document.querySelectorAll('.ab-form')) {
     const aviso = formulario.querySelector('[data-error]');
     const datos = new FormData(formulario);
     aviso.hidden = true;
-    const botones = [...formulario.querySelectorAll('button[type="submit"]')];
+    const botones = [...formulario.elements].filter(control => control instanceof HTMLButtonElement && control.type === 'submit');
     botones.forEach(b => { b.disabled = true; });
     try {
       const respuesta = await fetch(boton?.getAttribute('formaction') || formulario.action, {method: 'POST', body: datos});
