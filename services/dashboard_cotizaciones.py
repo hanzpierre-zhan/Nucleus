@@ -13,6 +13,7 @@ from services.normalizacion import primer_texto as _txt
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from services.dashboard_conceptos import contar_conceptos
 from services.dashboard_integratel import fecha as _fecha
 from services.dashboard_consulta import comunes, valor, proyecto, dia, validacion_sustento, espera, gasto
 
@@ -111,6 +112,7 @@ def indicadores(rows, hoy=None):
             'genero': _txt(row.get('COTIZADO POR'), row.get('ENVIADO POR'), gestor) or 'Sin datos',
             'atendido_por': _txt(row.get('ATENDIDO POR')),
             'estado': estado or '(sin estado)',
+            'conceptos': contar_conceptos(row),
             'pestania': pest,
             'proveedor': _en_proveedor(row),
             'generada': _flag(row.get('GENERADA')),

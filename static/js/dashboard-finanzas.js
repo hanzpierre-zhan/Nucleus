@@ -15,6 +15,8 @@
     const KEYS = ['month', 'state', 'operator', 'budget', 'type', 'person', 'project', 'approval', 'day'];
     const selectKeys = KEYS.filter(key => get('df-' + key));
     const state = Object.fromEntries(KEYS.map(key => [key, '']));
+    const menus = new Map();
+    const seleccion = key => Array.isArray(state[key]) ? state[key] : state[key] ? [state[key]] : [];
     const node = (tag, text) => { const element = document.createElement(tag); if (text !== undefined) element.textContent = text; return element; };
     const monthLabel = value => new Intl.DateTimeFormat('es-PE', {month: 'long', year: 'numeric'}).format(new Date(value + '-15T12:00:00'));
     const dayLabel = value => new Intl.DateTimeFormat('es-PE', {day: 'numeric', month: 'short', year: 'numeric'}).format(new Date(value + 'T12:00:00'));
@@ -56,6 +58,13 @@
     }
     function setFilter(key, value) {
         if (!value) return;
+        if (menus.has(key)) {
+            const actual = seleccion(key);
+            state[key] = actual.includes(value) ? actual.filter(item => item !== value) : [...actual, value];
+            syncFilter(key);
+            render();
+            return;
+        }
         state[key] = state[key] === value ? '' : value;
         const select = get('df-' + key);
         if (select) select.value = state[key];
@@ -85,7 +94,7 @@
     }
     function bars(id, entries, {horizontal = false, kind = '', limit = 10, measure = 'amount', filterKey = ''} = {}) {
         const t = theme(), items = entries.slice(0, limit), options = common();
-        const selected = filterKey ? state[filterKey] : '';
+        const selected = filterKey ? seleccion(filterKey) : [];
         const valueOf = item => measure === 'count' ? item.count : item.amount;
         const format = measure === 'count' ? number : compact;
         const moneyAxis = {beginAtZero: true, grid: {color: t.grid}, border: {display: false},
@@ -101,6 +110,7 @@
         options.scales = horizontal ? {x: moneyAxis, y: labelAxis} : {x: labelAxis, y: moneyAxis};
         options.plugins.tooltip.callbacks.label = ctx => {
             const item = items[ctx.dataIndex];
+            if (kind === 'concepto') return number(item.count) + ' ítems';
             return measure === 'count' ? number(item.count) + ' registros · ' + money(item.amount)
                 : money(item.amount) + ' · ' + number(item.count) + ' registros';
         };
@@ -109,19 +119,19 @@
         };
         mount(id, {type: 'bar', data: {labels: items.map(item => filterKey === 'state' ? stateLabel(item.label) : !horizontal && item.label.includes(' · ') ? item.label.split(' · ').map(name) : name(item.label)), datasets: [{
             data: items.map(valueOf),
-            backgroundColor: items.map((item, index) => alpha(color(item.label, index, kind), selected && (item.key || item.label) !== selected ? .28 : 1)),
+            backgroundColor: items.map((item, index) => alpha(color(item.label, index, kind), selected.length && !selected.includes(item.key || item.label) ? .28 : 1)),
             borderRadius: 4, maxBarThickness: horizontal ? 26 : 54, barPercentage: .72,
         }]}, options}, items.some(item => valueOf(item) !== 0), format);
     }
     function donut(entries) {
         const total = entries.reduce((value, item) => value + Math.max(0, item.amount), 0);
-        const items = entries.filter(item => item.amount > 0), selected = state.operator;
-        const colors = items.map((item, i) => alpha(color(item.label, i, 'operator'), selected && item.label !== selected ? .28 : 1));
+        const items = entries.filter(item => item.amount > 0), selected = seleccion('operator');
+        const colors = items.map((item, i) => alpha(color(item.label, i, 'operator'), selected.length && !selected.includes(item.label) ? .28 : 1));
         const legend = get('df-legend'); legend.replaceChildren();
         items.forEach((item, i) => {
             const li = node('li'), dot = node('i'), label = node('span', name(item.label));
             dot.style.background = color(item.label, i, 'operator');
-            li.className = selected && item.label !== selected ? 'is-dim' : '';
+            li.className = selected.length && !selected.includes(item.label) ? 'is-dim' : '';
             li.title = 'Clic para filtrar por ' + name(item.label) + ' · ' + money(item.amount) + ' · ' + number(item.count) + ' registros';
             li.append(dot, label, node('b', compact(item.amount) + ' · ' + number(Math.round(item.amount / total * 1000) / 10) + '%'));
             li.addEventListener('click', () => setFilter('operator', item.label));
@@ -228,48 +238,62 @@
             day: row => mode === 'rendicion' ? row.dia_pago : row.dia};
         return [...new Set(rows.map(map[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     }
-    function initializeProjects() {
-        const menu = get('df-project-menu');
-        if (!menu) return;
-        const options = get('df-project-options'), all = get('df-project-all');
-        const projects = values('project');
-        get('df-project-group').hidden = !projects.some(value => value !== 'Sin proyecto');
-        for (const value of projects) {
-            const label = node('label'), input = node('input');
+    function multiFilter(key, select, values) {
+        const group = node('div'), menu = node('details'), label = node('span', select.parentElement.firstChild.textContent.trim());
+        const trigger = node('summary'), options = node('div'), all = node('input');
+        group.className = 'df-filter-group';
+        menu.className = 'df-filter-menu';
+        options.className = 'df-filter-options';
+        trigger.setAttribute('aria-label', 'Seleccionar ' + label.textContent.toLowerCase());
+        if (key === 'project' && !values.some(value => value !== 'Sin proyecto')) group.hidden = true;
+        const defaultLabel = select.options[0].text;
+        function addOption(input, text) {
+            const item = node('label');
             input.type = 'checkbox';
-            input.value = value;
-            label.append(input, labelFor('project', value));
-            options.append(label);
+            item.append(input, node('span', text));
+            options.append(item);
         }
+        addOption(all, defaultLabel);
+        for (const value of values) {
+            const input = node('input');
+            input.value = value;
+            addOption(input, labelFor(key, value));
+        }
+        menu.append(trigger, options);
+        group.append(label, menu);
+        select.parentElement.replaceWith(group);
+        menus.set(key, {menu, trigger, options, all, defaultLabel});
         options.addEventListener('change', event => {
-            state.project = event.target === all ? [] : [...options.querySelectorAll('input:checked')]
+            state[key] = event.target === all ? [] : [...options.querySelectorAll('input:checked')]
                 .filter(input => input !== all).map(input => input.value);
-            syncProjects();
+            syncFilter(key);
             render();
         });
-        document.addEventListener('click', event => {
-            if (!menu.contains(event.target)) menu.open = false;
-        });
         menu.addEventListener('keydown', event => {
-            if (event.key !== 'Escape' || !menu.open) return;
+            if (event.key !== 'Escape') return;
             menu.open = false;
-            menu.querySelector('summary').focus();
+            trigger.focus();
         });
+        syncFilter(key);
     }
-    function syncProjects() {
-        const options = get('df-project-options');
-        if (!options) return;
-        const selected = state.project || [];
-        const all = get('df-project-all');
+    function syncFilter(key) {
+        const {trigger, options, all, defaultLabel} = menus.get(key);
+        const selected = seleccion(key);
         for (const option of options.querySelectorAll('input')) {
             option.checked = option === all ? !selected.length : selected.includes(option.value);
         }
-        get('df-project-text').textContent = selected.length === 1 ? labelFor('project', selected[0])
-            : selected.length ? selected.length + ' proyectos' : 'Todos los proyectos';
+        trigger.textContent = selected.length === 1 ? labelFor(key, selected[0])
+            : selected.length ? selected.length + ' seleccionados' : defaultLabel;
+        trigger.title = selected.map(value => labelFor(key, value)).join(', ');
     }
     function clearAll() {
-        KEYS.forEach(key => { state[key] = ''; const select = get('df-' + key); if (select) select.value = ''; });
-        syncProjects();
+        KEYS.forEach(key => {
+            state[key] = '';
+            if (menus.has(key)) syncFilter(key);
+            else if (get('df-' + key)) get('df-' + key).value = '';
+        });
+        const canceladas = get('df-canceladas');
+        if (canceladas) canceladas.checked = state.incluirCanceladas = false;
         render();
     }
     function render() {
@@ -278,7 +302,18 @@
         kpis(summary, commercial, filtered); donut(summary.operators);
         if (mode === 'cotizaciones') {
             bars('df-budget-chart', commercial.budgets);
-            bars('df-person-chart', commercial.managers, {horizontal: true, limit: 10});
+            const conceptos = model.conceptos(filtered);
+            const total = conceptos.reduce((sum, item) => sum + item.count, 0);
+            const pendientes = conceptos.find(item => item.label === 'Por revisar')?.count || 0;
+            get('df-concept-caption').textContent = total
+                ? number(total) + ' ítems · ' + number(pendientes) + ' por revisar · 10 conceptos principales'
+                : 'Sin ítems registrados en esta selección';
+            const homologados = conceptos.filter(item => item.label !== 'Por revisar');
+            const barras = homologados.slice(0, 10);
+            const otros = homologados.slice(10).reduce((sum, item) => sum + item.count, 0);
+            if (otros) barras.push({label: 'Otros conceptos', count: otros});
+            if (pendientes) barras.push({label: 'Por revisar', count: pendientes});
+            bars('df-concept-chart', barras, {horizontal: true, kind: 'concepto', measure: 'count', limit: 12});
             bars('df-attended-chart', commercial.attendedGroups);
             bars('df-cobra-chart', commercial.cobra);
             bars('df-refacturable-chart', commercial.refacturable);
@@ -299,15 +334,33 @@
             + (mode === 'cotizaciones' ? ' · Proveedor se cuenta una sola vez.' : ' · Los importes corresponden a pagos registrados.');
     }
     function initialize() {
-        initializeProjects();
         selectKeys.forEach(key => {
             const select = get('df-' + key), list = values(key).sort((a,b) => labelFor(key,a).localeCompare(labelFor(key,b)));
+            if (mode === 'cotizaciones') {
+                multiFilter(key, select, list);
+                return;
+            }
             list.forEach(value => select.add(new Option(labelFor(key, value), value)));
             if (key === 'project' && list.filter(value => value !== 'Sin proyecto').length < 1) select.closest('label').hidden = true;
             select.addEventListener('change', event => { state[key] = event.target.value; render(); });
         });
         const months = values('month');
-        if (data.mes_actual && months.includes(data.mes_actual)) { state.month = data.mes_actual; get('df-month').value = state.month; }
+        if (data.mes_actual && months.includes(data.mes_actual)) {
+            state.month = data.mes_actual;
+            if (menus.has('month')) syncFilter('month');
+            else get('df-month').value = state.month;
+        }
+        if (menus.size) document.addEventListener('click', event => {
+            for (const {menu} of menus.values()) if (!menu.contains(event.target)) menu.open = false;
+        });
+        const canceladas = get('df-canceladas');
+        if (canceladas) {
+            state.incluirCanceladas = canceladas.checked;
+            canceladas.addEventListener('change', () => {
+                state.incluirCanceladas = canceladas.checked;
+                render();
+            });
+        }
         get('df-clear').addEventListener('click', clearAll);
         get('df-trend-period')?.addEventListener('change', render);
         new MutationObserver(render).observe(document.body, {attributes: true, attributeFilter: ['class']});

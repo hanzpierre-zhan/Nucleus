@@ -76,3 +76,15 @@ console.log('OK: etapas comerciales, gestores y destinos separados');
 assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: ['Obra Norte', 'Obra Sur']}).length, 2);
 assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: ['Obra Norte', 'Obra Sur'], operator: 'CLARO'}).length, 1);
 assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: []}).length, 2);
+
+const conConceptos = [
+    {...cotizaciones[0], conceptos: {'Peajes': 2}},
+    {...cotizaciones[1], conceptos: {'Peajes': 1, 'Por revisar': 1}},
+    {estado: 'Cancelado', pestania: 'cancelado', proyecto: 'Obra Norte', conceptos: {'Peajes': 4}},
+];
+const seleccionSinCanceladas = model.filter(conConceptos, 'cotizaciones', {
+    project: ['Obra Norte', 'Obra Sur'], state: ['Aprobado', 'En Aprobación', 'Cancelado'], incluirCanceladas: false,
+});
+assert.equal(seleccionSinCanceladas.length, 2);
+assert.equal(model.conceptos(seleccionSinCanceladas).find(item => item.label === 'Peajes').count, 3);
+assert.equal(model.conceptos(model.filter(conConceptos, 'cotizaciones', {incluirCanceladas: true}))[0].count, 7);

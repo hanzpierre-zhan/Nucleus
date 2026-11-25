@@ -21,16 +21,29 @@
         return [...result.values()].sort((a, b) => b.amount - a.amount || b.count - a.count || a.label.localeCompare(b.label));
     }
     function filter(rows, mode, filters) {
-        const projects = new Set(Array.isArray(filters.project) ? filters.project : filters.project ? [filters.project] : []);
-        return rows.filter(row => (!filters.month || row.mes === filters.month)
-            && (!filters.state || row.estado === filters.state)
-            && (!filters.operator || operator(row, mode) === filters.operator)
-            && (!filters.budget || (mode === 'rendicion' ? row.presupuesto : row.gasto) === filters.budget)
-            && (!filters.type || type(row) === filters.type)
-            && (!filters.person || person(row, mode) === filters.person)
-            && (!projects.size || projects.has(row.proyecto || 'Sin proyecto'))
-            && (!filters.approval || (row.gasto_aprobacion || 'Sin definir') === filters.approval)
-            && (!filters.day || (mode === 'rendicion' ? row.dia_pago : row.dia) === filters.day));
+        const campos = {
+            month: row => row.mes, state: row => row.estado, operator: row => operator(row, mode),
+            budget: row => mode === 'rendicion' ? row.presupuesto : row.gasto,
+            type, person: row => person(row, mode), project: row => row.proyecto || 'Sin proyecto',
+            approval: row => row.gasto_aprobacion || 'Sin definir', day: row => mode === 'rendicion' ? row.dia_pago : row.dia,
+        };
+        const activos = Object.entries(campos).flatMap(([key, valor]) => {
+            const seleccion = Array.isArray(filters[key]) ? filters[key] : filters[key] ? [filters[key]] : [];
+            return seleccion.length ? [[valor, new Set(seleccion)]] : [];
+        });
+        return rows.filter(row => (mode !== 'cotizaciones' || filters.incluirCanceladas !== false
+                || (row.pestania !== 'cancelado' && !/^(CANCELAD[OA]|ANULAD[OA])$/.test(normalize(row.estado))))
+            && activos.every(([valor, seleccion]) => seleccion.has(valor(row))));
+    }
+    function conceptos(rows) {
+        const counts = new Map();
+        for (const row of rows) {
+            for (const [label, count] of Object.entries(row.conceptos || {})) {
+                counts.set(label, (counts.get(label) || 0) + count);
+            }
+        }
+        return [...counts].map(([label, count]) => ({label, count}))
+            .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'es'));
     }
     function summary(rows, mode) {
         const value = row => amount(row, mode);
@@ -85,5 +98,5 @@
             trend: group(pending.filter(row => row.dia), row => row.dia, amount).sort((a,b) => a.label.localeCompare(b.label)),
         };
     }
-    window.NucleusFinanceModel = {numeric, sum, normalize, person, operator, amount, type, group, filter, summary, trend, cotizaciones};
+    window.NucleusFinanceModel = {numeric, sum, normalize, person, operator, amount, type, group, filter, summary, trend, cotizaciones, conceptos};
 }());
