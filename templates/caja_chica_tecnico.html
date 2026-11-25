@@ -6,7 +6,7 @@
 <div id="cargando" role="status">Cargando tu información…</div>
 
 <section id="cc-inicio" class="view" hidden>
-  <a class="back" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Inicio</a>
+  <a class="back" href="{{ url_for('caja_chica.inicio_tecnico') }}"><span class="back-icon" aria-hidden="true">←</span>Volver a Caja Chica</a>
   <div class="eyebrow">02 / RENDICIÓN</div><h1>Tus depósitos</h1>
   <div class="balance compact"><span class="balance-label">GASTO COBRA POR RENDIR</span><div id="cc-pendiente" class="big-money" aria-live="polite"></div><div id="cc-refacturable" class="cc-balance-rf" hidden></div></div>
   <div id="cc-restricciones" aria-live="polite"></div>
@@ -22,7 +22,7 @@
 </section>
 <section id="cc-solicitud" class="view" hidden>
   <button class="back" id="cc-volver-solicitud" type="button" data-cc-volver><span class="back-icon" aria-hidden="true">←</span>Volver a depósitos</button>
-  <a class="back" id="cc-volver-portal" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Volver al inicio</a>
+  <a class="back" id="cc-volver-portal" href="{{ url_for('caja_chica.inicio_tecnico') }}"><span class="back-icon" aria-hidden="true">←</span>Volver a Caja Chica</a>
   <div class="eyebrow">01 / SOLICITUD</div><h1>¿Qué necesitas?</h1>
   <div id="cc-restricciones-form" aria-live="polite"></div>
   <form id="cc-form" class="card" novalidate>

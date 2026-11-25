@@ -105,6 +105,10 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     inicio = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
     assert all(f'seccion={seccion}' in inicio for seccion in ('solicitar', 'bandeja'))
     assert 'Galones solicitados' not in inicio and 'Mis pedidos' not in inicio
+    inicio_mobile = mobile.get('/form-pruebas/').get_data(as_text=True)
+    assert '/form-pruebas/caja-chica/inicio' in inicio_mobile
+    caja = mobile.get('/form-pruebas/caja-chica/inicio').get_data(as_text=True)
+    assert 'solicitar=1#nueva' in caja and '>Rendir</strong>' in caja
     portal = mobile.get('/form-pruebas/abastecimiento?seccion=solicitar').get_data(as_text=True)
     assert 'value="Técnico QA" readonly' in portal and 'value="FLM - INTEGRATEL" readonly' in portal
     assert all(f'>{grifo}</option>' in portal for grifo in ('Primax', 'Redcol', 'Otro'))
@@ -162,7 +166,9 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert f'/{sid}/foto/qr'.encode() in mobile.get('/form-pruebas/abastecimiento?seccion=bandeja').data
     portal_qr = mobile.get('/form-pruebas/abastecimiento?seccion=bandeja').get_data(as_text=True)
     assert 'Mostrar QR a pantalla completa' in portal_qr and 'Cerrar QR' in portal_qr
-    assert portal_qr.count('capture="environment"') == 3
+    assert portal_qr.count('data-ab-foto=') == 3
+    assert 'type="file"' not in portal_qr
+    assert 'name="cm"' in portal_qr and 'name="plm"' in portal_qr
     assert mobile.get(f'/form-pruebas/abastecimiento/{sid}/foto/qr').mimetype == 'image/png'
     otro = app.test_client()
     with otro.session_transaction() as ses:

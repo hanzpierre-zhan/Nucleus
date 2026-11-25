@@ -85,7 +85,12 @@
 
 {% macro fotos_campos(fotos) %}
 {% for tipo, etiqueta in fotos.items() %}
-<label>{{ etiqueta }} <input type="file" name="{{ tipo }}" accept="image/jpeg,image/png,image/webp" capture="environment" required></label>
+<div class="ab-foto-movil">
+  <button class="photo-button" type="button" data-ab-foto="{{ tipo }}" data-etiqueta="{{ etiqueta }}">
+    <strong>{{ etiqueta }}</strong><span>Tomar foto</span>
+  </button>
+  <img alt="{{ etiqueta }}" hidden>
+</div>
 {% endfor %}
 {% endmacro %}
 

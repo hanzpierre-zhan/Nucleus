@@ -1,17 +1,17 @@
 {% extends 'base.html' %}
-{% from '_abastecimiento_campos.html' import pedido, resumen, galones_pedido, nombre_grifo %}
+{% from '_abastecimiento_campos.html' import pedido, galones_pedido, nombre_grifo %}
 {% from '_abastecimiento_tabla.html' import columna %}
 {% block title %}Abastecimiento — Nucleus{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=6">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=7) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=15) }}">
 <section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
   <div class="cc-barra">
     <nav class="cc-tabs" aria-label="Secciones de Abastecimiento">
       {% for clave, etiqueta in pestañas.items() %}
       <a href="{{ url_for('vistas_nuevas.abastecimiento', estado=clave) }}" class="cc-tab ab-tab-{{ clave }} {{ 'activa' if clave == estado }}"{% if clave == estado %} aria-current="page"{% endif %}>
-        <span class="cc-tab-fila">{{ etiqueta }}</span>
+        <span class="cc-tab-fila">{{ etiqueta }} <span class="cc-cuenta">{{ conteos.get(clave, 0) }}</span></span>
       </a>
       {% endfor %}
     </nav>
@@ -54,27 +54,72 @@
     </table>
   </div>
   {% for sol in filas %}
-    <dialog id="ab-pedido-{{ sol.id }}" class="ab-dialogo-pedido{{ ' ab-dialogo-validacion' if estado == 'gestora' }}" aria-labelledby="ab-pedido-titulo-{{ sol.id }}">
+    <dialog id="ab-pedido-{{ sol.id }}" class="ab-dialogo-pedido" aria-labelledby="ab-pedido-titulo-{{ sol.id }}">
       <header class="ab-prueba-cabecera">
         <h2 id="ab-pedido-titulo-{{ sol.id }}">{% if sol.tecnico_id < 0 %}PRUEBA · {% endif %}Pedido #{{ sol.id }} · {{ sol.datos.site }}</h2>
         <div class="ab-dialogo-herramientas">
           {% if estado == 'gestora' %}
           <button type="submit" form="ab-validar-{{ sol.id }}" class="cn-redondo cn-neutro" title="Guardar cambios" aria-label="Guardar cambios"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
           <button type="submit" form="ab-validar-{{ sol.id }}" class="cn-redondo cn-verde" formaction="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='validar') }}" title="Validar y enviar a Generación QR" aria-label="Validar y enviar a Generación QR"><i class="fa-solid fa-check" aria-hidden="true"></i></button>
+          {% elif estado == 'parque' %}
+          {% set envio = 'Enviar QR al técnico' if sol.autorizado > 0 else 'Avisar al técnico que use el saldo' %}
+          <button type="submit" form="ab-enviar-{{ sol.id }}" class="cn-redondo cn-verde" title="{{ envio }}" aria-label="{{ envio }}"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
           {% endif %}
           <form method="dialog"><button class="cn-redondo cn-rojo" title="Cerrar detalle" aria-label="Cerrar detalle"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
         </div>
       </header>
-      <div class="ab-dialogo-contenido">
-      {% if estado == 'recarga' %}<p><strong>{{ 'Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia' }}</strong></p>{% endif %}
-      {% if estado == 'gestora' %}
+      <div class="ab-dialogo-contenido{{ ' ab-ficha-columnas' if estado != 'gestora' }}">
+      {% if estado != 'gestora' %}
+      <div class="ab-ficha-evidencias">
+        {% if estado == 'parque' %}
+          <form id="ab-enviar-{{ sol.id }}" class="ab-form ab-form-qr" method="post" enctype="multipart/form-data" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='enviar') }}">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <div class="ab-qr-volumen">
+              <i class="fa-solid fa-gas-pump" aria-hidden="true"></i>
+              <div><small>Galones autorizados</small><strong>{{ sol.autorizado }} gal</strong></div>
+            </div>
+            {% if sol.autorizado > 0 %}
+            <label class="ab-carga-qr" data-ab-carga-qr>
+              <input class="ab-archivo-qr" type="file" name="qr" accept="image/jpeg,image/png,image/webp" aria-label="Captura del QR" required>
+              <img alt="Vista previa del QR" hidden>
+              <span class="ab-carga-qr-ayuda">
+                <i class="fa-solid fa-camera" aria-hidden="true"></i>
+                <strong>Captura del QR</strong>
+                <small>Toca para elegir, arrastra la imagen o pégala con Ctrl+V</small>
+              </span>
+            </label>
+            {% else %}
+            <p class="ab-nota">El saldo previo cubre el pedido.</p>
+            {% endif %}
+            <p class="ab-validacion-error" data-error role="alert" hidden></p>
+          </form>
+        {% elif estado in ('llenado', 'recarga') %}
+          <fieldset class="ab-validacion-datos ab-seccion-pedido">
+            <legend>Evidencias</legend>
+            <div class="ab-evidencias">
+            {% for clave, etiqueta in fotos.items() %}
+            {% if (clave == 'qr' and sol.autorizado > 0) or (clave in ('boleta', 'antes_llenado', 'despues_llenado') and sol.cargado and estado == 'recarga') or (clave in ('antes_recarga', 'despues_recarga') and sol.estado == 'cerrado') %}
+            <a class="ab-evidencia-foto" href="{{ url_for('abastecimiento.foto_gestion', sid=sol.id, tipo=clave) }}" target="_blank" rel="noopener">
+              <img src="{{ url_for('abastecimiento.foto_gestion', sid=sol.id, tipo=clave) }}" alt="" loading="lazy">
+              <span>{{ etiqueta }}</span>
+            </a>
+            {% endif %}
+            {% endfor %}
+            </div>
+            <p class="ab-nota ab-sin-evidencias">Aún no hay archivos para este pedido.</p>
+          </fieldset>
+        {% endif %}
+      </div>
+      {% endif %}
+      <div class="ab-ficha-pedido">
+      <section class="ab-ficha-tarjeta">
+        <h3><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i> Resumen del pedido</h3>
         <dl class="ab-validacion-resumen">
           <div><dt>Solicitante</dt><dd>{{ sol.datos.tecnico }}</dd></div>
           <div><dt>Proyecto</dt><dd>{{ sol.proyecto }}</dd></div>
+          <div><dt>Estado</dt><dd><span class="ab-estado ab-tab-{{ estado }}">{{ pestañas[estado] if sol.estado != 'cerrado' else 'Recarga completada' }}</span></dd></div>
         </dl>
-      {% else %}
-        {{ resumen(sol) }}
-      {% endif %}
+      </section>
       {% if estado == 'gestora' %}
         {% if sol.datos.get('site_pendiente') %}
         <p class="ab-alerta" role="status">Corrige el site en el pedido o <a href="{{ url_for('vistas_nuevas.pagina', slug='sites') }}" target="_blank" rel="noopener">regístralo en Sites</a> durante la validación.</p>
@@ -82,34 +127,42 @@
         <form id="ab-validar-{{ sol.id }}" class="ab-form" method="post" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='editar') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
           <fieldset class="ab-validacion-datos">
-            <legend>Datos del pedido</legend>
+            <legend>Datos del pedido · {{ galones_pedido(sol.solicitado) }} gal solicitados</legend>
             {{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion'), sol.proyecto, sol.id, grifos) }}
           </fieldset>
           <p class="ab-validacion-error" data-error role="alert" hidden></p>
         </form>
       {% else %}
-        <details><summary>Datos del pedido</summary><fieldset disabled>{{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, '', sol.proyecto, sol.id, grifos) }}</fieldset></details>
-        {% if estado == 'parque' %}
-          <form class="ab-form" method="post" enctype="multipart/form-data" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='enviar') }}">
-            <input type="hidden" name="csrf" value="{{ csrf }}">
-            {% if sol.autorizado > 0 %}
-            <label>Captura del QR para {{ sol.autorizado }} gal <input type="file" name="qr" accept="image/jpeg,image/png,image/webp" required></label>
-            {% else %}
-            <p>El saldo previo cubre el pedido.</p>
-            {% endif %}
-            <p data-error role="alert" hidden></p>
-            <button type="submit" class="cc-btn">{{ 'Enviar QR al técnico' if sol.autorizado > 0 else 'Avisar al técnico que use el saldo' }}</button>
-          </form>
-        {% elif estado in ('llenado', 'recarga') %}
-          <div class="ab-acciones">
-            {% for clave, etiqueta in fotos.items() %}
-            {% if (clave == 'qr' and sol.autorizado > 0) or (clave in ('boleta', 'antes_llenado', 'despues_llenado') and sol.cargado and estado == 'recarga') or (clave in ('antes_recarga', 'despues_recarga') and sol.estado == 'cerrado') %}
-            <a href="{{ url_for('abastecimiento.foto_gestion', sid=sol.id, tipo=clave) }}" target="_blank" rel="noopener">{{ etiqueta }}</a>
-            {% endif %}
+        <section class="ab-ficha-tarjeta">
+          <h3><i class="fa-solid fa-location-dot" aria-hidden="true"></i> Datos del pedido</h3>
+          <dl class="ab-ficha-datos">
+            {% for etiqueta, valor in [
+              ('Fecha', sol.datos.fecha), ('Zona', sol.datos.zona), ('Site', sol.datos.site),
+              ('Tipo de pedido', 'Generador' if sol.datos.tipo == 'generador' else 'Vehículo'),
+              ('Unidad', sol.datos.placa or sol.datos.generador), ('CM', sol.datos.cm), ('PLM', sol.datos.plm),
+              ('Combustible', combustibles_pedido.get(sol.datos.combustible, sol.datos.otro_combustible)),
+              ('Grifo', nombre_grifo(sol.datos))
+            ] %}
+            <div><dt>{{ etiqueta }}</dt><dd>{{ valor or '—' }}</dd></div>
             {% endfor %}
-          </div>
-        {% endif %}
+          </dl>
+        </section>
+        <section class="ab-ficha-tarjeta">
+          <h3><i class="fa-solid fa-gas-pump" aria-hidden="true"></i> Cantidades de combustible</h3>
+          <dl class="ab-ficha-datos">
+            <div><dt>Solicitado</dt><dd>{{ galones_pedido(sol.solicitado) }} gal</dd></div>
+            {% if sol.autorizado is not none %}
+            <div><dt>Saldo previo</dt><dd>{{ sol.saldo_previo }} gal</dd></div>
+            <div><dt>Autorizado</dt><dd>{{ sol.autorizado }} gal</dd></div>
+            {% endif %}
+            {% if sol.saldo_final is not none %}
+            <div><dt>Consumido</dt><dd>{{ sol.consumido }} gal</dd></div>
+            <div><dt>Saldo restante</dt><dd>{{ sol.saldo_final }} gal</dd></div>
+            {% endif %}
+          </dl>
+        </section>
       {% endif %}
+      </div>
       </div>
     </dialog>
   {% endfor %}
@@ -123,10 +176,10 @@
       <button class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar vista de prueba" title="Cerrar" autofocus><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
     </form>
   </header>
-  <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile" allowfullscreen></iframe>
+  <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile" allow="camera; fullscreen" allowfullscreen></iframe>
 </dialog>
 {% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=9) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=10) }}" defer></script>
   <div class="cc-filtro" id="ab-filtro-tabla" role="dialog" aria-label="Filtrar columna" hidden></div>
   <script src="{{ url_for('static', filename='js/abastecimiento-tabla.js', v=1) }}" defer></script>
 {% endblock %}

@@ -18,14 +18,11 @@
 </div>
 <div class="card" id="asis-rechazo" role="status" hidden></div>
 <div class="actions">
-  {{ tarjeta('Solicitar', 'Pide dinero para tu trabajo', '＋', '' if vista_prueba else '/form-pruebas/caja-chica?solicitar=1#nueva', 'request-action') }}
-  {{ tarjeta('Rendir', 'Envía tus comprobantes y fotos', '✓', '' if vista_prueba else '/form-pruebas/caja-chica') }}
+  {{ tarjeta('Caja Chica', 'Solicita dinero y rinde tus depósitos', '💵', url_for('abastecimiento.prueba_tecnico', seccion='caja-chica') if vista_prueba else url_for('caja_chica.inicio_tecnico')) }}
+  {% if vista_prueba or mostrar_abastecimiento %}
+  {{ tarjeta('Abastecimiento', 'Tienes un QR listo para el grifo' if qr_abastecimiento else 'Solicita combustible y revisa tu QR', '⛽', url_for('abastecimiento.prueba_pedidos' if vista_prueba else 'abastecimiento.entrada')) }}
+  {% endif %}
   {% if vista_prueba or g.perfil_mobile_requiere_asistencia %}
-  {{ tarjeta('Asistencia', 'Marca tu ingreso con tu junior', '👥', '' if vista_prueba else url_for('asistencia_movil.pantalla'), 'asistencia-action', 'asis-home-estado') }}
+  {{ tarjeta('Asistencia', 'Marca tu ingreso con tu junior', '👥', url_for('abastecimiento.prueba_tecnico', seccion='asistencia') if vista_prueba else url_for('asistencia_movil.pantalla'), 'asistencia-action', 'asis-home-estado') }}
   {% endif %}
 </div>
-{% if vista_prueba or mostrar_abastecimiento %}
-<div class="actions">
-  {{ tarjeta('Abastecimiento', 'Tienes un QR listo para el grifo' if qr_abastecimiento else 'Solicita combustible y revisa tu QR', '⛽', url_for('abastecimiento.prueba_pedidos' if vista_prueba else 'abastecimiento.entrada')) }}
-</div>
-{% endif %}

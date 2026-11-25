@@ -2,6 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const csrf = $('csrf').value;
+  const prueba = document.body.hasAttribute('data-asis-prueba');
   let ubicacion = null, foto = null, flujo = null, frontal = false;
 
   const dato = (titulo, valor) => { const d = document.createElement('div'); const s = document.createElement('span'); s.textContent = titulo; d.append(s, valor || '—'); return d; };
@@ -19,6 +20,13 @@
 
   async function cargar() {
     try {
+      if (prueba) {
+        $('asis-nombre').textContent = 'Técnico de prueba';
+        $('asis-junior').append(new Option('Compañero de prueba', 'prueba'));
+        $('cargando').hidden = true;
+        $('asis-form-vista').hidden = false;
+        return;
+      }
       const r = await fetch('/form-pruebas/asistencia/datos', {credentials: 'same-origin'});
       const j = await r.json();
       if (r.status === 401) { location.href = '/form-pruebas/'; return; }
@@ -42,6 +50,7 @@
   }
 
   function pedirUbicacion() {
+    if (prueba) return;
     ubicacion = null;
     if (!navigator.geolocation) { gps('Tu celular no permite obtener la ubicación.', 'mal'); return; }
     gps('Obteniendo tu ubicación…');
@@ -97,6 +106,14 @@
     if (!aPie && !$('asis-placa').value.trim()) return error('Escribe la placa del vehículo o marca que vas a pie.');
     if (!solo && !$('asis-junior').value) return error('Elige a tu compañero o marca que trabajas solo.');
     if (!foto) return error('Toma la foto de la cuadrilla.');
+    if (prueba) {
+      $('asis-form-vista').hidden = true;
+      $('asis-hecho-vista').hidden = false;
+      $('asis-hecho-texto').textContent = 'Marcación de prueba completada.';
+      $('asis-hecho-foto').src = $('asis-previa').src;
+      $('asis-hecho-titulo').focus();
+      return;
+    }
     if (!ubicacion) return error('Falta tu ubicación. Activa el GPS y vuelve a tomar la foto.');
     const boton = e.target.querySelector('button[type=submit]'); boton.disabled = true;
     try {

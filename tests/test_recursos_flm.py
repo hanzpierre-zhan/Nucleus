@@ -113,7 +113,7 @@ def test_personal_directo_consolida_proyectos_asignados(app,client,recursos):
             ses.update(user_id=uid,username='gestor-consolidado',rol='gestor',current_proyecto_id=recursos['FLM - CLARO'],current_proyecto_nombre='FLM - CLARO')
         # Even after visiting a per-FLM legacy deep link, the direct module clears that context.
         client.get('/flm/%s/recursos/personal'%recursos['FLM - CLARO'])
-        r=client.get('/switch_project/%s?next=/'%recursos['Dataper'],follow_redirects=True)
+        r=client.get('/switch_project/%s?next=/%%3Fvista%%3Dclasica'%recursos['Dataper'],follow_redirects=True)
         assert r.status_code==200
         assert 'RECURSO-Dataper-FLM - CLARO' in r.text
         assert 'RECURSO-Dataper-FLM - INTEGRATEL' in r.text
@@ -196,14 +196,15 @@ def test_personal_diez_claro_mas_diez_integratel(app, client, rol):
     try:
         with client.session_transaction() as ses:
             ses.update(user_id=uid,username='revision-pepito-'+rol,rol=rol)
-        respuesta=client.get('/switch_project/%s?next=/'%ids['Dataper'],follow_redirects=True)
+        respuesta=client.get('/switch_project/%s?next=/%%3Fvista%%3Dclasica'%ids['Dataper'],follow_redirects=True)
         assert respuesta.status_code==200
         for proyecto in ('FLM - CLARO','FLM - INTEGRATEL'):
             for i in range(10):assert 'REVISION-PEPITO-'+rol+'-'+proyecto+'-'+str(i) in respuesta.text
         assert 'REVISION-PEPITO-'+rol+'-FLM - ENTEL-0' not in respuesta.text
         with app.app_context():
             AccesoProyecto.query.filter_by(usuario_id=uid,proyecto_id=ids['FLM - CLARO']).delete();db.session.commit()
-        respuesta=client.get('/')
+        assert client.get('/').location == '/vista/dataper/'
+        respuesta=client.get('/?vista=clasica')
         assert 'REVISION-PEPITO-'+rol+'-FLM - CLARO-0' not in respuesta.text
         assert 'REVISION-PEPITO-'+rol+'-FLM - INTEGRATEL-0' in respuesta.text
     finally:

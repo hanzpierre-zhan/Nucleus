@@ -75,6 +75,13 @@ def mobile(resto=''):
     return redirect('/form-pruebas/' + resto)
 
 
+@bp.get('/form-pruebas/caja-chica/inicio')
+def inicio_tecnico():
+    if not session.get('form_documento') or session.get('form_debe_cambiar'):
+        return redirect(url_for('form_pruebas.inicio'))
+    return render_template('caja_chica_inicio_tecnico.html', prueba=False)
+
+
 @bp.get('/form-pruebas/caja-chica')
 def portal():
     if not session.get('form_documento') or session.get('form_debe_cambiar'):

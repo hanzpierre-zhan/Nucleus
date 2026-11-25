@@ -118,6 +118,9 @@ def index():
             session.clear()
             return render_template('login.html', error="No tiene proyectos asignados. Contacte al administrador.")
 
+    if session.get('current_proyecto_nombre') == 'Dataper' and not request.args and not contexto_recursos():
+        return redirect(url_for('vistas_nuevas.pagina', slug='dataper'))
+
     # Cotizaciones old ya no se usa: los usuarios van a Cotizaciones (Cot_New); solo administración la puede abrir.
     if (session.get('current_proyecto_nombre') or '').strip() == 'Cotizaciones' and (user_rol or '').lower() not in ('zeno', 'suport', 'admin'):
         return redirect('/cot-new/')

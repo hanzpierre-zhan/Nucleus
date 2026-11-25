@@ -319,3 +319,7 @@ body.dark-mode .cn-sla-rojo { color: #fca5a5; } body.dark-mode .cn-sla-ok { colo
 .cn-condicion textarea { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--ios-hairline); background: var(--ios-fill); color: var(--ios-label); font: inherit; font-size: 12.5px; resize: vertical; }
 #cc-solicitud-dialogo .cn-editor .cn-condicion textarea { height: 34px !important; min-height: 34px !important; padding: 6px 8px !important; }
 @media (max-width: 700px) { .cn-condiciones { grid-template-columns: 1fr; } }
+
+.vn-estado { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 8px; font-weight: 700; }
+.vn-estado-activo { color: #15803d; background: #dcfce7; }
+.vn-estado-cesado { color: #991b1b; background: #fee2e2; }

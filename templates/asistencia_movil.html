@@ -1,13 +1,15 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f7fa"><title>Asistencia · Nucleus</title><script src="{{ url_for('static',filename='js/form-pruebas-theme.js') }}"></script><link rel="stylesheet" href="{{ url_for('static',filename='css/form-pruebas.css',v=14) }}"></head>
-<body>
-<header class="top"><a href="{{ url_for('form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg',v=5) }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Asistencia</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
+<body{% if prueba %} data-asis-prueba{% endif %}>
+{% set inicio = url_for('abastecimiento.prueba_tecnico' if prueba else 'form_pruebas.inicio') %}
+<header class="top"><a href="{{ inicio }}" class="brand"><img src="{{ url_for('static',filename='img/brand-symbol.svg',v=5) }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a><span class="badge">Asistencia</span><button class="theme-toggle" id="form-theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema"></button></header>
 <main class="shell">
+{% if prueba %}<p class="hint">Modo de prueba · La marcación no se guarda.</p>{% endif %}
 {% if rechazo %}<div class="card" role="status"><strong>Asistencia rechazada · {{ rechazo.fecha }}</strong><p>{{ rechazo.motivo }}</p>{% if rechazo.hoy %}<p><strong>Vuelve a tomar tu foto y registra tu asistencia otra vez aquí abajo.</strong></p>{% endif %}</div>{% endif %}
 <div id="cargando" role="status">Cargando tu información…</div>
 
 <section id="asis-form-vista" class="view" hidden>
-  <a class="back" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Volver</a>
+  <a class="back" href="{{ inicio }}"><span class="back-icon" aria-hidden="true">←</span>Volver</a>
   <div class="eyebrow">03 / ASISTENCIA</div><h1>Asistencia de hoy<span class="dot">.</span></h1>
   {% if continuar_solicitud %}<p>Marca tu asistencia de hoy antes de continuar con la solicitud.</p>{% else %}<p>Registra tu asistencia del día. La marcación se renueva a las 00:00, hora de Perú.</p>{% endif %}
   <form id="asis-form" class="card" novalidate>
@@ -15,7 +17,7 @@
     <div class="asis-datos" id="asis-datos"></div>
     <fieldset class="asis-opciones"><legend>¿Cómo te movilizas hoy?</legend>
       <label><input type="radio" name="movilidad" value="vehiculo" checked><span>🚗 Con vehículo</span></label>
-      <label><input type="radio" name="movilidad" value="a_pie"><span>🚶 A pie (caminante)</span></label>
+      <label><input type="radio" name="movilidad" value="a_pie"><span>🚶 Caminantes</span></label>
     </fieldset>
     <div id="asis-placa-caja">
       <label for="asis-placa">Placa del vehículo</label>
@@ -45,7 +47,7 @@
 </section>
 
 <section id="asis-hecho-vista" class="view" hidden>
-  <a class="back" href="{{ url_for('form_pruebas.inicio') }}"><span class="back-icon" aria-hidden="true">←</span>Volver</a>
+  <a class="back" href="{{ inicio }}"><span class="back-icon" aria-hidden="true">←</span>Volver</a>
   <div class="card asis-hecho">
     <div class="success-icon" aria-hidden="true">✓</div>
     <div class="eyebrow">ASISTENCIA REGISTRADA</div>
@@ -58,4 +60,4 @@
 </section>
 </main>
 <input id="csrf" type="hidden" value="{{ csrf }}">
-<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=2) }}" defer></script><script src="{{ url_for('static',filename='js/asistencia-movil.js',v=3) }}" defer></script></body></html>
+{% if not prueba %}<script src="{{ url_for('static',filename='js/ubicacion-movil.js',v=2) }}" defer></script>{% endif %}<script src="{{ url_for('static',filename='js/asistencia-movil.js',v=4) }}" defer></script></body></html>

@@ -378,7 +378,19 @@
       const controles = el('span', 'cc-acciones-rapidas cc-col-acciones');
       controles.append(...(esUsuarios ? [redondo('Ver y editar', 'cn-azul', 'fa-pen', () => verUsuario(f))] : acciones(f)));
       fila.append(controles);
-      for (const c of columnas) fila.append(el('span', null, valor(f, c)));
+      for (const c of columnas) {
+        const texto = valor(f, c);
+        const celda = el('span');
+        const marca = esDataper && c === 'PROYECTO' ? window.NucleusProjectBadge?.brand(texto) : '';
+        if (marca) celda.append(el('span', 'project-badge project-badge--' + marca, texto));
+        else if (esDataper && c === 'ESTADO' && ['ACTIVO', 'CESADO'].includes(texto.trim())) {
+          const cesado = esCesado(f);
+          const estado = el('span', 'vn-estado ' + (cesado ? 'vn-estado-cesado' : 'vn-estado-activo'));
+          estado.append(icono(cesado ? 'fa-user-xmark' : 'fa-circle-check'), cesado ? 'Cesado' : 'Activo');
+          celda.append(estado);
+        } else celda.textContent = texto;
+        fila.append(celda);
+      }
       lista.append(fila);
     }
     if (visibles.length > limite) {

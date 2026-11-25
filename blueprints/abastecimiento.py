@@ -136,23 +136,27 @@ def gestion():
         return redirect(url_for('vistas_nuevas.abastecimiento', estado='recarga'))
     if estado not in pestañas:
         abort(404)
+    consulta = Solicitud.query
+    if rol not in ADMIN:
+        consulta = consulta.filter(Solicitud.proyecto.in_(proyectos))
+    conteos = dict(consulta.with_entities(Solicitud.estado, db.func.count(Solicitud.id))
+                   .group_by(Solicitud.estado).all())
+    conteos['recarga'] = conteos.get('recarga', 0) + conteos.get('cerrado', 0)
+    generadores = generadores_visibles(rol, proyectos)
+    conteos['generadores'] = len(generadores)
     if estado == 'generadores':
-        filas = generadores_visibles(rol, proyectos)
         editar = request.args.get('editar', type=int)
-        ficha = filas.get(editar)
+        ficha = generadores.get(editar)
         if editar is not None and ficha is None:
             abort(404)
         return render_template('abastecimiento.html', proyectos_list=menu, estado=estado, pestañas=pestañas,
-                               csrf=csrf(), generadores=filas, ficha=ficha, editar=editar,
+                               csrf=csrf(), conteos=conteos, generadores=generadores, ficha=ficha, editar=editar,
                                campos=CAMPOS_GENERADOR, tipos=TIPOS_GENERADOR, combustibles=COMBUSTIBLES_GENERADOR,
                                proyectos=PROYECTOS_PRUEBA if rol in ADMIN else sorted(proyectos))
     estados_visibles = ('recarga', 'cerrado') if estado == 'recarga' else (estado,)
-    consulta = Solicitud.query.filter(Solicitud.estado.in_(estados_visibles))
-    if rol not in ADMIN:
-        consulta = consulta.filter(Solicitud.proyecto.in_(proyectos))
-    filas = consulta.order_by(Solicitud.id.desc()).all()
+    filas = consulta.filter(Solicitud.estado.in_(estados_visibles)).order_by(Solicitud.id.desc()).all()
     return render_template('abastecimiento.html', proyectos_list=menu, filas=filas, estado=estado,
-                           pestañas=pestañas, fotos=FOTOS, csrf=csrf(), puede_probar=rol in ADMIN,
+                           pestañas=pestañas, conteos=conteos, fotos=FOTOS, csrf=csrf(), puede_probar=rol in ADMIN,
                            zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO, grifos=GRIFOS_PEDIDO)
 
 
@@ -504,6 +508,10 @@ def persona_prueba():
 @login_required
 def prueba_tecnico():
     persona = persona_prueba()
+    if request.args.get('seccion') == 'caja-chica':
+        return render_template('caja_chica_inicio_tecnico.html', prueba=True)
+    if request.args.get('seccion') == 'asistencia':
+        return render_template('asistencia_movil.html', csrf=csrf(), prueba=True)
     ultimo = Solicitud.query.filter_by(tecnico_id=persona['id']).order_by(Solicitud.id.desc()).first()
     qr_listo = Solicitud.query.filter_by(tecnico_id=persona['id'], estado='llenado').first() is not None
     return render_template('abastecimiento_prueba_inicio.html', persona=persona,

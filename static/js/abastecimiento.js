@@ -199,6 +199,86 @@ for (const campos of document.querySelectorAll('[data-pedido]')) {
   });
 }
 
+const fotosCapturadas = new WeakMap();
+const camara = document.getElementById('ab-camara');
+if (camara) {
+  const video = camara.querySelector('video');
+  const disparar = camara.querySelector('[data-ab-disparar]');
+  const aviso = camara.querySelector('[role="alert"]');
+  let flujo, objetivo, turno = 0;
+
+  function apagar() {
+    turno++;
+    flujo?.getTracks().forEach(pista => pista.stop());
+    flujo = null;
+    video.srcObject = null;
+    disparar.disabled = true;
+  }
+
+  function errorCamara(mensaje) {
+    aviso.textContent = mensaje;
+    aviso.hidden = false;
+  }
+
+  for (const boton of document.querySelectorAll('[data-ab-foto]')) {
+    boton.addEventListener('click', async () => {
+      apagar();
+      objetivo = boton;
+      const intento = turno;
+      aviso.hidden = true;
+      camara.querySelector('h2').textContent = boton.dataset.etiqueta;
+      camara.showModal();
+      if (!navigator.mediaDevices?.getUserMedia) {
+        errorCamara('La cámara requiere abrir Nucleus en un navegador compatible y con conexión segura.');
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {facingMode: {ideal: 'environment'}, width: {ideal: 1920}, height: {ideal: 1080}},
+          audio: false,
+        });
+        if (!camara.open || intento !== turno) {
+          stream.getTracks().forEach(pista => pista.stop());
+          return;
+        }
+        flujo = stream;
+        video.srcObject = flujo;
+      } catch {
+        if (camara.open && intento === turno) errorCamara('No se pudo abrir la cámara. Revisa los permisos del navegador y vuelve a intentar.');
+      }
+    });
+  }
+
+  video.addEventListener('loadeddata', () => { if (camara.open && flujo) disparar.disabled = false; });
+  disparar.addEventListener('click', () => {
+    if (!video.videoWidth || !flujo) return;
+    disparar.disabled = true;
+    const intento = turno;
+    const lienzo = document.createElement('canvas');
+    lienzo.width = video.videoWidth;
+    lienzo.height = video.videoHeight;
+    lienzo.getContext('2d').drawImage(video, 0, 0);
+    lienzo.toBlob(foto => {
+      if (!camara.open || intento !== turno) return;
+      if (!foto) {
+        errorCamara('No se pudo tomar la foto. Vuelve a intentar.');
+        disparar.disabled = false;
+        return;
+      }
+      fotosCapturadas.set(objetivo, foto);
+      const previa = objetivo.parentElement.querySelector('img');
+      if (previa.src) URL.revokeObjectURL(previa.src);
+      previa.src = URL.createObjectURL(foto);
+      previa.hidden = false;
+      objetivo.querySelector('span').textContent = 'Volver a tomar foto';
+      apagar();
+      camara.close();
+    }, 'image/jpeg', .9);
+  });
+  camara.addEventListener('close', apagar);
+  window.addEventListener('pagehide', apagar);
+}
+
 for (const formulario of document.querySelectorAll('.ab-form')) {
   formulario.addEventListener('submit', async evento => {
     evento.preventDefault();
@@ -206,6 +286,16 @@ for (const formulario of document.querySelectorAll('.ab-form')) {
     const aviso = formulario.querySelector('[data-error]');
     const datos = new FormData(formulario);
     aviso.hidden = true;
+    for (const campo of formulario.querySelectorAll('[data-ab-foto]')) {
+      const foto = fotosCapturadas.get(campo);
+      if (!foto) {
+        aviso.textContent = 'Toma la foto requerida: ' + campo.dataset.etiqueta + '.';
+        aviso.hidden = false;
+        campo.focus();
+        return;
+      }
+      datos.append(campo.dataset.abFoto, foto, campo.dataset.abFoto + '.jpg');
+    }
     const botones = [...formulario.elements].filter(control => control instanceof HTMLButtonElement && control.type === 'submit');
     botones.forEach(b => { b.disabled = true; });
     try {
@@ -225,4 +315,44 @@ for (const formulario of document.querySelectorAll('.ab-form')) {
       botones.forEach(b => { b.disabled = false; });
     }
   });
+}
+
+for (const zona of document.querySelectorAll('[data-ab-carga-qr]')) {
+  const archivo = zona.querySelector('input');
+  const imagen = zona.querySelector('img');
+  const ayuda = zona.querySelector('small');
+  const textoInicial = ayuda.textContent;
+  let previa;
+
+  archivo.addEventListener('change', () => {
+    if (previa) URL.revokeObjectURL(previa);
+    const foto = archivo.files[0];
+    previa = foto ? URL.createObjectURL(foto) : '';
+    if (previa) imagen.src = previa;
+    else imagen.removeAttribute('src');
+    imagen.hidden = !foto;
+    ayuda.textContent = foto ? foto.name + ' · toca para cambiarla' : textoInicial;
+  });
+
+  function adjuntar(evento, archivos) {
+    const foto = [...(archivos || [])].find(item => archivo.accept.split(',').includes(item.type));
+    if (!foto) return;
+    evento.preventDefault();
+    const seleccion = new DataTransfer();
+    seleccion.items.add(foto);
+    archivo.files = seleccion.files;
+    archivo.dispatchEvent(new Event('change'));
+  }
+
+  zona.addEventListener('dragover', evento => {
+    evento.preventDefault();
+    zona.classList.add('arrastrando');
+  });
+  zona.addEventListener('dragleave', () => zona.classList.remove('arrastrando'));
+  zona.addEventListener('drop', evento => {
+    evento.preventDefault();
+    zona.classList.remove('arrastrando');
+    adjuntar(evento, evento.dataTransfer.files);
+  });
+  zona.closest('dialog').addEventListener('paste', evento => adjuntar(evento, evento.clipboardData?.files));
 }

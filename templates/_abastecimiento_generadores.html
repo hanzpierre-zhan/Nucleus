@@ -1,7 +1,7 @@
 {% from '_abastecimiento_tabla.html' import columna %}
 {% set ficha = ficha or {} %}
 {% if editar or request.args.get('nuevo') == '1' %}
-<section id="ab-form-generador" class="ab-pedido" aria-labelledby="ab-form-titulo">
+<section id="ab-form-generador" class="ab-pedido ab-validacion-datos" aria-labelledby="ab-form-titulo">
   <strong id="ab-form-titulo">{{ 'Editar generador' if editar else 'Registrar generador' }}</strong>
   <form class="ab-form" method="post" action="{{ url_for('abastecimiento.guardar_generador') }}">
     <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -35,8 +35,10 @@
       </label>
     </div>
     <p data-error role="alert" hidden></p>
-    <div class="ab-acciones"><button type="submit" class="cc-btn">Guardar generador</button>
-    <a href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores') }}">Cancelar</a></div>
+    <div class="ab-dialogo-herramientas">
+      <button type="submit" class="cn-redondo cn-verde" title="Guardar generador" aria-label="Guardar generador"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
+      <a class="cn-redondo cn-rojo" href="{{ url_for('vistas_nuevas.abastecimiento', estado='generadores') }}" title="Cancelar" aria-label="Cancelar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></a>
+    </div>
   </form>
 </section>
 {% endif %}

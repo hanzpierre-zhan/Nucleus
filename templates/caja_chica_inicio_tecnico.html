@@ -1,0 +1,26 @@
+{% from '_nucleus_mobile_inicio.html' import tarjeta %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Caja Chica · Nucleus Mobile</title>
+  <script src="{{ url_for('static', filename='js/form-pruebas-theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/form-pruebas.css', v=16) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=16) }}">
+</head>
+<body>
+  <main class="shell">
+    <header class="ab-mobile-cabecera">
+      <div class="ab-mobile-titulo">
+        <a class="ab-mobile-volver" href="{{ url_for('abastecimiento.prueba_tecnico' if prueba else 'form_pruebas.inicio') }}" aria-label="Volver a Nucleus">←</a>
+        <h1>Caja Chica</h1>
+      </div>
+    </header>
+    <nav class="actions ab-mobile-portada" aria-label="Opciones de Caja Chica">
+      {{ tarjeta('Solicitar', 'Pide dinero para tu trabajo', '＋', '' if prueba else url_for('caja_chica.portal', solicitar=1, _anchor='nueva'), 'request-action') }}
+      {{ tarjeta('Rendir', 'Envía tus comprobantes y fotos', '✓', '' if prueba else url_for('caja_chica.portal')) }}
+    </nav>
+  </main>
+</body>
+</html>
