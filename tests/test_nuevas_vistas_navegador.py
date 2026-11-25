@@ -18,12 +18,13 @@ def browser_page(auth_client,p,servidor):
 
 def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
     with pw.sync_playwright() as p:
+        opciones_camara = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
         try:
-            navegador = p.chromium.launch()
+            navegador = p.chromium.launch(args=opciones_camara)
         except pw.Error:
-            navegador = p.chromium.launch(channel='chrome')
+            navegador = p.chromium.launch(channel='chrome', args=opciones_camara)
         try:
-            contexto = navegador.new_context(viewport={'width': 1280, 'height': 900})
+            contexto = navegador.new_context(viewport={'width': 1280, 'height': 900}, permissions=['camera'])
             cookie = auth_client.get_cookie('session')
             contexto.add_cookies([{'name': 'session', 'value': cookie.value, 'url': servidor}])
             pagina = contexto.new_page()
@@ -43,12 +44,27 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pw.expect(modal).to_be_visible()
             pantalla = modal.frame_locator('iframe')
             pw.expect(pantalla.get_by_text('TOTAL POR RENDIR')).to_be_visible()
+            pantalla.locator('.mobile-ajustes summary').press('Enter')
+            pantalla.get_by_role('link', name='Editar perfil').press('Enter')
+            foto_perfil = pantalla.get_by_role('button', name='Foto frontal de perfil')
+            pw.expect(foto_perfil).to_have_attribute('data-camara', 'user')
+            foto_perfil.press('Enter')
+            camara_perfil = pantalla.get_by_role('dialog', name='Foto frontal de perfil')
+            disparador_perfil = camara_perfil.get_by_role('button', name='Tomar foto')
+            pw.expect(disparador_perfil).to_be_enabled()
+            disparador_perfil.press('Enter')
+            camara_perfil.get_by_role('button', name='Enviar').press('Enter')
+            assert pantalla.locator('input[name="foto"]').evaluate('(input) => input.files[0].type') == 'image/jpeg'
+            pantalla.get_by_role('button', name='Quitar foto').press('Enter')
+            assert pantalla.locator('input[name="foto"]').evaluate('(input) => input.files.length') == 0
+            pantalla.get_by_role('link', name='Volver al inicio').press('Enter')
             pantalla.get_by_role('link', name='Asistencia').press('Enter')
             pw.expect(pantalla.get_by_role('heading', name='Asistencia de hoy')).to_be_visible()
             pw.expect(pantalla.get_by_text('La marcación no se guarda.', exact=False)).to_be_visible()
             pantalla.get_by_role('link', name='Volver', exact=True).press('Enter')
             pantalla.get_by_role('link', name='Abastecimiento').press('Enter')
-            pw.expect(pantalla.get_by_text('Modo de prueba · Técnico simulado')).to_be_visible()
+            pw.expect(pantalla.get_by_role('heading', name='Abastecimiento')).to_be_visible()
+            pw.expect(pantalla.get_by_text('Modo de prueba · Técnico simulado')).to_have_count(0)
             assert modal.bounding_box()['width'] <= 420
             pantalla.get_by_role('link', name='Bandeja').press('Enter')
             pw.expect(pantalla.get_by_role('heading', name='Mis pedidos')).to_be_visible()
@@ -60,8 +76,29 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pw.expect(pantalla.locator('datalist option[value="CM-20261124-00000018"]')).to_have_count(1)
             pw.expect(pantalla.get_by_label('Galones solicitados')).to_have_attribute('step', '0.1')
             assert pantalla.get_by_label('Código único del site').count() == 0
+            pw.expect(pantalla.get_by_role('button', name='Tablero del vehículo antes del llenado')).to_be_visible()
             pantalla.get_by_label('Tipo de pedido').select_option('generador', timeout=5000)
             pw.expect(pantalla.get_by_label('Generador registrado')).to_be_visible()
+            pw.expect(pantalla.get_by_role('button', name='Medidor del generador antes del llenado')).to_be_visible()
+            campo_foto = pantalla.locator('[data-foto-unidad="generador"]')
+            campo_foto.get_by_role('button', name='Medidor del generador antes del llenado').press('Enter')
+            camara = pantalla.get_by_role('dialog', name='Medidor del generador antes del llenado')
+            pw.expect(camara.locator('video')).to_be_visible()
+            pw.expect(camara.get_by_role('button', name='Tomar foto')).to_be_enabled()
+            medidas = camara.evaluate("(e) => [e.clientWidth, e.clientHeight, innerWidth, innerHeight]")
+            assert abs(medidas[0] - medidas[2]) <= 1 and abs(medidas[1] - medidas[3]) <= 1, medidas
+            pw.expect(camara.get_by_role('button', name='Volver')).to_be_visible()
+            camara.get_by_role('button', name='Tomar foto').press('Enter')
+            pw.expect(camara.get_by_role('img', name='Vista previa de la captura')).to_be_visible()
+            camara.get_by_role('button', name='Rechazar').press('Enter')
+            pw.expect(camara.get_by_role('button', name='Tomar foto')).to_be_visible()
+            camara.get_by_role('button', name='Tomar foto').press('Enter')
+            camara.get_by_role('button', name='Enviar').press('Enter')
+            previa = campo_foto.get_by_role('img')
+            pw.expect(previa).to_be_visible()
+            campo_foto.get_by_role('button', name='Quitar foto').press('Enter')
+            pw.expect(campo_foto.locator('img')).to_be_hidden()
+
             modal.get_by_role('button', name='Cerrar vista de prueba').click()
             pw.expect(modal).to_be_hidden()
             pagina.get_by_role('link', name='Generadores').click()

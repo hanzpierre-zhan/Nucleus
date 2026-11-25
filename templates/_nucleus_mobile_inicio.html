@@ -7,7 +7,6 @@
 {% endmacro %}
 
 <div class="greeting">
-  {% if not vista_prueba and g.perfil_mobile_foto %}<img class="foto-perfil-mobile" src="{{ url_for('asistencia_movil.foto_perfil') }}" alt="Tu foto de perfil" width="48" height="48">{% endif %}
   <div class="eyebrow" id="proyecto">{{ 'FLM - ' ~ proyecto if vista_prueba else '' }}</div>
   <h1>Hola, <span id="nombre">{{ persona.nombre if vista_prueba else '' }}</span><span class="dot">.</span></h1>
 </div>

@@ -1,0 +1,21 @@
+<header class="top">
+  <a href="{{ url_for('abastecimiento.prueba_tecnico' if vista_prueba else 'form_pruebas.inicio') }}" class="brand"><img src="{{ url_for('static', filename='img/brand-symbol.svg', v=5) }}" alt="" width="28" height="28">Nucleus<span>FORM</span></a>
+  <div class="mobile-ajustes-grupo">
+  {% if vista_prueba %}<span class="foto-perfil-mobile foto-perfil-prueba" role="img" aria-label="Avatar de prueba">TP</span>{% elif autenticado and not debe_cambiar and g.perfil_mobile_foto %}<img class="foto-perfil-mobile" src="{{ url_for('asistencia_movil.foto_perfil') }}" alt="Tu foto de perfil" width="48" height="48">{% endif %}
+  <details class="mobile-ajustes">
+    <summary class="theme-toggle" aria-label="Configuración" title="Configuración">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4l.7 2.6 2 .9 2.4-1.1 2 3.5-1.8 2v2.2l1.8 2-2 3.5-2.4-1.1-2 .9-.7 2.6h-4l-.7-2.6-2-.9-2.4 1.1-2-3.5 1.8-2v-2.2l-1.8-2 2-3.5 2.4 1.1 2-.9z"/><circle cx="12" cy="12" r="3"/></svg>
+    </summary>
+    <div class="mobile-ajustes-panel">
+      {% if vista_prueba or (autenticado and not debe_cambiar) %}
+      <a href="{{ url_for('abastecimiento.prueba_tecnico', seccion='perfil') if vista_prueba else url_for('asistencia_movil.editar_perfil') }}">Editar perfil</a>
+      <button type="button" {% if vista_prueba %}onclick="document.getElementById('prueba-clave').showModal()"{% else %}data-go="cambiar-clave"{% endif %}>Cambiar clave</button>
+      {% endif %}
+      <button id="form-theme-toggle" type="button" data-theme-text>Cambiar tema</button>
+      {% if vista_prueba or autenticado %}
+      <button type="button" {% if vista_prueba %}onclick="document.getElementById('prueba-salir').showModal()"{% else %}id="salir"{% endif %}>Salir</button>
+      {% endif %}
+    </div>
+  </details>
+  </div>
+</header>

@@ -82,6 +82,11 @@ class AbastecimientoSolicitud(db.Model):
     gestora_id = db.Column(db.Integer)
     parque_id = db.Column(db.Integer)
 
+    @property
+    def codigo(self):
+        return f'ABA-{self.id:06d}'
+
+
 
 class AbastecimientoFoto(db.Model):
     __tablename__ = 'abastecimiento_fotos'

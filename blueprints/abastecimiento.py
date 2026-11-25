@@ -24,15 +24,15 @@ ESTADOS = {
     'recarga': 'Recarga', 'cerrado': 'Recarga completada',
 }
 ADMIN = ('zeno', 'admin', 'suport')
-FOTOS_LLENADO = {'boleta': 'Boleta', 'antes_llenado': 'Antes del llenado', 'despues_llenado': 'Después del llenado'}
+FOTOS_LLENADO = {'boleta': 'Boleta o factura del llenado', 'despues_llenado': 'Foto del llenado'}
 FOTOS_RECARGA = {'antes_recarga': 'Antes de la recarga en el site', 'despues_recarga': 'Después de la recarga en el site'}
-FOTOS = {'qr': 'Código QR', **FOTOS_LLENADO, **FOTOS_RECARGA}
+FOTOS = {'foto_inicial': 'Foto antes del llenado', 'qr': 'Código QR', **FOTOS_LLENADO, 'antes_llenado': 'Antes del llenado', **FOTOS_RECARGA}
 CERO = Decimal('0.00')
 PROYECTOS_PRUEBA = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
 TIPOS_GENERADOR = ('PROPIO', 'ALQUILADO', 'CLIENTE', 'OTRO')
 COMBUSTIBLES_GENERADOR = ('GASOLINA', 'PETRÓLEO', 'DIÉSEL', 'OTRO')
 COMBUSTIBLES_PEDIDO = {'gasolina': 'Gasolina', 'petroleo': 'Petróleo', 'diesel': 'Diésel'}
-GRIFOS_PEDIDO = {'primax': 'Primax', 'redcol': 'Redcol', 'otro': 'Otro'}
+GRIFOS_PEDIDO = {'primax': 'Primax', 'repsol': 'Repsol', 'redcol': 'Redcol'}
 CAMPOS_GENERADOR = ('QR ASIGNADO', 'SERIE DE EQUIPO', 'ZONA', 'TIPO',
                     'TIPO DE COMBUSTIBLE', 'PROYECTO')
 
@@ -74,10 +74,9 @@ def datos_pedido(form, proyecto, anterior=None, galones_anteriores=None, *, prue
         grifo = form.get('grifo', '').strip().lower()
         if grifo and grifo not in GRIFOS_PEDIDO:
             raise ValueError('Selecciona un grifo de la lista.')
-        otro = form.get('grifo_otro', '').strip()[:150] if grifo == 'otro' else ''
-        if grifo == 'otro' and not otro:
-            raise ValueError('Escribe el nombre del otro grifo.')
-        datos.update(grifo=GRIFOS_PEDIDO.get(grifo, ''), grifo_otro=otro)
+        grifo_anterior = (anterior.get('grifo') or '').strip().lower()
+        if grifo or (not anterior.get('grifo_otro') and grifo_anterior in ('', *GRIFOS_PEDIDO)):
+            datos.update(grifo=GRIFOS_PEDIDO.get(grifo, ''), grifo_otro='')
     try:
         datos['fecha'] = date.fromisoformat(datos['fecha']).isoformat()
     except ValueError:
@@ -155,8 +154,10 @@ def gestion():
                                proyectos=PROYECTOS_PRUEBA if rol in ADMIN else sorted(proyectos))
     estados_visibles = ('recarga', 'cerrado') if estado == 'recarga' else (estado,)
     filas = consulta.filter(Solicitud.estado.in_(estados_visibles)).order_by(Solicitud.id.desc()).all()
+    fotos_registradas = set(db.session.query(AbastecimientoFoto.solicitud_id, AbastecimientoFoto.tipo)
+                            .filter(AbastecimientoFoto.solicitud_id.in_([sol.id for sol in filas])).all()) if filas else set()
     return render_template('abastecimiento.html', proyectos_list=menu, filas=filas, estado=estado,
-                           pestañas=pestañas, conteos=conteos, fotos=FOTOS, csrf=csrf(), puede_probar=rol in ADMIN,
+                           pestañas=pestañas, conteos=conteos, fotos=FOTOS, fotos_registradas=fotos_registradas, csrf=csrf(), puede_probar=rol in ADMIN,
                            zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO, grifos=GRIFOS_PEDIDO)
 
 
@@ -195,6 +196,10 @@ def catalogo_generadores(proyecto, *, prueba=False):
         if qr:
             resultado.setdefault(qr, {'qr': qr, 'serie': str(datos.get('SERIE DE EQUIPO') or '').strip(),
                                        'zona': str(datos.get('ZONA') or '').strip()})
+    if prueba:
+        for numero in (1, 2):
+            qr = f'GEP-PRUEBA-{proyecto}-{numero:02d}'
+            resultado.setdefault(qr, {'qr': qr, 'serie': '', 'zona': ''})
     return sorted(resultado.values(), key=lambda g: g['qr'].casefold())
 
 
@@ -390,11 +395,12 @@ def pantalla_tecnico(persona, prueba=False):
     ruta = 'abastecimiento.prueba_pedidos' if prueba else 'abastecimiento.entrada'
     pedidos = Solicitud.query.filter_by(tecnico_id=persona['id']).order_by(Solicitud.id.desc())
     filas = pedidos.all() if seccion == 'bandeja' else []
+    detalle = pedidos.filter_by(id=request.args.get('pedido', type=int)).first_or_404() if seccion == 'detalle' else None
     ultimo = pedidos.first() if prueba and seccion == 'solicitar' else None
     datos = {'fecha': ahora_peru().date().isoformat(), 'zona': persona['departamento']}
     return render_template('abastecimiento_mobile.html', filas=filas, datos=datos, persona=persona,
                            prueba=prueba, proyectos_prueba=PROYECTOS_PRUEBA, estados=ESTADOS, csrf=csrf(),
-                           seccion=seccion, ruta=ruta,
+                           seccion=seccion, ruta=ruta, detalle=detalle,
                            proyecto=(ultimo.proyecto if ultimo else 'CLARO') if prueba else familia(persona['proyecto']),
                            zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO, grifos=GRIFOS_PEDIDO,
                            fotos_llenado=FOTOS_LLENADO, fotos_recarga=FOTOS_RECARGA)
@@ -421,13 +427,15 @@ def crear_pedido(persona, prueba=False):
         bloquear_cambios()
         unidad_libre(unidad)
         sol = Solicitud(tecnico_id=persona['id'], proyecto=proyecto, unidad=unidad,
-                        datos={**datos, 'tecnico': persona['nombre']}, solicitado=galones)
+                        datos={**datos, 'tecnico': persona['nombre'], 'tipo_foto_inicial': datos['tipo']}, solicitado=galones)
         db.session.add(sol)
+        db.session.flush()
+        guardar_foto(sol, 'foto_inicial')
         db.session.commit()
     except ValueError as exc:
         return error(exc)
     ruta = 'abastecimiento.prueba_pedidos' if prueba else 'abastecimiento.entrada'
-    return jsonify(ok=True, id=sol.id, destino=url_for(ruta, seccion='bandeja', _anchor=f'pedido-{sol.id}'))
+    return jsonify(ok=True, id=sol.id, codigo=sol.codigo, destino=url_for(ruta, seccion='bandeja', _anchor=f'pedido-{sol.id}'))
 
 
 @bp.post('/form-pruebas/abastecimiento/<int:sid>/<accion>')
@@ -513,6 +521,14 @@ def prueba_tecnico():
     if request.args.get('seccion') == 'asistencia':
         return render_template('asistencia_movil.html', csrf=csrf(), prueba=True)
     ultimo = Solicitud.query.filter_by(tecnico_id=persona['id']).order_by(Solicitud.id.desc()).first()
+    if request.args.get('seccion') == 'perfil':
+        from services import perfil_dataper
+        proyecto = 'FLM - ' + (ultimo.proyecto if ultimo else 'CLARO')
+        valores = {'PRIMER NOMBRE': 'TÉCNICO', 'APELLIDO PATERNO': 'DE PRUEBA'}
+        return render_template('perfil_dataper.html', prueba=True, editando=True,
+                               proyecto=proyecto, hoy=ahora_peru().date().isoformat(),
+                               campos=perfil_dataper.CAMPOS, requeridos=perfil_dataper.REQUERIDOS,
+                               valores=valores, opciones=perfil_dataper.opciones({'PROYECTO': proyecto}))
     qr_listo = Solicitud.query.filter_by(tecnico_id=persona['id'], estado='llenado').first() is not None
     return render_template('abastecimiento_prueba_inicio.html', persona=persona,
                            proyecto=ultimo.proyecto if ultimo else 'CLARO', qr_abastecimiento=qr_listo)

@@ -228,8 +228,48 @@
             day: row => mode === 'rendicion' ? row.dia_pago : row.dia};
         return [...new Set(rows.map(map[key]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     }
+    function initializeProjects() {
+        const menu = get('df-project-menu');
+        if (!menu) return;
+        const options = get('df-project-options'), all = get('df-project-all');
+        const projects = values('project');
+        get('df-project-group').hidden = !projects.some(value => value !== 'Sin proyecto');
+        for (const value of projects) {
+            const label = node('label'), input = node('input');
+            input.type = 'checkbox';
+            input.value = value;
+            label.append(input, labelFor('project', value));
+            options.append(label);
+        }
+        options.addEventListener('change', event => {
+            state.project = event.target === all ? [] : [...options.querySelectorAll('input:checked')]
+                .filter(input => input !== all).map(input => input.value);
+            syncProjects();
+            render();
+        });
+        document.addEventListener('click', event => {
+            if (!menu.contains(event.target)) menu.open = false;
+        });
+        menu.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || !menu.open) return;
+            menu.open = false;
+            menu.querySelector('summary').focus();
+        });
+    }
+    function syncProjects() {
+        const options = get('df-project-options');
+        if (!options) return;
+        const selected = state.project || [];
+        const all = get('df-project-all');
+        for (const option of options.querySelectorAll('input')) {
+            option.checked = option === all ? !selected.length : selected.includes(option.value);
+        }
+        get('df-project-text').textContent = selected.length === 1 ? labelFor('project', selected[0])
+            : selected.length ? selected.length + ' proyectos' : 'Todos los proyectos';
+    }
     function clearAll() {
         KEYS.forEach(key => { state[key] = ''; const select = get('df-' + key); if (select) select.value = ''; });
+        syncProjects();
         render();
     }
     function render() {
@@ -259,6 +299,7 @@
             + (mode === 'cotizaciones' ? ' · Proveedor se cuenta una sola vez.' : ' · Los importes corresponden a pagos registrados.');
     }
     function initialize() {
+        initializeProjects();
         selectKeys.forEach(key => {
             const select = get('df-' + key), list = values(key).sort((a,b) => labelFor(key,a).localeCompare(labelFor(key,b)));
             list.forEach(value => select.add(new Option(labelFor(key, value), value)));

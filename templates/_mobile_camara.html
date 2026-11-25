@@ -1,0 +1,18 @@
+<dialog id="ab-camara" class="ab-camara" aria-labelledby="ab-camara-titulo">
+  <h2 id="ab-camara-titulo" hidden>Tomar foto</h2>
+  <div class="ab-camara-visor">
+    <video autoplay playsinline muted aria-label="Vista de la cámara"></video>
+    <img data-ab-captura alt="Vista previa de la captura" hidden>
+  </div>
+  <form method="dialog" class="ab-camara-volver">
+    <button type="submit" aria-label="Volver" title="Volver">←</button>
+  </form>
+  <p class="error" role="alert" hidden></p>
+  <div class="ab-camara-acciones">
+    <button type="button" class="ab-disparador" data-ab-disparar aria-label="Tomar foto" disabled></button>
+    <div class="ab-camara-revision" hidden>
+      <button type="button" class="primary" data-ab-confirmar>Enviar</button>
+      <button type="button" class="primary" data-ab-rechazar>Rechazar</button>
+    </div>
+  </div>
+</dialog>

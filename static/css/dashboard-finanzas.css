@@ -123,3 +123,19 @@
  .di-page.finance-cotizaciones .di-card>.df-chart{height:auto;min-height:0;flex:1;}
  .di-page.finance-cotizaciones .dc-trend-scroll{min-height:0;}
 }
+
+.df-project-group { flex: 1 1 140px; min-width: 0; max-width: 220px; font-size: 11px; color: var(--ios-secondary); }
+#df-project-menu { position: relative; margin-top: 5px; }
+#df-project-menu summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px;
+  padding: 0 9px; border: 1px solid var(--ios-hairline); border-radius: 7px;
+  background: var(--ios-fill); color: var(--ios-label); cursor: pointer; font-size: 12px;
+}
+#df-project-menu summary::-webkit-details-marker { display: none; }
+#df-project-menu summary::after { content: '▾'; }
+.df-project-options {
+  position: absolute; z-index: 20; right: 0; min-width: max(100%, 156px); max-height: 240px;
+  overflow: auto; margin-top: 4px; padding: 6px; border: 1px solid var(--ios-hairline);
+  border-radius: 8px; background: var(--ios-card-bg); box-shadow: 0 6px 18px #0004;
+}
+.di-finance .df-project-options label { display: flex; align-items: center; padding: 6px; color: var(--ios-label); cursor: pointer; }

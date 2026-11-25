@@ -1,6 +1,6 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=5">
+<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=6">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
 <script src="/static/js/dashboard-visual.js?v=3"></script>
 <section class="di-page dv-unified di-finance dv-finance finance-{{ modo }}" data-finance="{{ modo }}">
@@ -13,7 +13,15 @@
     <label>{{ 'Presupuesto' if modo == 'rendicion' else 'Tipo de gasto' }}<select id="df-budget"><option value="">Todos</option></select></label>
     {% if modo == 'cotizaciones' %}<label>Tipo de cotización<select id="df-type"><option value="">Todos</option></select></label>{% endif %}
     <label>{{ 'Beneficiario' if modo == 'rendicion' else 'Generó cotización' }}<select id="df-person"><option value="">Todos</option></select></label>
-    {% if modo == 'cotizaciones' %}<label>Proyecto<select id="df-project"><option value="">Todos los proyectos</option></select></label>{% endif %}
+    {% if modo == 'cotizaciones' %}<div class="df-project-group" id="df-project-group">
+      <span>Proyecto</span>
+      <details id="df-project-menu">
+        <summary aria-label="Seleccionar proyectos"><span id="df-project-text">Todos los proyectos</span></summary>
+        <div class="df-project-options" id="df-project-options">
+          <label><input type="checkbox" id="df-project-all" checked> Todos los proyectos</label>
+        </div>
+      </details>
+    </div>{% endif %}
     <button type="button" id="df-clear" class="action-pill pill-neutral" title="Limpiar filtros"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Limpiar</span></button>
   </div>
   {% endcall %}
@@ -45,6 +53,6 @@
   <p class="df-caption" id="df-caption" role="status"></p>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-finanzas-model.js?v=5"></script>
+<script src="/static/js/dashboard-finanzas-model.js?v=6"></script>
 <script src="/static/js/dashboard-claro-model.js?v=4"></script>
-<script src="/static/js/dashboard-finanzas.js?v=11"></script>
+<script src="/static/js/dashboard-finanzas.js?v=12"></script>

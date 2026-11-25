@@ -21,13 +21,14 @@
         return [...result.values()].sort((a, b) => b.amount - a.amount || b.count - a.count || a.label.localeCompare(b.label));
     }
     function filter(rows, mode, filters) {
+        const projects = new Set(Array.isArray(filters.project) ? filters.project : filters.project ? [filters.project] : []);
         return rows.filter(row => (!filters.month || row.mes === filters.month)
             && (!filters.state || row.estado === filters.state)
             && (!filters.operator || operator(row, mode) === filters.operator)
             && (!filters.budget || (mode === 'rendicion' ? row.presupuesto : row.gasto) === filters.budget)
             && (!filters.type || type(row) === filters.type)
             && (!filters.person || person(row, mode) === filters.person)
-            && (!filters.project || (row.proyecto || 'Sin proyecto') === filters.project)
+            && (!projects.size || projects.has(row.proyecto || 'Sin proyecto'))
             && (!filters.approval || (row.gasto_aprobacion || 'Sin definir') === filters.approval)
             && (!filters.day || (mode === 'rendicion' ? row.dia_pago : row.dia) === filters.day));
     }

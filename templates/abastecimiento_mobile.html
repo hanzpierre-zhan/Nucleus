@@ -1,5 +1,5 @@
 {% from '_nucleus_mobile_inicio.html' import tarjeta %}
-{% from '_abastecimiento_campos.html' import pedido, fotos_campos, resumen, referencias %}
+{% from '_abastecimiento_campos.html' import pedido, fotos_campos, galones_pedido, nombre_grifo, referencias %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -8,33 +8,25 @@
   <title>Abastecimiento · Nucleus Mobile</title>
   <script src="{{ url_for('static', filename='js/form-pruebas-theme.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/form-pruebas.css', v=16) }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=16) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=29) }}">
 </head>
 <body>
 {% set url_catalogo = url_for('abastecimiento.catalogos_gestion', prueba=1) if prueba else url_for('abastecimiento.catalogos_tecnico') %}
 <main class="shell">
   <header class="ab-mobile-cabecera">
     <div class="ab-mobile-titulo">
-      {% if seccion == 'bandeja' %}
+      {% if seccion == 'detalle' %}
+      <a class="ab-mobile-volver" href="{{ url_for(ruta, seccion='bandeja', _anchor='pedido-' ~ detalle.id) }}" aria-label="Volver a Mis pedidos">←</a>
+      {% elif seccion in ('solicitar', 'bandeja') %}
       <a class="ab-mobile-volver" href="{{ url_for(ruta) }}" aria-label="Volver a Abastecimiento">←</a>
       {% else %}
       <a class="ab-mobile-volver" href="{{ url_for('abastecimiento.prueba_tecnico' if prueba else 'form_pruebas.inicio') }}" aria-label="Volver a Nucleus">←</a>
       {% endif %}
-      <h1>Abastecimiento</h1>
+      <h1>{{ 'Detalle del pedido' if seccion == 'detalle' else 'Abastecimiento' }}</h1>
     </div>
-    {% if seccion == 'solicitar' %}
-    <nav class="ab-mobile-menu" aria-label="Opciones de Abastecimiento">
-      <a href="{{ url_for(ruta, seccion='solicitar') }}"{% if seccion == 'solicitar' %} aria-current="page"{% endif %}>
-        <span aria-hidden="true">＋</span> Solicitar
-      </a>
-      <a href="{{ url_for(ruta, seccion='bandeja') }}"{% if seccion == 'bandeja' %} aria-current="page"{% endif %}>
-        <span aria-hidden="true">▤</span> Bandeja
-      </a>
-    </nav>
-    {% endif %}
   </header>
-  <p class="hint">{{ 'Modo de prueba · Técnico simulado' if prueba else persona.nombre ~ ' · ' ~ persona.proyecto }}</p>
-  {% if seccion not in ('solicitar', 'bandeja') %}
+  {% if not prueba %}<p class="hint">{{ persona.nombre }} · {{ persona.proyecto }}</p>{% endif %}
+  {% if seccion not in ('solicitar', 'bandeja', 'detalle') %}
   <nav class="actions ab-mobile-portada" aria-label="Opciones de Abastecimiento">
     {{ tarjeta('Solicitar', 'Pide combustible para tu trabajo', '＋', url_for(ruta, seccion='solicitar'), 'request-action') }}
     {{ tarjeta('Bandeja', 'Revisa tus pedidos, QR y evidencias', '▤', url_for(ruta, seccion='bandeja')) }}
@@ -42,7 +34,7 @@
   {% elif seccion == 'solicitar' %}
   <section class="ab-pedido" aria-labelledby="ab-titulo-solicitar">
     <h2 id="ab-titulo-solicitar">Solicitar combustible</h2>
-    <form method="post" class="ab-form" action="{{ url_for('abastecimiento.prueba_solicitar' if prueba else 'abastecimiento.solicitar') }}">
+    <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_solicitar' if prueba else 'abastecimiento.solicitar') }}">
       <input type="hidden" id="csrf" name="csrf" value="{{ csrf }}">
       <label>Solicitante <input value="{{ persona.nombre }}" readonly></label>
       {% if prueba %}
@@ -55,7 +47,12 @@
       <label>Proyecto <input value="{{ persona.proyecto }}" readonly></label>
       {% endif %}
       {{ pedido(datos, '', zonas, combustibles_pedido, url_catalogo, proyecto, grifos=grifos) }}
-      <p class="hint">Puedes agregar el CM y el PLM más adelante. Se piden al cerrar la recarga.</p>
+      <div data-foto-unidad="vehiculo">
+        {{ fotos_campos({'foto_inicial': 'Tablero del vehículo antes del llenado'}) }}
+      </div>
+      <div data-foto-unidad="generador" hidden>
+        {{ fotos_campos({'foto_inicial': 'Medidor del generador antes del llenado'}) }}
+      </div>
       <p class="error" data-error role="alert" hidden></p>
       <button type="submit" class="primary wide">Enviar solicitud</button>
     </form>
@@ -64,25 +61,64 @@
   <h2>Mis pedidos</h2>
   <div class="ab-lista">
   {% for sol in filas %}
-    <article class="ab-pedido ab-mobile-ficha" id="pedido-{{ sol.id }}">
-      <h3>#{{ sol.id }} · {{ sol.datos.site }}</h3>
-      <strong>{{ estados[sol.estado] }}</strong>
-      {{ resumen(sol) }}
+    <a class="deposit ab-pedido-tarjeta ab-tab-{{ sol.estado }}" id="pedido-{{ sol.id }}" href="{{ url_for(ruta, seccion='detalle', pedido=sol.id) }}">
+        <span class="ab-pedido-identidad">
+          <strong>{{ sol.datos.site }}</strong>
+          <small>{{ sol.codigo }} · {{ 'Generador' if sol.datos.tipo == 'generador' else 'Vehículo' }}</small>
+          <span class="ab-mobile-estado ab-tab-{{ sol.estado }}">{{ estados[sol.estado] }}</span>
+          <small>{{ sol.proyecto }} · {{ sol.datos.fecha }}</small>
+        </span>
+        <span class="ab-pedido-resumen">
+          <strong class="amount">{{ galones_pedido(sol.solicitado) }} gal</strong>
+          <span class="ab-pedido-flecha" aria-hidden="true">›</span>
+        </span>
+    </a>
+  {% else %}
+    <p>Todavía no tienes pedidos.</p>
+  {% endfor %}
+  </div>
+  {% elif seccion == 'detalle' %}
+    {% set sol = detalle %}
+    <article class="ab-pedido ab-mobile-ficha">
+      <h2>{{ sol.codigo }} · {{ sol.datos.site }}</h2>
+      <span class="ab-mobile-estado ab-tab-{{ sol.estado }}">{{ estados[sol.estado] }}</span>
+      <dl class="ab-mobile-detalle">
+        <div><dt>Fecha</dt><dd>{{ sol.datos.fecha }}</dd></div>
+        <div><dt>Proyecto</dt><dd>{{ sol.proyecto }}</dd></div>
+        <div><dt>{{ 'Generador' if sol.datos.tipo == 'generador' else 'Vehículo' }}</dt><dd>{{ sol.datos.placa or sol.datos.generador or '—' }}</dd></div>
+        <div><dt>Grifo</dt><dd>{{ nombre_grifo(sol.datos) }}</dd></div>
+        <div><dt>Solicitado</dt><dd>{{ galones_pedido(sol.solicitado) }} gal</dd></div>
+        {% if sol.autorizado is not none %}
+        <div><dt>Autorizado para llenar</dt><dd>{{ sol.autorizado }} gal</dd></div>
+        <div><dt>Saldo previo</dt><dd>{{ sol.saldo_previo }} gal</dd></div>
+        {% endif %}
+        {% if sol.saldo_final is not none %}
+        <div><dt>Consumido</dt><dd>{{ sol.consumido }} gal</dd></div>
+        <div><dt>Saldo restante</dt><dd>{{ sol.saldo_final }} gal</dd></div>
+        <div><dt>CM</dt><dd>{{ sol.datos.cm or '—' }}</dd></div>
+        <div><dt>PLM</dt><dd>{{ sol.datos.plm or '—' }}</dd></div>
+        {% endif %}
+      </dl>
+      {% if sol.estado == 'llenado' %}
+        {% set url_qr = url_for('abastecimiento.foto_gestion' if prueba else 'abastecimiento.foto_tecnico', sid=sol.id, tipo='qr') %}
+        <a class="primary wide ab-ver-qr" href="{{ url_qr }}" data-ver-qr aria-haspopup="dialog">Mostrar QR a pantalla completa</a>
+      {% endif %}
       {% if sol.estado not in ('cerrado', 'recarga') %}
           <form method="post" class="ab-form" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='referencias') }}">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <div class="ab-campos" data-catalogo="{{ url_catalogo }}" data-proyecto="{{ sol.proyecto }}">{{ referencias(sol.datos) }}</div>
+            <fieldset class="ab-mobile-bloque"><legend>Referencias del ticket</legend><div class="ab-campos" data-catalogo="{{ url_catalogo }}" data-proyecto="{{ sol.proyecto }}">{{ referencias(sol.datos) }}</div></fieldset>
             <p class="error" data-error role="alert" hidden></p>
             <button type="submit" class="primary">Guardar CM y PLM</button>
           </form>
       {% endif %}
       {% if sol.estado == 'llenado' %}
-        {% set url_qr = url_for('abastecimiento.foto_gestion' if prueba else 'abastecimiento.foto_tecnico', sid=sol.id, tipo='qr') %}
-        <a class="primary wide ab-ver-qr" href="{{ url_qr }}" data-ver-qr aria-haspopup="dialog">Mostrar QR a pantalla completa</a>
         <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='llenado') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
+          <fieldset class="ab-mobile-bloque"><legend>Evidencias del llenado</legend>
           <label>Galones cargados <input type="number" name="cargado" min="0.01" max="{{ sol.autorizado }}" step="0.01" placeholder="{{ sol.autorizado }}" required></label>
-          {{ fotos_campos(fotos_llenado) }}
+          {% set unidad = 'del generador' if sol.datos.tipo == 'generador' else 'del vehículo' %}
+          {{ fotos_campos({'boleta': fotos_llenado.boleta, 'despues_llenado': fotos_llenado.despues_llenado ~ ' ' ~ unidad}) }}
+          </fieldset>
           <p class="error" data-error role="alert" hidden></p>
           <button type="submit" class="primary wide">Enviar fotos del llenado</button>
         </form>
@@ -98,26 +134,15 @@
         </form>
       {% endif %}
     </article>
-  {% else %}
-    <p>Todavía no tienes pedidos.</p>
-  {% endfor %}
-  </div>
   {% endif %}
 </main>
-<dialog id="ab-camara" class="ab-camara" aria-labelledby="ab-camara-titulo">
-  <h2 id="ab-camara-titulo">Tomar foto</h2>
-  <video autoplay playsinline muted></video>
-  <p class="error" role="alert" hidden></p>
-  <div class="ab-camara-acciones">
-    <form method="dialog"><button type="submit" class="back">Cerrar</button></form>
-    <button type="button" class="primary" data-ab-disparar disabled>Tomar foto</button>
-  </div>
-</dialog>
+{% include '_mobile_camara.html' %}
 <dialog id="ab-qr-completo" class="ab-qr-completo" aria-label="Código QR para el grifo">
   <form method="dialog"><button type="submit" class="ab-cerrar-qr" aria-label="Cerrar QR">×</button></form>
   <img alt="Código QR para mostrar en el grifo">
 </dialog>
 {% if not prueba %}<script src="{{ url_for('static', filename='js/ubicacion-movil.js', v=2) }}" defer></script>{% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=11) }}" defer></script>
+<script src="{{ url_for('static', filename='js/mobile-camara.js', v=1) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=17) }}" defer></script>
 </body>
 </html>

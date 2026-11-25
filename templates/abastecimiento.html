@@ -5,7 +5,7 @@
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=6">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=15) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=27) }}">
 <section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
   <div class="cc-barra">
     <nav class="cc-tabs" aria-label="Secciones de Abastecimiento">
@@ -27,14 +27,14 @@
   {% else %}
   <div class="ab-tabla-wrap cc-tabla" tabindex="0" role="region" aria-label="Tabla de pedidos de abastecimiento">
     <table class="ab-tabla ab-tabla-pedidos" data-ab-tabla>
-      <thead><tr><th scope="col">Acciones</th>{% for etiqueta in ['Pedido', 'Fecha', 'Solicitante', 'Proyecto', 'Zona', 'Site', 'Unidad', 'CM', 'PLM', 'Combustible', 'Grifo', 'Galones', 'Estado'] %}
+      <thead><tr><th scope="col">Acciones</th>{% for etiqueta in ['Código interno', 'Fecha', 'Solicitante', 'Proyecto', 'Zona', 'Site', 'Unidad', 'CM', 'PLM', 'Combustible', 'Grifo', 'Galones', 'Estado'] %}
         {{ columna(etiqueta, loop.index) }}
       {% endfor %}</tr></thead>
       <tbody>
       {% for sol in filas %}
         <tr data-ab-fila>
-          <td><button type="button" class="cn-redondo cn-azul" data-ab-detalle="ab-pedido-{{ sol.id }}" title="Ver pedido #{{ sol.id }}" aria-label="Ver pedido #{{ sol.id }}" aria-haspopup="dialog"><i class="fa-solid {{ 'fa-pen' if estado == 'gestora' else 'fa-eye' }}" aria-hidden="true"></i></button></td>
-          <td><strong>Pedido #{{ sol.id }}</strong>{% if sol.tecnico_id < 0 %} <small>PRUEBA</small>{% endif %}</td>
+          <td><button type="button" class="cn-redondo cn-azul" data-ab-detalle="ab-pedido-{{ sol.id }}" title="Ver pedido {{ sol.codigo }}" aria-label="Ver pedido {{ sol.codigo }}" aria-haspopup="dialog"><i class="fa-solid {{ 'fa-pen' if estado == 'gestora' else 'fa-eye' }}" aria-hidden="true"></i></button></td>
+          <td><strong>{{ sol.codigo }}</strong>{% if sol.tecnico_id < 0 %} <small>PRUEBA</small>{% endif %}</td>
           <td>{{ sol.datos.fecha }}</td>
           <td>{{ sol.datos.tecnico }}</td>
           <td>{{ sol.proyecto }}</td>
@@ -46,7 +46,7 @@
           <td>{{ combustibles_pedido.get(sol.datos.combustible, sol.datos.get('otro_combustible') or '—') }}</td>
           <td>{{ nombre_grifo(sol.datos) }}</td>
           <td>{{ galones_pedido(sol.solicitado) }}</td>
-          <td>{{ ('Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia') if estado == 'recarga' else pestañas[estado] }}</td>
+          <td><span class="ab-estado ab-tab-{{ sol.estado }}">{{ ('Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia') if estado == 'recarga' else pestañas[estado] }}</span></td>
         </tr>
       {% endfor %}
       <tr data-sin-resultados{% if filas %} hidden{% endif %}><td colspan="14" class="cc-vacio">{{ "Ningún pedido coincide con los filtros." if filas else "No hay pedidos en esta etapa." }}</td></tr>
@@ -56,7 +56,7 @@
   {% for sol in filas %}
     <dialog id="ab-pedido-{{ sol.id }}" class="ab-dialogo-pedido" aria-labelledby="ab-pedido-titulo-{{ sol.id }}">
       <header class="ab-prueba-cabecera">
-        <h2 id="ab-pedido-titulo-{{ sol.id }}">{% if sol.tecnico_id < 0 %}PRUEBA · {% endif %}Pedido #{{ sol.id }} · {{ sol.datos.site }}</h2>
+        <h2 id="ab-pedido-titulo-{{ sol.id }}">{% if sol.tecnico_id < 0 %}PRUEBA · {% endif %}{{ sol.codigo }} · {{ sol.datos.site }}</h2>
         <div class="ab-dialogo-herramientas">
           {% if estado == 'gestora' %}
           <button type="submit" form="ab-validar-{{ sol.id }}" class="cn-redondo cn-neutro" title="Guardar cambios" aria-label="Guardar cambios"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i></button>
@@ -68,9 +68,21 @@
           <form method="dialog"><button class="cn-redondo cn-rojo" title="Cerrar detalle" aria-label="Cerrar detalle"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
         </div>
       </header>
-      <div class="ab-dialogo-contenido{{ ' ab-ficha-columnas' if estado != 'gestora' }}">
-      {% if estado != 'gestora' %}
+      <div class="ab-dialogo-contenido{{ ' ab-ficha-columnas' if estado != 'gestora' or (sol.id, 'foto_inicial') in fotos_registradas }}">
+      {% if estado != 'gestora' or (sol.id, 'foto_inicial') in fotos_registradas %}
       <div class="ab-ficha-evidencias">
+        {% if estado in ('gestora', 'parque') and (sol.id, 'foto_inicial') in fotos_registradas %}
+          {% set inicial = url_for('abastecimiento.foto_gestion', sid=sol.id, tipo='foto_inicial') %}
+          <fieldset class="ab-validacion-datos ab-seccion-pedido">
+            <legend>Evidencia de la solicitud</legend>
+            <div class="ab-evidencias">
+              <a class="ab-evidencia-foto" href="{{ inicial }}" target="_blank" rel="noopener">
+                <img src="{{ inicial }}" alt="" loading="lazy">
+                <span>{{ 'Medidor del generador' if sol.datos.get('tipo_foto_inicial', sol.datos.tipo) == 'generador' else 'Tablero del vehículo' }} antes del llenado</span>
+              </a>
+            </div>
+          </fieldset>
+        {% endif %}
         {% if estado == 'parque' %}
           <form id="ab-enviar-{{ sol.id }}" class="ab-form ab-form-qr" method="post" enctype="multipart/form-data" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='enviar') }}">
             <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -98,7 +110,7 @@
             <legend>Evidencias</legend>
             <div class="ab-evidencias">
             {% for clave, etiqueta in fotos.items() %}
-            {% if (clave == 'qr' and sol.autorizado > 0) or (clave in ('boleta', 'antes_llenado', 'despues_llenado') and sol.cargado and estado == 'recarga') or (clave in ('antes_recarga', 'despues_recarga') and sol.estado == 'cerrado') %}
+            {% if (clave == 'foto_inicial' and (sol.id, 'foto_inicial') in fotos_registradas) or (clave == 'qr' and sol.autorizado > 0) or (clave in ('boleta', 'antes_llenado', 'despues_llenado') and (sol.id, clave) in fotos_registradas and estado == 'recarga') or (clave in ('antes_recarga', 'despues_recarga') and sol.estado == 'cerrado') %}
             <a class="ab-evidencia-foto" href="{{ url_for('abastecimiento.foto_gestion', sid=sol.id, tipo=clave) }}" target="_blank" rel="noopener">
               <img src="{{ url_for('abastecimiento.foto_gestion', sid=sol.id, tipo=clave) }}" alt="" loading="lazy">
               <span>{{ etiqueta }}</span>
@@ -117,7 +129,7 @@
         <dl class="ab-validacion-resumen">
           <div><dt>Solicitante</dt><dd>{{ sol.datos.tecnico }}</dd></div>
           <div><dt>Proyecto</dt><dd>{{ sol.proyecto }}</dd></div>
-          <div><dt>Estado</dt><dd><span class="ab-estado ab-tab-{{ estado }}">{{ pestañas[estado] if sol.estado != 'cerrado' else 'Recarga completada' }}</span></dd></div>
+          <div><dt>Estado</dt><dd><span class="ab-estado ab-tab-{{ sol.estado }}">{{ pestañas[estado] if sol.estado != 'cerrado' else 'Recarga completada' }}</span></dd></div>
         </dl>
       </section>
       {% if estado == 'gestora' %}
@@ -179,7 +191,7 @@
   <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile" allow="camera; fullscreen" allowfullscreen></iframe>
 </dialog>
 {% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=10) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=17) }}" defer></script>
   <div class="cc-filtro" id="ab-filtro-tabla" role="dialog" aria-label="Filtrar columna" hidden></div>
   <script src="{{ url_for('static', filename='js/abastecimiento-tabla.js', v=1) }}" defer></script>
 {% endblock %}

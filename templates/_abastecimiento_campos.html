@@ -53,8 +53,7 @@
       {% endfor %}
     </select>
   </label>
-  {% set guardado = datos.get('grifo') or '' %}
-  {% set grifo = guardado|lower if not guardado or guardado|lower in grifos else 'otro' %}
+  {% set grifo = (datos.get('grifo') or '')|lower %}
   <label>Grifo
     <select name="grifo">
       <option value="">Selecciona</option>
@@ -63,11 +62,6 @@
       {% endfor %}
     </select>
   </label>
-  <div data-otro-grifo{% if grifo != 'otro' %} hidden{% endif %}>
-    <label>Nombre del grifo
-      <input name="grifo_otro" value="{{ datos.get('grifo_otro') or (guardado if guardado|lower not in grifos else '') }}" maxlength="150">
-    </label>
-  </div>
   {% if datos.get('combustible') == 'otro' %}<input type="hidden" name="otro_combustible" value="{{ datos.otro_combustible }}">{% endif %}
   <div data-unidad="vehiculo">{{ campo(datos, 'placa', 'Placa del vehículo', true) }}</div>
   <div data-unidad="generador">
@@ -83,22 +77,20 @@
 </div>
 {% endmacro %}
 
-{% macro fotos_campos(fotos) %}
+{% macro fotos_campos(fotos, camara='environment', formulario_nativo=false, requerida=false) %}
 {% for tipo, etiqueta in fotos.items() %}
 <div class="ab-foto-movil">
-  <button class="photo-button" type="button" data-ab-foto="{{ tipo }}" data-etiqueta="{{ etiqueta }}">
-    <strong>{{ etiqueta }}</strong><span>Tomar foto</span>
+  <button class="photo-button" type="button" data-ab-foto="{{ tipo }}" data-etiqueta="{{ etiqueta }}" data-camara="{{ camara }}">
+    <svg class="ab-foto-icono" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 7h4l2-3h6l2 3h4v13H3z"/>
+      <circle cx="12" cy="13" r="3.5"/>
+    </svg>
+    <strong>{{ etiqueta }}</strong>
+    <span>Tomar foto</span>
   </button>
+  {% if formulario_nativo %}<input type="file" name="{{ tipo }}" accept="image/jpeg" hidden{% if requerida %} data-foto-requerida{% endif %}>{% endif %}
   <img alt="{{ etiqueta }}" hidden>
+  <button class="photo-button" type="button" data-ab-quitar-foto hidden>Quitar foto</button>
 </div>
 {% endfor %}
-{% endmacro %}
-
-{% macro resumen(sol) %}
-<p>{{ sol.datos.fecha }} · {{ sol.proyecto }} · {{ sol.datos.tecnico }}</p>
-<p>CM {{ sol.datos.cm or 'pendiente' }} · PLM {{ sol.datos.plm or 'pendiente' }} · {{ sol.datos.placa or sol.datos.generador }}</p>
-{% if sol.datos.get('grifo') %}<p>Grifo {{ nombre_grifo(sol.datos) }}</p>{% endif %}
-<p><strong>{{ galones_pedido(sol.solicitado) }} gal solicitados</strong>
-{% if sol.autorizado is not none %} · {{ sol.saldo_previo }} gal de saldo previo · <strong>{{ sol.autorizado }} gal nuevos</strong>{% endif %}
-{% if sol.saldo_final is not none %} · {{ sol.consumido }} gal usados · <strong>{{ sol.saldo_final }} gal restantes</strong>{% endif %}</p>
 {% endmacro %}

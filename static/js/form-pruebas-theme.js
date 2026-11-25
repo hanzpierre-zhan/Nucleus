@@ -11,7 +11,8 @@
     const button = document.getElementById('form-theme-toggle');
     if (button) {
       const label = dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
-      button.innerHTML = dark ? sun : moon;
+      if (button.hasAttribute('data-theme-text')) button.textContent = label;
+      else button.innerHTML = dark ? sun : moon;
       button.setAttribute('aria-label', label);
       button.title = label;
     }
@@ -21,6 +22,17 @@
   apply(saved);
   document.addEventListener('DOMContentLoaded', () => {
     apply(root.dataset.theme);
+    const ajustes = document.querySelector('.mobile-ajustes');
+    if (ajustes) {
+      document.addEventListener('click', event => {
+        if (!ajustes.contains(event.target) || event.target.closest('.mobile-ajustes-panel button')) ajustes.open = false;
+      });
+      ajustes.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !ajustes.open) return;
+        ajustes.open = false;
+        ajustes.querySelector('summary').focus();
+      });
+    }
     document.getElementById('form-theme-toggle')?.addEventListener('click', () => {
       const theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
       apply(theme);

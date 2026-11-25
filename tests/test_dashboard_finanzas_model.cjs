@@ -72,3 +72,7 @@ assert.equal(executive.refacturable[0].amount,40);
 assert.equal(executive.attendedGroups[0].amount,30,'Atendidas separadas de aprobadas');
 assert.equal(executive.trend.reduce((s,x)=>s+x.amount,0),150,'Sin fecha no se inventa período');
 console.log('OK: etapas comerciales, gestores y destinos separados');
+
+assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: ['Obra Norte', 'Obra Sur']}).length, 2);
+assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: ['Obra Norte', 'Obra Sur'], operator: 'CLARO'}).length, 1);
+assert.equal(model.filter(cotizaciones, 'cotizaciones', {project: []}).length, 2);

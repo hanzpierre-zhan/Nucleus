@@ -206,8 +206,10 @@
 .ab-ficha-tarjeta h3 i { color: var(--ios-secondary); }
 .ab-estado {
   display: inline-block; padding: 2px 8px; border-radius: 999px;
-  background: color-mix(in srgb, var(--cc-color) 25%, transparent); color: var(--ios-label);
+  background: var(--cc-color); color: #fff; font-weight: 650;
 }
+.ab-estado.ab-tab-recarga { --cc-color: #0e7490; }
+.ab-estado.ab-tab-cerrado { --cc-color: #14804a; }
 .cn-gestion .ab-dialogo-pedido .ab-dialogo-herramientas { gap: 8px; }
 .cn-gestion .ab-dialogo-pedido .ab-dialogo-herramientas .cn-redondo {
   width: 38px !important; height: 38px !important; box-sizing: border-box;
@@ -237,18 +239,97 @@
 }
 .ab-mobile-cabecera .ab-mobile-menu a[aria-current="page"] { background: #173e76; }
 .ab-mobile-ficha { scroll-margin-top: 118px; }
+.perfil-foto-captura { margin-block-start: 16px; }
 .ab-foto-movil { display: grid; gap: 6px; }
-.ab-foto-movil button span { display: block; color: var(--muted); }
-.ab-foto-movil img { width: 100%; max-height: 180px; object-fit: contain; border-radius: 10px; }
-.ab-camara {
-  width: min(480px, calc(100% - 24px)); max-height: 90dvh; border: 1px solid var(--line);
-  border-radius: 16px; background: var(--card); color: var(--ink);
+.ab-foto-movil [data-ab-foto] {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center;
+  gap: 2px 12px; text-align: left; padding: 12px; min-height: 64px;
 }
-.ab-camara::backdrop { background: #000a; }
-.ab-camara h2 { margin-top: 0; }
-.ab-camara video { width: 100%; max-height: 55dvh; background: #111; border-radius: 10px; }
-.ab-camara-acciones { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
-.ab-camara-acciones .back { margin: 0; }
+.ab-foto-movil [data-ab-foto]:hover { border-color: var(--focus); }
+.ab-foto-icono {
+  grid-row: span 2; width: 38px; height: 38px; padding: 8px;
+  border-radius: 10px; background: var(--accent); color: var(--ink);
+}
+.ab-foto-movil [data-ab-foto] span { display: block; color: var(--muted); }
+.ab-foto-movil img { width: 100%; max-height: 180px; object-fit: contain; border-radius: 10px; }
+html:has(.ab-camara[open]) { overflow: hidden; }
+.ab-camara {
+  position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none;
+  margin: 0; padding: 0; border: 0; background: #0b0e14; color: #fff; overflow: hidden;
+}
+.ab-camara[open] { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
+.ab-camara::backdrop { background: #000; }
+.ab-camara-visor { min-height: 0; }
+.ab-camara-visor :is(video, img) {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+}
+.ab-camara-visor img { object-fit: contain; }
+.ab-camara-volver {
+  position: absolute; top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left)); margin: 0;
+}
+.ab-camara-volver button {
+  width: 40px; height: 40px; border: 1px solid #fff8; border-radius: 50%;
+  background: #0003; color: #fff; font-size: 20px; line-height: 1;
+}
+.ab-camara > .error { position: absolute; inset: auto 12px 102px; margin: 0; }
+.ab-camara-acciones {
+  display: grid; place-items: center; min-height: 90px;
+  padding: 10px 14px max(10px, env(safe-area-inset-bottom)); background: #090b10;
+}
+.ab-disparador {
+  width: 58px; height: 58px; padding: 0; border: 3px solid #fff; border-radius: 50%;
+  background: #fff; box-shadow: inset 0 0 0 3px #090b10;
+}
+.ab-camara-revision { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: min(100%, 420px); }
+.ab-camara-revision .primary { justify-content: center; }
+.ab-camara-revision [data-ab-rechazar] { background: #343a46; }
+
 .ab-mobile-portada { grid-template-columns: minmax(0, 1fr); }
 .ab-mobile-portada .action { align-items: center; min-height: 100px; flex-wrap: nowrap; text-decoration: none; }
 .ab-mobile-portada .action-icon { margin-right: 0; }
+
+.ab-ficha-evidencias:has(.ab-seccion-pedido + .ab-form-qr) { gap: 8px; align-content: start; }
+.ab-ficha-evidencias .ab-seccion-pedido:has(+ .ab-form-qr) .ab-evidencia-foto {
+  grid-template-rows: 104px auto;
+}
+.ab-ficha-evidencias .ab-seccion-pedido + .ab-form-qr:has(.ab-carga-qr) {
+  height: auto; grid-template-rows: auto auto; gap: 8px;
+}
+.ab-seccion-pedido + .ab-form-qr .ab-carga-qr { min-height: 104px; padding: 7px; }
+.ab-seccion-pedido + .ab-form-qr .ab-carga-qr img { max-height: 104px; }
+.ab-carga-qr:has(img:not([hidden])) .ab-carga-qr-ayuda :is(i, strong) { display: none; }
+
+
+.ab-mobile-estado {
+  display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700;
+  background: color-mix(in srgb, var(--cc-color, var(--blue)) 16%, var(--card));
+  color: color-mix(in srgb, var(--cc-color, var(--blue)) 52%, var(--ink));
+}
+:is(.ab-mobile-estado, .ab-pedido-tarjeta).ab-tab-recarga { --cc-color: #0e7490; }
+:is(.ab-mobile-estado, .ab-pedido-tarjeta).ab-tab-cerrado { --cc-color: #14804a; }
+.ab-mobile-detalle { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.ab-mobile-detalle div { background: var(--fill); border-radius: 8px; padding: 7px 9px; }
+.ab-mobile-detalle dt { color: var(--muted); font-size: 11px; }
+.ab-mobile-detalle dd { margin: 2px 0 0; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+.ab-mobile-bloque {
+  display: grid; gap: 9px; min-width: 0; margin: 0; padding: 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+}
+.ab-mobile-bloque legend { padding: 0 4px; font-size: 13px; font-weight: 700; }
+.ab-mobile-bloque label { margin: 0; }
+
+.ab-pedido-tarjeta {
+  scroll-margin-top: 76px; margin: 0; border-radius: 20px; gap: 8px;
+  padding: 14px; text-decoration: none;
+  border-color: color-mix(in srgb, var(--cc-color) 58%, var(--line));
+  background: color-mix(in srgb, var(--cc-color) 6%, var(--card));
+}
+.ab-pedido-tarjeta:is(:hover, :target) { border-color: var(--cc-color); }
+.ab-pedido-tarjeta:focus-visible { outline-color: var(--cc-color); }
+.ab-pedido-identidad { min-width: 0; overflow-wrap: anywhere; }
+.ab-pedido-identidad .ab-mobile-estado { margin-top: 4px; }
+.ab-pedido-resumen { display: flex; align-items: center; gap: 8px; }
+.ab-pedido-resumen .amount { font-size: clamp(14px, 4vw, 20px); }
+.ab-pedido-flecha { font-size: 20px; color: var(--muted); }
+.ab-mobile-ficha > h2 { margin: 0 0 4px; overflow-wrap: anywhere; }
