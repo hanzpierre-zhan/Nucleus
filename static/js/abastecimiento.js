@@ -35,8 +35,48 @@ if (dialogoQr) {
   });
 }
 
-for (const ticket of document.querySelectorAll('[data-ab-ticket]')) {
-  ticket.addEventListener('input', () => { ticket.value = ticket.value.toUpperCase(); });
+for (const [indice, ticket] of [...document.querySelectorAll('[data-ab-ticket]:not(:disabled)')].entries()) {
+  const campos = ticket.closest('[data-catalogo]');
+  const proyecto = ticket.form?.elements.namedItem('proyecto');
+  const lista = document.createElement('datalist');
+  lista.id = 'ab-tickets-' + indice;
+  ticket.setAttribute('list', lista.id);
+  ticket.after(lista);
+  let espera, consulta;
+
+  function limpiarSugerencias() {
+    clearTimeout(espera);
+    consulta?.abort();
+    lista.replaceChildren();
+  }
+
+  function sugerir() {
+    limpiarSugerencias();
+    if (!campos?.dataset.catalogo) return;
+    espera = setTimeout(async () => {
+      consulta = new AbortController();
+      const {signal} = consulta;
+      const url = new URL(campos.dataset.catalogo, location.origin);
+      url.searchParams.set('proyecto', proyecto?.value || campos.dataset.proyecto);
+      url.searchParams.set('ticket', ticket.name.toUpperCase());
+      url.searchParams.set('q', ticket.value.trim());
+      try {
+        const respuesta = await fetch(url, {signal});
+        if (!respuesta.ok) return;
+        const {tickets} = await respuesta.json();
+        if (!signal.aborted) lista.replaceChildren(...tickets.map(codigo => new Option(codigo, codigo)));
+      } catch {
+        // La entrada manual sigue disponible si falla el catálogo.
+      }
+    }, 180);
+  }
+
+  ticket.addEventListener('focus', sugerir);
+  ticket.addEventListener('input', () => {
+    ticket.value = ticket.value.toUpperCase();
+    sugerir();
+  });
+  proyecto?.addEventListener('change', limpiarSugerencias);
 }
 
 for (const boton of document.querySelectorAll('[data-ab-detalle]')) {

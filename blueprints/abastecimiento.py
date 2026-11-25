@@ -201,6 +201,21 @@ def catalogo_sites(proyecto, consulta):
 
 def datos_catalogo(proyecto, *, prueba=False):
     consulta = request.args.get('q', '').strip()[:120]
+    tipo = request.args.get('ticket')
+    if tipo is not None:
+        if tipo not in ('CM', 'PLM'):
+            abort(400)
+        modulo = Proyecto.query.filter_by(nombre=f'FLM - {proyecto}').first()
+        if not modulo:
+            return jsonify(tickets=[])
+        clave = NucleusData.key_value
+        patron = re.compile(fr'{tipo}-[0-9]{{8}}-[0-9]{{8}}')
+        filas = (db.session.query(clave)
+                 .filter(NucleusData.proyecto_id == modulo.id,
+                         clave.like(f'{tipo}-________-________'),
+                         clave.icontains(consulta, autoescape=True))
+                 .order_by(clave.desc()).limit(50))
+        return jsonify(tickets=[codigo for (codigo,) in filas if patron.fullmatch(codigo)][:25])
     return jsonify(sites=catalogo_sites(proyecto, consulta),
                    generadores=[] if consulta else catalogo_generadores(proyecto, prueba=prueba))
 
@@ -367,11 +382,16 @@ def exigir_mobile():
 
 
 def pantalla_tecnico(persona, prueba=False):
-    filas = Solicitud.query.filter_by(tecnico_id=persona['id']).order_by(Solicitud.id.desc()).all()
+    seccion = request.args.get('seccion', '')
+    ruta = 'abastecimiento.prueba_pedidos' if prueba else 'abastecimiento.entrada'
+    pedidos = Solicitud.query.filter_by(tecnico_id=persona['id']).order_by(Solicitud.id.desc())
+    filas = pedidos.all() if seccion == 'bandeja' else []
+    ultimo = pedidos.first() if prueba and seccion == 'solicitar' else None
     datos = {'fecha': ahora_peru().date().isoformat(), 'zona': persona['departamento']}
     return render_template('abastecimiento_mobile.html', filas=filas, datos=datos, persona=persona,
                            prueba=prueba, proyectos_prueba=PROYECTOS_PRUEBA, estados=ESTADOS, csrf=csrf(),
-                           proyecto=filas[0].proyecto if prueba and filas else 'CLARO' if prueba else familia(persona['proyecto']),
+                           seccion=seccion, ruta=ruta,
+                           proyecto=(ultimo.proyecto if ultimo else 'CLARO') if prueba else familia(persona['proyecto']),
                            zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO, grifos=GRIFOS_PEDIDO,
                            fotos_llenado=FOTOS_LLENADO, fotos_recarga=FOTOS_RECARGA)
 
@@ -402,7 +422,8 @@ def crear_pedido(persona, prueba=False):
         db.session.commit()
     except ValueError as exc:
         return error(exc)
-    return jsonify(ok=True, id=sol.id)
+    ruta = 'abastecimiento.prueba_pedidos' if prueba else 'abastecimiento.entrada'
+    return jsonify(ok=True, id=sol.id, destino=url_for(ruta, seccion='bandeja', _anchor=f'pedido-{sol.id}'))
 
 
 @bp.post('/form-pruebas/abastecimiento/<int:sid>/<accion>')

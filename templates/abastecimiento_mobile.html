@@ -7,15 +7,25 @@
   <title>Abastecimiento · Nucleus Mobile</title>
   <script src="{{ url_for('static', filename='js/form-pruebas-theme.js') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/form-pruebas.css', v=16) }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=3) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=8) }}">
 </head>
 <body>
+{% set url_catalogo = url_for('abastecimiento.catalogos_gestion', prueba=1) if prueba else url_for('abastecimiento.catalogos_tecnico') %}
 <main class="shell">
   <a class="back" href="{{ url_for('abastecimiento.prueba_tecnico' if prueba else 'form_pruebas.inicio') }}">← Volver a Nucleus</a>
   <h1>Abastecimiento</h1>
   <p>{{ 'Modo de prueba · Técnico simulado' if prueba else persona.nombre ~ ' · ' ~ persona.proyecto }}</p>
-  <details class="ab-pedido"{% if prueba %} open{% endif %}>
-    <summary><strong>Solicitar combustible</strong></summary>
+  <nav class="ab-mobile-menu" aria-label="Opciones de Abastecimiento">
+    <a href="{{ url_for(ruta, seccion='solicitar') }}"{% if seccion == 'solicitar' %} aria-current="page"{% endif %}>
+      <strong>Solicitar</strong><small>Registrar un pedido de combustible</small>
+    </a>
+    <a href="{{ url_for(ruta, seccion='bandeja') }}"{% if seccion == 'bandeja' %} aria-current="page"{% endif %}>
+      <strong>Bandeja</strong><small>Ver pedidos, QR y fotos</small>
+    </a>
+  </nav>
+  {% if seccion == 'solicitar' %}
+  <section class="ab-pedido" aria-labelledby="ab-titulo-solicitar">
+    <h2 id="ab-titulo-solicitar">Solicitar combustible</h2>
     <form method="post" class="ab-form" action="{{ url_for('abastecimiento.prueba_solicitar' if prueba else 'abastecimiento.solicitar') }}">
       <input type="hidden" id="csrf" name="csrf" value="{{ csrf }}">
       <label>Solicitante <input value="{{ persona.nombre }}" readonly></label>
@@ -28,17 +38,17 @@
       {% else %}
       <label>Proyecto <input value="{{ persona.proyecto }}" readonly></label>
       {% endif %}
-      {% set url_catalogo = url_for('abastecimiento.catalogos_gestion', prueba=1) if prueba else url_for('abastecimiento.catalogos_tecnico') %}
       {{ pedido(datos, '', zonas, combustibles_pedido, url_catalogo, proyecto, grifos=grifos) }}
       <p class="hint">Puedes agregar el CM y el PLM más adelante. Se piden al cerrar la recarga.</p>
       <p class="error" data-error role="alert" hidden></p>
       <button type="submit" class="primary wide">Enviar solicitud</button>
     </form>
-  </details>
+  </section>
+  {% elif seccion == 'bandeja' %}
   <h2>Mis pedidos</h2>
   <div class="ab-lista">
   {% for sol in filas %}
-    <article class="ab-pedido">
+    <article class="ab-pedido" id="pedido-{{ sol.id }}">
       <h3>#{{ sol.id }} · {{ sol.datos.site }}</h3>
       <strong>{{ estados[sol.estado] }}</strong>
       {{ resumen(sol) }}
@@ -56,7 +66,7 @@
         <p>{{ sol.saldo_previo + sol.cargado }} gal disponibles para la recarga.</p>
         <form method="post" class="ab-form" enctype="multipart/form-data" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='recarga') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          <div class="ab-campos">{{ referencias(sol.datos, requeridas=true) }}</div>
+          <div class="ab-campos" data-catalogo="{{ url_catalogo }}" data-proyecto="{{ sol.proyecto }}">{{ referencias(sol.datos, requeridas=true) }}</div>
           <label>Galones usados en el trabajo <input name="consumido" type="number" min="0" max="{{ sol.saldo_previo + sol.cargado }}" step="0.01" required></label>
           {{ fotos_campos(fotos_recarga) }}
           <p class="error" data-error role="alert" hidden></p>
@@ -68,7 +78,7 @@
           <summary>Actualizar CM y PLM</summary>
           <form method="post" class="ab-form" action="{{ url_for('abastecimiento.prueba_evidencias' if prueba else 'abastecimiento.evidencias', sid=sol.id, accion='referencias') }}">
             <input type="hidden" name="csrf" value="{{ csrf }}">
-            <div class="ab-campos">{{ referencias(sol.datos) }}</div>
+            <div class="ab-campos" data-catalogo="{{ url_catalogo }}" data-proyecto="{{ sol.proyecto }}">{{ referencias(sol.datos) }}</div>
             <p class="error" data-error role="alert" hidden></p>
             <button type="submit" class="primary wide">Guardar referencias</button>
           </form>
@@ -79,12 +89,13 @@
     <p>Todavía no tienes pedidos.</p>
   {% endfor %}
   </div>
+  {% endif %}
 </main>
 <dialog id="ab-qr-completo" class="ab-qr-completo" aria-label="Código QR para el grifo">
   <form method="dialog"><button type="submit" class="ab-cerrar-qr" aria-label="Cerrar QR">×</button></form>
   <img alt="Código QR para mostrar en el grifo">
 </dialog>
 {% if not prueba %}<script src="{{ url_for('static', filename='js/ubicacion-movil.js', v=2) }}" defer></script>{% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=7) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=9) }}" defer></script>
 </body>
 </html>

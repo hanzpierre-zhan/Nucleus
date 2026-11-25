@@ -119,3 +119,19 @@
 .ab-validacion-datos .ab-campos :is(input, select):focus-visible { outline: 2px solid var(--ios-blue); outline-offset: 1px; }
 .ab-validacion-datos .ab-campos small { line-height: 1.35; }
 .ab-validacion-error { margin: 0; color: var(--ios-red, #dc2626); }
+.ab-mobile-menu { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.ab-mobile-menu a {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  text-decoration: none;
+}
+.ab-mobile-menu small { color: var(--muted); line-height: 1.3; }
+.ab-mobile-menu a[aria-current="page"] { border-color: var(--blue); background: var(--blue); color: #fff; }
+.ab-mobile-menu a[aria-current="page"] small { color: #d7e3f5; }
+.ab-mobile-menu + .ab-pedido h2 { margin: 0; }
+.ab-lista .ab-pedido:target { border-color: var(--focus); }

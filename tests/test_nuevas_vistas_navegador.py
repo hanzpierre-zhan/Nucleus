@@ -29,6 +29,8 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pagina = contexto.new_page()
             pagina.route('**/api/perfil-personal', lambda ruta: ruta.fulfill(
                 json={'perfil': {'fecha_nacimiento': '1990-02-01'}, 'cumpleanos': []}))
+            pagina.route('**/abastecimiento/catalogos?*ticket=CM*', lambda ruta: ruta.fulfill(
+                json={'tickets': ['CM-20261124-00000018']}))
             pagina.goto(servidor + '/abastecimiento/', wait_until='domcontentloaded')
             validacion = pagina.get_by_role('link', name='Validación', exact=True)
             qr = pagina.get_by_role('link', name='Generación QR', exact=True)
@@ -44,6 +46,12 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pantalla.get_by_role('link', name='Abastecimiento').press('Enter')
             pw.expect(pantalla.get_by_text('Modo de prueba · Técnico simulado')).to_be_visible()
             assert modal.bounding_box()['width'] <= 420
+            pantalla.get_by_role('link', name='Bandeja').click()
+            pw.expect(pantalla.get_by_role('heading', name='Mis pedidos')).to_be_visible()
+            pantalla.get_by_role('link', name='Solicitar').click()
+            pw.expect(pantalla.get_by_role('heading', name='Solicitar combustible')).to_be_visible()
+            pantalla.locator('input[name="cm"]').fill('cm-20261124')
+            pw.expect(pantalla.locator('datalist option[value="CM-20261124-00000018"]')).to_have_count(1)
             pw.expect(pantalla.get_by_label('Galones solicitados')).to_have_attribute('step', '0.1')
             assert pantalla.get_by_label('Código único del site').count() == 0
             pantalla.get_by_label('Tipo de pedido').select_option('generador', timeout=5000)
@@ -51,6 +59,7 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             modal.get_by_role('button', name='Cerrar vista de prueba').click()
             pw.expect(modal).to_be_hidden()
             pagina.get_by_role('link', name='Generadores', exact=True).click()
+            pagina.wait_for_load_state('domcontentloaded')
             pw.expect(pagina.locator('#ab-form-generador')).to_have_count(0)
             pagina.get_by_role('button', name='Ordenar QR asignado').click()
             pw.expect(pagina.locator('th[data-columna="1"]')).to_have_attribute('aria-sort', 'ascending')
@@ -59,7 +68,7 @@ def test_abastecimiento_prueba_abre_como_celular(auth_client, servidor):
             pw.expect(filtro).to_be_visible()
             filtro.get_by_role('button', name='Limpiar').click()
             pagina.get_by_role('searchbox', name='Buscar en QR asignado').fill('QR-QUE-NO-EXISTE-9922')
-            pw.expect(pagina.get_by_text('Ningún generador coincide con los filtros.')).to_be_visible()
+            pw.expect(pagina.locator('[data-sin-resultados]')).to_be_visible()
             pagina.get_by_role('link', name='Registrar generador').click()
             pw.expect(pagina.locator('#ab-form-generador')).to_be_visible()
         finally:

@@ -91,6 +91,9 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
             ('Generadores', 'QA-GEP-CATALOGO', {'QR ASIGNADO': 'QA-AB-01', 'SERIE DE EQUIPO': '0001',
                                                 'PROYECTO': 'FLM - INTEGRATEL'}),
             ('Generadores', 'QA-GEP-LEGADO', {'QR ASIGNADO': 'QA-GEP-SIN-PROYECTO', 'ZONA': 'ICA'}),
+            ('FLM - INTEGRATEL', 'CM-20261124-00000028', {}),
+            ('FLM - INTEGRATEL', 'PLM-20261124-00000038', {}),
+            ('FLM - CLARO', 'CM-20261124-00000048', {}),
             ('SITE', 'QA-SITE-AB', {'Nombre del sitio | Site name': 'CHOQUECANCHA QA',
                                   'Código del sitio | Site ID': 'HU-ABC', 'Proyecto': 'FLM - INTEGRATEL'}),
         ):
@@ -99,7 +102,10 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
         db.session.commit()
     assert gestora.get('/abastecimiento/').status_code == 200
     assert parque.get('/abastecimiento/?estado=parque').status_code == 200
-    portal = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
+    inicio = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
+    assert all(f'seccion={seccion}' in inicio for seccion in ('solicitar', 'bandeja'))
+    assert 'Galones solicitados' not in inicio and 'Mis pedidos' not in inicio
+    portal = mobile.get('/form-pruebas/abastecimiento?seccion=solicitar').get_data(as_text=True)
     assert 'value="Técnico QA" readonly' in portal and 'value="FLM - INTEGRATEL" readonly' in portal
     assert all(f'>{grifo}</option>' in portal for grifo in ('Primax', 'Redcol', 'Otro'))
     inventario = mobile.get('/form-pruebas/abastecimiento/catalogos').json['generadores']
@@ -109,6 +115,8 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert any(g['qr'] == 'QA-GEP-SIN-PROYECTO' for g in auth_client.get(url_catalogo).json['generadores'])
     assert not any(g['qr'] == 'QA-GEP-SIN-PROYECTO' for g in gestora.get(url_catalogo).json['generadores'])
     assert mobile.get('/form-pruebas/abastecimiento/catalogos?q=HU-ABC').json['sites'][0]['nombre'] == 'CHOQUECANCHA QA'
+    assert mobile.get('/form-pruebas/abastecimiento/catalogos?ticket=CM&q=20261124').json['tickets'] == ['CM-20261124-00000028']
+    assert gestora.get(url_catalogo + '&ticket=PLM&q=00000038').json['tickets'] == ['PLM-20261124-00000038']
     datos = {'fecha': '2026-11-24', 'zona': 'HUANCAVELICA', 'site': 'QA-SITE-SIN-REGISTRO-761893',
              'cm': 'CM-20261124-00000018', 'plm': 'PLM-20261124-00000018', 'tipo': 'generador',
              'generador': 'QA-AB-01', 'combustible': 'diesel', 'galones': '10'}
@@ -151,8 +159,8 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert revisar(parque, sid, 'enviar', {'qr': foto()}).status_code == 200
     assert post_mobile(f'{sid}/referencias', {'cm': datos['cm']}).status_code == 200
     assert b'Tienes un QR listo' in mobile.get('/form-pruebas/').data
-    assert f'/{sid}/foto/qr'.encode() in mobile.get('/form-pruebas/abastecimiento').data
-    portal_qr = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
+    assert f'/{sid}/foto/qr'.encode() in mobile.get('/form-pruebas/abastecimiento?seccion=bandeja').data
+    portal_qr = mobile.get('/form-pruebas/abastecimiento?seccion=bandeja').get_data(as_text=True)
     assert 'Mostrar QR a pantalla completa' in portal_qr and 'Cerrar QR' in portal_qr
     assert portal_qr.count('capture="environment"') == 3
     assert mobile.get(f'/form-pruebas/abastecimiento/{sid}/foto/qr').mimetype == 'image/png'
@@ -216,7 +224,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
         assert sol.tecnico_id < 0 and sol.unidad.startswith('prueba:')
         assert (sol.saldo_previo, sol.autorizado) == (0, 10)
     assert revisar(parque, piloto, 'enviar', {'qr': foto()}).status_code == 200
-    assert f'/{piloto}/foto/qr'.encode() in auth_client.get('/abastecimiento/prueba/pedidos').data
+    assert f'/{piloto}/foto/qr'.encode() in auth_client.get('/abastecimiento/prueba/pedidos?seccion=bandeja').data
     assert auth_client.post(f'/abastecimiento/prueba/{piloto}/llenado', headers=headers,
                             data={'cargado': '10', **{k: foto() for k in fotos_llenado}}).status_code == 200
     assert auth_client.post(f'/abastecimiento/prueba/{piloto}/recarga', headers=headers,
