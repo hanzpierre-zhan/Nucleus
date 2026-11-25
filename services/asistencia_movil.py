@@ -179,6 +179,11 @@ def leer_foto(nombre):
         return origen.read()
 
 
+def nombre_foto_perfil(datos):
+    nombre = datos.get('_foto_perfil_mobile')
+    return nombre if isinstance(nombre, str) and re.fullmatch(r'perfil/[a-f0-9]{32}\.jpg', nombre) else ''
+
+
 def guardar_foto_perfil(archivo):
     if not archivo or not archivo.filename:
         raise ValueError('Toma tu foto de perfil.')

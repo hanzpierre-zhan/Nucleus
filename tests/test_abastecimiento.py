@@ -101,6 +101,7 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert parque.get('/abastecimiento/?estado=parque').status_code == 200
     portal = mobile.get('/form-pruebas/abastecimiento').get_data(as_text=True)
     assert 'value="Técnico QA" readonly' in portal and 'value="FLM - INTEGRATEL" readonly' in portal
+    assert all(f'>{grifo}</option>' in portal for grifo in ('Primax', 'Redcol', 'Otro'))
     inventario = mobile.get('/form-pruebas/abastecimiento/catalogos').json['generadores']
     assert any(g['qr'] == 'QA-AB-01' for g in inventario)
     assert not any(g['qr'] == 'QA-GEP-SIN-PROYECTO' for g in inventario)
@@ -129,18 +130,23 @@ def test_abastecimiento_qr_fotos_y_descuento_de_saldo(app, auth_client, monkeypa
     assert post_mobile('solicitar', {**datos, 'plm': 'CM-20261124-00000018'}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'generador': 'INVENTADO'}).status_code == 400
     assert post_mobile('solicitar', {**datos, 'galones': '1.15'}).status_code == 400
-    sin_referencias = {**datos, 'cm': '', 'plm': ''}
+    assert post_mobile('solicitar', {**datos, 'grifo': 'otro'}).status_code == 400
+    sin_referencias = {**datos, 'cm': '', 'plm': '', 'grifo': 'primax'}
     creado = post_mobile('solicitar', sin_referencias)
     assert creado.status_code == 200, creado.json
     sid = creado.json['id']
+    validacion = gestora.get('/abastecimiento/').get_data(as_text=True)
+    assert 'Tabla de pedidos de abastecimiento' in validacion
+    assert f'data-ab-detalle="ab-pedido-{sid}"' in validacion and '<td>Primax</td>' in validacion
     assert post_mobile('solicitar', datos).status_code == 400
     assert revisar(parque, sid, 'validar', datos).status_code == 400
     assert b'Site por verificar' in gestora.get('/abastecimiento/').data
-    corregido = {**sin_referencias, 'site': 'HU-ABC'}
+    corregido = {**sin_referencias, 'site': 'HU-ABC', 'grifo': 'otro', 'grifo_otro': 'Estación QA'}
     assert revisar(gestora, sid, 'editar', corregido).status_code == 200
     assert b'Site por verificar' not in gestora.get('/abastecimiento/').data
     assert revisar(gestora, sid, 'validar', corregido).status_code == 200
-    assert b'CHOQUECANCHA QA' in parque.get('/abastecimiento/?estado=parque').data
+    generacion = parque.get('/abastecimiento/?estado=parque').get_data(as_text=True)
+    assert 'CHOQUECANCHA QA' in generacion and '<td>Estación QA</td>' in generacion
     assert revisar(gestora, sid, 'enviar', {'qr': foto()}).status_code == 400
     assert revisar(parque, sid, 'enviar', {'qr': foto()}).status_code == 200
     assert post_mobile(f'{sid}/referencias', {'cm': datos['cm']}).status_code == 200

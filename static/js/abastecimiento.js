@@ -39,6 +39,14 @@ for (const ticket of document.querySelectorAll('[data-ab-ticket]')) {
   ticket.addEventListener('input', () => { ticket.value = ticket.value.toUpperCase(); });
 }
 
+for (const boton of document.querySelectorAll('[data-ab-detalle]')) {
+  const dialogo = document.getElementById(boton.dataset.abDetalle);
+  boton.addEventListener('click', () => {
+    dialogo.showModal();
+    dialogo.dispatchEvent(new Event('ab-abrir'));
+  });
+}
+
 for (const campos of document.querySelectorAll('[data-pedido]')) {
   const unidad = campos.querySelector('[name="tipo"]');
   const actualizar = () => {
@@ -49,6 +57,19 @@ for (const campos of document.querySelectorAll('[data-pedido]')) {
   };
   unidad.addEventListener('change', actualizar);
   actualizar();
+
+  const grifo = campos.querySelector('[name="grifo"]');
+  const otroGrifo = campos.querySelector('[data-otro-grifo]');
+  if (grifo && otroGrifo) {
+    const nombre = otroGrifo.querySelector('input');
+    const actualizarGrifo = () => {
+      otroGrifo.hidden = grifo.value !== 'otro';
+      nombre.disabled = otroGrifo.hidden;
+      nombre.required = !otroGrifo.hidden;
+    };
+    grifo.addEventListener('change', actualizarGrifo);
+    actualizarGrifo();
+  }
 
   if (!campos.dataset.catalogo) continue;
   const proyecto = campos.closest('form')?.querySelector('[name="proyecto"]');
@@ -128,7 +149,9 @@ for (const campos of document.querySelectorAll('[data-pedido]')) {
   });
   proyecto?.addEventListener('change', () => cargarCatalogo(true));
   const detalle = campos.closest('details');
-  if (!detalle || detalle.open) cargarCatalogo();
+  const dialogo = campos.closest('.ab-dialogo-pedido');
+  if (dialogo) dialogo.addEventListener('ab-abrir', () => cargarCatalogo(), {once: true});
+  else if (!detalle || detalle.open) cargarCatalogo();
   else detalle.addEventListener('toggle', function abrirCatalogo() {
     if (!detalle.open) return;
     detalle.removeEventListener('toggle', abrirCatalogo);

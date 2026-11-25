@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% from '_abastecimiento_campos.html' import pedido, resumen, galones_pedido %}
+{% from '_abastecimiento_campos.html' import pedido, resumen, galones_pedido, nombre_grifo %}
 {% block title %}Abastecimiento — Nucleus{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=6">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=4) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=5) }}">
 <section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
   <div class="cc-barra">
     <nav class="cc-tabs" aria-label="Secciones de Abastecimiento">
@@ -24,10 +24,42 @@
   {% if estado == 'generadores' %}
   {% include '_abastecimiento_generadores.html' %}
   {% else %}
-  <div class="ab-lista">
+  <div class="ab-tabla-wrap" tabindex="0" role="region" aria-label="Tabla de pedidos de abastecimiento">
+    <table class="ab-tabla ab-tabla-pedidos">
+      <thead><tr>{% for etiqueta in ['Acciones', 'Pedido', 'Fecha', 'Solicitante', 'Proyecto', 'Zona', 'Site', 'Unidad', 'CM', 'PLM', 'Combustible', 'Grifo', 'Galones', 'Estado'] %}
+        <th scope="col">{{ etiqueta }}</th>
+      {% endfor %}</tr></thead>
+      <tbody>
+      {% for sol in filas %}
+        <tr>
+          <td><button type="button" class="cn-redondo cn-azul" data-ab-detalle="ab-pedido-{{ sol.id }}" title="Ver pedido #{{ sol.id }}" aria-label="Ver pedido #{{ sol.id }}" aria-haspopup="dialog"><i class="fa-solid {{ 'fa-pen' if estado == 'gestora' else 'fa-eye' }}" aria-hidden="true"></i></button></td>
+          <td><strong>Pedido #{{ sol.id }}</strong>{% if sol.tecnico_id < 0 %} <small>PRUEBA</small>{% endif %}</td>
+          <td>{{ sol.datos.fecha }}</td>
+          <td>{{ sol.datos.tecnico }}</td>
+          <td>{{ sol.proyecto }}</td>
+          <td>{{ sol.datos.zona }}</td>
+          <td>{{ sol.datos.site }}{% if estado == 'gestora' and sol.datos.get('site_pendiente') %} <small class="ab-alerta">Site por verificar</small>{% endif %}</td>
+          <td>{{ 'Generador' if sol.datos.tipo == 'generador' else 'Vehículo' }} · {{ sol.datos.placa or sol.datos.generador or '—' }}</td>
+          <td>{{ sol.datos.cm or '—' }}</td>
+          <td>{{ sol.datos.plm or '—' }}</td>
+          <td>{{ combustibles_pedido.get(sol.datos.combustible, sol.datos.get('otro_combustible') or '—') }}</td>
+          <td>{{ nombre_grifo(sol.datos) }}</td>
+          <td>{{ galones_pedido(sol.solicitado) }}</td>
+          <td>{{ ('Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia') if estado == 'recarga' else pestañas[estado] }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="14" class="cc-vacio">No hay pedidos en esta etapa.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% for sol in filas %}
-    <details class="ab-pedido">
-      <summary>{% if sol.tecnico_id < 0 %}<strong>PRUEBA · </strong>{% endif %}<strong>Pedido #{{ sol.id }} · {{ sol.datos.site }}</strong> · {{ sol.datos.tecnico }} · {{ galones_pedido(sol.solicitado) }} gal{% if estado == 'gestora' and sol.datos.get('site_pendiente') %} <span class="ab-alerta">Site por verificar</span>{% endif %}</summary>
+    <dialog id="ab-pedido-{{ sol.id }}" class="ab-dialogo-pedido" aria-labelledby="ab-pedido-titulo-{{ sol.id }}">
+      <header class="ab-prueba-cabecera">
+        <h2 id="ab-pedido-titulo-{{ sol.id }}">{% if sol.tecnico_id < 0 %}PRUEBA · {% endif %}Pedido #{{ sol.id }} · {{ sol.datos.site }}</h2>
+        <form method="dialog"><button class="cc-dialogo-icono cc-dialogo-cerrar" aria-label="Cerrar detalle"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></form>
+      </header>
+      <div class="ab-dialogo-contenido">
       {% if estado == 'recarga' %}<p><strong>{{ 'Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia' }}</strong></p>{% endif %}
       {{ resumen(sol) }}
       {% if estado == 'gestora' %}
@@ -36,7 +68,7 @@
         {% endif %}
         <form class="ab-form" method="post" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='editar') }}">
           <input type="hidden" name="csrf" value="{{ csrf }}">
-          {{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion'), sol.proyecto, sol.id) }}
+          {{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, url_for('abastecimiento.catalogos_gestion'), sol.proyecto, sol.id, grifos) }}
           <p data-error role="alert" hidden></p>
           <div class="ab-acciones">
             <button type="submit" class="cc-btn">Guardar cambios</button>
@@ -44,7 +76,7 @@
           </div>
         </form>
       {% else %}
-        <details><summary>Datos del pedido</summary><fieldset disabled>{{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, '', sol.proyecto, sol.id) }}</fieldset></details>
+        <details><summary>Datos del pedido</summary><fieldset disabled>{{ pedido(sol.datos, sol.solicitado, zonas, combustibles_pedido, '', sol.proyecto, sol.id, grifos) }}</fieldset></details>
         {% if estado == 'parque' %}
           <form class="ab-form" method="post" enctype="multipart/form-data" action="{{ url_for('abastecimiento.revisar', sid=sol.id, accion='enviar') }}">
             <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -66,11 +98,9 @@
           </div>
         {% endif %}
       {% endif %}
-    </details>
-  {% else %}
-    <p class="cc-vacio">No hay pedidos en esta etapa.</p>
+      </div>
+    </dialog>
   {% endfor %}
-  </div>
   {% endif %}
 </section>
 {% if puede_probar %}
@@ -84,5 +114,5 @@
   <iframe id="ab-prueba-pantalla" class="ab-prueba-pantalla" title="Simulación de Nucleus Mobile" allowfullscreen></iframe>
 </dialog>
 {% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=6) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=7) }}" defer></script>
 {% endblock %}

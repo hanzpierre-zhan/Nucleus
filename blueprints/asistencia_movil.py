@@ -175,8 +175,8 @@ def actualizar_dataper():
 @tecnico
 def foto_perfil():
     datos = perfil.leer(db.session.get(NucleusData, g.tecnico['id']))
-    nombre = datos.get('_foto_perfil_mobile', '')
-    if not re.fullmatch(r'perfil/[a-f0-9]{32}\.jpg', nombre):
+    nombre = am.nombre_foto_perfil(datos)
+    if not nombre:
         abort(404)
     try:
         contenido = am.leer_foto(nombre)

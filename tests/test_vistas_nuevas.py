@@ -114,3 +114,21 @@ def test_modulo_inexistente_y_usuarios(auth_client):
     assert auth_client.get('/vista/usuarios/').status_code == 200
     usuarios = auth_client.get('/api/vista/usuarios/lista').json['usuarios']
     assert usuarios and {'id', 'username', 'rol', 'proyectos'} <= set(usuarios[0])
+
+
+def test_foto_de_perfil_dataper(app, auth_client, client, persona, monkeypatch):
+    ruta = f'/api/vista/dataper/{persona}/foto-perfil'
+    assert auth_client.get(ruta).status_code == 404
+    nombre = 'perfil/' + 'a' * 32 + '.jpg'
+    with app.app_context():
+        fila = db.session.get(NucleusData, persona)
+        datos = json.loads(fila.data_json)
+        fila.data_json = json.dumps({**datos, '_foto_perfil_mobile': nombre})
+        db.session.commit()
+    monkeypatch.setattr('blueprints.vistas_nuevas.leer_foto', lambda ruta_foto: b'foto' if ruta_foto == nombre else b'')
+    fila = next(f for f in auth_client.get('/api/vista/dataper/lista').json['filas'] if f['id'] == persona)
+    assert fila['foto_perfil'] == ruta and '_foto_perfil_mobile' not in fila['datos']
+    respuesta = auth_client.get(ruta)
+    assert respuesta.mimetype == 'image/jpeg' and respuesta.data == b'foto'
+    assert respuesta.headers['Cache-Control'] == 'no-store, private'
+    assert client.get(ruta).status_code == 401

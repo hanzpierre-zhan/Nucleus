@@ -36,8 +36,9 @@
   // ── Encabezado con ordenar, filtrar y buscar por columna ──
   function plantilla() {
     const anchos = columnas.map(c => c.length > 18 ? 'minmax(170px, 1.4fr)' : 'minmax(120px, 1fr)');
-    $('cn-tabla').style.setProperty('--cc-min', (columnas.length * 150 + 140) + 'px');
-    return [...(eliminar ? ['52px'] : []), '112px', ...anchos].join(' ');
+    const anchoAcciones = cfg.slug === 'dataper' && filas.some(f => f.foto_perfil) ? 140 : 112;
+    $('cn-tabla').style.setProperty('--cc-min', (columnas.length * 150 + anchoAcciones + (eliminar ? 52 : 0)) + 'px');
+    return [...(eliminar ? ['52px'] : []), anchoAcciones + 'px', ...anchos].join(' ');
   }
   function pintarEncabezado() {
     $('cn-tabla').style.setProperty('--cc-cols', plantilla());
@@ -157,7 +158,22 @@
     const lista = [redondo(cfg.editar ? 'Ver y editar' : 'Ver detalle', cfg.editar ? 'cn-azul' : 'cn-neutro', cfg.editar ? 'fa-pen' : 'fa-eye', () => verDetalle(f))];
     if (cfg.slug === 'dataper' && cfg.editar) lista.push(botonEstado(f));
     if (cfg.clave_portal) lista.push(redondo('Restablecer clave del portal (vuelve a ser el documento)', 'cn-naranja', 'fa-key', () => restablecerClave(f)));
+    if (f.foto_perfil) lista.push(redondo('Ver foto de perfil', 'cn-morado', 'fa-image', () => verFotoPerfil(f)));
     return lista;
+  }
+
+  function verFotoPerfil(f) {
+    const nombre = f.datos.TECNICO || f.key;
+    $('cc-solicitud-titulo').textContent = 'Foto de perfil · ' + nombre;
+    $('cn-dialogo-acciones').querySelectorAll('.cn-redondo').forEach(b => b.remove());
+    const foto = el('div', 'vn-foto');
+    const imagen = el('img');
+    imagen.alt = 'Foto de perfil de ' + nombre;
+    imagen.addEventListener('error', () => foto.replaceChildren(el('p', 'cc-vacio', 'La foto no está disponible.')));
+    imagen.src = f.foto_perfil;
+    foto.append(imagen);
+    $('cc-solicitud-contenido').replaceChildren(foto);
+    if (!dialogo.open) dialogo.showModal();
   }
 
   // ── Detalle / edición: datos a la izquierda; tarjeta del módulo a la derecha ──

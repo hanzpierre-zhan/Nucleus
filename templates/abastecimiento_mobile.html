@@ -29,7 +29,7 @@
       <label>Proyecto <input value="{{ persona.proyecto }}" readonly></label>
       {% endif %}
       {% set url_catalogo = url_for('abastecimiento.catalogos_gestion', prueba=1) if prueba else url_for('abastecimiento.catalogos_tecnico') %}
-      {{ pedido(datos, '', zonas, combustibles_pedido, url_catalogo, proyecto) }}
+      {{ pedido(datos, '', zonas, combustibles_pedido, url_catalogo, proyecto, grifos=grifos) }}
       <p class="hint">Puedes agregar el CM y el PLM más adelante. Se piden al cerrar la recarga.</p>
       <p class="error" data-error role="alert" hidden></p>
       <button type="submit" class="primary wide">Enviar solicitud</button>
@@ -85,6 +85,6 @@
   <img alt="Código QR para mostrar en el grifo">
 </dialog>
 {% if not prueba %}<script src="{{ url_for('static', filename='js/ubicacion-movil.js', v=2) }}" defer></script>{% endif %}
-<script src="{{ url_for('static', filename='js/abastecimiento.js', v=6) }}" defer></script>
+<script src="{{ url_for('static', filename='js/abastecimiento.js', v=7) }}" defer></script>
 </body>
 </html>

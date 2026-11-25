@@ -18,7 +18,9 @@
 {{ valor if valor * 10 % 1 else '%.1f'|format(valor) }}
 {%- endmacro %}
 
-{% macro pedido(datos, galones='', zonas=(), combustibles={}, catalogo='', proyecto='', sufijo='mobile') %}
+{% macro nombre_grifo(datos) -%}{{ datos.get('grifo_otro') or datos.get('grifo') or '—' }}{%- endmacro %}
+
+{% macro pedido(datos, galones='', zonas=(), combustibles={}, catalogo='', proyecto='', sufijo='mobile', grifos={}) %}
 <div class="ab-campos" data-pedido data-catalogo="{{ catalogo }}" data-proyecto="{{ proyecto }}">
   <label>Tipo de pedido
     <select name="tipo" required>
@@ -51,6 +53,21 @@
       {% endfor %}
     </select>
   </label>
+  {% set guardado = datos.get('grifo') or '' %}
+  {% set grifo = guardado|lower if not guardado or guardado|lower in grifos else 'otro' %}
+  <label>Grifo
+    <select name="grifo">
+      <option value="">Selecciona</option>
+      {% for clave, etiqueta in grifos.items() %}
+      <option value="{{ clave }}"{% if grifo == clave %} selected{% endif %}>{{ etiqueta }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div data-otro-grifo{% if grifo != 'otro' %} hidden{% endif %}>
+    <label>Nombre del grifo
+      <input name="grifo_otro" value="{{ datos.get('grifo_otro') or (guardado if guardado|lower not in grifos else '') }}" maxlength="150">
+    </label>
+  </div>
   {% if datos.get('combustible') == 'otro' %}<input type="hidden" name="otro_combustible" value="{{ datos.otro_combustible }}">{% endif %}
   <div data-unidad="vehiculo">{{ campo(datos, 'placa', 'Placa del vehículo', true) }}</div>
   <div data-unidad="generador">
@@ -75,6 +92,7 @@
 {% macro resumen(sol) %}
 <p>{{ sol.datos.fecha }} · {{ sol.proyecto }} · {{ sol.datos.tecnico }}</p>
 <p>CM {{ sol.datos.cm or 'pendiente' }} · PLM {{ sol.datos.plm or 'pendiente' }} · {{ sol.datos.placa or sol.datos.generador }}</p>
+{% if sol.datos.get('grifo') %}<p>Grifo {{ nombre_grifo(sol.datos) }}</p>{% endif %}
 <p><strong>{{ galones_pedido(sol.solicitado) }} gal solicitados</strong>
 {% if sol.autorizado is not none %} · {{ sol.saldo_previo }} gal de saldo previo · <strong>{{ sol.autorizado }} gal nuevos</strong>{% endif %}
 {% if sol.saldo_final is not none %} · {{ sol.consumido }} gal usados · <strong>{{ sol.saldo_final }} gal restantes</strong>{% endif %}</p>

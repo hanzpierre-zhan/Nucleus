@@ -7,10 +7,11 @@ import io
 import json
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, abort, jsonify, render_template, request, send_file, session, url_for
+from flask import Blueprint, Response, abort, jsonify, render_template, request, send_file, session, url_for
 
 from models import AccesoProyecto, AppConfig, NucleusData, Proyecto
 from services import get_menu_proyectos, login_required
+from services.asistencia_movil import leer_foto, nombre_foto_perfil
 from services.recursos_flm import familia
 
 bp = Blueprint('vistas_nuevas', __name__)
@@ -133,7 +134,10 @@ def lista(slug):
         clave = MODULOS[slug][5]
         if not str(visibles.get(clave) or '').strip():
             visibles[clave] = key  # la clave del registro (p. ej. DOCUMENTO en Dataper) siempre se ve
-        filas.append({'id': rid, 'key': key, 'pestana': pestana, 'datos': visibles})
+        fila = {'id': rid, 'key': key, 'pestana': pestana, 'datos': visibles}
+        if slug == 'dataper' and nombre_foto_perfil(datos):
+            fila['foto_perfil'] = url_for('vistas_nuevas.foto_perfil_dataper', rid=rid)
+        filas.append(fila)
     columnas = _columnas(proyecto, filas)
     if slug == 'dataper':
         from services.personal import FICHA_PERSONAL, resolver_supervisores
@@ -147,6 +151,28 @@ def lista(slug):
     # La columna clave va siempre primero, aunque el diseño guardado del módulo la tenga oculta.
     columnas = [clave] + [c for c in columnas if c != clave]
     return jsonify(columnas=columnas, filas=filas)
+
+
+@bp.get('/api/vista/dataper/<int:rid>/foto-perfil')
+@login_required
+def foto_perfil_dataper(rid):
+    proyecto = _modulo('dataper')
+    fila = NucleusData.query.filter_by(proyecto_id=proyecto.id, id=rid).first_or_404()
+    from services.perfil_dataper import leer
+    from services.recursos_flm import familias_permitidas
+    datos = leer(fila)
+    if _rol() not in ROLES_TODO and _clave_pestana('dataper', datos) not in familias_permitidas():
+        abort(404)
+    nombre = nombre_foto_perfil(datos)
+    if not nombre:
+        abort(404)
+    try:
+        contenido = leer_foto(nombre)
+    except Exception:
+        abort(404)
+    return Response(contenido, mimetype='image/jpeg', headers={
+        'Cache-Control': 'no-store, private', 'X-Content-Type-Options': 'nosniff',
+    })
 
 
 def _fijar_modulo(slug):

@@ -57,6 +57,21 @@
 .ab-tabla .cc-th-fila { cursor: default; margin-bottom: 5px; }
 .ab-tabla .cc-th-btn { opacity: 1; }
 .ab-tabla tr[hidden], #ab-filtro-generadores[hidden] { display: none; }
+.ab-tabla-pedidos th { white-space: nowrap; }
+.ab-tabla-pedidos td:first-child { width: 70px; }
+.ab-dialogo-pedido {
+  width: min(950px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: 1px solid var(--ios-hairline, #8798ab);
+  border-radius: 16px;
+  background: var(--ios-card-bg, #222);
+  color: var(--ios-label, #fff);
+}
+.ab-dialogo-pedido::backdrop { background: rgb(0 0 0 / 65%); }
+.ab-dialogo-pedido .ab-prueba-cabecera { position: sticky; top: 0; z-index: 1; background: inherit; }
+.ab-dialogo-contenido { padding: 0 14px 14px; }
+.ab-dialogo-contenido .ab-campos { align-items: start; }
 .ab-prueba {
   box-sizing: border-box;
   width: min(420px, calc(100vw - 24px));

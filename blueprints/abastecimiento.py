@@ -32,6 +32,7 @@ PROYECTOS_PRUEBA = ('ENTEL', 'CLARO', 'INTEGRATEL', 'PEXT')
 TIPOS_GENERADOR = ('PROPIO', 'ALQUILADO', 'CLIENTE', 'OTRO')
 COMBUSTIBLES_GENERADOR = ('GASOLINA', 'PETRÓLEO', 'DIÉSEL', 'OTRO')
 COMBUSTIBLES_PEDIDO = {'gasolina': 'Gasolina', 'petroleo': 'Petróleo', 'diesel': 'Diésel'}
+GRIFOS_PEDIDO = {'primax': 'Primax', 'redcol': 'Redcol', 'otro': 'Otro'}
 CAMPOS_GENERADOR = ('QR ASIGNADO', 'SERIE DE EQUIPO', 'ZONA', 'TIPO',
                     'TIPO DE COMBUSTIBLE', 'PROYECTO')
 
@@ -69,6 +70,14 @@ def datos_pedido(form, proyecto, anterior=None, galones_anteriores=None, *, prue
         if not datos[campo]:
             raise ValueError(f'Completa {etiqueta}.')
     datos.update(referencias_pedido(form, anterior))
+    if 'grifo' in form:
+        grifo = form.get('grifo', '').strip().lower()
+        if grifo and grifo not in GRIFOS_PEDIDO:
+            raise ValueError('Selecciona un grifo de la lista.')
+        otro = form.get('grifo_otro', '').strip()[:150] if grifo == 'otro' else ''
+        if grifo == 'otro' and not otro:
+            raise ValueError('Escribe el nombre del otro grifo.')
+        datos.update(grifo=GRIFOS_PEDIDO.get(grifo, ''), grifo_otro=otro)
     try:
         datos['fecha'] = date.fromisoformat(datos['fecha']).isoformat()
     except ValueError:
@@ -144,7 +153,7 @@ def gestion():
     filas = consulta.order_by(Solicitud.id.desc()).all()
     return render_template('abastecimiento.html', proyectos_list=menu, filas=filas, estado=estado,
                            pestañas=pestañas, fotos=FOTOS, csrf=csrf(), puede_probar=rol in ADMIN,
-                           zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO)
+                           zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO, grifos=GRIFOS_PEDIDO)
 
 
 def bloquear_cambios():
@@ -363,7 +372,7 @@ def pantalla_tecnico(persona, prueba=False):
     return render_template('abastecimiento_mobile.html', filas=filas, datos=datos, persona=persona,
                            prueba=prueba, proyectos_prueba=PROYECTOS_PRUEBA, estados=ESTADOS, csrf=csrf(),
                            proyecto=filas[0].proyecto if prueba and filas else 'CLARO' if prueba else familia(persona['proyecto']),
-                           zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO,
+                           zonas=DEPARTAMENTOS, combustibles_pedido=COMBUSTIBLES_PEDIDO, grifos=GRIFOS_PEDIDO,
                            fotos_llenado=FOTOS_LLENADO, fotos_recarga=FOTOS_RECARGA)
 
 
