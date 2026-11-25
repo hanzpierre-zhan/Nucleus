@@ -1,10 +1,11 @@
 {% extends 'base.html' %}
 {% from '_abastecimiento_campos.html' import pedido, resumen, galones_pedido, nombre_grifo %}
+{% from '_abastecimiento_tabla.html' import columna %}
 {% block title %}Abastecimiento — Nucleus{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=103">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=6">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=5) }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/abastecimiento.css', v=6) }}">
 <section class="cc-gestion cn-gestion" aria-label="Abastecimiento">
   <div class="cc-barra">
     <nav class="cc-tabs" aria-label="Secciones de Abastecimiento">
@@ -24,14 +25,14 @@
   {% if estado == 'generadores' %}
   {% include '_abastecimiento_generadores.html' %}
   {% else %}
-  <div class="ab-tabla-wrap" tabindex="0" role="region" aria-label="Tabla de pedidos de abastecimiento">
-    <table class="ab-tabla ab-tabla-pedidos">
-      <thead><tr>{% for etiqueta in ['Acciones', 'Pedido', 'Fecha', 'Solicitante', 'Proyecto', 'Zona', 'Site', 'Unidad', 'CM', 'PLM', 'Combustible', 'Grifo', 'Galones', 'Estado'] %}
-        <th scope="col">{{ etiqueta }}</th>
+  <div class="ab-tabla-wrap cc-tabla" tabindex="0" role="region" aria-label="Tabla de pedidos de abastecimiento">
+    <table class="ab-tabla ab-tabla-pedidos" data-ab-tabla>
+      <thead><tr><th scope="col">Acciones</th>{% for etiqueta in ['Pedido', 'Fecha', 'Solicitante', 'Proyecto', 'Zona', 'Site', 'Unidad', 'CM', 'PLM', 'Combustible', 'Grifo', 'Galones', 'Estado'] %}
+        {{ columna(etiqueta, loop.index) }}
       {% endfor %}</tr></thead>
       <tbody>
       {% for sol in filas %}
-        <tr>
+        <tr data-ab-fila>
           <td><button type="button" class="cn-redondo cn-azul" data-ab-detalle="ab-pedido-{{ sol.id }}" title="Ver pedido #{{ sol.id }}" aria-label="Ver pedido #{{ sol.id }}" aria-haspopup="dialog"><i class="fa-solid {{ 'fa-pen' if estado == 'gestora' else 'fa-eye' }}" aria-hidden="true"></i></button></td>
           <td><strong>Pedido #{{ sol.id }}</strong>{% if sol.tecnico_id < 0 %} <small>PRUEBA</small>{% endif %}</td>
           <td>{{ sol.datos.fecha }}</td>
@@ -47,9 +48,8 @@
           <td>{{ galones_pedido(sol.solicitado) }}</td>
           <td>{{ ('Recarga completada' if sol.estado == 'cerrado' else 'Pendiente de evidencia') if estado == 'recarga' else pestañas[estado] }}</td>
         </tr>
-      {% else %}
-        <tr><td colspan="14" class="cc-vacio">No hay pedidos en esta etapa.</td></tr>
       {% endfor %}
+      <tr data-sin-resultados{% if filas %} hidden{% endif %}><td colspan="14" class="cc-vacio">{{ "Ningún pedido coincide con los filtros." if filas else "No hay pedidos en esta etapa." }}</td></tr>
       </tbody>
     </table>
   </div>
@@ -115,4 +115,6 @@
 </dialog>
 {% endif %}
 <script src="{{ url_for('static', filename='js/abastecimiento.js', v=7) }}" defer></script>
+  <div class="cc-filtro" id="ab-filtro-tabla" role="dialog" aria-label="Filtrar columna" hidden></div>
+  <script src="{{ url_for('static', filename='js/abastecimiento-tabla.js', v=1) }}" defer></script>
 {% endblock %}

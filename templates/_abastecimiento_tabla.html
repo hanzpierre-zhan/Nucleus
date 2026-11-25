@@ -1,0 +1,10 @@
+{% macro columna(campo, indice) %}
+      <th scope="col" class="cc-th" data-columna="{{ indice }}" data-etiqueta="{{ campo }}">
+        <div class="cc-th-fila">
+          <span class="cc-th-nombre">{{ campo }}</span>
+          <button type="button" class="cc-th-btn" data-ordenar title="Ordenar {{ campo }}" aria-label="Ordenar {{ campo }}"><i class="fa-solid fa-sort" aria-hidden="true"></i></button>
+          <button type="button" class="cc-th-btn" data-filtrar title="Filtrar {{ campo }}" aria-label="Filtrar {{ campo }}" aria-expanded="false" aria-controls="ab-filtro-tabla"><i class="fa-solid fa-filter" aria-hidden="true"></i></button>
+        </div>
+        <input class="cc-th-buscar" type="search" placeholder="Buscar…" aria-label="Buscar en {{ campo }}">
+      </th>
+{% endmacro %}

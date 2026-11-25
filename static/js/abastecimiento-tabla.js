@@ -1,9 +1,9 @@
 (() => {
-  const tabla = document.getElementById('ab-tabla-generadores');
-  const panel = document.getElementById('ab-filtro-generadores');
+  const tabla = document.querySelector('[data-ab-tabla]');
+  const panel = document.getElementById('ab-filtro-tabla');
   const cuerpo = tabla.tBodies[0];
   const vacio = cuerpo.querySelector('[data-sin-resultados]');
-  const filas = [...cuerpo.querySelectorAll('[data-generador]')];
+  const filas = [...cuerpo.querySelectorAll('[data-ab-fila]')];
   const columnas = [...tabla.querySelectorAll('[data-columna]')];
   const comparador = new Intl.Collator('es-PE', {numeric: true, sensitivity: 'base'});
   const normalizar = texto => texto.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();

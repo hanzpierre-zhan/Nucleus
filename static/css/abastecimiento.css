@@ -49,16 +49,18 @@
 .cc-gestion[aria-label="Abastecimiento"] .cc-tab:not(.activa) {
   background: color-mix(in srgb, var(--cc-color) 15%, transparent);
 }
-.ab-tabla-wrap { overflow: auto; margin-top: 14px; }
-.ab-tabla { width: 100%; min-width: 760px; border-collapse: collapse; text-align: left; }
-.ab-tabla :is(th, td) { padding: 9px 12px; border-bottom: 1px solid var(--ios-hairline, #8798ab); }
-.ab-tabla th { background: var(--ios-fill, #273140); }
-.ab-tabla th.cc-th { display: table-cell; }
+.ab-tabla-wrap { margin-top: 14px; }
+.ab-tabla { width: 100%; min-width: 760px; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 12px; }
+.ab-tabla :is(th, td) { padding: 8px 10px; border-bottom: 1px solid var(--ios-hairline); }
+.ab-tabla th { position: sticky; top: 0; z-index: 2; background: var(--ios-fill); }
+.ab-tabla th.cc-th { display: table-cell; min-width: 90px; }
 .ab-tabla .cc-th-fila { cursor: default; margin-bottom: 5px; }
-.ab-tabla .cc-th-btn { opacity: 1; }
-.ab-tabla tr[hidden], #ab-filtro-generadores[hidden] { display: none; }
-.ab-tabla-pedidos th { white-space: nowrap; }
-.ab-tabla-pedidos td:first-child { width: 70px; }
+.ab-tabla :is(th, td):first-child { position: sticky; left: 0; text-align: center; }
+.ab-tabla th:first-child { z-index: 3; }
+.ab-tabla td:first-child { z-index: 1; background: var(--ios-card-bg, Canvas); }
+.ab-tabla tr[hidden], #ab-filtro-tabla[hidden] { display: none; }
+.ab-tabla-pedidos :is(th, td):first-child { min-width: 76px; }
+
 .ab-dialogo-pedido {
   width: min(950px, calc(100vw - 24px));
   max-height: calc(100dvh - 24px);
