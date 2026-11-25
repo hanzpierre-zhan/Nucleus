@@ -34,6 +34,14 @@
 <div class="attendance-table" tabindex="0" role="region" aria-label="Planilla de asistencia con desplazamiento horizontal"><table id="as-planilla"><thead id="as-cabecera"></thead><tbody id="as-filas"></tbody></table></div>
 <span id="as-pendientes" class="attendance-hint">Pulsa las celdas para marcar directamente.</span><div id="as-estado" role="status" aria-live="polite"></div>
 
+<dialog id="as-falta-automatica" aria-labelledby="as-falta-titulo">
+  <header><strong id="as-falta-titulo">Revisar falta automática</strong></header>
+  <p id="as-falta-persona"></p>
+  <form method="dialog">
+    <label>Estado del día<select id="as-falta-estado"></select></label>
+    <footer><button value="cancelar">Cancelar</button><button value="aplicar">Aplicar</button></footer>
+  </form>
+</dialog>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/leaflet.js"></script><script type="module" src="/static/js/asistencia.js?v=11"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/leaflet.js"></script><script type="module" src="/static/js/asistencia.js?v=12"></script>{% endblock %}

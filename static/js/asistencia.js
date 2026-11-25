@@ -28,6 +28,14 @@ import { abrirMovil } from "./asistencia/movil.mjs?v=4";
       personal: $("as-personal").value,
     });
   const api = crearApi(csrf);
+  const dialogoFalta = $("as-falta-automatica");
+  let faltaEnRevision;
+  dialogoFalta.addEventListener("close", () => {
+    if (dialogoFalta.returnValue !== "aplicar" || !vigente()) return;
+    const { persona, dia } = faltaEnRevision;
+    marcar(persona, dia, $("as-falta-estado").value);
+    dibujar();
+  });
   function dibujar() {
     if (!planilla) return;
     $("as-planilla").style.setProperty("--attendance-days", planilla.dias);
@@ -149,6 +157,14 @@ import { abrirMovil } from "./asistencia/movil.mjs?v=4";
         } else if (marca.auto && !cambios.has(clave(p, d))) {
           b.classList.add("auto");
           b.title = `${d}/${mes}/${anio}: Falta automática · no marcó en Nucleus Mobile. Clic para cambiar.`;
+          b.onclick = () => {
+            if (!vigente()) return;
+            faltaEnRevision = { persona: p, dia: d };
+            $("as-falta-persona").textContent = `${p.nombre} · ${d}/${mes}/${anio} · Sin marcación en Nucleus Mobile`;
+            $("as-falta-estado").value = "DESCANSO";
+            dialogoFalta.returnValue = "";
+            dialogoFalta.showModal();
+          };
         }
         if (cambios.has(clave(p, d))) b.classList.add("unsaved");
         td.append(b);
@@ -250,19 +266,20 @@ import { abrirMovil } from "./asistencia/movil.mjs?v=4";
       ? `${cambios.size} cambios sin guardar (borde azul).`
       : "Elige un estado y pulsa las celdas. No se guarda hasta presionar Guardar.";
   }
-  function marcar(p, d) {
+  function marcar(p, d, estado = $("as-pincel").value) {
     if (!p.editar || (!p.activo && !p.marcas[d])) return;
     const original = p.marcas[d] || {
         estado: "PENDIENTE",
         observacion: "",
         version: 0,
       },
-      estado = $("as-pincel").value,
       key = clave(p, d);
     if (estado === original.estado) cambios.delete(key);
     else
       cambios.set(key, {
         ...original,
+        auto: false,
+        observacion: original.auto ? "" : original.observacion,
         estado,
         personal_id: p.personal_id,
         proyecto_id: p.proyecto_id,
@@ -396,6 +413,7 @@ import { abrirMovil } from "./asistencia/movil.mjs?v=4";
           new Option(`${siglas[s]} · ${contexto.estados[s]}`, s),
         ),
       );
+      $("as-falta-estado").append(...Array.from($("as-pincel").options, opcion => opcion.cloneNode(true)));
       $("as-pincel").value = "PRESENTE";
       await cargar();
     } catch (e) {
