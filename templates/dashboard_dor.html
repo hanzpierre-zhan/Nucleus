@@ -81,16 +81,14 @@
       <span id="dor-detalle-n"></span><button type="button" id="dor-excel"><i class="fa-solid fa-download" aria-hidden="true"></i> Excel</button>
       <button type="button" id="dor-detalle-cerrar" aria-label="Cerrar detalle" title="Cerrar"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></header>
   <div class="dor-tabla-scroll"><table class="dor-tabla"><thead><tr>
-    {% for columna in ['Ticket Id', 'Site ID', E.oficina, 'Región', 'Contrata', 'Técnico', 'Estado', 'SLA', 'Parada de reloj', 'Creado', 'Despacho', 'Cierre', 'Causa'] %}
-    {% if dashboard.operador != 'CLARO' or columna != 'Estado' %}
+    {% for columna in ['Ticket Id', 'Site ID', E.oficina, 'Región', 'Contrata', 'Técnico', ('Task Status' if dashboard.operador == 'CLARO' else 'Estado'), 'SLA', 'Parada de reloj', 'Creado', 'Despacho', 'Cierre', 'Causa'] %}
     <th scope="col" data-detalle-col="{{ loop.index0 }}"><button type="button" class="dor-detalle-orden" title="Ordenar por {{ columna }}">{{ columna }} <span aria-hidden="true">↕</span></button>
       <input class="dor-detalle-filtro" type="search" placeholder="Filtrar…" aria-label="Filtrar por {{ columna }}">
     </th>
-    {% endif %}
     {% endfor %}
   </tr></thead><tbody id="dor-detalle-filas"></tbody></table></div>
 </article>
 </section>
 <script id="dor-data" type="application/json">{{ dashboard|tojson }}</script>
-<script src="/static/js/dashboard-dor.js?v=13"></script>
+<script src="/static/js/dashboard-dor.js?v=14"></script>
 {% endblock %}

@@ -243,7 +243,7 @@
   $('dor-detalle-cerrar').addEventListener('click', () => { $('dor-detalle').hidden = true; });
   $('dor-buscar').addEventListener('input', pintarDetalle);
   const ESTADO = {completed: 'Cerrado', closed: 'Cerrado', inprocess: 'En proceso', dispatched: 'Despachado', accepted: 'Aceptado', canceled: 'Cancelado', cancelled: 'Cancelado'};
-  const columnasDetalle = r => [r.id, r.site, r.oficina, nombreRegion(r.region), r.contrata, r.tecnico, ESTADO[r.estado] || r.estado,
+  const columnasDetalle = r => [r.id, r.site, r.oficina, nombreRegion(r.region), r.contrata, r.tecnico, (D.operador === 'CLARO' ? r.estado : ESTADO[r.estado] || r.estado) || '—',
     r.sla === true ? 'Normal' : r.sla === false ? 'Fuera de SLA' : '—', r.parada ? 'Sí' : '', fechaHora(r.creado), fechaHora(r.despacho), fechaHora(r.cierre), r.causa];
   function visiblesDetalle() {
     const q = $('dor-buscar').value.trim().toLowerCase();
@@ -283,7 +283,7 @@
     }
   }
   $('dor-excel').addEventListener('click', () => {
-    const cab = ['Ticket Id', 'Site ID', 'FM Office', 'Región', 'Contrata', 'Técnico', 'Estado', 'SLA', 'Parada de reloj', 'Creado', 'Despacho', 'Cierre', 'Causa'];
+    const cab = ['Ticket Id', 'Site ID', 'FM Office', 'Región', 'Contrata', 'Técnico', D.operador === 'CLARO' ? 'Task Status' : 'Estado', 'SLA', 'Parada de reloj', 'Creado', 'Despacho', 'Cierre', 'Causa'];
     const elegirColumnas = fila => indicesDetalle.map(i => fila[i]);
     const filas = visiblesDetalle().map(r => elegirColumnas(columnasDetalle(r)));
     const hoja = XLSX.utils.aoa_to_sheet([elegirColumnas(cab), ...filas]);
