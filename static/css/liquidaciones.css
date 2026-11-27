@@ -37,15 +37,18 @@ body.dark-mode .lq-evid-ok { color: #86efac !important; } body.dark-mode .lq-evi
 .lq-p-sustentar { background: rgba(37, 99, 235, .14); color: #1d4ed8; }
 .lq-p-proveedor { background: rgba(124, 58, 237, .14); color: #6d28d9; }
 .lq-o { background: var(--ios-fill); color: var(--ios-label); }
-.lq-o[data-ejecucion="pendiente"] { --lq-estado: #b45309; }
-.lq-o[data-ejecucion="curso"] { --lq-estado: #2563eb; }
-.lq-o[data-ejecucion="campo"] { --lq-estado: #0f766e; }
-.lq-o[data-ejecucion="sustentado"] { --lq-estado: #15803d; }
-.lq-o[data-ejecucion]:not([data-ejecucion=""]) {
+.lq-o[data-tono-estado="pendiente"] { --lq-estado: #b45309; }
+.lq-o[data-tono-estado="curso"] { --lq-estado: #2563eb; }
+.lq-o[data-tono-estado="campo"] { --lq-estado: #0f766e; }
+.lq-o[data-tono-estado="sustentado"] { --lq-estado: #15803d; }
+.lq-o[data-tono-estado="borrador"] { --lq-estado: #475569; }
+.lq-o[data-tono-estado="observado"] { --lq-estado: #7c3aed; }
+.lq-o[data-tono-estado="rechazado"] { --lq-estado: #b91c1c; }
+.lq-o[data-tono-estado]:not([data-tono-estado=""]) {
   background: color-mix(in srgb, var(--lq-estado) 15%, transparent);
   color: var(--lq-estado);
 }
-body.dark-mode .lq-o[data-ejecucion]:not([data-ejecucion=""]) {
+body.dark-mode .lq-o[data-tono-estado]:not([data-tono-estado=""]) {
   color: color-mix(in srgb, var(--lq-estado) 44%, white);
 }
 .lq-s-depositado, .lq-s-por_devolver { background: rgba(37, 99, 235, .14); color: #1d4ed8; }

@@ -14,6 +14,15 @@
   const nombreProyecto = valor => CLIENTES[valor] ? 'FLM - ' + CLIENTES[valor] : valor;
   const COLOR_EJECUCION = {'pendiente': 'pendiente', 'pdt. ejecutar': 'pendiente',
     'en ejecucion': 'curso', 'ejecutado en campo': 'campo', 'sustentado': 'sustentado'};
+  const COLOR_LIQUIDACION = {'pendiente': 'pendiente', 'en borrador': 'borrador',
+    'en revision': 'curso', 'observado': 'observado', 'rechazado': 'rechazado',
+    'aprobado': 'sustentado', 'con po': 'campo'};
+  function etiquetaEstado(estado, colores) {
+    const etiqueta = el('span', 'cc-chip lq-o', estado);
+    etiqueta.dataset.tonoEstado = colores[plano(estado.trim())] || '';
+    return etiqueta;
+  }
+  const estadoLiquidacion = c => c.seguimiento.estado_liquidacion || 'Pendiente';
 
   let tab = 'cotizaciones', chip = '', orden = null, filtros = {}, busquedas = {};
   try { tab = localStorage.getItem('lq-tab') || tab; } catch (_) {}
@@ -51,7 +60,7 @@
         ? null : Number(c.monto_factura_proveedor),
       'Evidencias adicionales': c => (c.evidencias_adicionales || []).map(a => a.nombre).join(' · '),
       'Avance %': c => c.avance, 'AJB / EJB': c => c.seguimiento.codigo_ajb_ejb, 'N.º Expense': c => c.seguimiento.numero_expense,
-      'Estado de liquidación': c => c.seguimiento.estado_liquidacion || 'Pendiente',
+      'Estado de liquidación': estadoLiquidacion,
       'Mes de cierre': c => c.seguimiento.mes_cierre, 'N.º PO': c => c.seguimiento.numero_po,
       'Observación': c => c.seguimiento.observacion,
       'Subtotal sin FEE': c => c.subtotal_sin_fee === '' || c.subtotal_sin_fee == null ? null : Number(c.subtotal_sin_fee),
@@ -77,27 +86,22 @@
       {id: 'estado', titulo: 'Estado de cotización', ancho: 'minmax(185px, 1fr)', texto: c => c.pestana || '—',
        celda: c => el('span', 'cc-chip lq-p-' + c.pestana_clave, c.pestana || '—')},
       {id: 'ejecucion', titulo: 'Estado de ejecución', ancho: 'minmax(180px, .8fr)', texto: c => c.estado_operativo || '—',
-       celda: c => {
-         const estado = c.estado_operativo || '—';
-         const etiqueta = el('span', 'cc-chip lq-o', estado);
-         etiqueta.dataset.ejecucion = COLOR_EJECUCION[plano(estado.trim())] || '';
-         return etiqueta;
-       }},
+       celda: c => etiquetaEstado(c.estado_operativo || '—', COLOR_EJECUCION)},
       ...[
-        ['cotizacion', 'Cotización PDF', 145, 'Cotización PDF',
+        ['cotizacion', 'Cotización PDF', 145, 'Cotización PDF', 'Cotización PDF',
           c => c.generada && (() => abrir('/liquidaciones/api/registros/' + c.id + '/pdf'))],
-        ['correo', 'Correo', 120, 'Correo de validación del cliente',
+        ['correo', 'Correo', 145, 'Correo de validación del cliente', 'Validación cliente',
           c => c.correo_cliente && (() => abrir(c.correo_cliente))],
-        ['sustento', 'Reporte fotográfico', 180, 'Reporte fotográfico de Operaciones',
+        ['sustento', 'Reporte fotográfico', 180, 'Reporte fotográfico de Operaciones', 'Expediente generado',
           c => c.tiene_sustento && (() => verCotizacion(c, true))],
-        ['factura', 'Factura + OC', 140, 'Factura y OC del proveedor',
+        ['factura', 'Factura + OC', 140, 'Factura y OC del proveedor', 'Factura + OC',
           c => (c.facturas.length || c.ocs.length) && (() => verCotizacion(c))],
-      ].map(([clave, titulo, ancho, detalle, accion]) => ({
+      ].map(([clave, titulo, ancho, detalle, accionTexto, accion]) => ({
         id: 'evidencia-' + clave, titulo, ancho: 'minmax(' + ancho + 'px, 1fr)',
         texto: c => c.evidencias[clave] || 'No aplica',
         celda: c => {
           const estado = c.evidencias[clave] || 'No aplica';
-          return chipEvid(titulo, estado, accion(c), detalle + ' · ' + estado);
+          return chipEvid(estado === 'Completo' ? accionTexto : estado, estado, accion(c), detalle + ' · ' + estado);
         },
       })),
       {id: 'adicionales', titulo: 'Evidencias adicionales', ancho: 'minmax(165px, 1fr)',
@@ -109,7 +113,8 @@
        }},
       {id: 'avance', titulo: 'Avance %', ancho: 'minmax(90px, .6fr)', num: true, filtro: c => c.avance >= 100 ? '100 %' : c.avance >= 50 ? '50 a 99 %' : 'Menos de 50 %', texto: c => c.avance + ' %', orden: c => c.avance,
        celda: c => { const s = el('span', 'lq-avance'); const b = el('span', 'lq-avance-barra'); const f = el('span'); f.style.width = c.avance + '%'; f.dataset.nivel = c.avance >= 100 ? 'ok' : c.avance >= 50 ? 'medio' : 'bajo'; b.append(f); s.append(b, el('small', null, c.avance + ' %')); return s; }},
-      {id: 'liquidacion', titulo: 'Estado de liquidación', ancho: 'minmax(195px, .8fr)', texto: c => c.seguimiento.estado_liquidacion || 'Pendiente'},
+      {id: 'liquidacion', titulo: 'Estado de liquidación', ancho: 'minmax(195px, .8fr)', texto: estadoLiquidacion,
+       celda: c => etiquetaEstado(estadoLiquidacion(c), COLOR_LIQUIDACION)},
       {id: 'subtotal', titulo: 'Subtotal sin FEE', ancho: 'minmax(155px, .8fr)', num: true,
        texto: c => EXPORTACION.cotizaciones['Subtotal sin FEE'](c) === null ? '—' : dinero(c.subtotal_sin_fee),
        orden: c => EXPORTACION.cotizaciones['Subtotal sin FEE'](c) ?? -Infinity},
