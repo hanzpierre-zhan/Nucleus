@@ -125,7 +125,8 @@ def buscar_personal(doc):
             continue
         if str(valor(data, 'ESTADO')).strip().upper() != 'ACTIVO':
             continue
-        name = str(valor(data, 'TECNICO')).strip()
+        from services.personal import nombre_completo
+        name = nombre_completo(data) or str(valor(data, 'TECNICO')).strip()
         if name:
             candidates.append({'_por_clave': documento(row.key_value) == doc, 'id': row.id, 'documento': doc, 'nombre': name,
                                'proyecto': str(valor(data, 'PROYECTO')).strip(),

@@ -89,6 +89,7 @@ def guardar(fila, datos, opciones, foto):
         actuales[campo] = contenido
     if foto and foto.filename or not actuales.get('_foto_perfil_mobile'):
         actuales['_foto_perfil_mobile'] = asistencia_movil.guardar_foto_perfil(foto)
+    personal.con_nombre(actuales)
     actuales['_perfil_mobile_version'] = VERSION
     fila.data_json = json.dumps(actuales, ensure_ascii=False)
     db.session.commit()

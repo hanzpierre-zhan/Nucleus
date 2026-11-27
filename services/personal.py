@@ -191,6 +191,23 @@ def presentar(datos):
     datos.setdefault('SUPERVISOR','')
     return datos
 
+def nombre_completo(datos):
+    """TECNICO = primer nombre, segundo nombre, apellido paterno y materno (en mayúsculas)."""
+    plano = {str(k).strip().upper(): v for k, v in (datos or {}).items()}
+    partes = [' '.join(str(plano.get(c) or '').split()).upper() for c in PARTES_NOMBRE]
+    if not partes[0] or not partes[2]:
+        return ''
+    return ' '.join(p for p in partes if p)
+
+
+def con_nombre(datos):
+    """Devuelve los datos con TECNICO armado desde las partes del nombre (si están)."""
+    nombre = nombre_completo(datos)
+    if nombre:
+        datos['TECNICO'] = nombre
+    return datos
+
+
 def validar(datos, nuevo=False):
     datos = dict(datos)
     if 'CARGO' in datos:

@@ -379,6 +379,9 @@ def api_rows_update():
                 row_dict['FECHA CAMBIO ESTADO'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         
         row_dict[field] = value
+        if session.get('current_proyecto_nombre') == 'Dataper':
+            from services.personal import con_nombre
+            con_nombre(row_dict)
         row_dict['_ultimo_usuario_manual'] = audit_user()
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = audit_user()
@@ -574,6 +577,8 @@ def api_rows_add():
             from services.personal import validar as validar_personal
             try: row_data = validar_personal(row_data, nuevo=True)
             except ValueError as error: return jsonify(error=str(error)),400
+            from services.personal import con_nombre
+            con_nombre(row_data)
             from services.formularios_prueba import documento as _doc_dp
             doc_nuevo = _doc_dp(row_data.get('DOCUMENTO') or key_val)
             ocupado = _documento_dataper_ocupado(pid, doc_nuevo)
@@ -989,6 +994,9 @@ def api_rows_bulk_update(datos=None):
                 )
                 db.session.add(historial)
             row_dict[field] = value
+        if session.get('current_proyecto_nombre') == 'Dataper':
+            from services.personal import con_nombre
+            con_nombre(row_dict)
         row_dict['_ultimo_usuario_manual'] = audit_user()
         row_dict['_fecha_ultima_act_manual'] = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         row_dict['EDITADO POR'] = audit_user()
