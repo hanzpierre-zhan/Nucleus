@@ -83,15 +83,23 @@
          etiqueta.dataset.ejecucion = COLOR_EJECUCION[plano(estado.trim())] || '';
          return etiqueta;
        }},
-      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(355px, 2fr)', filtro: c => Object.values(c.evidencias).includes('Pendiente') ? 'Con pendientes' : 'Completas', texto: c => Object.entries(c.evidencias).map(([k, v]) => k + ':' + v).join(' '),
-       celda: c => {
-         const s = el('span', 'lq-evids lq-evids-cotizacion'), e = c.evidencias;
-         s.append(chipEvid('Cotización PDF', e.cotizacion, c.generada ? () => abrir('/liquidaciones/api/registros/' + c.id + '/pdf') : null, 'Cotización PDF'),
-           chipEvid('Correo', e.correo, c.correo_cliente ? () => abrir(c.correo_cliente) : null, 'Correo de validación del cliente'),
-           chipEvid('Reporte fotográfico', e.sustento, c.tiene_sustento ? () => verCotizacion(c, true) : null, 'Reporte fotográfico de Operaciones'),
-           chipEvid('Factura + OC', e.factura, c.facturas.length || c.ocs.length ? () => verCotizacion(c) : null, 'Factura y OC del proveedor'));
-         return s;
-       }},
+      ...[
+        ['cotizacion', 'Cotización PDF', 145, 'Cotización PDF',
+          c => c.generada && (() => abrir('/liquidaciones/api/registros/' + c.id + '/pdf'))],
+        ['correo', 'Correo', 120, 'Correo de validación del cliente',
+          c => c.correo_cliente && (() => abrir(c.correo_cliente))],
+        ['sustento', 'Reporte fotográfico', 180, 'Reporte fotográfico de Operaciones',
+          c => c.tiene_sustento && (() => verCotizacion(c, true))],
+        ['factura', 'Factura + OC', 140, 'Factura y OC del proveedor',
+          c => (c.facturas.length || c.ocs.length) && (() => verCotizacion(c))],
+      ].map(([clave, titulo, ancho, detalle, accion]) => ({
+        id: 'evidencia-' + clave, titulo, ancho: 'minmax(' + ancho + 'px, 1fr)',
+        texto: c => c.evidencias[clave] || 'No aplica',
+        celda: c => {
+          const estado = c.evidencias[clave] || 'No aplica';
+          return chipEvid(titulo, estado, accion(c), detalle + ' · ' + estado);
+        },
+      })),
       {id: 'adicionales', titulo: 'Evidencias adicionales', ancho: 'minmax(165px, 1fr)',
        texto: c => (c.evidencias_adicionales || []).map(a => a.nombre).join(' · '),
        celda: c => {
