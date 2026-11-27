@@ -1723,8 +1723,12 @@
       todo ? 'Caja-Chica-historial.xlsx' : 'Caja-Chica-' + NOMBRE_TAB[tab].replace(/\s+/g, '-') + '.xlsx');
   }));
   async function exportar(ids, nombre) {
-    if (!ids.length) return;
+    if (exportando || !ids.length) return;
+    const carga = $('cc-exportar-carga'), estado = $('cc-exportar-estado');
     exportando = excel.disabled = true;
+    excel.setAttribute('aria-busy', 'true');
+    carga.hidden = false;
+    estado.textContent = 'Preparando Excel de Caja Chica…';
     try {
       const respuesta = await fetch(excel.dataset.url, {
         method: 'POST',
@@ -1732,17 +1736,22 @@
         body: JSON.stringify(ids),
       });
       if (!respuesta.ok || !respuesta.headers.get('Content-Type')?.includes('spreadsheetml')) {
-        throw Error('No se pudo exportar. Vuelve a cargar Caja Chica e inténtalo de nuevo.');
+        throw Error('La respuesta no contiene un archivo Excel.');
       }
+      estado.textContent = 'Recibiendo el archivo Excel…';
       const url = URL.createObjectURL(await respuesta.blob());
       const descarga = el('a');
       descarga.href = url;
       descarga.download = nombre;
       descarga.click();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-    } catch (error) {
-      alert(error.message);
+      window.nucleusToast?.('Descarga del Excel iniciada.');
+    } catch {
+      window.nucleusToast('No se pudo descargar el Excel. Inténtalo de nuevo.', {error: true});
     } finally {
+      carga.hidden = true;
+      estado.textContent = '';
+      excel.removeAttribute('aria-busy');
       exportando = false;
       excel.disabled = !solicitudes.length;
     }
