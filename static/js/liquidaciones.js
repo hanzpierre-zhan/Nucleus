@@ -43,7 +43,7 @@
       {id: 'numero', titulo: 'N.º / cliente', ancho: 'minmax(170px, 1.1fr)', filtro: c => CLIENTES[c.cliente] || c.cliente || '', texto: c => c.cotizacion + ' ' + c.correlativo + ' ' + (CLIENTES[c.cliente] || c.cliente),
        celda: c => { const s = el('span', 'lq-dos'); const a = el('a', 'cc-codigo-link', c.cotizacion); a.href = '#'; a.addEventListener('click', e => { e.preventDefault(); verCotizacion(c); });
          s.append(a, el('small', null, c.correlativo + ' · ' + (CLIENTES[c.cliente] || c.cliente || '—'))); return s; }},
-      {id: 'site', titulo: 'Site / WO', ancho: 'minmax(170px, 1.1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
+      {id: 'site', titulo: 'Site / Número de Ticket', ancho: 'minmax(195px, 1.1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
        celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', null, c.site || '—'), el('small', null, c.wo || 'Sin WO')); return s; }},
       {id: 'estado', titulo: 'Estado de cotización', ancho: 'minmax(185px, 1fr)', texto: c => c.pestana || '—',
        celda: c => el('span', 'cc-chip lq-p-' + c.pestana_clave, c.pestana || '—')},
@@ -55,15 +55,21 @@
          etiqueta.dataset.ejecucion = COLOR_EJECUCION[plano(estado.trim())] || '';
          return etiqueta;
        }},
-      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(300px, 2fr)', filtro: c => Object.values(c.evidencias).includes('Pendiente') ? 'Con pendientes' : 'Completas', texto: c => Object.entries(c.evidencias).map(([k, v]) => k + ':' + v).join(' '),
+      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(355px, 2fr)', filtro: c => Object.values(c.evidencias).includes('Pendiente') ? 'Con pendientes' : 'Completas', texto: c => Object.entries(c.evidencias).map(([k, v]) => k + ':' + v).join(' '),
        celda: c => {
-         const s = el('span', 'lq-evids'), e = c.evidencias;
-         s.append(chipEvid('PDF', e.cotizacion, c.generada ? () => abrir('/liquidaciones/api/registros/' + c.id + '/pdf') : null, 'Cotización generada'),
-           chipEvid('Correo', e.correo, c.correo_cliente ? () => abrir(c.correo_cliente) : null, 'Correo de aprobación del cliente'),
-           chipEvid('Depósito' + (c.fotos_deposito.length > 1 ? ' ' + c.fotos_deposito.length : ''), e.deposito, c.fotos_deposito.length ? () => verCotizacion(c) : null, 'Capturas de depósito'),
-           chipEvid('Factura', e.factura, c.facturas.length ? () => verCotizacion(c) : null, 'Facturas y OC del proveedor'),
-           chipEvid('Fotos', e.sustento, c.tiene_sustento ? () => verCotizacion(c, true) : null, 'Fotos del sustento'));
+         const s = el('span', 'lq-evids lq-evids-cotizacion'), e = c.evidencias;
+         s.append(chipEvid('Cotización PDF', e.cotizacion, c.generada ? () => abrir('/liquidaciones/api/registros/' + c.id + '/pdf') : null, 'Cotización PDF'),
+           chipEvid('Correo', e.correo, c.correo_cliente ? () => abrir(c.correo_cliente) : null, 'Correo de validación del cliente'),
+           chipEvid('Reporte fotográfico', e.sustento, c.tiene_sustento ? () => verCotizacion(c, true) : null, 'Reporte fotográfico de Operaciones'),
+           chipEvid('Factura + OC', e.factura, c.facturas.length || c.ocs.length ? () => verCotizacion(c) : null, 'Factura y OC del proveedor'));
          return s;
+       }},
+      {id: 'adicionales', titulo: 'Evidencia adicional', ancho: 'minmax(165px, 1fr)',
+       texto: c => (c.evidencias_adicionales || []).map(a => a.nombre).join(' · '),
+       celda: c => {
+         const cantidad = (c.evidencias_adicionales || []).length;
+         return chipEvid(cantidad ? 'Adjuntos (' + cantidad + ')' : '+ Adjuntar',
+           cantidad ? 'Completo' : 'No aplica', () => verCotizacion(c, 'adicionales'), 'Adjuntar o ver evidencia adicional');
        }},
       {id: 'avance', titulo: 'Avance', ancho: 'minmax(90px, .6fr)', num: true, filtro: c => c.avance >= 100 ? '100 %' : c.avance >= 50 ? '50 a 99 %' : 'Menos de 50 %', texto: c => c.avance + ' %', orden: c => c.avance,
        celda: c => { const s = el('span', 'lq-avance'); const b = el('span', 'lq-avance-barra'); const f = el('span'); f.style.width = c.avance + '%'; f.dataset.nivel = c.avance >= 100 ? 'ok' : c.avance >= 50 ? 'medio' : 'bajo'; b.append(f); s.append(b, el('small', null, c.avance + ' %')); return s; }},
@@ -312,7 +318,7 @@
 
   // ── Descargas ──
   async function descargarZip(ids) {
-    const url = tab === 'cotizaciones' ? '/liquidaciones/api/registros/expedientes' : '/liquidaciones/api/v2/caja-chica/expedientes';
+    const url = tab === 'cotizaciones' ? '/liquidaciones/api/registros/expedientes?documentos=liquidacion' : '/liquidaciones/api/v2/caja-chica/expedientes';
     const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
     if (!r.ok) { avisar((await r.json().catch(() => ({}))).error || 'No se pudo preparar el expediente.'); return; }
     const nombre = decodeURIComponent((r.headers.get('Content-Disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i)?.[1] || 'Expedientes.zip');
@@ -323,12 +329,13 @@
   $('lq-excel').addEventListener('click', () => {
     if (typeof XLSX === 'undefined') { avisar('Librería de exportación no disponible.'); return; }
     const filas = visibles().map(c => tab === 'cotizaciones' ? {
-      'Correlativo': c.correlativo, 'N.º cotización': c.cotizacion, 'Cliente': CLIENTES[c.cliente] || c.cliente, 'Site': c.site, 'N.º WO': c.wo,
-      'Objetivo': c.objetivo, 'Fecha de solicitud': fechaSolicitud(c), 'Tipo de gasto': c.tipo_presupuesto,
-      'Estado de cotización': c.pestana, 'Interacción': c.interaccion, 'Estado de pago': c.estado_pago, 'Estado de ejecución': c.estado_operativo,
+      'Correlativo': c.correlativo, 'N.º cotización': c.cotizacion, 'Cliente': CLIENTES[c.cliente] || c.cliente, 'Site': c.site, 'Número de Ticket': c.wo,
+      'Descripción': c.objetivo, 'Fecha de solicitud': fechaSolicitud(c), 'Tipo de gasto': c.tipo_presupuesto,
+      'Estado de cotización': c.pestana, 'Estado de pago': c.estado_pago, 'Estado de ejecución': c.estado_operativo,
       'Cotizada': c.fechas.cotizada, 'Aprobada': c.fechas.aprobada, 'Pagada': c.fechas.pagada, 'Facturas proveedor': c.fechas.facturas,
-      'PDF cotización': c.evidencias.cotizacion, 'Correo cliente': c.evidencias.correo, 'Captura depósito': c.evidencias.deposito,
-      'Factura proveedor': c.evidencias.factura, 'Fotos sustento': c.evidencias.sustento, 'Depósitos Caja Chica': c.depositos_cc.map(d => d.codigo).join(', '),
+      'Cotización PDF': c.evidencias.cotizacion, 'Correo de validación del cliente': c.evidencias.correo,
+      'Reporte fotográfico de Operaciones': c.evidencias.sustento, 'Factura y OC del proveedor': c.evidencias.factura,
+      'Evidencias adicionales': (c.evidencias_adicionales || []).map(a => a.nombre).join(' · '),
       'Avance %': c.avance, 'AJB / EJB': c.seguimiento.codigo_ajb_ejb, 'N.º Expense': c.seguimiento.numero_expense,
       'Estado de liquidación': c.seguimiento.estado_liquidacion || 'Pendiente', 'Mes de cierre': c.seguimiento.mes_cierre, 'N.º PO': c.seguimiento.numero_po,
       'Observación': c.seguimiento.observacion, 'Sub total + FEE': Number(c.monto) || 0,
@@ -376,10 +383,10 @@
     if (!dialogo.open) dialogo.showModal();
   }
 
-  async function verCotizacion(c, enfocarFotos) {
+  async function verCotizacion(c, enfocar) {
     const izquierda = el('div', 'cc-validacion-izquierda');
-    izquierda.append(ficha('fa-file-lines', 'Detalle', [['N.º', c.cotizacion + ' · ' + c.correlativo], ['Cliente', CLIENTES[c.cliente] || c.cliente], ['Site', c.site], ['N.º WO', c.wo],
-      ['Objetivo', c.objetivo], ['Supervisor', c.supervisor], ['Sub total + FEE', dinero(c.monto)], ['Estado', c.pestana], ['Interacción', c.interaccion],
+    izquierda.append(ficha('fa-file-lines', 'Detalle', [['N.º', c.cotizacion + ' · ' + c.correlativo], ['Cliente', CLIENTES[c.cliente] || c.cliente], ['Site', c.site], ['Número de Ticket', c.wo],
+      ['Descripción', c.objetivo], ['Supervisor', c.supervisor], ['Sub total + FEE', dinero(c.monto)], ['Estado', c.pestana],
       ['Estado de pago', c.estado_pago], ['Estado de ejecución', c.estado_operativo]]));
     // Línea de tiempo del caso.
     const linea = el('section', 'cc-ficha'); const hl = el('h4', 'cc-ficha-titulo'); hl.append(icono('fa-timeline'), el('span', null, 'Línea de tiempo')); linea.append(hl);
@@ -408,24 +415,54 @@
     const derecha = el('div', 'cc-validacion-derecha lq-evidencias');
     const e = c.evidencias;
     derecha.append(grupoEvid('fa-file-pdf', 'Cotización generada', e.cotizacion, c.generada ? enlace('Descargar PDF', '/liquidaciones/api/registros/' + c.id + '/pdf') : null));
-    derecha.append(grupoEvid('fa-envelope', 'Correo de aprobación del cliente', e.correo, c.correo_cliente ? enlace(c.nombre_correo || 'Descargar correo', c.correo_cliente) : null));
-    const deps = el('div');
-    if (c.fotos_deposito.length) deps.append(galeria(c.fotos_deposito));
-    if (c.depositos_cc.length) {
-      const t = el('table', 'cn-depositos-tabla'); const cab = el('tr'); ['Código', 'Técnico', 'Estado', 'Monto'].forEach(x => cab.append(el('th', null, x))); t.append(cab);
-      c.depositos_cc.forEach(d => { const f = el('tr'); const a = el('a', 'cc-codigo-link', d.codigo); a.href = '/caja-chica/#solicitud-' + d.id; a.target = '_blank'; const td = el('td'); td.append(a);
-        f.append(td, el('td', null, d.tecnico), el('td', null, d.estado), el('td', 'cc-num', dinero(d.monto))); t.append(f); });
-      deps.append(t);
-    }
-    derecha.append(grupoEvid('fa-money-bill-transfer', 'Capturas de depósito', e.deposito, deps.children.length ? deps : null));
+    derecha.append(grupoEvid('fa-envelope', 'Correo de validación del cliente', e.correo, c.correo_cliente ? enlace(c.nombre_correo || 'Descargar correo', c.correo_cliente) : null));
     const fact = el('div', 'lq-lista-descargas');
     c.facturas.forEach((u, n) => fact.append(enlace('Factura ' + (n + 1), u)));
     c.ocs.forEach((u, n) => fact.append(enlace('OC ' + (n + 1), u)));
     derecha.append(grupoEvid('fa-file-invoice', 'Facturas y OC del proveedor', e.factura, fact.children.length ? fact : null));
-    const fotos = el('div', 'lq-sustento'); fotos.append(el('p', 'cc-nota', c.tiene_sustento ? 'Cargando fotos…' : 'Sin fotos de sustento.'));
-    const grupoFotos = grupoEvid('fa-camera', 'Fotos del sustento (antes / durante / después)', e.sustento, fotos);
+    const fotos = el('div', 'lq-sustento');
+    if (c.tiene_sustento) fotos.append(enlace('Descargar reporte fotográfico (ZIP)',
+      '/liquidaciones/api/registros/' + c.id + '/expediente?documentos=reporte', 'fa-file-zipper'));
+    const galeriaReporte = el('div');
+    fotos.append(galeriaReporte);
+    const grupoFotos = grupoEvid('fa-camera', 'Expediente del reporte fotográfico', e.sustento, fotos);
     derecha.append(grupoFotos);
-    derecha.append(grupoEvid('fa-file-zipper', 'Expediente completo', 'Completo', enlace('Descargar expediente (ZIP)', '/liquidaciones/api/registros/' + c.id + '/expediente', 'fa-file-zipper')));
+    const adicionales = el('div', 'lq-lista-descargas');
+    const archivos = el('div', 'lq-lista-descargas');
+    const adjuntar = el('input');
+    Object.assign(adjuntar, {type: 'file', accept: '.pdf,.msg,.eml,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp'});
+    adjuntar.setAttribute('aria-label', 'Adjuntar evidencia adicional');
+    const estadoAdjunto = el('p', 'cc-nota');
+    estadoAdjunto.setAttribute('role', 'status');
+    const verAdjuntos = () => archivos.replaceChildren(...(c.evidencias_adicionales || [])
+      .map(a => enlace(a.nombre, a.url)));
+    verAdjuntos();
+    adjuntar.addEventListener('change', async () => {
+      const archivo = adjuntar.files[0];
+      if (!archivo) return;
+      const datos = new FormData();
+      datos.append('origen_id', c.id);
+      datos.append('adjunto', archivo);
+      adjuntar.disabled = true;
+      estadoAdjunto.textContent = 'Subiendo evidencia…';
+      try {
+        const r = await fetch('/api/cotizacion/subir_evidencia_liquidacion', {method: 'POST', body: datos});
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.success) throw new Error(j.error || 'No se pudo adjuntar la evidencia.');
+        (c.evidencias_adicionales ||= []).push({nombre: j.nombre, url: j.url});
+        verAdjuntos();
+        pintar();
+        estadoAdjunto.textContent = 'Evidencia adjuntada.';
+      } catch (error) {
+        estadoAdjunto.textContent = error.message;
+      } finally {
+        adjuntar.disabled = false;
+        adjuntar.value = '';
+      }
+    });
+    adicionales.append(archivos, adjuntar, estadoAdjunto);
+    const grupoAdicional = grupoEvid('fa-paperclip', 'Evidencia adicional', '', adicionales);
+    derecha.append(grupoAdicional);
 
     ventana('Liquidación · ' + c.cotizacion + ' · ' + (CLIENTES[c.cliente] || c.cliente || ''), izquierda, derecha, [
       ['Descargar expediente (ZIP)', 'cn-morado', 'fa-file-zipper', () => descargarZip([c.id])],
@@ -438,16 +475,17 @@
         Object.assign(c.seguimiento, cambios); pintar(); avisar('Seguimiento guardado: ' + c.cotizacion + '.');
       }],
     ]);
+    if (enfocar === 'adicionales') grupoAdicional.scrollIntoView({block: 'nearest'});
     if (c.tiene_sustento) {
       const r = await fetch('/liquidaciones/api/registros/' + c.id + '/sustento'); const j = await r.json().catch(() => ({}));
-      const reg = j.registro || {}; fotos.replaceChildren();
+      const reg = j.registro || {};
       for (const [fase, t] of [['inicio', 'Antes'], ['proceso', 'Durante'], ['cierre', 'Después']]) {
         const lista = (reg.fotos || {})[fase] || [];
         if (!lista.length) continue;
-        fotos.append(el('strong', 'lq-fase', t + ' (' + lista.length + ')'), galeria(lista.map((u, n) => ({url: u, titulo: t + ' ' + (n + 1)}))));
+        galeriaReporte.append(el('strong', 'lq-fase', t + ' (' + lista.length + ')'), galeria(lista.map((u, n) => ({url: u, titulo: t + ' ' + (n + 1)}))));
       }
-      if (!fotos.children.length) fotos.append(el('p', 'cc-nota', 'Sin fotos de sustento.'));
-      if (enfocarFotos) grupoFotos.scrollIntoView({block: 'start'});
+      if (!galeriaReporte.children.length) galeriaReporte.append(el('p', 'cc-nota', 'Sin fotos de sustento.'));
+      if (enfocar === true) grupoFotos.scrollIntoView({block: 'start'});
     }
   }
 

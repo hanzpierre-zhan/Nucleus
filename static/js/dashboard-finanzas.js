@@ -227,7 +227,7 @@
         });
     }
         function values(key) {
-        const map = {month: row => row.mes, state: row => row.estado, operator: row => model.operator(row, mode),
+        const map = {month: row => row.mes, state: model.stage, operator: row => model.operator(row, mode),
             budget: row => mode === 'rendicion' ? row.presupuesto : row.gasto, type: row => model.type(row), person: row => model.person(row, mode),
             project: row => row.proyecto || 'Sin proyecto', approval: row => row.gasto_aprobacion,
             day: row => mode === 'rendicion' ? row.dia_pago : row.dia};

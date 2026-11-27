@@ -72,6 +72,10 @@ def _flag(v):
 def indicadores(rows, hoy=None):
     """Devuelve {'total', 'monto_total', 'mes_actual', 'hoy', 'detalle': [...]}."""
     hoy = hoy or datetime.now(ZoneInfo('America/Lima')).date()
+    from blueprints.cot_new import PESTANAS, pestanas_de
+    from services.rendicion_presupuesto_cotizacion import monto_cotizacion
+
+    nombres_etapas = {clave: nombre for clave, nombre, _, _ in PESTANAS}
     detalle = []
     monto_total = 0.0
     for row in rows:
@@ -113,6 +117,8 @@ def indicadores(rows, hoy=None):
             'genero': _txt(row.get('COTIZADO POR'), row.get('ENVIADO POR'), gestor) or 'Sin datos',
             'atendido_por': _txt(row.get('ATENDIDO POR')),
             'estado': estado or '(sin estado)',
+            'etapa_modulo': nombres_etapas[pestanas_de(row)[0]],
+            'monto_modulo': monto_cotizacion(row.get('SUB TOTAL + FEE'), row.get('ITEMS_JSON')),
             'conceptos': contar_conceptos(row),
             'pestania': pest,
             'proveedor': _en_proveedor(row),

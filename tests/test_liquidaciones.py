@@ -68,8 +68,9 @@ def test_nombre_liquidaciones_y_compatibilidad(auth_client):
 def test_v2_cotizaciones_y_caja_chica(auth_client, liquidacion):
     r=auth_client.get('/liquidaciones/api/v2/cotizaciones');assert r.status_code==200
     fila=next((c for c in r.json['cotizaciones'] if c['id']==liquidacion),None)
-    assert fila and set(fila['evidencias'])=={'cotizacion','correo','factura','sustento','deposito'}
+    assert fila and set(fila['evidencias'])=={'cotizacion','correo','factura','sustento'}
     assert fila['evidencias']['cotizacion']=='Completo' and fila['correlativo'].startswith('C-')
+    assert fila['evidencias']['factura']=='Pendiente' and fila['avance']==75
     r=auth_client.get('/liquidaciones/api/v2/caja-chica');assert r.status_code==200 and isinstance(r.json['solicitudes'],list)
     assert auth_client.post('/liquidaciones/api/v2/caja-chica/expedientes',json={'ids':'x'}).status_code==400
 
@@ -79,6 +80,32 @@ def test_descarga_cotizacion_generada(auth_client, liquidacion):
     assert response.status_code==200
     assert response.mimetype=='application/pdf'
     assert response.data.startswith(b'%PDF')
+
+
+def test_evidencia_adicional_se_guarda_y_sale_en_zip(auth_client, liquidacion, monkeypatch, tmp_path):
+    import io
+    import zipfile
+    from blueprints import cotizacion
+    from services import apoyo
+
+    monkeypatch.setattr(apoyo, 'disco_efimero_sin_b2', lambda: False)
+    monkeypatch.setattr(apoyo, 'evidencia_usa_b2', lambda: False)
+    monkeypatch.setattr(cotizacion, 'evidencia_usa_b2', lambda: False)
+    monkeypatch.setattr(cotizacion, '_cot_folder', lambda *_: str(tmp_path))
+    contenido = b'%PDF-1.4 evidencia de prueba'
+    subida = auth_client.post('/api/cotizacion/subir_evidencia_liquidacion', data={
+        'origen_id': str(liquidacion), 'adjunto': (io.BytesIO(contenido), 'Acta.pdf'),
+    })
+    assert subida.status_code == 200, subida.json
+    filas = auth_client.get('/liquidaciones/api/v2/cotizaciones').json['cotizaciones']
+    fila = next(c for c in filas if c['id'] == liquidacion)
+    assert fila['evidencias_adicionales'] == [{'url': subida.json['url'], 'nombre': 'Acta.pdf'}]
+    respuesta = auth_client.post('/liquidaciones/api/registros/expedientes?documentos=liquidacion',
+                                  json={'ids': [liquidacion]})
+    assert respuesta.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(respuesta.data)) as archivo:
+        nombre = next(n for n in archivo.namelist() if n.endswith('/08_Evidencia_adicional_01_Acta.pdf'))
+        assert archivo.read(nombre) == contenido
 
 
 def test_resumen_conserva_importes_documentos_y_datos_manuales(auth_client, liquidacion):

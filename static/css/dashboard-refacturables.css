@@ -34,6 +34,13 @@
   cursor: pointer;
 }
 .df-analysis { display: grid; gap: 10px; flex: none; min-width: 0; }
+.df-ref-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 10px;
+}
+.df-ref-chart { position: relative; min-width: 0; height: 244px; }
+.df-ref-chart canvas[hidden] { display: none; }
 .df-analysis-filters { justify-content: flex-start; }
 .df-analysis-filters > label:not(.df-cancel-switch) { display: grid; gap: 3px; font-size: 11px; }
 .df-analysis-kpis, .df-analysis-grid {

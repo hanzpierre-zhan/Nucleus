@@ -1,5 +1,5 @@
-<link rel="stylesheet" href="/static/css/dashboard-refacturables.css?v=3">
-<section class="df-analysis" id="df-analysis" aria-label="Análisis de gastos">
+<link rel="stylesheet" href="/static/css/dashboard-refacturables.css?v=4">
+<section class="df-analysis" id="df-analysis" data-hoy="{{ dashboard.hoy }}" aria-label="Análisis de gastos">
   {% if modo == 'rendicion' %}
   <div class="df-analysis-filters">
     <label>Mes de solicitud <input id="df-ref-month" type="month" value="{{ dashboard.mes_actual }}"></label>
@@ -9,6 +9,18 @@
   <script id="df-ref-data" type="application/json">{{ refacturables|tojson }}</script>
   {% endif %}
   <div class="df-analysis-kpis" id="df-ref-kpis" aria-live="polite"></div>
+  <div class="df-ref-charts">
+    <article class="di-card df-analysis-card">
+      <h2>Importe refacturable por estado</h2>
+      <p>{{ 'Monto solicitado por concepto' if modo == 'rendicion' else 'Importe cotizado con FEE por etapa principal' }}</p>
+      <div class="df-ref-chart"><canvas id="df-ref-state-chart" role="img" aria-label="Importe refacturable por estado"></canvas></div>
+    </article>
+    <article class="di-card df-analysis-card">
+      <h2>Antigüedad del refacturable</h2>
+      <p>Días desde la solicitud hasta hoy · importe por estado</p>
+      <div class="df-ref-chart"><canvas id="df-ref-age-chart" role="img" aria-label="Importe refacturable por estado y antigüedad"></canvas></div>
+    </article>
+  </div>
   <div class="df-analysis-grid">
     {% for id, titulo in [('projects', 'Por proyecto'), ('states', 'Por estado')] %}
     <article class="di-card df-analysis-card">
@@ -40,4 +52,4 @@
     </article>
   </div>
 </section>
-<script src="/static/js/dashboard-refacturables.js?v=2"></script>
+<script src="/static/js/dashboard-refacturables.js?v=3"></script>

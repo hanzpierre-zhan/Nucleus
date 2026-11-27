@@ -1,6 +1,7 @@
 (function () {
     'use strict';
     const numeric = value => Number.isFinite(Number(value)) ? Number(value) : 0;
+    const stage = row => row.etapa_modulo || row.estado;
     const sum = (rows, value) => rows.reduce((total, row) => total + numeric(value(row)), 0);
     const normalize = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
     const person = (row, mode) => mode === 'cotizaciones' ? row.genero || 'Sin datos'
@@ -22,7 +23,7 @@
     }
     function filter(rows, mode, filters) {
         const campos = {
-            month: row => row.mes, state: row => row.estado, operator: row => operator(row, mode),
+            month: row => row.mes, state: stage, operator: row => operator(row, mode),
             budget: row => mode === 'rendicion' ? row.presupuesto : row.gasto,
             type, person: row => person(row, mode), project: row => row.proyecto || 'Sin proyecto',
             approval: row => row.gasto_aprobacion || 'Sin definir', day: row => mode === 'rendicion' ? row.dia_pago : row.dia,
@@ -64,7 +65,7 @@
             supportedBudgets: group(sustained, budget, value),
             supportedOperators: group(sustained, row => operator(row, mode), value),
             approval: group(rows, row => row.gasto_aprobacion, value),
-            states: group(rows, row => row.estado, value),
+            states: group(rows, stage, value),
             types: group(rows, type, value),
         };
     }
@@ -98,5 +99,5 @@
             trend: group(pending.filter(row => row.dia), row => row.dia, amount).sort((a,b) => a.label.localeCompare(b.label)),
         };
     }
-    window.NucleusFinanceModel = {numeric, sum, normalize, person, operator, amount, type, group, filter, summary, trend, cotizaciones, conceptos};
+    window.NucleusFinanceModel = {numeric, sum, normalize, person, operator, amount, type, stage, group, filter, summary, trend, cotizaciones, conceptos};
 }());

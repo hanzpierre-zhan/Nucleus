@@ -1350,6 +1350,7 @@ def _nombre_adjunto_original(datos, url):
 @bp.route('/api/cotizacion/subir_factura_proveedor', methods=['POST'])
 @bp.route('/api/cotizacion/subir_oc_proveedor', methods=['POST'])
 @bp.route('/api/cotizacion/subir_pago', methods=['POST'])
+@bp.route('/api/cotizacion/subir_evidencia_liquidacion', methods=['POST'])
 @login_required
 def api_cotizacion_subir_correo():
     """Sube la evidencia del correo del cliente (.msg/.pdf/captura) y devuelve su URL."""
@@ -1364,7 +1365,8 @@ def api_cotizacion_subir_correo():
 
     key = (request.form.get('key') or '').strip()
     file = request.files.get('adjunto')
-    if not key:
+    es_adicional = request.path.endswith('/subir_evidencia_liquidacion')
+    if not key and not es_adicional:
         return jsonify({'error': 'Falta la clave del registro.'}), 400
     if file is None or not file.filename:
         return jsonify({'error': 'No se recibió ningún archivo.'}), 400
@@ -1373,6 +1375,8 @@ def api_cotizacion_subir_correo():
     es_oc = request.path.endswith('/subir_oc_proveedor')
     es_proveedor = es_factura or es_oc or request.path.endswith('/subir_cotizacion_proveedor')
     es_pago = request.path.endswith('/subir_pago')
+    if es_adicional and ext not in ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp', '.msg', '.eml'):
+        return jsonify(error='Adjunta un PDF, correo, Word, Excel o imagen.'), 400
     if es_pago and ext not in ('.jpg', '.jpeg', '.png', '.webp'):
         return jsonify({'error': 'Adjunta la captura del depósito (JPG, PNG o WEBP).'}), 400
     if es_proveedor and ext not in ('.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.webp'):
@@ -1380,12 +1384,19 @@ def api_cotizacion_subir_correo():
     if ext in EXT_CORREO_BLOQUEADAS:
         return jsonify({'error': 'Formato no permitido (%s). Usa .msg, .pdf, .doc, JPG, PNG o WEBP.' % ext}), 400
 
-    fila = NucleusData.query.filter_by(proyecto_id=proy.id, key_value=key).first()
+    consulta = NucleusData.query.filter_by(proyecto_id=proy.id)
+    if es_adicional:
+        origen_id = request.form.get('origen_id', type=int)
+        if origen_id is None or not 0 < origen_id <= 2147483647:
+            return jsonify(error='Selecciona una cotización válida.'), 400
+        fila = consulta.filter_by(id=origen_id).first()
+    else:
+        fila = consulta.filter_by(key_value=key).first()
     if not fila:
         return jsonify({'error': 'La cotización no existe.'}), 404
-    key = secure_filename(key)
+    key = secure_filename(fila.key_value)
     import uuid
-    nombre = '%s_%s%s' % ('pago' if es_pago else 'factura_proveedor' if es_factura else 'oc_proveedor' if es_oc else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
+    nombre = '%s_%s%s' % ('evidencia_liquidacion' if es_adicional else 'pago' if es_pago else 'factura_proveedor' if es_factura else 'oc_proveedor' if es_oc else 'cotizacion_proveedor' if es_proveedor else 'correo_aprob', uuid.uuid4().hex, ext)
     fd, ruta_tmp = tempfile.mkstemp(suffix=ext)
     os.close(fd)
     try:
@@ -1411,6 +1422,9 @@ def api_cotizacion_subir_correo():
         fila=NucleusData.query.filter_by(id=fila.id).populate_existing().with_for_update().one()
         datos = json.loads(fila.data_json or '{}')
         datos.setdefault('_ADJUNTOS_NOMBRES', {})[nombre] = original
+        if es_adicional:
+            datos.setdefault('_EVIDENCIAS_LIQUIDACION', []).append({'url': url, 'nombre': original})
+            db.session.add(NucleusHistory(proyecto_id=proy.id, key_value=fila.key_value, data_json=fila.data_json))
         if es_factura or es_oc:
             tipo='FACTURA' if es_factura else 'OC'
             documentos=_documentos_proveedor(datos,tipo)
@@ -1420,6 +1434,8 @@ def api_cotizacion_subir_correo():
             db.session.add(NucleusHistory(proyecto_id=proy.id,key_value=fila.key_value,data_json=fila.data_json))
         fila.data_json = safe_json_dumps(datos)
         db.session.commit()
+        if es_adicional:
+            return jsonify(success=True, url=url, nombre=original)
         return jsonify({'success': True, 'url': url, 'nombre': original, 'newData': datos})
     finally:
         if os.path.exists(ruta_tmp):

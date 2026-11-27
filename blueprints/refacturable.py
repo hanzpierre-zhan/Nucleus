@@ -563,28 +563,32 @@ def _expediente_copiar(zf, fuente, destino, estado, limite):
         fuente.close()
 
 
-def _expediente_sustento(zf, row, prefijo, estado, limite):
+def _reporte_fotografico(zf, row, estado, limite):
     fotos = row.get('fotos') or {}
     comentarios = row.get('comentarios') or {}
-    if not any(fotos.get(fase) for fase in ('inicio', 'proceso', 'cierre')) and not any(comentarios.values()):
-        return False
+    for fase in ('inicio', 'proceso', 'cierre'):
+        for indice, url in enumerate(fotos.get(fase) or [], 1):
+            try:
+                fuente = _expediente_fuente(url, 'evidencia/foto', None)
+                extension = _expediente_extension(url, '.jpg')
+                _expediente_copiar(zf, fuente, f'{fase}_{indice:03d}{extension}', estado, limite)
+            except OverflowError:
+                raise
+            except Exception:
+                continue
+    texto = '\n'.join(f'{fase.capitalize()}: {comentarios.get(fase)}'
+                      for fase in ('inicio', 'proceso', 'cierre') if comentarios.get(fase))
+    if texto:
+        zf.writestr('Comentarios.txt', texto.encode('utf-8'))
+    return bool(zf.namelist())
+
+
+def _expediente_sustento(zf, row, prefijo, estado, limite):
     temporal = tempfile.TemporaryFile()
     try:
         with zipfile.ZipFile(temporal, 'w', zipfile.ZIP_DEFLATED) as interno:
-            for fase in ('inicio', 'proceso', 'cierre'):
-                for indice, url in enumerate(fotos.get(fase) or [], 1):
-                    try:
-                        fuente = _expediente_fuente(url, 'evidencia/foto', None)
-                        extension = _expediente_extension(url, '.jpg')
-                        _expediente_copiar(interno, fuente, f'{fase}_{indice:03d}{extension}', estado, limite)
-                    except OverflowError:
-                        raise
-                    except Exception:
-                        continue
-            texto = '\n'.join(f'{fase.capitalize()}: {comentarios.get(fase)}'
-                              for fase in ('inicio', 'proceso', 'cierre') if comentarios.get(fase))
-            if texto:
-                interno.writestr('Comentarios.txt', texto.encode('utf-8'))
+            if not _reporte_fotografico(interno, row, estado, limite):
+                return False
         temporal.seek(0)
         with zf.open(f'{prefijo}01_Sustento_de_obra.zip', 'w') as salida:
             while True:
@@ -628,7 +632,7 @@ def _expediente_depositos(zf, datos, prefijo, estado, limite):
     return escritos
 
 
-def _expediente_escribir(zf, row, datos, origen, prefijo, estado, limite):
+def _expediente_escribir(zf, row, datos, origen, prefijo, estado, limite, incluir_depositos=True):
     """Escribe los 4 documentos del caso, sin subcarpetas."""
     from blueprints.cotizacion import _cotizacion_registro_pdf_response
     documentos = 0
@@ -662,7 +666,17 @@ def _expediente_escribir(zf, row, datos, origen, prefijo, estado, limite):
             raise
         except Exception:
             pass
-    documentos += _expediente_depositos(zf, datos, prefijo, estado, limite)
+    if incluir_depositos:
+        documentos += _expediente_depositos(zf, datos, prefijo, estado, limite)
+    adicionales = datos.get('_EVIDENCIAS_LIQUIDACION') or []
+    if adicionales:
+        proyecto = db.session.get(Proyecto, origen.proyecto_id)
+        for i, adjunto in enumerate(adicionales, 1):
+            url = adjunto['url']
+            nombre = _expediente_nombre(adjunto.get('nombre'), 'Evidencia' + _expediente_extension(url, '.pdf'))
+            fuente = _expediente_fuente(url, 'cotizacion/correo', proyecto)
+            _expediente_copiar(zf, fuente, f'{prefijo}08_Evidencia_adicional_{i:02d}_{nombre}', estado, limite)
+            documentos += 1
     if str(datos.get('GENERADA') or '') == '1':
         pdf = _cotizacion_registro_pdf_response(origen)
         if pdf.status_code != 200:
@@ -690,14 +704,18 @@ def descargar_expediente(origen_id):
     numero = secure_filename(row['correlativo']) or f'caso_{origen_id}'
     archivo = tempfile.TemporaryFile()
     estado = [0]
+    solo_reporte = request.args.get('documentos') == 'reporte'
     try:
         with zipfile.ZipFile(archivo, 'w', zipfile.ZIP_DEFLATED) as zf:
-            documentos = _expediente_escribir(zf, row, datos, origen, '', estado, 250 * 1024 * 1024)
+            if solo_reporte:
+                documentos = _reporte_fotografico(zf, row, estado, 250 * 1024 * 1024)
+            else:
+                documentos = _expediente_escribir(zf, row, datos, origen, '', estado, 250 * 1024 * 1024)
         if not documentos:
             raise ValueError('El expediente no tiene documentos disponibles')
         archivo.seek(0)
         return send_file(archivo, mimetype='application/zip', as_attachment=True,
-                         download_name=f'{numero}.zip', max_age=0)
+                         download_name=f'{numero}-reporte-fotografico.zip' if solo_reporte else f'{numero}.zip', max_age=0)
     except OverflowError:
         archivo.close()
         return jsonify({'error': 'El expediente supera 250 MiB. Descarga los respaldos individualmente.'}), 413
@@ -753,7 +771,8 @@ def descargar_expedientes():
                     carpeta = f'{base}_{sufijo}'
                     sufijo += 1
                 carpetas.add(carpeta)
-                _expediente_escribir(zf, row, datos, origen, f'{carpeta}/', estado, 500 * 1024 * 1024)
+                _expediente_escribir(zf, row, datos, origen, f'{carpeta}/', estado, 500 * 1024 * 1024,
+                                     incluir_depositos=request.args.get('documentos') != 'liquidacion')
                 escritos += 1
         if not escritos:
             raise ValueError('No hay expedientes disponibles para descargar')
@@ -796,7 +815,6 @@ def v2_cotizaciones():
             continue
         if _ingresada(datos) and _generada(datos):
             datos_por_id[rid] = datos
-    depositos = cot_new._depositos_caja_chica()
     nombres = {p[0]: p[1] for p in cot_new.PESTANAS}
     filas = []
     for r in _registros(origen_ids=list(datos_por_id), resumen=True):
@@ -804,17 +822,18 @@ def v2_cotizaciones():
         if datos is None:
             continue
         pestanas = cot_new.pestanas_de(datos)
-        deps = depositos.get(str(datos.get('N° COTIZACION') or '').strip().upper(), [])
-        fotos_deposito = ([{'url': datos['FOTO PAGO'], 'titulo': 'Pago registrado · ' + str(datos.get('FECHA PAGO') or '')}]
-                          if datos.get('FOTO PAGO') else []) + \
-                         [{'url': d['foto'], 'titulo': 'Caja Chica ' + d['codigo'] + ' · S/ ' + d['monto']} for d in deps if d.get('foto')]
+        facturas = r.get('facturas_proveedor') or ([r['factura_proveedor']] if r.get('factura_proveedor') else [])
+        ocs = r.get('ocs_proveedor') or []
+        aplica_proveedor = cot_new.tipo_atencion(datos) in ('Proveedor', 'Tránsito') or bool(facturas or ocs)
+        factura_oc = ('No aplica' if not aplica_proveedor or r['documentos'].get('factura') == 'No aplica'
+                      else 'Completo' if facturas and ocs else 'Pendiente')
         evidencias = {
             'cotizacion': r['documentos'].get('cotizacion'), 'correo': r['documentos'].get('correo'),
-            # Facturas: solo aplican si se atiende con Proveedor o Tránsito (o si ya se cargaron).
-            'factura': r['documentos'].get('factura') if (cot_new.tipo_atencion(datos) in ('Proveedor', 'Tránsito') or r['documentos'].get('factura') == 'Completo') else 'No aplica',
             'sustento': r['documentos'].get('sustento'),
-            'deposito': 'Completo' if fotos_deposito else ('Pendiente' if cot_new.aprobada(datos) and cot_new.tipo_atencion(datos) != 'Proveedor' else 'No aplica'),
+            'factura': factura_oc,
         }
+        aplicables = [estado for estado in evidencias.values() if estado != 'No aplica']
+        avance = round(100 * aplicables.count('Completo') / len(aplicables)) if aplicables else 100
         filas.append({
             'id': r['id'], 'correlativo': r['correlativo'], 'cotizacion': r['cotizacion'],
             'cliente': familia_cot(datos) or str(datos.get('CLIENTE') or '').strip().upper(),
@@ -829,10 +848,10 @@ def v2_cotizaciones():
                        'aprobada': datos.get('FECHA APROBACION') or '', 'pagada': datos.get('FECHA PAGO') or '',
                        'facturas': datos.get('FECHA FACTURA PROVEEDOR') or '', 'atendida': datos.get('FECHA ATENCION') or ''},
             'correo_cliente': r.get('correo_cliente') or '', 'nombre_correo': r.get('nombre_correo') or '',
-            'facturas': r.get('facturas_proveedor') or ([r['factura_proveedor']] if r.get('factura_proveedor') else []),
-            'ocs': r.get('ocs_proveedor') or [], 'generada': bool(r.get('cotizacion_generada')),
-            'fotos_deposito': fotos_deposito, 'depositos_cc': deps, 'tiene_sustento': bool(r.get('tiene_sustento')),
-            'evidencias': evidencias, 'avance': r.get('avance', 0),
+            'facturas': facturas, 'ocs': ocs, 'generada': bool(r.get('cotizacion_generada')),
+            'tiene_sustento': bool(r.get('tiene_sustento')),
+            'evidencias_adicionales': datos.get('_EVIDENCIAS_LIQUIDACION') or [],
+            'evidencias': evidencias, 'avance': avance,
             'seguimiento': {k: r.get(k) or '' for k in ('codigo_ajb_ejb', 'numero_expense', 'estado_liquidacion', 'mes_cierre', 'numero_po', 'observacion')},
         })
     return jsonify(cotizaciones=filas)

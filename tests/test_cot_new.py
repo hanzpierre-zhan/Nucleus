@@ -34,6 +34,11 @@ def test_lista_y_exportar(app, auth_client):
         fila = NucleusData(proyecto_id=pid, key_value='CN-TEST-1', data_json=json.dumps({
             'N° COTIZACION': 'CL-2026-11-999001', 'CLIENTE': 'CLARO', 'ESTADO COTIZACION': 'Aprobado',
             'TIPO GASTO APROBACION': 'Proveedor', 'SUB TOTAL + FEE': '2440.94',
+            'NUMERO WO': 'CM-20261105-00000001, CM-20261105-00000002',
+            '_EJECUCION_WO': {
+                'cm-20261105-00000001': {'inicio': '2026-11-06 14:00', 'fin': '2026-11-07 10:00'},
+                'cm-20261105-00000002': {'inicio': '2026-11-05 08:00', 'fin': '2026-11-08 15:00'},
+            },
             'ITEMS_JSON': json.dumps([{'texto': 'Cable', 'cantidad': '70', 'valor_unitario': '33.21', 'valor_total': '2440.94'}])}))
         db.session.add(fila); db.session.commit()
         fid = fila.id
@@ -42,13 +47,16 @@ def test_lista_y_exportar(app, auth_client):
         datos = next(c for c in auth_client.get('/api/cot-new/lista').json['cotizaciones'] if c['id'] == fid)
         assert _sin_pendientes(datos['pestanas']) == ['sustentar', 'proveedor'] and datos['monto'] == '2440.94'
         assert datos['familia'] == 'CLARO' and datos['items'][0]['texto'] == 'Cable'
+        assert (datos['inicio_ejecucion'], datos['fin_ejecucion']) == ('2026-11-05', '2026-11-08')
         r = auth_client.post('/api/cot-new/exportar', json=[fid])
         libro = load_workbook(io.BytesIO(r.data))
         assert libro.sheetnames[0] == 'Resumen ejecutivo'
         hoja = libro['Cotizaciones']
         fila_excel = dict(zip([c.value for c in hoja[1]], [c.value for c in hoja[2]]))
         assert fila_excel['N.º cotización'] == 'CL-2026-11-999001' and fila_excel['Sub total + FEE'] == 2440.94
-        assert fila_excel['Interacción'] == 'Proveedor' and fila_excel['Falta WO / site'] == 'Sí'
+        assert 'Interacción' not in fila_excel and fila_excel['Falta WO / site'] == 'Sí'
+        assert {'Número de Ticket', 'Descripción'} <= fila_excel.keys()
+        assert (fila_excel['Inicio de ejecución'], fila_excel['Fin de ejecución']) == ('2026-11-05', '2026-11-08')
         assert auth_client.post('/api/cot-new/exportar', json='x').status_code == 400
     finally:
         with app.app_context():

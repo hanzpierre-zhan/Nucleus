@@ -50,7 +50,6 @@
   // Estados independientes de la pestaña: corren desde que el cliente aprueba.
   const CHIP_PAGO = {'Pendiente Depósito': 'cn-p-pendiente', 'Depositado Caja Chica': 'cn-a-caja', 'Depositado sin proveedor': 'cn-a-transito', 'Facturado Proveedor': 'cn-a-proveedor'};
   const CHIP_OPERATIVO = {'Pdt. ejecutar': 'cn-o-pendiente', 'En ejecución': 'cn-o-ejecucion', 'Ejecutado en campo': 'cn-o-ejecutado', 'Sustentado': 'cn-o-sustentado'};
-  const CHIP_ATENCION = {'Caja chica': 'cn-a-caja', Proveedor: 'cn-a-proveedor', 'Tránsito': 'cn-a-transito'};
   const fechaTexto = t => { const v = fechaValor(t); return v ? new Date(v).toLocaleDateString('es-PE') : (t || '—'); };
 
   // SLA de Proveedor: desde la aprobación del cliente hasta que se guardan las facturas.
@@ -87,7 +86,7 @@
     nombreCliente: {titulo: 'Nombre de cliente', ancho: 'minmax(150px, 1.1fr)', texto: c => c['NOMBRE CLIENTE'] || '—'},
     site: {titulo: 'Nombre del site', ancho: 'minmax(150px, 1.1fr)', texto: c => c['NOMBRE SITE'] || '—'},
     // Varios WO: una línea con la cantidad (clic: lista); uno solo se ve tal cual.
-    wo: {titulo: 'N.º WO', ancho: 'minmax(130px, .9fr)', texto: c => c['NUMERO WO'] || '—', celda: c => {
+    wo: {titulo: 'Número de Ticket', ancho: 'minmax(150px, .9fr)', texto: c => c['NUMERO WO'] || '—', celda: c => {
       const lista = listaWo(c['NUMERO WO']);
       if (lista.length < 2) return el('span', null, lista[0] || '—');
       const b = el('button', 'cn-depositos-resumen'); b.type = 'button';
@@ -96,18 +95,18 @@
       b.addEventListener('click', e => { e.stopPropagation(); verWos(c, lista); });
       return b;
     }},
-    motivo: {titulo: 'Motivo', ancho: 'minmax(200px, 1.8fr)', texto: c => c.MOTIVO || c.OBJETIVO || '—', clase: 'cn-motivo'},
+    motivo: {titulo: 'Descripción', ancho: 'minmax(200px, 1.8fr)', texto: c => c.MOTIVO || c.OBJETIVO || '—', clase: 'cn-motivo'},
     supervisor: {titulo: 'Supervisor', ancho: 'minmax(140px, 1fr)', texto: c => c.SUPERVISOR || '—'},
     gestor: {titulo: 'Solicitante', ancho: 'minmax(120px, .9fr)', texto: c => nombreDe(c['SOLICITADO POR'] || c.GESTOR) || '—'},
     cotizador: {titulo: 'Cotizador', ancho: 'minmax(130px, .9fr)', texto: c => nombreDe(c.COTIZADOR || c['COTIZADO POR']) || '—'},
     estado: {titulo: 'Estado', ancho: 'minmax(130px, .9fr)', texto: c => estadoTexto(c),
              celda: c => el('span', 'cc-chip ' + (COLOR_ESTADO[c.pestanas[0]] || ''), estadoTexto(c))},
-    atencion: {titulo: 'Interacción', ancho: 'minmax(110px, .8fr)', texto: c => atencion(c) || '—',
-               celda: c => atencion(c) ? el('span', 'cc-chip ' + CHIP_ATENCION[atencion(c)], atencion(c)) : el('span', null, '—')},
     pago: {titulo: 'Estado de pago', ancho: 'minmax(150px, 1fr)', texto: c => c.estado_pago || '—',
            celda: c => c.estado_pago ? el('span', 'cc-chip ' + (CHIP_PAGO[c.estado_pago] || ''), c.estado_pago) : el('span', null, '—')},
     operativo: {titulo: 'Estado operativo', ancho: 'minmax(140px, .9fr)', texto: c => c.estado_operativo || '—',
                 celda: c => c.estado_operativo ? el('span', 'cc-chip ' + (CHIP_OPERATIVO[c.estado_operativo] || ''), c.estado_operativo) : el('span', null, '—')},
+    inicioEjecucion: {titulo: 'Inicio de ejecución', ancho: 'minmax(155px, .9fr)', texto: c => fechaTexto(c.inicio_ejecucion), orden: c => fechaValor(c.inicio_ejecucion)},
+    finEjecucion: {titulo: 'Fin de ejecución', ancho: 'minmax(155px, .9fr)', texto: c => fechaTexto(c.fin_ejecucion), orden: c => fechaValor(c.fin_ejecucion)},
     sla: {titulo: 'SLA proveedor', ancho: 'minmax(120px, .8fr)', texto: c => slaProveedor(c)?.texto || '—', orden: c => slaProveedor(c)?.ms ?? -1, celda: chipSla},
     fotoDeposito: {titulo: 'Foto depósito', ancho: 'minmax(110px, .7fr)', texto: c => fotosDeposito(c).length ? fotosDeposito(c).length + ' foto(s)' : '—',
                    celda: c => {
@@ -135,15 +134,21 @@
                   return b;
                 }},
   };
-  // "Interacción" y la provisión van junto al cliente para verlos sin desplazar la tabla.
-  let columnas = Object.keys(COLUMNAS).filter(k => !['atencion', 'pago', 'operativo', 'sla', 'fotoDeposito', 'provision'].includes(k)); columnas.splice(3, 0, 'atencion', 'pago', 'operativo', 'sla', 'fotoDeposito', 'provision');
+  const juntoAlCliente = ['pago', 'operativo', 'inicioEjecucion', 'finEjecucion', 'sla', 'fotoDeposito', 'provision'];
+  let columnas = Object.keys(COLUMNAS).filter(k => !juntoAlCliente.includes(k)); columnas.splice(3, 0, ...juntoAlCliente);
   function estadoTexto(c) {
     if (c._PAGO_PENDIENTE && c.pestanas.some(p => ['cajachica', 'proveedor'].includes(p))) return 'Por pagar';
     return c.pestanas[0] === 'sustentar' ? 'En operaciones' : (c['ESTADO COTIZACION'] || 'Pdt. Cotización');
   }
   try {
     const guardadas = JSON.parse(localStorage.getItem('cn-columnas') || 'null');
-    if (Array.isArray(guardadas) && guardadas.length === columnas.length && columnas.every(c => guardadas.includes(c))) columnas = guardadas;
+    if (Array.isArray(guardadas)) {
+      const vigentes = guardadas.filter(c => c !== 'atencion');
+      if (vigentes.includes('operativo') && !vigentes.includes('inicioEjecucion') && !vigentes.includes('finEjecucion')) {
+        vigentes.splice(vigentes.indexOf('operativo') + 1, 0, 'inicioEjecucion', 'finEjecucion');
+      }
+      if (vigentes.length === columnas.length && columnas.every(c => vigentes.includes(c))) columnas = vigentes;
+    }
   } catch (_) {}
   const guardarColumnas = () => { try { localStorage.setItem('cn-columnas', JSON.stringify(columnas)); } catch (_) {} };
   const plano = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -825,7 +830,7 @@
     caja.append(ficha('fa-clock', '', [['Pagado el', c['FECHA PAGO']], ['Pagado por', c['PAGADO POR'] && nombreDe(c['PAGADO POR'])]]).querySelector('dl'));
     caja.append(capturaDeposito(c['FOTO PAGO']));
     for (const d of (c.depositos_cc || []).filter(x => x.foto)) {
-      const foto = capturaDeposito(d.foto); foto.querySelector('.cc-motivo-etiqueta').textContent = 'Depósito de Caja Chica · ' + d.codigo + ' · ' + dinero(d.monto); caja.append(foto);
+      caja.append(capturaDeposito(d.foto, 'Depósito de Caja Chica · ' + d.codigo + ' · ' + dinero(d.monto)));
     }
     const fila = (texto, valor, clase) => { const d = el('div', 'cn-total' + (clase ? ' ' + clase : '')); d.append(el('span', null, texto), el('strong', null, dinero(valor))); return d; };
     caja.append(fila('Monto pagado (Tránsito)', pagado),
@@ -988,7 +993,7 @@
   // Botón redondo para ver el correo de aprobación del cliente (si se adjuntó).
   const botonCorreo = c => c['ADJUNTO CORREO CLIENTE'] ? [['Ver correo de aprobación del cliente', 'cn-azul', 'fa-envelope-open-text', () => window.open(c['ADJUNTO CORREO CLIENTE'], '_blank', 'noopener')]] : [];
   // Captura del depósito: se ve en grande; si no carga, dice por qué y deja abrirla aparte.
-  function capturaDeposito(url) {
+  function capturaDeposito(url, etiqueta = 'Captura del depósito') {
     const caja = el('div', 'cn-captura');
     if (!url) { caja.append(el('p', 'cc-nota', 'Sin captura del depósito.')); return caja; }
     const a = el('a', 'cn-captura-pago'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = 'Abrir captura del depósito';
@@ -999,7 +1004,7 @@
       a.replaceChildren(icono('fa-image'), el('span', null, 'No se pudo mostrar la captura' + motivo + ' · abrir aparte'));
       a.classList.add('cn-captura-error');
     });
-    caja.append(el('span', 'cc-motivo-etiqueta', 'Captura del depósito'), a);
+    caja.append(el('span', 'cc-motivo-etiqueta', etiqueta), a);
     return caja;
   }
   const errorCaja = () => { const e = el('p', 'cc-alerta'); e.hidden = true; return e; };
@@ -1497,6 +1502,18 @@
     acciones.querySelectorAll('.cn-redondo').forEach(b => b.remove());
     acciones.prepend(...accionesDe(c).map(a => botonRedondo(a, 'cn-grande')));
     const izquierda = fichasDetalle(c), derecha = el('div', 'cc-validacion-derecha'); derecha.append(fichaItems(c));
+    if (c.pestanas?.includes('transito')) {
+      const comprobante = ficha('fa-receipt', 'Comprobante de depósito', [
+        ['Fecha de pago', c['FECHA PAGO']],
+        ['Monto pagado', c['MONTO PAGADO'] && dinero(c['MONTO PAGADO'])],
+      ]);
+      const depositos = (c.depositos_cc || []).filter(d => d.foto);
+      if (c['FOTO PAGO'] || !depositos.length) comprobante.append(capturaDeposito(c['FOTO PAGO']));
+      for (const deposito of depositos) {
+        comprobante.append(capturaDeposito(deposito.foto, 'Depósito de Caja Chica · ' + deposito.codigo));
+      }
+      derecha.append(comprobante);
+    }
     const columnasDetalle = el('div', 'cc-validacion-columnas'); columnasDetalle.append(izquierda, derecha);
     $('cc-solicitud-contenido').replaceChildren(columnasDetalle);
     if (!dialogo.open) dialogo.showModal();

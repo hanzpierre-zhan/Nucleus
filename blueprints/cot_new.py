@@ -210,12 +210,34 @@ def _filas():
         fila.pop('ITEMS_JSON', None)
         pestanas = pestanas_de(datos)
         fila.update(estado_pago=estado_pago(datos), estado_operativo=estado_operativo(datos))
+        inicio, fin = fechas_ejecucion(datos)
         fila.update(id=rid, key=key, pestanas=pestanas, monto=_monto(datos) or '0.00',
+                    inicio_ejecucion=inicio, fin_ejecucion=fin,
                     familia=familia_cotizacion(datos) or str(datos.get('CLIENTE') or '').strip().upper(),
                     transito=transito.get(key),
                     depositos_cc=depositos.get(str(datos.get('N° COTIZACION') or key or '').strip().upper(), []))
         filas.append(fila)
     return modulo, filas
+
+
+def fechas_ejecucion(datos):
+    """Primera fecha de inicio y última de fin entre los tickets de la cotización."""
+    import re
+    from services.dashboard_integratel import fecha
+
+    tickets = {w.strip().casefold() for w in re.split(r'[,;|\n]+', str(datos.get('NUMERO WO') or '')) if w.strip()}
+    guardadas = datos.get('_EJECUCION_WO')
+    por_ticket = [v for k, v in guardadas.items() if isinstance(v, dict)
+                  and str(k).strip().casefold() in tickets] if isinstance(guardadas, dict) else []
+    resultado = []
+    for campo, directo, historico, extremo in (
+        ('inicio', 'INICIO EJECUCION', 'FECHA INICIO OBRA', min),
+        ('fin', 'FIN EJECUCION', 'FECHA FIN OBRA', max),
+    ):
+        fechas = [f for registro in por_ticket if (f := fecha(registro.get(campo)))]
+        valor = extremo(fechas) if fechas else fecha(datos.get(directo)) or fecha(datos.get(historico))
+        resultado.append(valor.isoformat() if valor else '')
+    return tuple(resultado)
 
 
 @bp.get('/cot-new/')
@@ -303,8 +325,8 @@ def armar_excel(filas, usuarios=None):
     libro = Workbook()
     hoja = libro.active
     hoja.title = 'Cotizaciones'
-    cabecera = ['N.º cotización', 'Fecha', 'Cliente', 'Nombre de cliente', 'Supervisor', 'Site', 'N.º WO', 'Objetivo / motivo',
-                'Pestaña', 'Otras pestañas', 'Estado guardado', 'Interacción', 'Estado de pago', 'Estado operativo',
+    cabecera = ['N.º cotización', 'Fecha', 'Cliente', 'Nombre de cliente', 'Supervisor', 'Site', 'Número de Ticket', 'Descripción',
+                'Pestaña', 'Otras pestañas', 'Estado guardado', 'Estado de pago', 'Estado operativo', 'Inicio de ejecución', 'Fin de ejecución',
                 'Falta WO / site', 'Solicitante', 'Cotizado por', 'Tipo de gasto', 'Fecha aprobación', 'Fecha pago', 'Pagado por',
                 'Monto pagado', 'Monto Tránsito', 'Provisión (20 %)', 'Fecha facturas proveedor', 'SLA proveedor (horas)',
                 'SLA proveedor', 'Depósitos Caja Chica', 'Acumulado Caja Chica', 'Sub total + FEE']
@@ -319,7 +341,7 @@ def armar_excel(filas, usuarios=None):
                    fila.get('NOMBRE CLIENTE'), fila.get('SUPERVISOR'), fila.get('NOMBRE SITE'), fila.get('NUMERO WO'),
                    fila.get('OBJETIVO') or fila.get('MOTIVO'), nombres.get(principal, principal),
                    ', '.join(nombres.get(p, p) for p in fila['pestanas'][1:]), fila.get('ESTADO COTIZACION'),
-                   tipo_atencion(fila), fila.get('estado_pago'), fila.get('estado_operativo'),
+                   fila.get('estado_pago'), fila.get('estado_operativo'), fila.get('inicio_ejecucion'), fila.get('fin_ejecucion'),
                    'Sí' if 'pendientes' in fila['pestanas'] else 'No',
                    nombre(fila.get('SOLICITADO POR') or fila.get('GESTOR')), nombre(fila.get('COTIZADOR') or fila.get('COTIZADO POR')),
                    fila.get('TIPO DE GASTO'), fila.get('FECHA APROBACION'), fila.get('FECHA PAGO'), nombre(fila.get('PAGADO POR')),
@@ -394,8 +416,6 @@ def armar_excel(filas, usuarios=None):
 
     titulo('Por pestaña')
     tabla(['Pestaña', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: r['principal'], resumen)])
-    titulo('Por interacción (cómo se atiende)')
-    tabla(['Interacción', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: tipo_atencion(r['fila']), [r for r in vigentes if r['fila'].get('estado_pago')])])
     titulo('Estado de pago')
     tabla(['Estado de pago', 'Cotizaciones', 'Monto'], [[k, len(v), suma(v)] for k, v in agrupar(lambda r: r['fila'].get('estado_pago'), [r for r in vigentes if r['fila'].get('estado_pago')])])
     titulo('Estado operativo')
