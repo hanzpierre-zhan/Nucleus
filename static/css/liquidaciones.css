@@ -1,5 +1,5 @@
 /* Liquidaciones: chips de evidencias, filtros rápidos y galerías de descarga (sobre el diseño de Caja Chica). */
-.lq-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.lq-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 body .lq-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px !important; min-height: 0 !important; border-radius: 999px !important;
   border: 1px solid var(--ios-hairline) !important; background: var(--ios-card-bg, transparent) !important; color: var(--ios-secondary) !important; font-size: 12.5px; box-shadow: none !important; cursor: pointer; }
 body .lq-chip strong { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: var(--ios-fill); color: var(--ios-label); }
@@ -89,3 +89,23 @@ html body .lq-tarjetas .lq-tarjeta[type].activo small, html body .lq-tarjetas .l
 html body .lq-tarjetas .lq-tarjeta[type].activo .lq-tarjeta-n { background: rgba(255, 255, 255, .25); }
 html body.dark-mode .lq-tarjetas .lq-tarjeta[type] small { color: color-mix(in srgb, var(--lq-color) 70%, #fff); }
 .lq-chips:empty { display: none; }
+.lq-fila-filtros {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+.lq-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.lq-filtros select {
+  width: auto;
+  max-width: 100%;
+  min-height: 26px;
+  font-size: 11px;
+}

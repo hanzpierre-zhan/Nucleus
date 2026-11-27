@@ -114,9 +114,40 @@
     return !!c.deposito && c.boletas.length > 0 && c.evidencias.length > 0 && (!(Number(c.devuelto) > 0) || !!c.devolucion);
   }
   const lista = () => datos[tab] || [];
+  const filtroProyecto = $('lq-proyecto'), filtroMes = $('lq-mes'), filtroGasto = $('lq-gasto');
+  const proyectoDe = c => (tab === 'cotizaciones' ? c.cliente : c.proyecto) || '';
+  const fechaSolicitud = c => tab === 'cotizaciones' ? c.fechas?.solicitud || c.fechas?.cotizada : c.creado;
+  function mesDe(c) {
+    const fecha = String(fechaSolicitud(c) || '').trim();
+    const iso = /^(\d{4})-(\d{2})-\d{2}/.exec(fecha);
+    const local = /^\d{1,2}[/-](\d{1,2})[/-](\d{4})(?:\D|$)/.exec(fecha);
+    const [anio, mes] = iso ? [iso[1], iso[2]] : local ? [local[2], local[1].padStart(2, '0')] : ['', ''];
+    return Number(mes) >= 1 && Number(mes) <= 12 ? anio + '-' + mes : '';
+  }
+  const gastosDe = c => tab === 'cotizaciones' ? [c.tipo_presupuesto] : (c.tipos || []);
+  const nombreGasto = texto => ({'gasto cobra': 'Gasto Cobra', refacturable: 'Refacturable'}[plano(texto).trim()] || texto);
+  function actualizarOpciones() {
+    const filas = lista();
+    const proyectos = [...new Set(filas.map(proyectoDe).filter(Boolean))].sort();
+    const meses = [...new Set(filas.map(mesDe).filter(Boolean))].sort().reverse();
+    const gastos = [...new Set(filas.flatMap(gastosDe).filter(Boolean).map(nombreGasto))].sort();
+    const formatoMes = new Intl.DateTimeFormat('es-PE', {month: 'long', year: 'numeric', timeZone: 'UTC'});
+    for (const [campo, opciones, etiqueta] of [
+      [filtroProyecto, proyectos, v => CLIENTES[v] || v],
+      [filtroMes, meses, v => formatoMes.format(new Date(v + '-01T00:00:00Z'))],
+      [filtroGasto, gastos, v => v],
+    ]) {
+      const actual = campo.value;
+      campo.replaceChildren(campo.options[0], ...opciones.map(v => new Option(etiqueta(v), v)));
+      campo.value = opciones.includes(actual) ? actual : '';
+    }
+  }
   function visibles() {
     const q = plano($('cc-buscar').value.trim());
     let filas = lista().filter(c => pasaChip(c) && (!q || plano(COL[tab].map(col => col.texto(c)).join(' ')).includes(q))
+      && (!filtroProyecto.value || proyectoDe(c) === filtroProyecto.value)
+      && (!filtroMes.value || mesDe(c) === filtroMes.value)
+      && (!filtroGasto.value || gastosDe(c).some(g => nombreGasto(g) === filtroGasto.value))
       && COL[tab].every(col => !busquedas[col.id] || plano(col.texto(c)).includes(plano(busquedas[col.id].trim())))
       && Object.entries(filtros).every(([id, vals]) => { const col = COL[tab].find(x => x.id === id); return !col || vals.includes(valorFiltro(col, c)); }));
     if (orden) {
@@ -293,7 +324,8 @@
     if (typeof XLSX === 'undefined') { avisar('Librería de exportación no disponible.'); return; }
     const filas = visibles().map(c => tab === 'cotizaciones' ? {
       'Correlativo': c.correlativo, 'N.º cotización': c.cotizacion, 'Cliente': CLIENTES[c.cliente] || c.cliente, 'Site': c.site, 'N.º WO': c.wo,
-      'Objetivo': c.objetivo, 'Estado de cotización': c.pestana, 'Interacción': c.interaccion, 'Estado de pago': c.estado_pago, 'Estado de ejecución': c.estado_operativo,
+      'Objetivo': c.objetivo, 'Fecha de solicitud': fechaSolicitud(c), 'Tipo de gasto': c.tipo_presupuesto,
+      'Estado de cotización': c.pestana, 'Interacción': c.interaccion, 'Estado de pago': c.estado_pago, 'Estado de ejecución': c.estado_operativo,
       'Cotizada': c.fechas.cotizada, 'Aprobada': c.fechas.aprobada, 'Pagada': c.fechas.pagada, 'Facturas proveedor': c.fechas.facturas,
       'PDF cotización': c.evidencias.cotizacion, 'Correo cliente': c.evidencias.correo, 'Captura depósito': c.evidencias.deposito,
       'Factura proveedor': c.evidencias.factura, 'Fotos sustento': c.evidencias.sustento, 'Depósitos Caja Chica': c.depositos_cc.map(d => d.codigo).join(', '),
@@ -302,7 +334,8 @@
       'Observación': c.seguimiento.observacion, 'Sub total + FEE': Number(c.monto) || 0,
     } : {
       'Código': c.codigo, 'Técnico': c.tecnico, 'DNI': c.documento, 'Proyecto': c.proyecto, 'Cotización': c.cotizacion, 'Site': c.site, 'CM/PM/PLM': c.wo,
-      'Tipo': c.tipos.join(' · '), 'Estado de Caja Chica': c.estado, 'Depositado el': fecha(c.depositado_en), 'Solicitado': Number(c.total) || 0,
+      'Tipo de gasto': c.tipos.join(' · '), 'Fecha de solicitud': fechaSolicitud(c),
+      'Estado de Caja Chica': c.estado, 'Depositado el': fecha(c.depositado_en), 'Solicitado': Number(c.total) || 0,
       'Depositado': Number(c.depositado) || 0, 'Gastado': Number(c.gastado) || 0, 'Devuelto': Number(c.devuelto) || 0,
       'Foto depósito': c.deposito ? 'Sí' : 'No', 'Boletas': c.boletas.length, 'Evidencias': c.evidencias.length,
       'Captura devolución': c.devolucion ? 'Sí' : 'No', 'Correo validación': c.correo ? 'Sí' : 'No',
@@ -446,19 +479,21 @@
 
   // ── Pestañas, búsqueda, tuerca y carga ──
   document.querySelectorAll('.lq-tab').forEach(b => b.addEventListener('click', () => {
-    tab = b.dataset.tab; chip = ''; orden = null; filtros = {}; busquedas = {}; $('lq-filtro').hidden = true; try { localStorage.setItem('lq-tab', tab); } catch (_) {} pintar(); cargar(tab);
+    tab = b.dataset.tab; chip = ''; orden = null; filtros = {}; busquedas = {}; $('lq-filtro').hidden = true; try { localStorage.setItem('lq-tab', tab); } catch (_) {} actualizarOpciones(); pintar(); cargar(tab);
   }));
   $('cc-buscar').addEventListener('input', pintar);
+  for (const campo of [filtroProyecto, filtroMes, filtroGasto]) campo.addEventListener('change', pintar);
   const menu = $('lq-ajustes-menu'), botonMenu = $('lq-ajustes-btn');
   botonMenu.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; botonMenu.setAttribute('aria-expanded', String(!menu.hidden)); });
   document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
-  menu.addEventListener('click', e => { const b = e.target.closest('[data-accion]'); if (!b) return; menu.hidden = true; if (b.dataset.accion === 'limpiar') { chip = ''; orden = null; filtros = {}; busquedas = {}; $('cc-buscar').value = ''; pintar(); } });
+  menu.addEventListener('click', e => { const b = e.target.closest('[data-accion]'); if (!b) return; menu.hidden = true; if (b.dataset.accion === 'limpiar') { chip = ''; orden = null; filtros = {}; busquedas = {}; $('cc-buscar').value = filtroProyecto.value = filtroMes.value = filtroGasto.value = ''; pintar(); } });
   async function cargar(t) {
     if (datos[t]) return;
     const r = await fetch(t === 'cotizaciones' ? '/liquidaciones/api/v2/cotizaciones' : '/liquidaciones/api/v2/caja-chica');
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { $('lq-lista').replaceChildren(el('p', 'cc-vacio', j.error || 'No se pudo cargar.')); return; }
     datos[t] = t === 'cotizaciones' ? j.cotizaciones : j.solicitudes;
+    if (t === tab) actualizarOpciones();
     pintar();
   }
   if (!['cotizaciones', 'cajachica'].includes(tab)) tab = 'cotizaciones';
