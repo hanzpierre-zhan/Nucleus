@@ -850,6 +850,7 @@ def v2_cotizaciones():
             'interaccion': cot_new.tipo_atencion(datos), 'estado_pago': cot_new.estado_pago(datos),
             'tipo_presupuesto': str(datos.get('TIPO DE GASTO') or '').strip(),
             'estado_operativo': cot_new.estado_operativo(datos), 'estatus': r.get('estatus') or '',
+            'inicio_ejecucion': r.get('fecha_inicio') or '', 'fin_ejecucion': r.get('fecha_fin') or '',
             'monto': monto_cotizacion(datos.get('SUB TOTAL + FEE'), datos.get('ITEMS_JSON')) or '0.00',
             'subtotal_sin_fee': r.get('sub_total') or '',
             'fechas': {'solicitud': datos.get('FECHA') or '', 'cotizada': datos.get('FECHA COTIZADO') or datos.get('FECHA') or '', 'enviada': datos.get('FECHA ENVIO CLIENTE') or '',

@@ -9,6 +9,19 @@
   const avisar = m => (window.nucleusAlert || alert)(m);
   const plano = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const fecha = t => { const s = String(t || ''); return s ? s.replace('T', ' ').slice(0, 16) : '—'; };
+  // Fechas de ejecución: se muestran cortas (dd/mm/aaaa) y con color para ubicarlas rápido.
+  const fechaCorta = t => {
+    const s = String(t || '').trim();
+    if (!s) return '';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : s;
+  };
+  function chipFecha(valor, tipo) {
+    const texto = fechaCorta(valor);
+    const chip = el('span', 'lq-fecha lq-fecha-' + (texto ? tipo : 'pendiente'), texto || 'Pendiente');
+    chip.title = (tipo === 'inicio' ? 'Inicio' : 'Fin') + ' de ejecución' + (texto ? ': ' + texto : ' (sin registrar)');
+    return chip;
+  }
   const dialogo = $('cc-solicitud-dialogo');
   const CLIENTES = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
   const nombreProyecto = valor => CLIENTES[valor] ? 'FLM - ' + CLIENTES[valor] : valor;
@@ -53,6 +66,7 @@
       'Proyecto': c => nombreProyecto(c.cliente), 'Site': c => c.site, 'Número de Ticket': c => c.wo,
       'Descripción': c => c.objetivo, 'Fecha de solicitud': c => fechaSolicitud(c), 'Tipo de gasto': c => c.tipo_presupuesto,
       'Estado de cotización': c => c.pestana, 'Estado de ejecución': c => c.estado_operativo,
+      'Inicio de ejecución': c => fechaCorta(c.inicio_ejecucion), 'Fin de ejecución': c => fechaCorta(c.fin_ejecucion),
       'Correo de validación del cliente': c => c.nombre_correo,
       'Número de factura del proveedor': c => c.numero_factura_proveedor,
       'Número de OC del proveedor': c => c.numero_oc_proveedor,
@@ -87,6 +101,12 @@
        celda: c => el('span', 'cc-chip lq-p-' + c.pestana_clave, c.pestana || '—')},
       {id: 'ejecucion', titulo: 'Estado de ejecución', ancho: 'minmax(180px, .8fr)', texto: c => c.estado_operativo || '—',
        celda: c => etiquetaEstado(c.estado_operativo || '—', COLOR_EJECUCION)},
+      {id: 'inicio', titulo: 'Inicio de ejecución', ancho: 'minmax(140px, .7fr)',
+       texto: c => fechaCorta(c.inicio_ejecucion) || 'Pendiente', orden: c => c.inicio_ejecucion || '',
+       celda: c => chipFecha(c.inicio_ejecucion, 'inicio')},
+      {id: 'fin', titulo: 'Fin de ejecución', ancho: 'minmax(140px, .7fr)',
+       texto: c => fechaCorta(c.fin_ejecucion) || 'Pendiente', orden: c => c.fin_ejecucion || '',
+       celda: c => chipFecha(c.fin_ejecucion, 'fin')},
       ...[
         ['cotizacion', 'Cotización PDF', 145, 'Cotización PDF', 'Cotización PDF',
           c => c.generada && (() => abrir('/liquidaciones/api/registros/' + c.id + '/pdf'))],
@@ -416,7 +436,8 @@
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(ficha('fa-file-lines', 'Detalle', [['N.º', c.cotizacion + ' · ' + c.correlativo], ['Cliente', CLIENTES[c.cliente] || c.cliente], ['Site', c.site], ['Número de Ticket', c.wo],
       ['Descripción', c.objetivo], ['Supervisor', c.supervisor], ['Sub total + FEE', dinero(c.monto)], ['Estado', c.pestana],
-      ['Estado de pago', c.estado_pago], ['Estado de ejecución', c.estado_operativo]]));
+      ['Estado de pago', c.estado_pago], ['Estado de ejecución', c.estado_operativo],
+      ['Inicio de ejecución', fechaCorta(c.inicio_ejecucion) || 'Pendiente'], ['Fin de ejecución', fechaCorta(c.fin_ejecucion) || 'Pendiente']]));
     // Línea de tiempo del caso.
     const linea = el('section', 'cc-ficha'); const hl = el('h4', 'cc-ficha-titulo'); hl.append(icono('fa-timeline'), el('span', null, 'Línea de tiempo')); linea.append(hl);
     const pasos = el('ol', 'lq-linea');
