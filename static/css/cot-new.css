@@ -17,7 +17,7 @@
 .cn-morado { background: #6d28d9 !important; }
 .cn-neutro { background: #475569 !important; }
 .cn-gestion .cc-acciones-rapidas { display: flex; gap: 6px; justify-content: center; }
-.vn-dataper .cc-acciones-rapidas.cc-col-acciones { justify-content: flex-start; }
+.cn-gestion .cc-acciones-rapidas.cc-col-acciones { justify-content: flex-start; }
 
 /* Estado como etiqueta de color */
 .cc-chip.cn-e-registro { background: rgba(100, 116, 139, .18); color: #94a3b8; }

@@ -218,7 +218,7 @@ body .excel-main.vista-flm #data-grid .tabulator-headers { display: inline-flex 
 body .excel-main.vista-flm #data-grid .tabulator-col[tabulator-field="_fv_acciones"] .tabulator-col-content { flex: 1; }
 
 /* FLM - CLARO: tiempo del SLA en Acciones (mismos colores que la página SLA y Caja Chica). */
-.excel-main.vista-flm .fv-acciones-celda { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.excel-main.vista-flm .fv-acciones-celda { display: inline-flex; align-items: center; justify-content: flex-start; gap: 8px; }
 .excel-main.vista-flm .fv-sla { --sla: #8e8e93; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--sla); color: #fff; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; box-shadow: 0 2px 6px color-mix(in srgb, var(--sla) 30%, transparent); }
 .excel-main.vista-flm .fv-sla i { color: #fff; font-size: 11px; }
 .excel-main.vista-flm .fv-sla-vacio { background: transparent; color: var(--ios-secondary, #8e8e93); box-shadow: none; font-weight: 500; }

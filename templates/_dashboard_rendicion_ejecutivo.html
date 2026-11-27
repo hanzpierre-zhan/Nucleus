@@ -1,12 +1,15 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=3">
+<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=8">
 <link rel="stylesheet" href="/static/css/dashboard-rendicion-ejecutivo.css?v=8">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
 <script src="/static/js/dashboard-visual.js?v=3"></script>
 <section class="di-page dv-unified di-finance dv-finance finance-rendicion rend-executive" data-finance="rendicion">
   {% from '_dashboard_header.html' import dashboard_header with context %}
-  {% call dashboard_header('Caja Chica', 'Depósitos pendientes de sustento', 'Estado 3.DEPOSITADO · importes de MONTO PAGO', 4) %}
+  {% call dashboard_header('Caja Chica', 'Seguimiento de solicitudes', '', 4) %}
+  {% endcall %}
+  {% if refacturables is not none %}{% include '_dashboard_refacturables.html' %}{% endif %}
+  <h2 class="df-history-title">Historial de rendici&#243;n</h2>
   <div class="df-toolbar" aria-label="Filtros del dashboard">
     <label>Mes de solicitud<select id="df-month"><option value="">Todos los meses</option></select></label>
     <label>Operador<select id="df-operator"><option value="">Todos los operadores</option></select></label>
@@ -16,7 +19,6 @@
     {% if modo == 'cotizaciones' %}<label>Proyecto<select id="df-project"><option value="">Todos los proyectos</option></select></label>{% endif %}
     <button type="button" id="df-clear" class="action-pill pill-neutral" title="Limpiar filtros"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Limpiar</span></button>
   </div>
-  {% endcall %}
   <div class="df-kpis" id="df-kpis" aria-live="polite"></div>
   <div class="re-grid">
     <article class="di-card re-clients"><h2>Sin sustento por cliente</h2><p>Participación del importe pendiente</p><div class="re-ring"><canvas id="re-clients" role="img" aria-label="Importe sin sustento por cliente"></canvas><div class="re-ring-total" aria-hidden="true"><strong id="re-clients-total"></strong><small>sin sustento</small></div></div><ul class="re-legend" id="re-clients-legend"></ul></article>

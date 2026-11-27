@@ -526,7 +526,7 @@
     // Acciones: botón redondo que abre el mismo detalle que el clic en el ticket (antes del N.º de ticket).
     if (clave) {
       const ancho = conSla ? 168 : 92;
-      defs.splice(indice('_key'), 0, {title: 'Acciones', field: '_fv_acciones', headerSort: false, headerFilter: false, width: ancho, minWidth: ancho, hozAlign: 'center', download: false,
+      defs.splice(indice('_key'), 0, {title: 'Acciones', field: '_fv_acciones', headerSort: false, headerFilter: false, width: ancho, minWidth: ancho, hozAlign: 'left', download: false,
         formatter: celda => {
           const b = el('button', 'fv-accion'); b.type = 'button'; b.title = 'Ver / editar';
           b.setAttribute('aria-label', 'Ver o editar ' + (celda.getRow().getData()._key || ''));
@@ -536,9 +536,10 @@
             const destino = celda.getRow().getCell('_key')?.getElement();
             (destino?.querySelector('.wo-link') || destino)?.click();
           });
-          if (!conSla) return b;
+
           const caja = el('div', 'fv-acciones-celda');
-          caja.append(b, chipSla(celda.getRow().getData()));
+          caja.append(b);
+          if (conSla) caja.append(chipSla(celda.getRow().getData()));
           return caja;
         }});
     }

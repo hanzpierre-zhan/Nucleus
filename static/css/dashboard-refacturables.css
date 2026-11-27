@@ -1,0 +1,58 @@
+.di-page.di-finance.finance-cotizaciones > .dashboard-header {
+  flex: none;
+  grid-template: auto auto / minmax(0, 1fr);
+  grid-template-areas: "title" "filters";
+}
+.di-page.di-finance.finance-cotizaciones > .dashboard-header .df-toolbar {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  justify-self: start;
+}
+.finance-cotizaciones .df-toolbar .df-filter-group { flex: 1 1 138px; }
+.finance-cotizaciones .df-filter-options { width: 100%; max-width: none; box-sizing: border-box; }
+.finance-cotizaciones .df-filter-options label span { overflow-wrap: anywhere; }
+.df-filter-actions, .df-analysis-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.df-filter-actions { flex: 0 1 auto; justify-content: flex-end; margin-inline-start: auto; }
+.di-page.di-finance .df-filter-actions .df-cancel-switch,
+.di-page.di-finance .df-analysis-filters .df-cancel-switch {
+  display: inline-flex;
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+  width: auto;
+  gap: 6px;
+  padding: 0;
+  font-size: 11px;
+  cursor: pointer;
+}
+.df-analysis { display: grid; gap: 10px; flex: none; min-width: 0; }
+.df-analysis-filters { justify-content: flex-start; }
+.df-analysis-filters > label:not(.df-cancel-switch) { display: grid; gap: 3px; font-size: 11px; }
+.df-analysis-kpis, .df-analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 246px), 1fr));
+  gap: 10px;
+}
+.di-page.di-finance .df-analysis :is(.df-analysis-kpi, .df-analysis-card) { min-height: 0; padding: 12px; }
+.df-analysis-kpi { gap: 5px; border-inline-start: 3px solid var(--df-kind, var(--ios-hairline)) !important; }
+.df-analysis-kpi strong { font-size: clamp(19px, 2vw, 27px); line-height: 1.2; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.df-analysis-kpi small { font-size: 12px; color: var(--ios-secondary); }
+.df-analysis-kpi:nth-child(2) { --df-kind: var(--di-blue, #2563eb); }
+.df-analysis-kpi:nth-child(3) { --df-kind: var(--di-green, #16865b); }
+.df-analysis-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+.df-analysis-heading select { max-width: 100%; min-width: 0; font-size: 11px; }
+.df-analysis-table { margin-top: 6px; max-height: 250px; overflow: auto; }
+.df-analysis-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.df-analysis-table :is(th, td) { padding: 7px 4px; border-bottom: 1px solid var(--ios-hairline); text-align: left; }
+.df-analysis-table :is(th, td):not(:first-child) { text-align: right; }
+.df-analysis-table th { position: sticky; top: 0; background: var(--ios-card-bg); }
+.df-analysis-table td span { display: block; color: var(--ios-secondary); font-size: 11px; white-space: nowrap; }
+.df-history-title { margin: 8px 0 0; }

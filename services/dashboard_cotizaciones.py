@@ -108,6 +108,7 @@ def indicadores(rows, hoy=None):
             'site': _txt(row.get('NOMBRE SITE')),
             'tipo': _txt(row.get('TIPO DE COTIZACION')) or 'Sin tipo',
             'gestor': gestor or 'Sin gestor',
+            'supervisor': _txt(row.get('SUPERVISOR')) or 'Sin supervisor',
             'solicito': _txt(row.get('SOLICITADO POR'), gestor) or 'Sin datos',
             'genero': _txt(row.get('COTIZADO POR'), row.get('ENVIADO POR'), gestor) or 'Sin datos',
             'atendido_por': _txt(row.get('ATENDIDO POR')),

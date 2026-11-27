@@ -40,6 +40,8 @@
 #cc-comentario-dialogo textarea { width: 100%; min-height: 110px !important; resize: vertical; box-sizing: border-box; }
 #cc-comentario-dialogo .cc-acciones { justify-content: flex-end; margin-top: 12px; }
 .cc-acciones-rapidas { display: flex; gap: 6px; justify-content: center; }
+.cc-acciones-rapidas.cc-col-acciones { justify-content: flex-start; }
+.cc-acciones-rapidas.cc-col-acciones > .cc-rapida { flex-shrink: 0; }
 /* SLA de "Por rendir": días y horas desde el depósito. El chip es un botón sólido que abre la ventana. */
 .cc-gestion .cc-acciones-rapidas .cc-sla { display: inline-flex !important; align-items: center; gap: 6px; min-height: 28px !important; height: 28px; padding: 0 12px !important; border-radius: 999px !important; border: 0 !important; background: var(--sla) !important; color: #fff !important; font-size: 12px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; box-shadow: 0 2px 8px color-mix(in srgb, var(--sla) 35%, transparent) !important; transition: transform .15s, box-shadow .15s; }
 .cc-gestion .cc-acciones-rapidas .cc-sla:hover { transform: translateY(-1px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sla) 30%, transparent) !important; }

@@ -190,7 +190,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     exportacion = auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token})
     assert exportacion.status_code == 200
     libro = load_workbook(io.BytesIO(exportacion.data))
-    hoja = libro['Historial']
+    hoja = libro['Caja Chica']
     assert hoja['A2'].value == sol['codigo'] and hoja.max_row == 3  # una fila por ítem
     # Resumen ejecutivo: primera hoja, con las tablas de seguimiento.
     assert libro.sheetnames[0] == 'Resumen ejecutivo'
@@ -208,7 +208,7 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     listado = next(x for x in auth_client.get('/api/caja-chica/solicitudes').json['solicitudes'] if x['id'] == sid)
     assert listado['dataper'] is True and listado['supervisor'] == 'Supervisor Caja'
     assert cli.get('/form-pruebas/caja-chica/datos', headers=h).json['cuenta_devolucion']['numero'] == '988191318'
-    assert gestion('validar').status_code == 200
+    assert gestion('validar', tiempo='Menor a 4 horas').status_code == 200
     # Depósito: monto exacto y foto
     r = auth_client.post('/api/caja-chica/%d/depositar' % sid, data={'monto': '90', 'foto': foto()})
     assert r.status_code == 400 and '100.00' in r.json['error']
@@ -270,9 +270,10 @@ def test_flujo_completo_con_item_rechazado_y_devolucion(app, auth_client, tecnic
     reporte = auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token})
     assert reporte.status_code == 200
     libro_final = load_workbook(io.BytesIO(reporte.data))
-    filas = list(libro_final['Historial'].values)
+    filas = list(libro_final['Caja Chica'].values)
     columnas = filas[0]
     items_excel = [dict(zip(columnas, fila)) for fila in filas[1:]]
+    assert all(i['Tiempo de respuesta'] == 'Menor a 4 horas' for i in items_excel)
     assert len(items_excel) == 2 and {'Fecha solicitud', 'Site', 'N.º CM/PM/PLM', 'Motivo de rechazo'} <= set(columnas)
     assert sum(i['Gastado'] for i in items_excel) == 90 and sum(i['Devuelto'] for i in items_excel) == 10
     assert all(i['Solicitado'] == i['Gastado'] + i['Devuelto'] for i in items_excel)
@@ -397,7 +398,7 @@ def test_rendir_varios_comprobantes_con_su_foto_y_evidencias(app, auth_client, t
     with auth_client.session_transaction() as sesion:
         token = sesion['form_csrf']
     libro = load_workbook(io.BytesIO(auth_client.post('/api/caja-chica/exportar', json=[sid], headers={'X-CSRF-Token': token}).data))
-    fila = dict(zip(*[[c.value for c in f] for f in list(libro['Historial'].rows)[:2]]))
+    fila = dict(zip(*[[c.value for c in f] for f in list(libro['Caja Chica'].rows)[:2]]))
     assert fila['N.º boleta'] == 'B001-452 / B001-453' and fila['RUC'] == '20123456789 / 20600000001'
     assert fila['Gastado'] == 85
 

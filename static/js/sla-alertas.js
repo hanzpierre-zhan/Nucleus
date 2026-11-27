@@ -27,7 +27,9 @@
     for (const c of lista.slice(0, 4)) {
       const li = el('li', c.resto <= 15 ? 'critico' : '');
       const izq = el('span'); izq.append(el('b', null, c.ticket), el('small', null, [c.proyecto, c.categoria, c.tecnico_nombre || c.tecnico].filter(Boolean).join(' · ')));
-      li.append(izq, el('em', null, 'quedan ' + tiempo(c.resto)));
+      const restante = el('em', null, tiempo(c.resto));
+      restante.setAttribute('aria-label', 'Quedan ' + tiempo(c.resto));
+      li.append(izq, restante);
       ul.append(li);
     }
     const ver = el('a', 'sla-alerta-ver', lista.length > 4 ? 'Ver los ' + lista.length + ' en SLA' : 'Ver en SLA'); ver.href = '/sla/';

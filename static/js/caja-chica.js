@@ -294,21 +294,21 @@
     if (tab === 'sustento') {
       // También cuando lo aprobado espera la devolución u otros ítems de la solicitud.
       if (sol.estado === 'SUSTENTO' || rechazableEnSustento(sol)) {
-        caja.append(slaArchivo(sol));
-        if (sol.estado === 'POR_DEVOLVER' && Number(sol.diferencia) > 0) caja.append(el('span', 'cc-nota', 'Falta devolución ' + dinero(sol.diferencia)));
         if (puedeGestionar) caja.append(botonRapido(sol, 'Archivar', 'cc-ok', 'fa-box-archive', () => pasarEtapa(sol, 'archivar')),
           botonRapido(sol, 'Rechazar: vuelve a Por rendir', 'cc-rechazar', 'fa-rotate-left', conMotivo(sol, 'rechazar_sustentada', {
             titulo: 'Rechazar sustentada', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), sugerencias: SUGERENCIAS.item,
             ayuda: 'Los ítems aprobados vuelven al técnico en Por rendir para que corrija.', okText: 'Rechazar'})));
+        caja.append(slaArchivo(sol));
+        if (sol.estado === 'POR_DEVOLVER' && Number(sol.diferencia) > 0) caja.append(el('span', 'cc-nota', 'Falta devolución ' + dinero(sol.diferencia)));
       }
       return caja;
     }
     if (tab === 'archivado') {
       if (sol.estado === 'ARCHIVADO') {
-        caja.append(slaArchivo(sol));
         if (puedeGestionar) caja.append(botonRapido(sol, 'Rechazar: vuelve a Por rendir', 'cc-rechazar', 'fa-rotate-left', conMotivo(sol, 'rechazar_sustentada', {
           titulo: 'Rechazar archivada', subtitulo: sol.codigo + ' · ' + (sol.tecnico || ''), sugerencias: SUGERENCIAS.item,
           ayuda: 'Los ítems vuelven al técnico en Por rendir para que corrija.', okText: 'Rechazar'})));
+        caja.append(slaArchivo(sol));
       }
       return caja;
     }

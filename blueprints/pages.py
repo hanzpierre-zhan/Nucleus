@@ -587,7 +587,7 @@ def analytics_operativo():
 @bp.route('/analytics')
 @login_required
 def analytics():
-    return redirect(url_for('pages.analytics_gerencial'))
+    return redirect(url_for('pages.analytics_cotizaciones'))
 
 
 @bp.route('/analytics/gerencial')
@@ -654,7 +654,7 @@ def analytics_cotizaciones():
     if proy is None:
         proy = next((p for p in proyectos if str(p.nombre).strip().lower() == 'cotizaciones'), None)
     if proy is None:
-        return redirect(url_for('pages.analytics'))
+        return redirect(url_for('pages.index'))
     from services.alcance_proyectos import vista_global
     from services.dashboard_cotizaciones import indicadores
     def registros():
@@ -686,7 +686,8 @@ def analytics_rendicion():
     proy = Proyecto.query.filter_by(nombre='Rendicion').first()
     if proy is None:
         proy = next((p for p in proyectos if str(p.nombre).strip().lower() == 'rendicion'), None)
-    if proy is None:
+    puede_ver_caja = any(p.nombre == 'Caja Chica' for p in proyectos)
+    if proy is None and not puede_ver_caja:
         return redirect(url_for('pages.analytics'))
     from services.alcance_proyectos import vista_global
     from services.dashboard_rendicion import indicadores
@@ -703,11 +704,14 @@ def analytics_rendicion():
                 datos['Supervisor encargado'] = datos['_DATAPER_SUPERVISOR']
                 yield datos
     with vista_global():
-        personal_dashboard = indice_personal()
-        dashboard = indicadores(registros())
+        personal_dashboard = indice_personal() if proy else {}
+        dashboard = indicadores(registros() if proy else ())
+    from services.dashboard_refacturables import caja_chica
+    refacturables = caja_chica() if puede_ver_caja else None
     return render_template('dashboard_rendicion.html', dashboard=dashboard,
+                           refacturables=refacturables,
                            proyectos_list=proyectos, proyecto_nombre='Rendicion',
-                           proyecto_id=proy.id, data_total=dashboard['total'], data_limite=dashboard['total'])
+                           proyecto_id=proy.id if proy else None, data_total=dashboard['total'], data_limite=dashboard['total'])
 
 
 @bp.route('/analytics/cobranza')

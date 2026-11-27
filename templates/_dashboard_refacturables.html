@@ -1,0 +1,43 @@
+<link rel="stylesheet" href="/static/css/dashboard-refacturables.css?v=2">
+<section class="df-analysis" id="df-analysis" aria-label="Análisis de gastos">
+  {% if modo == 'rendicion' %}
+  <div class="df-analysis-filters">
+    <label>Mes de solicitud <input id="df-ref-month" type="month" value="{{ dashboard.mes_actual }}"></label>
+    <label>Proyecto <select id="df-ref-project"><option value="">Todos los proyectos</option></select></label>
+    {% include '_dashboard_cancel_switch.html' %}
+  </div>
+  <script id="df-ref-data" type="application/json">{{ refacturables|tojson }}</script>
+  {% endif %}
+  <div class="df-analysis-kpis" id="df-ref-kpis" aria-live="polite"></div>
+  <div class="df-analysis-grid">
+    {% for id, titulo in [('projects', 'Por proyecto'), ('states', 'Por estado')] %}
+    <article class="di-card df-analysis-card">
+      <div class="df-analysis-heading">
+        <h2>{{ titulo }}</h2>
+        {% if id == 'projects' %}
+        <button class="action-pill pill-neutral" type="button" id="df-ref-excel" title="Exportar el detalle de la selección"><i class="fa-solid fa-download" aria-hidden="true"></i> Excel</button>
+        {% endif %}
+      </div>
+      <div class="df-analysis-table" tabindex="0" role="region" aria-label="{{ titulo }}">
+        <table>
+          <thead><tr><th scope="col">{{ 'Proyecto' if id == 'projects' else 'Estado' }}</th><th scope="col">Gasto Cobra</th><th scope="col">Refacturable</th></tr></thead>
+          <tbody id="df-ref-{{ id }}"></tbody>
+        </table>
+      </div>
+    </article>
+    {% endfor %}
+    <article class="di-card df-analysis-card">
+      <div class="df-analysis-heading">
+        <h2>Conceptos más solicitados</h2>
+        <select id="df-ref-supervisor" aria-label="Supervisor"></select>
+      </div>
+      <div class="df-analysis-table" tabindex="0" role="region" aria-label="Conceptos más solicitados">
+        <table>
+          <thead><tr><th scope="col">Concepto</th><th scope="col">Ítems</th></tr></thead>
+          <tbody id="df-ref-concepts"></tbody>
+        </table>
+      </div>
+    </article>
+  </div>
+</section>
+<script src="/static/js/dashboard-refacturables.js?v=2"></script>

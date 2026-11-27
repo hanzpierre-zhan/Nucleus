@@ -9,7 +9,7 @@ import json
 from datetime import date
 
 from db import db
-from models import Proyecto, NucleusData
+from models import CajaChicaItem, CajaChicaSolicitud, Proyecto, NucleusData
 from services.dashboard_rendicion import indicadores, _estado_de, _etapa_de
 
 
@@ -108,6 +108,46 @@ def test_ruta_dashboard_rendicion(app, auth_client):
                     assert 'flm-resource-bar' not in auth_client.get(ruta).get_data(as_text=True), ruta
         finally:
             NucleusData.query.filter_by(proyecto_id=pid, key_value='DASH-REND-TEST').delete()
+            db.session.commit()
+
+
+def test_dashboard_caja_chica_cuenta_solicitud_mixta_una_vez(app, auth_client):
+    with app.app_context():
+        historial = json.dumps([{'conceptos': {
+            '1': {'tipo_presupuesto': 'Refacturable'},
+            '2': {'tipo_presupuesto': 'Gasto Cobra'},
+            '3': {'tipo_presupuesto': 'Refacturable'},
+        }}])
+        for codigo, estado in [('COB-DASH-ACTIVO', 'DEPOSITADO'), ('COB-DASH-ANULADO', 'ANULADO')]:
+            solicitud = CajaChicaSolicitud(
+                codigo=codigo, estado=estado, documento='12345678', tecnico='Técnico de prueba',
+                proyecto='CLARO', motivo='Prueba', banco='BCP', cuenta='123',
+                total=60, historial=historial,
+            )
+            solicitud.items = [
+                CajaChicaItem(numero=1, tipo_gasto='Peajes', monto=10, estado='EN_REVISION'),
+                CajaChicaItem(numero=2, tipo_gasto='Peajes', monto=20, estado='POR_RENDIR'),
+                CajaChicaItem(numero=3, tipo_gasto='Peajes', monto=30, estado='POR_RENDIR'),
+            ]
+            db.session.add(solicitud)
+        db.session.commit()
+        try:
+            response = auth_client.get('/analytics/rendicion')
+            assert response.status_code == 200
+            html = response.get_data(as_text=True)
+            filas = json.loads(html.split('id="df-ref-data" type="application/json">', 1)[1].split('</script>', 1)[0])
+            casos = [fila for fila in filas if fila['codigo'].startswith('COB-DASH-')]
+            activos = [fila for fila in casos if not fila['cancelada']]
+            assert len(casos) == 2
+            assert len(activos) == 1
+            assert activos[0]['codigo'] == 'COB-DASH-ACTIVO'
+            assert activos[0]['gastos'] == {
+                'Refacturable': {'Revisión': 1000, 'Por rendir': 3000},
+                'Gasto Cobra': {'Por rendir': 2000},
+            }
+        finally:
+            for solicitud in CajaChicaSolicitud.query.filter(CajaChicaSolicitud.codigo.like('COB-DASH-%')):
+                db.session.delete(solicitud)
             db.session.commit()
 
 

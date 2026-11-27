@@ -924,11 +924,11 @@ def exportar_excel(solicitudes, dataper=None):
 
     libro = Workbook()
     hoja = libro.active
-    hoja.title = 'Historial'
+    hoja.title = 'Caja Chica'
     hoja.append(['Código', 'Fecha solicitud', 'Proyecto', 'Site', 'N.º CM/PM/PLM', 'N.º cotización',
                  'Técnico', 'DNI', 'Supervisor', 'Registrado en Dataper', 'Departamento (Dataper)', 'Estado de solicitud', 'Concepto', 'Tipo de gasto', 'Justificación', 'Solicitado', 'Depositado',
                  'Fecha depósito', 'Gastado', 'Devuelto', 'Estado de rendición', 'Motivo de rechazo', 'Fecha rendición',
-                 'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta'])
+                 'Tiempo de rendición', 'Plazo 24 h', 'RUC', 'Razón social', 'N.º boleta', 'Tiempo de respuesta'])
     cero = Decimal('0')
     peru = lambda f: (f - timedelta(hours=5)).replace(second=0, microsecond=0) if f else None  # las fechas se guardan en UTC
     pendientes, resumen = [], []
@@ -940,7 +940,9 @@ def exportar_excel(solicitudes, dataper=None):
                                peru(solicitud.creado), solicitud.proyecto, solicitud.tecnico, solicitud.documento,
                                formulario.get('wo') or '', formulario.get('site') or '', ' y '.join(datos['faltan']),
                                ESTADO_SOLICITUD.get(solicitud.estado, solicitud.estado), solicitud.total])
-        cotizacion = (datos.get('revision') or {}).get('cotizacion') or ''
+        revision = datos['revision']
+        cotizacion = revision.get('cotizacion') or ''
+        tiempo_respuesta = revision.get('tiempo') or ''
         info = (dataper or {}).get(re.sub(r'[\s.\-]', '', solicitud.documento or '').upper(), {})
         supervisor = info.get('supervisor') or formulario.get('supervisor') or ''
         registrado = 'Registrado' if info.get('registrado') else 'No registrado'
@@ -996,7 +998,8 @@ def exportar_excel(solicitudes, dataper=None):
                     supervisor, registrado, info.get('departamento') or '', pestana_item(solicitud, item), item.tipo_gasto, tipos.get(item.id, ''), solicitud.motivo or '',
                     item.monto, por_item[item.id], peru(solicitud.depositado_en), gastado, devuelto,
                     estado_rendicion, item.motivo_rechazo or solicitud.motivo_rechazo or '', peru(rendicion), total, plazo,
-                    *(' / '.join(dict.fromkeys(str(c.get(k) or '') for c in comps if c.get(k))) for k in ('ruc', 'razon_social', 'comprobante'))]
+                    *(' / '.join(dict.fromkeys(str(c.get(k) or '') for c in comps if c.get(k))) for k in ('ruc', 'razon_social', 'comprobante')),
+                    tiempo_respuesta]
             hoja.append([ILLEGAL_CHARACTERS_RE.sub('', v) if isinstance(v, str) else v for v in fila])
             for celda in hoja[hoja.max_row]:
                 if isinstance(celda.value, Decimal):

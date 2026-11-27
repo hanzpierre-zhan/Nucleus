@@ -1,6 +1,6 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=7">
+<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=8">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
 <script src="/static/js/dashboard-visual.js?v=3"></script>
 <section class="di-page dv-unified di-finance dv-finance finance-{{ modo }}" data-finance="{{ modo }}">
@@ -14,13 +14,15 @@
     {% if modo == 'cotizaciones' %}<label>Tipo de cotización<select id="df-type"><option value="">Todos</option></select></label>{% endif %}
     <label>{{ 'Beneficiario' if modo == 'rendicion' else 'Generó cotización' }}<select id="df-person"><option value="">Todos</option></select></label>
     {% if modo == 'cotizaciones' %}<label>Proyecto<select id="df-project"><option value="">Todos los proyectos</option></select></label>{% endif %}
-    {% if modo == 'cotizaciones' %}
-    <label class="df-cancel-switch"><input id="df-canceladas" type="checkbox" role="switch"> Incluir canceladas</label>{% endif %}
-    <button type="button" id="df-clear" class="action-pill pill-neutral" title="Limpiar filtros"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Limpiar</span></button>
+    <div class="df-filter-actions">
+      {% if modo == 'cotizaciones' %}{% include '_dashboard_cancel_switch.html' %}{% endif %}
+      <button type="button" id="df-clear" class="action-pill pill-neutral" title="Restablecer filtros del mes actual"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Limpiar</button>
+    </div>
   </div>
   {% endcall %}
   {% if data_total > data_limite %}<p class="di-data-notice" role="alert">Se muestran {{ data_limite }} de {{ data_total }} registros.</p>{% endif %}
-  <div class="df-kpis" id="df-kpis" aria-live="polite"></div>
+  {% if modo == 'cotizaciones' or refacturables is not none %}{% include '_dashboard_refacturables.html' %}{% endif %}
+  {% if modo != 'cotizaciones' %}<div class="df-kpis" id="df-kpis" aria-live="polite"></div>{% endif %}
   <div class="df-grid">
   {% if modo == 'rendicion' %}
     <article class="di-card df-budget"><h2>Tipo de presupuesto</h2><p>Importe pagado por presupuesto</p><div class="df-chart"><canvas id="df-budget-chart" role="img" aria-label="Importe pagado por tipo de presupuesto"></canvas></div></article>
@@ -49,4 +51,4 @@
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-finanzas-model.js?v=7"></script>
 <script src="/static/js/dashboard-claro-model.js?v=4"></script>
-<script src="/static/js/dashboard-finanzas.js?v=13"></script>
+<script src="/static/js/dashboard-finanzas.js?v=15"></script>

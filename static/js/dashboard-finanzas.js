@@ -203,20 +203,15 @@
             label: 'Pendiente de aprobación', data: entries.map(e => e.amount), borderColor: t.colors[2], pointRadius: 3,
         }]}, options}, entries.length > 0);
     }
-    function kpis(summary, commercial, visibleRows) {
-        const items = mode === 'rendicion' ? [
+    function kpis(summary) {
+        const items = [
             ['Total rendido', money(summary.amount), 'Importe pagado registrado'],
             ['Total registros', number(summary.count), 'Solicitudes de la selección'],
             ['Total depositado', money(summary.deposited), 'Con depósito registrado'],
             ['Registros depositados', number(summary.depositedCount), 'Solicitudes con depósito'],
             ['Total sustentado', money(summary.supported), 'Importe pagado con sustento'],
             ['Registros sustentados', number(summary.supportedCount), 'Incluye sustentos por revisar'],
-        ] : [['SUB TOTAL + FEE', money(summary.amount), 'Importe total cotizado'],
-            ['Total cotizaciones', number(summary.count), 'Solicitudes de la selección'],
-            ['Pendiente de aprobación', money(model.sum(commercial.pending, r => r.monto)), number(commercial.pending.length) + ' cotizaciones'],
-            ['Aprobadas por ejecutar', money(model.sum(commercial.approved, r => r.monto)), number(commercial.approved.length) + ' cotizaciones'],
-            ['Atendidas y ejecutadas', money(model.sum(commercial.attended, r => r.monto)), number(commercial.attended.length) + ' cotizaciones'],
-            ['Anuladas', money(model.sum(visibleRows.filter(r => r.pestania === 'cancelado'), r => r.monto)), 'Fuera de las etapas activas']];
+        ];
         const container = get('df-kpis'); container.replaceChildren();
         items.forEach(([title, value, hint]) => {
             const card = node('article'), figure = node('strong', value); figure.title = value;
@@ -288,7 +283,7 @@
     }
     function clearAll() {
         KEYS.forEach(key => {
-            state[key] = '';
+            state[key] = key === 'month' && mode === 'cotizaciones' ? data.mes_actual : '';
             if (menus.has(key)) syncFilter(key);
             else if (get('df-' + key)) get('df-' + key).value = '';
         });
@@ -299,8 +294,9 @@
     function render() {
         const filtered = model.filter(rows, mode, state), summary = model.summary(filtered, mode);
         const commercial = mode === 'cotizaciones' ? model.cotizaciones(filtered) : null;
-        kpis(summary, commercial, filtered); donut(summary.operators);
+        donut(summary.operators);
         if (mode === 'cotizaciones') {
+            window.NucleusRefacturables?.(filtered);
             bars('df-budget-chart', commercial.budgets);
             const conceptos = model.conceptos(filtered);
             const total = conceptos.reduce((sum, item) => sum + item.count, 0);
@@ -320,6 +316,7 @@
             bars('df-states-chart', [...summary.states].sort((a,b) => b.count-a.count), {horizontal: true, limit: 12, measure: 'count', filterKey: 'state'});
             cotTrend(commercial.trend);
         } else {
+            kpis(summary);
             bars('df-budget-chart', summary.budgets, {filterKey: 'budget'});
             bars('df-person-chart', summary.people, {horizontal: true, limit: 8, filterKey: 'person'});
             trendChart(filtered);
@@ -337,6 +334,7 @@
         selectKeys.forEach(key => {
             const select = get('df-' + key), list = values(key).sort((a,b) => labelFor(key,a).localeCompare(labelFor(key,b)));
             if (mode === 'cotizaciones') {
+                if (key === 'month' && data.mes_actual && !list.includes(data.mes_actual)) list.unshift(data.mes_actual);
                 multiFilter(key, select, list);
                 return;
             }
@@ -345,7 +343,7 @@
             select.addEventListener('change', event => { state[key] = event.target.value; render(); });
         });
         const months = values('month');
-        if (data.mes_actual && months.includes(data.mes_actual)) {
+        if (data.mes_actual && (mode === 'cotizaciones' || months.includes(data.mes_actual))) {
             state.month = data.mes_actual;
             if (menus.has('month')) syncFilter('month');
             else get('df-month').value = state.month;
@@ -364,7 +362,7 @@
         get('df-clear').addEventListener('click', clearAll);
         get('df-trend-period')?.addEventListener('change', render);
         new MutationObserver(render).observe(document.body, {attributes: true, attributeFilter: ['class']});
-        new ResizeObserver(fitKpis).observe(get('df-kpis'));
+        if (get('df-kpis')) new ResizeObserver(fitKpis).observe(get('df-kpis'));
         render();
     }
     initialize();
