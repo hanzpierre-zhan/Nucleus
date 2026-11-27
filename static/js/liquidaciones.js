@@ -11,6 +11,7 @@
   const fecha = t => { const s = String(t || ''); return s ? s.replace('T', ' ').slice(0, 16) : '—'; };
   const dialogo = $('cc-solicitud-dialogo');
   const CLIENTES = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
+  const nombreProyecto = valor => CLIENTES[valor] ? 'FLM - ' + CLIENTES[valor] : valor;
   const COLOR_EJECUCION = {'pendiente': 'pendiente', 'pdt. ejecutar': 'pendiente',
     'en ejecucion': 'curso', 'ejecutado en campo': 'campo', 'sustentado': 'sustentado'};
 
@@ -37,17 +38,44 @@
     a.append(icono(simbolo), el('span', null, texto)); return a;
   }
 
+  const EXPORTACION = {
+    cotizaciones: {
+      'Correlativo': c => c.correlativo, 'N.º cotización': c => c.cotizacion,
+      'Proyecto': c => nombreProyecto(c.cliente), 'Site': c => c.site, 'Número de Ticket': c => c.wo,
+      'Descripción': c => c.objetivo, 'Fecha de solicitud': c => fechaSolicitud(c), 'Tipo de gasto': c => c.tipo_presupuesto,
+      'Estado de cotización': c => c.pestana, 'Estado de ejecución': c => c.estado_operativo,
+      'Correo de validación del cliente': c => c.nombre_correo,
+      'Número de factura del proveedor': c => c.numero_factura_proveedor,
+      'Número de OC del proveedor': c => c.numero_oc_proveedor,
+      'Monto de factura del proveedor': c => c.monto_factura_proveedor === '' || c.monto_factura_proveedor == null
+        ? null : Number(c.monto_factura_proveedor),
+      'Evidencias adicionales': c => (c.evidencias_adicionales || []).map(a => a.nombre).join(' · '),
+      'Avance %': c => c.avance, 'AJB / EJB': c => c.seguimiento.codigo_ajb_ejb, 'N.º Expense': c => c.seguimiento.numero_expense,
+      'Estado de liquidación': c => c.seguimiento.estado_liquidacion || 'Pendiente',
+      'Mes de cierre': c => c.seguimiento.mes_cierre, 'N.º PO': c => c.seguimiento.numero_po,
+      'Observación': c => c.seguimiento.observacion,
+      'Subtotal sin FEE': c => c.subtotal_sin_fee === '' || c.subtotal_sin_fee == null ? null : Number(c.subtotal_sin_fee),
+      'Sub total + FEE': c => Number(c.monto) || 0,
+    },
+    cajachica: {
+      'Código': c => c.codigo, 'Técnico': c => c.tecnico, 'DNI': c => c.documento, 'Proyecto': c => c.proyecto,
+      'Cotización': c => c.cotizacion, 'Site': c => c.site, 'CM/PM/PLM': c => c.wo,
+      'Tipo de gasto': c => c.tipos.join(' · '), 'Fecha de solicitud': c => fechaSolicitud(c),
+      'Estado de Caja Chica': c => c.estado, 'Depositado el': c => fecha(c.depositado_en),
+      'Solicitado': c => Number(c.total) || 0, 'Depositado': c => Number(c.depositado) || 0,
+      'Gastado': c => Number(c.gastado) || 0, 'Devuelto': c => Number(c.devuelto) || 0,
+      'Boletas': c => c.boletas.length, 'Evidencias': c => c.evidencias.length,
+    },
+  };
+  const IMPORTES = new Set(['Solicitado', 'Depositado', 'Gastado', 'Devuelto', 'Monto de factura del proveedor']);
+
   // ── Columnas por pestaña ──
   const COL = {
     cotizaciones: [
-      {id: 'numero', titulo: 'N.º / cliente', ancho: 'minmax(170px, 1.1fr)', filtro: c => CLIENTES[c.cliente] || c.cliente || '', texto: c => c.cotizacion + ' ' + c.correlativo + ' ' + (CLIENTES[c.cliente] || c.cliente),
-       celda: c => { const s = el('span', 'lq-dos'); const a = el('a', 'cc-codigo-link', c.cotizacion); a.href = '#'; a.addEventListener('click', e => { e.preventDefault(); verCotizacion(c); });
-         s.append(a, el('small', null, c.correlativo + ' · ' + (CLIENTES[c.cliente] || c.cliente || '—'))); return s; }},
-      {id: 'site', titulo: 'Site / Número de Ticket', ancho: 'minmax(195px, 1.1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
-       celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', null, c.site || '—'), el('small', null, c.wo || 'Sin WO')); return s; }},
+      {id: 'numero', titulo: 'N.º cotización', ancho: 'minmax(170px, 1.1fr)', texto: c => c.cotizacion || '—',
+       celda: c => { const a = el('a', 'cc-codigo-link', c.cotizacion || '—'); a.href = '#'; a.addEventListener('click', e => { e.preventDefault(); verCotizacion(c); }); return a; }},
       {id: 'estado', titulo: 'Estado de cotización', ancho: 'minmax(185px, 1fr)', texto: c => c.pestana || '—',
        celda: c => el('span', 'cc-chip lq-p-' + c.pestana_clave, c.pestana || '—')},
-      {id: 'pago', titulo: 'Estado de pago', ancho: 'minmax(175px, .8fr)', texto: c => c.estado_pago || '—'},
       {id: 'ejecucion', titulo: 'Estado de ejecución', ancho: 'minmax(180px, .8fr)', texto: c => c.estado_operativo || '—',
        celda: c => {
          const estado = c.estado_operativo || '—';
@@ -64,32 +92,30 @@
            chipEvid('Factura + OC', e.factura, c.facturas.length || c.ocs.length ? () => verCotizacion(c) : null, 'Factura y OC del proveedor'));
          return s;
        }},
-      {id: 'adicionales', titulo: 'Evidencia adicional', ancho: 'minmax(165px, 1fr)',
+      {id: 'adicionales', titulo: 'Evidencias adicionales', ancho: 'minmax(165px, 1fr)',
        texto: c => (c.evidencias_adicionales || []).map(a => a.nombre).join(' · '),
        celda: c => {
          const cantidad = (c.evidencias_adicionales || []).length;
          return chipEvid(cantidad ? 'Adjuntos (' + cantidad + ')' : '+ Adjuntar',
            cantidad ? 'Completo' : 'No aplica', () => verCotizacion(c, 'adicionales'), 'Adjuntar o ver evidencia adicional');
        }},
-      {id: 'avance', titulo: 'Avance', ancho: 'minmax(90px, .6fr)', num: true, filtro: c => c.avance >= 100 ? '100 %' : c.avance >= 50 ? '50 a 99 %' : 'Menos de 50 %', texto: c => c.avance + ' %', orden: c => c.avance,
+      {id: 'avance', titulo: 'Avance %', ancho: 'minmax(90px, .6fr)', num: true, filtro: c => c.avance >= 100 ? '100 %' : c.avance >= 50 ? '50 a 99 %' : 'Menos de 50 %', texto: c => c.avance + ' %', orden: c => c.avance,
        celda: c => { const s = el('span', 'lq-avance'); const b = el('span', 'lq-avance-barra'); const f = el('span'); f.style.width = c.avance + '%'; f.dataset.nivel = c.avance >= 100 ? 'ok' : c.avance >= 50 ? 'medio' : 'bajo'; b.append(f); s.append(b, el('small', null, c.avance + ' %')); return s; }},
       {id: 'liquidacion', titulo: 'Estado de liquidación', ancho: 'minmax(195px, .8fr)', texto: c => c.seguimiento.estado_liquidacion || 'Pendiente'},
+      {id: 'subtotal', titulo: 'Subtotal sin FEE', ancho: 'minmax(155px, .8fr)', num: true,
+       texto: c => EXPORTACION.cotizaciones['Subtotal sin FEE'](c) === null ? '—' : dinero(c.subtotal_sin_fee),
+       orden: c => EXPORTACION.cotizaciones['Subtotal sin FEE'](c) ?? -Infinity},
       {id: 'monto', titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, sinFiltro: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
        celda: c => el('strong', 'cc-num', dinero(c.monto))},
     ],
     cajachica: [
-      {id: 'codigo', titulo: 'Código / técnico', ancho: 'minmax(190px, 1.2fr)', filtro: c => c.tecnico || '', texto: c => c.codigo + ' ' + c.tecnico + ' ' + c.documento,
-       celda: c => { const s = el('span', 'lq-dos'); const a = el('a', 'cc-codigo-link', c.codigo); a.href = '#'; a.addEventListener('click', e => { e.preventDefault(); verCajaChica(c); });
-         s.append(a, el('small', null, c.tecnico + ' · ' + c.proyecto)); return s; }},
+      {id: 'codigo', titulo: 'Código', ancho: 'minmax(135px, 1fr)', texto: c => c.codigo || '—',
+       celda: c => { const a = el('a', 'cc-codigo-link', c.codigo || '—'); a.href = '#'; a.addEventListener('click', e => { e.preventDefault(); verCajaChica(c); }); return a; }},
       {id: 'cotizacion', titulo: 'Cotización', ancho: 'minmax(150px, .9fr)', texto: c => c.cotizacion || '—'},
-      {id: 'site', titulo: 'Site / CM', ancho: 'minmax(170px, 1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
-       celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', null, c.site || '—'), el('small', null, c.wo || '—')); return s; }},
       {id: 'estado', titulo: 'Estado de Caja Chica', ancho: 'minmax(185px, .8fr)', texto: c => c.estado, celda: c => el('span', 'cc-chip lq-s-' + c.estado_clave.toLowerCase(), c.estado)},
-      {id: 'tipos', titulo: 'Tipo', ancho: 'minmax(120px, .7fr)', texto: c => c.tipos.join(' · '),
+      {id: 'tipos', titulo: 'Tipo de gasto', ancho: 'minmax(120px, .7fr)', texto: c => c.tipos.join(' · '),
        celda: c => { const s = el('span', 'lq-evids'); c.tipos.forEach(t => s.append(el('span', 'cc-chip ' + (t === 'Refacturable' ? 'cc-refacturable' : 'cc-gasto-cobra'), t))); return s; }},
-      {id: 'montos', titulo: 'Depositado · gastado · devuelto', ancho: 'minmax(210px, 1.2fr)', num: true, sinFiltro: true, texto: c => dinero(c.depositado) + ' ' + dinero(c.gastado), orden: c => Number(c.depositado) || 0,
-       celda: c => { const s = el('span', 'lq-dos lq-num'); s.append(el('strong', null, c.depositado ? dinero(c.depositado) : 'Sin depósito'), el('small', null, 'Gastó ' + dinero(c.gastado) + ' · devolvió ' + dinero(c.devuelto))); return s; }},
-      {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(330px, 2fr)', texto: c => '', sinFiltro: true,
+      {id: 'evidencias', titulo: 'Archivos y evidencias', ancho: 'minmax(330px, 2fr)', texto: c => '', sinFiltro: true,
        celda: c => {
          const s = el('span', 'lq-evids'), deposito = !!c.depositado;
          s.append(chipEvid('Depósito', c.deposito ? 'Completo' : deposito ? 'Pendiente' : 'No aplica', c.deposito ? () => abrir(c.deposito.url) : null),
@@ -102,20 +128,48 @@
     ],
   };
 
+  // Conserva las celdas visuales y añade los campos del Excel que no tienen columna propia.
+  for (const [origen, campos] of Object.entries(EXPORTACION)) {
+    const titulos = new Set(COL[origen].map(col => col.titulo));
+    for (const [indice, [titulo, leer]] of Object.entries(campos).entries()) {
+      if (titulos.has(titulo)) continue;
+      const importe = IMPORTES.has(titulo);
+      const numerico = importe || ['Boletas', 'Evidencias'].includes(titulo);
+      COL[origen].push({
+        id: 'excel-' + indice, titulo, ancho: titulo.length > 22 ? 'minmax(215px, 1fr)' : 'minmax(145px, 1fr)',
+        num: numerico,
+        texto: c => {
+          const valor = leer(c);
+          return valor == null || valor === '' ? '—' : importe ? dinero(valor) : String(valor);
+        },
+        orden: numerico ? c => leer(c) ?? -Infinity : undefined,
+        celda: titulo === 'Proyecto' ? c => {
+          const nombre = leer(c) || '—';
+          const marca = window.NucleusProjectBadge?.brand(nombre);
+          return el('span', marca ? 'project-badge project-badge--' + marca : '', nombre);
+        } : undefined,
+      });
+    }
+    const identificadores = origen === 'cotizaciones'
+      ? ['N.º cotización', 'Correlativo', 'Proyecto', 'Site', 'Número de Ticket']
+      : ['Código', 'Técnico', 'DNI', 'Proyecto', 'Cotización', 'Site', 'CM/PM/PLM'];
+    const columnas = COL[origen];
+    COL[origen] = [
+      ...identificadores.map(titulo => columnas.find(col => col.titulo === titulo)),
+      ...columnas.filter(col => !identificadores.includes(col.titulo)),
+    ];
+  }
+
   // ── Filtros rápidos (chips) ──
   const CHIPS = {
-    cotizaciones: [['', 'Todas'], ['p:cliente', 'Cliente'], ['p:cajachica', 'Caja chica'], ['p:sustentar', 'Operaciones'], ['p:atendido', 'Atendido'],
-      ['incompleto', 'Expediente incompleto'], ['listo', 'Listo para liquidar']],
-    cajachica: [['', 'Todas'], ['s:VALIDADO', 'Por depositar'], ['s:DEPOSITADO', 'Depositada'], ['s:POR_DEVOLVER', 'Por devolver'], ['s:SUSTENTO', 'Sustentada'], ['s:ARCHIVADO', 'Archivada'],
-      ['sinfoto', 'Sin foto de depósito'], ['completo', 'Expediente completo']],
+    cotizaciones: [['incompleto', 'Expediente incompleto'], ['listo', 'Listo para liquidar']],
+    cajachica: [['sinfoto', 'Sin foto de depósito'], ['completo', 'Expediente completo']],
   };
   function pasaChip(c, clave = chip) {
     if (!clave) return true;
     if (tab === 'cotizaciones') {
-      if (clave.startsWith('p:')) return c.pestana_clave === clave.slice(2);
       return clave === 'listo' ? c.avance >= 100 : c.avance < 100;
     }
-    if (clave.startsWith('s:')) return c.estado_clave === clave.slice(2);
     if (clave === 'sinfoto') return !!c.depositado && !c.deposito;
     return !!c.deposito && c.boletas.length > 0 && c.evidencias.length > 0 && (!(Number(c.devuelto) > 0) || !!c.devolucion);
   }
@@ -139,7 +193,7 @@
     const gastos = [...new Set(filas.flatMap(gastosDe).filter(Boolean).map(nombreGasto))].sort();
     const formatoMes = new Intl.DateTimeFormat('es-PE', {month: 'long', year: 'numeric', timeZone: 'UTC'});
     for (const [campo, opciones, etiqueta] of [
-      [filtroProyecto, proyectos, v => CLIENTES[v] || v],
+      [filtroProyecto, proyectos, nombreProyecto],
       [filtroMes, meses, v => formatoMes.format(new Date(v + '-01T00:00:00Z'))],
       [filtroGasto, gastos, v => v],
     ]) {
@@ -200,8 +254,6 @@
   }
   document.addEventListener('click', e => { const c = $('lq-filtro'); if (c && !c.hidden && !c.contains(e.target)) c.hidden = true; });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('lq-filtro')) $('lq-filtro').hidden = true; });
-  const montoDe = c => Number(tab === 'cotizaciones' ? c.monto : c.depositado) || 0;
-
   function pintar() {
     const filasFiltradas = visibles();
     document.querySelectorAll('.lq-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
@@ -211,34 +263,8 @@
       const suma = filas.reduce((s, c) => s + (Number(t === 'cotizaciones' ? c.monto : c.depositado) || 0), 0);
       const p = document.querySelector('[data-plata="' + t + '"]'); p.textContent = plata(suma); p.title = 'Total: ' + dinero(suma);
     }
-    // Tarjetas por estado (monto y casos), como en el Liquidaciones anterior; clic = filtrar.
-    // Mismo color e ícono que la pestaña del módulo (Cotizaciones / Caja Chica).
-    const COLOR_TARJETA = {
-      'p:registro': ['#64748b', 'fa-pen-to-square'], 'p:cliente': ['#f08a1c', 'fa-user-check'], 'p:cajachica': ['#16a34a', 'fa-wallet'],
-      'p:sustentar': ['#2563eb', 'fa-screwdriver-wrench'], 'p:atendido': ['#0d9488', 'fa-circle-check'],
-      's:VALIDADO': ['#16a34a', 'fa-building-columns'], 's:DEPOSITADO': ['#f08a1c', 'fa-receipt'], 's:POR_DEVOLVER': ['#eab308', 'fa-rotate-left'],
-      's:SUSTENTO': ['#7c3aed', 'fa-folder-open'], 's:ARCHIVADO': ['#0891b2', 'fa-box-archive'], '': ['#1d4ed8', 'fa-layer-group']};
-    const tarjetas = $('lq-tarjetas'); tarjetas.replaceChildren();
-    tarjetas.hidden = tab === 'cajachica';
-    const esEstado = clave => clave.startsWith('p:') || clave.startsWith('s:');
-    const estados = tarjetas.hidden ? [] : [...CHIPS[tab].filter(([clave]) => esEstado(clave)), ['', 'Total']];
-    // Cotizaciones: también la pestaña Registro si hay casos ahí.
-    if (tab === 'cotizaciones' && lista().some(c => c.pestana_clave === 'registro')) estados.unshift(['p:registro', 'Registro']);
-    for (const [clave, texto] of estados) {
-      const filas = clave ? filasFiltradas.filter(c => pasaChip(c, clave)) : filasFiltradas;
-      const suma = filas.reduce((t, c) => t + montoDe(c), 0);
-      const t = el('button', 'lq-tarjeta' + (chip === clave && clave ? ' activo' : '') + (clave ? '' : ' lq-tarjeta-total')); t.type = 'button';
-      const [color, simbolo] = COLOR_TARJETA[clave] || ['#94a3b8', 'fa-circle'];
-      t.style.setProperty('--lq-color', color);
-      t.title = (clave ? 'Filtrar por ' + texto : 'Quitar el filtro') + ' · ' + dinero(suma) + ' · ' + filas.length + (filas.length === 1 ? ' caso' : ' casos');
-      // Compacta, como las pestañas: nombre y casos arriba, monto abajo.
-      const nombre = el('small'); nombre.append(icono(simbolo), ' ' + texto, el('span', 'lq-tarjeta-n', String(filas.length)));
-      t.append(nombre, el('strong', null, plata(suma)));
-      t.addEventListener('click', () => { chip = clave && chip !== clave ? clave : ''; pintar(); });
-      tarjetas.append(t);
-    }
     const chips = $('lq-chips'); chips.replaceChildren();
-    for (const [clave, texto] of CHIPS[tab].filter(([clave]) => clave && !esEstado(clave))) {
+    for (const [clave, texto] of CHIPS[tab]) {
       const b = el('button', 'lq-chip' + (chip === clave ? ' activo' : '')); b.type = 'button';
       const n = filasFiltradas.filter(c => pasaChip(c, clave)).length;
       b.append(el('span', null, texto), el('strong', null, String(n)));
@@ -328,25 +354,8 @@
   $('lq-zip').addEventListener('click', () => descargarZip([...seleccion[tab]]));
   $('lq-excel').addEventListener('click', () => {
     if (typeof XLSX === 'undefined') { avisar('Librería de exportación no disponible.'); return; }
-    const filas = visibles().map(c => tab === 'cotizaciones' ? {
-      'Correlativo': c.correlativo, 'N.º cotización': c.cotizacion, 'Cliente': CLIENTES[c.cliente] || c.cliente, 'Site': c.site, 'Número de Ticket': c.wo,
-      'Descripción': c.objetivo, 'Fecha de solicitud': fechaSolicitud(c), 'Tipo de gasto': c.tipo_presupuesto,
-      'Estado de cotización': c.pestana, 'Estado de pago': c.estado_pago, 'Estado de ejecución': c.estado_operativo,
-      'Cotizada': c.fechas.cotizada, 'Aprobada': c.fechas.aprobada, 'Pagada': c.fechas.pagada, 'Facturas proveedor': c.fechas.facturas,
-      'Cotización PDF': c.evidencias.cotizacion, 'Correo de validación del cliente': c.evidencias.correo,
-      'Reporte fotográfico de Operaciones': c.evidencias.sustento, 'Factura y OC del proveedor': c.evidencias.factura,
-      'Evidencias adicionales': (c.evidencias_adicionales || []).map(a => a.nombre).join(' · '),
-      'Avance %': c.avance, 'AJB / EJB': c.seguimiento.codigo_ajb_ejb, 'N.º Expense': c.seguimiento.numero_expense,
-      'Estado de liquidación': c.seguimiento.estado_liquidacion || 'Pendiente', 'Mes de cierre': c.seguimiento.mes_cierre, 'N.º PO': c.seguimiento.numero_po,
-      'Observación': c.seguimiento.observacion, 'Sub total + FEE': Number(c.monto) || 0,
-    } : {
-      'Código': c.codigo, 'Técnico': c.tecnico, 'DNI': c.documento, 'Proyecto': c.proyecto, 'Cotización': c.cotizacion, 'Site': c.site, 'CM/PM/PLM': c.wo,
-      'Tipo de gasto': c.tipos.join(' · '), 'Fecha de solicitud': fechaSolicitud(c),
-      'Estado de Caja Chica': c.estado, 'Depositado el': fecha(c.depositado_en), 'Solicitado': Number(c.total) || 0,
-      'Depositado': Number(c.depositado) || 0, 'Gastado': Number(c.gastado) || 0, 'Devuelto': Number(c.devuelto) || 0,
-      'Foto depósito': c.deposito ? 'Sí' : 'No', 'Boletas': c.boletas.length, 'Evidencias': c.evidencias.length,
-      'Captura devolución': c.devolucion ? 'Sí' : 'No', 'Correo validación': c.correo ? 'Sí' : 'No',
-    });
+    const filas = visibles().map(c => Object.fromEntries(
+      Object.entries(EXPORTACION[tab]).map(([titulo, leer]) => [titulo, leer(c)])));
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, XLSX.utils.json_to_sheet(filas), tab === 'cotizaciones' ? 'Cotizaciones' : 'Caja Chica');
     XLSX.writeFile(libro, 'Liquidaciones_' + (tab === 'cotizaciones' ? 'Cotizaciones' : 'CajaChica') + '.xlsx');

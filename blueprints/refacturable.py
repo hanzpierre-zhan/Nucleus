@@ -423,7 +423,7 @@ def _importe(valor):
 
 
 def _sub_total_sin_fee(datos):
-    """Suma cantidad × valor unitario de los ítems de la cotización (sin FEE).
+    """Suma el valor de los ítems antes del FEE, con respaldo para ítems históricos.
 
     Las cotizaciones generadas guardan sus ítems en ITEMS_JSON. Las que no los
     tienen (registros históricos importados) devuelven None: no se inventa un
@@ -440,8 +440,15 @@ def _sub_total_sin_fee(datos):
     for item in items:
         if not isinstance(item, dict):
             continue
+        base = _monto(item.get('valor_final'))
+        if base is not None:
+            total += base
+            hay = True
+            continue
         cantidad = _monto(item.get('cantidad'))
-        unitario = _monto(item.get('valor_unitario'))
+        unitario = _monto(item.get('valor_unitario_final'))
+        if unitario is None:
+            unitario = _monto(item.get('valor_unitario'))
         if cantidad is None or unitario is None:
             continue
         total += cantidad * unitario
@@ -844,10 +851,14 @@ def v2_cotizaciones():
             'tipo_presupuesto': str(datos.get('TIPO DE GASTO') or '').strip(),
             'estado_operativo': cot_new.estado_operativo(datos), 'estatus': r.get('estatus') or '',
             'monto': monto_cotizacion(datos.get('SUB TOTAL + FEE'), datos.get('ITEMS_JSON')) or '0.00',
+            'subtotal_sin_fee': r.get('sub_total') or '',
             'fechas': {'solicitud': datos.get('FECHA') or '', 'cotizada': datos.get('FECHA COTIZADO') or datos.get('FECHA') or '', 'enviada': datos.get('FECHA ENVIO CLIENTE') or '',
                        'aprobada': datos.get('FECHA APROBACION') or '', 'pagada': datos.get('FECHA PAGO') or '',
                        'facturas': datos.get('FECHA FACTURA PROVEEDOR') or '', 'atendida': datos.get('FECHA ATENCION') or ''},
             'correo_cliente': r.get('correo_cliente') or '', 'nombre_correo': r.get('nombre_correo') or '',
+            'numero_factura_proveedor': datos.get('NUMERO FACTURA PROVEEDOR') or '',
+            'numero_oc_proveedor': datos.get('NUMERO OC PROVEEDOR') or '',
+            'monto_factura_proveedor': r.get('monto_factura_proveedor') or '',
             'facturas': facturas, 'ocs': ocs, 'generada': bool(r.get('cotizacion_generada')),
             'tiene_sustento': bool(r.get('tiene_sustento')),
             'evidencias_adicionales': datos.get('_EVIDENCIAS_LIQUIDACION') or [],
