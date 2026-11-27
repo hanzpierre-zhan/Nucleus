@@ -114,11 +114,10 @@ def test_actualizar_dataper_en_mobile(app, cuadrilla):
         sesion['form_documento'] = '47770006'
         sesion['form_personal_id'] = ids['Supervisora Seis']
         sesion['form_verificar_dataper'] = True
-    assert cli.get('/form-pruebas/').location.endswith('/form-pruebas/dataper')
-    assert cli.post('/form-pruebas/dataper', headers=csrf_header,
-                    data={**datos, 'CARGO': 'SUPERVISOR', 'foto': _foto()}).status_code == 302
+    # Solo Técnico Junior y Especialista deben actualizar; el supervisor entra directo.
+    assert cli.get('/form-pruebas/dataper').location.endswith('/form-pruebas/')
     inicio = cli.get('/form-pruebas/')
-    assert inicio.status_code == 200 and b'foto-perfil-mobile' in inicio.data
+    assert inicio.status_code == 200
     assert b'asistencia-action' not in inicio.data
 
 

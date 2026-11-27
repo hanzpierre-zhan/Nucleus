@@ -3,7 +3,7 @@
 {% block content %}
 {# Vista en prueba con el diseño de Caja Chica: reutiliza caja-chica.css, cot-new.css y sus clases. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=107">
-<link rel="stylesheet" href="/static/css/cot-new.css?v=45">
+<link rel="stylesheet" href="/static/css/cot-new.css?v=47">
 <section class="cc-gestion cn-gestion vn-gestion{{ ' vn-dataper' if slug == 'dataper' }}" aria-label="{{ titulo }}">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar en {{ titulo }}" aria-label="Buscar">
@@ -65,5 +65,5 @@
   </dialog>
   <script id="vn-config" type="application/json">{{ {'slug': slug, 'titulo': titulo, 'proyecto': proyecto_id, 'clave': campo_clave, 'suma': suma, 'unidad': unidad, 'editar': puede_editar, 'clave_portal': puede_clave, 'pestanas': pestanas, 'proyectos': proyectos or [], 'listas': listas or {}} | tojson }}</script>
 </section>
-<script src="/static/js/vista-nueva.js?v=17" defer></script>
+<script src="/static/js/vista-nueva.js?v=18" defer></script>
 {% endblock %}

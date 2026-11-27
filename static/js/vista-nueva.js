@@ -362,7 +362,7 @@
     const visibles = base();
     if (!visibles.length) { lista.append(el('p', 'cc-vacio', filas.length ? 'Ningún registro coincide con los filtros.' : 'No hay registros.')); return; }
     for (const f of visibles.slice(0, limite)) {
-      const fila = el('div', 'cc-card cc-resumen cc-fila-solicitud');
+      const fila = el('div', 'cc-card cc-resumen cc-fila-solicitud' + (esUsuarios ? ' vn-fila-usuario' : ''));
       if (eliminar) {
         const celda = el('span', 'cc-seleccion');
         const check = Object.assign(el('input'), {type: 'checkbox', checked: seleccionadas.has(f.key)});
@@ -380,7 +380,8 @@
       fila.append(controles);
       for (const c of columnas) {
         const texto = valor(f, c);
-        const celda = el('span');
+        const celda = el('span', esUsuarios ? 'vn-usuario-texto' : '');
+        if (esUsuarios && texto) celda.title = texto;
         const marca = esDataper && c === 'PROYECTO' ? window.NucleusProjectBadge?.brand(texto) : '';
         if (marca) celda.append(el('span', 'project-badge project-badge--' + marca, texto));
         else if (esDataper && c === 'ESTADO' && ['ACTIVO', 'CESADO'].includes(texto.trim())) {

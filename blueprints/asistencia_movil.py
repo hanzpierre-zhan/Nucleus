@@ -51,7 +51,8 @@ def preparar_sesion_movil():
     g.perfil_mobile_foto = bool(datos.get('_foto_perfil_mobile'))
     g.perfil_mobile_requiere_asistencia = perfil.requiere_asistencia(datos)
     if session.get('form_verificar_dataper'):
-        if datos.get('_perfil_mobile_version') != perfil.VERSION:
+        # Solo Técnico Junior y Técnico Especialista deben actualizar sus datos.
+        if g.perfil_mobile_requiere_asistencia and datos.get('_perfil_mobile_version') != perfil.VERSION:
             destino = url_for('asistencia_movil.actualizar_dataper')
             if request.method == 'GET':
                 return redirect(destino)
@@ -151,7 +152,7 @@ def actualizar_dataper():
     fila = db.session.get(NucleusData, g.tecnico['id'], with_for_update=request.method == 'POST')
     datos = perfil.leer(fila)
     editando = request.endpoint == 'asistencia_movil.editar_perfil'
-    if not editando and datos.get('_perfil_mobile_version') == perfil.VERSION:
+    if not editando and (datos.get('_perfil_mobile_version') == perfil.VERSION or not perfil.requiere_asistencia(datos)):
         return redirect(url_for('form_pruebas.inicio'))
     opciones = perfil.opciones(datos)
     valores = perfil.valores(datos)

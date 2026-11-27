@@ -325,3 +325,11 @@ body.dark-mode .cn-sla-rojo { color: #fca5a5; } body.dark-mode .cn-sla-ok { colo
 .vn-estado { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 8px; font-weight: 700; }
 .vn-estado-activo { color: #15803d; background: #dcfce7; }
 .vn-estado-cesado { color: #991b1b; background: #fee2e2; }
+.vn-gestion .cc-tabla .vn-fila-usuario { padding-block: 6px; }
+.vn-usuario-texto {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
