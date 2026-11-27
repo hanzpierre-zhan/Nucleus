@@ -84,7 +84,7 @@ def test_ruta_dashboard_rendicion(app, auth_client):
             assert r.status_code == 200, r.status_code
             html = r.get_data(as_text=True)
             assert 'data-finance="rendicion"' in html
-            assert 're-entel' in html and 're-claro' in html and 're-integratel' in html
+            assert 'cc-kpis' in html and 'cc-tecnicos' in html and 'cc-antiguedad' in html
             assert 'di-secondary' not in html
             assert 'dq-panel' not in html
             assert 'DASH-REND-TEST' in html

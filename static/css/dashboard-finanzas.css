@@ -162,3 +162,11 @@
 }
 .df-cancel-switch input:checked { background: var(--di-blue); }
 .df-cancel-switch input:checked::after { transform: translateX(13px); background: #fff; }
+
+/* KPIs de Caja Chica con el mismo estilo que las tarjetas del dashboard de Claro (planas, número grande oscuro). */
+.di-page.di-finance .df-kpis > article:nth-child(n) { background: var(--ios-card-bg); border: 1px solid var(--ios-hairline); border-radius: 12px; padding: 12px 14px; box-shadow: none; }
+.di-page.di-finance .df-kpis > article:nth-child(n):hover { border-color: var(--ios-secondary); }
+.di-page.di-finance .df-kpis > article:nth-child(n)::after { content: none; }
+.di-page.di-finance .df-kpis > article:nth-child(n) span { font-size: 12.5px; font-weight: 600; letter-spacing: 0; color: var(--ios-secondary); margin: 0 0 8px; }
+.di-page.di-finance .df-kpis > article:nth-child(n) strong { font-size: 26px; font-weight: 700; letter-spacing: -.3px; line-height: 1.1; margin: 0; color: var(--ios-label); }
+.di-page.di-finance .df-kpis > article:nth-child(n) small { font-size: 11px; color: var(--ios-secondary); margin-top: 6px; }

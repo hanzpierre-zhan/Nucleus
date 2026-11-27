@@ -294,8 +294,14 @@
     function render() {
         const filtered = model.filter(rows, mode, state), summary = model.summary(filtered, mode);
         const commercial = mode === 'cotizaciones' ? model.cotizaciones(filtered) : null;
-        donut(summary.operators);
-        if (mode === 'cotizaciones') {
+        if (mode === 'cotizaciones' && window.CotPuntual) {
+            // Vista puntual (estilo Claro): KPIs, embudo, antigüedad, clientes y evolución.
+            window.CotPuntual.render(filtered, {
+                filtrar: cambios => model.filter(rows, mode, {...state, ...cambios}),
+                mesesElegidos: () => seleccion('month'), redibujar: render,
+            });
+        } else if (mode === 'cotizaciones') {
+            donut(summary.operators);
             window.NucleusRefacturables?.(filtered);
             bars('df-budget-chart', commercial.budgets);
             const conceptos = model.conceptos(filtered);
@@ -316,6 +322,7 @@
             bars('df-states-chart', [...summary.states].sort((a,b) => b.count-a.count), {horizontal: true, limit: 12, measure: 'count', filterKey: 'state'});
             cotTrend(commercial.trend);
         } else {
+            donut(summary.operators);
             kpis(summary);
             bars('df-budget-chart', summary.budgets, {filterKey: 'budget'});
             bars('df-person-chart', summary.people, {horizontal: true, limit: 8, filterKey: 'person'});

@@ -1,15 +1,13 @@
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=8">
+<link rel="stylesheet" href="/static/css/dashboard-finanzas.css?v=9">
 <link rel="stylesheet" href="/static/css/dashboard-rendicion-ejecutivo.css?v=8">
 <link rel="stylesheet" href="/static/css/dashboard-visual.css?v=4">
 <script src="/static/js/dashboard-visual.js?v=3"></script>
-<section class="di-page dv-unified di-finance dv-finance finance-rendicion rend-executive" data-finance="rendicion">
+<link rel="stylesheet" href="/static/css/dashboard-dor.css?v=6">
+<section class="di-page dv-unified di-finance dv-finance finance-rendicion cc-puntual" data-finance="rendicion">
   {% from '_dashboard_header.html' import dashboard_header with context %}
-  {% call dashboard_header('Caja Chica', 'Seguimiento de solicitudes', '', 4) %}
-  {% endcall %}
-  {% if refacturables is not none %}{% include '_dashboard_refacturables.html' %}{% endif %}
-  <h2 class="df-history-title">Historial de rendici&#243;n</h2>
+  {% call dashboard_header('Caja Chica', 'Depósitos, sustento y pendientes', '', 4) %}
   <div class="df-toolbar" aria-label="Filtros del dashboard">
     <label>Mes de solicitud<select id="df-month"><option value="">Todos los meses</option></select></label>
     <label>Operador<select id="df-operator"><option value="">Todos los operadores</option></select></label>
@@ -19,22 +17,34 @@
     {% if modo == 'cotizaciones' %}<label>Proyecto<select id="df-project"><option value="">Todos los proyectos</option></select></label>{% endif %}
     <button type="button" id="df-clear" class="action-pill pill-neutral" title="Limpiar filtros"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Limpiar</span></button>
   </div>
-  <div class="df-kpis" id="df-kpis" aria-live="polite"></div>
-  <div class="re-grid">
-    <article class="di-card re-clients"><h2>Sin sustento por cliente</h2><p>Participación del importe pendiente</p><div class="re-ring"><canvas id="re-clients" role="img" aria-label="Importe sin sustento por cliente"></canvas><div class="re-ring-total" aria-hidden="true"><strong id="re-clients-total"></strong><small>sin sustento</small></div></div><ul class="re-legend" id="re-clients-legend"></ul></article>
-    <article class="di-card re-budgets"><h2>Sin sustento por presupuesto</h2><p>Distribución de MONTO PAGO</p><div class="re-ring"><canvas id="re-budgets" role="img" aria-label="Importe sin sustento por presupuesto"></canvas><div class="re-ring-total" aria-hidden="true"><strong id="re-budgets-total"></strong><small>importe pendiente</small></div></div><ul class="re-legend" id="re-budgets-legend"></ul></article>
-    <article class="di-card re-applicants"><div class="re-card-heading"><div><h2>Total sin sustento por solicitante</h2><p>Responsable de la validación · 10 principales</p></div><span class="re-icon"><i class="fa-solid fa-users"></i></span></div><div class="df-chart"><canvas id="re-applicants" role="img" aria-label="Monto sin sustento por solicitante y presupuesto"></canvas></div></article>
-    <article class="di-card re-trend"><div class="re-card-heading"><div><h2>Evolución sin sustento</h2><p>Fecha de solicitud · por presupuesto</p></div><label class="re-period">Ver por<select id="re-period"><option value="day">Día</option><option value="week" selected>Semana</option><option value="month">Mes</option><option value="year">A&ntilde;o</option></select></label></div><div class="df-chart re-trend-scroll"><div class="re-trend-inner" id="re-trend-inner"><canvas id="re-trend" role="img" aria-label="Evolución del importe sin sustento por fecha de solicitud"></canvas></div></div><small class="re-scroll-hint">Desliza el gráfico para consultar todas las fechas.</small></article>
-    {% for cliente, slug in [('Entel','entel'),('Claro','claro'),('Integratel','integratel')] %}
-    <article class="di-card re-beneficiary re-{{ slug }}"><div class="re-card-heading re-compact-heading" title="{{ cliente }} · Sin sustento por beneficiario · Todos los beneficiarios agrupados por DNI"><span class="re-client-label re-brand-{{ slug }}">{{ cliente }}</span><h2>Sin sustento por beneficiario</h2></div><div class="re-panel-total"><strong id="re-{{ slug }}-total"></strong><small id="re-{{ slug }}-count"></small></div><div class="df-chart re-beneficiary-scroll" tabindex="0" role="region" aria-label="Todos los beneficiarios de {{ cliente }} · desplazamiento vertical"><div class="re-beneficiary-inner" id="re-{{ slug }}-inner"><canvas id="re-{{ slug }}" role="img" aria-label="Importe sin sustento por técnico beneficiario de {{ cliente }}"></canvas></div></div></article>
-    {% endfor %}
-    <article class="di-card re-comparison"><div class="re-card-heading re-compact-heading" title="Por cliente y presupuesto · sin archivados"><h2>Sustento por validar</h2><span class="re-icon"><i class="fa-solid fa-chart-column"></i></span></div><div class="re-panel-total"><strong id="re-comparison-total"></strong><small>Por cliente y presupuesto</small></div><div class="df-chart"><canvas id="re-comparison" role="img" aria-label="Sustento por validar por cliente y presupuesto, excluyendo archivados"></canvas></div><div class="re-comparison-note" id="re-comparison-note"></div></article>
-    <article class="di-card re-archived"><div class="re-card-heading re-compact-heading" title="Por cliente y presupuesto · solo archivados"><h2>Sustentos archivados</h2><span class="re-icon"><i class="fa-solid fa-box-archive"></i></span></div><div class="re-panel-total"><strong id="re-archived-total"></strong><small>Por cliente y presupuesto</small></div><div class="df-chart"><canvas id="re-archived" role="img" aria-label="Sustentos archivados por cliente y presupuesto"></canvas></div><div class="re-comparison-note" id="re-archived-note"></div></article>
+  {% endcall %}
+  {# Vista puntual con el estilo del dashboard de Claro: cada tarjeta y gráfico abre su detalle al hacer clic. #}
+  <div class="dor-kpis" id="cc-kpis"></div>
+  <div class="dor-fila">
+    <article class="dor-card"><header><div><h2>Depositado y sustentado</h2><p>Barras: depositado por fecha de pago. Línea: sustentado por fecha de sustento.</p></div>
+      <div class="dor-modo" id="cc-periodo" role="group" aria-label="Agrupar por"><button type="button" data-periodo="dia" aria-pressed="true">Por día</button><button type="button" data-periodo="semana" aria-pressed="false">Por semana</button></div></header>
+      <div class="dc-trend-scroll"><div class="dor-canvas dor-canvas-bajo"><canvas id="cc-evolucion" role="img" aria-label="Depositado y sustentado en el tiempo"></canvas></div></div></article>
+    <article class="dor-card"><header><div><h2>¿Desde cuándo falta el sustento?</h2><p>Importe sin sustento por días desde el pago. Al corte, todos los meses.</p></div></header>
+      <div class="dor-canvas dor-canvas-bajo"><canvas id="cc-antiguedad" role="img" aria-label="Importe sin sustento por días desde el pago"></canvas></div></article>
   </div>
+  <div class="dor-fila">
+    <article class="dor-card"><header><div><h2>Técnicos con más pendiente</h2><p>Los 10 con más importe sin sustento, agrupados por DNI. Clic para ver sus solicitudes.</p></div></header>
+      <div class="dor-canvas"><canvas id="cc-tecnicos" role="img" aria-label="Técnicos con más importe sin sustento"></canvas></div></article>
+    <article class="dor-card"><header><div><h2>Sin sustento por cliente</h2><p>Gasto Cobra y Refacturable pendientes de sustento.</p></div></header>
+      <div class="dor-canvas"><canvas id="cc-clientes" role="img" aria-label="Importe sin sustento por cliente"></canvas></div></article>
+  </div>
+  <article class="dor-card"><header><div><h2>Depositado por tipo de gasto</h2><p>En qué se va la caja chica del periodo elegido.</p></div></header>
+    <div class="dor-canvas dor-canvas-bajo"><canvas id="cc-conceptos" role="img" aria-label="Depositado por tipo de gasto"></canvas></div></article>
+  <article class="dor-card dor-detalle" id="cc-detalle" hidden></article>
+  {% if refacturables is not none %}
+  <h2 class="dor-seccion">Gasto Cobra y Refacturable <small>Solicitudes del módulo Caja Chica, con sus propios filtros</small></h2>
+  {% include '_dashboard_refacturables.html' %}
+  {% endif %}
   <p class="df-caption" id="df-caption" role="status"></p>
 </section>
 <script id="di-data" type="application/json">{{ dashboard|tojson }}</script>
 <script src="/static/js/dashboard-finanzas-model.js?v=4"></script>
 <script src="/static/js/dashboard-claro-model.js?v=4"></script>
 <script src="/static/js/dashboard-rendicion-model.js?v=4"></script>
-<script src="/static/js/dashboard-rendicion-ejecutivo.js?v=9"></script>
+<script src="/static/js/dash-puntual.js?v=2"></script>
+<script src="/static/js/cc-puntual.js?v=2"></script>

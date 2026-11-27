@@ -100,3 +100,15 @@ body:not(.dark-mode) .dor-gauge .dor-g-aguja { stroke: #475569; } body:not(.dark
 .dor-multi-lista label[hidden] { display: none; }
 .dor-multi-lista .dor-multi-todos { font-weight: 600; border-bottom: 1px solid var(--ios-hairline); border-radius: 0; }
 .dor-multi-limpiar { width: 100%; height: 30px; border: 1px solid var(--ios-hairline); background: transparent; color: var(--ios-label); border-radius: 8px; font-size: 12px; cursor: pointer; }
+
+/* Filtros en una sola fila (todos menos Claro): el rango y la última importación pasan a la línea del título. */
+@media (min-width: 1100px) {
+  .dor-una-fila .dashboard-header { position: relative; }
+  .dor-una-fila .dor-filtros { flex-wrap: nowrap; gap: 8px 10px; }
+  .dor-una-fila .dor-filtros .dor-campo { flex: 1 1 120px; min-width: 0; }
+  .dor-una-fila .dor-multi { width: 100%; }
+  .dor-una-fila .dor-multi-btn { min-width: 0; width: 100%; max-width: none; }
+  .dor-una-fila .dor-dias, .dor-una-fila .dor-check, .dor-una-fila .dor-limpiar { flex: none; white-space: nowrap; }
+  .dor-una-fila .dor-dias button { padding: 6px 10px; }
+  .dor-una-fila .dor-rango { position: absolute; top: 0; right: 0; flex-direction: row; align-items: center; gap: 10px; }
+}

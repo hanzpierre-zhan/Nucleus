@@ -1,0 +1,51 @@
+/* Pulido visual común (no cambia el diseño ni la distribución, solo el acabado).
+   No se carga en el dashboard de Claro. */
+
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+::selection { background: rgba(var(--ios-accent-rgb), .18); }
+
+/* Números alineados en tablas y KPIs */
+td, th, .tabulator-cell,
+[class*="kpi"], [class*="-stat"], .di-card, .dor-card, .dg2-card, .expense-card { font-variant-numeric: tabular-nums; }
+
+/* Transiciones suaves en controles */
+button, .btn, a, input, select, textarea, .tabulator-row, .sb a {
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .12s ease, opacity .16s ease;
+}
+button:not(:disabled):active, .btn:not(:disabled):active { transform: translateY(1px); }
+
+/* Foco visible y uniforme (teclado) */
+:focus-visible { outline: 2px solid rgba(var(--ios-accent-rgb), .5); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 0; }
+
+/* Barras de desplazamiento finas */
+* { scrollbar-width: thin; scrollbar-color: var(--ios-gray-2) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--ios-gray-2); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--ios-gray-1); }
+
+/* Tarjetas: brillo leve que sigue al mouse (Spotlight) y realce al pasar */
+.di-card, .dor-card, .dg2-card, .kpi-card, .expense-card, .df-analysis-card, .dv-sla-card, .up-stat, .data-stat, .inicio-tarjeta {
+  transition: box-shadow .2s ease, border-color .2s ease, transform .2s ease;
+}
+.nx-spot { position: relative; isolation: isolate; }
+.nx-spot::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 1;
+  background: radial-gradient(240px circle at var(--nx-x, 50%) var(--nx-y, 50%), rgba(var(--ios-accent-rgb), .07), transparent 70%);
+  opacity: 0; transition: opacity .25s ease;
+}
+.nx-spot:hover::after { opacity: 1; }
+.nx-spot:hover { box-shadow: var(--shadow-card); }
+
+/* Aparición suave del contenido al cargar */
+@keyframes nx-entrar { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.excel-main > * { animation: nx-entrar .35s ease-out both; }
+.nx-aparece { animation: nx-entrar .4s ease-out both; }
+
+/* Filas de tablas: realce al pasar */
+.tabulator-row.tabulator-selectable:hover { background-color: rgba(var(--ios-accent-rgb), .05); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

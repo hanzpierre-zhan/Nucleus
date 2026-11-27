@@ -41,10 +41,14 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 246px), 1fr));
   gap: 10px;
 }
-.di-page.di-finance .df-analysis :is(.df-analysis-kpi, .df-analysis-card) { min-height: 0; padding: 12px; }
-.df-analysis-kpi { gap: 5px; border-inline-start: 3px solid var(--df-kind, var(--ios-hairline)) !important; }
-.df-analysis-kpi strong { font-size: clamp(19px, 2vw, 27px); line-height: 1.2; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.df-analysis-kpi small { font-size: 12px; color: var(--ios-secondary); }
+.di-page.di-finance .df-analysis .df-analysis-card { min-height: 0; padding: 12px; }
+/* Tarjetas de resumen con el mismo estilo que las del dashboard de Claro (Operación diaria). */
+.di-page.di-finance .df-analysis .df-analysis-kpi { min-height: 0; padding: 12px 14px; gap: 0; background: var(--ios-card-bg); border: 1px solid var(--ios-hairline) !important; border-radius: 12px; box-shadow: none; }
+.df-analysis-kpi:hover { border-color: var(--ios-secondary) !important; }
+.df-analysis-kpi span { font-size: 12.5px; font-weight: 600; color: var(--ios-secondary); margin: 0 0 8px; display: flex; align-items: center; }
+.df-analysis-kpi:nth-child(n+2) span::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--df-kind); margin-right: 6px; flex: none; }
+.df-analysis-kpi strong { font-size: 26px; font-weight: 700; line-height: 1.1; color: var(--ios-label); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.df-analysis-kpi small { font-size: 11px; color: var(--ios-secondary); margin-top: 6px; }
 .df-analysis-kpi:nth-child(2) { --df-kind: var(--di-blue, #2563eb); }
 .df-analysis-kpi:nth-child(3) { --df-kind: var(--di-green, #16865b); }
 .df-analysis-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }

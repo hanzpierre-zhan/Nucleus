@@ -1,13 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard {{ dashboard.titulo }}{% endblock %}
 {% set E = dashboard.etiquetas %}
+{% set _es_claro = request.path.startswith('/analytics/claro') %}
+{% block pulido %}{% if not _es_claro %}{{ super() }}{% endif %}{% endblock %}
 {% block content %}
 {# Operación diaria CM (Claro, Integratel, Entel y PEXT), al estilo del reporte diario del cliente: SLA, flujo, backlog, cierre, eficiencia, tiempos y causa raíz.
    Todos los gráficos muestran su número; clic en un punto o barra pregunta y abre el detalle de tickets. #}
 <link rel="stylesheet" href="/static/css/dashboard-integratel.css?v=7">
 <link rel="stylesheet" href="/static/css/analytics-comun.css?v=9">
-<link rel="stylesheet" href="/static/css/dashboard-dor.css?v=5">
-<section class="di-page dor-page">
+<link rel="stylesheet" href="/static/css/dashboard-dor.css?v=6">
+<section class="di-page dor-page{% if not _es_claro %} dor-una-fila{% endif %}">
 {% from '_dashboard_header.html' import dashboard_header with context %}
 {% call dashboard_header(dashboard.titulo, 'Operación diaria CM · SLA, backlog y causa raíz', '', 6) %}
 <div class="dor-filtros">

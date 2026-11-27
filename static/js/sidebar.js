@@ -35,7 +35,7 @@
 
   // Grupos: se recuerda cuáles están abiertos; el que tiene la página actual se abre solo.
   let abiertos = {};
-  try { abiertos = JSON.parse(leer('nucleus-sb-grupos', '{}')) || {}; } catch (_) {}
+  try { abiertos = JSON.parse(leer('nucleus-sb-grupos-v2', '{}')) || {}; } catch (_) {}
   barra.querySelectorAll('.sb-grupo').forEach(grupo => {
     const boton = grupo.querySelector('.sb-grupo-btn');
     const clave = grupo.dataset.grupo;
@@ -47,7 +47,7 @@
       const abrir = boton.getAttribute('aria-expanded') !== 'true';
       boton.setAttribute('aria-expanded', String(abrir));
       abiertos[clave] = abrir;
-      guardar('nucleus-sb-grupos', JSON.stringify(abiertos));
+      guardar('nucleus-sb-grupos-v2', JSON.stringify(abiertos));
     });
   });
 
