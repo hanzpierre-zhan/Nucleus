@@ -142,16 +142,17 @@ body #cc-solicitud-dialogo .cn-editor-textos .cn-multi input[type="text"] { min-
 #cc-solicitud-dialogo .cn-editor-textos > .cc-pendiente-campo > select { height: 40px; }
 .cn-editor .cn-items-editar { table-layout: fixed; min-width: 1050px; }
 .cn-editor .cn-items-editar th:nth-child(1) { width: 2%; }
-.cn-editor .cn-items-editar th:nth-child(2) { width: 15%; }
-.cn-editor .cn-items-editar th:nth-child(3) { width: 25%; }
+.cn-editor .cn-items-editar th:nth-child(2) { width: 13%; }
+.cn-editor .cn-items-editar th:nth-child(3) { width: 21%; }
 .cn-editor .cn-items-editar th:nth-child(4) { width: 5%; }
 .cn-editor .cn-items-editar th:nth-child(5) { width: 6%; }
 .cn-editor .cn-items-editar th:nth-child(6) { width: 8%; }
 .cn-editor .cn-items-editar th:nth-child(7) { width: 6%; }
 .cn-editor .cn-items-editar th:nth-child(8) { width: 9%; }
-.cn-editor .cn-items-editar th:nth-child(9) { width: 10%; }
-.cn-editor .cn-items-editar th:nth-child(10) { width: 11%; }
-.cn-editor .cn-items-editar th:nth-child(11) { width: 3%; }
+.cn-editor .cn-items-editar th:nth-child(9) { width: 8%; }
+.cn-editor .cn-items-editar th:nth-child(10) { width: 9%; }
+.cn-editor .cn-items-editar th:nth-child(11) { width: 10%; }
+.cn-editor .cn-items-editar th:nth-child(12) { width: 3%; }
 .cn-editor .cn-items-editar input, .cn-editor .cn-items-editar select { width: 100%; min-width: 0; height: 34px; box-sizing: border-box; }
 .cn-editor .cn-items-editar td { vertical-align: middle; }
 .cn-editor .cn-items-editar th { overflow-wrap: anywhere; }

@@ -56,7 +56,8 @@ body .sla-alerta-x {
   padding: 10px 0;
   border-top: 1px solid var(--ios-hairline, #e2e8f0);
 }
-.sla-alerta-lista span { display: grid; gap: 3px; }
+.sla-alerta-caso { display: grid; gap: 3px; min-width: 0; }
+.sla-alerta-ticket { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
 .sla-alerta-lista b { color: #1d4ed8; overflow-wrap: anywhere; }
 .sla-alerta-lista small { color: var(--ios-secondary, #475569); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
 .sla-alerta-lista em {

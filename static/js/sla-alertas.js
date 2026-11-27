@@ -26,7 +26,14 @@
     const ul = el('ul', 'sla-alerta-lista');
     for (const c of lista.slice(0, 4)) {
       const li = el('li', c.resto <= 15 ? 'critico' : '');
-      const izq = el('span'); izq.append(el('b', null, c.ticket), el('small', null, [c.proyecto, c.categoria, c.tecnico_nombre || c.tecnico].filter(Boolean).join(' · ')));
+      const izq = el('div', 'sla-alerta-caso');
+      const ticket = el('div', 'sla-alerta-ticket');
+      ticket.append(el('b', null, c.ticket));
+      if (c.proyecto) {
+        const marca = window.NucleusProjectBadge?.brand(c.proyecto);
+        ticket.append(el('span', marca ? 'project-badge project-badge--' + marca : '', c.proyecto));
+      }
+      izq.append(ticket, el('small', null, [c.categoria, c.tecnico_nombre || c.tecnico].filter(Boolean).join(' · ')));
       const restante = el('em', null, tiempo(c.resto));
       restante.setAttribute('aria-label', 'Quedan ' + tiempo(c.resto));
       li.append(izq, restante);

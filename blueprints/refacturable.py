@@ -859,7 +859,9 @@ def _cc_caso(sol):
         'id': sol.id, 'codigo': sol.codigo, 'tecnico': sol.tecnico, 'documento': sol.documento, 'proyecto': sol.proyecto,
         'cotizacion': (datos.get('revision') or {}).get('cotizacion') or '', 'site': datos['formulario'].get('site') or '',
         'wo': datos['formulario'].get('wo') or '', 'motivo': sol.motivo or '', 'tipos': tipos,
-        'estado': cc.ESTADO_SOLICITUD.get(sol.estado, sol.estado), 'estado_clave': sol.estado,
+        'estado': ' · '.join(nombre for clave, nombre in cc.PESTANAS.items() if clave in datos['etapas'])
+                  or cc.ESTADO_SOLICITUD.get(sol.estado, sol.estado),
+        'estado_clave': sol.estado,
         'creado': datos['creado'], 'depositado_en': datos['depositado_en'], 'total': datos['total'],
         'depositado': datos['deposito_monto'], 'gastado': cc.dinero(gastado),
         'devuelto': datos['devolucion_monto'] or '', 'por_rendir': cc.dinero(cc.montos_etapa(sol).get('por_rendir', Decimal('0'))) if sol.estado in ('DEPOSITADO', 'POR_DEVOLVER') else '0.00',

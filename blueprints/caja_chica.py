@@ -451,9 +451,11 @@ def gestion_lista():
         consulta = consulta.filter(CajaChicaSolicitud.proyecto.in_(alcance or {''}))
     filas = consulta.limit(5000).all()
     dataper = cc.dataper_por_documento(s.documento for s in filas)
+    tiempos_historicos = cc.tiempos_respuesta_historicos(filas)
     solicitudes = []
     for s in filas:
         datos = cc.a_dict(s, gestion=True)
+        datos['tiempo_respuesta_historico'] = tiempos_historicos.get((s.codigo or '').upper(), '')
         info = dataper.get(re.sub(r'[\s.\-]', '', s.documento or '').upper(), {})
         datos['dataper'] = bool(info.get('registrado'))
         datos['supervisor'] = info.get('supervisor') or datos['formulario'].get('supervisor') or ''

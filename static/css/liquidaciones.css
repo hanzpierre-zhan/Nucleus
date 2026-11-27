@@ -29,6 +29,17 @@ body.dark-mode .lq-evid-ok { color: #86efac !important; } body.dark-mode .lq-evi
 .lq-p-sustentar { background: rgba(37, 99, 235, .14); color: #1d4ed8; }
 .lq-p-proveedor { background: rgba(124, 58, 237, .14); color: #6d28d9; }
 .lq-o { background: var(--ios-fill); color: var(--ios-label); }
+.lq-o[data-ejecucion="pendiente"] { --lq-estado: #b45309; }
+.lq-o[data-ejecucion="curso"] { --lq-estado: #2563eb; }
+.lq-o[data-ejecucion="campo"] { --lq-estado: #0f766e; }
+.lq-o[data-ejecucion="sustentado"] { --lq-estado: #15803d; }
+.lq-o[data-ejecucion]:not([data-ejecucion=""]) {
+  background: color-mix(in srgb, var(--lq-estado) 15%, transparent);
+  color: var(--lq-estado);
+}
+body.dark-mode .lq-o[data-ejecucion]:not([data-ejecucion=""]) {
+  color: color-mix(in srgb, var(--lq-estado) 44%, white);
+}
 .lq-s-depositado, .lq-s-por_devolver { background: rgba(37, 99, 235, .14); color: #1d4ed8; }
 .lq-s-sustento, .lq-s-archivado { background: rgba(34, 197, 94, .16); color: #15803d; }
 .lq-s-validado, .lq-s-pendiente { background: rgba(240, 138, 28, .16); color: #c2410c; }
@@ -59,11 +70,11 @@ body.dark-mode .lq-descarga { color: #93c5fd !important; }
 @media (max-width: 760px) { .lq-totales { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Botón de la versión antigua (respaldo). */
-body .cn-gestion .cc-barra > .lq-clasico { background: #475569 !important; color: #fff !important; }
 
-/* Tarjetas por estado dentro de la barra: compactas como las pestañas, con el color de su pestaña. */
+/* Tarjetas por estado debajo de la barra de navegación. */
 .lq-gestion .cc-barra #cc-buscar { flex: 0 1 220px; min-width: 140px; }
-.lq-tarjetas { flex: 1 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding: 1px; }
+.lq-tarjetas { flex: none; min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.lq-tarjetas[hidden] { display: none; }
 html body .lq-tarjetas .lq-tarjeta[type] { flex: 1 1 0; min-width: 104px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px;
   padding: 5px 12px !important; min-height: 0 !important; height: auto !important;
   border: 1px solid color-mix(in srgb, var(--lq-color) 40%, transparent) !important; border-radius: 999px !important; box-shadow: none !important;
@@ -78,4 +89,3 @@ html body .lq-tarjetas .lq-tarjeta[type].activo small, html body .lq-tarjetas .l
 html body .lq-tarjetas .lq-tarjeta[type].activo .lq-tarjeta-n { background: rgba(255, 255, 255, .25); }
 html body.dark-mode .lq-tarjetas .lq-tarjeta[type] small { color: color-mix(in srgb, var(--lq-color) 70%, #fff); }
 .lq-chips:empty { display: none; }
-@media (max-width: 1100px) { .lq-tarjetas { flex-basis: 100%; order: 10; } }

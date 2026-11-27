@@ -1313,7 +1313,8 @@
       izquierda.append(original);
     }
     const revision = sol.revision || {};
-    if (revision.tiempo) derecha.append(el('p', 'cc-validacion-dato', 'Tiempo de respuesta: ' + revision.tiempo));
+    const tiempo = revision.tiempo || sol.tiempo_respuesta_historico;
+    if (tiempo) derecha.append(el('p', 'cc-validacion-dato', 'Tiempo de respuesta: ' + tiempo));
     if (revision.cotizacion) derecha.append(el('p', 'cc-validacion-dato', 'Cotización: ' + revision.cotizacion));
     if (revision.archivo) {
       const enlace = el('a', 'cc-foto', 'Descargar correo de validación');

@@ -4,7 +4,7 @@
 {# Liquidaciones con el diseño de Caja Chica: todas las evidencias de cada caso, ordenadas y descargables. #}
 <link rel="stylesheet" href="/static/css/caja-chica.css?v=107">
 <link rel="stylesheet" href="/static/css/cot-new.css?v=45">
-<link rel="stylesheet" href="/static/css/liquidaciones.css?v=8">
+<link rel="stylesheet" href="/static/css/liquidaciones.css?v=12">
 <section class="cc-gestion cn-gestion lq-gestion" aria-label="Liquidaciones">
   <div class="cc-barra">
     <input type="search" id="cc-buscar" placeholder="Buscar N.º, código, técnico, site o WO" aria-label="Buscar">
@@ -18,16 +18,10 @@
         <span class="cc-plata" data-plata="cajachica">S/ 0</span>
       </button>
     </nav>
-    {# Tarjetas por estado en la misma barra (monto y casos; clic = filtrar). #}
-    <div id="lq-tarjetas" class="lq-tarjetas" aria-label="Resumen por estado"></div>
     <button type="button" id="lq-zip" class="cn-redondo cn-morado" hidden title="Descargar expedientes seleccionados (ZIP)" aria-label="Descargar expedientes seleccionados (ZIP)">
       <i class="fa-solid fa-file-zipper" aria-hidden="true"></i>
     </button>
-    {# Por si acaso: la vista anterior de Liquidaciones sigue disponible. #}
-    <a id="lq-clasico" class="cn-redondo cn-neutro lq-clasico" href="/liquidaciones/clasico" title="Abrir la versión antigua de Liquidaciones" aria-label="Abrir la versión antigua de Liquidaciones">
-      <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
-    </a>
-    <button type="button" id="lq-excel" class="cc-excel" title="Exportar a Excel lo que ves" aria-label="Exportar a Excel">
+    <button type="button" id="lq-excel" class="cn-redondo cn-verde" title="Exportar a Excel lo que ves" aria-label="Exportar a Excel">
       <i class="fa-solid fa-file-excel" aria-hidden="true"></i>
     </button>
     <div class="cc-ajustes">
@@ -36,11 +30,11 @@
       </button>
       <div id="lq-ajustes-menu" class="cc-ajustes-menu" role="menu" hidden>
         <a role="menuitem" class="vn-enlace" href="/liquidaciones/lpu"><i class="fa-solid fa-list" aria-hidden="true"></i> LPU (lista de precios)</a>
-        <a role="menuitem" class="vn-enlace" href="/liquidaciones/clasico"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Versión antigua de Liquidaciones</a>
         <button type="button" role="menuitem" data-accion="limpiar"><i class="fa-solid fa-filter-circle-xmark" aria-hidden="true"></i> Limpiar filtros y búsqueda</button>
       </div>
     </div>
   </div>
+  <div id="lq-tarjetas" class="lq-tarjetas" aria-label="Resumen por estado"></div>
   <nav id="lq-chips" class="lq-chips" aria-label="Filtros rápidos"></nav>
   <div class="cc-tabla" id="lq-tabla" tabindex="0" role="region" aria-label="Tabla de liquidaciones">
     <div class="cc-encabezado" id="lq-encabezado"></div>
@@ -57,5 +51,5 @@
   </dialog>
   <div class="cc-filtro" id="lq-filtro" role="dialog" aria-label="Filtrar columna" hidden></div>
 </section>
-<script src="/static/js/liquidaciones.js?v=6" defer></script>
+<script src="/static/js/liquidaciones.js?v=12" defer></script>
 {% endblock %}

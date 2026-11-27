@@ -149,9 +149,10 @@
   const plano = t => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   function plantilla() {
-    const minimo = columnas.reduce((s, c) => s + parseInt(COLUMNAS[c].ancho.slice(7), 10), 0) + 12 * columnas.length + 140 + (puedeEliminar ? 52 : 0);
+    const anchoAcciones = tab === 'atendido' && puedeGestionar ? (puedeAdminCampos ? 178 : 144) : 112;
+    const minimo = columnas.reduce((s, c) => s + parseInt(COLUMNAS[c].ancho.slice(7), 10), 0) + 12 * columnas.length + anchoAcciones + 28 + (puedeEliminar ? 52 : 0);
     $('cn-tabla').style.setProperty('--cc-min', minimo + 'px');
-    return [...(puedeEliminar ? ['40px'] : []), '112px', ...columnas.map(c => COLUMNAS[c].ancho)].join(' ');
+    return [...(puedeEliminar ? ['40px'] : []), anchoAcciones + 'px', ...columnas.map(c => COLUMNAS[c].ancho)].join(' ');
   }
 
   function pintarEncabezado() {
@@ -651,11 +652,12 @@
     const feeCaja = el('label', 'cn-editor-fee'); feeCaja.append(el('span', null, 'FEE %'), fee);
     cabeza.append(t, feeCaja);
     const tabla = el('table', 'cn-items-tabla cn-items-editar');
-    const cab = el('tr'); ['#', 'Tipo', 'Descripción', 'Und', 'Cant.', 'V. unit. inicial', '% Terc.', 'V. tercerizado', 'V. unit. final', 'Valor final', ''].forEach(x => cab.append(el('th', null, x)));
+    const cab = el('tr'); ['#', 'Tipo', 'Descripción', 'Und', 'Cant.', 'V. unit. inicial', '% Terc.', 'V. tercerizado', 'V. unit. final', 'Valor final', 'Comentarios', ''].forEach(x => cab.append(el('th', null, x)));
     const cuerpo = el('tbody'), pieTabla = el('tfoot'), filaPie = el('tr');
     const totVu = el('td', 'cc-num cn-pie-vu'), totFee = el('td', 'cc-num cn-pie-total');
     const etiquetaPie = el('td', 'cn-pie-etiqueta', 'Sub total · Sub total + FEE'); etiquetaPie.colSpan = 8;
-    filaPie.append(etiquetaPie, totVu, totFee, el('td')); pieTabla.append(filaPie);
+    const espacioPie = el('td'); espacioPie.colSpan = 2;
+    filaPie.append(etiquetaPie, totVu, totFee, espacioPie); pieTabla.append(filaPie);
     tabla.append(cab, cuerpo, pieTabla);
     const sub = el('span'), feeMonto = el('span'), feeTexto = el('span', 'cc-nota'), total = el('strong');
     function fila(item = {}) {
@@ -665,21 +667,22 @@
       const texto = entrada(item.texto || item.descripcion, 'cn-item-texto'), und = entrada(item.und || 'UND', 'cn-item-und');
       const cant = entrada(item.cantidad || '1', 'cn-item-num', 'decimal'), vu = entrada(item.valor_unitario, 'cn-item-num', 'decimal');
       const pct = entrada(item.tercerizado ?? (item.valor_unitario ? '0' : '20'), 'cn-item-num cn-item-pct', 'decimal');
+      const comentarios = entrada(item.comentarios, 'cn-item-comentarios');
       const vTerc = el('td', 'cc-num cn-item-calc'), vFinal = el('td', 'cc-num cn-item-calc'), tot = el('td', 'cc-num cn-item-total');
       const quitar = el('button', 'cn-item-quitar'); quitar.type = 'button'; quitar.title = 'Quitar ítem'; quitar.append(icono('fa-trash-can'));
       quitar.addEventListener('click', () => { tr.remove(); recalcular(); });
       [cant, vu, pct].forEach(i => i.addEventListener('input', recalcular));
       const td = x => { const d = el('td'); d.append(x); return d; };
-      tr.append(n, td(tipo), td(texto), td(und), td(cant), td(vu), td(pct), vTerc, vFinal, tot, td(quitar));
+      tr.append(n, td(tipo), td(texto), td(und), td(cant), td(vu), td(pct), vTerc, vFinal, tot, td(comentarios), td(quitar));
       // V. tercerizado = V. unit. × %; V. unit. final = V. unit. + V. tercerizado; Valor final = V. unit. final × cantidad.
       tr.leer = () => {
         const terc = Math.round(num(vu.value) * num(pct.value)) / 100, final = Math.round((num(vu.value) + terc) * 100) / 100;
         const base = Math.round(num(cant.value) * final * 100) / 100, f = num(fee.value);
         return {base, terc, final, item: {tipo: tipo.value, texto: texto.value.trim(), und: und.value.trim(), cantidad: cant.value.trim(), valor_unitario: vu.value.trim(),
           tercerizado: String(num(pct.value)), valor_tercerizado: terc.toFixed(2), valor_unitario_final: final.toFixed(2), valor_final: base.toFixed(2),
-          fee: String(f), valor_total: (Math.round(base * (1 + f / 100) * 100) / 100).toFixed(2), comentarios: item.comentarios || ''}};
+          fee: String(f), valor_total: (Math.round(base * (1 + f / 100) * 100) / 100).toFixed(2), comentarios: comentarios.value.trim()}};
       };
-      tr.pintar = i => { const l = tr.leer(); n.textContent = i + 1; vTerc.textContent = dinero(l.terc); vFinal.textContent = dinero(l.final); tot.textContent = dinero(l.base); };
+      tr.pintar = i => { const l = tr.leer(); n.textContent = i + 1; comentarios.setAttribute('aria-label', 'Comentarios del ítem ' + (i + 1)); vTerc.textContent = dinero(l.terc); vFinal.textContent = dinero(l.final); tot.textContent = dinero(l.base); };
       cuerpo.append(tr); return tr;
     }
     function recalcular() {
@@ -1403,6 +1406,10 @@
     } else if (p === 'transito') lista.push(['Pasar a Proveedor (se encontró proveedor)', 'cn-morado', 'fa-file-invoice', () => transitoAProveedor(c)]);
     else if (p === 'pendientes') lista.push(['Completar WO y site', 'cn-naranja', 'fa-location-dot', () => completarWoSite(c)]);
     if (puedeAdminCampos) lista.push(['Editar campos (administrador)', 'cn-neutro', 'fa-user-pen', () => editarCampos(c)]);
+    if (p === 'atendido' && c['ADJUNTO CORREO CLIENTE']) {
+      lista.push(['Descargar correo de aprobación', 'cn-azul', 'fa-envelope-open-text',
+        () => window.location.assign(c['ADJUNTO CORREO CLIENTE'])]);
+    }
     return lista;
   }
   // WO / Site pendiente: se completan el N.º WO y el site; al tener ambos sale de la pestaña.

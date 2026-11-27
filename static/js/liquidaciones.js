@@ -11,8 +11,10 @@
   const fecha = t => { const s = String(t || ''); return s ? s.replace('T', ' ').slice(0, 16) : '—'; };
   const dialogo = $('cc-solicitud-dialogo');
   const CLIENTES = {CLARO: 'Claro', ENTEL: 'Entel', INTEGRATEL: 'Integratel', PEXT: 'PEXT'};
+  const COLOR_EJECUCION = {'pendiente': 'pendiente', 'pdt. ejecutar': 'pendiente',
+    'en ejecucion': 'curso', 'ejecutado en campo': 'campo', 'sustentado': 'sustentado'};
 
-  let tab = 'cotizaciones', chip = '', orden = null, filtros = {};  // filtros: columna -> valores elegidos
+  let tab = 'cotizaciones', chip = '', orden = null, filtros = {}, busquedas = {};
   try { tab = localStorage.getItem('lq-tab') || tab; } catch (_) {}
   const datos = {cotizaciones: null, cajachica: null};
   const seleccion = {cotizaciones: new Set(), cajachica: new Set()};
@@ -43,10 +45,16 @@
          s.append(a, el('small', null, c.correlativo + ' · ' + (CLIENTES[c.cliente] || c.cliente || '—'))); return s; }},
       {id: 'site', titulo: 'Site / WO', ancho: 'minmax(170px, 1.1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
        celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', null, c.site || '—'), el('small', null, c.wo || 'Sin WO')); return s; }},
-      {id: 'estado', titulo: 'Estado', ancho: 'minmax(150px, 1fr)', filtro: c => c.pestana || '', texto: c => c.pestana + ' ' + c.estado_pago,
-       celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', 'cc-chip lq-p-' + c.pestana_clave, c.pestana), el('small', null, c.estado_pago || c.interaccion || '—')); return s; }},
-      {id: 'ejecucion', titulo: 'Ejecución', ancho: 'minmax(130px, .8fr)', texto: c => c.estado_operativo || c.estatus || '—',
-       celda: c => el('span', 'cc-chip lq-o', c.estado_operativo || c.estatus || '—')},
+      {id: 'estado', titulo: 'Estado de cotización', ancho: 'minmax(185px, 1fr)', texto: c => c.pestana || '—',
+       celda: c => el('span', 'cc-chip lq-p-' + c.pestana_clave, c.pestana || '—')},
+      {id: 'pago', titulo: 'Estado de pago', ancho: 'minmax(175px, .8fr)', texto: c => c.estado_pago || '—'},
+      {id: 'ejecucion', titulo: 'Estado de ejecución', ancho: 'minmax(180px, .8fr)', texto: c => c.estado_operativo || '—',
+       celda: c => {
+         const estado = c.estado_operativo || '—';
+         const etiqueta = el('span', 'cc-chip lq-o', estado);
+         etiqueta.dataset.ejecucion = COLOR_EJECUCION[plano(estado.trim())] || '';
+         return etiqueta;
+       }},
       {id: 'evidencias', titulo: 'Evidencias', ancho: 'minmax(300px, 2fr)', filtro: c => Object.values(c.evidencias).includes('Pendiente') ? 'Con pendientes' : 'Completas', texto: c => Object.entries(c.evidencias).map(([k, v]) => k + ':' + v).join(' '),
        celda: c => {
          const s = el('span', 'lq-evids'), e = c.evidencias;
@@ -59,7 +67,7 @@
        }},
       {id: 'avance', titulo: 'Avance', ancho: 'minmax(90px, .6fr)', num: true, filtro: c => c.avance >= 100 ? '100 %' : c.avance >= 50 ? '50 a 99 %' : 'Menos de 50 %', texto: c => c.avance + ' %', orden: c => c.avance,
        celda: c => { const s = el('span', 'lq-avance'); const b = el('span', 'lq-avance-barra'); const f = el('span'); f.style.width = c.avance + '%'; f.dataset.nivel = c.avance >= 100 ? 'ok' : c.avance >= 50 ? 'medio' : 'bajo'; b.append(f); s.append(b, el('small', null, c.avance + ' %')); return s; }},
-      {id: 'liquidacion', titulo: 'Liquidación', ancho: 'minmax(120px, .8fr)', texto: c => c.seguimiento.estado_liquidacion || 'Pendiente'},
+      {id: 'liquidacion', titulo: 'Estado de liquidación', ancho: 'minmax(195px, .8fr)', texto: c => c.seguimiento.estado_liquidacion || 'Pendiente'},
       {id: 'monto', titulo: 'Sub total + FEE', ancho: 'minmax(120px, .8fr)', num: true, sinFiltro: true, texto: c => dinero(c.monto), orden: c => Number(c.monto) || 0,
        celda: c => el('strong', 'cc-num', dinero(c.monto))},
     ],
@@ -70,7 +78,7 @@
       {id: 'cotizacion', titulo: 'Cotización', ancho: 'minmax(150px, .9fr)', texto: c => c.cotizacion || '—'},
       {id: 'site', titulo: 'Site / CM', ancho: 'minmax(170px, 1fr)', filtro: c => c.site || '', texto: c => c.site + ' ' + c.wo,
        celda: c => { const s = el('span', 'lq-dos'); s.append(el('span', null, c.site || '—'), el('small', null, c.wo || '—')); return s; }},
-      {id: 'estado', titulo: 'Estado', ancho: 'minmax(130px, .8fr)', texto: c => c.estado, celda: c => el('span', 'cc-chip lq-s-' + c.estado_clave.toLowerCase(), c.estado)},
+      {id: 'estado', titulo: 'Estado de Caja Chica', ancho: 'minmax(185px, .8fr)', texto: c => c.estado, celda: c => el('span', 'cc-chip lq-s-' + c.estado_clave.toLowerCase(), c.estado)},
       {id: 'tipos', titulo: 'Tipo', ancho: 'minmax(120px, .7fr)', texto: c => c.tipos.join(' · '),
        celda: c => { const s = el('span', 'lq-evids'); c.tipos.forEach(t => s.append(el('span', 'cc-chip ' + (t === 'Refacturable' ? 'cc-refacturable' : 'cc-gasto-cobra'), t))); return s; }},
       {id: 'montos', titulo: 'Depositado · gastado · devuelto', ancho: 'minmax(210px, 1.2fr)', num: true, sinFiltro: true, texto: c => dinero(c.depositado) + ' ' + dinero(c.gastado), orden: c => Number(c.depositado) || 0,
@@ -95,20 +103,21 @@
     cajachica: [['', 'Todas'], ['s:VALIDADO', 'Por depositar'], ['s:DEPOSITADO', 'Depositada'], ['s:POR_DEVOLVER', 'Por devolver'], ['s:SUSTENTO', 'Sustentada'], ['s:ARCHIVADO', 'Archivada'],
       ['sinfoto', 'Sin foto de depósito'], ['completo', 'Expediente completo']],
   };
-  function pasaChip(c) {
-    if (!chip) return true;
+  function pasaChip(c, clave = chip) {
+    if (!clave) return true;
     if (tab === 'cotizaciones') {
-      if (chip.startsWith('p:')) return c.pestana_clave === chip.slice(2);
-      return chip === 'listo' ? c.avance >= 100 : c.avance < 100;
+      if (clave.startsWith('p:')) return c.pestana_clave === clave.slice(2);
+      return clave === 'listo' ? c.avance >= 100 : c.avance < 100;
     }
-    if (chip.startsWith('s:')) return c.estado_clave === chip.slice(2);
-    if (chip === 'sinfoto') return !!c.depositado && !c.deposito;
+    if (clave.startsWith('s:')) return c.estado_clave === clave.slice(2);
+    if (clave === 'sinfoto') return !!c.depositado && !c.deposito;
     return !!c.deposito && c.boletas.length > 0 && c.evidencias.length > 0 && (!(Number(c.devuelto) > 0) || !!c.devolucion);
   }
   const lista = () => datos[tab] || [];
   function visibles() {
     const q = plano($('cc-buscar').value.trim());
     let filas = lista().filter(c => pasaChip(c) && (!q || plano(COL[tab].map(col => col.texto(c)).join(' ')).includes(q))
+      && COL[tab].every(col => !busquedas[col.id] || plano(col.texto(c)).includes(plano(busquedas[col.id].trim())))
       && Object.entries(filtros).every(([id, vals]) => { const col = COL[tab].find(x => x.id === id); return !col || vals.includes(valorFiltro(col, c)); }));
     if (orden) {
       const col = COL[tab].find(x => x.id === orden.col), v = col.orden || col.texto;
@@ -157,9 +166,10 @@
   const montoDe = c => Number(tab === 'cotizaciones' ? c.monto : c.depositado) || 0;
 
   function pintar() {
+    const filasFiltradas = visibles();
     document.querySelectorAll('.lq-tab').forEach(b => { b.classList.toggle('activa', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
     for (const t of ['cotizaciones', 'cajachica']) {
-      const filas = datos[t] || [];
+      const filas = t === tab ? filasFiltradas : datos[t] || [];
       document.querySelector('[data-cuenta="' + t + '"]').textContent = datos[t] ? filas.length : '…';
       const suma = filas.reduce((s, c) => s + (Number(t === 'cotizaciones' ? c.monto : c.depositado) || 0), 0);
       const p = document.querySelector('[data-plata="' + t + '"]'); p.textContent = plata(suma); p.title = 'Total: ' + dinero(suma);
@@ -172,12 +182,13 @@
       's:VALIDADO': ['#16a34a', 'fa-building-columns'], 's:DEPOSITADO': ['#f08a1c', 'fa-receipt'], 's:POR_DEVOLVER': ['#eab308', 'fa-rotate-left'],
       's:SUSTENTO': ['#7c3aed', 'fa-folder-open'], 's:ARCHIVADO': ['#0891b2', 'fa-box-archive'], '': ['#1d4ed8', 'fa-layer-group']};
     const tarjetas = $('lq-tarjetas'); tarjetas.replaceChildren();
+    tarjetas.hidden = tab === 'cajachica';
     const esEstado = clave => clave.startsWith('p:') || clave.startsWith('s:');
-    const estados = [...CHIPS[tab].filter(([clave]) => esEstado(clave)), ['', 'Total']];
+    const estados = tarjetas.hidden ? [] : [...CHIPS[tab].filter(([clave]) => esEstado(clave)), ['', 'Total']];
     // Cotizaciones: también la pestaña Registro si hay casos ahí.
     if (tab === 'cotizaciones' && lista().some(c => c.pestana_clave === 'registro')) estados.unshift(['p:registro', 'Registro']);
     for (const [clave, texto] of estados) {
-      const filas = clave ? lista().filter(c => { const g = chip; chip = clave; const r = pasaChip(c); chip = g; return r; }) : lista();
+      const filas = clave ? filasFiltradas.filter(c => pasaChip(c, clave)) : filasFiltradas;
       const suma = filas.reduce((t, c) => t + montoDe(c), 0);
       const t = el('button', 'lq-tarjeta' + (chip === clave && clave ? ' activo' : '') + (clave ? '' : ' lq-tarjeta-total')); t.type = 'button';
       const [color, simbolo] = COLOR_TARJETA[clave] || ['#94a3b8', 'fa-circle'];
@@ -192,7 +203,7 @@
     const chips = $('lq-chips'); chips.replaceChildren();
     for (const [clave, texto] of CHIPS[tab].filter(([clave]) => clave && !esEstado(clave))) {
       const b = el('button', 'lq-chip' + (chip === clave ? ' activo' : '')); b.type = 'button';
-      const n = clave ? lista().filter(c => { const g = chip; chip = clave; const r = pasaChip(c); chip = g; return r; }).length : lista().length;
+      const n = filasFiltradas.filter(c => pasaChip(c, clave)).length;
       b.append(el('span', null, texto), el('strong', null, String(n)));
       b.addEventListener('click', () => { chip = chip === clave ? '' : clave; pintar(); });
       chips.append(b);
@@ -201,8 +212,12 @@
     const cols = COL[tab];
     $('lq-tabla').style.setProperty('--cc-cols', ['40px', '86px', ...cols.map(c => c.ancho)].join(' '));
     $('lq-tabla').style.setProperty('--cc-min', (cols.reduce((s, c) => s + parseInt(c.ancho.slice(7), 10), 0) + 140 + 12 * cols.length) + 'px');
-    const cab = $('lq-encabezado'); cab.replaceChildren();
-    const filas = visibles();
+    const cab = $('lq-encabezado');
+    const activo = document.activeElement;
+    const foco = cab.contains(activo) && activo.dataset.buscar
+      ? {col: activo.dataset.buscar, inicio: activo.selectionStart, fin: activo.selectionEnd} : null;
+    cab.replaceChildren();
+    const filas = filasFiltradas;
     const todas = Object.assign(el('input'), {type: 'checkbox', title: 'Seleccionar todo lo visible'});
     todas.checked = filas.length > 0 && filas.every(c => seleccion[tab].has(c.id));
     todas.addEventListener('change', () => { filas.forEach(c => todas.checked ? seleccion[tab].add(c.id) : seleccion[tab].delete(c.id)); pintar(); });
@@ -221,7 +236,20 @@
         f.addEventListener('click', e => { e.stopPropagation(); abrirFiltro(col, f); });
         fila.append(f);
       }
-      th.append(fila); cab.append(th);
+      const buscar = el('input', 'cc-th-buscar');
+      Object.assign(buscar, {type: 'search', value: busquedas[col.id] || '', placeholder: 'Buscar…'});
+      buscar.dataset.buscar = col.id;
+      buscar.setAttribute('aria-label', 'Buscar en ' + col.titulo);
+      buscar.addEventListener('input', () => {
+        if (buscar.value.trim()) busquedas[col.id] = buscar.value;
+        else delete busquedas[col.id];
+        pintar();
+      });
+      th.append(fila, buscar); cab.append(th);
+    }
+    if (foco) {
+      const buscar = cab.querySelector('[data-buscar="' + foco.col + '"]');
+      if (buscar) { buscar.focus({preventScroll: true}); buscar.setSelectionRange(foco.inicio, foco.fin); }
     }
     // Filas
     const cuerpo = $('lq-lista'); cuerpo.replaceChildren();
@@ -265,7 +293,7 @@
     if (typeof XLSX === 'undefined') { avisar('Librería de exportación no disponible.'); return; }
     const filas = visibles().map(c => tab === 'cotizaciones' ? {
       'Correlativo': c.correlativo, 'N.º cotización': c.cotizacion, 'Cliente': CLIENTES[c.cliente] || c.cliente, 'Site': c.site, 'N.º WO': c.wo,
-      'Objetivo': c.objetivo, 'Estado': c.pestana, 'Interacción': c.interaccion, 'Estado de pago': c.estado_pago, 'Estado operativo': c.estado_operativo,
+      'Objetivo': c.objetivo, 'Estado de cotización': c.pestana, 'Interacción': c.interaccion, 'Estado de pago': c.estado_pago, 'Estado de ejecución': c.estado_operativo,
       'Cotizada': c.fechas.cotizada, 'Aprobada': c.fechas.aprobada, 'Pagada': c.fechas.pagada, 'Facturas proveedor': c.fechas.facturas,
       'PDF cotización': c.evidencias.cotizacion, 'Correo cliente': c.evidencias.correo, 'Captura depósito': c.evidencias.deposito,
       'Factura proveedor': c.evidencias.factura, 'Fotos sustento': c.evidencias.sustento, 'Depósitos Caja Chica': c.depositos_cc.map(d => d.codigo).join(', '),
@@ -274,7 +302,7 @@
       'Observación': c.seguimiento.observacion, 'Sub total + FEE': Number(c.monto) || 0,
     } : {
       'Código': c.codigo, 'Técnico': c.tecnico, 'DNI': c.documento, 'Proyecto': c.proyecto, 'Cotización': c.cotizacion, 'Site': c.site, 'CM/PM/PLM': c.wo,
-      'Tipo': c.tipos.join(' · '), 'Estado': c.estado, 'Depositado el': fecha(c.depositado_en), 'Solicitado': Number(c.total) || 0,
+      'Tipo': c.tipos.join(' · '), 'Estado de Caja Chica': c.estado, 'Depositado el': fecha(c.depositado_en), 'Solicitado': Number(c.total) || 0,
       'Depositado': Number(c.depositado) || 0, 'Gastado': Number(c.gastado) || 0, 'Devuelto': Number(c.devuelto) || 0,
       'Foto depósito': c.deposito ? 'Sí' : 'No', 'Boletas': c.boletas.length, 'Evidencias': c.evidencias.length,
       'Captura devolución': c.devolucion ? 'Sí' : 'No', 'Correo validación': c.correo ? 'Sí' : 'No',
@@ -319,7 +347,7 @@
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(ficha('fa-file-lines', 'Detalle', [['N.º', c.cotizacion + ' · ' + c.correlativo], ['Cliente', CLIENTES[c.cliente] || c.cliente], ['Site', c.site], ['N.º WO', c.wo],
       ['Objetivo', c.objetivo], ['Supervisor', c.supervisor], ['Sub total + FEE', dinero(c.monto)], ['Estado', c.pestana], ['Interacción', c.interaccion],
-      ['Estado de pago', c.estado_pago], ['Ejecución', c.estado_operativo || c.estatus]]));
+      ['Estado de pago', c.estado_pago], ['Estado de ejecución', c.estado_operativo]]));
     // Línea de tiempo del caso.
     const linea = el('section', 'cc-ficha'); const hl = el('h4', 'cc-ficha-titulo'); hl.append(icono('fa-timeline'), el('span', null, 'Línea de tiempo')); linea.append(hl);
     const pasos = el('ol', 'lq-linea');
@@ -393,7 +421,7 @@
   function verCajaChica(c) {
     const izquierda = el('div', 'cc-validacion-izquierda');
     izquierda.append(ficha('fa-file-lines', 'Detalle de la solicitud', [['Código', c.codigo], ['Técnico', c.tecnico + ' · ' + c.documento], ['Proyecto', c.proyecto],
-      ['Cotización', c.cotizacion], ['Site', c.site], ['CM / PM / PLM', c.wo], ['Justificación', c.motivo], ['Estado', c.estado],
+      ['Cotización', c.cotizacion], ['Site', c.site], ['CM / PM / PLM', c.wo], ['Justificación', c.motivo], ['Estado de Caja Chica', c.estado],
       ['Solicitado el', fecha(c.creado)], ['Depositado el', fecha(c.depositado_en)], ['Comentario del depósito', c.comentario_deposito]]));
     const totales = el('div', 'cc-rev-totales lq-totales');
     for (const [t, v, cls] of [['Solicitado', c.total], ['Depositado', c.depositado], ['Gastado', c.gastado, 'ok'], ['Devuelto', c.devuelto, 'dev'], ['Por rendir', c.por_rendir, 'rev']]) {
@@ -418,13 +446,13 @@
 
   // ── Pestañas, búsqueda, tuerca y carga ──
   document.querySelectorAll('.lq-tab').forEach(b => b.addEventListener('click', () => {
-    tab = b.dataset.tab; chip = ''; orden = null; filtros = {}; $('lq-filtro').hidden = true; try { localStorage.setItem('lq-tab', tab); } catch (_) {} pintar(); cargar(tab);
+    tab = b.dataset.tab; chip = ''; orden = null; filtros = {}; busquedas = {}; $('lq-filtro').hidden = true; try { localStorage.setItem('lq-tab', tab); } catch (_) {} pintar(); cargar(tab);
   }));
   $('cc-buscar').addEventListener('input', pintar);
   const menu = $('lq-ajustes-menu'), botonMenu = $('lq-ajustes-btn');
   botonMenu.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; botonMenu.setAttribute('aria-expanded', String(!menu.hidden)); });
   document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
-  menu.addEventListener('click', e => { const b = e.target.closest('[data-accion]'); if (!b) return; menu.hidden = true; if (b.dataset.accion === 'limpiar') { chip = ''; orden = null; filtros = {}; $('cc-buscar').value = ''; pintar(); } });
+  menu.addEventListener('click', e => { const b = e.target.closest('[data-accion]'); if (!b) return; menu.hidden = true; if (b.dataset.accion === 'limpiar') { chip = ''; orden = null; filtros = {}; busquedas = {}; $('cc-buscar').value = ''; pintar(); } });
   async function cargar(t) {
     if (datos[t]) return;
     const r = await fetch(t === 'cotizaciones' ? '/liquidaciones/api/v2/cotizaciones' : '/liquidaciones/api/v2/caja-chica');

@@ -11,6 +11,7 @@ Los rechazos no cierran la solicitud: la devuelven a la etapa anterior.
 - En validación → RECHAZADO: vuelve al técnico, que corrige y reenvía (PENDIENTE).
 - En depósito → PENDIENTE con motivo_rechazo: vuelve a validación.
 """
+import csv
 import io
 import json
 import os
@@ -18,6 +19,8 @@ import re
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
 
 from flask import current_app
 from PIL import Image, ImageOps
@@ -823,6 +826,47 @@ def revision_guardada(historial):
     return next((evento['revision'] for evento in reversed(historial) if 'revision' in evento), {})
 
 
+@lru_cache(maxsize=1)
+def _tiempos_viaticos_entel():
+    ruta = Path(__file__).with_name('data') / 'tiempos_viaticos_entel_2026_10.csv'
+    with ruta.open(encoding='utf-8', newline='') as archivo:
+        return {fila['codigo']: fila['tiempo'] for fila in csv.DictReader(archivo)}
+
+
+def tiempos_respuesta_historicos(solicitudes):
+    from models import NucleusData
+    from services.recursos_flm import familia
+
+    claves = {(familia(s.proyecto), (s.codigo or '').strip().upper()) for s in solicitudes}
+    if not claves:
+        return {}
+    posibles = {}
+    modulo = Proyecto.query.filter_by(nombre='Rendicion').first()
+    if modulo:
+        filas = NucleusData.query.with_entities(NucleusData.data_json).filter_by(proyecto_id=modulo.id)
+        for (raw,) in filas.yield_per(500):
+            try:
+                datos = json.loads(raw or '{}')
+            except ValueError:
+                continue
+            if not isinstance(datos, dict):
+                continue
+            clave = (familia(datos.get('Nombre del proyecto') or ''),
+                     str(datos.get('CODIGO DEPOSITO') or '').strip().upper())
+            tiempo = str(datos.get('TIEMPO DE RESPUESTA') or '').strip()
+            if clave in claves and clave[0] and tiempo in TIEMPOS_RESPUESTA:
+                posibles.setdefault(clave, set()).add(tiempo)
+    viaticos = _tiempos_viaticos_entel()
+    recuperados = {}
+    for proyecto, codigo in claves:
+        tiempos = posibles.get((proyecto, codigo), set())
+        if len(tiempos) == 1:
+            recuperados[codigo] = next(iter(tiempos))
+        elif not tiempos and proyecto == 'ENTEL' and codigo in viaticos:
+            recuperados[codigo] = viaticos[codigo]
+    return recuperados
+
+
 def a_dict(sol, gestion=False):
     montos = montos_etapa(sol)
     historial = json.loads(sol.historial or '[]')
@@ -922,6 +966,8 @@ def exportar_excel(solicitudes, dataper=None):
     from openpyxl.styles import Font, PatternFill
     from openpyxl.utils import get_column_letter
 
+    solicitudes = list(solicitudes)
+    tiempos_historicos = tiempos_respuesta_historicos(solicitudes)
     libro = Workbook()
     hoja = libro.active
     hoja.title = 'Caja Chica'
@@ -942,7 +988,7 @@ def exportar_excel(solicitudes, dataper=None):
                                ESTADO_SOLICITUD.get(solicitud.estado, solicitud.estado), solicitud.total])
         revision = datos['revision']
         cotizacion = revision.get('cotizacion') or ''
-        tiempo_respuesta = revision.get('tiempo') or ''
+        tiempo_respuesta = revision.get('tiempo') or tiempos_historicos.get((solicitud.codigo or '').upper(), '')
         info = (dataper or {}).get(re.sub(r'[\s.\-]', '', solicitud.documento or '').upper(), {})
         supervisor = info.get('supervisor') or formulario.get('supervisor') or ''
         registrado = 'Registrado' if info.get('registrado') else 'No registrado'
