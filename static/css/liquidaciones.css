@@ -10,6 +10,14 @@ body .lq-chip.activo strong { background: rgba(255, 255, 255, .22); color: #fff;
 .lq-num { align-items: flex-end; }
 .lq-evids { display: flex; flex-wrap: wrap; gap: 4px; }
 .lq-evids-cotizacion { flex-wrap: nowrap; white-space: nowrap; }
+.lq-gestion .cc-tabla .cc-fila-solicitud { padding-block: 6px; }
+.lq-celda-texto {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 body .lq-evid { display: inline-flex; align-items: center; padding: 2px 9px !important; min-height: 0 !important; border-radius: 999px !important; font-size: 11.5px; font-weight: 600;
   border: 0 !important; box-shadow: none !important; line-height: 1.6; }
 body .lq-evid-accion { cursor: pointer; }

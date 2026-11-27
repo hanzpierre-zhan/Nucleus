@@ -136,7 +136,8 @@
       const importe = IMPORTES.has(titulo);
       const numerico = importe || ['Boletas', 'Evidencias'].includes(titulo);
       COL[origen].push({
-        id: 'excel-' + indice, titulo, ancho: titulo.length > 22 ? 'minmax(215px, 1fr)' : 'minmax(145px, 1fr)',
+        id: 'excel-' + indice, titulo, ancho: titulo === 'Descripción' ? 'minmax(245px, 1.4fr)'
+          : titulo.length > 22 ? 'minmax(215px, 1fr)' : 'minmax(145px, 1fr)',
         num: numerico,
         texto: c => {
           const valor = leer(c);
@@ -330,7 +331,13 @@
       const acciones = el('span', 'cc-acciones-rapidas cc-col-acciones');
       acciones.append(redondo('Ver evidencias', 'cn-azul', 'fa-eye', () => tab === 'cotizaciones' ? verCotizacion(c) : verCajaChica(c)),
         redondo('Descargar expediente (ZIP)', 'cn-morado', 'fa-file-zipper', () => descargarZip([c.id])));
-      fila.append(sel, acciones, ...COL[tab].map(col => col.celda ? col.celda(c) : el('span', null, col.texto(c))));
+      fila.append(sel, acciones, ...COL[tab].map(col => {
+        if (col.celda) return col.celda(c);
+        const texto = col.texto(c);
+        const celda = el('span', 'lq-celda-texto' + (col.num ? ' cc-num' : ''), texto);
+        if (texto) celda.title = texto;
+        return celda;
+      }));
       cuerpo.append(fila);
     }
     if (filas.length > 600) cuerpo.append(el('p', 'cc-vacio', 'Se muestran 600 de ' + filas.length + '. Usa la búsqueda o los filtros para ver el resto.'));
